@@ -3,9 +3,11 @@
  *
  * Ogni riga vive in una tabella diversa (quotes / sr_progetti / fv_progetti /
  * <mod>_progetti): la delete raggruppa i selezionati per tipo e cancella
- * tabella per tabella, sommando il conteggio REALE. Gate su admin/super-admin
- * (coerente con la RLS q_del di quotes; per i moduli la RLS è per-azienda ma
- * uniformiamo la UI: elimina solo chi ha davvero il potere ovunque).
+ * tabella per tabella, sommando il conteggio REALE.
+ *
+ * Chi elimina (12/11/2026): chi può modificare i preventivi, non solo l'amministratore. Si sposta
+ * nel cestino, recuperabile 30 giorni; i computi, che il cestino non l'hanno, si eliminano
+ * definitivamente dopo la conferma. Prima nessuno poteva togliere un computo creato per sbaglio.
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +19,7 @@ import { X, Trash2, Loader2, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { chiaveBozzaComputo } from "@/lib/computo/editorNativo";
 import { formatCurrency } from "@/lib/formatters";
 import type { UnifiedRow, PreventivoTipo } from "./UnifiedPreventiviList";
 
@@ -132,9 +135,38 @@ export async function segnaComePersi(rows: UnifiedRow[], companyId: string): Pro
   return { aggiornati, errors };
 }
 
+/**
+ * Elimina i computi: la bozza salvata nel gestionale e, se c'è, la copia su questo computer (che
+ * altrimenti ricomparirebbe in elenco come «solo su questo PC»). Conta quelli spariti davvero.
+ */
+export async function eliminaComputi(ids: string[], companyId: string, userId: string | null | undefined, storage: Pick<Storage, "getItem" | "removeItem"> | null = typeof localStorage === "undefined" ? null : localStorage): Promise<{ deleted: number; errors: string[] }> {
+  if (!ids.length) return { deleted: 0, errors: [] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  // Quali sono nel gestionale: gli altri esistono solo su questo computer.
+  const prima = await db.from("computo_preventivo_drafts").select("id").eq("company_id", companyId).in("id", ids);
+  if (prima.error) return { deleted: 0, errors: [prima.error.message] };
+  const nelGestionale = new Set(((prima.data ?? []) as Array<{ id: string }>).map((r) => r.id));
+  const { data, error } = nelGestionale.size
+    ? await db.from("computo_preventivo_drafts").delete().eq("company_id", companyId).in("id", [...nelGestionale]).select("id")
+    : { data: [], error: null };
+  if (error) return { deleted: 0, errors: [error.message] };
+  const tolti = new Set(((data ?? []) as Array<{ id: string }>).map((r) => r.id));
+  if (userId && storage) {
+    for (const id of ids) {
+      const chiave = chiaveBozzaComputo(companyId, userId, `preventivo:${id}`);
+      try {
+        // La copia locale si toglie solo se la bozza del gestionale è sparita o non c'era mai.
+        if (storage.getItem(chiave) !== null && (tolti.has(id) || !nelGestionale.has(id))) { storage.removeItem(chiave); tolti.add(id); }
+      } catch { /* senza accesso al computer resta la copia locale: la si toglie dall'editor */ }
+    }
+  }
+  return { deleted: tolti.size, errors: [] };
+}
+
 export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, puoModificare = false }: Props) {
-  const { role } = useAuth();
-  const canDelete = role === "super_admin" || role === "company_admin";
+  const { role, user } = useAuth();
+  const canDelete = role === "super_admin" || role === "company_admin" || puoModificare;
   const [working, setWorking] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [confermaPersi, setConfermaPersi] = useState(false);
@@ -143,7 +175,8 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
   const valoreSelezionati = selectedRows.reduce((t, r) => t + (r.totale != null && r.totale > 0 ? r.totale : 0), 0);
   // I computi non hanno cestino: si contano a parte e si dice che restano, invece di saltarli in silenzio.
   const daSpostare = selectedRows.filter((r) => TIPO_TABLE[r.tipo]);
-  const computiEsclusi = count - daSpostare.length;
+  const computi = selectedRows.filter((r) => r.tipo === "computo");
+  const nComputi = computi.length;
   const n = daSpostare.length;
   const daSegnare = righeDaSegnarePerse(selectedRows);
   const nPersi = daSegnare.length;
@@ -168,16 +201,23 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
 
   const runDelete = async () => {
     if (!companyId) { toast.error("Azienda non disponibile"); setConfirm(false); return; }
-    if (!canDelete) { toast.error("Solo un amministratore può eliminare i preventivi"); setConfirm(false); return; }
+    if (!canDelete) { toast.error("Non hai i permessi per eliminare i preventivi. Chiedi al titolare dell'azienda di darti l'accesso."); setConfirm(false); return; }
     setWorking(true);
     try {
-      const { deleted, errors } = await spostaNelCestino(daSpostare, companyId);
+      const cestino = await spostaNelCestino(daSpostare, companyId);
+      const eliminati = await eliminaComputi(computi.map((r) => r.id), companyId, user?.id);
+      const errors = [...cestino.errors, ...eliminati.errors];
+      const mancanti = (n - cestino.deleted) + (nComputi - eliminati.deleted);
       if (errors.length) {
-        toast.error(`Alcune eliminazioni non riuscite (${errors.length}). ${deleted} rimossi.`);
-      } else if (deleted === 0) {
-        toast.warning("Nessun preventivo eliminato (permessi insufficienti o già rimossi)");
+        toast.error(`Alcune eliminazioni non riuscite (${errors.length}). ${cestino.deleted + eliminati.deleted} rimossi.`);
+      } else if (mancanti > 0) {
+        toast.warning(`${mancanti} ${mancanti === 1 ? "non eliminato" : "non eliminati"}: non hai i permessi su ${mancanti === 1 ? "questo" : "questi"}. Chiedi al titolare dell'azienda di darti l'accesso.`);
       } else {
-        toast.success(`${deleted} ${deleted === 1 ? "preventivo spostato" : "preventivi spostati"} nel cestino — recuperabili per 30 giorni`);
+        const parti = [
+          cestino.deleted ? `${cestino.deleted} ${cestino.deleted === 1 ? "preventivo spostato" : "preventivi spostati"} nel cestino — recuperabili per 30 giorni` : null,
+          eliminati.deleted ? `${eliminati.deleted} ${eliminati.deleted === 1 ? "computo eliminato" : "computi eliminati"}` : null,
+        ].filter(Boolean);
+        toast.success(parti.join(" · "));
       }
       onDone();
     } catch (e) {
@@ -213,7 +253,7 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
           </Button>
         )}
         {!canDelete && (
-          <span className="text-xs text-slate-300">Eliminare: solo un amministratore</span>
+          <span className="text-xs text-slate-300">Eliminare: serve il permesso di modificare i preventivi</span>
         )}
         {canDelete && (
           <Button
@@ -249,7 +289,7 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {n > 0 ? `Sposta nel cestino ${n} ${n === 1 ? "preventivo" : "preventivi"}` : "I computi non vanno nel cestino"}
+              {n > 0 && nComputi > 0 ? `Elimina ${n + nComputi} preventivi` : n > 0 ? `Sposta nel cestino ${n} ${n === 1 ? "preventivo" : "preventivi"}` : `Elimina ${nComputi} ${nComputi === 1 ? "computo" : "computi"}`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {n > 0 && <>
@@ -257,20 +297,18 @@ export function UnifiedBulkToolbar({ selectedRows, companyId, onClear, onDone, p
                 {n === 1 ? " resta recuperabile" : " restano recuperabili"} dal Cestino per 30 giorni.
                 Dopo, l'eliminazione è definitiva.
               </>}
-              {computiEsclusi > 0 && <>
+              {nComputi > 0 && <>
                 {n > 0 && " "}
-                {computiEsclusi === 1 ? "Il computo selezionato resta" : `I ${computiEsclusi} computi selezionati restano`} in elenco:
-                si gestiscono dal loro editor.
+                {nComputi === 1 ? "Il computo selezionato si elimina" : `I ${nComputi} computi selezionati si eliminano`} definitivamente:
+                i computi non hanno il cestino e non si recuperano. Il preventivo firmato, se c'è, resta.
               </>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{n > 0 ? "Annulla" : "Chiudi"}</AlertDialogCancel>
-            {n > 0 && (
-              <AlertDialogAction onClick={runDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Sposta nel cestino
-              </AlertDialogAction>
-            )}
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={runDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {nComputi > 0 ? "Elimina" : "Sposta nel cestino"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

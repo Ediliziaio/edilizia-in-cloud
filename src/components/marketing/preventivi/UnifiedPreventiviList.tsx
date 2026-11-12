@@ -63,7 +63,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTableSelection } from "@/hooks/useTableSelection";
-import { UnifiedBulkToolbar, spostaNelCestino } from "./UnifiedBulkToolbar";
+import { UnifiedBulkToolbar, eliminaComputi, spostaNelCestino } from "./UnifiedBulkToolbar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -191,7 +191,8 @@ export function UnifiedPreventiviList() {
   }));
   const [vista, setVista] = useState<VistaElenco>(() => vistaDaTesto(searchParams.get("vista")));
   const { role, user } = useAuth();
-  const puoEliminare = role === "super_admin" || role === "company_admin";
+  // Elimina chi modifica i preventivi (12/11/2026), non solo l'amministratore.
+  const puoEliminare = role === "super_admin" || role === "company_admin" || canEditPreventivi;
   const [daCestinare, setDaCestinare] = useState<UnifiedRow | null>(null);
   const [inDuplicazione, setInDuplicazione] = useState<string | null>(null);
 
@@ -1107,10 +1108,11 @@ export function UnifiedPreventiviList() {
     const riga = daCestinare;
     setDaCestinare(null);
     if (!riga || !companyId) return;
-    const { deleted, errors } = await spostaNelCestino([riga], companyId);
-    if (errors.length) toast.error("Non sono riuscito a spostarlo nel cestino: " + errors[0]);
-    else if (deleted === 0) toast.warning("Non spostato (permessi insufficienti o già rimosso)");
-    else toast.success("Spostato nel cestino — recuperabile per 30 giorni");
+    const computo = riga.tipo === "computo";
+    const { deleted, errors } = computo ? await eliminaComputi([riga.id], companyId, user?.id) : await spostaNelCestino([riga], companyId);
+    if (errors.length) toast.error((computo ? "Non sono riuscito a eliminarlo: " : "Non sono riuscito a spostarlo nel cestino: ") + errors[0]);
+    else if (deleted === 0) toast.warning("Non eliminato: non hai i permessi su questo preventivo. Chiedi al titolare dell'azienda di darti l'accesso.");
+    else toast.success(computo ? "Computo eliminato" : "Spostato nel cestino — recuperabile per 30 giorni");
     void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith("unified-prev") });
   };
   const freccia = (primo: UnifiedFilters["sort"], secondo: UnifiedFilters["sort"]) =>
@@ -1597,10 +1599,10 @@ export function UnifiedPreventiviList() {
                                     <Copy className="mr-2 h-3.5 w-3.5" /> {inDuplicazione === r.id ? "Duplico…" : "Duplica"}
                                   </DropdownMenuItem>
                                 )}
-                                {puoEliminare && r.tipo !== "computo" && <DropdownMenuSeparator />}
-                                {puoEliminare && r.tipo !== "computo" && (
+                                {puoEliminare && <DropdownMenuSeparator />}
+                                {puoEliminare && (
                                   <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDaCestinare(r)}>
-                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Sposta nel cestino
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" /> {r.tipo === "computo" ? "Elimina" : "Sposta nel cestino"}
                                   </DropdownMenuItem>
                                 )}
                               </DropdownMenuContent>
@@ -1684,15 +1686,17 @@ export function UnifiedPreventiviList() {
       <AlertDialog open={!!daCestinare} onOpenChange={(o) => { if (!o) setDaCestinare(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sposta {daCestinare?.numero} nel cestino</AlertDialogTitle>
+            <AlertDialogTitle>{daCestinare?.tipo === "computo" ? `Elimina il computo ${daCestinare?.titolo ?? ""}` : `Sposta ${daCestinare?.numero} nel cestino`}</AlertDialogTitle>
             <AlertDialogDescription>
-              Sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva.
+              {daCestinare?.tipo === "computo"
+                ? "I computi non hanno il cestino: si elimina definitivamente e non si recupera. Il preventivo firmato, se c'è, resta."
+                : "Sparisce dalla lista e resta recuperabile dal Cestino per 30 giorni. Dopo, l'eliminazione è definitiva."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction onClick={cestinaSingolo} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Sposta nel cestino
+              {daCestinare?.tipo === "computo" ? "Elimina" : "Sposta nel cestino"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
