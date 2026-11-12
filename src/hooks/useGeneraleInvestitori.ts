@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { MOVIMENTO_PREVISTO, notaMovimento } from "@/lib/orders/generali/movimentiFonti";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
 import { numeriPerInvestitori } from "@/lib/orders/generali/pianoConti";
@@ -34,6 +35,7 @@ export function messaggioInvestitori(e: unknown, cosa: string): string {
   if (err?.code === "22023" || err?.code === "P0002") return err.message ?? `Non è stato possibile salvare ${cosa}.`;
   if (err?.code === "42501") return "Non hai il permesso di modificare gli investitori di questa commessa.";
   if (err?.code === "23514") return `Un valore di ${cosa} non è accettato: controlla importi, percentuali e date.`;
+  if (e instanceof Error && !("code" in e)) return e.message;
   return `Non è stato possibile salvare ${cosa}. Riprova tra poco.`;
 }
 
@@ -129,7 +131,7 @@ export function useGeneraleInvestitori(riepilogo: RiepilogoGenerale | undefined,
   const piano = useGeneralePianoNumeri(riepilogo, { enabled: attivo });
   const oggi = oggiIso();
 
-  const numeriPiano = useMemo(() => (piano.piano ? numeriPerInvestitori(piano.piano) : null), [piano.piano]);
+  const numeriPiano = useMemo(() => (piano.piano && piano.piano.calendarioCompleto !== false ? numeriPerInvestitori(piano.piano) : null), [piano.piano]);
   const numeri = useMemo(
     () => (piano.piano && numeriPiano ? numeriDalPiano(numeriPiano, piano.piano.confronto.costi) : null),
     [piano.piano, numeriPiano],
@@ -261,7 +263,7 @@ export function useAggiungiMovimento(generaleId: string) {
         tipo: m.tipo,
         data: m.data,
         importo: Math.round(m.importo * 100) / 100,
-        nota: m.nota?.trim() || null,
+        nota: m.data > oggiIso() ? `${MOVIMENTO_PREVISTO} ${notaMovimento(m.nota)}`.trim() : m.nota?.trim() || null,
         unita_id: m.unitaId ?? null,
       });
       if (error) throw error;
@@ -275,6 +277,20 @@ export function useEliminaMovimento(generaleId: string) {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await db.from("generale_fonti_movimenti").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => void invalida.movimenti(),
+  });
+}
+
+export function useConfermaMovimento(generaleId: string) {
+  const invalida = useInvalida(generaleId);
+  return useMutation({
+    meta: { silent: true },
+    mutationFn: async ({ movimento, data }: { movimento: Movimento; data: string }) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || data > oggiIso()) throw new Error("Scegli la data effettiva, entro oggi.");
+      const nota = `${notaMovimento(movimento.nota)} Movimento confermato come effettuato il ${oggiIso()}.`.trim();
+      const { error } = await db.from("generale_fonti_movimenti").update({ data, nota }).eq("id", movimento.id).eq("generale_id", generaleId).eq("data", movimento.data).select("id").single();
       if (error) throw error;
     },
     onSuccess: () => void invalida.movimenti(),

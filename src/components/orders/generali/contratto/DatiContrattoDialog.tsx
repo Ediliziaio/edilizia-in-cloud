@@ -1,11 +1,18 @@
 // src/components/orders/generali/contratto/DatiContrattoDialog.tsx
 // Il contratto con il committente: importi, date, penale, anticipazione, ritenuta, CIG/CUP e IVA.
 // Il valore aggiornato si vede mentre si scrive: è quello che diventa il valore della generale.
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { generaleDaContratto } from "@/lib/orders/contrattiDestinazioni";
+import { collegaOriginaleAi } from "@/lib/orders/documentImportAi";
+import type { StoredContractFile } from "@/lib/orders/contractPreparation";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,17 +24,19 @@ import {
 import { Campo, CampoNumero } from "./campi";
 import { euro, haNumeriSbagliati } from "./formato";
 
-export function DatiContrattoDialog({ open, onOpenChange, generaleId, contratto, atti, valoreGenerale = null }: {
+const ContractImportDialog = lazy(() => import("@/components/orders/ContractImportDialog").then(m => ({ default: m.ContractImportDialog })));
+export function DatiContrattoDialog({ open, onOpenChange, generaleId, contratto, atti, valoreGenerale = null, avviaImportAi = false }: {
   open: boolean; onOpenChange: (o: boolean) => void; generaleId: string;
   contratto: ContrattoGenerale | null; atti: AttoAggiuntivo[];
   /** Il valore scritto creando la generale: si riparte da lì, non da un campo vuoto. */
   valoreGenerale?: number | null;
+  avviaImportAi?: boolean;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         {/* Il modulo nasce a ogni apertura con i valori di adesso. */}
-        {open && <Modulo onOpenChange={onOpenChange} generaleId={generaleId} iniziale={contratto ?? { ...CONTRATTO_VUOTO, importoBase: valoreGenerale }} atti={atti} nuovo={!contratto} />}
+        {open && <Modulo onOpenChange={onOpenChange} generaleId={generaleId} iniziale={contratto ?? { ...CONTRATTO_VUOTO, importoBase: valoreGenerale }} atti={atti} nuovo={!contratto} avviaImportAi={avviaImportAi} />}
       </DialogContent>
     </Dialog>
   );
@@ -42,24 +51,37 @@ function Sezione({ titolo, children }: { titolo: string; children: React.ReactNo
   );
 }
 
-function Modulo({ onOpenChange, generaleId, iniziale, atti, nuovo }: {
+function Modulo({ onOpenChange, generaleId, iniziale, atti, nuovo, avviaImportAi }: {
   onOpenChange: (o: boolean) => void; generaleId: string; iniziale: ContrattoGenerale; atti: AttoAggiuntivo[]; nuovo: boolean;
+  avviaImportAi: boolean;
 }) {
+  const { effectiveCompany, user } = useAuth();
+  const qc = useQueryClient();
+  const [importAi, setImportAi] = useState(avviaImportAi);
+  const [originale, setOriginale] = useState<StoredContractFile | null>(null);
+  const [confermato, setConfermato] = useState(false);
+  const [collegando, setCollegando] = useState(false);
+  const [revisioneImport, setRevisioneImport] = useState(0);
   const salva = useSalvaContratto(generaleId);
   const [c, setC] = useState<ContrattoGenerale>(iniziale);
   const metti = <K extends keyof ContrattoGenerale>(k: K, v: ContrattoGenerale[K]) => setC((x) => ({ ...x, [k]: v }));
   const errori = erroriContratto(c);
-  const bloccato = Object.keys(errori).length > 0 || haNumeriSbagliati(c);
+  const bloccato = Object.keys(errori).length > 0 || haNumeriSbagliati(c) || (originale !== null && !confermato);
   const valore = haNumeriSbagliati(c) ? null : valoreContratto(c, atti);
   const proposta = valore ? anticipazioneProposta(c, atti) : null;
   const testo = (v: string) => (v.trim() === "" ? null : v.trim());
 
-  const conferma = () => {
+  const conferma = async () => {
     if (bloccato) return;
-    salva.mutate(c, {
-      onSuccess: () => { toast.success(nuovo ? "Contratto salvato" : "Contratto aggiornato"); onOpenChange(false); },
-      onError: (e) => toast.error(messaggioContratto(e, "il contratto")),
-    });
+    setCollegando(true);
+    try {
+      if (originale && (!effectiveCompany?.id || !user?.id)) throw new Error("Sessione non disponibile: ricarica prima di salvare.");
+      await salva.mutateAsync(c);
+      if (originale) await collegaOriginaleAi(supabase, generaleId, effectiveCompany!.id, user!.id, originale);
+      void qc.invalidateQueries({ queryKey: ["order-attachments", generaleId] });
+      toast.success(nuovo ? "Contratto salvato" : "Contratto aggiornato"); onOpenChange(false);
+    } catch (e) { toast.error(messaggioContratto(e, "il contratto")); }
+    finally { setCollegando(false); }
   };
 
   return (
@@ -68,7 +90,10 @@ function Modulo({ onOpenChange, generaleId, iniziale, atti, nuovo }: {
         <DialogTitle>{nuovo ? "Compila il contratto" : "Modifica il contratto"}</DialogTitle>
         <DialogDescription>Importi al netto dell'IVA. Il valore aggiornato diventa il valore della commessa generale.</DialogDescription>
       </DialogHeader>
-      <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); conferma(); }}>
+      <Button type="button" variant="outline" onClick={() => setImportAi(true)} disabled={collegando}>Carica contratto (AI)</Button>
+      {originale && <div className="space-y-2 rounded-lg border bg-amber-50/40 p-3 text-sm"><p>Proposta da <strong>{originale.name}</strong>. Verifica base prima del ribasso, oneri e quota di competenza. Percentuali di anticipazione e ritenuta non sono incassi registrati.</p><label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={confermato} onChange={e => setConfermato(e.target.checked)}/>Ho confrontato importi, quota azienda, condizioni SAL, date e regime IVA con il documento.</label></div>}
+      {importAi && <Suspense fallback={<p role="status">Apertura lettore…</p>}><ContractImportDialog open companyId={effectiveCompany?.id ?? null} destinazione="generale_appalto" onOpenChange={setImportAi} onApply={(ex, _file, source) => { setC(generaleDaContratto(ex, c, source ?? null)); setOriginale(source ?? null); setConfermato(false); setRevisioneImport(v => v + 1); }}/></Suspense>}
+      <form key={revisioneImport} className="space-y-5" onSubmit={(e) => { e.preventDefault(); void conferma(); }}>
         <Sezione titolo="Importi">
           <CampoNumero etichetta="Importo lavori a base del contratto" valore={c.importoBase} onChange={(v) => metti("importoBase", v)} errore={errori.importoBase} suffisso="€" aiuto="La parte soggetta a ribasso." />
           <CampoNumero etichetta="Ribasso" valore={c.ribassoPct} onChange={(v) => metti("ribassoPct", v ?? 0)} errore={errori.ribassoPct} suffisso="%" decimali={4} />
@@ -131,7 +156,7 @@ function Modulo({ onOpenChange, generaleId, iniziale, atti, nuovo }: {
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>
-          <Button type="submit" disabled={salva.isPending || bloccato}>
+          <Button type="submit" disabled={salva.isPending || collegando || bloccato}>
             {salva.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Salva il contratto
           </Button>

@@ -82,6 +82,7 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
   const [data, setData] = useState(dataEsistente ?? oggi());
   const [prezzoTesto, setPrezzoTesto] = useState(inCampo(proposto));
   const [caparraTesto, setCaparraTesto] = useState("");
+  const [cassaTesto,setCassaTesto]=useState('');
   const [saldoTesto, setSaldoTesto] = useState(residuo ? inCampo(residuo) : "");
   const [rogitoPrevisto, setRogitoPrevisto] = useState(u.rogitoPrevisto ?? "");
 
@@ -92,8 +93,10 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
   const caparra = importi && r.caparra ? leggiCampo(caparraTesto) : null;
   const saldo = importi && r.saldo ? leggiCampo(saldoTesto) : null;
   const numeriSbagliati = [prezzo, caparra, saldo].some((n) => n !== null && Number.isNaN(n));
-  const dati = { acquirenteId, data, prezzo, caparra, saldo, rogitoPrevisto: rogitoPrevisto || null };
-  const errori = numeriSbagliati ? ["Scrivi gli importi come 250.000 o 2500,50."] : erroriCambioStato(u, verso, dati, importi);
+  const importoCassa=leggiCampo(cassaTesto);
+  const conPagamento=(caparra??0)>0 || (saldo??0)>0;
+  const dati = { acquirenteId, data, prezzo, caparra, saldo, caparraCassa:r.caparra?importoCassa:null,saldoCassa:r.saldo?importoCassa:null,rogitoPrevisto: rogitoPrevisto || null };
+  const errori = numeriSbagliati ? ["Scrivi gli importi come 250.000 o 2500,50."] : [...erroriCambioStato(u, verso, dati, importi),...(conPagamento && (!importoCassa || !Number.isFinite(importoCassa) || importoCassa<=0)?['Conferma l’entrata effettiva in cassa.']:[])];
   const blocco = bloccoCambioStato(u, verso);
 
   const conferma = () => {
@@ -161,6 +164,7 @@ function ModuloStato({ generaleId, u, verso, permessi, telefono, onFatto }: {
               </div>
             )}
           </div>
+          {conPagamento && <div className="space-y-1"><Label htmlFor={id('cassa')}>Entrata effettiva in cassa (IVA inclusa, se dovuta)</Label><Input id={id('cassa')} inputMode="decimal" value={cassaTesto} onChange={ev=>setCassaTesto(ev.target.value)} required /><p className="text-xs text-muted-foreground">La caparra o il saldo coprono il prezzo senza IVA; qui confermi l’importo da registrare in prima nota.</p></div>}
           {importi && telefono && (proposto !== null || r.prezzo === "obbligatorio") && (
             <p className="text-xs text-muted-foreground">
               {proposto !== null ? `${r.etichettaPrezzo}: ${euro(proposto)}. Si cambia dal computer.` : "Manca il prezzo: si scrive dal computer."}

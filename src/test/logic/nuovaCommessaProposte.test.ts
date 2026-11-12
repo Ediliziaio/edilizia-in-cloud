@@ -44,3 +44,10 @@ describe("Ricerca del cliente", () => {
     expect(nomeCliente(clienti[2])).toBe("Cliente senza nome");
   });
 });
+
+it("trova un'impresa per ragione sociale e per referente senza confonderli", () => {
+  const impresa={id:"azienda",business_name:"Edil Aurora S.r.l.",first_name:"Marco",last_name:"Rossi"};
+  expect(nomeCliente(impresa)).toBe("Edil Aurora S.r.l.");
+  expect(cercaClienti([impresa],"Aurora").risultati).toEqual([impresa]);
+  expect(cercaClienti([impresa],"Marco Rossi").risultati).toEqual([impresa]);
+});

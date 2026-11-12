@@ -470,19 +470,20 @@ export function useIncassiUnita(orderId: string | undefined) {
     enabled: !!orderId && !!effectiveCompany?.id && configurata,
     staleTime: 30_000,
     meta: { silent: true },
-    queryFn: async (): Promise<{ incassi: number; permute: number }> => {
-      const vuoto = { incassi: 0, permute: 0 };
+    queryFn: async (): Promise<{ incassi: number; permute: number; cassa:number; daCollegare:number }> => {
+      const vuoto = { incassi: 0, permute: 0,cassa:0,daCollegare:0 };
       try {
         const { data: u, error } = await db.from("unita_immobiliari").select("id").eq("order_id", orderId!).maybeSingle();
-        if (error || !u) return vuoto;
-        const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo, tipo").eq("unita_id", (u as { id: string }).id);
-        if (e2) return vuoto;
-        return ((m ?? []) as { importo: number | string; tipo: string }[]).reduce(
-          (t, x) => (x.tipo === "permuta" ? { ...t, permute: t.permute + Number(x.importo || 0) } : { ...t, incassi: t.incassi + Number(x.importo || 0) }),
+        if (error) throw error;
+        if (!u) return vuoto;
+        const { data: m, error: e2 } = await db.from("unita_movimenti").select("importo, tipo,importo_cassa,prima_nota_id").eq("unita_id", (u as { id: string }).id).is('stornato_at',null);
+        if (e2) throw e2;
+        return ((m ?? []) as { importo: number | string; tipo: string;importo_cassa:number|null;prima_nota_id:string|null }[]).reduce(
+          (t, x) => (x.tipo === "permuta" ? { ...t, permute: t.permute + Number(x.importo || 0) } : { ...t, incassi: t.incassi + Number(x.importo || 0),cassa:t.cassa+(x.prima_nota_id?Number(x.importo_cassa??0):0),daCollegare:t.daCollegare+(x.prima_nota_id?0:1) }),
           vuoto,
         );
-      } catch {
-        return vuoto;
+      } catch (e) {
+        throw e;
       }
     },
   });
@@ -503,7 +504,7 @@ export async function leggiMovimentiUnita(companyId: string): Promise<{ incassi:
   try {
     const [unita, movimenti] = await Promise.all([
       db.from("unita_immobiliari").select("id, order_id").eq("company_id", companyId).limit(5000),
-      db.from("unita_movimenti").select("unita_id, importo, tipo").eq("company_id", companyId).limit(20000),
+      db.from("unita_movimenti").select("unita_id, importo, tipo").eq("company_id", companyId).is('stornato_at',null).limit(20000),
     ]);
     if (unita.error || movimenti.error) return { incassi, permute };
     const ordineDi = new Map(((unita.data ?? []) as { id: string; order_id: string }[]).map((u) => [u.id, u.order_id]));

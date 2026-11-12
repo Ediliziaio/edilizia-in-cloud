@@ -82,6 +82,7 @@ const SENZA_GENERALI: MappaGenerali = { figliePerGenerale: new Map(), generaleDe
  * se sono di più. Sono gli stessi soldi registrati in due posti: si prende il più alto, mai la somma.
  */
 function incassatoConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
+  if(o.incasso_unita_lordo!=null) return getAmountCollected(o);
   return Math.max(getAmountCollected(o), nettoUnitaInLordo(mappa.incassiUnita?.get(o.id) ?? 0, o.vat_rate));
 }
 function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
@@ -622,7 +623,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                   {visibleColumns.has("payments") && (
                     <TableCell className="hidden xl:table-cell">
                       <Badge className={due <= 0.01 ? "bg-green-100 text-green-800 border-0" : timing.overdueDays ? "bg-red-100 text-red-800 border-0" : "bg-orange-100 text-orange-800 border-0"}>
-                        {totalIvato <= 0 ? "Importo da definire" : due <= 0.01 ? "Saldato" : timing.overdueDays ? "Rate scadute" : "Da incassare"}
+                        {order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura' && totalIvato<=0 ? 'Da rendicontare · stima nel piano' : totalIvato <= 0 ? "Importo da definire" : due <= 0.01 ? "Saldato" : timing.overdueDays ? "Rate scadute" : "Da incassare"}
                       </Badge>
                     </TableCell>
                   )}

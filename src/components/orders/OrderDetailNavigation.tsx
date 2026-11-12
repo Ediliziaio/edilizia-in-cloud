@@ -20,7 +20,7 @@ export function OrderDetailNavigation({operational=false,conCosti=true}:{operati
     >
       <TabsList
         aria-label="Aree della commessa"
-        className="flex h-auto w-full items-stretch gap-1 rounded-lg border bg-white p-1 shadow-sm"
+        className="commessa-main-tabs flex h-auto w-full items-stretch gap-1"
       >
         {schede.map((tab) => {
           const Icon = icons[tab.value];

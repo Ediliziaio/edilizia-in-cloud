@@ -1,0 +1,66 @@
+[role="dialog"].dialog-readable {
+  width: min(960px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+  max-height: 92dvh;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 15px;
+  line-height: 1.5;
+}
+[role="dialog"].dialog-readable[data-ampiezza="spazio"] { width: min(1280px, calc(100vw - 48px)); }
+[role="dialog"].dialog-readable[data-ampiezza="conferma"] { width: min(640px, calc(100vw - 48px)); }
+.dialog-readable > *,
+.dialog-readable :is(form, [role="tabpanel"], fieldset) { min-width: 0; max-width: 100%; }
+.dialog-readable [role="tablist"] { height: auto; min-height: 42px; flex-wrap: wrap; justify-content: flex-start; gap: 4px; max-width: 100%; }
+.dialog-readable :is(label, p, dd) { overflow-wrap: anywhere; }
+.dialog-readable :is(input, textarea, select) { min-width: 0; max-width: 100%; }
+.dialog-readable .text-sm { font-size: 15px; line-height: 1.5; }
+.dialog-readable .text-xs { font-size: 13px; line-height: 1.5; }
+[role="dialog"].dialog-readable table th { font-size: 13px; line-height: 1.4; white-space: normal; }
+.dialog-readable [role="combobox"] { height: auto; min-height: 40px; white-space: normal; text-align: left; }
+.dialog-readable [role="combobox"] > span { -webkit-line-clamp: unset; white-space: normal; overflow-wrap: anywhere; }
+.dialog-readable :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select) { font-size: 15px; min-height: 40px; }
+.dialog-readable [data-ui="tabs-trigger"] { min-height: 36px; }
+[role="dialog"].commessa-modal-layout {
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+}
+.commessa-modal-layout > :is([data-ui="dialog-header"], [data-ui="dialog-footer"]) { flex: 0 0 auto; }
+.commessa-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 2px 3px;
+}
+.commessa-modal-body > * + * { margin-top: 16px; }
+.commessa-modal-layout > [data-ui="dialog-footer"],
+.commessa-modal-form > [data-ui="dialog-footer"] {
+  position: static;
+  margin: 0;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  padding: 16px 0 0;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.commessa-modal-form { display: flex; flex-direction: column; gap: 16px; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.commessa-modal-form > p { flex-shrink: 0; }
+.commessa-inline-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; gap: 12px; border-top: 1px solid hsl(var(--border)); background: hsl(var(--background)); padding-top: 16px; }
+.commessa-inline-actions button { min-height: 42px; }
+.commessa-modal-layout :is([data-ui="dialog-footer"], [data-ui="dialog-header"]) { min-width: 0; }
+.commessa-modal-layout [data-ui="dialog-footer"] button { min-height: 42px; white-space: normal; height: auto; }
+.commessa-modal-layout:where(.p-0) > [data-ui="dialog-footer"] { padding: 16px 20px; }
+.commessa-modal-body .truncate { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.commessa-modal-body textarea { min-height: 80px; max-height: 240px; field-sizing: content; }
+@media (max-width: 639px) {
+  [role="dialog"].dialog-readable,
+  [role="dialog"].dialog-readable[data-ampiezza] { width: 100%; max-width: 100%; max-height: 94dvh; }
+}

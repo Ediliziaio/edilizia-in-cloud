@@ -8,6 +8,7 @@ import { contaVendite, leggiFonti, leggiMovimenti, leggiRendiconti } from "@/lib
 import { avanzamentoMedio, datiRendiconto, nomeFileRendiconto } from "@/lib/orders/generali/investitoriRendiconto";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import type { NumeriInvestitori } from "@/lib/orders/generali/pianoConti";
+import { MOVIMENTO_PREVISTO } from "@/lib/orders/generali/movimentiFonti";
 
 const fonte = (f: Partial<Fonte> & Pick<Fonte, "id" | "tipo">): Fonte => ({
   nome: f.id, soggetto: "persona", clienteId: null, email: null, impegno: 0, quotaUtilePct: null,
@@ -22,6 +23,37 @@ const numeri = (o: Partial<NumeriOperazione> = {}): NumeriOperazione => ({
 });
 
 describe("date e capitale nel tempo", () => {
+  it("una tranche prevista scaduta non diventa versata al passare della data", () => {
+    const f = fonte({ id: "p", tipo: "propri", impegno: 1000 });
+    const m = { ...mov("p", "versamento", "2027-01-01", 1000), nota: MOVIMENTO_PREVISTO };
+    const c = calcolaInvestitori({ fonti: [f], movimenti: [m], numeri: numeri(), oggi: "2027-02-01" });
+    expect(c.fonti[0].versato).toBe(0);
+    expect(c.fonti[0].programmati).toHaveLength(1);
+    expect(c.fonti[0].proiezione.find(p => p.tipo === "versamento")?.data).toBe("2027-02-01");
+    expect(c.avvisi.join(" ")).toContain("scaduti ancora da confermare");
+  });
+  it("distingue tranche future, rimborsi previsti e pagamenti effettivi senza raddoppiare il capitale", () => {
+    const f = fonte({ id: "b", tipo: "banca", impegno: 1000, tassoPct: 10, dataInizio: "2027-01-01", scadenza: "2028-01-01" });
+    const movimenti = [mov("b", "versamento", "2027-01-01", 200), mov("b", "versamento", "2027-07-01", 800), mov("b", "rimborso", "2027-10-01", 300), mov("b", "interessi", "2027-10-01", 10)];
+    const conti = calcolaInvestitori({ fonti: [f], movimenti, numeri: numeri(), oggi: "2027-01-15" });
+    const c = conti.fonti[0];
+    expect(c.capitale.adOggi).toBe(200);
+    expect(c.rendimento.adOggi).toBe(0);
+    expect(c.rendimento.stima).toBeCloseTo((200 * 181 + 1000 * 92 + 700 * 92) * .1 / 365, 2);
+    expect(c.proiezione.filter(p => p.tipo === "versamento").reduce((s, p) => s + p.importo, 0)).toBe(800);
+    expect(c.proiezione.filter(p => p.tipo === "rimborso").reduce((s, p) => s + p.importo, 0)).toBe(1000);
+    expect(conti.composizione.find(m => m.mese === "2027-06")?.debito).toBe(200);
+    expect(conti.composizione.find(m => m.mese === "2027-07")?.debito).toBe(1000);
+    expect(conti.composizione.find(m => m.mese === "2027-10")?.debito).toBe(700);
+  });
+  it("non anticipa una tranche confermata per coprire un fabbisogno precedente alla sua data", () => {
+    const f = fonte({ id: "b", tipo: "banca", impegno: 1000, tassoPct: 5, dataInizio: "2027-01-01", scadenza: "2028-01-01" });
+    const conti = calcolaInvestitori({ fonti: [f], movimenti: [mov("b", "versamento", "2027-07-01", 1000)], numeri: numeri({ capitaleMassimo: 1000, fabbisogno: [{ mese: "2027-02", importo: 1000 }, { mese: "2027-07", importo: 1000 }] }), oggi: "2027-01-15" });
+    expect(conti.fonti[0].versato).toBe(0);
+    expect(conti.fonti[0].proiezione.filter(p => p.tipo === "versamento")).toHaveLength(1);
+    expect(conti.scoperto).toBe(1000);
+    expect(conti.avvisi.join(" ")).toContain("date di erogazione");
+  });
   it("conta i giorni e la fine del mese (anche bisestile)", () => {
     expect(giorniTra("2027-01-01", "2027-01-31")).toBe(30);
     expect(giorniTra("2027-02-01", "2027-01-01")).toBe(0);
@@ -189,7 +221,7 @@ describe("ripartizione dell'utile", () => {
     const r = calcolaInvestitori({ fonti: [fonte({ id: "A", tipo: "capitale", impegno: 1 })], movimenti: [], numeri: null, oggi: "2027-02-01" });
     expect(r.utile.stima).toBe(0);
     expect(r.scoperto).toBe(0);
-    expect(r.avvisi.join(" ")).toContain("piano economico non c'è ancora");
+    expect(r.avvisi.join(" ")).toContain("Completa il piano economico e il calendario");
   });
 });
 

@@ -3,6 +3,11 @@
 // la si salva, la si confronta con altre, e quando si decide «Diventa operazione».
 // Tablet e computer: tutto. Telefono: sola lettura delle ipotesi salvate.
 import { useMemo, useState, type ReactNode } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ImportaBusinessPlan, type VoceImportata, type OrigineBusinessPlan } from "../piano/ImportaBusinessPlan";
+import { conservaOriginaleAi } from "@/lib/orders/documentImportAi";
+import { ipotesiDaPiano } from "@/lib/orders/generali/simulatoreImport";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Rocket, Save, Trash2 } from "lucide-react";
@@ -109,6 +114,9 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
   modelliAttivi: ReturnType<typeof useImpostazioniCommesseGenerali>["modelli"];
   puoCreare: boolean;
 }) {
+  const { effectiveCompany } = useAuth();
+  const [importAperto, setImportAperto] = useState(false);
+  const [importando, setImportando] = useState(false);
   const primoModello: ModelloSimulato = modelliAttivi.includes("sviluppo") || !modelliAttivi.includes("compravendita") ? "sviluppo" : "compravendita";
   const [aperta, setAperta] = useState<Aperta>(() => nuova(primoModello));
   const [scheda, setScheda] = useState("ipotesi");
@@ -122,6 +130,19 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
   const salvata = aperta.id ? salvate.find((s) => s.id === aperta.id) ?? null : null;
   const modificata = !salvata || salvata.nome !== aperta.nome.trim() || JSON.stringify(salvata.ipotesi) !== JSON.stringify(aperta.ipotesi);
   const giaOperazione = salvata?.generaleId ?? null;
+  const importDaConfermare = !!aperta.ipotesi.importazione && !aperta.ipotesi.importazione.confermata;
+  const importaPiano = async (voci: VoceImportata[], origine?: OrigineBusinessPlan) => {
+    if (!origine || !effectiveCompany?.id || importando) return;
+    setImportando(true);
+    try {
+      const originale = await conservaOriginaleAi(origine.file, effectiveCompany.id);
+      const ipotesi = ipotesiDaPiano(voci, origine.simulazione ?? {}, aperta.ipotesi.modello, { originale, hash: origine.hash, scenario: origine.foglio });
+      setAperta({ id: null, nome: `${origine.file.name.replace(/\.[^.]+$/, "")} · ${origine.foglio}`.slice(0,200), ipotesi });
+      setScheda("ipotesi"); setImportAperto(false);
+      toast.success("Piano trasferito nell’ipotesi", { description: "Verifica unità e fonti, poi salva. Nessuna commessa è stata creata." });
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Importazione non riuscita."); }
+    finally { setImportando(false); }
+  };
 
   const disponibili: IpotesiDaConfrontare[] = useMemo(() => [
     ...(modificata ? [{ id: APERTA, nome: `${aperta.nome || "Ipotesi"} (non salvata)`, ipotesi: aperta.ipotesi }] : []),
@@ -159,6 +180,7 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
   };
 
   const apriDiventa = async () => {
+    if (importDaConfermare) { toast.error("Conferma prima i dati dell’ipotesi importata."); return; }
     const s = modificata ? await salvaOra() : salvata;
     if (s) setDiventa(s);
   };
@@ -167,6 +189,7 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
     <div className="space-y-4">
       <Intestazione>
         <div className="flex flex-wrap items-end gap-2">
+          <Button variant="outline" onClick={() => setImportAperto(true)}>Importa business plan (Excel o PDF AI)</Button>
           <div className="space-y-1">
             <Label htmlFor="sim-apri" className="text-sm font-normal text-muted-foreground">Apri</Label>
             <Select
@@ -198,13 +221,16 @@ function Editor({ salvate, caricamento, modelliAttivi, puoCreare }: {
         {giaOperazione ? (
           <Button variant="outline" asChild><Link to={`/azienda/ordini/${giaOperazione}`}>Apri l'operazione creata</Link></Button>
         ) : puoCreare ? (
-          <Button variant="default" onClick={() => void apriDiventa()} disabled={salva.isPending} className="bg-emerald-700 hover:bg-emerald-800">
+          <Button variant="default" onClick={() => void apriDiventa()} disabled={salva.isPending || importDaConfermare} className="bg-emerald-700 hover:bg-emerald-800">
             <Rocket className="mr-1 h-4 w-4" />Diventa operazione
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">Per trasformarla in operazione serve il permesso «Ordini e Commesse».</p>
         )}
       </div>
+
+      {aperta.ipotesi.importazione && <div className="space-y-2 rounded-lg border bg-amber-50/40 p-4 text-sm"><p>Importato da <strong>{aperta.ipotesi.importazione.originale.name}</strong> · {aperta.ipotesi.importazione.scenario}</p><ul className="list-disc pl-5 text-muted-foreground">{aperta.ipotesi.importazione.avvisi.map(a => <li key={a}>{a}</li>)}</ul><label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={aperta.ipotesi.importazione.confermata} onChange={e => { const confermata = e.target.checked; setAperta(a => ({ ...a, ipotesi: { ...a.ipotesi, importazione: { ...a.ipotesi.importazione!, confermata } } })); }}/>Ho verificato importi, mesi, unità, superfici e fonti. Gli eventuali zeri rimasti sono intenzionali.</label></div>}
+      <Dialog open={importAperto} onOpenChange={o => { if (!importando) setImportAperto(o); }}><DialogContent ampiezza="spazio" className="max-h-[92vh] overflow-y-auto"><DialogHeader><DialogTitle>Importa business plan nel simulatore</DialogTitle><DialogDescription>Scegli un solo scenario. L’anteprima è la stessa del piano economico; le ipotesi già salvate restano disponibili.</DialogDescription></DialogHeader>{importAperto && <ImportaBusinessPlan companyId={effectiveCompany?.id ?? null} destinazione="simulatore" occupato={importando} onAnnulla={() => setImportAperto(false)} onImporta={(voci, origine) => void importaPiano(voci, origine)}/>}</DialogContent></Dialog>
 
       <Tabs value={scheda} onValueChange={setScheda}>
         <TabsList>

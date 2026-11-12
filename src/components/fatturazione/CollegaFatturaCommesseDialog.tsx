@@ -13,7 +13,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Package, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Input } from "@/components/ui/input";
 import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { supabase } from "@/integrations/supabase/client";
@@ -165,7 +166,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
   const linkDiscreto = "text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50";
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
-      <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto">
+      <DialogContent struttura="scorrevole" className="max-h-[90dvh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>A quale commessa va?</DialogTitle>
           <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> IVA inclusa</DialogDescription>

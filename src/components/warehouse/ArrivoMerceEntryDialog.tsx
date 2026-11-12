@@ -18,13 +18,8 @@ import { Loader2, PackageSearch, Search, ArrowDownToLine, ChevronRight } from "l
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -145,7 +140,7 @@ export function ArrivoMerceEntryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent struttura="scorrevole" className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowDownToLine className="h-5 w-5" /> Registra arrivo merce
@@ -222,9 +217,11 @@ export function ArrivoMerceEntryDialog({
           </div>
         )}
 
+        <DialogFooter>
         <Button variant="outline" className="w-full" onClick={libero}>
           Non c&apos;è un ordine — carico libero
         </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

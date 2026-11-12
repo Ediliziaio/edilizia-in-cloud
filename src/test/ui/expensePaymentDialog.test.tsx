@@ -25,10 +25,14 @@ describe('Pagamento contestuale di una spesa',()=>{
   it('registra un acconto e mostra il residuo aggiornato senza uscire dal popup',async()=>{
     mount();fireEvent.click(await screen.findByRole('button',{name:'Registra pagamento'}));
     fireEvent.change(screen.getByLabelText('Importo'),{target:{value:'400'}});
+    fireEvent.change(screen.getByLabelText('Riferimento'),{target:{value:'CRO primo pagamento'}});
     fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));
     await waitFor(()=>expect(screen.getByText('820,00 €',{exact:false})).toBeTruthy());
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(fake.rpc.mock.calls.filter(([name])=>name==='registra_pagamento_costo')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button',{name:'Registra pagamento'}));
+    expect((screen.getByLabelText('Riferimento') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Importo') as HTMLInputElement).value).toBe('820');
   });
   it('mantiene la stessa chiave dopo un errore incerto e impedisce importi oltre residuo',async()=>{
     mount();fireEvent.click(await screen.findByRole('button',{name:'Registra pagamento'}));

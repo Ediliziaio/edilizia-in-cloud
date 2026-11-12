@@ -15,6 +15,7 @@ import {
   CATEGORIE_CANTIERE, CATEGORIE_PIANO, CHIAVI_REALI, aggiungiMesi,
   type CategoriaPiano, type TipoVoce,
 } from "@/lib/orders/generali/pianoCategorie";
+import { stimaMancante } from "./budgetCompletezza";
 
 /** «2027-03». */
 export type Mese = string;
@@ -298,7 +299,8 @@ export interface OpzioniStima {
  * Il flusso della stima: il reale nei mesi in cui è avvenuto (costi alla data della spesa,
  * ricavi alla data dell'incasso), le fatture non ancora incassate il mese prossimo, e
  * l'a finire di ogni voce sui suoi mesi che non sono ancora passati (se sono tutti passati,
- * in questo mese). Le voci senza mese non entrano: lo dice un avviso.
+ * in questo mese). Gli anticipi incassati oltre il fatturato riducono i primi
+ * incassi a finire: non sono un ricavo aggiuntivo. Le voci senza mese non entrano.
  */
 export function flussoStima(
   confronto: Confronto,
@@ -332,6 +334,19 @@ export function flussoStima(
     for (const q of distribuisci(r.aFinire, inizio, future.length || 1)) {
       partite.push({ mese: q.mese, partita: { etichetta: r.etichetta, tipo: v.tipo, importo: q.importo, origine: "a_finire" } });
     }
+  }
+  // Caparre/anticipi possono precedere la fattura. Il confronto economico usa il
+  // fatturato, mentre la cassa deve ancora ricevere solo il saldo. Compensiamo
+  // prima gli incassi a finire più vicini, senza toccare il reale o i costi.
+  let anticipo = Math.max(0, Math.round(-daIncassare * 100));
+  for (const p of partite
+    .filter((p) => p.partita.tipo === "ricavo" && p.partita.origine === "a_finire" && p.partita.importo > 0)
+    .sort((a, b) => a.mese.localeCompare(b.mese) || a.partita.etichetta.localeCompare(b.partita.etichetta))) {
+    if (anticipo === 0) break;
+    const centesimi = Math.round(p.partita.importo * 100);
+    const compensato = Math.min(anticipo, centesimi);
+    p.partita.importo = (centesimi - compensato) / 100;
+    anticipo -= compensato;
   }
   return serieMensile(partite, oggi);
 }
@@ -614,6 +629,9 @@ export interface InputPiano {
 
 export interface PianoCalcolato {
   oggi: Mese;
+  /** False when a positive budget row has no month: funding and timed returns are incomplete. */
+  calendarioCompleto?: boolean;
+  budgetCompleto?: boolean;
   confronto: Confronto;
   cassa: { previsto: MeseCassa[]; stima: MeseCassa[]; scenario: MeseCassa[] | null };
   indicatori: { previsto: Indicatori; stima: Indicatori; scenario: Indicatori | null };
@@ -705,6 +723,8 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   const totaleComuni = somma(righeComuni.map((r) => r.importo));
 
   const avvisi: string[] = [];
+  const senzaStima = input.voci.filter(stimaMancante);
+  if (senzaStima.length) avvisi.push(`${senzaStima.length} stime mancanti: budget e margine sono parziali. Completa o conferma esplicitamente gli zeri prima di approvare.`);
   const senzaMese = input.voci.filter((v) => !v.mese && v.importo > 0);
   if (senzaMese.length > 0) {
     avvisi.push(senzaMese.length === 1
@@ -720,6 +740,8 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   const picco = capitaleMassimo(cassaStima);
   return {
     oggi,
+    calendarioCompleto: senzaMese.length === 0 && senzaStima.length === 0,
+    budgetCompleto: senzaStima.length === 0,
     confronto,
     cassa: { previsto: cassaPrevista, stima: cassaStima, scenario: cassaScenario },
     indicatori: { previsto: indPrevisto, stima: indStima, scenario: indScenario },

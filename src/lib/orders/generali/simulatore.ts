@@ -24,6 +24,8 @@ import {
   calcolaInvestitori, numeriDalPiano, PIANI_RIMBORSO,
   type ContiInvestitori, type Fonte, type PianoRimborso, type ScenarioDebito,
 } from "@/lib/orders/generali/investitoriConti";
+import type { OrigineIpotesi } from "./simulatoreImport";
+import { storedContractFromDraft } from "../contractPreparation";
 
 export const MODELLI_SIMULATI = ["sviluppo", "compravendita"] as const;
 export type ModelloSimulato = typeof MODELLI_SIMULATI[number];
@@ -79,6 +81,7 @@ export interface VoceAggiunta {
 }
 
 export interface Ipotesi {
+  importazione?: OrigineIpotesi;
   versione: 1;
   modello: ModelloSimulato;
   /** Il mese dell'acquisto, «2027-01». */
@@ -160,6 +163,10 @@ export function leggiIpotesi(dati: unknown, modello: ModelloSimulato, oggi: Mese
   const d = (dati && typeof dati === "object" ? dati : {}) as Record<string, unknown>;
   const p = ipotesiDiPartenza(modello, mese(d.inizio, oggi));
   const m = (d.mutuo ?? {}) as Record<string, unknown>;
+  const imp = (d.importazione && typeof d.importazione === "object" ? d.importazione : {}) as Record<string, unknown>;
+  const source = imp.originale && typeof imp.originale === "object" ? imp.originale as Record<string, unknown> : {};
+  const sourceCompany = typeof source.path === "string" ? source.path.split("/")[0] : "";
+  const originale = storedContractFromDraft(source, sourceCompany);
   const tipologie = Array.isArray(d.tipologie)
     ? (d.tipologie as Record<string, unknown>[]).filter((t) => t && typeof t === "object").map((t) => ({
       id: str(t.id, nuovoId()),
@@ -183,6 +190,7 @@ export function leggiIpotesi(dati: unknown, modello: ModelloSimulato, oggi: Mese
   }
   return {
     versione: 1,
+    ...(originale && typeof imp.hash === "string" && /^[a-f0-9]{64}$/.test(imp.hash) && typeof imp.scenario === "string" ? { importazione: { originale, hash: imp.hash, scenario: imp.scenario, confermata: imp.confermata === true, avvisi: Array.isArray(imp.avvisi) ? imp.avvisi.filter((a): a is string => typeof a === "string") : [] } } : {}),
     modello,
     inizio: p.inizio,
     acquisto: Math.max(0, num(d.acquisto, p.acquisto)),

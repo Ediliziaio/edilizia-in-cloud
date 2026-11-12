@@ -10,7 +10,8 @@ import { AlertTriangle, ExternalLink, Link2, Settings2, ShieldAlert, ShieldCheck
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CampoNumero, NumeroCheSiApre, ProssimoPasso, type RigaOrigine } from "@/components/orders/generali/contratto/campi";
 import { dataIt, euro, percentoIt } from "@/components/orders/generali/contratto/formato";

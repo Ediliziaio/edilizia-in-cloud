@@ -16,6 +16,9 @@ const m = vi.hoisted(() => ({
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
+vi.mock("@/components/orders/generali/piano/StoricoBusinessPlan", () => ({ StoricoBusinessPlan: () => <p>Archivio Excel</p> }));
+vi.mock("@/components/orders/generali/piano/CassaScadenze", () => ({ CassaScadenze: () => <p>Scadenze IVA inclusa</p> }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useGeneralePianoNumeri: () => m.numeri,
   useNuovaVersionePiano: () => ({ mutate: m.crea, isPending: false }),
@@ -23,6 +26,7 @@ vi.mock("@/hooks/useGeneralePiano", () => ({
   useEliminaBozzaPiano: () => m.mutazione(),
   useModificaVoce: () => m.mutazione(),
   useAggiungiVoci: () => m.mutazione(),
+  useImportaBusinessPlanPiano: () => m.mutazione(),
   useEliminaVoce: () => m.mutazione(),
   useFotografaOra: () => m.mutazione(),
   useFotografieGenerale: () => ({ data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn() }),
@@ -96,6 +100,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("la scheda del piano economico", () => {
+  it("il filtro dal grafico mostra solo i costi selezionati e si può rimuovere", () => {
+    m.numeri = numeri("approvata");
+    const r = riepilogo();
+    render(<MemoryRouter initialEntries={["/azienda/ordini/G?categorie-costo=terreno&base-costi=reale"]}><PianoEconomico riepilogo={r} totali={totaliGenerale(r)} puoModificare={false} /></MemoryRouter>);
+    const tabella = screen.getByRole("table");
+    expect(within(tabella).getByText("Terreno e notaio")).toBeVisible();
+    expect(within(tabella).queryByText("Costruzione")).not.toBeInTheDocument();
+    expect(within(tabella).queryByText("Margine")).not.toBeInTheDocument();
+    expect(within(tabella).getByText("Totale costi filtrati").closest("tr")).toHaveTextContent("352.000");
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi filtro" }));
+    expect(within(tabella).getByText("Vendita delle unità")).toBeVisible();
+    expect(within(tabella).getAllByText("Costruzione").length).toBeGreaterThan(0);
+  });
   it("senza il permesso dei margini non mostra numeri", () => {
     m.numeri = numeri("bozza");
     disegna(true, riepilogo(false));
@@ -121,13 +138,21 @@ describe("la scheda del piano economico", () => {
     expect(screen.getByText(/Il piano lo scrive chi può modificare le commesse/)).toBeVisible();
   });
 
+  it("apre l'anteprima Excel senza creare una bozza prima della conferma", () => {
+    m.numeri = numeri(null);
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Importa business plan" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Importa business plan");
+    expect(m.crea).not.toHaveBeenCalled();
+  });
+
   it("una bozza: celle modificabili, totali, reale fuori piano e Approva", () => {
     m.numeri = numeri("bozza");
     disegna();
     expect(screen.getByRole("button", { name: /Approva/ })).toBeEnabled();
     expect(screen.getByLabelText("Previsto di Costruzione")).toBeInTheDocument();
     expect(screen.getByLabelText("Descrizione di Terreno e notaio")).toHaveValue("Terreno e notaio");
-    expect(screen.getByText("Fuori piano · Spese generali")).toBeVisible();
+    expect(within(screen.getByRole("table")).getByText("Fuori piano · Spese generali")).toBeVisible();
     const totaleCosti = screen.getByText("Totale costi").closest("tr")!;
     // previsto 1.550.000 · reale 396.000 · a finire 1.160.000 · stima 1.556.000
     expect(within(totaleCosti).getByText("1.550.000 €")).toBeVisible();
@@ -136,10 +161,20 @@ describe("la scheda del piano economico", () => {
     expect(screen.getByText(/non ha una voce nel piano/)).toBeVisible();
   });
 
+  it("una voce a zero confermato non segnala un mese mancante quando non ha movimenti o residui", () => {
+    const d = numeri("approvata");
+    d.voci = [...d.voci, voce({ id: "zero", descrizione: "Voce a zero confermato", importo: 0, mese: null })];
+    d.piano = calcolaPianoEconomico({ oggi: "2026-10-30", generaleId: "G", voci: d.voci, righe, incassi: [], figlie: [] });
+    m.numeri = d;
+    disegna(false);
+    const riga = within(screen.getByRole("table")).getByText("Voce a zero confermato").closest("tr")!;
+    expect(within(riga).getByText("Non necessario")).toBeVisible();
+  });
+
   it("ogni numero del reale apre le righe da cui viene", () => {
     m.numeri = numeri("bozza");
     disegna();
-    fireEvent.click(screen.getByRole("button", { name: /352\.000/ }));
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: /352\.000/ }));
     const dialogo = screen.getByRole("dialog");
     expect(within(dialogo).getByText("Rogito · Studio Bianchi")).toBeVisible();
     expect(within(dialogo).getByText("Generale (costo comune)")).toBeVisible();
@@ -160,13 +195,13 @@ describe("il riquadro in Panoramica", () => {
   const riquadro = (r = riepilogo()) =>
     render(<MemoryRouter><RiquadroPiano riepilogo={r} totali={totaliGenerale(r)} puoModificare /></MemoryRouter>);
 
-  it("margine previsto contro margine a finire e capitale", () => {
+  it("confronto con il previsto senza ripetere il margine finale e il picco", () => {
     m.numeri = numeri("approvata");
     riquadro();
     expect(screen.getByText("Margine previsto")).toBeVisible();
     expect(screen.getByText("850.000 €")).toBeVisible();
-    expect(screen.getByText("Margine a finire (stima)")).toBeVisible();
-    expect(screen.getByText("844.000 €")).toBeVisible();
+    expect(screen.getByText("Scostamento del margine")).toBeVisible();
+    expect(screen.queryByText("844.000 €")).not.toBeInTheDocument();
     expect(screen.getByText("Capitale investito a oggi")).toBeVisible();
     expect(screen.getByText(/sotto il previsto di 6\.?000/)).toBeVisible();
   });
@@ -178,5 +213,31 @@ describe("il riquadro in Panoramica", () => {
     cleanup();
     riquadro(riepilogo(false));
     expect(screen.queryByText("Piano economico")).not.toBeInTheDocument();
+  });
+});
+
+
+describe("indicatori economici nella prima schermata", () => {
+  it("presenta ricavi, costi e margine finali coerenti con i costi già registrati", () => {
+    m.numeri = numeri("approvata"); disegna();
+    const indicatori=screen.getByRole("region",{name:"Indicatori del piano economico"});
+    expect(within(indicatori).getByText("Ricavi stimati").parentElement).toHaveTextContent("2.400.000");
+    expect(within(indicatori).getByText("Costi finali stimati").parentElement).toHaveTextContent("1.556.000");
+    expect(within(indicatori).getByText("Margine stimato a fine lavori").parentElement).toHaveTextContent("844.000");
+  });
+  it("non presenta una previsione finale completa se il budget è ancora parziale", () => {
+    const n=numeri("approvata");m.numeri={...n,piano:{...n.piano!,budgetCompleto:false}};disegna();
+    const indicatori=screen.getByRole("region",{name:"Indicatori del piano economico"});
+    expect(within(indicatori).getByText("Margine stimato a fine lavori").parentElement).toHaveTextContent("—");
+    expect(within(indicatori).getByText("Costi finali stimati").parentElement).toHaveTextContent("—");
+    expect(within(indicatori).queryByText(/844.000/)).not.toBeInTheDocument();
+  });
+  it("gli indicatori rispettano i permessi di importi e costi", () => {
+    m.numeri=numeri("approvata");const r=riepilogo();r.permessi.importi=false;r.permessi.costi=false;
+    render(<MemoryRouter><PianoEconomico riepilogo={r} totali={totaliGenerale(r)} puoModificare={false}/></MemoryRouter>);
+    const indicatori=screen.getByRole("region",{name:"Indicatori del piano economico"});
+    expect(within(indicatori).getAllByText("Riservato")).toHaveLength(2);
+    expect(within(indicatori).queryByText(/2.400.000/)).not.toBeInTheDocument();
+    expect(within(indicatori).queryByText(/1.556.000/)).not.toBeInTheDocument();
   });
 });

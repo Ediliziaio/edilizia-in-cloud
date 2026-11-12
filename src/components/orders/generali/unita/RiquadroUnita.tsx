@@ -1,10 +1,11 @@
 // src/components/orders/generali/unita/RiquadroUnita.tsx
 // Il riquadro in Panoramica: quante unità sono libere, prenotate, a compromesso, rogitate,
-// in una barra sola; sotto, venduto e incassato. Da telefono solo la barra.
-import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+// in una ciambella con legenda; sotto, venduto e incassato. Da telefono niente importi.
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowUpRight, Building2 } from "lucide-react";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
-import { STILE_STATO, euro } from "@/components/orders/generali/unita/aspetto";
+import { COLORE_STATO, STILE_STATO, euro } from "@/components/orders/generali/unita/aspetto";
+import { Ciambella } from "@/components/orders/generali/design/Ciambella";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
 import { NOMI_STATO, STATI_VENDITA } from "@/lib/orders/generali/unita";
@@ -12,36 +13,35 @@ import { riepilogoVendite } from "@/lib/orders/generali/unitaConti";
 import { cn } from "@/lib/utils";
 
 export function RiquadroUnita({ riepilogo }: PropsScheda) {
+  const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
   const { data: e } = useUnitaGenerale(riepilogo.generale.id);
   if (!e) return null;
   const r = riepilogoVendite(e);
   // Senza unità il prossimo passo lo dice già «Cosa richiede attenzione».
   if (r.unita === 0) return null;
+  const destinazione = (stato: string) => { const p = new URLSearchParams(parametri); p.set("scheda", "unita"); p.set("stato-vendita", stato); return { search: `?${p.toString()}` }; };
   return (
-    <section aria-labelledby="riquadro-unita-titolo" className="rounded-lg border bg-card px-3 py-2.5 sm:px-4 sm:py-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="riquadro-unita-titolo" className="text-sm font-semibold">Vendite · {r.unita} unità</h2>
-        <Link to={{ search: "?scheda=unita" }} className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground">
-          Tabellone <ChevronRight className="h-3.5 w-3.5" />
+    <section aria-labelledby="riquadro-unita-titolo" className="generale-panel generale-sales">
+      <header className="generale-panel-heading">
+        <div className="generale-panel-title"><span className="generale-section-icon"><Building2 aria-hidden="true" /></span><div><h2 id="riquadro-unita-titolo">Vendite · {r.unita} unità</h2><p>Disponibilità e stato commerciale</p></div></div>
+        <Link to={{ search: "?scheda=unita" }} className="generale-text-link">
+          Tabellone <ArrowUpRight aria-hidden="true" />
         </Link>
-      </div>
-      <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-        {STATI_VENDITA.map((s) => r.conteggi[s] > 0 && (
-          <div key={s} className={STILE_STATO[s].punto} style={{ width: `${(r.conteggi[s] / r.unita) * 100}%` }} />
-        ))}
-      </div>
-      <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+      </header>
+      <div className="generale-chart-body">
+      <Ciambella dati={STATI_VENDITA.map(s => ({ id: s, nome: NOMI_STATO[s].tante, valore: r.conteggi[s], colore: COLORE_STATO[s] }))} valore={String(r.unita)} etichetta="unità totali" onSeleziona={s => setParametri(new URLSearchParams(destinazione(s).search))} />
+      <ul className="generale-chart-legend" aria-label="Distribuzione degli stati di vendita">
         {STATI_VENDITA.map((s) => (
-          <li key={s} className="inline-flex items-center gap-1">
-            <span className={cn("h-2 w-2 rounded-sm", STILE_STATO[s].punto)} aria-hidden="true" />
-            <span className="text-muted-foreground">{NOMI_STATO[s].tante}</span>
-            <span className="font-medium tabular-nums">{r.conteggi[s]}</span>
+          <li key={s} className="generale-legend-row">
+            <span className="generale-legend-name"><span className={cn("generale-legend-dot", STILE_STATO[s].punto)} aria-hidden="true" /><Link className="generale-legend-link" to={destinazione(s)} aria-label={`Filtra unità: ${NOMI_STATO[s].tante}`}>{NOMI_STATO[s].tante}</Link></span>
+            <span className="generale-legend-value"><strong>{r.conteggi[s]}</strong><span>{Math.round(r.conteggi[s] / r.unita * 100)}%</span></span>
           </li>
         ))}
       </ul>
+      </div>
       {!telefono && e.permessi.importi && (
-        <dl className="mt-2 grid grid-cols-3 gap-2 border-t pt-2 text-xs">
+        <dl className="generale-sales-totals">
           <div>
             <dt className="text-muted-foreground">Venduto</dt>
             <dd className="text-sm font-semibold tabular-nums">{euro(r.venduto)}</dd>

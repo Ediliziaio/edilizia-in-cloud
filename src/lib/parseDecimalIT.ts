@@ -103,6 +103,18 @@ export function parseDecimalIT(v: string | number | null | undefined): number {
   return negative ? -n : n;
 }
 
+/** Per i campi da validare: distingue zero da testo errato o importo assente. */
+export function parseDecimalITStrict(v: string | number | null | undefined): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : Number.NaN;
+  const pulito = String(v ?? "").trim().replace(/[\s€$£]|EUR/gi, "");
+  const segno = pulito.startsWith("-") ? -1 : 1;
+  const senzaSegno = /^[+-]/.test(pulito) ? pulito.slice(1) : pulito;
+  const normale = normalizeDecimalSeparators(senzaSegno);
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normale)) return Number.NaN;
+  const numero = segno * Number(normale);
+  return Number.isFinite(numero) ? numero : Number.NaN;
+}
+
 /**
  * Inverso di `parseDecimalIT` per la UI: rende il numero in formato
  * italiano (virgola decimale, punto migliaia) da rimettere DENTRO al campo

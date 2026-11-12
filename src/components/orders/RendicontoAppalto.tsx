@@ -28,9 +28,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
-import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalITStrict, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { euro } from "@/lib/clienti/schedaCliente";
-import { tariffaUsabileIl, totaliRendiconto } from "@/lib/appalto/rendiconto";
+import { tariffaUsabileIl, totaliRendiconto, totaliCommessaAppalto } from "@/lib/appalto/rendiconto";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -234,15 +234,28 @@ export function RendicontoAppalto({
 
   /** L'anteprima dell'importo: le stesse tre regole che applicherà il database. */
   const anteprima = useMemo(() => {
-    const q = parseDecimalIT(qtaGrezza);
-    if (q <= 0) return null;
+    const q = parseDecimalITStrict(qtaGrezza);
+    if (!Number.isFinite(q) || q <= 0) return null;
     const magg = Number(form?.maggiorazione_pct ?? 0);
     const prezzo = tariffaScelta
       ? Number(mappaEccezioni.get(tariffaScelta.id)?.prezzo_unitario ?? tariffaScelta.prezzo_unitario)
-      : parseDecimalIT(prezzoGrezzo);
-    if (prezzo <= 0) return null;
+      : parseDecimalITStrict(prezzoGrezzo);
+    if (!Number.isFinite(prezzo) || prezzo <= 0) return null;
     return { prezzo, importo: Math.round(q * prezzo * (1 + magg / 100) * 100) / 100 };
   }, [qtaGrezza, prezzoGrezzo, form?.maggiorazione_pct, tariffaScelta, mappaEccezioni]);
+
+  const costoNumero = costoGrezzo.trim() ? parseDecimalITStrict(costoGrezzo) : null;
+  const quantitaNumero = parseDecimalITStrict(qtaGrezza);
+  const prezzoNumero = parseDecimalITStrict(prezzoGrezzo);
+  const maggiorazioneNumero = Number(form?.maggiorazione_pct ?? 0);
+  const erroreRiga = !Number.isFinite(quantitaNumero) || quantitaNumero <= 0
+    ? "Inserisci una quantità valida, maggiore di zero."
+    : !form?.tariffa_id && (!form?.descrizione?.trim() || !Number.isFinite(prezzoNumero) || prezzoNumero <= 0)
+      ? "Compila descrizione e prezzo unitario, maggiore di zero."
+      : costoNumero !== null && (!Number.isFinite(costoNumero) || costoNumero < 0)
+        ? "Il costo deve essere un numero maggiore o uguale a zero. Lascia vuoto se non lo conosci."
+        : !Number.isFinite(maggiorazioneNumero) || maggiorazioneNumero < -100 || maggiorazioneNumero > 200
+          ? "La maggiorazione deve essere tra −100 e 200%." : null;
 
   /* ── Scritture ── */
 
@@ -253,7 +266,7 @@ export function RendicontoAppalto({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: chiaveRighe });
+      queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
     },
     onError: (e: unknown) => toast({ title: e instanceof Error ? e.message : "Riga non creata", variant: "destructive" }),
@@ -261,6 +274,7 @@ export function RendicontoAppalto({
 
   const salva = useMutation({
     mutationFn: async (f: Partial<Riga>) => {
+      if (erroreRiga) throw new Error(erroreRiga);
       const riga = {
         order_id: orderId,
         data: f.data || new Date().toLocaleDateString("en-CA"),
@@ -269,8 +283,8 @@ export function RendicontoAppalto({
         // mandiamo solo perché sono NOT NULL.
         descrizione: f.tariffa_id ? "—" : (f.descrizione ?? "").trim(),
         unita_misura: f.tariffa_id ? "cad" : (f.unita_misura || "cad"),
-        prezzo_unitario: f.tariffa_id ? 0 : parseDecimalIT(prezzoGrezzo),
-        quantita: parseDecimalIT(qtaGrezza),
+        prezzo_unitario: f.tariffa_id ? 0 : parseDecimalITStrict(prezzoGrezzo),
+        quantita: parseDecimalITStrict(qtaGrezza),
         maggiorazione_pct: Number(f.maggiorazione_pct ?? 0),
         // Con una riga libera lo mette il trigger a true: qui vale per le righe
         // a listino, dove è una scelta di chi era in cantiere.
@@ -285,7 +299,7 @@ export function RendicontoAppalto({
            agganciata a una tariffa aziendale il trigger riscrive comunque il
            costo vero dell'azienda: li' questo campo non vince, e va bene cosi'.
            Vuoto = null esplicito, altrimenti svuotarlo non lo cancellerebbe. */
-        costo_interno: costoGrezzo.trim() ? parseDecimalIT(costoGrezzo) : null,
+        costo_interno: costoGrezzo.trim() ? parseDecimalITStrict(costoGrezzo) : null,
       };
       if (f.id) {
         const { error } = await (supabase as any).from("appalto_rendiconto_righe").update(riga).eq("id", f.id);
@@ -297,7 +311,7 @@ export function RendicontoAppalto({
     },
     onSuccess: () => {
       setForm(null); setQtaGrezza(""); setPrezzoGrezzo(""); setCostoGrezzo("");
-      queryClient.invalidateQueries({ queryKey: chiaveRighe });
+      queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
       toast({ title: "Riga salvata" });
     },
@@ -312,7 +326,7 @@ export function RendicontoAppalto({
       const { error } = await (supabase as any).from("appalto_rendiconto_righe").update({ stato }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: chiaveRighe }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] }),
     onError: (e) => toast({ title: "Stato non cambiato", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
   });
 
@@ -323,7 +337,7 @@ export function RendicontoAppalto({
     },
     onSuccess: () => {
       setDaEliminare(null);
-      queryClient.invalidateQueries({ queryKey: chiaveRighe });
+      queryClient.invalidateQueries({ queryKey: ["appalto-rendiconto"] });
       queryClient.invalidateQueries({ queryKey: ["appalto-rapportini-da-rendicontare", orderId] });
       toast({ title: "Riga eliminata" });
     },
@@ -336,7 +350,7 @@ export function RendicontoAppalto({
         .from("appalto_tariffe_commessa")
         .upsert({
           order_id: orderId, tariffa_id: x.tariffa_id,
-          prezzo_unitario: parseDecimalIT(x.prezzo), nota: x.nota.trim() || null,
+          prezzo_unitario: parseDecimalITStrict(x.prezzo), nota: x.nota.trim() || null,
         }, { onConflict: "order_id,tariffa_id" });
       if (error) throw error;
     },
@@ -373,7 +387,8 @@ export function RendicontoAppalto({
   }
 
   const aMisura = valorizzazione === "a_misura";
-  const totaleRendicontato = totali.confermato + totali.inBozza;
+  const contiCompleti = totaliCommessaAppalto(righe.data ?? []);
+  const totaleRendicontato = contiCompleti.rendicontato + contiCompleti.inBozza;
   const oltreIlTetto = typeof tettoImporto === "number" && tettoImporto > 0 && totaleRendicontato > tettoImporto;
 
   return (
@@ -652,7 +667,7 @@ export function RendicontoAppalto({
 
       {/* ─── Dialogo riga ─── */}
       <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent ampiezza="modulo" struttura="scorrevole">
           <DialogHeader>
             <DialogTitle>{form?.id ? "Modifica riga" : "Nuova riga di rendiconto"}</DialogTitle>
             <DialogDescription>
@@ -669,7 +684,7 @@ export function RendicontoAppalto({
                 <Label htmlFor="r-qta">Quantità</Label>
                 <Input id="r-qta" inputMode="decimal" value={qtaGrezza}
                   onChange={(e) => setQtaGrezza(e.target.value)}
-                  onBlur={() => { const v = parseDecimalIT(qtaGrezza); setQtaGrezza(v > 0 ? formatDecimalIT(v, { minDecimals: 0, maxDecimals: 2 }) : ""); }}
+                  onBlur={() => { const v = parseDecimalITStrict(qtaGrezza); if (Number.isFinite(v) && v > 0) setQtaGrezza(formatDecimalIT(v, { minDecimals: 0, maxDecimals: 2 })); }}
                   placeholder="3" />
               </div>
               <div className="sm:col-span-2">
@@ -720,7 +735,7 @@ export function RendicontoAppalto({
                     <Label htmlFor="r-prezzo">Prezzo unitario</Label>
                     <Input id="r-prezzo" inputMode="decimal" value={prezzoGrezzo}
                       onChange={(e) => setPrezzoGrezzo(e.target.value)}
-                      onBlur={() => { const v = parseDecimalIT(prezzoGrezzo); setPrezzoGrezzo(v > 0 ? formatDecimalIT(v) : ""); }}
+                      onBlur={() => { const v = parseDecimalITStrict(prezzoGrezzo); if (Number.isFinite(v) && v > 0) setPrezzoGrezzo(formatDecimalIT(v)); }}
                       placeholder="50,00" />
                   </div>
                 </>
@@ -732,7 +747,7 @@ export function RendicontoAppalto({
                 <Label htmlFor="r-costo">Costo tuo (facoltativo)</Label>
                 <Input id="r-costo" inputMode="decimal" value={costoGrezzo}
                   onChange={(e) => setCostoGrezzo(e.target.value)}
-                  onBlur={() => { const v = parseDecimalIT(costoGrezzo); setCostoGrezzo(v > 0 ? formatDecimalIT(v) : ""); }}
+                  onBlur={() => { const v = parseDecimalITStrict(costoGrezzo); if (Number.isFinite(v) && v >= 0) setCostoGrezzo(formatDecimalIT(v)); }}
                   placeholder="0,00" />
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   Quanto ti costa questa riga <strong>in tutto</strong>, non al pezzo.
@@ -800,12 +815,13 @@ export function RendicontoAppalto({
                 <Textarea id="r-note" rows={2} value={form.note ?? ""} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </div>
 
+              {erroreRiga && <p role="alert" className="sm:col-span-2 text-sm text-destructive">{erroreRiga}</p>}
               {anteprima && (
                 <div className="sm:col-span-2 rounded-lg border bg-slate-50 p-3 text-sm">
                   <span className="text-slate-500">Importo della riga: </span>
                   <strong className="tabular-nums">{euro(anteprima.importo, true)}</strong>
                   <span className="text-xs text-slate-500">
-                    {" "}({formatDecimalIT(parseDecimalIT(qtaGrezza), { minDecimals: 0, maxDecimals: 2 })} × {euro(anteprima.prezzo, true)}
+                    {" "}({formatDecimalIT(parseDecimalITStrict(qtaGrezza), { minDecimals: 0, maxDecimals: 2 })} × {euro(anteprima.prezzo, true)}
                     {Number(form.maggiorazione_pct ?? 0) !== 0 ? ` + ${formatDecimalIT(Number(form.maggiorazione_pct), { minDecimals: 0 })}%` : ""})
                   </span>
                 </div>
@@ -817,8 +833,7 @@ export function RendicontoAppalto({
             <Button
               disabled={
                 salva.isPending
-                || parseDecimalIT(qtaGrezza) <= 0
-                || (!form?.tariffa_id && (!form?.descrizione?.trim() || parseDecimalIT(prezzoGrezzo) <= 0))
+                || !!erroreRiga
               }
               onClick={() => form && salva.mutate(form)}
             >
@@ -831,7 +846,7 @@ export function RendicontoAppalto({
 
       {/* ─── Dialogo prezzo di cantiere ─── */}
       <Dialog open={!!overrideForm} onOpenChange={(o) => !o && setOverrideForm(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent ampiezza="modulo" struttura="scorrevole">
           <DialogHeader>
             <DialogTitle>Prezzo diverso su questo cantiere</DialogTitle>
             <DialogDescription>Il listino del contratto non cambia: cambia solo qui.</DialogDescription>
@@ -856,7 +871,7 @@ export function RendicontoAppalto({
                 <Label htmlFor="o-prezzo">Prezzo su questo cantiere</Label>
                 <Input id="o-prezzo" inputMode="decimal" value={overrideForm.prezzo}
                   onChange={(e) => setOverrideForm({ ...overrideForm, prezzo: e.target.value })}
-                  onBlur={() => { const v = parseDecimalIT(overrideForm.prezzo); setOverrideForm({ ...overrideForm, prezzo: v > 0 ? formatDecimalIT(v) : "" }); }}
+                  onBlur={() => { const v = parseDecimalITStrict(overrideForm.prezzo); if (Number.isFinite(v) && v > 0) setOverrideForm({ ...overrideForm, prezzo: formatDecimalIT(v) }); }}
                   placeholder="80,00" />
               </div>
               <div>
@@ -869,7 +884,7 @@ export function RendicontoAppalto({
           <DialogFooter>
             <Button variant="outline" onClick={() => setOverrideForm(null)}>Annulla</Button>
             <Button
-              disabled={!overrideForm?.tariffa_id || parseDecimalIT(overrideForm?.prezzo ?? "") <= 0 || salvaEccezione.isPending}
+              disabled={!overrideForm?.tariffa_id || !(parseDecimalITStrict(overrideForm?.prezzo ?? "") > 0) || salvaEccezione.isPending}
               onClick={() => overrideForm && salvaEccezione.mutate(overrideForm)}
             >
               {salvaEccezione.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}

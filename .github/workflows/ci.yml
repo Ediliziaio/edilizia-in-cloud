@@ -423,6 +423,25 @@ jobs:
           src/test/logic/creaCommessaFasi.test.ts
           src/test/logic/creaCommessaPagamenti.test.ts
 
+      - name: Run general worksite budgets, cash and AI import regressions
+        if: matrix.group == 'economics'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/importAiDestinazioni.test.ts
+          src/test/logic/importOriginaleRetry.test.ts
+          src/test/logic/businessPlanImport.test.ts
+          src/test/logic/commesseImportiFinanziari.test.ts
+          src/test/logic/forecastCostPartialPayments.test.ts
+          src/test/logic/generaleCassaLettura.test.ts
+          src/test/logic/generaleGestioneGlobaleControlli.test.ts
+          src/test/logic/generaleSimulazioneCompleta.test.ts
+          src/test/ui/businessPlanPdfAi.test.tsx
+          src/test/ui/importaBusinessPlan.test.tsx
+          src/test/ui/generaleContrattoImportAi.test.tsx
+          src/test/ui/lavoroAppaltatoreRipresa.test.tsx
+          src/test/ui/caricaDocumentiRecupero.test.tsx
+          src/test/ui/generalePianoMutazioni.test.tsx
+
       - name: Run subcontractor assignment, amounts and atomic bridge regressions
         if: matrix.group == 'economics'
         run: >-

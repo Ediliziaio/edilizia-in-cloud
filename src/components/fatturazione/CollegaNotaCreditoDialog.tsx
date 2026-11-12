@@ -8,7 +8,8 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
@@ -160,7 +161,7 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
   const nomeCandidata = (id: string) => candidate.find((c) => c.id === id)?.numero_fattura ?? "";
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
-      <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto">
+      <DialogContent struttura="scorrevole" className="max-h-[90dvh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Quale fattura storna?</DialogTitle>
           <DialogDescription>

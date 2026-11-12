@@ -97,10 +97,10 @@ export function CaricaDocumentiDialog({
   const caricaUno = async (v: Voce): Promise<boolean> => {
     if (!user) return false;
     aggiorna(v.chiave, { stato: "caricamento", errore: undefined });
-    const { file, ridotta, byteOriginali } = riduci ? await riduciFile(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
-    if (ridotta) aggiorna(v.chiave, { byteOriginali, byteRidotti: file.size });
-    const percorso = percorsoDocumento(orderId, file.name);
     try {
+      const { file, ridotta, byteOriginali } = riduci ? await riduciFile(v.file) : { file: v.file, ridotta: false, byteOriginali: v.file.size };
+      if (ridotta) aggiorna(v.chiave, { byteOriginali, byteRidotti: file.size });
+      const percorso = percorsoDocumento(orderId, file.name);
       const { error: errUpload } = await supabase.storage
         .from(ATTACHMENTS_BUCKET)
         .upload(percorso, file, { contentType: file.type || undefined });

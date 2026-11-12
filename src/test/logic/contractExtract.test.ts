@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseContractExtract,
   contractImponibile,
-  contractToInstallments,
+  contractToInstallments, contractInstallmentWarning,
 } from "@/lib/orders/contractExtract";
 
 describe("contract AI extract", () => {
@@ -53,10 +53,10 @@ describe("contract AI extract", () => {
     expect(contractImponibile(soloIvato)).toBe(1000); // 1220 / 1.22
   });
 
-  it("fasi → installments: tipo inferito, importo da percentuale sul totale", () => {
+  it("fasi → installments: percentuali sul totale IVA inclusa", () => {
     const insts = contractToInstallments(parseContractExtract(raw), 10000);
     expect(insts.map((i) => i.type)).toEqual(["deposit", "balance"]);
-    expect(insts.map((i) => i.amount)).toEqual([3000, 7000]);
+    expect(insts.map((i) => i.amount)).toEqual([3300, 7700]);
   });
 
   it("fasi → installments: usa importo esplicito se presente", () => {
@@ -260,5 +260,33 @@ describe("valuta non-euro (audit punto 8)", () => {
   it("EUR o assente → nessun allarme valuta", () => {
     expect(contractCoherenceWarnings(parseContractExtract({ ...base4, valuta: "EUR" })).some((w) => w.includes("euro"))).toBe(false);
     expect(parseContractExtract({ ...base4, valuta: "franchi" }).valuta).toBeNull();
+  });
+});
+
+
+describe("import contratto: IVA e totale da confermare", () => {
+  it("blocca un piano letto a metà anziché accettare solo il saldo",()=>{
+    expect(contractInstallmentWarning([{amount:770}],1100)).toContain("Completa o correggi");
+    expect(contractInstallmentWarning([{amount:330},{amount:770}],1100)).toBeNull();
+    expect(contractInstallmentWarning([{amount:330},{amount:771}],1100)).toContain("Completa o correggi");
+  });
+  it("non usa come imponibile il solo totale lordo senza aliquota", () => {
+    expect(contractImponibile(parseContractExtract({importo_totale_ivato_eur:1220}))).toBeNull();
+  });
+  it("non propone rate percentuali se manca l'IVA da applicare", () => {
+    const ex=parseContractExtract({importo_totale_eur:1000,fasi_pagamento:[{descrizione:"Acconto",percentuale:30},{descrizione:"Saldo",percentuale:70}]});
+    expect(contractToInstallments(ex,1000)).toEqual([]);
+  });
+  it("usa il lordo anche con IVA derivata dai due totali", () => {
+    const ex=parseContractExtract({importo_totale_eur:1000,importo_totale_ivato_eur:1220,fasi_pagamento:[{descrizione:"Acconto",percentuale:30},{descrizione:"Saldo",percentuale:70}]});
+    expect(contractToInstallments(ex,1000).map(r=>r.amount)).toEqual([366,854]);
+  });
+  it("mantiene gli importi espliciti delle rate senza riapplicare l'IVA", () => {
+    const ex=parseContractExtract({iva_pct:22,fasi_pagamento:[{descrizione:"Acconto",importo_eur:366},{descrizione:"Saldo",importo_eur:854}]});
+    expect(contractToInstallments(ex,1000).map(r=>r.amount)).toEqual([366,854]);
+  });
+  it("conferma lo zero IVA senza trasformarlo in aliquota mancante", () => {
+    const ex=parseContractExtract({iva_pct:0,fasi_pagamento:[{descrizione:"Saldo",percentuale:100}]});
+    expect(contractToInstallments(ex,1000)[0].amount).toBe(1000);
   });
 });

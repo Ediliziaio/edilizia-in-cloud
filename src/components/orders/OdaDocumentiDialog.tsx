@@ -1,3 +1,4 @@
+import { percorsoDocumentoGenerale, useAspettoOperativo } from "./generali/design/ContestoOperativo";
 /**
  * Un ordine d'acquisto della commessa, aperto in una finestra: le sue bolle (arrivate sull'ordine o
  * fotografate in cantiere) e le sue fatture, senza lasciare la commessa. Usa gli stessi dati delle
@@ -7,7 +8,8 @@ import { Link } from "react-router-dom";
 import { ExternalLink, Receipt, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/formatters";
 import { ODA_STATUS_COLORS, ODA_STATUS_LABELS } from "@/lib/odaStatus";
@@ -27,6 +29,7 @@ export function OdaDocumentiDialog({ orderId, oda, onClose, mostraImporti }: {
   onClose: () => void;
   mostraImporti: boolean;
 }) {
+  const aspetto = useAspettoOperativo();
   const bolle = useBolleCommessa(orderId);
   const fatture = useFattureFornitoriCommessa(orderId);
   // Solo le bolle arrivate: quelle ancora «in attesa» sono la consegna prevista, non un documento.
@@ -36,7 +39,7 @@ export function OdaDocumentiDialog({ orderId, oda, onClose, mostraImporti }: {
 
   return (
     <Dialog open={!!oda} onOpenChange={(aperta) => { if (!aperta) onClose(); }}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent struttura="scorrevole" className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         {oda && (
           <>
             <DialogHeader>
@@ -72,7 +75,7 @@ export function OdaDocumentiDialog({ orderId, oda, onClose, mostraImporti }: {
                           </div>
                         </div>
                       );
-                      return <li key={b.id}>{b.link ? <Link to={b.link} className="block hover:bg-muted/50">{contenuto}</Link> : contenuto}</li>;
+                      return <li key={b.id}>{b.link ? <Link to={percorsoDocumentoGenerale(b.link, aspetto?.generaleId)} className="block hover:bg-muted/50">{contenuto}</Link> : contenuto}</li>;
                     })}
                   </ul>
                 )}
@@ -104,7 +107,7 @@ export function OdaDocumentiDialog({ orderId, oda, onClose, mostraImporti }: {
 
             <div className="flex justify-end">
               <Button asChild variant="outline" size="sm" className="gap-1.5">
-                <Link to={`/azienda/ordini-acquisto/${oda.id}`}><ExternalLink className="h-4 w-4" />Apri l’ordine d’acquisto</Link>
+                <Link to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${oda.id}`, aspetto?.generaleId)}><ExternalLink className="h-4 w-4" />Apri l’ordine d’acquisto</Link>
               </Button>
             </div>
           </>

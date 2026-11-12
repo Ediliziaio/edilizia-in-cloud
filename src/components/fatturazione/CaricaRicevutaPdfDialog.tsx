@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,7 +47,7 @@ export function CaricaRicevutaPdfDialog({
 
   return (
     <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent struttura="scorrevole" ampiezza="modulo" className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Carica fattura da PDF</DialogTitle>
           <DialogDescription>{file?.name}. Non muove l'IVA finché non fai l'integrazione o l'autofattura: l'indirizzo serve per quella.</DialogDescription>

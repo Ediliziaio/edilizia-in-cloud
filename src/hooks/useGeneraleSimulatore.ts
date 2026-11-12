@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isModelloSimulato, leggiIpotesi, type Ipotesi, type ModelloSimulato } from "@/lib/orders/generali/simulatore";
 import type { OperazioneDaCreare } from "@/lib/orders/generali/simulatoreOperazione";
+import type { StoredContractFile } from "@/lib/orders/contractPreparation";
+import { collegaOriginaleAi } from "@/lib/orders/documentImportAi";
 
 // Tabella e RPC non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,10 +96,11 @@ export function useEliminaIpotesi() {
 
 /** Crea la commessa generale dall'ipotesi salvata, tutto in una transazione. Restituisce l'id della generale. */
 export function useDiventaOperazione() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { ipotesiId: string; operazione: OperazioneDaCreare }): Promise<string> => {
+    mutationFn: async (v: { ipotesiId: string; operazione: OperazioneDaCreare; origine?: StoredContractFile }): Promise<string> => {
+      if (v.origine && (!effectiveCompany?.id || !user?.id)) throw new Error("Sessione non disponibile per conservare l’originale.");
       const { data, error } = await db.rpc("generale_ipotesi_diventa_operazione", {
         p_ipotesi_id: v.ipotesiId,
         p_nome: v.operazione.nome,
@@ -108,6 +111,7 @@ export function useDiventaOperazione() {
       });
       if (error) throw error;
       if (typeof data !== "string") throw new Error("L'operazione non risulta creata. Ricarica la pagina.");
+      if (v.origine) await collegaOriginaleAi(supabase, data, effectiveCompany!.id, user!.id, v.origine);
       return data;
     },
     onSuccess: () => {

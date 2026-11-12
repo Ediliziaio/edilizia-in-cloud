@@ -19,7 +19,10 @@
  *
  * Vedi docs/piano-commessa-appalto.md.
  */
-import { useMemo, useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useMemo, useState, useEffect, useRef } from "react";
+import { lavoroDaContratto } from "@/lib/orders/contrattiDestinazioni";
+import { contractInstallmentWarning, type ContractExtract } from "@/lib/orders/contractExtract";
+import type { StoredContractFile } from "@/lib/orders/contractPreparation";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,8 +31,9 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { parseDecimalITStrict, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { contrattoDiOggi, oggiISO } from "@/lib/appalto/contratti";
+import { salvaLavoroConRate, recuperaScritturaLavoro, conservaScritturaLavoro, completaScritturaLavoro, type ScritturaLavoro } from "@/lib/appalto/creaLavoro";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { useToast } from "@/hooks/use-toast";
@@ -41,7 +45,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -56,6 +59,7 @@ import {
 
 type LavoroPaymentMode = "single" | "installments";
 type Valorizzazione = "a_corpo" | "a_misura";
+const ContractImportDialog = lazy(() => import("@/components/orders/ContractImportDialog").then(m => ({ default: m.ContractImportDialog })));
 
 /** Le date si scrivono come le legge chi le legge: 01/10/2026, non 2026-10-01. */
 const giornoIT = (iso: string | null | undefined): string => {
@@ -87,31 +91,52 @@ interface ContrattoOption {
 const toIsoDate = (d: string) => (d ? d : null);
 
 export default function CreateLavoroAppaltatore() {
+  const { effectiveCompany, user } = useAuth();
+  return <ModuloLavoroAppaltatore key={`${effectiveCompany?.id ?? ""}:${user?.id ?? ""}`} />;
+}
+
+function ModuloLavoroAppaltatore() {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const featureEnabled = useAppaltatoreModuleEnabled();
 
   const companyId = effectiveCompany?.id ?? null;
+  const [scritturaIniziale] = useState(() => recuperaScritturaLavoro(companyId, user?.id));
+  const scritturaRef = useRef<ScritturaLavoro | null>(scritturaIniziale);
+  const invioInCorso = useRef(false);
+  const iniziale = (campo: string, fallback = "") => String(scritturaIniziale?.ordine[campo] ?? fallback);
 
   // ── Form state (skeleton — niente RHF per la prima iterazione) ──
   /* `?committente=…`: ci si arriva dall'avviso di «Nuova Commessa», quando il
      cliente scelto li' e' un committente. Arrivare con la scelta gia' fatta
      evita di ricercarlo in un menu di centocinquanta nomi. */
   const [parametri] = useSearchParams();
-  const [customerId, setCustomerId] = useState<string>(parametri.get("committente") ?? "");
-  const [orderCode, setOrderCode] = useState("");
-  const [description, setDescription] = useState("");
-  const [workAddress, setWorkAddress] = useState("");
+  const [customerId, setCustomerId] = useState<string>(iniziale("customer_id", parametri.get("committente") ?? ""));
+  const [orderCode, setOrderCode] = useState(iniziale("order_code"));
+  const [description, setDescription] = useState(iniziale("description"));
+  const [workAddress, setWorkAddress] = useState(iniziale("work_address"));
   // Le coordinate dell'indirizzo scelto tra i suggerimenti: valgono finché il testo resta quello scelto.
   const [workCoords, setWorkCoords] = useState<{ testo: string; lat: number; lng: number } | null>(null);
-  const [workDescription, setWorkDescription] = useState("");
-  const [materialsLocation, setMaterialsLocation] = useState("");
-  const [workStartDate, setWorkStartDate] = useState("");
-  const [workEndDate, setWorkEndDate] = useState("");
-  const [totalAmount, setTotalAmount] = useState("");
-  const [internalNotes, setInternalNotes] = useState("");
+  const [workDescription, setWorkDescription] = useState(iniziale("work_description"));
+  const [materialsLocation, setMaterialsLocation] = useState(iniziale("materials_location"));
+  const [workStartDate, setWorkStartDate] = useState(iniziale("work_start_date"));
+  const [workEndDate, setWorkEndDate] = useState(iniziale("work_end_date"));
+  const [totalAmount, setTotalAmount] = useState(iniziale("total_amount"));
+  const [vatRate, setVatRate] = useState(iniziale("vat_rate", "22"));
+  const [internalNotes, setInternalNotes] = useState(iniziale("internal_notes"));
+  const [salvataggioIniziato, setSalvataggioIniziato] = useState(!!scritturaIniziale);
+  const [importAi, setImportAi] = useState(false);
+  const [originaleAi, setOriginaleAi] = useState<StoredContractFile | null>(scritturaIniziale?.documento ?? null);
+  const [avvisiAi, setAvvisiAi] = useState<string[]>([]);
+  const [scelteAiConfermate, setScelteAiConfermate] = useState(!scritturaIniziale?.documento);
+  const [statoImportAi, setStatoImportAi] = useState("");
+  const saltaStrutturaRate = useRef(false);
+  const { data: statiImportAi = [] } = useQuery({
+    queryKey: ["stati-import-appaltatore", companyId], enabled: !!companyId && !!originaleAi,
+    queryFn: async () => { const { data, error } = await supabase.from("order_statuses").select("id, name").eq("company_id", companyId!).order("position"); if (error) throw error; return data ?? []; },
+  });
 
   // ── Il contratto del committente e il modo di valorizzazione ────
   /**
@@ -120,16 +145,16 @@ export default function CreateLavoroAppaltatore() {
    * appartiene al nuovo elenco smette da sola di valere. Prima era un effetto
    * che riscriveva lo stato, cioè un render in più e un errore eslint.
    */
-  const [contrattoManuale, setContrattoManuale] = useState<string>("");
-  const [valorizzazione, setValorizzazione] = useState<Valorizzazione>("a_corpo");
-  const [tetto, setTetto] = useState("");
-  const [rifCommittente, setRifCommittente] = useState("");
+  const [contrattoManuale, setContrattoManuale] = useState<string>(iniziale("appalto_contratto_id"));
+  const [valorizzazione, setValorizzazione] = useState<Valorizzazione>(iniziale("valorizzazione") === "a_misura" ? "a_misura" : "a_corpo");
+  const [tetto, setTetto] = useState(iniziale("tetto_importo"));
+  const [rifCommittente, setRifCommittente] = useState(iniziale("riferimento_committente"));
 
   // ── Pagamenti: rate / unica / acconto+saldo ─────────────────────
-  const [paymentMode, setPaymentMode] = useState<LavoroPaymentMode>("single");
-  const [numInstallments, setNumInstallments] = useState<number>(2); // 2=acconto+saldo, 3=acconto1+acconto2+saldo
+  const [paymentMode, setPaymentMode] = useState<LavoroPaymentMode>((scritturaIniziale?.rate.length ?? 0) > 1 ? "installments" : "single");
+  const [numInstallments, setNumInstallments] = useState<number>(Math.max(2, scritturaIniziale?.rate.length ?? 2)); // 2=acconto+saldo, 3=acconto1+acconto2+saldo
   const [installments, setInstallments] = useState<Installment[]>(
-    createDefaultInstallments("standard", 1) // default: solo saldo
+    scritturaIniziale ? scritturaIniziale.rate as unknown as Installment[] : createDefaultInstallments("standard", 1) // default: solo saldo
   );
 
   /**
@@ -145,6 +170,8 @@ export default function CreateLavoroAppaltatore() {
 
   // Sincronizza la struttura delle rate quando cambia mode/numero rate
   useEffect(() => {
+    if (scritturaRef.current) return;
+    if (saltaStrutturaRate.current) { saltaStrutturaRate.current = false; return; }
     const target = paymentMode === "single" ? 1 : numInstallments;
     setInstallments((prev) => {
       const next = createDefaultInstallments("standard", target);
@@ -189,11 +216,12 @@ export default function CreateLavoroAppaltatore() {
   };
 
   const handleInstallmentAmountBlur = (position: number) => {
-    const v = parseDecimalIT(rawInstallmentAmounts[position] ?? "");
+    const testo = rawInstallmentAmounts[position] ?? "";
+    const v = testo.trim() ? parseDecimalITStrict(testo) : 0;
     updateInstallment(position, { amount: v });
     setRawInstallmentAmounts((prev) => ({
       ...prev,
-      [position]: v > 0 ? formatDecimalIT(v) : "",
+      [position]: Number.isNaN(v) ? testo : v > 0 ? formatDecimalIT(v) : "",
     }));
   };
 
@@ -219,7 +247,7 @@ export default function CreateLavoroAppaltatore() {
     // Solo una stringa: un suggerimento storto non deve poter mandare in
     // errore il campo (`orderCode.trim()` sta anche nel riepilogo).
     const suggerito = typeof codiceSuggerito.data === "string" ? codiceSuggerito.data.trim() : "";
-    if (codicePrecompilato.current || !suggerito) return;
+    if (scritturaRef.current || codicePrecompilato.current || !suggerito) return;
     codicePrecompilato.current = true;
     setOrderCode((attuale) => (attuale.trim() ? attuale : suggerito));
   }, [codiceSuggerito.data]);
@@ -282,28 +310,44 @@ export default function CreateLavoroAppaltatore() {
 
   // ── Importi pagamento (saldo = totale - somma acconti) ──────────
   const totalNum = useMemo(() => {
-    const v = totalAmount ? parseDecimalIT(totalAmount) : 0;
+    const v = totalAmount ? parseDecimalITStrict(totalAmount) : 0;
     return Number.isNaN(v) ? 0 : v;
   }, [totalAmount]);
 
+  // Anche Invio dalla tastiera deve usare il testo corrente, senza attendere il blur.
+  const rateCorrenti = useMemo(() => installments.map(i => {
+    const raw = rawInstallmentAmounts[i.position];
+    return i.type === "deposit" && raw !== undefined
+      ? { ...i, amount: raw.trim() ? parseDecimalITStrict(raw) : 0 } : i;
+  }), [installments, rawInstallmentAmounts]);
+
   const depositsSum = useMemo(
     () =>
-      installments
+      rateCorrenti
         .filter((i) => i.type === "deposit")
         .reduce((acc, i) => acc + (Number.isFinite(i.amount) ? i.amount : 0), 0),
-    [installments]
+    [rateCorrenti]
   );
 
-  const balanceComputed = Math.max(0, totalNum - depositsSum);
+  const totalGross = Math.round(totalNum * (1 + Number(vatRate) / 100) * 100) / 100;
+  const saldoDichiarato = rateCorrenti.find(i => i.type === "balance" && i.amount_from_contract);
+  const balanceComputed = saldoDichiarato?.amount ?? Math.max(0, Math.round((totalGross - depositsSum) * 100) / 100);
 
   const paymentError = useMemo(() => {
-    if (totalNum > 0 && depositsSum > totalNum + 0.005) {
+    if (rateCorrenti.some(i => !Number.isFinite(i.amount) || i.amount < 0)) return "Controlla gli importi delle rate: devono essere numeri non negativi.";
+    if (totalNum > 0 && depositsSum > totalGross + 0.005) {
       return "La somma degli acconti supera l'importo totale.";
     }
+    if (originaleAi) return contractInstallmentWarning(rateCorrenti.map(i => ({ amount: i.type === "balance" ? balanceComputed : i.amount })), totalGross);
     return null;
-  }, [totalNum, depositsSum]);
+  }, [totalNum, totalGross, depositsSum, rateCorrenti, originaleAi, balanceComputed]);
 
   const aMisura = valorizzazione === "a_misura";
+
+  const importiError = totalAmount.trim() && (!Number.isFinite(parseDecimalITStrict(totalAmount)) || parseDecimalITStrict(totalAmount) < 0)
+    ? "Inserisci un importo valido, per esempio 1.000,50."
+    : aMisura && tetto.trim() && (!Number.isFinite(parseDecimalITStrict(tetto)) || parseDecimalITStrict(tetto) < 0)
+      ? "Inserisci un tetto valido, maggiore o uguale a zero." : null;
 
   /**
    * A misura il contratto serve davvero: l'importo nasce dalle tariffe del
@@ -315,18 +359,24 @@ export default function CreateLavoroAppaltatore() {
   const canSubmit =
     !!companyId &&
     !!customerId &&
+    (!originaleAi || (scelteAiConfermate && !!vatRate.trim() && !!statoImportAi)) &&
     description.trim().length > 0 &&
     !dateError &&
+    !importiError &&
     !contrattoMancante &&
     (aMisura || !paymentError);
 
   // ── Mutation: insert orders + installments + redirect ──────────
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile.");
+      if (!companyId || !user?.id) throw new Error("Sessione o azienda non disponibile.");
+      if (scritturaRef.current) {
+        return { id: await salvaLavoroConRate(supabase, scritturaRef.current) };
+      }
       if (!customerId) throw new Error("Seleziona un appaltatore.");
+      if (originaleAi && (!scelteAiConfermate || !vatRate.trim() || !statoImportAi || (!aMisura && paymentError))) throw new Error(paymentError || "Conferma committente, contratto/listino, modalità, IVA e stato iniziale letti dal documento.");
 
-      const totalVal = totalAmount ? parseDecimalIT(totalAmount) : 0;
+      const totalVal = totalAmount ? parseDecimalITStrict(totalAmount) : 0;
       if (Number.isNaN(totalVal) || totalVal < 0) {
         throw new Error("Importo non valido.");
       }
@@ -340,7 +390,7 @@ export default function CreateLavoroAppaltatore() {
        */
       const installmentsForSave: Installment[] = aMisura
         ? []
-        : installments.map((i) => (i.type === "balance" ? { ...i, amount: balanceComputed } : i));
+        : rateCorrenti.map((i): Installment => ({ ...i, amount: i.type === "balance" ? balanceComputed : i.amount, is_paid: false, paid_date: null }));
       const legacy = aMisura ? {} : installmentsToLegacyColumns(installmentsForSave);
       const coordinateScelte = workCoords && workCoords.testo === workAddress.trim()
         ? { work_lat: workCoords.lat, work_lng: workCoords.lng }
@@ -353,13 +403,13 @@ export default function CreateLavoroAppaltatore() {
         description: description.trim(),
         total_amount: totalVal,
         ...legacy,
-        vat_rate: 22,
+        vat_rate: Number(vatRate),
         payment_type: aMisura ? "balance" : paymentMode === "single" ? "balance" : "standard",
         // Campi specifici Modulo Appaltatori
         order_type: "appaltatore_lavoro",
         valorizzazione,
         appalto_contratto_id: contrattoId || null,
-        tetto_importo: tetto ? parseDecimalIT(tetto) : null,
+        tetto_importo: aMisura && tetto ? parseDecimalITStrict(tetto) : null,
         riferimento_committente: rifCommittente.trim() || null,
         work_address: workAddress.trim() || null,
         ...coordinateScelte,
@@ -370,15 +420,33 @@ export default function CreateLavoroAppaltatore() {
         internal_notes: internalNotes.trim() || null,
       };
 
-      const { data, error } = await supabase
-        .from("orders")
-        // Cast a `never` — i nuovi campi non sono ancora nei tipi
-        // generati (la migration verrà applicata a parte).
-        .insert(payload as never)
-        .select("id")
-        .single();
-      if (error) throw error;
-      const orderId = (data as { id: string }).id;
+      if (!scritturaRef.current) {
+        let queryStato = supabase.from("order_statuses").select("id").eq("company_id", companyId);
+        if (originaleAi) queryStato = queryStato.eq("id", statoImportAi);
+        const stato = await queryStato.order("is_default", { ascending: false, nullsFirst: false }).order("position", { ascending: true }).limit(1).maybeSingle();
+        if (stato.error) throw stato.error;
+        if (!stato.data) throw new Error("Configura almeno uno stato commessa prima di creare il lavoro.");
+        const orderId = crypto.randomUUID();
+        scritturaRef.current = {
+          ordine: { ...payload, id: orderId, current_status_id: stato.data.id, created_by: user?.id },
+          rate: installmentsForSave.map((i) => ({
+            id: crypto.randomUUID(), order_id: orderId,
+            position: i.position, label: i.label, type: i.type, amount: i.amount,
+            is_paid: i.is_paid, paid_date: i.paid_date || null,
+            expected_date: i.expected_date || null,
+          })),
+          documento: originaleAi,
+        };
+        setSalvataggioIniziato(true);
+      }
+      try {
+        conservaScritturaLavoro(scritturaRef.current, user.id);
+      } catch {
+        scritturaRef.current = null;
+        setSalvataggioIniziato(false);
+        throw new Error("Non riesco a conservare il tentativo in questo browser. Il lavoro non è stato inviato: abilita il salvataggio locale e riprova.");
+      }
+      const orderId = await salvaLavoroConRate(supabase, scritturaRef.current);
 
       // Geocoding automatico cantiere (best-effort, in background):
       // popola work_lat/lng senza bloccare la creazione del lavoro. Non serve
@@ -393,33 +461,13 @@ export default function CreateLavoroAppaltatore() {
         }).catch(() => { /* geocoding best-effort: non bloccante */ });
       }
 
-      // Persisti anche le rate nella tabella order_installments per
-      // coerenza con il resto dell'app (FinancialSummary, dashboard,
-      // cashflow, customer portal). Allineato a EditOrder.
-      if (installmentsForSave.length > 0) {
-        const rows = installmentsForSave.map((i) => ({
-          order_id: orderId,
-          position: i.position,
-          label: i.label,
-          type: i.type,
-          amount: i.amount,
-          is_paid: i.is_paid,
-          paid_date: i.paid_date || null,
-          expected_date: i.expected_date || null,
-        }));
-        const { error: instErr } = await supabase
-          .from("order_installments")
-          .insert(rows as never);
-        if (instErr) {
-          logger.error("Insert installments error:", instErr);
-          // Non blocchiamo la creazione: i campi legacy sono già
-          // persistiti su orders e la UI legge da entrambe.
-        }
-      }
-
       return { id: orderId } as { id: string };
     },
     onSuccess: (order) => {
+      if (scritturaRef.current && user?.id) {
+        try { completaScritturaLavoro(scritturaRef.current, user.id); }
+        catch { logger.warn("Creazione completata; tentativo locale ancora conservato."); }
+      }
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast({
         title: "Lavoro creato",
@@ -427,21 +475,57 @@ export default function CreateLavoroAppaltatore() {
       });
       navigate(`/azienda/ordini/${order.id}`);
     },
+    onSettled: () => { invioInCorso.current = false; },
     onError: (err) => {
+      // Una risposta SQL esplicita conferma il rollback: si può correggere il modulo.
+      // Con errori di rete l'esito resta incerto e conserviamo lo stesso tentativo.
+      if (/^[0-9A-Z]{5}$/.test(String((err as {code?: string})?.code ?? "")) && scritturaRef.current && user?.id) {
+        try {
+          completaScritturaLavoro(scritturaRef.current, user.id);
+          scritturaRef.current = null;
+          setSalvataggioIniziato(false);
+        } catch { /* Conserva il recupero se il browser non consente di cancellarlo. */ }
+      }
       logger.error("Create lavoro appaltatore error:", err);
       toast({
         title: "Errore",
-        description: err instanceof Error ? err.message : "Errore durante la creazione.",
+        description: (err as { message?: string })?.message || "Errore durante la creazione. Riprova per completare lo stesso lavoro.",
         variant: "destructive",
       });
     },
   });
 
+  const invia = () => {
+    if (invioInCorso.current || (!canSubmit && !scritturaRef.current)) return;
+    invioInCorso.current = true;
+    createMutation.mutate();
+  };
+
+  const applicaContratto = (ex: ContractExtract, _file?: File | null, source?: StoredContractFile | null) => {
+    if (ex.valuta && ex.valuta !== "EUR") { toast({ title: "Valuta da convertire", description: "Converti il documento in euro prima di applicarlo.", variant: "destructive" }); return; }
+    const proposta = lavoroDaContratto(ex, valorizzazione);
+    const modo = proposta.rate.length > 1 ? "installments" : "single";
+    const numero = Math.max(2, proposta.rate.length);
+    saltaStrutturaRate.current = modo !== paymentMode || numero !== numInstallments;
+    setPaymentMode(modo); setNumInstallments(numero);
+    setInstallments(proposta.rate.length ? proposta.rate : createDefaultInstallments("standard", 1));
+    setRawInstallmentAmounts({}); setValorizzazione(proposta.valorizzazione);
+    setDescription(ex.descrizione_lavori); setWorkDescription(ex.descrizione_lavori);
+    setWorkAddress(ex.indirizzo_cantiere ?? ""); setWorkCoords(null);
+    setWorkStartDate(ex.data_inizio_lavori ?? ""); setWorkEndDate(ex.data_fine_lavori ?? "");
+    setTotalAmount(proposta.importo == null ? "" : formatDecimalIT(proposta.importo));
+    setVatRate(proposta.aliquota == null ? "" : String(proposta.aliquota));
+    setTetto(proposta.tetto == null ? "" : formatDecimalIT(proposta.tetto));
+    setRifCommittente(proposta.riferimento); setOriginaleAi(source ?? null); setScelteAiConfermate(false); setStatoImportAi("");
+    setAvvisiAi(proposta.avvisi);
+    setInternalNotes(n => [n, `IMPORT AI — ${source?.name ?? "contratto"}. Committente letto: ${ex.cliente.nome_completo || "da confermare"}.`, ex.summary, ...proposta.avvisi].filter(Boolean).join("\n"));
+  };
+
   // ── Riepilogo live (DEVE stare prima di ogni early return per
   //     rispettare le rules-of-hooks di React) ────────────────────
   const selectedAppaltatore = appaltatori.find((a) => a.id === customerId);
   const totalForSummary = totalAmount
-    ? parseDecimalIT(totalAmount)
+    ? parseDecimalITStrict(totalAmount)
     : 0;
   const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
     ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalForSummary)
@@ -492,15 +576,24 @@ export default function CreateLavoroAppaltatore() {
         }
       />
 
+      <div className="space-y-3 rounded-lg border bg-card p-4">
+        <Button type="button" variant="outline" disabled={salvataggioIniziato} onClick={() => setImportAi(true)}>Carica contratto (AI)</Button>
+        {originaleAi && <><p className="text-sm">Originale da conservare: <strong>{originaleAi.name}</strong></p><ul className="list-disc pl-5 text-sm text-muted-foreground">{avvisiAi.map(a => <li key={a}>{a}</li>)}</ul><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={scelteAiConfermate} disabled={salvataggioIniziato} onChange={e => setScelteAiConfermate(e.target.checked)} className="mt-1"/>Ho verificato committente, contratto/listino, corpo o misura e regime IVA nel modulo.</label></>}
+      </div>
+      {originaleAi && <div className="max-w-md space-y-1"><Label htmlFor="stato-import-ai">Stato iniziale da confermare</Label><Select value={statoImportAi} onValueChange={setStatoImportAi} disabled={salvataggioIniziato}><SelectTrigger id="stato-import-ai"><SelectValue placeholder="Scegli lo stato del lavoro"/></SelectTrigger><SelectContent>{statiImportAi.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">La data del documento non prova la firma. Nessuno stato viene scelto automaticamente dall’importazione.</p></div>}
+      {importAi && <Suspense fallback={<p role="status">Apertura lettore…</p>}><ContractImportDialog open companyId={companyId} destinazione="appaltatore" onOpenChange={setImportAi} onApply={applicaContratto}/></Suspense>}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!canSubmit || createMutation.isPending) return;
-          createMutation.mutate();
+          invia();
         }}
         className="grid grid-cols-1 lg:grid-cols-12 gap-6"
       >
         <div className="lg:col-span-8 space-y-6">
+        {importiError && <Alert variant="destructive" role="alert"><AlertDescription>{importiError}</AlertDescription></Alert>}
+        {salvataggioIniziato && !createMutation.isPending && <Alert><AlertDescription>È conservato un tentativo per questo lavoro. Premi «Verifica e completa» per recuperare la commessa già creata o completare il salvataggio con le sue rate, senza duplicarla.</AlertDescription></Alert>}
+        <fieldset disabled={salvataggioIniziato} className="min-w-0 space-y-6">
         {/* ── Cliente appaltatore ────────────────────────────────── */}
         <QuoteCard
           title="Committente"
@@ -794,8 +887,8 @@ export default function CreateLavoroAppaltatore() {
                   // Eco al blur: chi scrive "1.500" deve vedere "1.500,00"
                   // (millecinquecento) prima che l'importo entri nel lavoro.
                   onBlur={() => {
-                    const v = parseDecimalIT(totalAmount);
-                    setTotalAmount(v > 0 ? formatDecimalIT(v) : "");
+                    const v = parseDecimalITStrict(totalAmount);
+                    if (Number.isFinite(v) && v >= 0) setTotalAmount(formatDecimalIT(v));
                   }}
                   placeholder="0,00"
                 />
@@ -818,8 +911,8 @@ export default function CreateLavoroAppaltatore() {
                     value={tetto}
                     onChange={(e) => setTetto(e.target.value)}
                     onBlur={() => {
-                      const v = parseDecimalIT(tetto);
-                      setTetto(v > 0 ? formatDecimalIT(v) : "");
+                      const v = parseDecimalITStrict(tetto);
+                      if (Number.isFinite(v) && v >= 0) setTetto(formatDecimalIT(v));
                     }}
                     placeholder="0,00"
                   />
@@ -829,6 +922,14 @@ export default function CreateLavoroAppaltatore() {
                 </div>
               )}
 
+              <div className="space-y-2">
+                <Label htmlFor="lavoro-iva">Aliquota IVA</Label>
+                <Select value={vatRate} onValueChange={setVatRate}>
+                  <SelectTrigger id="lavoro-iva"><SelectValue /></SelectTrigger>
+                  <SelectContent>{["0", "4", "10", "22"].map((v) => <SelectItem key={v} value={v}>{v}%</SelectItem>)}</SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Conferma l'aliquota applicabile. Rate e incassi includono l'IVA; il compenso resta netto.</p>
+              </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="rifCommittente">Loro numero d'ordine</Label>
                 <Input
@@ -917,11 +1018,7 @@ export default function CreateLavoroAppaltatore() {
                   >
                     <div className="flex items-start gap-3 mb-3">
                       <div className="mt-0.5 shrink-0">
-                        {inst.is_paid ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <Circle className="h-4 w-4 text-slate-300" />
-                        )}
+                        <Circle className="h-4 w-4 text-slate-300" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -933,28 +1030,18 @@ export default function CreateLavoroAppaltatore() {
                               </span>
                             )}
                           </span>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-slate-500">Pagato</span>
-                            <Switch
-                              checked={inst.is_paid}
-                              onCheckedChange={(v) =>
-                                updateInstallment(inst.position, {
-                                  is_paid: v,
-                                  paid_date: v ? (inst.paid_date || oggiISO()) : null,
-                                })
-                              }
-                            />
-                          </div>
+
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 ml-7">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ml-7">
                       <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">
-                          Importo (€)
+                        <Label htmlFor={`rata-importo-${inst.position}`} className="text-[11px] text-muted-foreground">
+                          Importo IVA inclusa (€)
                         </Label>
                         <Input
+                          id={`rata-importo-${inst.position}`}
                           type="text"
                           inputMode="decimal"
                           value={
@@ -993,27 +1080,14 @@ export default function CreateLavoroAppaltatore() {
                           }
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">
-                          {inst.is_paid ? "Data pagamento" : "Data pagamento (se pagato)"}
-                        </Label>
-                        <Input
-                          type="date"
-                          value={inst.paid_date || ""}
-                          onChange={(e) =>
-                            updateInstallment(inst.position, {
-                              paid_date: e.target.value || null,
-                              is_paid: !!e.target.value,
-                            })
-                          }
-                        />
-                      </div>
+
                     </div>
                   </div>
                 );
               })}
             </div>
 
+            <p className="text-sm text-muted-foreground">Qui pianifichi le scadenze. Registra gli incassi dal dettaglio della commessa e conferma il collegamento alla prima nota.</p>
             {/* Validation banner */}
             {paymentError && (
               <Alert variant="destructive" className="py-2">
@@ -1024,11 +1098,11 @@ export default function CreateLavoroAppaltatore() {
 
             {/* Sintesi rapida */}
             {totalNum > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100 text-xs">
                 <div>
-                  <div className="text-slate-500">Totale</div>
+                  <div className="text-slate-500">Totale IVA inclusa</div>
                   <div className="font-semibold text-slate-800">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalNum)}
+                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(totalGross)}
                   </div>
                 </div>
                 <div>
@@ -1043,17 +1117,7 @@ export default function CreateLavoroAppaltatore() {
                     {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(balanceComputed)}
                   </div>
                 </div>
-                <div>
-                  <div className="text-slate-500">Già incassato</div>
-                  <div className="font-semibold text-emerald-600">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(
-                      installments
-                        .map((i) => (i.type === "balance" ? { ...i, amount: balanceComputed } : i))
-                        .filter((i) => i.is_paid)
-                        .reduce((s, i) => s + i.amount, 0)
-                    )}
-                  </div>
-                </div>
+
               </div>
             )}
             </>)}
@@ -1071,6 +1135,7 @@ export default function CreateLavoroAppaltatore() {
             maxLength={1000}
           />
         </QuoteCard>
+        </fieldset>
         </div>
 
         {/* ── Sidebar: riepilogo + actions (sticky su desktop) ─────── */}
@@ -1090,7 +1155,7 @@ export default function CreateLavoroAppaltatore() {
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
-                <dt className="text-slate-500 shrink-0">Pagato</dt>
+                <dt className="text-slate-500 shrink-0">Valorizzazione</dt>
                 <dd className="font-medium text-right text-slate-800">
                   {aMisura ? "A misura" : "A corpo"}
                 </dd>
@@ -1183,7 +1248,7 @@ export default function CreateLavoroAppaltatore() {
             <div className="space-y-2">
               <QuotePrimaryButton
                 type="submit"
-                disabled={!canSubmit || createMutation.isPending}
+                disabled={(!canSubmit && !salvataggioIniziato) || createMutation.isPending}
                 className="w-full justify-center"
               >
                 {createMutation.isPending ? (
@@ -1194,7 +1259,7 @@ export default function CreateLavoroAppaltatore() {
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Crea il lavoro
+                    {salvataggioIniziato ? "Verifica e completa" : "Crea il lavoro"}
                   </>
                 )}
               </QuotePrimaryButton>

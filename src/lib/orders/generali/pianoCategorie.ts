@@ -7,6 +7,7 @@
 // quale voce raccoglie una riga del reale. Una categoria nuova si aggiunge in tutti e due.
 import { normalizzaCategoria } from "@/lib/controlloGestione/vociCassa";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
+import { DA_STIMARE } from "./budgetCompletezza";
 
 export type TipoVoce = "ricavo" | "costo";
 
@@ -162,6 +163,7 @@ export interface VoceNuova {
   importo: number;
   mese: string | null;
   durataMesi: number;
+  nota?: string | null;
 }
 
 /** Le voci di partenza di un modello, coi mesi contati da `daMese` e i ricavi dal valore della generale. */
@@ -173,6 +175,7 @@ export function vociDiPartenza(modello: ModelloGenerale, daMese: string, valore:
     importo: v.dalValore && valore !== null && valore > 0 ? valore : 0,
     mese: aggiungiMesi(daMese, v.dopoMesi),
     durataMesi: v.durataMesi,
+    nota: v.dalValore && valore !== null && valore > 0 ? null : DA_STIMARE,
   }));
 }
 

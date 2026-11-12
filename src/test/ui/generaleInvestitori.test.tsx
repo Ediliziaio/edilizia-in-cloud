@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   pianoVuoto: false,
 }));
 
+vi.mock("@/components/orders/generali/investitori/ReportMensile", () => ({ ReportMensile: () => <p>Report mensile</p> }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 // I grafici misurano il contenitore: in jsdom basta che non cadano.
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
@@ -170,17 +171,15 @@ describe("il modulo Investitori", () => {
     expect(storico).toHaveTextContent("Inviato");
   });
 
-  it("il riquadro in Panoramica: raccolto contro capitale massimo e rendimento atteso", () => {
+  it("il riquadro in Panoramica distingue capitale dentro e ancora da versare", () => {
     const Riquadro = modulo.Riquadro!;
     render(<MemoryRouter><Riquadro riepilogo={riepilogo()} totali={totali} puoModificare /></MemoryRouter>);
     const r = screen.getByRole("region", { name: "Investitori" });
     expect(r).toHaveTextContent("Capitale ancora dentro");
     expect(r).toHaveTextContent("350.000");
-    expect(r).toHaveTextContent("600.000");
-    expect(r).toHaveTextContent("Rendimento atteso");
-    // 240.000 di margine sul capitale massimo di 600.000.
-    expect(r).toHaveTextContent("40%");
-    expect(r).toHaveTextContent("Rendimento dei mezzi propri");
+    expect(r).toHaveTextContent("Ancora da versare");
+    expect(r).toHaveTextContent("Mezzi propri");
+    expect(r).not.toHaveTextContent("Rendimento atteso");
     expect(r).toHaveTextContent("mancano 100.000");
   });
 });

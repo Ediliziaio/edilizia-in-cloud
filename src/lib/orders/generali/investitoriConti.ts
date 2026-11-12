@@ -25,6 +25,7 @@
 // finale è Ad oggi + A finire.
 
 import { distanzaMesi, tirAnnuo, type NumeriInvestitori } from "@/lib/orders/generali/pianoConti";
+import { movimentoPrevisto } from "./movimentiFonti";
 
 export const TIPI_FONTE = ["propri", "capitale", "prestito", "banca", "finanziamento"] as const;
 export type TipoFonte = typeof TIPI_FONTE[number];
@@ -247,6 +248,7 @@ const colonne = (previsto: number, adOggi: number, aFinire: number): Colonne => 
 export interface ContoFonte {
   fonte: Fonte;
   movimenti: Movimento[];
+  programmati?: Movimento[];
   versato: number;
   rimborsato: number;
   /** Utile distribuito (a capitale) o interessi pagati (a prestito). */
@@ -352,6 +354,7 @@ function conScenario(f: Fonte, s: ScenarioDebito | null): Fonte {
 interface Base {
   fonte: Fonte;
   movimenti: Movimento[];
+  programmati: Movimento[];
   versato: number;
   rimborsato: number;
   pagato: number;
@@ -367,7 +370,9 @@ interface Base {
 }
 
 function base(fonte: Fonte, movimenti: Movimento[], oggi: string, fine: string): Omit<Base, "prelievi" | "futuri" | "rimborsiFuturi"> {
-  const miei = movimenti.filter((m) => m.fonteId === fonte.id && giornoValido(m.data)).sort((a, b) => a.data.localeCompare(b.data));
+  const tutti = movimenti.filter((m) => m.fonteId === fonte.id && giornoValido(m.data)).sort((a, b) => a.data.localeCompare(b.data));
+  const miei = tutti.filter(m => !movimentoPrevisto(m, oggi));
+  const programmati = tutti.filter(m => movimentoPrevisto(m, oggi));
   const di = (t: TipoMovimento) => somma(miei.filter((m) => m.tipo === t).map((m) => m.importo));
   const versato = di("versamento");
   const rimborsato = arrotonda(di("rimborso") + di("accollo"));
@@ -377,7 +382,7 @@ function base(fonte: Fonte, movimenti: Movimento[], oggi: string, fine: string):
   const inizio = giornoValido(fonte.dataInizio) ? fonte.dataInizio : primoVersamento ?? minData(oggi, fine);
   const fineConteggio = aPrestito(fonte.tipo) && giornoValido(fonte.scadenza) ? fonte.scadenza : fine;
   return {
-    fonte, movimenti: miei, versato, rimborsato, pagato, spesePagate: di("spese"),
+    fonte, movimenti: miei, programmati, versato, rimborsato, pagato, spesePagate: di("spese"),
     capitaleDentro: arrotonda(versato - rimborsato), daVersare, inizio, fineConteggio,
   };
 }
@@ -388,28 +393,33 @@ function base(fonte: Fonte, movimenti: Movimento[], oggi: string, fine: string):
  * (le erogazioni a SAL). Senza piano: tutto oggi.
  */
 function prelievi(basi: ReturnType<typeof base>[], numeri: NumeriOperazione | null, oggi: string): Map<string, Passo[]> {
-  const fuori = new Map<string, Passo[]>(basi.map((b): [string, Passo[]] => [b.fonte.id, []]));
+  const fuori = new Map<string, Passo[]>(basi.map((b): [string, Passo[]] => [b.fonte.id, b.programmati.filter(m => m.tipo === "versamento").map(m => ({ ...m, data: maxData(m.data, oggi) }))]));
+  const disponibile = (b: ReturnType<typeof base>) => Math.max(0, b.daVersare - somma(b.programmati.filter(m => m.tipo === "versamento").map(m => m.importo)));
   const quando = (b: ReturnType<typeof base>, data: string) => {
     const d = maxData(data, b.inizio);
     return minData(d, maxData(b.fineConteggio, b.inizio));
   };
   const fabbisogno = (numeri?.fabbisogno ?? []).filter((f) => /^\d{4}-\d{2}/.test(f.mese)).sort((a, b) => a.mese.localeCompare(b.mese));
   if (fabbisogno.length === 0) {
-    for (const b of basi) if (b.daVersare > 0) fuori.get(b.fonte.id)!.push({ tipo: "versamento", data: quando(b, oggi), importo: b.daVersare });
+    for (const b of basi) if (disponibile(b) > 0) fuori.get(b.fonte.id)!.push({ tipo: "versamento", data: quando(b, oggi), importo: disponibile(b) });
     return fuori;
   }
   const ordine = [...basi].sort((a, b) => ORDINE_PRELIEVO[a.fonte.tipo] - ORDINE_PRELIEVO[b.fonte.tipo] || a.fonte.ordine - b.fonte.ordine);
-  const rimasto = new Map(basi.map((b) => [b.fonte.id, b.daVersare]));
+  const rimasto = new Map(basi.map((b) => [b.fonte.id, disponibile(b)]));
   let dentro = basi.reduce((t, b) => t + Math.max(0, b.capitaleDentro), 0);
   const meseOggi = oggi.slice(0, 7);
+  const programmati = basi.flatMap(b => b.programmati).filter(m => ["versamento", "rimborso", "accollo"].includes(m.tipo));
+  const contati = new Set<string>();
   for (const f of fabbisogno) {
     if (f.mese < meseOggi) continue;
+    for (const m of programmati) if (!contati.has(m.id) && m.data <= fineMese(f.mese)) { dentro += segno(m.tipo) * m.importo; contati.add(m.id); }
     let serve = f.importo - dentro;
     if (serve < 0.5) continue;
     const data = f.mese === meseOggi ? oggi : inizioMese(f.mese);
     for (const b of ordine) {
       const r = rimasto.get(b.fonte.id) ?? 0;
       if (r <= 0 || serve < 0.005) continue;
+      if (quando(b, data).slice(0, 7) > f.mese) continue;
       const preso = arrotonda(Math.min(r, serve));
       fuori.get(b.fonte.id)!.push({ tipo: "versamento", data: quando(b, data), importo: preso });
       rimasto.set(b.fonte.id, arrotonda(r - preso));
@@ -438,19 +448,22 @@ function contoPrestito(b: Base, oggi: string): ContoFonte {
   const daUsare = somma(b.prelievi.map((p) => p.importo));
   const capitaleFinale = b.capitaleDentro + daUsare;
   const spesePreviste = f.speseIniziali ?? 0;
-  const spese = colonne(spesePreviste, b.spesePagate, Math.max(0, spesePreviste - b.spesePagate));
+  const speseProgrammate = somma(b.programmati.filter(m => m.tipo === "spese").map(m => m.importo));
+  const spese = colonne(spesePreviste, b.spesePagate, Math.max(0, spesePreviste - b.spesePagate, speseProgrammate));
   const anni = euroGiorni / 365;
   // Dal suo punto di vista: dà le erogazioni, riceve rimborsi e interessi (gli accolli li paga l'acquirente).
   const flussi = [
     ...b.movimenti.map((m) => ({ data: m.data, importo: m.tipo === "versamento" ? -m.importo : m.tipo === "spese" ? 0 : m.importo })),
     ...b.prelievi.map((p) => ({ data: p.data, importo: -p.importo })),
     ...b.rimborsiFuturi.map((p) => ({ data: p.data, importo: p.importo })),
-    { data: b.fineConteggio, importo: daRicevere },
+    ...b.programmati.filter(p => p.tipo === "interessi").map(p => ({ data: maxData(p.data, oggi), importo: p.importo })),
+    { data: b.fineConteggio, importo: Math.max(0, daRicevere - somma(b.programmati.filter(p => p.tipo === "interessi").map(p => p.importo))) },
   ];
   const rimborsoTesto = piano === "rate" ? ` Rimborso a rate mensili di capitale dal ${dataIt(inizioAmm)}.` : piano === "vendite" ? " Rimborso con le vendite delle unità (frazionamento o accollo)." : "";
   return {
     fonte: f,
     movimenti: b.movimenti,
+    programmati: b.programmati,
     versato: b.versato,
     rimborsato: b.rimborsato,
     pagato: b.pagato,
@@ -470,7 +483,7 @@ function contoPrestito(b: Base, oggi: string): ContoFonte {
       ? `Interessi semplici al ${pct(tasso)} annuo su ogni euro, dal giorno ${aDebito(f.tipo) ? "dell'erogazione" : "del versamento"} a quello del rimborso, fino al ${dataIt(b.fineConteggio)}.`
       : "Nessun tasso indicato: riceve indietro il capitale, senza interessi.") + rimborsoTesto,
     fineConteggio: b.fineConteggio,
-    proiezione: [...b.prelievi, ...b.rimborsiFuturi],
+    proiezione: [...b.prelievi, ...b.rimborsiFuturi, ...b.programmati.filter(p => !["versamento", "rimborso", "accollo"].includes(p.tipo)).map(p => ({ ...p, data: maxData(p.data, oggi) }))],
   };
 }
 
@@ -496,10 +509,13 @@ export function calcolaInvestitori(input: {
     const capitaleFinale = p.capitaleDentro + pre.reduce((t, x) => t + x.importo, 0);
     const daQui = maxData(oggi, giornoValido(p.fonte.ammortamentoDal) ? p.fonte.ammortamentoDal : p.inizio);
     // Il capitale torna: chi presta col suo piano, chi sta a capitale a fine operazione.
-    const rimborsiFuturi = aPrestito(p.fonte.tipo)
+    const espliciti = p.programmati.filter(m => ["rimborso", "accollo"].includes(m.tipo)).map(m => ({ ...m, data: maxData(m.data, oggi) }));
+    const residuo = Math.max(0, capitaleFinale - somma(espliciti.map(m => m.importo)));
+    const automatici = aPrestito(p.fonte.tipo)
       ? rimborsiPianificati(p.fonte.rimborso ?? "scadenza", capitaleFinale, daQui, maxData(p.fineConteggio, oggi), fine)
       : capitaleFinale > 0.005 ? [{ tipo: "rimborso" as const, data: maxData(fine, oggi), importo: arrotonda(capitaleFinale) }] : [];
-    return { ...p, prelievi: pre, rimborsiFuturi, futuri: [...p.movimenti, ...pre, ...(aPrestito(p.fonte.tipo) ? rimborsiFuturi : [])] };
+    const rimborsiFuturi: Passo[] = espliciti.length ? [...espliciti, ...(residuo > .005 ? [{ tipo: "rimborso" as const, data: maxData(aPrestito(p.fonte.tipo) ? p.fineConteggio : fine, oggi), importo: arrotonda(residuo) }] : [])] : automatici;
+    return { ...p, prelievi: pre, rimborsiFuturi, futuri: [...p.movimenti, ...pre, ...rimborsiFuturi] };
   });
   const avvisi: string[] = [];
 
@@ -576,11 +592,13 @@ export function calcolaInvestitori(input: {
     const flussi = [
       ...b.movimenti.map((m) => ({ data: m.data, importo: m.tipo === "versamento" ? -m.importo : m.importo })),
       ...b.prelievi.map((p) => ({ data: p.data, importo: -p.importo })),
-      { data: maxData(fine, oggi), importo: spetta },
+      ...b.programmati.filter(m => ["rimborso", "accollo", "distribuzione"].includes(m.tipo)).map(m => ({ data: maxData(m.data, oggi), importo: m.importo })),
+      { data: maxData(fine, oggi), importo: Math.max(0, spetta - somma(b.programmati.filter(m => ["rimborso", "accollo", "distribuzione"].includes(m.tipo)).map(m => m.importo))) },
     ];
     return {
       fonte: b.fonte,
       movimenti: b.movimenti,
+      programmati: b.programmati,
       versato: b.versato,
       rimborsato: b.rimborsato,
       pagato: b.pagato,
@@ -600,7 +618,7 @@ export function calcolaInvestitori(input: {
         ? `Quota fissa pattuita: ${pct((b.fonte.quotaUtilePct ?? 0) * scalaFisse)} dell'utile dell'operazione, qualunque sia il capitale versato.`
         : `Pro quota: ${pct(q.stima * 100)} dell'utile, in proporzione al capitale versato e ai giorni per cui resta nell'operazione${sommaFisse > 0 ? `, sulla parte che resta dopo le quote fisse (${pct(resto * 100)})` : ""}.`,
       fineConteggio: fine,
-      proiezione: [...b.prelievi, ...b.rimborsiFuturi],
+      proiezione: [...b.prelievi, ...b.rimborsiFuturi, ...b.programmati.filter(p => !["versamento", "rimborso", "accollo"].includes(p.tipo)).map(p => ({ ...p, data: maxData(p.data, oggi) }))],
     };
   };
 
@@ -612,16 +630,24 @@ export function calcolaInvestitori(input: {
   });
   const impegno = somma(copertura.map((c) => c.impegno));
   const dentro = somma(copertura.map((c) => c.dentro));
-  const scoperto = numeri ? arrotonda(Math.max(0, numeri.capitaleMassimo - impegno)) : 0;
-  if (numeri && scoperto >= 1) {
+  const nominale = numeri ? arrotonda(Math.max(0, numeri.capitaleMassimo - impegno)) : 0;
+  const composizioneFonti = composizione(basi, numeri, oggi, fine);
+  const temporale = numeri ? arrotonda(Math.max(0, ...composizioneFonti.filter(m => m.mese >= oggi.slice(0, 7)).map(m => m.fabbisogno - m.propri - m.investitori - m.debito))) : 0;
+  const scoperto = Math.max(nominale, temporale);
+  if (numeri && nominale >= 1) {
     avvisi.push(
-      `Le fonti coprono ${eur(impegno)} su un capitale massimo impegnato di ${eur(numeri.capitaleMassimo)}${numeri.meseCapitaleMassimo ? ` (${meseIt(numeri.meseCapitaleMassimo)})` : ""}: mancano ${eur(scoperto)} al picco di esposizione.`,
+      `Le fonti coprono ${eur(impegno)} su un capitale massimo impegnato di ${eur(numeri.capitaleMassimo)}${numeri.meseCapitaleMassimo ? ` (${meseIt(numeri.meseCapitaleMassimo)})` : ""}: mancano ${eur(nominale)} al picco di esposizione.`,
     );
   }
+  if (temporale > nominale + .01) avvisi.push(`Le date di erogazione e rimborso lasciano ${eur(temporale)} di fabbisogno senza copertura in uno dei mesi. Un impegno non è denaro già disponibile.`);
   if (numeri && numeri.capitaleInvestitoOggi - dentro >= 1) {
     avvisi.push(`A oggi l'operazione ha assorbito ${eur(numeri.capitaleInvestitoOggi)}, ma dalle fonti ne sono entrati ${eur(dentro)}: la differenza la sta anticipando l'azienda.`);
   }
   for (const c of conti) {
+    const previsti = c.programmati ?? [];
+    if (previsti.length) avvisi.push(`${c.fonte.nome}: ${previsti.length} ${previsti.length === 1 ? "movimento previsto, escluso" : "movimenti previsti, esclusi"} dai versamenti e pagamenti effettivi ad oggi. ${previsti.length === 1 ? "Confermalo quando viene effettuato" : "Confermali quando vengono effettuati"}.`);
+    if (previsti.some(m => m.data < oggi)) avvisi.push(`${c.fonte.nome}: ci sono movimenti previsti scaduti ancora da confermare. Le proiezioni li collocano da oggi.`);
+    if (c.versato + somma(previsti.filter(m => m.tipo === "versamento").map(m => m.importo)) > c.fonte.impegno + .01) avvisi.push(`${c.fonte.nome}: versamenti effettivi e tranche future superano l'impegno. Verifica importi e date.`);
     if (aPrestito(c.fonte.tipo) && !c.fonte.tassoPct) avvisi.push(`${c.fonte.nome}: manca il tasso, gli interessi sono a zero.`);
     if (c.versato - c.fonte.impegno >= 1 && c.fonte.impegno > 0) avvisi.push(`${c.fonte.nome} ha versato ${eur(c.versato)}, più dell'impegno di ${eur(c.fonte.impegno)}.`);
     if (c.rimborsato - c.versato >= 1) avvisi.push(`${c.fonte.nome}: i rimborsi superano i versamenti, controlla i movimenti.`);
@@ -629,7 +655,7 @@ export function calcolaInvestitori(input: {
       avvisi.push(`${c.fonte.nome} scade il ${dataIt(c.fonte.scadenza)}, prima della fine dell'operazione (${dataIt(fine)}): serve la cassa per rimborsarlo.`);
     }
   }
-  if (!numeri && equity.length) avvisi.push("Il piano economico non c'è ancora: senza la stima finale l'utile da dividere è zero.");
+  if (!numeri && equity.length) avvisi.push("Completa il piano economico e il calendario prima di stimare l'utile da dividere.");
 
   // Rendimenti: il progetto (prima del debito) contro i mezzi propri (dopo debito e investitori).
   const oneri = numeri?.interessiNelPiano ? numeri.oneriNelPiano?.stima ?? 0 : numeri?.oneriRealiNelPiano ?? 0;
@@ -648,7 +674,8 @@ export function calcolaInvestitori(input: {
   const flussiPropri = propri.flatMap((c) => [
     ...c.movimenti.map((m) => ({ data: m.data, importo: m.tipo === "versamento" ? -m.importo : m.importo })),
     ...c.proiezione.filter((p) => p.tipo === "versamento").map((p) => ({ data: p.data, importo: -p.importo })),
-    { data: maxData(fine, oggi), importo: c.spettaAFine },
+    ...c.proiezione.filter(p => ["rimborso", "distribuzione", "accollo"].includes(p.tipo)).map(p => ({ data: p.data, importo: p.importo })),
+    { data: maxData(fine, oggi), importo: Math.max(0, c.spettaAFine - somma(c.proiezione.filter(p => ["rimborso", "distribuzione", "accollo"].includes(p.tipo)).map(p => p.importo))) },
   ]);
   const mezziPropri = propri.length
     ? { capitale: capitalePropri, utile: utilePropri, roe: numeri && capitalePropri > 0 ? utilePropri / capitalePropri : null, tir: numeri ? tirDaFlussi(flussiPropri) : null }
@@ -676,7 +703,7 @@ export function calcolaInvestitori(input: {
       costoAnnuo: euroAnni > 0 ? (interessi.stima + spese.stima) / euroAnni : null,
       mensile: costoMensile(basi, oggi),
     },
-    composizione: composizione(basi, numeri, oggi, fine),
+    composizione: composizioneFonti,
     rendimenti,
     avvisi,
   };
@@ -698,11 +725,11 @@ function costoMensile(basi: Base[], oggi: string): MeseCostoDebito[] {
       const fino = minData(fineMese(m), b.fineConteggio);
       const dal = fineMese(meseDopo(m, -1));
       if (fino > dal) interessi += ((capitaleGiorni(b.futuri, fino) - capitaleGiorni(b.futuri, dal)) * tasso) / 100 / 365;
-      spese += b.movimenti.filter((x) => x.tipo === "spese" && x.data.slice(0, 7) === m).reduce((t, x) => t + x.importo, 0);
-      const resto = Math.max(0, (b.fonte.speseIniziali ?? 0) - b.spesePagate);
+      spese += [...b.movimenti, ...b.programmati.map(p => ({ ...p, data: maxData(p.data, oggi) }))].filter((x) => x.tipo === "spese" && x.data.slice(0, 7) === m).reduce((t, x) => t + x.importo, 0);
+      const resto = Math.max(0, (b.fonte.speseIniziali ?? 0) - b.spesePagate - somma(b.programmati.filter(x => x.tipo === "spese").map(x => x.importo)));
       if (resto > 0 && maxData(b.inizio, oggi).slice(0, 7) === m) spese += resto;
     }
-    righe.push({ mese: m, interessi: arrotonda(Math.max(0, interessi)), spese: arrotonda(spese), reale: m <= meseOggi });
+    righe.push({ mese: m, interessi: arrotonda(Math.max(0, interessi)), spese: arrotonda(spese), reale: m < meseOggi });
   }
   return righe;
 }
@@ -733,7 +760,7 @@ function composizione(basi: Base[], numeri: NumeriOperazione | null, oggi: strin
       investitori: arrotonda(saldo.investitori),
       debito: arrotonda(saldo.debito),
       fabbisogno: arrotonda(fabbisogno.get(m) ?? 0),
-      reale: m <= meseOggi,
+      reale: m < meseOggi,
     });
   }
   return righe;

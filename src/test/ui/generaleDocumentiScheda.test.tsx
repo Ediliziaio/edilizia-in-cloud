@@ -79,6 +79,16 @@ describe("il modulo si aggancia alla pagina della generale", () => {
 });
 
 describe("da computer", () => {
+  it("i contatori filtrano le caselle corrette senza perdere la commessa e si azzerano", () => {
+    apri(modulo.Scheda, false);
+    fireEvent.click(screen.getByRole("button", { name: /Obbligatori mancanti/ }));
+    expect(screen.getByRole("status", { name: "Filtro attivo" })).toHaveTextContent(`${checklist.conteggi.mancanti} voci`);
+    expect(screen.queryByText("Atto di acquisto")).not.toBeInTheDocument();
+    expect(screen.getByText("Business plan approvato")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Carica" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Rimuovi filtro" }));
+    expect(screen.getByText("Atto di acquisto")).toBeVisible();
+  });
   it("dice quanti obbligatori ci sono e cosa manca, con la voce sulla generale e lo stato di ognuna", () => {
     apri(modulo.Scheda);
     const c = checklist.conteggi;

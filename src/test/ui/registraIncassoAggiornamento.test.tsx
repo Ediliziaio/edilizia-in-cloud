@@ -1,0 +1,22 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, expect, it, vi } from 'vitest';
+const m=vi.hoisted(()=>({insert:vi.fn(),info:vi.fn(),success:vi.fn()}));
+vi.mock('@/integrations/supabase/client',()=>({supabase:{from:()=>({insert:m.insert})}}));
+vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({effectiveCompany:{id:'demo'},user:{id:'u'}})}));
+vi.mock('sonner',()=>({toast:{success:m.success,info:m.info,error:vi.fn()}}));
+import { RegistraIncassoPrimaNota } from '@/components/orders/RegistraIncassoPrimaNota';
+afterEach(()=>{cleanup();vi.clearAllMocks();});
+it.each([null,{code:'23505',message:'duplicate key value violates unique constraint uq_prima_nota_installment'}])('aggiorna quadro, prima nota e cassa anche dopo collisione concorrente (%s)',async error=>{
+  m.insert.mockResolvedValue({error});
+  const q=new QueryClient();
+  const keys=[['order-supplier-payments','quadro','o'],['generale-cassa-effettiva','demo','g'],['prima-nota']];
+  keys.forEach(k=>q.setQueryData(k,{ok:true}));
+  render(<MemoryRouter><QueryClientProvider client={q}><RegistraIncassoPrimaNota inst={{id:'r',label:'Saldo',position:0,type:'balance',amount:1100,is_paid:true,paid_date:'2026-11-11'}} amount={1100} orderId='o' orderCode='AUDIT' entryId={undefined}/></QueryClientProvider></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button',{name:'Registra in Prima Nota'}));
+  await waitFor(()=>expect(q.getQueryState(keys[0])?.isInvalidated).toBe(true));
+  keys.forEach(k=>expect(q.getQueryState(k)?.isInvalidated).toBe(true));
+  expect(m.insert).toHaveBeenCalledOnce();
+  if(error)expect(m.info).toHaveBeenCalled();else expect(m.success).toHaveBeenCalled();
+});
