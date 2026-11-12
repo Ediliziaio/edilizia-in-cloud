@@ -107,13 +107,14 @@ describe("Sincronizzazione programmata: gestore reale con Postgres",()=>{
  const run="ffffffff-ffff-4fff-afff-ffffffffffff";
  async function prepare(){await db.pg.exec(`update bank_connections set status='linked',provider_connection_id='remote';insert into bank_sync_settings values('${company}',true);insert into bank_sync_runs(id,company_id,connection_id,status)values('${run}','${company}','${conn}','queued');insert into bank_accounts(id,company_id,connection_id,external_account_id,is_active)values('eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee','${company}','${conn}','a1',true),(gen_random_uuid(),'${company}','${conn}','a2',false);`);}
  const scheduled=(secret="synthetic-only")=>handler(new Request("https://local.invalid",{method:"POST",headers:{"x-cron-secret":secret},body:JSON.stringify({company_id:company,connection_id:conn,run_id:run,action:"sync-scheduled"})}));
- it("importa solo il conto scelto, non legge saldi e non ripete lo stesso giro",async()=>{
-  await prepare();fetcher.mockResolvedValue(Response.json({complete:true,transactions:[{id:"t1",account_id:"a1",amount:125,credit_debit:"CRDT",status:"BOOK",booking_date:"2026-11-12"},{id:"t2",account_id:"a2",amount:999,credit_debit:"CRDT",status:"BOOK",booking_date:"2026-11-12"}]}));
-  const r=await scheduled();expect(r.status).toBe(200);expect(await r.json()).toMatchObject({movimenti:1});expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(String(fetcher.mock.calls[0][0])).toContain("/transactions?");expect(fetcher.mock.calls[0][1]?.headers).not.toHaveProperty("Psu-Ip-Address");
+ it("aggiorna saldi e movimenti solo dei conti scelti e non ripete lo stesso giro",async()=>{
+  await prepare();fetcher.mockImplementation(async url=>String(url).endsWith("/accounts")?Response.json({accounts:[{account_id:"a1",balance_known:true,balance_booked:{amount:500,currency:"EUR"}}]}):Response.json({complete:true,transactions:[{id:"t1",account_id:"a1",amount:125,credit_debit:"CRDT",status:"BOOK",booking_date:"2026-11-12"},{id:"t2",account_id:"a2",amount:999,credit_debit:"CRDT",status:"BOOK",booking_date:"2026-11-12"}]}));
+  const r=await scheduled();expect(r.status).toBe(200);expect(await r.json()).toMatchObject({movimenti:1});expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(String(fetcher.mock.calls[0][0])).toContain("/accounts");expect(String(fetcher.mock.calls[1][0])).toContain("/transactions?");expect(fetcher.mock.calls[0][1]?.headers).not.toHaveProperty("Psu-Ip-Address");
+  expect((await db.pg.query<{current_balance:string}>("select current_balance from bank_accounts where external_account_id='a1'")).rows[0].current_balance).toBe("500.00");
   expect((await db.pg.query("select amount from bank_transactions")).rows).toEqual([{amount:"125.00"}]);
   expect((await db.pg.query("select status,movements from bank_sync_runs")).rows).toEqual([{status:"completed",movements:1}]);
-  await scheduled();expect(fetcher).toHaveBeenCalledTimes(1);
+  await scheduled();expect(fetcher).toHaveBeenCalledTimes(2);
  });
  it("un 429 resta un fallimento visibile, non zero movimenti sincronizzati",async()=>{
   await prepare();fetcher.mockResolvedValue(Response.json({error:"bank_fetch_limit_reached"},{status:429}));expect((await scheduled()).status).toBe(429);

@@ -23,3 +23,5 @@ Su richiesta del titolare: Impresa Vulcano ha limite 3, zero preselezioni. I con
 Verifiche: selezione 0/3, quarto conto bloccato, limite riservato, conti di altra azienda/duplicati, refresh/upsert non riattiva esclusi, orari inverno/estate, slot idempotenti, importazione reale del gestore con banca simulata e PostgreSQL locale, 429 persistente, cron senza secret respinto. Nessuna nuova chiamata ai movimenti reali durante il blocco banca.
 
 Conti e Connessioni sono unificati in Conti e banche; i vecchi indirizzi restano compatibili. Riconciliazione è adiacente a Transazioni e disponibile anche da telefono. `last_sync_at` viene aggiornato solo dopo l’importazione movimenti, non dal recupero dei metadati. Per Vulcano è stato corretto il timestamp precedente soltanto sui collegamenti senza alcun movimento importato.
+
+Ogni giro automatico aggiorna saldi e un’unica finestra movimenti (con sette giorni di recupero): due chiamate ordinarie per giro, quattro nelle due fasce. Il recupero non riacquista l’arricchimento storico e conserva quello già presente. Eventuali pagine aggiuntive e letture manuali restano soggette ai limiti effettivi del fornitore.

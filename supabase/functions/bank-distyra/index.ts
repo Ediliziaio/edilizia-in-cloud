@@ -228,7 +228,7 @@ serveConMetricheRapida("bank-distyra", async (req) => {
       const psuHeaders = scheduled ? {} : intestazioniPsu(req, corpo.on_screen, conn.created_by, userId);
       // I saldi aggiornati sono utili quando il titolare attende sullo schermo.
       // Le sincronizzazioni automatiche non consumano una richiesta extra per i saldi.
-      if (Object.keys(psuHeaders).length) {
+      if (scheduled || Object.keys(psuHeaders).length) {
         const saldi = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/accounts`, { headers: psuHeaders }) as { accounts?: Record<string, unknown>[] };
         for (const a of saldi.accounts ?? []) {
           const riga = contoDistyra(a, companyId, conn.id);
@@ -280,6 +280,17 @@ serveConMetricheRapida("bank-distyra", async (req) => {
           // («cannot affect row a second time»): si tiene l'ultima.
           const uniche = [...new Map(righe.map((x) => [x.external_transaction_id, x])).values()];
           if (uniche.length) {
+            // The scheduled lookback refreshes booking status without buying the
+            // same enrichment twice or discarding enrichment already paid for.
+            if(!arricchisci && !soloNuovi) {
+              for(let offset=0;offset<uniche.length;offset+=40) {
+                const batch=uniche.slice(offset,offset+40);
+                const {data:stored,error}=await admin.from("bank_transactions").select("external_transaction_id,metadata").eq("company_id",companyId).in("external_transaction_id",batch.map(x=>x.external_transaction_id));
+                if(error) throw new Error("Impossibile conservare i dati dei movimenti già importati");
+                const enrichment=new Map((stored??[]).map(x=>[x.external_transaction_id,x.metadata?.enrichment]));
+                for(const row of batch) if(!row.metadata.enrichment && enrichment.get(row.external_transaction_id)) row.metadata={...row.metadata,enrichment:enrichment.get(row.external_transaction_id)};
+              }
+            }
             const { error } = await admin.from("bank_transactions").upsert(uniche, {
               onConflict: "company_id,external_transaction_id",
               ignoreDuplicates: soloNuovi,
@@ -295,7 +306,11 @@ serveConMetricheRapida("bank-distyra", async (req) => {
       };
 
       let scritti = 0;
-      if (!ultimoGiorno) {
+      if (scheduled) {
+        // Two scheduled rounds fit the four automatic reads: one balances call
+        // and one transaction window per round (pagination remains provider-controlled).
+        scritti=await scarica(ultimoGiorno?{date_from:giorno(ultimoGiorno,-GIORNI_DI_SICUREZZA)}:{history:"all"},false,false);
+      } else if (!ultimoGiorno) {
         // Primo scarico: tutto lo storico che la banca concede. Distyra arricchisce da se'
         // solo gli ultimi 90 giorni se non si chiede `enrich_history=all`, quindi il tetto
         // mensile non se ne va in una volta su anni di movimenti.
