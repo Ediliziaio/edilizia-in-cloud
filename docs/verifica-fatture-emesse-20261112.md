@@ -97,3 +97,5 @@ misurato a circa 16 ms; prima circa 3,8 secondi per il solo conteggio.
 che il conteggio non esegua le policy delle commesse, ma che la loro apertura
 continui a eseguirle. Nell'app reale: elenco da 1.380 fatture caricato, ricerca
 `69.435,12` con 12 risultati e `12/11/2026` con 4 risultati.
+
+Il controllo del filtro per commessa ha evidenziato anche la necessità di leggere solo i metadati della proiezione canonica `orders_visibili`. La funzione privata, security invoker e con ricerca per ID, conserva i controlli di visibilità senza chiedere i diritti sugli importi non mostrati. Il conteggio filtrato autenticato su Demo Azienda 2 termina in circa 1,68 secondi, sotto il limite del servizio. Aggiunta prova PostgreSQL che esclude una commessa pur mantenendo leggibile la fattura e verifica il confine aziendale.
