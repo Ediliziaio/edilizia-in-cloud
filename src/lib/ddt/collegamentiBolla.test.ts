@@ -4,6 +4,7 @@ import {
   bloccoCollegamento,
   commesseDellaBolla,
   nomePersona,
+  statoCaricoMagazzino,
   type StatoBolla,
 } from "./collegamentiBolla";
 
@@ -93,5 +94,31 @@ describe("nomePersona", () => {
     expect(nomePersona({ first_name: " Luca ", last_name: "Bianchi" })).toBe("Luca Bianchi");
     expect(nomePersona({ first_name: null, last_name: "", email: "a@b.it" })).toBe("a@b.it");
     expect(nomePersona(null)).toBeNull();
+  });
+});
+
+describe("statoCaricoMagazzino", () => {
+  const ingresso = { destinazione: "magazzino", tipo: "ingresso", created_at: "2026-11-05T10:00:00Z" };
+  it("una bolla confermata dalle consegne è caricata anche senza la data in testata", () => {
+    expect(statoCaricoMagazzino({ destinazione: "magazzino", caricataIl: null, consegne: [ingresso, { ...ingresso, created_at: "2026-11-06T09:00:00Z" }], righeAperte: 0 }))
+      .toEqual({ tipo: "caricata", il: "2026-11-06T09:00:00Z" });
+  });
+  it("la data in testata vince sulle consegne", () => {
+    expect(statoCaricoMagazzino({ destinazione: "magazzino", caricataIl: "2026-11-01T08:00:00Z", consegne: [ingresso], righeAperte: 0 }))
+      .toEqual({ tipo: "caricata", il: "2026-11-01T08:00:00Z" });
+  });
+  it("con righe aperte per il magazzino dice quante ne restano, anche a carico iniziato", () => {
+    expect(statoCaricoMagazzino({ destinazione: "magazzino", caricataIl: null, consegne: [ingresso], righeAperte: 2 }))
+      .toEqual({ tipo: "da_caricare", righe: 2 });
+  });
+  it("resi e consegne in cantiere non sono un carico", () => {
+    expect(
+      statoCaricoMagazzino({
+        destinazione: "magazzino",
+        caricataIl: null,
+        consegne: [{ ...ingresso, tipo: "reso" }, { ...ingresso, destinazione: "cantiere" }],
+        righeAperte: 0,
+      }),
+    ).toEqual({ tipo: "non_confermato" });
   });
 });

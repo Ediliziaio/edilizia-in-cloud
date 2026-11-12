@@ -33,6 +33,12 @@ export interface Installment {
    * il verbale SAL non lo fissa. Arriva dal preventivo con computo, dove la rata è «a misura».
    */
   importo_da_misurare?: boolean | null;
+  /** Per «al X% dei lavori»: la soglia. Per «a completamento di una fase»: il suo nome (12/11/2026). */
+  trigger_soglia?: number | null;
+  trigger_fase?: string | null;
+  /** Termine di pagamento della rata: giorni data fattura, e se scade a fine mese. */
+  termine_giorni?: number | null;
+  termine_fine_mese?: boolean | null;
   /**
    * Solo nel modulo di nuova commessa, mai salvata: la percentuale che il modello di pagamento
    * dà a questa rata. Se cambia il totale, l'importo la segue; un importo scritto a mano la toglie.

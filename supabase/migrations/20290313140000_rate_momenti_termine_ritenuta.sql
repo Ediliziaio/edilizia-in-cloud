@@ -1,9 +1,3 @@
--- PRONTA MA NON APPLICATA (11/11/2026): il tentativo con il tool MCP è stato rifiutato
--- («Production Deploy»). Sta fuori da supabase/migrations/ apposta, perché un file lì dentro
--- andrebbe in produzione al primo push senza passare da apply_migration (vedi CLAUDE.md).
--- Va applicata col tool MCP e riallineata nel registro; la prova a secco (BEGIN … ROLLBACK)
--- di colonne, vincolo e funzione è già passata.
---
 -- I momenti che mancavano alle rate, il termine di pagamento e la ritenuta a garanzia (11/11/2026)
 --
 -- Il preventivo con computo sa dire tre cose che la commessa non sapeva ricevere:

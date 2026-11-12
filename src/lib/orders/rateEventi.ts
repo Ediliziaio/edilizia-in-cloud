@@ -22,7 +22,10 @@ export type EventoRata =
   | "inizio_lavori"
   | "data_posa"
   | "sal_numero"
+  | "sal_percentuale"
+  | "fase_completata"
   | "fine_lavori"
+  | "collaudo"
   | "fattura_acconto"
   | "fattura_saldo"
   | "stato_commessa";
@@ -57,7 +60,10 @@ export const EVENTI_RATA: readonly DefinizioneEvento[] = [
   { value: "inizio_lavori", gruppo: "lavori", label: "Prima dell'inizio lavori", descrizione: "Segue la data di inizio lavori: se la sposti, si sposta." },
   { value: "data_posa", gruppo: "lavori", label: "Alla posa", descrizione: "Segue la data di posa prevista." },
   { value: "sal_numero", gruppo: "lavori", label: "Al SAL numero…", descrizione: "Quando matura lo stato avanzamento lavori che indichi: appena lo emetti, o quando il cliente lo approva (lo sceglie l'azienda nelle Impostazioni)." },
+  { value: "sal_percentuale", gruppo: "lavori", label: "Al raggiungimento di una percentuale di lavori", descrizione: "Quando i SAL maturati arrivano alla percentuale che indichi: è il modo in cui si scrive nei contratti («al 30% dei lavori»)." },
+  { value: "fase_completata", gruppo: "lavori", label: "A completamento di una fase", descrizione: "Quando la fase di cantiere che indichi risulta finita." },
   { value: "fine_lavori", gruppo: "lavori", label: "A fine lavori", descrizione: "Segue la data di fine lavori." },
+  { value: "collaudo", gruppo: "lavori", label: "Al collaudo / consegna", descrizione: "Segue la fine dei lavori finché il collaudo non ha una data sua." },
 
   { value: "fattura_acconto", gruppo: "fatture", label: "Alla fattura di acconto", descrizione: "Dalla prima fattura emessa sulla commessa." },
   { value: "fattura_saldo", gruppo: "fatture", label: "Alla fattura di saldo", descrizione: "Dall'ultima fattura emessa sulla commessa." },
@@ -90,6 +96,10 @@ export interface DateCommessa {
   data_accettazione_preventivo?: string | null;
   data_consegna_cantiere?: string | null;
   data_sal?: string | null;
+  /** Data in cui i SAL maturati hanno raggiunto la soglia della rata, se già raggiunta. */
+  data_soglia_sal?: string | null;
+  /** Data in cui la fase agganciata alla rata è stata completata. */
+  data_fase_completata?: string | null;
   data_fattura_acconto?: string | null;
   data_fattura_saldo?: string | null;
 }
@@ -117,7 +127,13 @@ export function dataAttesaRata(
     case "inizio_lavori": return soloData(date.work_start_date);
     case "data_posa": return soloData(date.expected_date);
     case "sal_numero": return soloData(date.data_sal);
+    // Le due righe sotto le calcola la vista SQL (quale SAL raggiunge la soglia, quando la
+    // fase si chiude): qui arrivano già risolte, o la rata dice onestamente che non c'è data.
+    case "sal_percentuale": return soloData(date.data_soglia_sal);
+    case "fase_completata": return soloData(date.data_fase_completata);
     case "fine_lavori": return soloData(date.work_end_date);
+    // Il collaudo non ha una data sua: segue la fine dei lavori, come in `data_attesa_rata`.
+    case "collaudo": return soloData(date.work_end_date);
     case "fattura_acconto": return soloData(date.data_fattura_acconto);
     case "fattura_saldo": return soloData(date.data_fattura_saldo);
     case "stato_commessa": return soloData(date.data_stato);

@@ -113,3 +113,36 @@ export function nomePersona(p: { first_name?: string | null; last_name?: string 
   const nome = [p.first_name, p.last_name].map((s) => s?.trim()).filter(Boolean).join(" ");
   return nome || p.email?.trim() || null;
 }
+
+export type StatoCarico =
+  | { tipo: "caricata"; il: string }
+  | { tipo: "da_caricare"; righe: number }
+  | { tipo: "non_confermato" };
+
+/**
+ * A che punto è il carico in magazzino di una bolla (12/11/2026).
+ *
+ * La data sta in `caricata_a_magazzino_at`, che fino al 12/11 scriveva solo la
+ * vecchia strada (bolla_carica_magazzino, mai chiamata): le bolle confermate
+ * dalle consegne restavano «Carico non ancora confermato» a merce già in
+ * giacenza. Qui contano anche gli ingressi in magazzino delle consegne, così è
+ * giusto pure per le bolle confermate prima della correzione.
+ *
+ * Una bolla per il magazzino con righe ancora aperte ha merce da caricare:
+ * lo si dice prima di tutto, anche se una parte è già entrata.
+ */
+export function statoCaricoMagazzino(p: {
+  destinazione: string | null | undefined;
+  caricataIl: string | null | undefined;
+  consegne: ReadonlyArray<{ destinazione: string; tipo: string; created_at?: string | null }>;
+  righeAperte: number;
+}): StatoCarico {
+  if (p.destinazione === "magazzino" && p.righeAperte > 0) return { tipo: "da_caricare", righe: p.righeAperte };
+  if (p.caricataIl) return { tipo: "caricata", il: p.caricataIl };
+  const ingressi = p.consegne
+    .filter((c) => c.destinazione === "magazzino" && c.tipo === "ingresso" && c.created_at)
+    .map((c) => c.created_at as string)
+    .sort();
+  if (ingressi.length > 0) return { tipo: "caricata", il: ingressi[ingressi.length - 1] };
+  return { tipo: "non_confermato" };
+}

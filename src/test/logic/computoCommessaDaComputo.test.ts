@@ -4,6 +4,11 @@ import { fasiDaRate, righeDaComputo, prezzoConcordatoComputo } from "@/lib/compu
 import { applicaCostiListino, codiciSenzaCosto } from "@/lib/computo/costiDalListino";
 
 /** Dal preventivo con computo alla commessa (29/10/2026): voci → righe del preventivo, piano → fasi di pagamento. */
+/** Una rata senza condizioni: i campi che il piano riempie solo quando servono. */
+const vuota = { descrizione: "Rata", percentuale: null as number | null, importo: null as number | null,
+  aMisura: false, evento: "firma_contratto", numero: null as number | null,
+  soglia: null as number | null, fase: null as string | null, termineGiorni: 0, termineFineMese: false };
+
 describe("commessa dal computo", () => {
   const bozza = { ...bozzaVuota(), voci: [
     { ...voceVuota(), tariffa: "NP.01", descrizione: "Scavo di sbancamento\nfino a 40 cm", unita: "mc", quantita: "259,2", prezzo: "12", costo: "8" },
@@ -20,9 +25,9 @@ describe("commessa dal computo", () => {
   });
   it("le rate diventano fasi: l'ultima è il saldo, e il momento d'incasso arriva fino alla commessa", () => {
     const fasi = fasiDaRate([
-      { descrizione: "Acconto", percentuale: 30, importo: 300, aMisura: false, evento: "firma_contratto", numero: null },
-      { descrizione: "2° SAL", percentuale: null, importo: null, aMisura: true, evento: "sal_numero", numero: 2 },
-      { descrizione: "Saldo", percentuale: 70, importo: 700, aMisura: false, evento: "fine_lavori", numero: null },
+      { ...vuota, descrizione: "Acconto", percentuale: 30, importo: 300, evento: "firma_contratto" },
+      { ...vuota, descrizione: "2° SAL", percentuale: null, importo: null, aMisura: true, evento: "sal_numero", numero: 2 },
+      { ...vuota, descrizione: "Saldo", percentuale: 70, importo: 700, evento: "fine_lavori" },
     ]);
     expect(fasi.map(f => f.type)).toEqual(["deposit", "deposit", "balance"]);
     // Prima erano tutte «acconto» senza momento: una rata al SAL 2 non si riconosceva più.
@@ -46,7 +51,7 @@ describe("costi dal listino", () => {
  it("BUG-81: trasferisce gli acconti IVA inclusa e conserva il netto se IVA assente", () => {
     // Dall'11/11/2026 l'importo della rata è già quello che paga il cliente, IVA inclusa.
     const rata = (descrizione: string, percentuale: number, importo: number) =>
-      ({ descrizione, percentuale, importo, aMisura: false, evento: "firma_contratto", numero: null as number | null });
+      ({ ...vuota, descrizione, percentuale, importo, evento: "firma_contratto" });
     const fasi = fasiDaRate([rata("Acconto", 30, 237.17), rata("SAL", 40, 316.22), rata("Saldo", 30, 237.17)]);
     expect(fasi.map(f => f.amount)).toEqual([237.17, 316.22, 237.17]);
     expect(fasiDaRate([rata("Saldo", 100, 648)])[0].amount).toBe(648);

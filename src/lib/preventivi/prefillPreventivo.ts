@@ -100,6 +100,12 @@ export function prefillDaPreventivo(quote: Record<string, unknown>, rows: Array<
     percent: p.percent || undefined,
     trigger_evento: p.evento ?? "data_fissa",
     trigger_numero: p.evento === "sal_numero" ? p.numero ?? null : null,
+    // La condizione scritta nel contratto arriva intera (12/11/2026): la soglia di avanzamento,
+    // il nome della fase, il termine di pagamento.
+    trigger_soglia: p.evento === "sal_percentuale" ? p.soglia ?? null : null,
+    trigger_fase: p.evento === "fase_completata" ? p.fase ?? null : null,
+    termine_giorni: p.termineGiorni ?? 0,
+    termine_fine_mese: p.termineFineMese === true,
     // Una rata a misura arriva in commessa con la stima, ma lo dice (11/11/2026).
     importo_da_misurare: p.aMisura === true,
   }));

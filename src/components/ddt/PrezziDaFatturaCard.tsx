@@ -26,6 +26,22 @@ interface Valore {
   prezzo_unitario: number;
   fatture_ricevute?: { numero_fattura: string };
 }
+interface PrezzoDiverso {
+  riga_id: string;
+  descrizione: string | null;
+  prezzo_bolla: number;
+  prezzo_fattura: number;
+  /** true: la fattura copre tutta la riga e il suo prezzo ha preso il posto di quello della bolla. */
+  sostituito: boolean;
+}
+const euro = (n: number) => Number(n).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 4 });
+function descriviDifferenza(d: PrezzoDiverso) {
+  const cosa = d.descrizione?.trim() || "Riga";
+  return d.sostituito
+    ? `${cosa}: ${euro(d.prezzo_bolla)} in bolla, ora ${euro(d.prezzo_fattura)} dalla fattura`
+    : `${cosa}: resta ${euro(d.prezzo_bolla)} della bolla, la fattura parziale dice ${euro(d.prezzo_fattura)}`;
+}
+
 export function PrezziDaFatturaCard({
   ddt,
   incorporato = false,
@@ -116,20 +132,29 @@ export function PrezziDaFatturaCard({
         throw new Error(
           "Inserisci quantità e prezzo presenti nella fattura, IVA esclusa",
         );
-      const { error } = await db.rpc("ddt_valorizza_da_fattura", {
+      const { data, error } = await db.rpc("ddt_valorizza_da_fattura", {
         p_ddt: ddt.id,
         p_fattura: fattura,
         p_righe: v,
       });
       if (error) throw error;
+      return ((data as { prezzi_diversi?: PrezzoDiverso[] } | null)?.prezzi_diversi ?? []) as PrezzoDiverso[];
     },
-    onSuccess: () => {
+    onSuccess: (diversi) => {
       setSelezionate(new Set());
       setBozze({});
       setConfermo(false);
       toast.success(
         "Prezzi confrontati con la fattura, nessun nuovo arrivo registrato",
       );
+      // 12/11/2026: un prezzo della bolla diverso da quello fatturato non
+      // cambia in silenzio. Se la fattura copre tutta la riga vince lei,
+      // altrimenti resta quello della bolla: in entrambi i casi lo si dice.
+      if (diversi.length > 0)
+        toast.warning(
+          diversi.length === 1 ? "Un prezzo della bolla è diverso dalla fattura" : `${diversi.length} prezzi della bolla sono diversi dalla fattura`,
+          { description: diversi.map(descriviDifferenza).join(" · "), duration: 12_000 },
+        );
       for (const key of [
         ["ddt-valorizzazioni"],
         queryKeys.ddtRicezione.all,

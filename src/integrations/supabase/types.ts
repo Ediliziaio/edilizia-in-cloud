@@ -32670,67 +32670,91 @@ export type Database = {
       }
       controlli_documento_fornitore: {
         Row: {
+          abbinamenti: Json
           accettato_da: string | null
           accettato_il: string | null
           accettato_motivo: string | null
+          base_ordine: Json | null
           company_id: string
           created_at: string
           created_by: string | null
+          decisioni_storico: Json
           email_inbox_id: string | null
+          errore: string | null
           esito: string | null
           file_hash: string
           file_nome: string | null
           file_path: string | null
           id: string
+          impronta_ordine: string | null
           lettura: Json | null
+          originale_mime: string | null
+          originale_path: string | null
           purchase_order_id: string | null
           rfq_supplier_id: string | null
           righe: Json
           stato: string
           tipo: string
           updated_at: string
+          versione: number
         }
         Insert: {
+          abbinamenti?: Json
           accettato_da?: string | null
           accettato_il?: string | null
           accettato_motivo?: string | null
+          base_ordine?: Json | null
           company_id: string
           created_at?: string
           created_by?: string | null
+          decisioni_storico?: Json
           email_inbox_id?: string | null
+          errore?: string | null
           esito?: string | null
           file_hash: string
           file_nome?: string | null
           file_path?: string | null
           id?: string
+          impronta_ordine?: string | null
           lettura?: Json | null
+          originale_mime?: string | null
+          originale_path?: string | null
           purchase_order_id?: string | null
           rfq_supplier_id?: string | null
           righe?: Json
           stato?: string
           tipo: string
           updated_at?: string
+          versione?: number
         }
         Update: {
+          abbinamenti?: Json
           accettato_da?: string | null
           accettato_il?: string | null
           accettato_motivo?: string | null
+          base_ordine?: Json | null
           company_id?: string
           created_at?: string
           created_by?: string | null
+          decisioni_storico?: Json
           email_inbox_id?: string | null
+          errore?: string | null
           esito?: string | null
           file_hash?: string
           file_nome?: string | null
           file_path?: string | null
           id?: string
+          impronta_ordine?: string | null
           lettura?: Json | null
+          originale_mime?: string | null
+          originale_path?: string | null
           purchase_order_id?: string | null
           rfq_supplier_id?: string | null
           righe?: Json
           stato?: string
           tipo?: string
           updated_at?: string
+          versione?: number
         }
         Relationships: [
           {
@@ -79286,14 +79310,19 @@ export type Database = {
           expected_date: string | null
           giorni_preavviso: number
           id: string
+          importo_da_misurare: boolean
           invoice_id: string | null
           is_paid: boolean
           label: string
           order_id: string
           paid_date: string | null
           position: number
+          termine_fine_mese: boolean
+          termine_giorni: number
           trigger_evento: string
+          trigger_fase: string | null
           trigger_numero: number | null
+          trigger_soglia: number | null
           trigger_status_id: string | null
           type: string
         }
@@ -79304,14 +79333,19 @@ export type Database = {
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
+          importo_da_misurare?: boolean
           invoice_id?: string | null
           is_paid?: boolean
           label?: string
           order_id: string
           paid_date?: string | null
           position?: number
+          termine_fine_mese?: boolean
+          termine_giorni?: number
           trigger_evento?: string
+          trigger_fase?: string | null
           trigger_numero?: number | null
+          trigger_soglia?: number | null
           trigger_status_id?: string | null
           type?: string
         }
@@ -79322,14 +79356,19 @@ export type Database = {
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
+          importo_da_misurare?: boolean
           invoice_id?: string | null
           is_paid?: boolean
           label?: string
           order_id?: string
           paid_date?: string | null
           position?: number
+          termine_fine_mese?: boolean
+          termine_giorni?: number
           trigger_evento?: string
+          trigger_fase?: string | null
           trigger_numero?: number | null
+          trigger_soglia?: number | null
           trigger_status_id?: string | null
           type?: string
         }
@@ -82249,6 +82288,7 @@ export type Database = {
           quote_id: string | null
           quote_number: string | null
           riferimento_committente: string | null
+          ritenuta_garanzia: Json | null
           rst_progetto_id: string | null
           sede_id: string | null
           status: string | null
@@ -82336,6 +82376,7 @@ export type Database = {
           quote_id?: string | null
           quote_number?: string | null
           riferimento_committente?: string | null
+          ritenuta_garanzia?: Json | null
           rst_progetto_id?: string | null
           sede_id?: string | null
           status?: string | null
@@ -82423,6 +82464,7 @@ export type Database = {
           quote_id?: string | null
           quote_number?: string | null
           riferimento_committente?: string | null
+          ritenuta_garanzia?: Json | null
           rst_progetto_id?: string | null
           sede_id?: string | null
           status?: string | null
@@ -129042,6 +129084,7 @@ export type Database = {
       warehouse_movements: {
         Row: {
           company_id: string
+          costo_provvisorio: boolean
           created_at: string
           da_prelievo: boolean
           id: string
@@ -129062,6 +129105,7 @@ export type Database = {
         }
         Insert: {
           company_id?: string
+          costo_provvisorio?: boolean
           created_at?: string
           da_prelievo?: boolean
           id?: string
@@ -129082,6 +129126,7 @@ export type Database = {
         }
         Update: {
           company_id?: string
+          costo_provvisorio?: boolean
           created_at?: string
           da_prelievo?: boolean
           id?: string
@@ -129738,6 +129783,8 @@ export type Database = {
           article_family_id: string | null
           barcode: string | null
           company_id: string
+          costo_ricalcolo_sospeso: string | null
+          costo_ricalcolo_sospeso_at: string | null
           created_at: string
           default_warranty_months: number | null
           description: string | null
@@ -129767,6 +129814,8 @@ export type Database = {
           article_family_id?: string | null
           barcode?: string | null
           company_id: string
+          costo_ricalcolo_sospeso?: string | null
+          costo_ricalcolo_sospeso_at?: string | null
           created_at?: string
           default_warranty_months?: number | null
           description?: string | null
@@ -129796,6 +129845,8 @@ export type Database = {
           article_family_id?: string | null
           barcode?: string | null
           company_id?: string
+          costo_ricalcolo_sospeso?: string | null
+          costo_ricalcolo_sospeso_at?: string | null
           created_at?: string
           default_warranty_months?: number | null
           description?: string | null
@@ -132448,13 +132499,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_1"]
-            isOneToOne: false
-            referencedRelation: "commesse_valore_pattuito"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "commesse_valore_pattuito"
@@ -132464,7 +132508,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
-            referencedRelation: "orders"
+            referencedRelation: "commesse_valore_pattuito"
             referencedColumns: ["id"]
           },
           {
@@ -132478,6 +132522,20 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_2"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_1"]
+            isOneToOne: false
             referencedRelation: "v_cg_lavori_in_corso"
             referencedColumns: ["order_id"]
           },
@@ -132485,7 +132543,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "v_cg_lavori_in_corso"
+            referencedRelation: "v_cg_portafoglio_commesse"
             referencedColumns: ["order_id"]
           },
           {
@@ -132499,7 +132557,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
             referencedColumns: ["order_id"]
           },
           {
@@ -132513,8 +132571,8 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "v_ordine_costi_mezzi_stimati"
-            referencedColumns: ["order_id"]
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
@@ -132526,20 +132584,13 @@ export type Database = {
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
-            isOneToOne: false
-            referencedRelation: "v_ordine_esposizione"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_2"]
+            columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
@@ -139249,6 +139300,7 @@ export type Database = {
           giorni_all_evento: number | null
           giorni_preavviso: number | null
           id: string | null
+          importo_da_misurare: boolean | null
           is_paid: boolean | null
           label: string | null
           order_code: string | null
@@ -139256,8 +139308,12 @@ export type Database = {
           paid_date: string | null
           position: number | null
           stato_incasso: string | null
+          termine_fine_mese: boolean | null
+          termine_giorni: number | null
           trigger_evento: string | null
+          trigger_fase: string | null
           trigger_numero: number | null
+          trigger_soglia: number | null
           trigger_status_id: string | null
           type: string | null
         }
@@ -139807,10 +139863,52 @@ export type Database = {
       }
       _cg_assert_enabled: { Args: { p_company_id: string }; Returns: undefined }
       _cg_assert_lettura: { Args: { p_company_id: string }; Returns: undefined }
+      _controllo_documento_dati: {
+        Args: { p_po: string; p_rfq: string }
+        Returns: Json
+      }
       _controllo_documento_esito: { Args: { p_righe: Json }; Returns: string }
       _controllo_documento_puo: {
         Args: { p_company: string }
         Returns: undefined
+      }
+      _controllo_documento_revisionato: {
+        Args: { p_id: string; p_versione: number }
+        Returns: {
+          abbinamenti: Json
+          accettato_da: string | null
+          accettato_il: string | null
+          accettato_motivo: string | null
+          base_ordine: Json | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          decisioni_storico: Json
+          email_inbox_id: string | null
+          errore: string | null
+          esito: string | null
+          file_hash: string
+          file_nome: string | null
+          file_path: string | null
+          id: string
+          impronta_ordine: string | null
+          lettura: Json | null
+          originale_mime: string | null
+          originale_path: string | null
+          purchase_order_id: string | null
+          rfq_supplier_id: string | null
+          righe: Json
+          stato: string
+          tipo: string
+          updated_at: string
+          versione: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlli_documento_fornitore"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _dashboard_parse_period: {
         Args: { p_filters: Json }
@@ -141427,10 +141525,6 @@ export type Database = {
         Returns: Json
       }
       billing_import_riprendi: { Args: never; Returns: number }
-      bolla_carica_magazzino: {
-        Args: { p_ddt: string; p_scelte: Json }
-        Returns: Json
-      }
       bolla_fornitore_norma: { Args: { p_nome: string }; Returns: string }
       bolla_lucchetto: {
         Args: { p_company: string; p_numero: string }
@@ -143223,6 +143317,28 @@ export type Database = {
         Args: { p_id: string; p_motivo: string }
         Returns: undefined
       }
+      controllo_documento_applica_prezzi: {
+        Args: { p_id: string; p_righe: string[]; p_versione: number }
+        Returns: number
+      }
+      controllo_documento_approva: {
+        Args: { p_id: string; p_motivo?: string; p_versione: number }
+        Returns: undefined
+      }
+      controllo_documento_base: {
+        Args: { p_po?: string; p_rfq?: string }
+        Returns: Json
+      }
+      controllo_documento_decidi: {
+        Args: {
+          p_chiave: string
+          p_esito: string
+          p_id: string
+          p_nota?: string
+          p_versione: number
+        }
+        Returns: string
+      }
       controllo_documento_email: {
         Args: { p_po?: string; p_rfq_supplier?: string }
         Returns: {
@@ -143377,6 +143493,10 @@ export type Database = {
           p_quote_version?: number
           p_salesperson?: Json
         }
+        Returns: Json
+      }
+      crea_lavoro_appaltatore_atomic: {
+        Args: { p_installments?: Json; p_order_data: Json }
         Returns: Json
       }
       crea_notifiche_rate_in_arrivo: { Args: never; Returns: number }
@@ -143626,6 +143746,7 @@ export type Database = {
           p_created_at: string
           p_evento: string
           p_expected_date: string
+          p_fase?: string
           p_fine: string
           p_inizio: string
           p_merce: string
@@ -143633,6 +143754,7 @@ export type Database = {
           p_order_id: string
           p_posa?: string
           p_quote_id?: string
+          p_soglia?: number
           p_status_id: string
         }
         Returns: string

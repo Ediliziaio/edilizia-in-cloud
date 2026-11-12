@@ -41,6 +41,12 @@ export interface QuotePaymentPhase {
    * verbale SAL. Viene dal preventivo con computo e arriva fino a `order_installments`.
    */
   aMisura?: boolean;
+  /** Per «al X% dei lavori»: la soglia di avanzamento. Per «a completamento di una fase»: il suo nome. */
+  soglia?: number | null;
+  fase?: string | null;
+  /** Termine di pagamento: giorni data fattura e fine mese. */
+  termineGiorni?: number;
+  termineFineMese?: boolean;
 }
 
 /** Preset comuni per la modalità (l'utente può comunque scrivere testo libero). */
@@ -142,8 +148,14 @@ export function parseQuotePaymentPhases(raw: unknown): QuotePaymentPhase[] {
       const evento = typeof x.evento === "string" && EVENTI_RATA_PREVENTIVO.has(x.evento)
         ? (x.evento as EventoRataPreventivo) : "data_fissa";
       const numero = evento === "sal_numero" ? Math.trunc(Number(x.numero)) || null : null;
+      const soglia = Number(x.soglia);
+      const giorni = Math.trunc(Number(x.termine_giorni));
       return {
         ...(x.a_misura === true ? { aMisura: true } : {}),
+        ...(evento === "sal_percentuale" && Number.isFinite(soglia) && soglia > 0 ? { soglia } : {}),
+        ...(evento === "fase_completata" && typeof x.fase === "string" && x.fase.trim() ? { fase: x.fase.trim() } : {}),
+        ...(Number.isFinite(giorni) && giorni > 0 ? { termineGiorni: Math.min(365, giorni) } : {}),
+        ...(x.termine_fine_mese === true ? { termineFineMese: true } : {}),
         label: String(x.label ?? ""),
         type: (t === "balance" || t === "financing" ? t : "deposit") as QuotePaymentPhaseType,
         percent: Number(x.percent) || 0,

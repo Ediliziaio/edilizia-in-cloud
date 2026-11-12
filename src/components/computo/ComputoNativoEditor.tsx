@@ -219,6 +219,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
         // Una rata a misura nasce con la previsione, marcata come tale: a zero il previsionale di
         // cassa della commessa non vedrebbe la parte più grossa del contratto.
         percentuale: r.percentuale, importo: r.importo ?? r.stima, aMisura: r.rata.base === "avanzamento",
+        termineGiorni: r.rata.termineGiorni, termineFineMese: r.rata.termineFineMese,
         ...eventoPerCommessa(r.rata, rate),
       })),
     };
