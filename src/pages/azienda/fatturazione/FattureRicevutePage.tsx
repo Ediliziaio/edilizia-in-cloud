@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -277,6 +278,8 @@ function IntestazioneOrdinabile({ children, campo, ordinamento, onOrdina, classN
 // ─── Component ────────────────────────────────────────────────
 
 export default function FattureRicevutePage() {
+  // La barra di scorrimento in alto, come nei DDT (12/11/2026): la tabella è larga e quella di sistema sta in fondo.
+  const [riquadroTabella, setRiquadroTabella] = useState<HTMLDivElement | null>(null);
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
   const permessiCosti = usePermissions();
@@ -1617,7 +1620,8 @@ export default function FattureRicevutePage() {
         <Card className="max-sm:hidden">
           {/* L'elenco scorre dentro il riquadro: così la barra orizzontale resta
               a vista anche con migliaia di fatture, e l'intestazione non scappa. */}
-          <Table wrapperClassName="max-h-[70vh] tabella-scorrevole">
+          <BarraScorrimentoOrizzontale contenitore={riquadroTabella} className="mx-3 my-2" />
+          <Table wrapperClassName="max-h-[70vh] tabella-scorrevole" wrapperRef={setRiquadroTabella}>
             <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_hsl(var(--border))]">
               <TableRow>
                 {puoInBlocco && (

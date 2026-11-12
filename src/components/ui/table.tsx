@@ -7,12 +7,15 @@ import { cn } from "@/lib/utils";
  * Serve a dargli un'altezza massima: una tabella larga dentro un elenco lungo
  * ha la barra di scorrimento orizzontale in fondo a tutte le righe, e con
  * settemila fatture quella barra sta migliaia di pixel sotto lo schermo.
+ *
+ * `wrapperRef` dà il riquadro che scorre a chi ci mette sopra la barra di
+ * scorrimento `BarraScorrimentoOrizzontale` (12/11/2026).
  */
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement> & { wrapperClassName?: string }
->(({ className, wrapperClassName, ...props }, ref) => (
-  <div className={cn("relative w-full overflow-auto", wrapperClassName)}>
+  React.HTMLAttributes<HTMLTableElement> & { wrapperClassName?: string; wrapperRef?: React.Ref<HTMLDivElement> }
+>(({ className, wrapperClassName, wrapperRef, ...props }, ref) => (
+  <div ref={wrapperRef} className={cn("relative w-full overflow-auto", wrapperClassName)}>
     <table ref={ref} data-ui="table" className={cn("w-full caption-bottom text-sm", className)} {...props} />
   </div>
 ));

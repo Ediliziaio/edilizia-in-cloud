@@ -28,6 +28,12 @@ describe("Il riquadro che scorre", () => {
     expect(riquadro).toHaveClass("overflow-auto", "max-h-[70vh]", "tabella-scorrevole");
   });
 
+  it("dà il riquadro che scorre a chi ci mette sopra la barra", () => {
+    let riquadro: HTMLDivElement | null = null;
+    render(<Table wrapperRef={(el) => { riquadro = el; }}><TableBody><TableRow><TableCell>x</TableCell></TableRow></TableBody></Table>);
+    expect(riquadro).toBe(screen.getByRole("table").parentElement);
+  });
+
   it("senza la classe il riquadro resta come prima", () => {
     render(<Table><TableBody><TableRow><TableCell>x</TableCell></TableRow></TableBody></Table>);
     const riquadro = screen.getByRole("table").parentElement!;
@@ -41,6 +47,12 @@ describe("Le fatture ricevute", () => {
 
   it("l'elenco ha un'altezza sua, così la barra orizzontale è a portata", () => {
     expect(pagina).toContain('wrapperClassName="max-h-[70vh] tabella-scorrevole"');
+  });
+
+  it("ha la barra di scorrimento in alto, come i DDT, agganciata al riquadro che scorre", () => {
+    expect(pagina).toContain('<BarraScorrimentoOrizzontale contenitore={riquadroTabella}');
+    expect(pagina).toContain("wrapperRef={setRiquadroTabella}");
+    expect(pagina.indexOf("<BarraScorrimentoOrizzontale")).toBeLessThan(pagina.indexOf('wrapperRef={setRiquadroTabella}'));
   });
 
   it("l'intestazione resta ferma mentre si scorrono le righe", () => {
