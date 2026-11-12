@@ -10,6 +10,7 @@ import sorgenteMenu from "@/lib/sidebarConfig.ts?raw";
 // importate, ma non crea documenti.
 const s = vi.hoisted(() => ({
   esterna: true,
+  manage:true,
   filtri: [] as Record<string, unknown>[],
   documenti: [] as Record<string, unknown>[],
 }));
@@ -17,6 +18,8 @@ const s = vi.hoisted(() => ({
 vi.mock("@/contexts/BillingModeContext", () => ({
   useBillingMode: () => ({ mode: s.esterna ? "external" : "native", isExternal: s.esterna, isNative: !s.esterna, isLoading: false }),
 }));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canManagePayments:s.manage,canViewBilling:s.manage})}));
+vi.mock("@/components/fatturazione/CollegaEmessaDialog",()=>({CollegaEmessaDialog:({doc}:{doc:{numero:string}|null})=>doc?<p>Collegamento commessa per {doc.numero}</p>:null}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" } }) }));
 vi.mock("@/hooks/useIsMobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
@@ -45,7 +48,7 @@ vi.mock("@/components/fatturazione/EmessaImportataDettaglio", () => ({
   EmessaImportataDettaglio: ({ id }: { id: string }) => <p>Dettaglio importata {id}</p>,
 }));
 vi.mock("@/components/fatture/AbbinaFattureCommesseDialog", () => ({ AbbinaFattureCommesseDialog: (): null => null }));
-vi.mock("@/components/fatturazione/SegnaPagataDialog", () => ({ SegnaPagataDialog: (): null => null }));
+vi.mock("@/components/fatturazione/SegnaPagataDialog", () => ({ SegnaPagataDialog: ({open,fatture}:{open:boolean;fatture:{numero:string}[]})=>open?<p>Incasso nativo di {fatture[0]?.numero}</p>:null }));
 vi.mock("@/components/fatturazione/HubEsterno", () => ({
   RegistroIncassiImportate: () => <p>Incassi delle importate</p>,
   CassettoSdiEsterno: () => <p>Cassetto del gestionale</p>,
@@ -86,6 +89,7 @@ function monta(url = "/azienda/documenti") {
 beforeEach(() => {
   localStorage.clear();
   s.esterna = true;
+  s.manage=true;
   s.filtri = [];
   s.documenti = [importata];
   Element.prototype.scrollIntoView = vi.fn();
@@ -103,7 +107,7 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getByRole("heading", { name: "Fatturazione" })).toBeInTheDocument();
     expect(screen.getByText("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")).toBeInTheDocument();
     // Stesse colonne della tabella nativa.
-    for (const col of ["Cliente", "Numero", "Emessa il", "Imponibile", "Totale", "Netto a pagare", "SDI", "Incasso", "Incassato", "Residuo", "Prossima scadenza", "Collegata a", "Note", "Allegati"]) {
+    for (const col of ["Cliente", "Numero", "Emessa il", "Imponibile", "Totale", "Netto a pagare", "SDI", "Incasso", "Incassato", "Residuo", "Prossima scadenza", "Collegata a", "Note", "Note interne", "Allegati"]) {
       expect(screen.getByRole("columnheader", { name: col })).toBeInTheDocument();
     }
     // L'elenco legge anche le importate.
@@ -184,8 +188,11 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     monta();
     expect(screen.getByRole("table").querySelectorAll("tbody tr")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Leggi le note della fattura FPR 12/26" }));
+    expect(screen.queryByText("Note interne · solo azienda")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Nota da stampare").length).toBeGreaterThan(0);
+    fireEvent.keyDown(document,{key:"Escape"});
+    fireEvent.click(screen.getByRole("button",{name:"Leggi le note interne della fattura FPR 12/26"}));
     expect(screen.getByText("Note interne · solo azienda")).toBeInTheDocument();
-    expect(screen.getByText("Nota da stampare")).toBeInTheDocument();
     expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti");
   });
 
@@ -247,4 +254,16 @@ describe("Rotte e menu: una pagina sola", () => {
     expect(sorgenteMenu).not.toContain('url: "/azienda/fatturazione"');
     expect(sorgenteMenu).toMatch(/title: "Fatture", url: "\/azienda\/documenti"[^\n]*featureKey: "documenti"/);
   });
+});
+
+it("Da incassare apre la registrazione importata dalla cella senza navigare",()=>{
+ monta();fireEvent.click(screen.getByRole("button",{name:"Registra incasso fattura FPR 12/26"}));expect(screen.getByText("Incasso di FPR 12/26")).toBeInTheDocument();expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti");
+});
+it("Da incassare nativa apre il dialogo nativo e Collega apre la scelta commessa",()=>{
+ s.documenti=[{...importata,origine:"nativa"}];monta();fireEvent.click(screen.getByRole("button",{name:"Registra incasso fattura FPR 12/26"}));expect(screen.getByText("Incasso nativo di FPR 12/26")).toBeInTheDocument();
+ fireEvent.click(screen.getByRole("button",{name:"Collega la fattura FPR 12/26 a una commessa"}));expect(screen.getByText("Collegamento commessa per FPR 12/26")).toBeInTheDocument();
+});
+it("lettura non propone nuove azioni di incasso o collegamento",()=>{s.manage=false;monta();expect(screen.queryByRole("button",{name:/Registra incasso fattura/})).not.toBeInTheDocument();expect(screen.queryByRole("button",{name:/Collega la fattura/})).not.toBeInTheDocument();});
+it("le preferenze precedenti conservano le colonne e aggiungono Note interne",()=>{
+ localStorage.setItem("fatture-emesse-colonne-v1:sessione:c1",JSON.stringify(["cliente","numero","iva"]));monta();expect(screen.getByRole("columnheader",{name:"IVA"})).toBeInTheDocument();expect(screen.getByRole("columnheader",{name:"Note interne"})).toBeInTheDocument();expect(screen.queryByRole("columnheader",{name:"Imponibile"})).not.toBeInTheDocument();
 });

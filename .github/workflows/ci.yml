@@ -733,6 +733,7 @@ jobs:
           src/test/ui/bankAccountSelection.test.tsx
           src/test/ui/distyraReturn.test.tsx
           src/test/ui/hubFattureEsterne.test.tsx
+          src/test/logic/collegaEmessaCommessa.test.ts
           src/test/logic/documentiEmissioneOrdine.test.ts
           src/test/logic/emissioneDataOdiernaSql.test.ts
           src/test/ui/bozzaDataAutomatica.test.tsx

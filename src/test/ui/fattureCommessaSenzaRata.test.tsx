@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 
 const stato = vi.hoisted(() => ({
+  importate: [] as Record<string,unknown>[],
   diretti: [] as Record<string, unknown>[],
   legami: [] as Record<string, unknown>[],
   collegati: [] as Record<string, unknown>[],
@@ -21,14 +22,14 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       is: () => query,
       in: () => { perId = true; return query; },
       then(resolve: (result: { data: Record<string, unknown>[]; error: Error | null }) => unknown) {
-        return Promise.resolve({ data: tabella === "fattura_ordine" ? stato.legami : perId ? stato.collegati : stato.diretti,
+        return Promise.resolve({ data: tabella==="documenti_fiscali_elenco_operativo"?stato.importate:tabella === "fattura_ordine" ? stato.legami : perId ? stato.collegati : stato.diretti,
           error: perId ? stato.erroreCollegati : null }).then(resolve);
       },
     };
     return query;
   },
 } }));
-beforeEach(() => { stato.diretti = []; stato.legami = []; stato.collegati = []; stato.erroreCollegati = null; stato.filtri = []; });
+beforeEach(() => { stato.importate=[]; stato.diretti = []; stato.legami = []; stato.collegati = []; stato.erroreCollegati = null; stato.filtri = []; });
 afterEach(cleanup);
 const apri = () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -58,4 +59,8 @@ describe("Documenti della commessa indipendenti dal piano rate", () => {
     expect(result.current.error?.message).toBe("lettura non disponibile");
     expect(result.current.data).toBeUndefined();
   });
+});
+
+it("include le importate collegate e i loro incassi senza confonderle coi PDF nativi",async()=>{
+ stato.importate=[{id:"imp",origine:"importata",numero:"EST-1",importo_pagato:400,totale_da_pagare:1220}];const {result}=apri();await waitFor(()=>expect(result.current.isSuccess).toBe(true));expect(result.current.data).toEqual([expect.objectContaining({id:"imp",origine:"importata",importo_pagato:400})]);expect(stato.filtri).toContainEqual({tabella:"documenti_fiscali_elenco_operativo",campo:"company_id",valore:"azienda-demo"});
 });
