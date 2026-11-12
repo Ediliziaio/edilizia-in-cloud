@@ -39,3 +39,17 @@ create policy office_attachment_file_update on storage.objects as restrictive fo
 drop policy if exists office_attachment_file_delete on storage.objects;
 create policy office_attachment_file_delete on storage.objects as restrictive for delete to authenticated using(bucket_id not in ('order-attachments','order-variation-documents') or private.office_attachment_file_write_allowed(bucket_id,name));
 notify pgrst,'reload schema';
+
+-- Read-only visibility for a received warehouse document that has no warehouse yet.
+-- Keep tenant, blocked-user and external-customer checks; do not grant writes.
+drop policy if exists ddt_ricezione_magazzino_senza_sede_lettura on public.ddt_ricezione;
+create policy ddt_ricezione_magazzino_senza_sede_lettura on public.ddt_ricezione
+ for select to authenticated using (
+  auth.uid() is not null
+  and not coalesce(public.utente_bloccato(),true)
+  and not coalesce(public.utente_e_cliente_esterno(),true)
+  and company_id=public.get_my_company_id()
+  and coalesce(public.user_can_access_company(company_id),false)
+  and destinazione='magazzino' and warehouse_id is null
+  and (created_by=auth.uid() or coalesce(company_id=any(public.aziende_con_permesso('can_view_warehouse')),false))
+ );

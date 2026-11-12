@@ -63,3 +63,13 @@ HR senza costi legge i dati operativi, senza retribuzioni e tariffe: lettura RES
 grezza bloccata e tentativi di modifica negati; gli amministratori mantengono
 le modifiche autorizzate. Il replay CI esegue anche una verifica SQL con JWT
 authenticated e rollback, oltre alla ricostruzione integrale delle migrazioni.
+
+Allineamento di rilascio: le quattro migrazioni non ancora applicate sono
+ora 20290314000001–20290314000004, dopo i recuperi storici delle commesse
+arrivati su main. Il quadro pagamenti mantiene incassi unità e crediti a misura
+per chi vede gli importi; il solo stato incassi non invoca il ramo riservato
+ai valori economici. Verificati anche gli accessi del backend service_role,
+che mantiene i propri diritti senza concederli agli utenti autenticati.
+La policy di rilettura DDT senza magazzino è inclusa anche nella migrazione
+finale per aggiornare le installazioni dove la migrazione delle bolle è già
+registrata. Non concede scrittura né accesso ai clienti esterni.

@@ -14,7 +14,7 @@ begin
  select '('||coalesce(string_agg('('||coalesce(pg_get_expr(polqual,polrelid),'true')||')',' OR ') filter(where polpermissive),'false')||') AND ('||coalesce(string_agg('('||coalesce(pg_get_expr(polqual,polrelid),'true')||')',' AND ') filter(where not polpermissive),'true')||')'
  into predicate from pg_policy where polrelid='public.orders'::regclass and polcmd in ('r','*') and polname not like 'office_%'
  and (0=any(polroles) or 'authenticated'::regrole::oid=any(polroles));
- execute format($f$create or replace function private.office_visible_order(p_id uuid) returns boolean language sql stable security definer set search_path='' as $body$ select auth.uid() is not null and exists(select 1 from public.orders as orders where orders.id=p_id and (%s)) $body$$f$,predicate);
+ execute format($f$create or replace function private.office_visible_order(p_id uuid) returns boolean language sql stable security definer set search_path='' as $body$ select exists(select 1 from public.orders as orders where orders.id=p_id and (coalesce(auth.role(),'')='service_role' or (auth.uid() is not null and (%s)))) $body$$f$,predicate);
 end $build$;
 revoke all on function private.office_visible_order(uuid) from public,anon;
 grant execute on function private.office_visible_order(uuid) to authenticated,service_role;
@@ -22,14 +22,14 @@ grant execute on function private.office_visible_order(uuid) to authenticated,se
 create or replace function private.office_company_rights(p_company uuid)
 returns jsonb language sql stable security definer set search_path=''
 as $f$
- select jsonb_build_object('amounts',a,'costs',c,'margins',m,'personal',c and h,'payments',a or s)
+ select case when coalesce(auth.role(),'')='service_role' then jsonb_build_object('amounts',true,'costs',true,'margins',true,'personal',true,'payments',true) else jsonb_build_object('amounts',a,'costs',c,'margins',m,'personal',c and h,'payments',a or s) end
  from (select
   (coalesce(public.has_permission_for_company(auth.uid(),'can_view_order_amounts',p_company),false) or public.user_can_read_accountant_company(p_company)) a,
   coalesce(public.has_permission_for_company(auth.uid(),'can_view_costs',p_company),false) or coalesce(public.has_permission_for_company(auth.uid(),'can_manage_purchasing',p_company),false) or public.user_can_read_accountant_company(p_company) c,
   (coalesce(public.has_permission_for_company(auth.uid(),'can_view_margins',p_company),false) or public.user_can_read_accountant_company(p_company)) m,
   coalesce(public.has_permission_for_company(auth.uid(),'can_view_employees',p_company),false) or coalesce(public.has_permission_for_company(auth.uid(),'can_view_persone',p_company),false) or public.user_can_read_accountant_company(p_company) h,
   coalesce(public.has_permission_for_company(auth.uid(),'can_view_order_payment_status',p_company),false) s
- where auth.uid() is not null and not public.utente_bloccato() and public.user_can_access_company(p_company)) x
+ where coalesce(auth.role(),'')='service_role' or (auth.uid() is not null and not public.utente_bloccato() and public.user_can_access_company(p_company))) x
 $f$;
 create or replace function private.office_order_rights(p_order uuid)
 returns jsonb language sql stable security definer set search_path=''
@@ -94,6 +94,7 @@ begin
     else format('case when coalesce((r.rights->>%L)::boolean,false) then %I.%I else null::%s end as %I',f.right_name,t,a.attname,format_type(a.atttypid,a.atttypmod),a.attname) end,',' order by a.attnum)
   into cols from pg_attribute a left join private.office_projection_fields f on f.table_name=t and f.column_name=a.attname
   where a.attrelid=format('public.%I',t)::regclass and a.attnum>0 and not a.attisdropped;
+  predicate:='(coalesce(auth.role(),'''')=''service_role'' OR ('||predicate||'))';
   rights_expression:=case when t='employees' then 'private.office_company_rights(employees.company_id)' else format('private.office_order_rights(%I.%I)',t,case when t='orders' then 'id' else 'order_id' end) end;
   execute format('create or replace view public.%I with(security_barrier=true) as select %s from public.%I %I cross join lateral (select %s as rights offset 0) r where %s',t||'_visibili',cols,t,t,rights_expression,predicate);
   execute format('revoke all on public.%I from public,anon',t||'_visibili');
@@ -210,17 +211,30 @@ begin
   where a.attrelid='private.office_order_economics_base'::regclass and a.attnum>0 and not a.attisdropped;
  execute 'create or replace function private.office_order_economics_projection() returns setof private.office_order_economics_base language sql stable security definer set search_path='''''||' as $projection$ select '||cols||' from private.office_order_economics_base b cross join lateral(select private.office_order_rights(b.id) rights offset 0) r where private.office_visible_order(b.id) $projection$';
  revoke all on function private.office_order_economics_projection() from public,anon;
- grant execute on function private.office_order_economics_projection() to authenticated;
+ grant execute on function private.office_order_economics_projection() to authenticated,service_role;
  create or replace view public.v_ordine_marginalita with(security_barrier=true,security_invoker=true) as select * from private.office_order_economics_projection();
 end $canonical$;
 
 -- Preserve the established payment calculations, then remove unauthorized
 -- branches from the server response (including indirect RPC reads).
+-- A status-only caller must not invoke the stricter amount-only child RPC
+-- while the established payment calculation is being projected.
+create or replace function private.office_crediti_misura_autorizzati(p_order_id uuid)
+returns jsonb language plpgsql stable security definer set search_path=''
+as $f$begin
+ if coalesce((private.office_order_rights(p_order_id)->>'amounts')::boolean,false) and auth.uid() is not null then
+  return public.commessa_crediti_misura(p_order_id);
+ end if;
+ return null;
+end $f$;
+revoke all on function private.office_crediti_misura_autorizzati(uuid) from public,anon,authenticated,service_role;
+
 do $payment_raw$
 declare def text;
 begin
  if to_regprocedure('private.office_quadro_pagamenti_raw(uuid)') is null then
   def:=pg_get_functiondef('public.commessa_quadro_pagamenti(uuid)'::regprocedure);
+  def:=replace(def,'public.commessa_crediti_misura(', 'private.office_crediti_misura_autorizzati(');
   execute replace(def,'public.commessa_quadro_pagamenti(', 'private.office_quadro_pagamenti_raw(');
  end if;
 end $payment_raw$;
@@ -237,6 +251,8 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('id',v->'id','position',v->'position','type',v->'type','is_paid',v->'is_paid','paid_date',v->'paid_date','expected_date',v->'expected_date','scaduta',v->'scaduta')),'[]') into installments from jsonb_array_elements(coalesce(data->'rate','[]')) v;
  else installments:='[]'; end if;
  return jsonb_build_object('oggi',data->'oggi','rate',coalesce(installments,'[]'),
+ 'incassi_unita',case when coalesce((rights->>'amounts')::boolean,false) then data->'incassi_unita' else 'null'::jsonb end,
+ 'crediti_misura',case when coalesce((rights->>'amounts')::boolean,false) then data->'crediti_misura' else 'null'::jsonb end,
  'sal_cliente',case when coalesce((rights->>'amounts')::boolean,false) then data->'sal_cliente' else '[]'::jsonb end,
  'uscite',case when coalesce((rights->>'costs')::boolean,false) then data->'uscite' else '[]'::jsonb end,
  'mezzi_stimati',case when coalesce((rights->>'costs')::boolean,false) then data->'mezzi_stimati' end);
