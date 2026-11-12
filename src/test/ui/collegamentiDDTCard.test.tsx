@@ -154,3 +154,40 @@ it("«Confronta una fattura» sta nei Collegamenti, accanto a «Collega una fatt
   fireEvent.click(screen.getByRole("button", { name: "Chiudi confronto" }));
   expect(screen.queryByLabelText("Cerca per numero o data")).not.toBeInTheDocument();
 });
+
+// 12/11/2026 — la conferma delle consegne non scriveva caricata_a_magazzino_at:
+// a merce in giacenza la scheda diceva «Carico non ancora confermato».
+const magazzino = { destinazione: "magazzino", warehouse_id: "w1", warehouses: { name: "Sede" } };
+
+it("una bolla confermata dalle consegne risulta caricata anche senza la data in testata", () => {
+  m.righe = [{ id: "r1", quantita: 5, movimento_id: null, arrivo_registrato_il: "2026-11-05T10:00:00Z" }];
+  m.consegne = [{ id: "k1", riga_id: "r1", quantita: 5, order_id: null, tipo: "ingresso", destinazione: "magazzino", created_at: "2026-11-05T10:00:00Z" }];
+  apri(ddt(magazzino));
+  expect(screen.getByText("Caricata in magazzino il 05/11/2026")).toBeInTheDocument();
+  expect(screen.queryByText(/Carico non ancora confermato/)).not.toBeInTheDocument();
+});
+
+it("con la data in testata dice quando è stata caricata", () => {
+  apri(ddt({ ...magazzino, caricata_a_magazzino_at: "2026-11-03T09:00:00Z" }));
+  expect(screen.getByText("Caricata in magazzino il 03/11/2026")).toBeInTheDocument();
+});
+
+it("con righe ancora da confermare dice quante sono e porta alle consegne", () => {
+  m.righe = [
+    { id: "r1", quantita: 5, movimento_id: null, arrivo_registrato_il: null },
+    { id: "r2", quantita: 2, movimento_id: null, arrivo_registrato_il: "2026-11-05T10:00:00Z" },
+    { id: "r3", quantita: 1, movimento_id: null, arrivo_registrato_il: null },
+  ];
+  m.consegne = [{ id: "k1", riga_id: "r2", quantita: 2, order_id: null, tipo: "ingresso", destinazione: "magazzino", created_at: "2026-11-05T10:00:00Z" }];
+  const vai = vi.fn();
+  apri(ddt(magazzino), vai);
+  expect(screen.getByText(/2 righe da caricare:/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "confermale qui sotto" }));
+  expect(vai).toHaveBeenCalled();
+});
+
+it("una bolla per il cantiere senza merce in magazzino non entra in giacenza", () => {
+  m.righe = [{ id: "r1", quantita: 5, movimento_id: null, arrivo_registrato_il: null }];
+  apri();
+  expect(screen.getByText("Non entra in giacenza.")).toBeInTheDocument();
+});

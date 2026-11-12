@@ -38,7 +38,7 @@ import { useDDTRighe, type DDTRicezione, type DDTRicezioneWithJoins } from "@/ho
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePermissions } from "@/hooks/usePermissions";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
-import { bloccoCollegamento, commesseDellaBolla, nomePersona, type StatoBolla } from "@/lib/ddt/collegamentiBolla";
+import { bloccoCollegamento, commesseDellaBolla, nomePersona, statoCaricoMagazzino, type StatoBolla } from "@/lib/ddt/collegamentiBolla";
 import { salvaCollegamentoDdt } from "@/lib/fatturazione/collegaDdt";
 import { cn } from "@/lib/utils";
 
@@ -204,6 +204,15 @@ export function CollegamentiDDTCard({
   const ordinePrincipale = ddt.purchase_order_id;
   const destinazioneMista =
     new Set((consegne.data ?? []).filter((c) => c.tipo !== "servizio").map((c) => c.destinazione)).size > 1;
+  const entrataInMagazzino = (consegne.data ?? []).some((c) => c.destinazione === "magazzino" && c.tipo === "ingresso");
+  // 12/11/2026: lo stato del carico si legge anche dalle consegne, non solo
+  // dalla data in testata che la conferma non scriveva.
+  const carico = statoCaricoMagazzino({
+    destinazione: ddt.destinazione,
+    caricataIl: ddt.caricata_a_magazzino_at,
+    consegne: consegne.data ?? [],
+    righeAperte,
+  });
 
   return (
     <Card>
@@ -294,11 +303,26 @@ export function CollegamentiDDTCard({
                     : `Magazzino${ddt.warehouses?.name ? ` · ${ddt.warehouses.name}` : ""}`}
               </span>
               <p className="text-xs text-muted-foreground">
-                {ddt.destinazione === "cantiere" && !destinazioneMista
-                  ? "Non entra in giacenza."
-                  : ddt.caricata_a_magazzino_at
-                    ? `In giacenza dal ${format(new Date(ddt.caricata_a_magazzino_at), "dd/MM/yyyy", { locale: it })}`
-                    : "Carico non ancora confermato da questa bolla."}
+                {ddt.destinazione === "cantiere" && !destinazioneMista && !entrataInMagazzino ? (
+                  "Non entra in giacenza."
+                ) : !datiPronti ? null : carico.tipo === "caricata" ? (
+                  `Caricata in magazzino il ${format(new Date(carico.il), "dd/MM/yyyy", { locale: it })}`
+                ) : carico.tipo === "da_caricare" ? (
+                  <>
+                    {carico.righe === 1 ? "1 riga da caricare: " : `${carico.righe} righe da caricare: `}
+                    {onApriConsegne ? (
+                      <button type="button" onClick={onApriConsegne} className="text-primary hover:underline">
+                        {carico.righe === 1 ? "confermala qui sotto" : "confermale qui sotto"}
+                      </button>
+                    ) : carico.righe === 1 ? (
+                      "confermala qui sotto"
+                    ) : (
+                      "confermale qui sotto"
+                    )}
+                  </>
+                ) : (
+                  "Carico non ancora confermato da questa bolla."
+                )}
               </p>
             </Voce>
             <Voce icona={Receipt} etichetta="Fattura del fornitore">
