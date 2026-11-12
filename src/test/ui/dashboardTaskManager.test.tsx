@@ -118,7 +118,7 @@ describe("Task manager della Dashboard", () => {
   it.each(["company_admin", "company_staff"])("la lista personale di %s esclude le attività altrui anche con permesso team", role => {
     state.role = role; page();
     expect(screen.queryByRole("button", { name: "Attività other" })).toBeNull();
-    expect(screen.getByRole("heading", { name: /^Le mie attività/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^Attività mie e delle mie aree/ })).toBeTruthy();
     expect(screen.queryByRole("combobox", { name: "Di chi" })).toBeNull();
   });
   it("un collegamento ad attività altrui non apre il modulo personale", async () => {

@@ -32,7 +32,10 @@ begin
  if tg_op='UPDATE' and (new.company_id is distinct from old.company_id or new.created_by is distinct from old.created_by) and (new.ufficio_id is not null or old.ufficio_id is not null) then raise exception 'Azienda e autore non modificabili' using errcode='42501'; end if;
  if new.ufficio_id is null and (tg_op='INSERT' or old.ufficio_id is null) then return new; end if;
  if auth.uid() is null then
-   if current_user='service_role' then return new; end if;
+   if current_user='service_role' or auth.jwt()->>'role'='service_role' or (auth.jwt()->>'role' is null and session_user in ('postgres','supabase_admin') and current_user in ('postgres','supabase_admin')) then
+     if new.ufficio_id is not null and not exists(select 1 from public.company_uffici u where u.id=new.ufficio_id and u.company_id=new.company_id and u.attivo) then raise exception 'Area non valida per l’azienda' using errcode='23514';end if;
+     return new;
+   end if;
    raise exception 'Sessione personale richiesta' using errcode='42501';
  end if;
  if new.ufficio_id is not null and not private.office_task_links_allowed(new) then
