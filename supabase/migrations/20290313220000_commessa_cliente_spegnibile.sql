@@ -17,8 +17,11 @@ alter table public.company_commesse_generali_settings
 comment on column public.company_commesse_generali_settings.commessa_cliente_attiva is
   'false = l''azienda non lavora su commessa per clienti: la scheda non compare in «Nuova Commessa» e la pagina di creazione rimanda all''elenco. Le unità di una commessa generale restano permesse.';
 
--- GRANT per colonna: senza questa riga il browser non la legge (e un select
--- che la chiede falliva per tutti).
+-- Riga ridondante, tenuta perché è stata applicata: questa tabella ha il GRANT
+-- a livello di TABELLA (`authenticated=r`, da 20281030270000), che copre anche
+-- le colonne aggiunte dopo. Non è come `campo_rapportini` o
+-- `ai_whatsapp_numbers`, dove il GRANT è per colonna e una colonna nuova va
+-- aggiunta a mano: qui un `grant select (colonna)` non restringe niente.
 grant select (commessa_cliente_attiva) on public.company_commesse_generali_settings to authenticated;
 
 create or replace function public.commesse_generali_commessa_cliente_salva(

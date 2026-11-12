@@ -36,17 +36,23 @@ export function useImpostazioniCommesseGenerali() {
     queryKey: chiaviGenerali.impostazioni(companyId),
     enabled: !!companyId,
     staleTime: 5 * 60_000,
-    queryFn: async (): Promise<{ modelli: ModelloGenerale[]; disponibile: boolean; configurata: boolean }> => {
+    queryFn: async (): Promise<{ modelli: ModelloGenerale[]; disponibile: boolean; configurata: boolean; commessaCliente: boolean }> => {
       try {
         const { data, error } = await db
           .from("company_commesse_generali_settings")
-          .select("modelli_attivi")
+          .select("modelli_attivi, commessa_cliente_attiva")
           .eq("company_id", companyId!)
           .maybeSingle();
         if (error) throw error;
-        return { modelli: modelliValidi(data?.modelli_attivi), disponibile: true, configurata: !!data };
+        return {
+          modelli: modelliValidi(data?.modelli_attivi),
+          disponibile: true,
+          configurata: !!data,
+          // Senza riga, o con una riga vecchia: la commessa cliente è accesa.
+          commessaCliente: data?.commessa_cliente_attiva !== false,
+        };
       } catch {
-        return { modelli: [], disponibile: false, configurata: false };
+        return { modelli: [], disponibile: false, configurata: false, commessaCliente: true };
       }
     },
   });
@@ -60,12 +66,32 @@ export function useImpostazioniCommesseGenerali() {
     },
     onSuccess: (modelli) => {
       // La risposta contiene le scelte salvate: niente ritorno momentaneo ai valori di prima.
-      qc.setQueryData(chiaviGenerali.impostazioni(companyId), { modelli, disponibile: true, configurata: true });
+      qc.setQueryData(chiaviGenerali.impostazioni(companyId), (prima: { commessaCliente?: boolean } | undefined) => ({
+        modelli, disponibile: true, configurata: true, commessaCliente: prima?.commessaCliente !== false,
+      }));
+    },
+  });
+
+  /** L'azienda lavora anche su commessa per clienti, o fa solo commesse generali. */
+  const salvaCommessaCliente = useMutation({
+    mutationFn: async (attiva: boolean) => {
+      if (!companyId) throw new Error("Seleziona un’azienda prima di salvare.");
+      const { data, error } = await db.rpc("commesse_generali_commessa_cliente_salva", { p_company_id: companyId, p_attiva: attiva });
+      if (error) throw error;
+      return data === true;
+    },
+    onSuccess: (attiva) => {
+      qc.setQueryData(chiaviGenerali.impostazioni(companyId), (prima: { modelli?: ModelloGenerale[] } | undefined) => ({
+        modelli: prima?.modelli ?? [], disponibile: true, configurata: true, commessaCliente: attiva,
+      }));
     },
   });
 
   return {
     modelli: query.data?.modelli ?? [],
+    /** false = «Commessa cliente» non compare in «Nuova Commessa» e la rotta di creazione rimanda all'elenco. */
+    commessaCliente: query.data?.commessaCliente ?? true,
+    salvaCommessaCliente,
     /** false = la funzione non c'è ancora sul database: la pagina lo dice invece di mostrare interruttori che non salvano. */
     disponibile: query.data?.disponibile ?? true,
     attiva: (query.data?.modelli.length ?? 0) > 0,

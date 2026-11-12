@@ -9,6 +9,7 @@ import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { AcquistiDaFareRedirect } from "./company/AcquistiDaFareRedirect";
 import { LegacyPlanimetrieRedirect } from "./company/LegacyPlanimetrieRedirect";
+import { CommessaClienteGuard } from "./company/CommessaClienteGuard";
 import type { Permissions } from "@/hooks/usePermissions";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
@@ -667,7 +668,7 @@ export default function CompanyRoutesContainer() {
         <Route path="ordini" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
         {/* Cantieri oggi ora è una scheda di Commesse: il vecchio indirizzo ci porta. */}
         <Route path="cantieri-oggi" element={<Navigate to="/azienda/ordini?tab=oggi" replace />} />
-        <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommercialistaWriteGuard>)} />
+        <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><CommessaClienteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommessaClienteGuard></CommercialistaWriteGuard>)} />
         <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="ordini/simulatore" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel simulatore"><SimulatoreOperazione /></ErrorBoundary>, (p) => p.isAdmin || p.canViewMargins)} />
         <Route path="ordini/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Building2, KeyRound, Landmark, Plus, type LucideIcon } from "lucide-react";
+import { ArrowRight, Building2, KeyRound, Landmark, Plus, ShoppingCart, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ const ANTEPRIMA: Record<ModelloGenerale, { titolo: string; righe: [string, numbe
 };
 
 export default function CommesseGeneraliConfig({ puoModificare, evidenziata = false }: { puoModificare: boolean; evidenziata?: boolean }) {
-  const { modelli, disponibile, isLoading, salva } = useImpostazioniCommesseGenerali();
+  const { modelli, disponibile, isLoading, salva, commessaCliente, salvaCommessaCliente } = useImpostazioniCommesseGenerali();
   const { data } = useGeneraliAzienda();
   const conti = data?.conti ?? {};
   const ultime = data?.ultime ?? [];
@@ -80,6 +80,16 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
     const scelti = acceso ? [...modelli, m] : modelli.filter((x) => x !== m);
     salva.mutate(scelti, {
       onSuccess: () => toast.success(acceso ? `«${DEFINIZIONI_MODELLI[m].nome}» è attivo` : `«${DEFINIZIONI_MODELLI[m].nome}» è spento`),
+      onError: (e) => toast.error(messaggioGenerale(e, "questa impostazione")),
+    });
+  };
+
+  // Spegnere la commessa cliente senza nessuna generale accesa lascerebbe
+  // l'azienda senza niente da creare: il database lo rifiuta, qui non si offre.
+  const puoSpegnereCliente = modelli.length > 0;
+  const cambiaCliente = (attiva: boolean) => {
+    salvaCommessaCliente.mutate(attiva, {
+      onSuccess: () => toast.success(attiva ? "«Commessa cliente» è attiva" : "«Commessa cliente» è spenta"),
       onError: (e) => toast.error(messaggioGenerale(e, "questa impostazione")),
     });
   };
@@ -171,6 +181,36 @@ export default function CommesseGeneraliConfig({ puoModificare, evidenziata = fa
             </article>
           );
         })}
+      </div>
+
+      {/* L'azienda che fa SOLO operazioni immobiliari non ha commesse per un cliente:
+          qui si toglie anche quella, l'unica scheda che prima era sempre presente. */}
+      <div className="border-t px-3 py-3 sm:px-4">
+        <div className="flex items-start gap-2.5">
+          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", commessaCliente ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+            <ShoppingCart className="h-4.5 w-4.5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-semibold leading-tight">Commessa cliente</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Un lavoro per un cliente, privato o azienda. Spenta, non compare più in «Nuova Commessa»: resta solo quello che hai acceso qui sopra.
+              Le unità di una commessa generale si creano comunque.
+            </p>
+            {!commessaCliente && (
+              <p className="mt-1 text-xs text-muted-foreground">Le commesse cliente già create restano visibili e si possono ancora usare.</p>
+            )}
+            {commessaCliente && !puoSpegnereCliente && (
+              <p className="mt-1 text-xs text-muted-foreground">Per spegnerla accendi prima un tipo di commessa generale: altrimenti non resterebbe niente da creare.</p>
+            )}
+          </div>
+          <Switch
+            id="commessa-cliente-attiva"
+            aria-label="Commessa cliente"
+            checked={commessaCliente}
+            disabled={!puoModificare || !disponibile || isLoading || salvaCommessaCliente.isPending || (commessaCliente && !puoSpegnereCliente)}
+            onCheckedChange={cambiaCliente}
+          />
+        </div>
       </div>
 
       {ultime.length > 0 && (

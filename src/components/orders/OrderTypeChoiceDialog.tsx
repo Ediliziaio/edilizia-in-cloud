@@ -6,6 +6,8 @@
  *
  *   1. Commessa cliente (default, comportamento esistente)
  *      → /azienda/ordini/nuovo
+ *      Si può spegnere in Impostazioni → Commesse generali: chi fa solo
+ *      operazioni immobiliari non lavora su commessa per un cliente.
  *
  *   2. Lavoro per appaltatore — solo col Modulo Appaltatori
  *      → /azienda/ordini/nuovo-lavoro-appaltatore
@@ -35,6 +37,8 @@ interface OrderTypeChoiceDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Modulo Appaltatori attivo: mostra «Lavoro per appaltatore». */
   appaltatore?: boolean;
+  /** false = l'azienda non lavora su commessa per clienti: la scheda non compare. */
+  commessaCliente?: boolean;
   /** Modelli di commessa generale accesi dall'azienda. */
   modelliGenerali?: ModelloGenerale[];
   onScegliGenerale?: (modello: ModelloGenerale) => void;
@@ -59,7 +63,7 @@ function Scheda({ icona: Icona, titolo, testo, tono = "primary" }: { icona: Luci
   );
 }
 
-export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false, modelliGenerali = [], onScegliGenerale }: OrderTypeChoiceDialogProps) {
+export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false, commessaCliente = true, modelliGenerali = [], onScegliGenerale }: OrderTypeChoiceDialogProps) {
   const permissions = usePermissions();
   const simulatore = (permissions.isAdmin || permissions.canViewMargins)
     && modelliGenerali.some((m) => m === "sviluppo" || m === "compravendita");
@@ -74,10 +78,12 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
         </DialogHeader>
 
         <div className="grid gap-3 sm:grid-cols-2 pt-2">
-          {/* Commessa cliente standard — flusso esistente */}
-          <Link to="/azienda/ordini/nuovo" onClick={() => onOpenChange(false)} className={SCHEDA}>
-            <Scheda icona={ShoppingCart} titolo="Commessa cliente" testo="Un lavoro per un cliente (privato o azienda). Comportamento standard." />
-          </Link>
+          {/* Commessa cliente standard — flusso esistente, spegnibile in Impostazioni */}
+          {commessaCliente && (
+            <Link to="/azienda/ordini/nuovo" onClick={() => onOpenChange(false)} className={SCHEDA}>
+              <Scheda icona={ShoppingCart} titolo="Commessa cliente" testo="Un lavoro per un cliente (privato o azienda). Comportamento standard." />
+            </Link>
+          )}
 
           {/* Lavoro per appaltatore — sola manodopera */}
           {appaltatore && (

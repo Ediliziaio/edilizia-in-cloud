@@ -15,6 +15,8 @@ const m = vi.hoisted(() => ({
   canEditOrders: true,
   modelli: [] as string[],
   salva: vi.fn(),
+  commessaCliente: true,
+  salvaCliente: vi.fn(),
   navigate: vi.fn(),
   quote: null as null | { totale: number; criterio: string; motivo: string; perFiglia: Map<string, { importo: number; parte: number; base: number }> },
 }));
@@ -58,7 +60,7 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({
   useRiepilogoGenerale: () => ({ data: m.riepilogo, isLoading: false, isError: false, refetch: vi.fn() }),
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),
   messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`,
-  useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: m.salva, isPending: false } }),
+  useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: m.salva, isPending: false }, commessaCliente: m.commessaCliente, salvaCommessaCliente: { mutate: m.salvaCliente, isPending: false } }),
 }));
 
 import { CommessaGeneraleDettaglio } from "@/components/orders/generali/CommessaGeneraleDettaglio";

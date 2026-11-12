@@ -1,3 +1,41 @@
+-- Un modo di creare una commessa: l'invariante nello schema, non solo nelle RPC.
+--
+-- Cosa si poteva fare prima: `20290313220000_commessa_cliente_spegnibile`
+-- tiene l'invariante («non si può restare senza alcun modo di creare una
+-- commessa») solo dentro le due RPC. Sulla tabella non c'è alcun vincolo:
+-- chiunque scriva la riga per un'altra strada può lasciare un'azienda con
+-- commessa_cliente_attiva = false e modelli_attivi = '{}'. In quello stato
+-- `OrdersList` mostra «niente da creare» e `companyRoutes` rimanda all'elenco:
+-- l'azienda non può più aprire nessuna commessa, e nessun avviso lo dice.
+--
+-- Provato il 12/11/2026 su un'azienda demo, in transazione annullata:
+--   · le due RPC, nei due ordini, rifiutano lo stato morto (23514), anche
+--     quando la riga non esiste ancora;
+--   · service_role, che sulla tabella ha tutti i privilegi, ci arriva con un
+--     `update` in un colpo e nessuno lo ferma -> modelli={} cliente=f.
+--     È la strada di ogni edge function, di `admin_ripristina_backup` e di
+--     qualunque RPC futura; `service_role` non può nemmeno chiamare le due RPC
+--     (auth.uid() nullo -> 42501), quindi chi scrive dalla edge DEVE passare
+--     dalla tabella.
+--   · `authenticated` non ha UPDATE sulla tabella (42501): dal browser il buco
+--     non si raggiunge. È un buco per il codice del server, non per l'utente.
+--
+-- Chi deve continuare a funzionare (provato prima/dopo):
+--   · amministratore dell'azienda: spegne la commessa cliente con almeno un
+--     tipo di generale acceso, e spegne i generali con la cliente accesa;
+--   · super admin;
+--   · le funzioni del server (DEFINER) e service_role, per ogni scrittura che
+--     NON è lo stato morto;
+--   · la lettura: chi ha can_view_orders o can_view_settings_orders vede la
+--     riga, gli altri no.
+--
+-- Il vincolo è il fondo; il messaggio leggibile resta quello delle RPC, che
+-- ora controllano PRIMA di scrivere, con la riga bloccata (`for update`): così
+-- l'utente non vede mai il testo del vincolo e due chiamate in parallelo si
+-- mettono in fila sulla stessa riga.
+--
+-- Idempotente. Le righe già in tabella sono tutte valide.
+
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';
 
@@ -17,6 +55,9 @@ comment on constraint company_commesse_generali_un_modo_di_creare
   'Un''azienda non può restare senza alcun modo di creare una commessa: spenta la commessa cliente, serve almeno un tipo di commessa generale.';
 
 -- ── 2. Le RPC controllano prima di scrivere ─────────────────────────────────
+-- Prima controllavano dopo l'insert: col vincolo in piedi l'errore arriverebbe
+-- dal vincolo, con il suo testo tecnico. Ora il controllo precede la scrittura
+-- e blocca la riga, quindi il messaggio è sempre quello scritto qui.
 create or replace function public.commesse_generali_commessa_cliente_salva(
   p_company_id uuid,
   p_attiva boolean
@@ -51,7 +92,8 @@ begin
   -- `modelli_attivi` deve portare il valore di adesso, non '{}': su
   -- INSERT ... ON CONFLICT il vincolo CHECK è controllato sulla riga proposta
   -- PRIMA che Postgres scopra il conflitto, quindi un '{}' di comodo farebbe
-  -- fallire anche lo spegnimento legittimo.
+  -- fallire anche lo spegnimento legittimo (provato: 23514 su un caso che
+  -- deve passare).
   insert into public.company_commesse_generali_settings
     (company_id, modelli_attivi, commessa_cliente_attiva, updated_by, updated_at)
   values (p_company_id, coalesce(v_modelli, '{}'), p_attiva, auth.uid(), now())

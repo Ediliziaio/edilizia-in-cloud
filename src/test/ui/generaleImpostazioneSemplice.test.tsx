@@ -15,7 +15,7 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.mobile }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: m.canEditOrders, canViewMargins: true }) }));
 vi.mock("@/hooks/useCommesseGenerali", () => ({
   messaggioGenerale: () => "errore",
-  useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: vi.fn(), isPending: false } }),
+  useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: vi.fn(), isPending: false }, commessaCliente: true, salvaCommessaCliente: { mutate: vi.fn(), isPending: false } }),
 }));
 vi.mock("@/hooks/useAvviaGenerale", () => ({ useAvviaGenerale: () => ({ mutate: m.avvia, isPending: false }) }));
 vi.mock("@/components/orders/generali/ScegliCliente", () => ({ ScegliCliente: (): ReactElement => <p>Cliente</p> }));

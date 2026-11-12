@@ -80,6 +80,9 @@ import {
   EMPTY_ORDERS,
 } from "./OrdersList/constants";
 
+/** Commessa cliente spenta e, da telefono, nessuna generale creabile. */
+const NIENTE_DA_CREARE = "Da telefono una commessa generale si legge soltanto: creala dal computer";
+
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const orderPerms = usePermissions();
@@ -91,7 +94,7 @@ function OrdersListInner() {
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   // Commesse generali accese da Impostazioni: il bivio «Nuova Commessa» le offre accanto alla commessa normale.
-  const { modelli: modelliGenerali, configurata: generaliConfigurate } = useImpostazioniCommesseGenerali();
+  const { modelli: modelliGenerali, configurata: generaliConfigurate, commessaCliente } = useImpostazioniCommesseGenerali();
   const [nuovaGenerale, setNuovaGenerale] = useState<ModelloGenerale | null>(null);
   const mappaGenerali = useMappaGenerali();
   const queryClient = useQueryClient();
@@ -139,6 +142,9 @@ function OrdersListInner() {
   // Da telefono una generale si legge soltanto (piano §3.4): la scelta non si offre.
   const modelliCreabili = isMobile ? [] : modelliGenerali;
   const conBivio = appaltatoreEnabled || modelliCreabili.length > 0;
+  // Commessa cliente spenta e niente da scegliere (da telefono le generali si
+  // leggono soltanto): il pulsante non deve portare al flusso cliente.
+  const nienteDaCreare = !commessaCliente && !conBivio;
   const [daRaggruppare, setDaRaggruppare] = useState<string[] | null>(null);
   const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
   const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
@@ -1438,8 +1444,15 @@ function OrdersListInner() {
               <span className="hidden sm:inline">Sola lettura</span>
               <span className="sm:hidden">Lettura</span>
             </Button>
-          ) : !canCreateOrders ? (
-            <Button size="sm" disabled title={createOrdersBlockedTitle} aria-label={`Nuova Commessa — ${createOrdersBlockedTitle}`} className="h-8 px-3 text-xs font-semibold">
+          ) : !canCreateOrders || nienteDaCreare ? (
+            /* Il motivo detto per primo è quello vero: il permesso che manca conta più del telefono. */
+            <Button
+              size="sm"
+              disabled
+              title={!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}
+              aria-label={`Nuova Commessa — ${!canCreateOrders ? createOrdersBlockedTitle : NIENTE_DA_CREARE}`}
+              className="h-8 px-3 text-xs font-semibold"
+            >
               <Plus className="h-3.5 w-3.5 mr-1" />
               <span className="hidden sm:inline">Nuova Commessa</span>
               <span className="sm:hidden">Nuovo</span>
@@ -1881,7 +1894,7 @@ function OrdersListInner() {
                   <Button variant="outline" onClick={clearAllFilters} className="gap-2">
                     Pulisci tutti i filtri
                   </Button>
-                ) : stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && (
+                ) : stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && !nienteDaCreare && (
                   conBivio ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -1972,6 +1985,7 @@ function OrdersListInner() {
         open={showOrderTypeDialog}
         onOpenChange={setShowOrderTypeDialog}
         appaltatore={appaltatoreEnabled}
+        commessaCliente={commessaCliente}
         modelliGenerali={modelliCreabili}
         onScegliGenerale={setNuovaGenerale}
       />
