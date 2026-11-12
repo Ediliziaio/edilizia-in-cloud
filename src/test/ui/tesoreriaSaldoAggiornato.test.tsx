@@ -13,3 +13,5 @@ it("aggiorna il saldo della finestra già aperta quando la query riceve il nuovo
   view.rerender(<ManualTreasuryPanel />);
   expect(screen.getByRole("status")).toHaveTextContent("Saldo finestra: 1");
 });
+
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewBankBalances: true, canReconcileBankTransactions: true, solaLettura: false }) }));

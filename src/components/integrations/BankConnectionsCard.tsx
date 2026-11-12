@@ -124,7 +124,7 @@ export default function BankConnectionsCard({
   handleReturn = true,
 }: BankConnectionsCardProps = {}) {
   const companyId = useEffectiveCompanyId();
-  const { canViewTesoreria, canEditSettingsIntegrations, isLoading: permsLoading } = usePermissions();
+  const { canViewTesoreria, canViewBankBalances, canEditSettingsIntegrations, isLoading: permsLoading } = usePermissions();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -157,11 +157,11 @@ export default function BankConnectionsCard({
   }, [syncVersion, companyId]);
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["bank-accounts", companyId],
+    queryKey: ["bank-accounts", companyId, canViewBankBalances],
     enabled: !!companyId && canViewTesoreria,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("bank_accounts")
+        .from("bank_accounts_operativi")
         .select("id, connection_id, account_name, iban, currency, current_balance")
         .eq("company_id", companyId!)
         .eq("is_active", true);
@@ -323,7 +323,7 @@ export default function BankConnectionsCard({
                     <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
                     <span className="truncate">{nomeConto(a)}</span>
                   </span>
-                  {a.current_balance != null && (
+                  {canViewBankBalances && a.current_balance != null && (
                     <span className="tabular-nums">{formatTreasuryCurrency(a.current_balance, "—", a.currency)}</span>
                   )}
                 </div>

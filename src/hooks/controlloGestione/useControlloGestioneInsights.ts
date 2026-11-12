@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/usePermissions";
 /**
  * Hook orchestratore: aggrega CE/SP/Rating/BEP + storico rating + dati cantieri,
  * scadenzario, banche → costruisce uno Snapshot e lancia `runRules`.
@@ -27,7 +28,7 @@ function useRatingStorico(months = 12) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: ["cg", "rating-storico", months, companyId] as const,
-    enabled: !!companyId,
+    enabled: !!companyId && canViewBankBalances,
     queryFn: async (): Promise<RatingSnapshotRow[]> => {
       const { data, error } = await supabase
         .from("cg_rating_snapshot")
@@ -57,9 +58,10 @@ interface SnapshotOperativo {
  * (saldo + entrate attese − uscite dovute nel periodo, incluse le scadute).
  */
 function useSnapshotOperativo() {
+  const { canViewBankBalances } = usePermissions();
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["cg", "insights-operativo", companyId] as const,
+    queryKey: ["cg", "insights-operativo", companyId, canViewBankBalances] as const,
     enabled: !!companyId,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<SnapshotOperativo> => {
@@ -70,7 +72,7 @@ function useSnapshotOperativo() {
 
       const [banks, aperteRighe] = await Promise.all([
         supabase
-          .from("bank_accounts")
+          .from("bank_accounts_operativi")
           .select("current_balance")
           .eq("company_id", companyId!)
           .eq("is_active", true),
@@ -124,6 +126,7 @@ function useSnapshotOperativo() {
 }
 
 export function useControlloGestioneInsights(anno: number) {
+  const { canViewBankBalances } = usePermissions();
   const ceCorr = useCEriclassificato(anno);
   const cePrec = useCEriclassificato(anno - 1);
   const sp = useStatoPatrimoniale(anno);
@@ -165,7 +168,7 @@ export function useControlloGestioneInsights(anno: number) {
       // Senza dati operativi la regola liquidità non deve scattare a vuoto → 0.
       cashflow_30gg: operativo.data?.cashflow_30gg ?? 0,
     };
-    insights = runRules(snapshot);
+    insights = runRules(snapshot).filter(i => canViewBankBalances || i.category !== "cashflow");
   }
 
   return { insights, isLoading, isError };

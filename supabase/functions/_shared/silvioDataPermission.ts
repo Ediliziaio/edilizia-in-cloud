@@ -19,6 +19,7 @@ export function silvioDataPermissionIssue(name:string,_domain:string|undefined,p
 /** Early UX denial; data/tool guards remain authoritative for every query. */
 export function silvioQuestionPermissionIssue(question:string,p:Record<string,unknown>):string|null {
  const q=question.toLowerCase();
+ if(/liquidit|saldo.*(?:banc|conto|conti)|disponibilit.*banc/.test(q) && p.can_view_bank_balances!==true)return "Non hai il permesso di consultare saldi bancari e liquidità.";
  if(/stipend|retribuz|bust[ae] pag|cedolin|costo orario|tariff[ae].*(operai|dipendent|person)/.test(q) && !(p.can_view_costs===true && (p.can_view_employees===true||p.can_view_persone===true)))return 'Non hai il permesso di consultare le retribuzioni o i costi individuali del personale.';
  if(/margini?|marginalit|redditiv|util[ei] della commessa/.test(q) && p.can_view_margins!==true)return 'Non hai il permesso di consultare i margini.';
  if(/costi|quanto costa|costo della commessa/.test(q) && p.can_view_costs!==true && p.can_manage_purchasing!==true)return 'Non hai il permesso di consultare i costi.';

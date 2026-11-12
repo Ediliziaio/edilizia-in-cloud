@@ -17,3 +17,5 @@ it('mantiene il movimento e mostra l’errore nel modulo quando il server rifiut
  expect(await screen.findByRole('alert')).toHaveTextContent('Movimento non salvato: Non hai i permessi per questa operazione. Contatta l\'amministratore.');
  expect(screen.getByPlaceholderText('0,00')).toHaveValue('1');
 });
+
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewBankBalances: true, canReconcileBankTransactions: true, solaLettura: false }) }));

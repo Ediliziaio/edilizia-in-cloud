@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
       ? await supabaseAdmin.from("profiles").select("company_id").eq("id", callerId).single()
       : { data: null };
 
-    const { first_name, last_name = "", email, company_id, role_type, password, phone, permissions, inviaBenvenuto } = await req.json();
+    const { first_name, last_name = "", email, company_id, role_type, password, phone, permissions, inviaBenvenuto, employee_id, also_employee } = await req.json();
 
     const { data: callerRoles } = callerId
       ? await supabaseAdmin.from("user_roles").select("role").eq("user_id", callerId)
@@ -151,6 +151,18 @@ Deno.serve(async (req) => {
     const validRoleTypes: ValidRoleType[] = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "subcontractor"];
     const effectiveRoleType: ValidRoleType = validRoleTypes.includes(role_type) ? role_type : "company_staff";
     const rolesToAssign = resolveRoles(effectiveRoleType);
+    // A login belongs to an existing personnel record, not to a second person.
+    const needsEmployee = effectiveRoleType === "employee" || (also_employee === true && ["company_staff", "company_admin", "salesperson"].includes(effectiveRoleType));
+    let selectedEmployee: string | null = null;
+    if (needsEmployee) {
+      const prepared = await supabaseAdmin.rpc("dipendente_accesso_prepara", {
+        p_company: targetCompanyId, p_nome: first_name, p_cognome: last_name,
+        p_email: email, p_employee: employee_id || null,
+      });
+      if (prepared.error) return errorResponse(prepared.error.message, 409);
+      selectedEmployee = prepared.data;
+    }
+
 
     // Secure password generation (use provided password if valid, otherwise generate one)
     const temporaryPassword = (password && password.trim().length >= 8)
@@ -271,22 +283,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (effectiveRoleType === "employee" && userId && targetCompanyId) {
-      const { error: empError } = await supabaseAdmin.from("employees").insert({
-        company_id: targetCompanyId,
-        user_id: userId,
-        first_name,
-        last_name,
-        email,
-        phone: phone || null,
-        role_type: "operaio",
-        is_active: true,
+    if (needsEmployee) {
+      const { error: empError } = await supabaseAdmin.rpc("collega_dipendente_accesso", {
+        p_company: targetCompanyId, p_user: userId, p_employee: selectedEmployee,
+        p_nome: first_name, p_cognome: last_name, p_email: email, p_phone: phone || null,
+        p_tipo: effectiveRoleType === "employee" ? "operaio" : effectiveRoleType === "salesperson" ? "venditore" : "impiegato",
       });
-
       if (empError) {
-        console.error("Error creating employee record:", empError);
         await cleanup();
-        return errorResponse("Errore durante la creazione del profilo dipendente", 500);
+        return errorResponse(empError.message || "Errore nel collegamento alla scheda del personale", 409);
       }
     }
 

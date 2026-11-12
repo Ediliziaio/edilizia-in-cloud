@@ -1,3 +1,5 @@
+import { usePermissions } from "@/hooks/usePermissions";
+import TransactionsFeed from "./TransactionsFeed";
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,6 +66,7 @@ function DeltaChip({ delta, positiveIsGood = true }: { delta: number | null; pos
 }
 
 export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigateToTransactions }: Props) {
+  const { canViewBankBalances } = usePermissions();
   const isMobile = useIsMobile();
   const [summary, setSummary] = useState<any>(null);
   const [cashFlow, setCashFlow] = useState<any[]>([]);
@@ -87,7 +90,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   }, []);
 
   useEffect(() => {
-    if (companyId) void loadData();
+    if (companyId && canViewBankBalances) void loadData();
     else {
       requestSeqRef.current++;
       setSummary(null);
@@ -99,9 +102,10 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       setBalancesUnavailable(false);
       setLoading(false);
     }
-  }, [companyId, refreshKey, accountFilter]);
+  }, [companyId, refreshKey, accountFilter, canViewBankBalances]);
 
   async function loadData() {
+    if (!canViewBankBalances) return;
     const requestId = ++requestSeqRef.current;
     setLoading(true);
     setError(null);
@@ -136,7 +140,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         // Andamento saldo: movimenti ultimi 90 giorni, cumulati a ritroso dal
         // saldo attuale → serie giornaliera (del conto scelto, se filtrato).
         trendQ.order("booking_date", { ascending: true }).limit(5000),
-        supabase.from("bank_accounts").select("*").eq("company_id", companyId),
+        supabase.from("bank_accounts_operativi").select("*").eq("company_id", companyId),
       ]);
 
       if (!isMountedRef.current || requestId !== requestSeqRef.current) return;
@@ -230,6 +234,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
     }
   }
 
+  if (!canViewBankBalances) return <TransactionsFeed companyId={companyId} refreshKey={refreshKey} />;
   if (loading) {
     return (
       <div className="space-y-6">
@@ -243,6 +248,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   }
 
   // Delta mese corrente vs precedente dal cash flow mensile (serie ascendente).
+  if (!canViewBankBalances) return <TransactionsFeed companyId={companyId} refreshKey={refreshKey} />;
   if (balancesUnavailable) return <div role="alert" className="space-y-3"><p>{error}</p><Button variant="outline" onClick={() => void loadData()}>Riprova</Button></div>;
   if (multiCurrency) return (
     <div className="space-y-6">
