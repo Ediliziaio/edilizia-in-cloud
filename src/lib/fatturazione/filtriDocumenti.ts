@@ -33,11 +33,40 @@ export function getScadenzaInfo(doc: Pick<DocumentoFiscale, "data_scadenza" | "s
  * involontari o OR iniettati da virgole, parentesi, virgolette e backslash.
  * URLSearchParams (supabase-js) si occupa dell'encoding HTTP una sola volta.
  */
-export function ricercaDocumenti(search: string): string | undefined {
+export function testoLetteraleDocumenti(term: string): string {
+  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return `"${literal.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/** Nessun Date.parse permissivo: 31/02 deve restare testo, non diventare marzo. */
+export function dataRicercaDocumenti(term: string): string | undefined {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(term);
+  const italiana = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(term);
+  if (!iso && !italiana) return;
+  const [y, m, d] = iso ? iso.slice(1).map(Number) : [Number(italiana![3]), Number(italiana![2]), Number(italiana![1])];
+  const date = new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+export function importoRicercaDocumenti(term: string): number | undefined {
+  const v = term.replace(/€/g, "").replace(/[\s\u00a0]/g, "");
+  if (!/^-?(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(v) && !/^-?\d+\.\d{1,2}$/.test(v)) return;
+  const n = Number(v.includes(",") || /^-?\d{1,3}(?:\.\d{3})+$/.test(v) ? v.replace(/\./g, "").replace(",", ".") : v);
+  return Number.isFinite(n) && Math.abs(n) < 1e12 ? n : undefined;
+}
+
+export function ricercaDocumenti(search: string, operativo = false): string | undefined {
   const term = search.trim();
   if (!term) return undefined;
-  const literal = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const quoted = `"${literal.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-  return ["numero", "note_documento", "elenco_cliente", "cliente_snapshot->>codice_fiscale", "cliente_snapshot->>partita_iva"]
-    .map(field => `${field}.imatch.${quoted}`).join(",");
+  const quoted = testoLetteraleDocumenti(term);
+  const clauses = ["numero", "note_documento", "elenco_cliente", "cliente_snapshot->>codice_fiscale", "cliente_snapshot->>partita_iva", "note_interne"]
+    .map(field => `${field}.imatch.${quoted}`);
+  const data = dataRicercaDocumenti(term);
+  if (data) clauses.push(`data_emissione.eq.${data}`);
+  const importo = importoRicercaDocumenti(term);
+  if (importo !== undefined) {
+    for (const col of ["imponibile_totale", "totale_documento", "totale_da_pagare", "importo_pagato", ...(operativo ? ["elenco_residuo"] : [])]) clauses.push(`${col}.eq.${importo}`);
+  }
+  return clauses.join(",");
 }

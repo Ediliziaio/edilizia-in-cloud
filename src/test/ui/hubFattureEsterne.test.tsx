@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
@@ -84,6 +84,7 @@ function monta(url = "/azienda/documenti") {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   s.esterna = true;
   s.filtri = [];
   s.documenti = [importata];
@@ -102,7 +103,7 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getByRole("heading", { name: "Fatturazione" })).toBeInTheDocument();
     expect(screen.getByText("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")).toBeInTheDocument();
     // Stesse colonne della tabella nativa.
-    for (const col of ["Stato", "Cliente", "Data / Numero", "Prox. Scadenza", "Importo"]) {
+    for (const col of ["Cliente", "Numero", "Emessa il", "Imponibile", "Totale", "Netto a pagare", "SDI", "Incasso", "Incassato", "Residuo", "Prossima scadenza", "Collegata a", "Note", "Allegati"]) {
       expect(screen.getByRole("columnheader", { name: col })).toBeInTheDocument();
     }
     // L'elenco legge anche le importate.
@@ -149,12 +150,50 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getByText("Cassetto del gestionale")).toBeInTheDocument();
   });
 
-  it("niente filtri SDI e bozze nello stato", () => {
+  it("separa stato documento da SDI e incasso anche per le importate", () => {
     monta();
+    expect(screen.getByRole("combobox", { name: "Filtra per SDI" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtra per incasso" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("combobox", { name: "Filtra per stato" }));
     expect(screen.queryByRole("option", { name: "Da inviare SDI" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Bozza" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("option", { name: "Scaduta" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("option", { name: "Bozza" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Scaduta" })).not.toBeInTheDocument();
+  });
+
+  it("mantiene incasso e SDI indipendenti e cerca senza annullare i filtri", async () => {
+    s.esterna = false;
+    monta();
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtra per SDI" }));
+    fireEvent.click(screen.getByRole("option", { name: "Da inviare SDI" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtra per incasso" }));
+    fireEvent.click(screen.getByRole("option", { name: "Incassata" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca fatture per cliente, numero, importo, data o note" }), { target: { value: "3.235,00" } });
+    await waitFor(() => expect(s.filtri.at(-1)).toMatchObject({ sdi: "da_inviare", incasso: "incassata", search: "3.235,00", page: 0 }));
+  });
+
+  it("una fattura incassata può ancora essere da inviare SDI", () => {
+    s.documenti = [{ ...importata, origine: "nativa", stato: "pagata", importo_pagato: 1220 }];
+    monta();
+    const row = screen.getByRole("table").querySelector("tbody tr")! as HTMLElement;
+    expect(within(row).getByText("Da inviare SDI")).toBeInTheDocument();
+    expect(within(row).getByText("Incassata")).toBeInTheDocument();
+  });
+
+  it("apre note interne e documento senza navigare e conserva le commesse multiple", () => {
+    s.documenti = [{ ...importata, note_documento: "Nota da stampare", note_interne: "Verificare il bonifico", commesse: [{ id: "o1", codice: "C-1", descrizione: "Tetto" }, { id: "o2", codice: "C-2", descrizione: "Facciata" }] }];
+    monta();
+    expect(screen.getByRole("table").querySelectorAll("tbody tr")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Leggi le note della fattura FPR 12/26" }));
+    expect(screen.getByText("Note interne · solo azienda")).toBeInTheDocument();
+    expect(screen.getByText("Nota da stampare")).toBeInTheDocument();
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti");
+  });
+
+  it("la vista DDT mantiene le sue colonne e azioni", () => {
+    s.documenti = [{ ...importata, origine: "nativa", tipo: "ddt", numero: "DDT-1" }];
+    monta("/azienda/documenti?tipo=ddt");
+    for (const col of ["Stato", "Data / Numero", "Fattura Collegata", "Importo"]) expect(screen.getByRole("columnheader", { name: col })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "SDI" })).not.toBeInTheDocument();
   });
 
   it("chi fattura con Edilizia in Cloud continua a creare e vede comunque lo storico importato", () => {
