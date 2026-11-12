@@ -18,6 +18,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { verificaPermessoAzienda } from "../_shared/permessoAzienda.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { contoDistyra, DistyraError, erroreDistyra, intestazioniPsu } from "../_shared/distyra.ts";
 
 const BASE = "https://api.distyra.com";
 const PROVIDER = "distyra";
@@ -48,8 +49,7 @@ async function distyra(path: string, init?: RequestInit) {
   let corpo: unknown = null;
   try { corpo = testo ? JSON.parse(testo) : null; } catch { corpo = { error: testo.slice(0, 300) }; }
   if (!r.ok) {
-    const e = corpo as { error?: string; detail?: string } | null;
-    throw new Error(`Distyra ${r.status} su ${path}: ${e?.error ?? ""} ${e?.detail ?? ""}`.trim());
+    throw erroreDistyra(r.status, corpo as Record<string, unknown> | null);
   }
   return corpo as Record<string, unknown>;
 }
@@ -153,35 +153,30 @@ Deno.serve(async (req) => {
     if (azione === "finalize") {
       // Si arriva col nostro riferimento (`state`, quello messo nell'URL di ritorno)
       // oppure con l'id della riga, se l'app lo ha gia' in mano.
-      let q = admin.from("bank_connections").select("id, auth_state, provider_connection_id").eq("company_id", companyId);
+      let q = admin.from("bank_connections").select("id, auth_state, provider_connection_id, provider_slug").eq("company_id", companyId).eq("provider_slug", PROVIDER);
       q = corpo.state ? q.eq("auth_state", String(corpo.state)) : q.eq("id", String(corpo.connection_id ?? ""));
-      const { data: conn } = await q.maybeSingle();
+      const { data: conn, error: connectionError } = await q.maybeSingle();
+      if (connectionError) throw new Error("Impossibile leggere il collegamento bancario");
       if (!conn) return errorResponse("Collegamento non trovato", 404, corsH);
 
       // Distyra elenca le connessioni: si riconosce la nostra dall'external_ref.
       const elenco = await distyra("/v1/connect/connections") as { connections?: Record<string, any>[] };
       const mia = (elenco.connections ?? []).find((c) => c.external_ref === conn.auth_state);
       if (!mia) return errorResponse("La banca non ha ancora confermato il collegamento", 409, corsH);
+      if (mia.status === "pending") return errorResponse("La banca sta ancora completando il consenso. Riprova fra poco senza creare un nuovo collegamento.", 409, corsH);
 
-      const conti = await distyra(`/v1/connect/connections/${mia.id}/accounts`) as { accounts?: Record<string, any>[] };
+      // Basta l'elenco già autorizzato: leggere i saldi qui consumava una delle
+      // quattro richieste automatiche, anche quando il salvataggio poi falliva.
+      const conti = await distyra(`/v1/connect/connections/${mia.id}/accounts?balances=false&allow_stored=true`) as { accounts?: Record<string, any>[] };
+      if (!Array.isArray(conti.accounts) || !conti.accounts.length) return errorResponse("La banca non ha ancora reso disponibili i conti. Riprova fra poco senza ricollegare.", 409, corsH);
       let quanti = 0;
       for (const a of conti.accounts ?? []) {
-        const uid = testo(a.account_id) ?? testo(a.uid);
-        if (!uid) continue;
-        const { error } = await admin.from("bank_accounts").upsert({
-          company_id: companyId, connection_id: conn.id, external_account_id: uid,
-          // Le banche danno l'IBAN mascherato: si salva com'è, serve solo a far riconoscere il conto.
-          iban: testo(a.iban_masked), account_name: testo(a.name),
-          account_owner_name: testo(a.holder_name), account_type: testo(a.account_type),
-          currency: testo(a.currency) ?? "EUR", is_active: true,
-          current_balance: a.balance_booked ?? a.balance ?? null,
-          available_balance: a.balance_available ?? null,
-          balance_updated_at: new Date().toISOString(),
-        }, { onConflict: "company_id,external_account_id" });
-        if (!error) quanti++;
+        const { error } = await admin.from("bank_accounts").upsert(contoDistyra(a, companyId, conn.id), { onConflict: "company_id,external_account_id" });
+        if (error) throw new Error("Impossibile salvare i conti ricevuti dalla banca. Il consenso resta valido: riprova senza ricollegare.");
+        quanti++;
       }
       const nomeBanca = testo(mia.aspsp_name);
-      await admin.from("bank_connections").update({
+      const { error: updateError } = await admin.from("bank_connections").update({
         status: quanti > 0 ? "linked" : "error",
         error_message: quanti > 0 ? null : "La banca non ha dato nessun conto",
         provider_connection_id: String(mia.id),
@@ -192,20 +187,37 @@ Deno.serve(async (req) => {
         institution_name: nomeBanca ?? "Banca collegata",
         institution_country: testo(mia.country), accounts_count: quanti, last_sync_at: new Date().toISOString(),
       }).eq("id", conn.id);
+      if (updateError) throw new Error("Conti salvati, ma il collegamento non è stato aggiornato. Riprova senza ricollegare.");
       return jsonResponse({ ok: true, conti: quanti, connection_id: conn.id }, 200, corsH);
     }
 
     // ── 3. I movimenti ───────────────────────────────────────────────────────
     if (azione === "sync") {
       // Come finalize: si arriva col nostro riferimento o con l'id della riga.
-      let qs = admin.from("bank_connections").select("id, provider_connection_id").eq("company_id", companyId);
+      let qs = admin.from("bank_connections").select("id, provider_connection_id, created_by").eq("company_id", companyId).eq("provider_slug", PROVIDER);
       qs = corpo.state ? qs.eq("auth_state", String(corpo.state)) : qs.eq("id", String(corpo.connection_id ?? ""));
-      const { data: conn } = await qs.maybeSingle();
+      const { data: conn, error: connectionError } = await qs.maybeSingle();
+      if (connectionError) throw new Error("Impossibile leggere il collegamento bancario");
       if (!conn?.provider_connection_id) return errorResponse("Collegamento non pronto", 409, corsH);
 
-      const { data: conti } = await admin.from("bank_accounts")
-        .select("id, external_account_id").eq("connection_id", conn.id);
+      const { data: conti, error: accountsError } = await admin.from("bank_accounts")
+        .select("id, external_account_id").eq("connection_id", conn.id).eq("company_id", companyId);
+      if (accountsError) throw new Error("Impossibile leggere i conti collegati");
       const perConto = new Map((conti ?? []).map((c) => [c.external_account_id, c.id]));
+      if (!perConto.size) return errorResponse("Completa prima l'importazione dei conti. Non serve creare un nuovo collegamento.", 409, corsH);
+      const psuHeaders = intestazioniPsu(req, corpo.on_screen, conn.created_by, userId);
+      // I saldi aggiornati sono utili quando il titolare attende sullo schermo.
+      // Le sincronizzazioni automatiche non consumano una richiesta extra per i saldi.
+      if (Object.keys(psuHeaders).length) {
+        const saldi = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/accounts`, { headers: psuHeaders }) as { accounts?: Record<string, unknown>[] };
+        for (const a of saldi.accounts ?? []) {
+          const riga = contoDistyra(a, companyId, conn.id);
+          if (!perConto.has(riga.external_account_id)) continue;
+          const { company_id: _company, connection_id: _connection, external_account_id: _external, ...campi } = riga;
+          const { error } = await admin.from("bank_accounts").update(campi).eq("company_id", companyId).eq("id", perConto.get(riga.external_account_id)!);
+          if (error) throw new Error("Impossibile aggiornare i saldi bancari");
+        }
+      }
 
       // Da dove ripartire: l'ultimo movimento che abbiamo.
       const { data: ultimo } = await admin.from("bank_transactions")
@@ -232,7 +244,7 @@ Deno.serve(async (req) => {
         let continuazione: string | null = null, n = 0, giri = 0;
         do {
           if (continuazione) q.set("continuation", continuazione);
-          const r = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/transactions?${q}`) as
+          const r = await distyra(`/v1/connect/connections/${conn.provider_connection_id}/transactions?${q}`, { headers: psuHeaders }) as
             { transactions?: Record<string, any>[]; complete?: boolean; continuation?: string | null };
           const righe = (r.transactions ?? [])
             .map((t) => {
@@ -301,6 +313,10 @@ Deno.serve(async (req) => {
   } catch (e) {
     // requireAuth e requireCompanyAccess rispondono lanciando una Response gia' pronta.
     if (e instanceof Response) return e;
+    if (e instanceof DistyraError) {
+      console.error("[bank-distyra]", { code: e.code, status: e.status });
+      return jsonResponse({ error: e.message, code: e.code, retry_after_seconds: e.retryAfter, resets_at: e.resetsAt }, e.status, corsH);
+    }
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.startsWith("Non autorizzato")) return errorResponse("Accesso negato ai collegamenti bancari", 403, corsH);
     console.error("[bank-distyra]", msg);

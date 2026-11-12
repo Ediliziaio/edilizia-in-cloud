@@ -199,10 +199,19 @@ export default function BankConnectionsCard({
       if (provider === "distyra") {
         // Su Distyra il collegamento va prima confermato: il cliente torna dalla banca e
         // solo allora sappiamo quali conti ha scelto. Se è già confermato non costa nulla.
-        await invokeDistyra(companyId, { action: "finalize", connection_id: connectionId }).catch((): null => null);
-        const esito = await invokeDistyra(companyId, { action: "sync", connection_id: connectionId });
-        toast.success(`Sincronizzati ${esito?.movimenti ?? 0} movimenti`, { id: t });
+        const conti = canEditSettingsIntegrations && canViewBankBalances
+          ? await invokeDistyra(companyId, { action: "finalize", connection_id: connectionId })
+          : { conti: connections.find(c => c.id === connectionId)?.accounts_count ?? 0 };
+        if (!conti?.conti) throw new Error("La banca sta ancora preparando i conti. Riprova senza ricollegare.");
+        // Il collegamento è valido anche se la banca rinvia lo scarico dei movimenti.
         invalidateBanking();
+        try {
+          const esito = await invokeDistyra(companyId, { action: "sync", connection_id: connectionId }, { onScreen: true });
+          toast.success(`Sincronizzati ${esito?.movimenti ?? 0} movimenti`, { id: t });
+          invalidateBanking();
+        } catch (e) {
+          toast.info(`Conti collegati (${conti.conti}). ${e instanceof Error ? e.message : "Movimenti non ancora disponibili."}`, { id: t });
+        }
         return;
       }
       const data = await invokeSaltEdge(companyId, { action: "sync", connection_id: connectionId });
