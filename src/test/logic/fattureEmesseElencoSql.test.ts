@@ -4,6 +4,8 @@ import { beforeAll, afterAll, describe, expect, it } from "vitest";
 
 const db = new PGlite();
 const migration = readFileSync("supabase/migrations/20290316100000_fatture_emesse_elenco_operativo.sql", "utf8");
+const letturaIndicizzata = readFileSync("supabase/migrations/20290316111000_fatture_emesse_commesse_lettura_indicizzata.sql", "utf8");
+const aggregatiFacoltativi = readFileSync("supabase/migrations/20290316111500_fatture_emesse_aggregati_solo_quando_servono.sql", "utf8");
 beforeAll(async () => {
   await db.exec(`create role authenticated; create role anon; create role service_role;
     create table documenti_fiscali_elenco_con_importate(id text primary key, company_id text default 'a', origine text default 'nativa',
@@ -25,6 +27,10 @@ beforeAll(async () => {
   }
   await db.exec(migration);
   await db.exec(migration); // riapplicazione idempotente
+  await db.exec(letturaIndicizzata);
+  await db.exec(letturaIndicizzata);
+  await db.exec(aggregatiFacoltativi);
+  await db.exec(aggregatiFacoltativi);
 }, 30000);
 afterAll(() => db.close());
 
@@ -80,5 +86,20 @@ describe("Elenco operativo: SQL reale senza modificare fatture", () => {
       await db.exec("set role anon;");
       await expect(db.query("select * from documenti_fiscali_elenco_operativo")).rejects.toThrow(/permission denied/i);
     } finally { await db.exec("reset role"); }
+  });
+
+  it("il conteggio non rilegge le commesse con le loro policy, ma le controlla quando vengono mostrate", async () => {
+    await db.exec(`create sequence conteggi_policy_ordine;
+      create function conta_policy_ordine() returns boolean language plpgsql volatile security definer set search_path=public as $$
+        begin perform nextval('conteggi_policy_ordine'); return true; end $$;
+      alter policy tenant on orders using(company_id='a' and conta_policy_ordine());
+      set role authenticated;`);
+    try { await db.query("select count(*) from documenti_fiscali_elenco_operativo where company_id='a'"); }
+    finally { await db.exec("reset role"); }
+    expect((await db.query<{is_called:boolean}>("select is_called from conteggi_policy_ordine")).rows[0].is_called).toBe(false);
+    await db.exec("set role authenticated;");
+    try { expect((await db.query<{commesse:unknown[]}>("select commesse from documenti_fiscali_elenco_operativo where id='n'")).rows[0].commesse).toHaveLength(2); }
+    finally { await db.exec("reset role"); }
+    expect((await db.query<{is_called:boolean}>("select is_called from conteggi_policy_ordine")).rows[0].is_called).toBe(true);
   });
 });
