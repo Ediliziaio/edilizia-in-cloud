@@ -31,9 +31,31 @@ beforeAll(async () => {
   await pg.exec(
     `create trigger recalc_ins after insert on bank_reconciliations for each row when(new.ripartita) execute function private.movimento_ripartito_ricalcola();create trigger recalc_upd after update of unmatched_at on bank_reconciliations for each row when(new.ripartita and old.unmatched_at is distinct from new.unmatched_at) execute function private.movimento_ripartito_ricalcola();`,
   );
-  await pg.exec(await readFile("supabase/migrations/20290316140000_bank_movimenti_workspace_ripartizioni.sql", "utf8"));
+  await pg.exec(
+    await readFile(
+      "supabase/migrations/20290316140000_bank_movimenti_workspace_ripartizioni.sql",
+      "utf8",
+    ),
+  );
   // Repeat the actual migration: deployment retries must be safe.
-  await pg.exec(await readFile("supabase/migrations/20290316140000_bank_movimenti_workspace_ripartizioni.sql", "utf8"));
+  await pg.exec(
+    await readFile(
+      "supabase/migrations/20290316140000_bank_movimenti_workspace_ripartizioni.sql",
+      "utf8",
+    ),
+  );
+  await pg.exec(
+    await readFile(
+      "supabase/migrations/20290316141000_bank_workspace_conflicts_no_retry.sql",
+      "utf8",
+    ),
+  );
+  await pg.exec(
+    await readFile(
+      "supabase/migrations/20290316142000_bank_proof_memory_snapshots.sql",
+      "utf8",
+    ),
+  );
 }, 30_000);
 beforeEach(async () => {
   await pg.exec(`reset role;select set_config('test.role','service_role',false);select set_config('test.user','${user}',false);select set_config('test.external','false',false);select set_config('test.blocked','false',false);
@@ -122,6 +144,10 @@ describe("registro bancario e ripartizioni reali PostgreSQL", () => {
     expect(d.links.financial).toHaveLength(1);
     expect(d.links.history).toHaveLength(1);
     expect(d.links.history[0].label).toContain("ALFA");
+    await pg.exec(
+      `reset role;select set_config('test.role','service_role',false);update bank_transactions set amount=400,description='Saldo FT-ALFA-101',reconciliation_status='pending';update bank_reconciliations set unmatched_at=now() where prima_nota_id='${pn2}';select set_config('test.role','authenticated',false);set role authenticated;`,
+    );
+    expect(await rpc("bank_suggerisci_riconciliazioni", [company])).toBe(0);
   });
   it("correggere l’importo del pagamento invalida l’abbinamento precedente", async () => {
     await rpc("bank_associa_pagamenti", [company, tx, [pn1]]);
@@ -228,7 +254,7 @@ describe("registro bancario e ripartizioni reali PostgreSQL", () => {
     ]);
     await expect(
       rpc("bank_movimento_note", [company, tx, "vecchio testo", "Altro", 0]),
-    ).rejects.toThrow(/altra finestra/);
+    ).rejects.toMatchObject({ code: "PT409" });
     expect((await detail()).note).toBe("Acconto opere speciali");
   });
   it("ricerca sulle note, fatture e commesse; importi italiani e date", async () => {
