@@ -62,6 +62,9 @@ jobs:
       - name: Received invoices read and unread state
         run: bunx vitest run src/test/security/ricevutaLettura.test.ts src/test/ui/riepilogoFatturaRicevuta.test.tsx src/test/logic/riepilogoRicevuta.test.ts src/test/logic/ricevutaLettura.test.ts --maxWorkers=2
 
+      - name: Independent equipment deadlines and renewal regression
+        run: bunx vitest run src/test/logic/mezzi.test.ts src/test/logic/mezziGruppi.test.ts src/test/security/mezziScadenze.test.ts --maxWorkers=2
+
   migration-history:
     name: Complete offline database reconstruction
     runs-on: ubuntu-latest

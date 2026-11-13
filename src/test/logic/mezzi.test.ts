@@ -87,6 +87,28 @@ describe("documentiConStato", () => {
   });
 });
 
+describe("scadenze indipendenti della stessa categoria", () => {
+  const doc = (id: string, titolo: string | null, data_scadenza: string) => ({ id, titolo, categoria: "verifica_periodica" as const, data_scadenza, alert_giorni_prima: 60 });
+  it("NEOFIN: il ventennale non rinnova trimestrale e annuale", () => {
+    const r = documentiConStato([doc("t", "Controllo trimestrale", "2026-10-08"), doc("a", "Controllo annuale", "2027-02-04"), doc("v", "Controllo ventennale", "2044-12-23")], "2026-11-13");
+    expect(r.map(d => d.stato)).toEqual(["scaduto", "valido", "valido"]);
+  });
+  it("rinnova soltanto la stessa verifica, normalizzando spazi e maiuscole", () => {
+    const r = documentiConStato([doc("t", "Controllo trimestrale", "2026-10-08"), doc("t2", "  CONTROLLO   trimestrale  ", "2027-01-08"), doc("a", "Controllo annuale", "2027-02-04")], "2026-11-13");
+    expect(r.map(d => d.stato)).toEqual(["sostituito", "in_scadenza", "valido"]);
+  });
+  it("documenti senza descrizione non si sostituiscono implicitamente", () => {
+    const r = documentiConStato([doc("t", null, "2026-10-08"), doc("v", "", "2044-12-23")], "2026-11-13");
+    expect(r.map(d => d.stato)).toEqual(["scaduto", "valido"]);
+  });
+  it("contratti e tarature distinti rimangono attivi", () => {
+    for (const categoria of ["contratto", "taratura", "garanzia", "manuale_ce"] as const) {
+      const r = documentiConStato([{...doc("a", "Primo obbligo", "2026-10-08"), categoria}, {...doc("b", "Secondo obbligo", "2027-02-04"), categoria}], "2026-11-13");
+      expect(r.map(d => d.stato)).toEqual(["scaduto", "valido"]);
+    }
+  });
+});
+
 describe("prossimoTagliando", () => {
   const man = (id: string, data: string, prossima_data: string | null, prossimo_contatore: number | null) => ({
     id, data, created_at: `${data}T08:00:00Z`, prossima_data, prossimo_contatore,
