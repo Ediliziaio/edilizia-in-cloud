@@ -101,6 +101,12 @@ describe("scadenze indipendenti della stessa categoria", () => {
     const r = documentiConStato([doc("t", null, "2026-10-08"), doc("v", "", "2044-12-23")], "2026-11-13");
     expect(r.map(d => d.stato)).toEqual(["scaduto", "valido"]);
   });
+  it("RCA e copertura aggiuntiva restano indipendenti come bollo e superbollo", () => {
+    for (const [categoria, primo, secondo] of [["assicurazione", "Assicurazione RCA", "Assicurazione aggiuntiva Nobis"], ["bollo", "Bollo", "Super bollo"]] as const) {
+      const r = documentiConStato([{...doc("a", primo, "2026-09-30"), categoria}, {...doc("b", secondo, "2027-06-30"), categoria}], "2026-11-13");
+      expect(r.map(d => d.stato)).toEqual(["scaduto", "valido"]);
+    }
+  });
   it("contratti e tarature distinti rimangono attivi", () => {
     for (const categoria of ["contratto", "taratura", "garanzia", "manuale_ce"] as const) {
       const r = documentiConStato([{...doc("a", "Primo obbligo", "2026-10-08"), categoria}, {...doc("b", "Secondo obbligo", "2027-02-04"), categoria}], "2026-11-13");
