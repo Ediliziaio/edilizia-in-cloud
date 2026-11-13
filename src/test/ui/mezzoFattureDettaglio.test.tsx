@@ -2,15 +2,15 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-const state = vi.hoisted(()=>({ rows:[] as Record<string,unknown>[], updates:vi.fn(),eq:vi.fn(),result:{data:{id:'l1'} as {id:string}|null,error:null} }));
+const state = vi.hoisted(()=>({ rows:[] as Record<string,unknown>[], updates:vi.fn(),eq:vi.fn(),result:{data:{id:'l1'} as {id:string}|null,error:null as unknown} }));
 vi.mock('@/hooks/useEffectiveCompanyId',()=>({useEffectiveCompanyId:()=> 'company-test'}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{from:()=>{
- const q:any={};q.update=(v:unknown)=>{state.updates(v);return q;};q.select=()=>q;q.eq=(...a:unknown[])=>{state.eq(...a);return q;};q.order=()=>q;q.range=async()=>({data:state.rows,error:null});q.maybeSingle=async()=>state.result;return q;
+ const q:any={};q.update=(v:unknown)=>{state.updates(v);return q;};q.select=()=>q;q.eq=(...a:unknown[])=>{state.eq(...a);return q;};q.order=()=>q;q.range=async()=>({data:state.rows,error:null as unknown});q.maybeSingle=async()=>state.result;return q;
 }}}));
 vi.mock('@/components/fatturazione/RiepilogoFatturaRicevuta',()=>({RiepilogoFatturaRicevuta:({fatturaId,onClose}:{fatturaId:string;onClose:()=>void})=><div role="region" aria-label="Dettaglio fattura">{fatturaId}<button onClick={onClose}>Chiudi dettaglio</button></div>}));
 import { MezzoFattureSection } from '@/components/mezzi/MezzoFattureSection';
 beforeEach(()=>{
- state.updates.mockClear();state.eq.mockClear();state.result={data:{id:'l1'},error:null};
+ state.updates.mockClear();state.eq.mockClear();state.result={data:{id:'l1'},error:null as unknown};
  state.rows=[{id:'l1',fattura_ricevuta_id:'invoice-a',importo:null,confermata:true,origine:'manuale',fatture_ricevute:{numero_fattura:'1',data_fattura:'2025-01-01',cedente_ragione_sociale:'Fornitore A',totale_documento:122}},{id:'l2',fattura_ricevuta_id:'invoice-b',importo:50,confermata:false,origine:'targa',fatture_ricevute:{numero_fattura:'1',data_fattura:'2026-01-01',cedente_ragione_sociale:'Fornitore B',totale_documento:61}}];
 });
 afterEach(cleanup);

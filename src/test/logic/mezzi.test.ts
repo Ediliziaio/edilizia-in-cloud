@@ -266,3 +266,9 @@ describe("valori letti dall'AI", () => {
     expect(testoLetto("   ")).toBeNull();
   });
 });
+
+it("somma coperture e superbollo distinti nei costi annuali, senza duplicare i rinnovi", () => {
+ const doc=(categoria: "assicurazione" | "bollo",titolo:string,importo:number,data_scadenza:string)=>({categoria,titolo,importo,data_scadenza,created_at:"2026-01-01"});
+ const c=costoAnnuoMezzo({rata_mensile:null},[doc("assicurazione","RCA",100,"2026-10-01"),doc("assicurazione","RCA",120,"2027-10-01"),doc("assicurazione","CVT",50,"2027-06-30"),doc("bollo","Bollo",200,"2027-05-30"),doc("bollo","Super bollo",300,"2027-09-30")],[],"2026-11-13");
+ expect(c.documenti).toBe(670);
+});
