@@ -117,7 +117,7 @@ BEGIN
   SELECT * INTO t FROM public.bank_transactions WHERE id=(item->>'id')::uuid AND company_id=p_company FOR UPDATE;
   IF NOT FOUND OR t.status IS DISTINCT FROM 'booked' OR t.currency IS DISTINCT FROM 'EUR' THEN RAISE EXCEPTION 'Movimento non disponibile, non contabilizzato o in valuta diversa da EUR';END IF;
   d:=private.bank_movimento_links(p_company,t.id);
-  IF (item->>'expected_remaining')::numeric IS NULL OR (item->>'revision')::int IS NULL OR (item->>'expected_remaining')::numeric IS DISTINCT FROM (d->>'remaining')::numeric OR (item->>'revision')::int IS DISTINCT FROM (d->>'revision')::int THEN RAISE EXCEPTION 'Un movimento è cambiato: aggiorna e verifica le selezioni. Nessuna operazione del lotto è stata registrata.' USING ERRCODE='40001';END IF;
+  IF (item->>'expected_remaining')::numeric IS NULL OR (item->>'revision')::int IS NULL OR (item->>'expected_remaining')::numeric IS DISTINCT FROM (d->>'remaining')::numeric OR (item->>'revision')::int IS DISTINCT FROM (d->>'revision')::int THEN RAISE EXCEPTION 'Un movimento è cambiato: aggiorna e verifica le selezioni. Nessuna operazione del lotto è stata registrata.' USING ERRCODE='PT409';END IF;
   note:=nullif(btrim(item->>'note'),'');
   IF item->>'mode'='documents' THEN
    IF nullif(item->>'proposal_key','') IS NOT NULL AND (SELECT count(*)<>1 OR min(v->>'key') IS DISTINCT FROM item->>'proposal_key' FROM jsonb_array_elements(public.bank_proposte_movimento(p_company,t.id,'')) v WHERE (v->>'forte')::boolean) THEN RAISE EXCEPTION 'La proposta non ha più riscontri univoci: verifica singolarmente. Nessuna operazione registrata.';END IF;

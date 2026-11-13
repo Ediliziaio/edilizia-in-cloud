@@ -1,3 +1,4 @@
+// Deployment checkpoint: include bank-target write-back after the conflict guard CI passes.
 // billing-payment-push — Write-back del PAGAMENTO verso il gestionale esterno.
 // Quando l'utente segna una fattura "pagata" in app, registra il pagamento su
 // Fatture in Cloud così i due sistemi restano allineati (niente doppio inserimento).
