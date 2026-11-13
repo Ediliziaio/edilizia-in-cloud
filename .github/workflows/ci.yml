@@ -59,6 +59,9 @@ jobs:
           src/test/logic/bankExternalPayments.test.ts
           src/test/ui/bankReconciliationBatch.test.tsx
 
+      - name: Fiscal XML notes, contributions and original XML PDF
+        run: bunx vitest run src/test/logic/fatturaPaXml.test.ts src/test/logic/fatturaXmlTabellare.test.ts src/test/logic/originaleXmlFattura.test.ts src/test/ui/fatturaPdfXml.test.tsx src/test/ui/emettiBozzaDalDettaglio.test.tsx src/test/logic/contributiFiscaliSdi.test.ts src/test/logic/verificaFormale.test.ts src/test/logic/generateXmlEstero.test.ts src/test/logic/regoleFiscaliFattura.test.ts src/test/logic/allegatiFatturaSdi.test.ts src/test/logic/fatturaRicevutaHtml.test.ts src/test/logic/noteCreditoImporti.test.ts src/test/logic/duplicaDocumento.test.ts --maxWorkers=2
+
       - name: Received invoices read and unread state
         run: bunx vitest run src/test/security/ricevutaLettura.test.ts src/test/ui/riepilogoFatturaRicevuta.test.tsx src/test/logic/riepilogoRicevuta.test.ts src/test/logic/ricevutaLettura.test.ts --maxWorkers=2
 

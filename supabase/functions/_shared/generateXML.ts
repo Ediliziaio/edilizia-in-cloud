@@ -10,6 +10,7 @@
 // più di quello che spediva: l'anteprima mostrava una fattura diversa da quella
 // inviata. Le correzioni sono scritte vicino a ogni blocco.
 
+import { naturaCassa, ivaRivalsa } from "./controlliFatturaSdi.ts";
 import { iscrizioneRea } from "./datiSocietari.ts";
 
 type Dati = Record<string, any>;
@@ -341,11 +342,14 @@ export function generateXML(
   // Ritenuta: se c'è DatiRitenuta, almeno una riga deve dire <Ritenuta>SI</Ritenuta>,
   // altrimenti lo SDI scarta (00411). Le righe segnate nell'editor valgono; se
   // nessuna lo è, la ritenuta è su tutto l'imponibile (come la calcola calcoli.ts).
+  const ivaDellaRivalsa = ivaRivalsa(righe);
+  const naturaDellaCassa = naturaCassa(doc.cassa_aliquota_iva, riepilogo);
   const conDatiRitenuta = !!((doc.ritenuta_acconto && doc.ritenuta_importo) || (doc.altra_ritenuta && doc.altra_ritenuta_importo));
   const righeSegnate = righe.some((r) => r.ritenuta === true);
   const ritenutaSu = (r: Dati | null) => conDatiRitenuta && (righeSegnate ? !!r?.ritenuta : true);
 
   const lineaXml = (n: number, r: Dati, ritenuta: boolean): string => {
+    if (testoSdi(r.descrizione, 100_000).length > 1000) throw new Error(`Riga ${n}: descrizione oltre 1000 caratteri. Sposta il testo aggiuntivo nelle note del documento.`);
     const quantita = Number(r.quantita) || 0;
     const segno = quantita < 0 ? -1 : 1;
     const q = Math.abs(quantita) || 1;
@@ -394,7 +398,10 @@ export function generateXML(
     const cassaIn = (r: Dati) => {
       const al = parseFloat(r.aliquota) || 0;
       const cassaAl = parseFloat(doc.cassa_aliquota_iva ?? "22") || 0;
-      return !r.natura && doc.cassa_previdenziale && al === cassaAl ? (Number(doc.cassa_importo) || 0) : 0;
+      const nat = String(r.natura ?? "").replace(/\./g, "_");
+      const cassa = doc.cassa_previdenziale && al === cassaAl && (al > 0 || nat === naturaDellaCassa) ? (Number(doc.cassa_importo) || 0) : 0;
+      const rivalsa = doc.rivalsa_inps && ivaDellaRivalsa && al === ivaDellaRivalsa.aliquota && nat === (ivaDellaRivalsa.natura ?? "") ? (Number(doc.rivalsa_importo) || 0) : 0;
+      return cassa + rivalsa;
     };
     for (const r of riepilogo) {
       const stessa = (l: Dati) => (parseFloat(l.aliquota_iva) || 0) === (parseFloat(r.aliquota) || 0) && (l.natura_iva ?? "") === (r.natura ?? "");
@@ -416,9 +423,18 @@ export function generateXML(
   // ─── Dati generali ────────────────────────────────────────────────────────
 
   const causali: string[] = [];
-  const scritte = ((doc.causale ?? []) as unknown[]).map((c) => String(c ?? "")).filter((c) => c.trim());
+  const causaleOriginale = Array.isArray(doc.causale) ? doc.causale : typeof doc.causale === "string" ? [doc.causale] : [];
+  const scritte = causaleOriginale.map((c: unknown) => String(c ?? "")).filter((c: string) => c.trim());
+  // Le note pubbliche sono parte del documento: il PDF le mostra e devono
+  // arrivare anche allo SDI. Le note interne non vanno mai esportate.
+  const notaDocumento = typeof doc.note_documento === "string" ? doc.note_documento.trim() : "";
+  const confronta = (t: string) => testoSdi(t, 100_000);
+  if (notaDocumento && !scritte.some((c: string) => confronta(c) === confronta(notaDocumento))) scritte.push(notaDocumento);
   if (azienda.regime_fiscale === "RF19" && !scritte.some((c) => /190\/2014|forfettari/i.test(c))) {
     causali.push("Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 - Regime forfettario");
+  }
+  if (azienda.regime_fiscale === "RF19" && !scritte.some((c: string) => /ritenut[\s\S]*67|67[\s\S]*ritenut/i.test(c))) {
+    causali.push("Ricavi e compensi non assoggettati a ritenuta d'acconto ai sensi dell'art. 1, comma 67, L. 190/2014");
   }
   // Diciture che la legge chiede in fattura e che l'XML non dice da solo:
   // l'IVA per cassa va annotata come tale (art. 32-bis DL 83/2012, DM
@@ -481,11 +497,11 @@ export function generateXML(
         <Divisa>EUR</Divisa>
         <Data>${fmtDate(doc.data_emissione)}</Data>
         <Numero>${x(doc.numero, 20)}</Numero>
-        ${doc.ritenuta_acconto && doc.ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.ritenuta_tipo || "RT01")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.ritenuta_aliquota || 20)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
+        ${doc.ritenuta_acconto && doc.ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.ritenuta_tipo || "RT01")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.ritenuta_aliquota ?? 20)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
         ${doc.altra_ritenuta && doc.altra_ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.altra_ritenuta_tipo || "RT03")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.altra_ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.altra_ritenuta_aliquota || 0)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.altra_ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
         ${doc.bollo_virtuale ? `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${fmtNum(doc.bollo_importo || 2)}</ImportoBollo></DatiBollo>` : ""}
-        ${doc.cassa_previdenziale && doc.cassa_importo ? `<DatiCassaPrevidenziale><TipoCassa>${escXml(doc.cassa_tipo || "TC22")}</TipoCassa><AlCassa>${fmtNum(doc.cassa_aliquota || 4)}</AlCassa><ImportoContributoCassa>${fmtNum(doc.cassa_importo)}</ImportoContributoCassa><ImponibileCassa>${fmtNum(doc.cassa_imponibile || doc.imponibile_totale)}</ImponibileCassa><AliquotaIVA>${fmtNum(parseFloat(doc.cassa_aliquota_iva || "22"))}</AliquotaIVA>${doc.cassa_ritenuta ? "<Ritenuta>SI</Ritenuta>" : ""}</DatiCassaPrevidenziale>` : ""}
-        ${doc.rivalsa_inps && doc.rivalsa_importo ? `<DatiCassaPrevidenziale><TipoCassa>${escXml(doc.rivalsa_tipo || "TC22")}</TipoCassa><AlCassa>${fmtNum(doc.rivalsa_aliquota || 4)}</AlCassa><ImportoContributoCassa>${fmtNum(doc.rivalsa_importo)}</ImportoContributoCassa><ImponibileCassa>${fmtNum(doc.imponibile_totale)}</ImponibileCassa><AliquotaIVA>${fmtNum(22)}</AliquotaIVA></DatiCassaPrevidenziale>` : ""}
+        ${doc.cassa_previdenziale && doc.cassa_importo ? `<DatiCassaPrevidenziale><TipoCassa>${escXml(doc.cassa_tipo || "TC22")}</TipoCassa><AlCassa>${fmtNum(doc.cassa_aliquota ?? 4)}</AlCassa><ImportoContributoCassa>${fmtNum(doc.cassa_importo)}</ImportoContributoCassa><ImponibileCassa>${fmtNum(doc.cassa_imponibile || doc.imponibile_totale)}</ImponibileCassa><AliquotaIVA>${fmtNum(parseFloat(doc.cassa_aliquota_iva || "22"))}</AliquotaIVA>${doc.cassa_ritenuta ? "<Ritenuta>SI</Ritenuta>" : ""}${(parseFloat(doc.cassa_aliquota_iva ?? "22") || 0) === 0 && naturaDellaCassa ? `<Natura>${escXml(naturaToXml(naturaDellaCassa))}</Natura>` : ""}</DatiCassaPrevidenziale>` : ""}
+        ${doc.rivalsa_inps && doc.rivalsa_importo ? `<DatiCassaPrevidenziale><TipoCassa>${escXml(doc.rivalsa_tipo || "TC22")}</TipoCassa><AlCassa>${fmtNum(doc.rivalsa_aliquota || 4)}</AlCassa><ImportoContributoCassa>${fmtNum(doc.rivalsa_importo)}</ImportoContributoCassa><ImponibileCassa>${fmtNum(doc.imponibile_totale)}</ImponibileCassa><AliquotaIVA>${fmtNum(ivaDellaRivalsa?.aliquota ?? 22)}</AliquotaIVA>${conDatiRitenuta ? "<Ritenuta>SI</Ritenuta>" : ""}${ivaDellaRivalsa?.natura ? `<Natura>${escXml(naturaToXml(ivaDellaRivalsa.natura))}</Natura>` : ""}</DatiCassaPrevidenziale>` : ""}
         <ImportoTotaleDocumento>${fmtNum(doc.totale_documento)}</ImportoTotaleDocumento>
         ${Number(doc.arrotondamento) ? `<Arrotondamento>${fmtNum(doc.arrotondamento)}</Arrotondamento>` : ""}
         ${causaliXml}

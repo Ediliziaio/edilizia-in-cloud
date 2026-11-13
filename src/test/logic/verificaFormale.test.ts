@@ -54,3 +54,11 @@ describe("verificaFormale", () => {
     expect(r.voci.some((v) => v.esito === "errore" && /codice destinatario/i.test(v.testo))).toBe(false);
   });
 });
+
+it("rileva la nota mancante nell'XML e distingue l'originale già trasmesso", () => {
+ const d={...(doc() as Record<string,unknown>),note_documento:'spese per rendicontazione PVA bando F decreto N. 59702 del 11/11/2025'};
+ const originale=xml(d as never).replace(/<Causale>[\s\S]*?<\/Causale>/g,'');
+ expect(verificaFormale(d as never,azienda as never,originale).voci).toContainEqual(expect.objectContaining({esito:'errore',testo:expect.stringContaining('note pubbliche')}));
+ expect(verificaFormale({...d,stato:'consegnata',sdi_id_trasmissione:'trasmesso'} as never,azienda as never,originale).voci).toContainEqual(expect.objectContaining({esito:'avviso',testo:expect.stringContaining('già trasmesso resta invariato')}));
+ expect(verificaFormale(d as never,azienda as never,xml(d as never)).voci.some(v=>v.testo.includes('non sono presenti integralmente'))).toBe(false);
+});

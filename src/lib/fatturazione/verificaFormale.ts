@@ -11,6 +11,8 @@ import { validateDocumento } from "@/lib/fatturazione/calcoli";
 import { validateXML } from "@/lib/fatturazione/generateXML";
 import { ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import { validaCodiceFiscale, validaPartitaIva } from "@/lib/fatturazione/validazioniAnagrafiche";
+import { controlliFatturaSdi } from "../../../supabase/functions/_shared/controlliFatturaSdi";
+import { testoSdi } from "../../../supabase/functions/_shared/generateXML";
 import { datiReaMancanti, eSocieta } from "../../../supabase/functions/_shared/datiSocietari";
 
 export type EsitoVoce = "ok" | "avviso" | "errore";
@@ -102,10 +104,31 @@ export function verificaFormale(
     ok("Righe, riepilogo IVA e totali coerenti");
   }
 
+  for (const p of controlliFatturaSdi(doc, az)) if (!voci.some(v => v.testo === p.message)) { if (p.severity === "error") errore(p.message); else avviso(p.message); }
+
   // ── L'XML ──────────────────────────────────────────────────────────────
   if (xml) {
     const mancanti = validateXML(xml);
     if (mancanti.length === 0) ok("L'XML contiene tutti gli elementi obbligatori"); else for (const m of mancanti) errore(m.message);
+    const d = new DOMParser().parseFromString(xml, "application/xml");
+    if (!d.getElementsByTagNameNS("*", "parsererror").length) {
+      const normalizza = (t: string) => testoSdi(t, 100_000).replace(/\s+/g, "");
+      const valori = (tag: string) => Array.from(d.getElementsByTagNameNS("*",tag)).map(x=>x.textContent??"");
+      const originale = !!doc.sdi_id_trasmissione || ["inviata_sdi","consegnata","accettata"].includes(doc.stato);
+      const divergenza = (testo: string) => originale ? avviso(`${testo} Il file già trasmesso resta invariato.`) : errore(testo);
+      const nota = String(doc.note_documento??"").trim();
+      if (nota && !normalizza(valori("Causale").join(" ")).includes(normalizza(nota))) divergenza("Le note pubbliche del documento non sono presenti integralmente nelle Causali XML.");
+      for(const [campo,tag] of [["cup","CodiceCUP"],["cig","CodiceCIG"]] as const) {
+        const previsto=String(doc[campo]??"").trim();
+        if(previsto&&!valori(tag).includes(previsto))divergenza(`Il ${campo.toUpperCase()} indicato nel documento manca o è diverso nell’XML.`);
+      }
+      const descrizioni=valori("Descrizione").map(normalizza);
+      for(const [i,r] of (doc.righe??[]).entries()) {
+        const descrizione=normalizza(String(r.descrizione??""));
+        if(descrizione&&!descrizioni.some(t=>t===descrizione))divergenza(`La descrizione della riga ${i+1} non è riportata integralmente nell’XML.`);
+      }
+    }
+
   } else {
     avviso("XML non disponibile per il controllo");
   }

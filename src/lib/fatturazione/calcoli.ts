@@ -1,6 +1,7 @@
 // src/lib/fatturazione/calcoli.ts
 // Centralized calculation engine for native billing documents
 
+import { controlliFatturaSdi, naturaCassa, ivaRivalsa } from "../../../supabase/functions/_shared/controlliFatturaSdi";
 import { arrotondaCentesimi } from "@/lib/numberUtils";
 import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import type {
@@ -184,6 +185,13 @@ export function calcolaTotaliDocumento(
     esigibilitaDefault: options.esigibilitaDefault,
   });
 
+  const rivalsa_importo = options.rivalsaInps && options.rivalsaAliquota ? round2(imponibile_totale * (options.rivalsaAliquota / 100)) : 0;
+  const ivaDellaRivalsa = ivaRivalsa(computed);
+  if (rivalsa_importo > 0 && ivaDellaRivalsa) {
+    const bucket = riepilogo_iva.find(r => Number(r.aliquota) === ivaDellaRivalsa.aliquota && (r.natura ?? "").replace(/\./g,"_") === (ivaDellaRivalsa.natura ?? ""));
+    if (bucket) { bucket.imponibile = round2(bucket.imponibile + rivalsa_importo); bucket.imposta = impostaSuImponibile(bucket.imponibile, ivaDellaRivalsa.aliquota); }
+  }
+
   // ── Contributo cassa previdenziale (contributo integrativo) ──
   // Calcolato sull'imponibile delle righe (o su cassaImponibile se fornito).
   // NB: il contributo NON è incluso in imponibile_totale né nelle righe.
@@ -229,6 +237,13 @@ export function calcolaTotaliDocumento(
     }
   }
 
+  if (cassa_importo > 0 && cassaAliquotaIvaNum === 0) {
+    const nat = naturaCassa(cassaIvaRaw, riepilogo_iva);
+    const bucket = riepilogo_iva.find(r => Number(r.aliquota) === 0 && (r.natura ?? "").replace(/\./g,"_") === nat);
+    if (bucket && nat) bucket.imponibile = round2(bucket.imponibile + cassa_importo);
+    else if (nat) riepilogo_iva.push({ aliquota: "0", natura: nat, imponibile: cassa_importo, imposta: 0, esigibilita: "I" });
+  }
+
   // iva_totale ora include l'IVA sul contributo cassa (FIX #1).
   const iva_totale = round2(riepilogo_iva.reduce((s, r) => s + r.imposta, 0));
 
@@ -239,7 +254,7 @@ export function calcolaTotaliDocumento(
   // Prima erano esclusi sia il contributo cassa con la sua IVA (FIX #1) sia il bollo (FIX #3),
   // quindi il totale documento trasmesso a SDI risultava SOTTOSTIMATO.
   const totale_documento = round2(
-    imponibile_totale + cassa_importo + iva_totale + bollo + (options.arrotondamento ?? 0)
+    imponibile_totale + cassa_importo + rivalsa_importo + iva_totale + bollo + (options.arrotondamento ?? 0)
   );
 
   // FIX #2 — Se la cassa è soggetta a ritenuta (cassa_ritenuta → <Ritenuta>SI</Ritenuta>),
@@ -251,15 +266,10 @@ export function calcolaTotaliDocumento(
     ? round2(righeSegnate.reduce((s, r) => s + r.imponibile, 0) * (1 - discountRatio))
     : imponibile_totale;
   const ritenutaBase =
-    baseRighe + (options.cassaRitenuta ? cassa_importo : 0);
+    baseRighe + rivalsa_importo + (options.cassaRitenuta ? cassa_importo : 0);
   const ritenuta_importo =
     options.ritenutaAcconto && options.ritenutaAliquota
       ? round2(ritenutaBase * (options.ritenutaAliquota / 100))
-      : 0;
-
-  const rivalsa_importo =
-    options.rivalsaInps && options.rivalsaAliquota
-      ? round2(imponibile_totale * (options.rivalsaAliquota / 100))
       : 0;
 
   const altra_ritenuta_importo =
@@ -274,7 +284,7 @@ export function calcolaTotaliDocumento(
   // FIX #3 — bollo e contributo cassa sono già dentro totale_documento:
   // qui NON vanno più ri-sommati (evita il doppio conteggio).
   const totale_da_pagare = round2(
-    totale_documento + rivalsa_importo - ritenuta_importo - altra_ritenuta_importo - splitPaymentIva
+    totale_documento - ritenuta_importo - altra_ritenuta_importo - splitPaymentIva
   );
 
   return {
@@ -342,6 +352,8 @@ export function validateDocumento(
       severity: "error",
     });
   }
+
+  errors.push(...controlliFatturaSdi(doc));
 
   // Each riga validation
   righe.forEach((r, i) => {

@@ -121,8 +121,8 @@ describe("i casi che lo SDI scartava", () => {
     expect(testi(d, "RegimeFiscale")).toEqual(["RF18"]);
     expect(testi(d, "IdCodice")).toContain("99999999999");
   });
-  it("nomi oltre 80 caratteri e descrizioni oltre 1000 vengono accorciati", () => {
-    const d = fattura([riga("Fornitura ".repeat(120), 1, 100, "22")], {}, {},
+  it("i nomi rispettano il limite dello schema", () => {
+    const d = fattura([riga("Fornitura", 1, 100, "22")], {}, {},
       { ...b2b, ragione_sociale: "Impresa Edile Costruzioni Generali e Ristrutturazioni del Friuli Venezia Giulia S.r.l." });
     expect(testi(d, "Denominazione")[1].length).toBeLessThanOrEqual(80);
     expect(testi(d, "Descrizione")[0].length).toBeLessThanOrEqual(1000);
@@ -130,6 +130,10 @@ describe("i casi che lo SDI scartava", () => {
 });
 
 describe("quello che la legge chiede nell'XML", () => {
+  it("descrizioni troppo lunghe: ferma la perdita silenziosa del testo", () => {
+    expect(()=>fattura([riga("Fornitura ".repeat(120),1,100,"22")])).toThrow(/1000 caratteri/);
+  });
+
   it("reverse charge del subappalto (N6.3): la norma sta nel riepilogo", () => {
     const d = fattura([riga("Subappalto opere murarie", 1, 5000, "0", { natura_iva: "N6_3" })]);
     expect(testi(d, "Natura")).toEqual(["N6.3", "N6.3"]);
@@ -142,6 +146,26 @@ describe("quello che la legge chiede nell'XML", () => {
     expect(causali.length).toBeGreaterThan(1);
     expect(causali.every((c) => c.length <= 200)).toBe(true);
     expect(causali[0]).toMatch(/^IVA 10% art. 7/);
+  });
+  it("FPR 79/26: la nota per rendicontazione del PDF arriva nelle causali XML", () => {
+    const nota="spese per rendicontazione PVA bando F decreto N. 59702 del 11/11/2025";
+    const d=fattura([riga("Lavorazioni",1,15560,"10")],{},{numero:"FPR 79/26",causale:[],note_documento:"\n "+nota,note_interne:"RISERVATO NON TRASMETTERE"});
+    expect(testi(d,"Causale")).toEqual([nota]);expect(d.documentElement.textContent).not.toContain("RISERVATO NON TRASMETTERE");
+    expect(testi(d,"ImportoTotaleDocumento")).toEqual(["17116.00"]);expect(contiSdi(d)).toEqual([]);
+  });
+  it("note lunghe: nessuna perdita del testo e massimo 200 caratteri per elemento", () => {
+    const nota=("Spese bando F & rendicontazione <dettaglio> ".repeat(14)).trim();
+    const d=fattura([riga("Lavorazioni",1,100,"22")],{},{note_documento:nota});
+    const c=testi(d,"Causale");expect(c.every(x=>x.length<=200)).toBe(true);expect(c.join(" ")).toBe(nota);
+    expect(d.getElementsByTagName("parsererror").length).toBe(0);
+  });
+  it("note già in causale non duplicate, note interne sempre riservate", () => {
+    const d=fattura([riga("Lavorazioni",1,100,"22")],{},{causale:["Riferimento   bando F"],note_documento:"Riferimento bando F",note_interne:"SOLO INTERNO"});
+    expect(testi(d,"Causale")).toEqual(["Riferimento bando F"]);expect(d.documentElement.textContent).not.toContain("SOLO INTERNO");
+  });
+  it("legge una causale legacy testuale senza perdere note o interrompere l'emissione", () => {
+    const d=fattura([riga("Lavorazioni",1,100,"22")],{},{causale:"Causale precedente",note_documento:"Nota pubblica"});
+    expect(testi(d,"Causale")).toEqual(["Causale precedente","Nota pubblica"]);
   });
   it("fattura differita: numero e data dei DDT", () => {
     const d = fattura([riga("Materiale", 10, 40, "22")], {}, {

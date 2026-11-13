@@ -103,6 +103,9 @@ export function fatturaRicevutaHtml(
   const lotto = f.fatture_nel_file > 1
     ? `<p class="avviso">Il file contiene ${f.fatture_nel_file} fatture: qui è mostrata la prima.</p>` : "";
 
+  const corpoXml = parser.parseFromString(xml, "text/xml")?.getElementsByTagName("FatturaElettronicaBody")[0];
+  const causali = corpoXml ? Array.from(corpoXml.getElementsByTagName("Causale")).map(c => c.textContent?.trim() ?? "").filter(Boolean) : [];
+
   const emessa = !!opzioni.emessa;
   const titolo = emessa
     ? `Fattura elettronica ${f.numero_fattura} - ${extra?.cliente.nome ?? ""}`.replace(/ - $/, "")
@@ -181,6 +184,7 @@ export function fatturaRicevutaHtml(
     </table>
   </div>
   ${pagamento}
+  ${causali.length ? `<div class="blocco"><h3>Causale / annotazioni</h3>${causali.map(c => `<p>${esc(c)}</p>`).join("")}</div>` : ""}
   <div class="pie">Rappresentazione leggibile della fattura elettronica${emessa ? "" : " ricevuta"}. Il documento con valore fiscale è il file XML${emessa ? " trasmesso allo SDI" : " originale, conservato in Edilizia in Cloud"}.</div>
 </body></html>`;
 

@@ -23,7 +23,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { faseSdi, motivoSdi, puoInviare, type FaseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { leggiXmlFattura } from "@/lib/fatturazione/scaricaXml";
-import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
+import { fatturaXmlTabellareHtml, generaPdfFatturaXml } from "@/lib/fatturazione/fatturaXmlTabellare";
 import { verificaFormale, type RisultatoVerifica } from "@/lib/fatturazione/verificaFormale";
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
@@ -92,9 +92,9 @@ const PASSI: Record<FaseSdi | "bozza", string[]> = {
 
 export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, isInvio, onAggiorna, isAggiorna, onEsportaXml, onEmetti, isEmitting }: Props) {
   const [cosaFare, setCosaFare] = useState(false);
-  const [vista, setVista] = useState<FatturaRicevutaVista | null>(null);
+  const [vista, setVista] = useState<{ html: string; titolo: string } | null>(null);
   const [verifica, setVerifica] = useState<RisultatoVerifica | null>(null);
-  const [lavoro, setLavoro] = useState<"vista" | "verifica" | null>(null);
+  const [lavoro, setLavoro] = useState<"vista" | "verifica" | "pdf" | null>(null);
 
   const f = faseSdi(doc as never);
   const bozza = doc.stato === "bozza";
@@ -119,7 +119,7 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
     setLavoro("vista");
     try {
       const { xml } = await leggiXmlFattura(doc, azienda);
-      const v = fatturaRicevutaHtml(xml, new DOMParser(), { emessa: true });
+      const v = fatturaXmlTabellareHtml(xml);
       if (!v) throw new Error("L'XML non è leggibile come fattura: lancia «Verifica formale».");
       setVista(v);
     } catch (e) {
@@ -127,6 +127,20 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
     } finally {
       setLavoro(null);
     }
+  };
+
+  const scaricaPdfXml = async () => {
+    setLavoro("pdf");
+    try {
+      const { xml, partito } = await leggiXmlFattura(doc, azienda);
+      const bytes = await generaPdfFatturaXml(xml);
+      const url = URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url; a.download = `Fattura_elettronica_${String(doc.numero || "anteprima").replace(/[^a-zA-Z0-9_-]/g,"_")}.pdf`;
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30_000);
+      toast.success(partito ? "PDF dall’XML originale preparato" : "PDF di anteprima preparato", { description: partito ? "Il PDF rappresenta il file XML archiviato." : "La fattura non risulta ancora trasmessa allo SDI." });
+    } catch(e) { toast.error("PDF da XML non disponibile", { description: e instanceof Error ? e.message : undefined }); }
+    finally { setLavoro(null); }
   };
 
   const apriVerifica = async () => {
@@ -162,10 +176,13 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => setCosaFare(true)}>
             <HelpCircle className="h-4 w-4" /> Cosa fare
           </Button>
-          <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => void apriVista()} disabled={lavoro === "vista"}>
+          <Button variant="outline" size="sm" className={btn} onClick={() => void scaricaPdfXml()} disabled={!!lavoro}>
+            {lavoro === "pdf" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Scarica PDF da XML
+          </Button>
+          <Button variant="outline" size="sm" className={btn} onClick={() => void apriVista()} disabled={!!lavoro}>
             {lavoro === "vista" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />} Visualizza fattura elettronica
           </Button>
-          <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => void apriVerifica()} disabled={lavoro === "verifica"}>
+          <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={() => void apriVerifica()} disabled={!!lavoro}>
             {lavoro === "verifica" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />} Verifica formale
           </Button>
           <Button variant="outline" size="sm" className={cn(btn, "max-sm:hidden")} onClick={onEsportaXml}>
@@ -259,7 +276,7 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
               <Printer className="mr-1.5 h-3.5 w-3.5" /> Stampa / Salva PDF
             </Button>
           </DialogHeader>
-          <DialogDescription className="sr-only">La fattura elettronica come la riceverà il cliente, letta dall'XML.</DialogDescription>
+          <DialogDescription className="sr-only">Rappresentazione tabellare dei dati contenuti nel file XML, anche quando differiscono dal PDF di cortesia.</DialogDescription>
           {vista && <iframe title={vista.titolo} srcDoc={vista.html} sandbox="" className="w-full flex-1 border-0 bg-white" />}
         </DialogContent>
       </Dialog>

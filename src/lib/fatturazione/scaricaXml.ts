@@ -23,10 +23,17 @@ async function conFatturaCollegata(doc: DocumentoFiscale): Promise<DocumentoFisc
   return doc;
 }
 
+/** Un documento già trasmesso si rappresenta solo dall'originale archiviato. */
+function esigiOriginaleSeTrasmesso(doc: DocumentoFiscale): void {
+  const trasmesso = !!doc.sdi_id_trasmissione || ['inviata_sdi','consegnata','accettata'].includes(doc.stato);
+  if (trasmesso && doc.stato !== 'scartata' && !doc.sdi_file_xml_url) throw new Error("L'XML originale trasmesso non è disponibile. Non è possibile ricrearlo dai dati attuali: recupera l'originale dal cassetto SDI.");
+}
+
 export async function scaricaXmlFattura(
   doc: DocumentoFiscale,
   azienda: AnagraficaAzienda | null | undefined,
 ): Promise<void> {
+  esigiOriginaleSeTrasmesso(doc);
   let file: Blob;
   let nome: string;
   if (doc.sdi_file_xml_url) {
@@ -55,6 +62,7 @@ export async function leggiXmlFattura(
   doc: DocumentoFiscale,
   azienda: AnagraficaAzienda | null | undefined,
 ): Promise<{ xml: string; partito: boolean }> {
+  esigiOriginaleSeTrasmesso(doc);
   if (doc.sdi_file_xml_url) {
     const { data, error } = await supabase.storage.from("fatture-xml").download(doc.sdi_file_xml_url);
     if (error || !data) throw error ?? new Error("File non trovato");

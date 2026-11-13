@@ -32,34 +32,12 @@ export interface XMLValidationError {
 export function validateXML(xml: string): XMLValidationError[] {
   const errors: XMLValidationError[] = [];
 
-  const requiredElements = [
-    "IdTrasmittente",
-    "ProgressivoInvio",
-    "FormatoTrasmissione",
-    "CodiceDestinatario",
-    "CedentePrestatore",
-    "CessionarioCommittente",
-    "TipoDocumento",
-    "Divisa",
-    "Data",
-    "Numero",
-    "DettaglioLinee",
-    "DatiRiepilogo",
-  ];
-
+  const parsed = new DOMParser().parseFromString(xml, "application/xml");
+  if (parsed.getElementsByTagNameNS("*", "parsererror").length || parsed.documentElement.localName !== "FatturaElettronica") return [{ field: "xml", message: "Il file XML non è una FatturaPA valida o contiene errori di sintassi." }];
+  const requiredElements = ["IdTrasmittente", "ProgressivoInvio", "FormatoTrasmissione", "CodiceDestinatario", "CedentePrestatore", "CessionarioCommittente", "TipoDocumento", "Divisa", "Data", "Numero", "DettaglioLinee", "DatiRiepilogo"];
   for (const el of requiredElements) {
-    if (!xml.includes(`<${el}>`)) {
-      errors.push({ field: el, message: `Elemento obbligatorio mancante: ${el}` });
-    }
+    const found = parsed.getElementsByTagNameNS("*", el);
+    if (!found.length || !Array.from(found).some(x=>x.textContent?.trim())) errors.push({field:el,message:`Elemento obbligatorio mancante o vuoto: ${el}`});
   }
-
-  // Check for empty required values
-  if (xml.includes("<IdCodice></IdCodice>")) {
-    errors.push({ field: "IdCodice", message: "P.IVA cedente mancante" });
-  }
-  if (xml.includes("<Denominazione></Denominazione>")) {
-    errors.push({ field: "Denominazione", message: "Denominazione mancante" });
-  }
-
   return errors;
 }

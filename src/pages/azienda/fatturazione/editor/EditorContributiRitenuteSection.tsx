@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatCurrency } from "@/lib/formatters";
-import { CAUSALI_RITENUTA, TIPI_CASSA_PREVIDENZIALE } from "@/types/fatturazione";
+import { CAUSALI_RITENUTA, TIPI_CASSA_PREVIDENZIALE, NATURE_IVA } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
 
 interface Props {
@@ -99,6 +99,13 @@ export function EditorContributiRitenuteSection({ state, dispatch, disabled }: P
                         +{formatCurrency(state.cassa_importo ?? 0)}
                       </div>
                     </div>
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">IVA del contributo cassa</Label>
+                    <Select value={state.cassa_aliquota_iva ?? "22"} onValueChange={v => setField("cassa_aliquota_iva", v)} disabled={disabled}>
+                      <SelectTrigger className="h-7 text-xs" aria-label="IVA del contributo cassa"><SelectValue /></SelectTrigger>
+                      <SelectContent>{["22","10","5","4"].map(v => <SelectItem key={v} value={v}>{v}%</SelectItem>)}{Object.entries(NATURE_IVA).map(([k,v]) => <SelectItem key={k} value={k}>0% · {k.replace("_", ".")} · {v}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch

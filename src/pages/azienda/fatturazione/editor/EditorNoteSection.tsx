@@ -71,7 +71,7 @@ export function EditorNoteSection({ state, dispatch, disabled }: Props) {
 
       {/* Note documento */}
       <div>
-        <Label className="text-xs text-muted-foreground">Note documento (visibili in fattura)</Label>
+        <Label className="text-xs text-muted-foreground">Note documento (nel PDF e nell’XML allo SDI)</Label>
         <Textarea
           value={state.note_documento ?? ""}
           onChange={(e) => setField("note_documento", e.target.value)}

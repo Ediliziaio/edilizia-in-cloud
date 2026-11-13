@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
+import { controlliFatturaSdi } from "../_shared/controlliFatturaSdi.ts";
 import { TIPI_SENZA_SDI, generateXML } from "../_shared/generateXML.ts";
 import { allegatiPerInvioSdi } from "../_shared/allegatiSdi.ts";
 import { datiReaMancanti } from "../_shared/datiSocietari.ts";
@@ -40,7 +41,8 @@ function isValidCodiceFiscale(cf: string | null | undefined): boolean {
   return isValidPartitaIva(c);
 }
 
-// generateXML, helpers e costanti importate da _shared/generateXML.ts
+// generateXML, helpers e costanti importate da _shared/generateXML.ts.
+// Le note pubbliche del documento sono incluse nelle Causale XML (parità PDF/SDI).
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -140,7 +142,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate mandatory fiscal data before generating XML
-    const validationErrors: string[] = [];
+    const validationErrors: string[] = controlliFatturaSdi(doc, azienda).filter(p => p.severity === "error").map(p => p.message);
     if (!azienda.partita_iva) {
       validationErrors.push("Partita IVA azienda mancante");
     } else if (!isValidPartitaIva(azienda.partita_iva)) {
@@ -333,7 +335,7 @@ Deno.serve(async (req) => {
       .upload(xmlPath, new Blob([xml], { type: "application/xml" }), { upsert: true });
 
     if (uploadErr) {
-      console.error("XML upload error:", uploadErr);
+      throw new Error("Archiviazione XML non riuscita: nessuna fattura è stata trasmessa. Riprova quando lo storage è disponibile.");
     }
 
     const provider = azienda.sdi_provider || "manuale";
