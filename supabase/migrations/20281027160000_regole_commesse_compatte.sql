@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- Regole di lettura delle commesse più compatte (censite di nuovo il 27/10/2026).
 --
 -- Preparata il 12/10/2026 e non applicata. Nel frattempo, il 13/10, «le regole calcolate una volta per query» ha
@@ -178,3 +180,5 @@ begin
     end loop;
   end if;
 end $$;
+
+COMMIT;

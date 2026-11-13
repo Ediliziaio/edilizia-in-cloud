@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- Accessi degli oggetti su misura / acquisti (proposta del guardiano, 08/11/2026).
 --
 -- Prima si poteva, provato con utenti veri in transazioni annullate:
@@ -207,3 +209,5 @@ begin
   end loop;
 end
 $migrazione$;
+
+COMMIT;

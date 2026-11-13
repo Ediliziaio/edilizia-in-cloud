@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- Costi di personale e ditte: la lettura diretta solo a chi ha il permesso (08/11/2026).
 --
 -- Va applicata DOPO il client che legge le viste `*_senza_prezzi` (commit e134300be).
@@ -37,3 +39,5 @@ create policy costi_solo_con_permesso on public.order_employees as restrictive f
 drop policy if exists costi_solo_con_permesso on public.order_external_teams;
 create policy costi_solo_con_permesso on public.order_external_teams as restrictive for select to authenticated
   using (coalesce((select public.acquisti_lettura_non_diretta()), false) or not coalesce((select public.utente_senza_costi_ufficio()), false));
+
+COMMIT;
