@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { DocumentoFiscale, RigaDocumento } from "@/types/fatturazione";
-import { calcolaRiepilogoIVA, calcolaTotaliDocumento } from "./calcoli";
+import { calcolaRiga, calcolaTotaliDocumento } from "./calcoli";
 
 /** Quanto hanno già stornato le note di credito emesse su questa fattura. */
 export async function stornatoDellaFattura(fatturaId: string): Promise<number> {
@@ -43,7 +43,7 @@ export async function creaNotaCredito(
     throw new Error("Su questa fattura c'è già una nota di credito: usa lo storno parziale per il resto.");
   }
 
-  // Gli importi restano POSITIVI. Il segno di una nota di credito non sta
+  // Il totale dello storno resta POSITIVO. Il segno di una nota di credito non sta
   // negli importi: sta nel tipo di documento, ed è già scritto una volta sola
   // in `documento_segno()`, che per 'nota_credito' vale -1. Scriverli negativi
   // significa applicare il segno due volte, e il database lo fa davvero:
@@ -57,29 +57,16 @@ export async function creaNotaCredito(
   //     `documento_segno(tipo)`: una nota di credito negativa finiva per
   //     AUMENTARE gli incassi invece di ridurli.
   //
-  // È anche la forma giusta per lo SdI: nel TD04 gli importi si indicano
-  // positivi, è il tipo documento a dire che è un accredito.
+  // Il tipo TD04 esprime l’accredito: non si inverte ogni riga. Le rettifiche
+  // negative già presenti nella fattura restano negative anche nello storno.
   const righe: RigaDocumento[] =
     modalita === "totale"
-      ? fattura.righe.map((r, i) => ({
+      ? fattura.righe.map((r, i) => calcolaRiga({
           ...r,
           id: crypto.randomUUID(),
           numero_linea: i + 1,
-          quantita: Math.abs(r.quantita),
-          imponibile: Math.abs(r.imponibile),
-          imposta: Math.abs(r.imposta),
-          totale_riga: Math.abs(r.totale_riga),
         }))
       : [];
-
-  // Ricalcola riepilogo_iva dalle righe, conservando l'esigibilità IVA
-  // della fattura originale (es. split payment "S" per PA — senza questo
-  // la NC tornava a esigibilità immediata, incoerente con l'XML originale).
-  const riepilogo_iva = righe.length > 0
-    ? calcolaRiepilogoIVA(righe, {
-        esigibilitaDefault: fattura.esigibilita_iva as "I" | "D" | "S" | undefined,
-      })
-    : [];
 
   // Sconto, ritenuta e contributi della fattura valgono anche per la nota: senza,
   // lo storno «totale» non coincideva con la fattura. Importi fissi (sconto a valore,
@@ -128,7 +115,7 @@ export async function creaNotaCredito(
     anagrafica_id: fattura.anagrafica_id,
     cliente_snapshot: fattura.cliente_snapshot,
     righe,
-    riepilogo_iva,
+    riepilogo_iva: totali.riepilogo_iva,
     ...percentuali,
     ...fissi,
     // I totali scritti subito: dal dettaglio si può emettere senza riaprire l'editor.
@@ -150,38 +137,8 @@ export async function creaNotaCredito(
     bic_pagamento: fattura.bic_pagamento,
     nome_banca: fattura.nome_banca,
     intestatario_conto: fattura.intestatario_conto,
-    note_documento: `Nota di Credito a storno ${modalita === "totale" ? "totale" : "parziale"} della fattura N° ${fattura.numero} del ${fattura.data_emissione}`,
+    causale: fattura.causale,
+    note_documento: `Nota di Credito a storno ${modalita === "totale" ? "totale" : "parziale"} della fattura N° ${fattura.numero} del ${fattura.data_emissione}${fattura.note_documento?.trim() ? `\nRiferimenti del documento stornato: ${fattura.note_documento.trim()}` : ""}`,
   };
 }
 
-/**
- * After a credit note is emitted, update the original invoice's payment status.
- */
-export async function applicaStornoSuFattura(
-  fatturaId: string,
-  importoNC: number
-): Promise<void> {
-  const { data, error: fetchErr } = await supabase
-    .from("documenti_fiscali" as never)
-    .select("totale_da_pagare, importo_pagato")
-    .eq("id", fatturaId)
-    .is("deleted_at", null)
-    .single();
-
-  if (fetchErr) throw fetchErr;
-  const doc = data as unknown as { totale_da_pagare: number; importo_pagato: number };
-
-  const nuovoPagato = doc.importo_pagato + Math.abs(importoNC);
-  const nuovoStato = nuovoPagato >= doc.totale_da_pagare ? "stornata" : "parzialmente_pagata";
-
-  const { error } = await supabase
-    .from("documenti_fiscali" as never)
-    .update({
-      importo_pagato: nuovoPagato,
-      stato: nuovoStato,
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq("id", fatturaId);
-
-  if (error) throw error;
-}

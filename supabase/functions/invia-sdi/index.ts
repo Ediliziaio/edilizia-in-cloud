@@ -175,21 +175,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // RF19 forfettario: no IVA, no ritenuta, no split payment
-    if (azienda.regime_fiscale === "RF19") {
-      const righe: any[] = doc.righe || [];
-      const hasIva = righe.some((r: any) => (parseFloat(r.aliquota_iva) || 0) > 0 && !r.natura_iva);
-      if (hasIva) {
-        validationErrors.push(
-          "Regime forfettario RF19: tutte le righe devono avere IVA 0% con natura N2.2 (non soggette)"
-        );
-      }
-      if (doc.ritenuta_acconto) {
-        validationErrors.push(
-          "Regime forfettario RF19: la ritenuta d'acconto non è applicabile"
-        );
-      }
-    }
+    // Regime RF19 e contributi sono verificati dal controllo condiviso, che distingue le integrazioni estere.
 
     // Un documento senza righe non e' trasmissibile: la FatturaPA vuole almeno
     // un DettaglioLinee, e lo SDI lo scarterebbe. Senza questo controllo la

@@ -35,3 +35,8 @@ it('XML rivalsa coerente con riepilogo e ritenuta, anche con lo sconto globale',
  expect(d.getElementsByTagName('DatiRiepilogo')[0].getElementsByTagName('ImponibileImporto')[0].textContent).toBe('936.00');
  expect(xml).not.toContain('Adeguamento');expect(controlliFatturaSdi(doc)).toEqual([]);
 });
+
+it('un forfettario che integra un acquisto estero non applica la dicitura dei propri ricavi',()=>{
+ const t=calcolaTotaliDocumento([r()]);const xml=generateXML({...t,tipo:'integrazione_servizi_estero',numero:'1',data_emissione:'2026-11-13',cliente_snapshot:{...cliente,indirizzo_nazione:'DE'},righe:[r()]},{...azienda,regime_fiscale:'RF19'});
+ expect(xml).toContain('<TipoDocumento>TD17</TipoDocumento>');expect(xml).not.toContain('Regime forfettario');expect(xml).not.toContain('comma 67');
+});

@@ -86,3 +86,19 @@ describe("le azioni dell'elenco non si fidano della riga ridotta", () => {
     expect(migrazione).toMatch(/revoke all on function public\.documento_ripristina\(uuid\) from public, anon/);
   });
 });
+
+describe('storno e riferimenti fiscali coerenti',()=>{
+ it('lo sconto e i contributi entrano anche nel riepilogo IVA della nota',async()=>{
+  stato.fattura={...stato.fattura,cassa_previdenziale:true,cassa_tipo:'TC04',cassa_aliquota:4,cassa_aliquota_iva:'22',rivalsa_inps:true,rivalsa_aliquota:4};
+  const prima=structuredClone(stato.fattura);const nc=await creaNotaCredito('f1','totale');
+  expect(nc.riepilogo_iva?.[0].imponibile).toBe(972);expect(nc.riepilogo_iva?.[0].imposta).toBe(nc.iva_totale);expect(stato.fattura).toEqual(prima);
+ });
+ it('conserva le righe di rettifica negative senza trasformarle in un addebito',async()=>{
+  stato.fattura={...stato.fattura,sconto_globale_percentuale:0,righe:[riga,{...riga,id:'sconto',numero_linea:2,descrizione:'Rettifica',prezzo_unitario:-100,imponibile:-100,imposta:-22,totale_riga:-122}]};
+  const nc=await creaNotaCredito('f1','totale');expect(nc.imponibile_totale).toBe(900);expect(nc.righe?.[1].imponibile).toBe(-100);expect(nc.riepilogo_iva?.[0].imponibile).toBe(900);
+ });
+ it('mantiene causali e note pubbliche per la tracciabilità del bando senza copiare note interne',async()=>{
+  stato.fattura={...stato.fattura,note_documento:'bando F decreto 59702',note_interne:'riservato',causale:['Riferimento concessione']};
+  const nc=await creaNotaCredito('f1','totale');expect(nc.note_documento).toContain('59702');expect(nc.causale).toEqual(['Riferimento concessione']);expect(nc.note_interne).toBeUndefined();
+ });
+});

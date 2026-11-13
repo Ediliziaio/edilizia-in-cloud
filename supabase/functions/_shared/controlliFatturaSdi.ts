@@ -27,6 +27,7 @@ export function controlliFatturaSdi(doc:Dati,azienda:Dati={}): ProblemaFiscale[]
   const righe:Dati[]=Array.isArray(doc.righe)?doc.righe:[],riepilogo:Dati[]=Array.isArray(doc.riepilogo_iva)?doc.riepilogo_iva:[];
   for(const [i,r]of righe.entries()) {
     if(String(r.descrizione??'').trim().replace(/\s+/g,' ').length>1000)errore(`righe[${i}].descrizione`,`Riga ${i+1}: l’XML ammette 1000 caratteri di descrizione. Sposta il testo aggiuntivo nelle note pubbliche, senza perderlo.`);
+    if(r.aliquota_iva!=null&&r.aliquota_iva!==''&&(!Number.isFinite(n(r.aliquota_iva))||n(r.aliquota_iva)<0||n(r.aliquota_iva)>100))errore(`righe[${i}].aliquota_iva`,`Riga ${i+1}: aliquota IVA non valida.`);
     if(r.natura_iva&&!NATURE_SDI_CORRENTI.includes(natura(r.natura_iva)))errore(`righe[${i}].natura_iva`,`Riga ${i+1}: Natura IVA non valida o non più utilizzabile.`);
     if(n(r.aliquota_iva)>0&&r.natura_iva)errore(`righe[${i}].natura_iva`,`Riga ${i+1}: la Natura IVA va indicata soltanto con aliquota zero.`);
     for(const k of ['quantita','prezzo_unitario','imponibile'])if(r[k]!=null&&!Number.isFinite(n(r[k])))errore(`righe[${i}].${k}`,`Riga ${i+1}: ${k} non è un numero valido.`);
@@ -45,13 +46,14 @@ export function controlliFatturaSdi(doc:Dati,azienda:Dati={}): ProblemaFiscale[]
     const raw=doc.cassa_aliquota_iva??'22',al=parseFloat(raw)||0;
     if(al===0&&!NATURE_SDI_CORRENTI.includes(naturaCassa(raw,riepilogo)??''))errore('cassa_aliquota_iva','Cassa senza IVA: seleziona una Natura IVA esplicita e valida per il contributo.');
   }
+  if(doc.rivalsa_inps&&(!(n(doc.rivalsa_importo)>0)||n(doc.rivalsa_aliquota)!==4||String(doc.rivalsa_tipo||'TC22')!=='TC22'))errore('rivalsa_inps','La rivalsa INPS Gestione Separata richiede TipoCassa TC22, aliquota 4% e un importo positivo. Per altre casse usa il contributo cassa.');
   if(doc.rivalsa_inps&&!ivaRivalsa(righe))errore('rivalsa_inps','Rivalsa INPS con trattamenti IVA diversi: inserisci la rivalsa come riga dedicata con il trattamento fiscale corretto.');
   const testo=[doc.note_documento,...(Array.isArray(doc.causale)?doc.causale:[])].join(' ');
   if(/\bbando\b|rendicontaz|contributo pubblico/i.test(testo)&&!doc.cup)avviso('cup','Documento riferito a un bando: verifica nella concessione la dicitura richiesta, il CUP e gli eventuali altri riferimenti. Il gestionale non può ricavarli dal solo nome del bando.');
   if(doc.cup&&!/^[A-Za-z0-9]{15}$/.test(String(doc.cup)))errore('cup','CUP non valido: sono richiesti 15 caratteri alfanumerici.');
   if(doc.cig&&!/^[A-Za-z0-9]{1,15}$/.test(String(doc.cig)))errore('cig','CIG non valido: verifica il codice senza spazi o caratteri speciali.');
   for(const sc of Array.isArray(doc.scadenze_pagamento)?doc.scadenze_pagamento:[])if(!Number.isFinite(n(sc.importo))||n(sc.importo)<0)errore('scadenze_pagamento','Una scadenza contiene un importo non valido.');
-  const ordinaria=['fattura','fattura_riepilogativa','fattura_accompagnatoria','parcella','acconto_fattura','acconto_parcella','nota_credito','nota_debito'].includes(doc.tipo);
+  const ordinaria=['fattura','fattura_pa','fattura_riepilogativa','fattura_accompagnatoria','parcella','acconto_fattura','acconto_parcella','nota_credito','nota_debito'].includes(doc.tipo);
   if(ordinaria&&azienda.regime_fiscale==='RF19') {
     if(righe.some(r=>n(r.aliquota_iva)>0))errore('regime_fiscale','Regime forfettario: le operazioni ordinarie non devono esporre IVA. Verifica aliquote e Nature.');
     if(doc.ritenuta_acconto)errore('ritenuta_acconto','Regime forfettario: ricavi e compensi non sono assoggettati a ritenuta d’acconto (L. 190/2014, art. 1, comma 67).');

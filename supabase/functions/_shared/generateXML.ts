@@ -430,10 +430,10 @@ export function generateXML(
   const notaDocumento = typeof doc.note_documento === "string" ? doc.note_documento.trim() : "";
   const confronta = (t: string) => testoSdi(t, 100_000);
   if (notaDocumento && !scritte.some((c: string) => confronta(c) === confronta(notaDocumento))) scritte.push(notaDocumento);
-  if (azienda.regime_fiscale === "RF19" && !scritte.some((c) => /190\/2014|forfettari/i.test(c))) {
+  if (!isInversione && azienda.regime_fiscale === "RF19" && !scritte.some((c) => /190\/2014|forfettari/i.test(c))) {
     causali.push("Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, della legge 23 dicembre 2014, n. 190 - Regime forfettario");
   }
-  if (azienda.regime_fiscale === "RF19" && !scritte.some((c: string) => /ritenut[\s\S]*67|67[\s\S]*ritenut/i.test(c))) {
+  if (!isInversione && azienda.regime_fiscale === "RF19" && !scritte.some((c: string) => /ritenut[\s\S]*67|67[\s\S]*ritenut/i.test(c))) {
     causali.push("Ricavi e compensi non assoggettati a ritenuta d'acconto ai sensi dell'art. 1, comma 67, L. 190/2014");
   }
   // Diciture che la legge chiede in fattura e che l'XML non dice da solo:
