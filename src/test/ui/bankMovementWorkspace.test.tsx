@@ -143,7 +143,7 @@ describe("popup e registro dei movimenti", () => {
   it("mostra la colonna Causale", async () => {
     view(<TransactionsFeed companyId="company" />);
     expect(
-      await screen.findByRole("columnheader", { name: "Causale", exact: true }),
+      await screen.findByRole("columnheader", { name: "Causale" }),
     ).toBeInTheDocument();
   });
 
