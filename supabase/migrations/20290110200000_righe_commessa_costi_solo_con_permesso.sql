@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- Costi delle righe commessa: la lettura diretta solo a chi ha il permesso (08/11/2026).
 --
 -- Va applicata DOPO il client che legge `order_items_senza_prezzi` (commit 5a5ee4f62).
@@ -14,3 +16,5 @@ lock table public.order_items in access exclusive mode;
 drop policy if exists costi_solo_con_permesso on public.order_items;
 create policy costi_solo_con_permesso on public.order_items as restrictive for select to authenticated
   using (coalesce((select public.acquisti_lettura_non_diretta()), false) or not coalesce((select public.utente_senza_costi_ufficio()), false));
+
+COMMIT;

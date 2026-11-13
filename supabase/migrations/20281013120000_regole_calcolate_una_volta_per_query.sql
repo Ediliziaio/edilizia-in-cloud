@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- Regole di accesso più leggere su sei tabelle (13/10/2026): i controlli che
 -- dipendono solo da chi legge si calcolano una volta per query.
 --
@@ -240,3 +242,5 @@ begin
     end if;
   end loop;
 end $$;
+
+COMMIT;

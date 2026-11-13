@@ -1,3 +1,4 @@
+import { BankOrderMovements } from "@/components/tesoreria/BankOrderMovements";
 import {incassoQuotaCommessa} from "@/lib/fatturazione/incassoQuotaCommessa";
 import { OrderPaymentStatus } from "@/components/orders/OrderPaymentStatus";
 import { nomeCliente as nomeClienteProfilo } from "@/lib/orders/nuovaCommessaProposte";
@@ -2071,6 +2072,7 @@ function OrderDetailInner() {
                 </div>
               ) : undefined}
             />
+            {permissions.canViewTesoreria && effectiveCompany?.id && <BankOrderMovements company={effectiveCompany.id} order={id!} />}
             <AltroIncassiCommessa
               orderId={id!}
               vatRate={order.vat_rate ?? 22}

@@ -1,707 +1,922 @@
-import { useEffect, useState, useMemo, useRef } from "react";
-import { formatDateIt } from "@/lib/formatters";
-import { prettyTxDesc } from "./txLabel";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  Search,
+  SlidersHorizontal,
+  Columns3,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ExternalLink,
+  MessageSquare,
+  Loader2,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Download, Search, X, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, treasuryTransactionAmount } from "@/lib/treasury";
+import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatDateIt } from "@/lib/formatters";
+import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import { neutralizeCsvFormula } from "@/lib/csvExport";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { CercaConFiltri, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import {
+  bankRpc,
+  bankCausale,
+  bankVisibilityKey,
+  bankState,
+  bankJobs,
+  bankFiltersPayload,
+  loadBankPage,
+  EMPTY_BANK_FILTERS,
+  CONTEXT_LABELS,
+  type BankFilters,
+  type BankMovement,
+  type BankPage,
+} from "@/lib/finance/bankWorkspace";
+import { BankMovementDetail } from "./BankMovementDetail";
+import { prettyTxDesc } from "./txLabel";
 
-type TotaleMovimento = Parameters<typeof treasuryTransactionAmount>[0] & { currency?: string; transaction_type?: string };
-
-const CATEGORIES = [
-  { value: "Stipendi", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
-  { value: "Affitti", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
-  { value: "Fornitori", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
-  { value: "Tasse & Tributi", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
-  { value: "Utenze", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
-  { value: "Assicurazioni", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  { value: "Ristorazione", color: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200" },
-  { value: "Trasferte", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200" },
-  { value: "Bancario", color: "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200" },
-  { value: "Clienti", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  { value: "Entrata", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200" },
-  { value: "Non categorizzata", color: "border border-border text-muted-foreground" },
+const columns = {
+  counterparty: "Controparte",
+  account: "Conto",
+  category: "Categoria",
+  state: "Riconciliazione",
+  matched: "Abbinato",
+  remaining: "Residuo",
+  documents: "Fatture e pagamenti",
+  jobs: "Commesse",
+  contexts: "Altri riferimenti",
+  notes: "Note interne",
+  reference: "Riferimento",
+  value_date: "Data valuta",
+};
+type Column = keyof typeof columns;
+const defaults: Column[] = [
+  "counterparty",
+  "account",
+  "state",
+  "remaining",
+  "documents",
+  "jobs",
+  "contexts",
+  "notes",
 ];
-
-const PAGE_SIZE = 50;
-
-interface Props {
+const states: Record<string, string> = {
+  all: "Tutti i movimenti",
+  work: "Da lavorare",
+  suggestion: "Da verificare",
+  pending: "Da collegare",
+  partial: "Parziali",
+  reconciled: "Riconciliate",
+  ignored: "Senza fattura",
+};
+const categoryChoices = [
+  "Clienti",
+  "Fornitori",
+  "Stipendi",
+  "Affitti",
+  "Tasse & Tributi",
+  "Utenze",
+  "Assicurazioni",
+  "Ristorazione",
+  "Trasferte",
+  "Bancario",
+  "Entrata",
+];
+export default function TransactionsFeed({
+  companyId,
+  refreshKey = 0,
+  mode = "all",
+}: {
   companyId: string;
   refreshKey?: number;
-}
-
-export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [invoiceMap, setInvoiceMap] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const requestSeqRef = useRef(0);
-  const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  const [categorizing, setCategorizing] = useState(false);
-
-  // Filters
+  mode?: "all" | "reconcile";
+}) {
+  const perms = usePermissions();
+  const { user } = useAuth();
+  const client = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const previousCompany = useRef(companyId);
+  const [filters, setFilters] = useState<BankFilters>(() => ({
+    ...EMPTY_BANK_FILTERS,
+    state: mode === "reconcile" ? "work" : "all",
+  }));
   const [search, setSearch] = useState("");
-  const [accountFilter, setAccountFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [reconFilter, setReconFilter] = useState("all");
-  const [totali, setTotali] = useState<TotaleMovimento[] | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-
-  // Detail sheet
-  const [selectedTx, setSelectedTx] = useState<any>(null);
-  // Mobile: conto, tipo, categoria e date in un pannello dal basso.
-  const isMobile = useIsMobile();
-  const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const [editCategory, setEditCategory] = useState("");
-  const [editNote, setEditNote] = useState("");
-  const [savingDetail, setSavingDetail] = useState(false);
-
+  const [page, setPage] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [selected, setSelected] = useState<string | null>(() =>
+    params.get("movimento"),
+  );
+  const prefKey = `eic:bank-columns:${user?.id ?? "user"}:${companyId}`;
+  const [visible, setVisible] = useState<Column[]>(defaults);
   useEffect(() => {
-    if (!companyId) {
-      setAccounts([]);
-      return;
-    }
-    void loadAccounts();
-  }, [companyId, refreshKey]);
-
-  useEffect(() => {
-    if (!companyId) {
-      setTransactions([]);
-      setInvoiceMap({});
-      setTotalCount(0);
-      setLoading(false);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      void loadTransactions();
-    }, 250);
-
-    return () => window.clearTimeout(timeout);
-  }, [companyId, refreshKey, page, search, accountFilter, typeFilter, reconFilter, categoryFilter, dateFrom, dateTo]);
-
-  async function loadAccounts() {
     try {
+      const raw = JSON.parse(localStorage.getItem(prefKey) ?? "null");
+      setVisible(
+        Array.isArray(raw)
+          ? raw.filter(
+              (k): k is Column => typeof k === "string" && k in columns,
+            )
+          : defaults,
+      );
+    } catch {
+      setVisible(defaults);
+    }
+  }, [prefKey]);
+  useEffect(() => {
+    setPage(0);
+    if (previousCompany.current !== companyId) {
+      previousCompany.current = companyId;
+      setSelected(null);
+      setSearch("");
+      setFilters({
+        ...EMPTY_BANK_FILTERS,
+        state: mode === "reconcile" ? "work" : "all",
+      });
+      if (params.has("movimento")) {
+        const next = new URLSearchParams(params);
+        next.delete("movimento");
+        setParams(next, { replace: true });
+      }
+    } else setSelected(params.get("movimento"));
+  }, [companyId]);
+  useEffect(() => {
+    if (filters.search === search) return;
+    const t = setTimeout(() => {
+      setFilters((f) => ({ ...f, search }));
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search, filters.search]);
+  const change = (key: keyof BankFilters, value: string) => {
+    setFilters((f) => ({ ...f, [key]: value }));
+    setPage(0);
+  };
+  const validation = useMemo(() => {
+    try {
+      bankFiltersPayload(filters);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : "Filtri non validi";
+    }
+  }, [filters]);
+  const data = useQuery({
+    queryKey: [
+      "bank-movimenti-workspace",
+      companyId,
+      filters,
+      page,
+      refreshKey,
+      bankVisibilityKey(perms),
+    ],
+    queryFn: () => loadBankPage(companyId, filters, page),
+    enabled: !!companyId && !validation,
+    retry: false,
+  });
+  const accounts = useQuery({
+    queryKey: ["bank-workspace-accounts", companyId, refreshKey],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("bank_accounts_operativi")
-        .select("id, display_name, account_name, iban")
+        .select("id,display_name,account_name,iban,currency")
         .eq("company_id", companyId)
-        .eq("is_active", true);
-      if (error) {
-        console.error('[TransactionsFeed] Errore caricamento conti:', error.message);
-        toast.error('Errore nel caricamento dei conti bancari. Riprova.');
-        return;
-      }
-      setAccounts(data || []);
-    } catch (err) {
-      console.error('[TransactionsFeed] Errore imprevisto caricamento conti:', err);
-      toast.error('Errore imprevisto. Riprova tra qualche secondo.');
-    }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function applicaFiltri(query: any) {
-    const searchFilter = buildBankTransactionSearchFilter(search);
-    if (searchFilter) query = query.or(searchFilter);
-    if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
-    if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
-    if (reconFilter === "pending") query = query.in("reconciliation_status", ["pending", "parziale"]);
-    else if (reconFilter !== "all") query = query.eq("reconciliation_status", reconFilter);
-    if (categoryFilter !== "all") query = query.eq("category", categoryFilter);
-    if (dateFrom) query = query.gte("booking_date", dateFrom);
-    if (dateTo) query = query.lte("booking_date", dateTo);
-    return query;
-  }
-
-  // Entrate e uscite di TUTTO il filtrato, non della pagina. Solo gli importi, a
-  // blocchi da mille; il filtro nuovo fa decadere il conteggio in corso.
-  async function caricaTotali(richiesta: number) {
-    const righe: TotaleMovimento[] = [];
-    for (let da = 0; da < 50000; da += 1000) {
-      const { data, error } = await applicaFiltri(
-        supabase.from("bank_transactions").select("id, amount, currency, transaction_type, metadata").eq("company_id", companyId),
-      ).order("id").range(da, da + 999);
-      if (richiesta !== requestSeqRef.current) return;
-      if (error) { setTotali(null); return; }
-      righe.push(...((data ?? []) as TotaleMovimento[]));
-      if (!data || data.length < 1000) break;
-    }
-    setTotali(righe);
-  }
-
-  async function loadTransactions() {
-    if (!isChronologicalDateRange(dateFrom, dateTo)) {
-      setLoadError("Intervallo date non valido: la data iniziale deve precedere la data finale.");
-      setTransactions([]);
-      setInvoiceMap({});
-      setTotalCount(0);
-      setLoading(false);
-      return;
-    }
-
-    const requestId = requestSeqRef.current + 1;
-    requestSeqRef.current = requestId;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      let query = supabase
-        .from("bank_transactions")
-        .select("*, bank_accounts(display_name, account_name)", { count: "exact" })
-        .eq("company_id", companyId)
-        .order("booking_date", { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-      query = applicaFiltri(query);
-
-      const { data, error, count } = await query;
-      if (requestId !== requestSeqRef.current) return;
-      if (error) {
-        console.error('[TransactionsFeed] Errore caricamento transazioni:', error.message);
-        setLoadError("Errore nel caricamento delle transazioni. Riprova.");
-        setTransactions([]);
-        setInvoiceMap({});
-        setTotalCount(0);
-        return;
-      }
-      setTransactions(data || []);
-      void caricaTotali(requestId);
-      setTotalCount(count || 0);
-
-      // Load linked invoices
-      const linkedIds = (data || []).map((t: any) => t.linked_invoice_id).filter(Boolean);
-      if (linkedIds.length > 0) {
-        const { data: invData, error: invError } = await supabase
-          .from("invoices")
-          .select("id, invoice_number, client_company_name")
-          .in("id", linkedIds);
-        if (requestId !== requestSeqRef.current) return;
-        if (invError) {
-          console.error("[TransactionsFeed] Errore caricamento fatture collegate:", invError.message);
-        }
-        const map: Record<string, any> = {};
-        (invData || []).forEach((inv: any) => { map[inv.id] = inv; });
-        setInvoiceMap(map);
-      } else {
-        setInvoiceMap({});
-      }
-    } catch (err) {
-      console.error('[TransactionsFeed] Errore imprevisto:', err);
-      if (requestId === requestSeqRef.current) {
-        setLoadError("Errore imprevisto. Riprova tra qualche secondo.");
-      }
-    } finally {
-      if (requestId === requestSeqRef.current) setLoading(false);
-    }
-  }
-
-  function resetFilters() {
-    setSearch(""); setAccountFilter("all"); setTypeFilter("all"); setReconFilter("all");
-    setCategoryFilter("all"); setDateFrom(""); setDateTo("");
-    setPage(0);
-  }
-
-  async function saveDetail() {
-    if (!selectedTx) return;
-    setSavingDetail(true);
-    try {
-      // .select("id") + guardia: la policy di scrittura è più stretta di quella
-      // di lettura — senza, un permesso mancante dava 0 righe SENZA errore e
-      // il toast diceva "Aggiornato" su una modifica mai salvata.
-      const { data: updated, error } = await supabase
-        .from("bank_transactions")
-        .update({ category: editCategory, note: editNote.trim() || null })
-        .eq("id", selectedTx.id)
-        .eq("company_id", companyId)
-        .select("id");
+        .order("created_at");
       if (error) throw error;
-      if (!updated || updated.length === 0) {
-        throw new Error("Modifica non salvata: servono i permessi di amministrazione sui movimenti bancari.");
+      return data ?? [];
+    },
+    enabled: !!companyId,
+  });
+  const active = Object.entries(filters).filter(
+    ([k, v]) => v !== EMPTY_BANK_FILTERS[k as keyof BankFilters],
+  );
+  const shown = Object.keys(columns).filter((k) =>
+    visible.includes(k as Column),
+  ) as Column[];
+  const reset = () => {
+    setFilters({
+      ...EMPTY_BANK_FILTERS,
+      state: mode === "reconcile" ? "work" : "all",
+    });
+    setSearch("");
+    setPage(0);
+  };
+  const select = (key: Column) =>
+    setVisible((v) => {
+      const next = v.includes(key) ? v.filter((x) => x !== key) : [...v, key];
+      try {
+        localStorage.setItem(prefKey, JSON.stringify(next));
+      } catch {
+        /* Preferences do not affect financial data. */
       }
-      toast.success("Aggiornato");
-      setTransactions((prev) =>
-        prev.map((t) => (t.id === selectedTx.id ? { ...t, category: editCategory, note: editNote.trim() || null } : t))
-      );
-      setSelectedTx(null);
-    } catch (e: any) {
-      toast.error(e.message || "Aggiornamento non riuscito");
-    } finally {
-      setSavingDetail(false);
+      return next;
+    });
+  function close() {
+    setSelected(null);
+    if (params.has("movimento")) {
+      const next = new URLSearchParams(params);
+      next.delete("movimento");
+      setParams(next, { replace: true });
     }
   }
-
-  function getExportRows() {
-    return transactions.map((tx) => ({
-      Data: tx.booking_date || "",
-      Descrizione: tx.description || "",
-      Creditore: tx.creditor_name || "",
-      Debitore: tx.debtor_name || "",
-      "IBAN Creditore": tx.creditor_iban || "",
-      "IBAN Debitore": tx.debtor_iban || "",
-      Conto: tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "",
-      Categoria: tx.category || "",
-      Tipo: tx.transaction_type === "credit" ? "Entrata" : "Uscita",
-      Importo: treasuryTransactionAmount(tx),
-      Valuta: tx.currency || "EUR",
-      Riferimento: tx.reference || "",
-      Stato: tx.status || "",
-      Note: tx.note || "",
-    }));
-  }
-
-  // Categorizza i movimenti: prima le regole salvate (gratis, immediato),
-  // poi l'AI sui rimanenti (che impara nuove regole per il futuro).
-  async function categorizeAll() {
-    if (!companyId) return;
-    setCategorizing(true);
+  async function scan() {
+    setScanning(true);
     try {
-      let byRules = 0;
-      const { data: ruleCount, error: ruleErr } = await supabase.rpc("apply_bank_categorization_rules", { p_company_id: companyId });
-      if (!ruleErr) byRules = (ruleCount as number) ?? 0;
-
-      let byAi = 0;
-      const { data: aiData, error: aiErr } = await supabase.functions.invoke("bank-categorize-ai", { body: { limit: 40 } });
-      if (aiErr || aiData?.error) {
-        if (byRules === 0) throw new Error(aiData?.error || aiErr?.message || "Errore categorizzazione AI");
-      } else {
-        byAi = aiData?.categorized ?? 0;
-      }
-
-      const tot = byRules + byAi;
-      toast.success(tot > 0
-        ? `Categorizzate ${tot} transazioni${byAi ? ` (${byRules} da regole, ${byAi} con AI)` : ""}`
-        : "Tutte le transazioni sono già categorizzate");
-      await loadTransactions();
+      const n = await bankRpc<number>("bank_suggerisci_riconciliazioni", {
+        p_company: companyId,
+      });
+      toast.success(`${n} nuove proposte da verificare`, {
+        description: "Nessun pagamento registrato automaticamente.",
+      });
+      refreshFinancialQueries(client);
+      change("state", "suggestion");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Errore categorizzazione");
+      toast.error(e instanceof Error ? e.message : "Analisi non riuscita");
     } finally {
-      setCategorizing(false);
+      setScanning(false);
     }
   }
-
-  function exportCSV() {
-    const rows = getExportRows();
-    if (rows.length === 0) {
-      toast.info("Nessuna transazione da esportare");
-      return;
-    }
-    const headers = Object.keys(rows[0]);
-    // Ogni cella è racchiusa tra virgolette (separatore = virgola). Il quoting
-    // da solo non basta: neutralizeCsvFormula evita la formula-injection.
-    const csvRows = rows.map((r) =>
-      headers
-        .map((h) => `"${neutralizeCsvFormula(String((r as any)[h] ?? "")).replace(/"/g, '""')}"`)
-        .join(","),
-    );
-    const csv = [headers.join(","), ...csvRows].join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `transazioni_${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  async function exportXLSX() {
+  async function exportAll() {
+    setExporting(true);
     try {
-      const ExcelJS = (await import("exceljs")).default;
-      const rows = getExportRows();
-      if (rows.length === 0) {
-        toast.info("Nessuna transazione da esportare");
-        return;
+      const entries: BankMovement[] = [];
+      let count = -1;
+      for (let offset = 0; count < 0 || offset < count; offset += 100) {
+        const result = await bankRpc<BankPage>("bank_movimenti_elenco", {
+          p_company: companyId,
+          p_filters: bankFiltersPayload(filters),
+          p_offset: offset,
+          p_limit: 100,
+        });
+        if (count >= 0 && count !== result.count)
+          throw new Error(
+            "I movimenti sono cambiati durante l’esportazione. Riprova.",
+          );
+        count = result.count;
+        entries.push(...result.rows);
+        if (!result.rows.length) break;
       }
-      const wb = new ExcelJS.Workbook();
-      const ws = wb.addWorksheet("Transazioni");
-      ws.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
-      ws.addRows(rows);
-      const buffer = await wb.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const url = URL.createObjectURL(blob);
+      if (
+        entries.length !== count ||
+        new Set(entries.map((r) => r.id)).size !== entries.length
+      )
+        throw new Error("Esportazione incompleta: aggiorna e riprova.");
+      const matrix: unknown[][] = [
+        [
+          "Data",
+          "Causale originale",
+          "Controparte",
+          "Conto",
+          "Importo",
+          "Valuta",
+          "Stato",
+          "Abbinato",
+          "Residuo",
+          "Documenti",
+          "Commesse",
+          "Altri riferimenti",
+          "Note interne",
+          "Riferimento",
+          "Data valuta",
+        ],
+        ...entries.map((m) => [
+          m.booking_date,
+          m.description ?? "",
+          m.transaction_type === "credit" ? m.debtor_name : m.creditor_name,
+          m.account_name,
+          String(m.amount).replace(".", ","),
+          m.currency,
+          bankState(m).label,
+          String(m.links.matched).replace(".", ","),
+          String(m.links.remaining).replace(".", ","),
+          m.links.financial.map((f) => `${f.label}: ${f.amount}`).join(" | "),
+          bankJobs(m)
+            .map((j) => j.label)
+            .join(" | "),
+          m.links.contexts
+            .map((c) => `${CONTEXT_LABELS[c.kind]}: ${c.label} (${c.amount})`)
+            .join(" | "),
+          m.note,
+          m.reference,
+          m.value_date,
+        ]),
+      ];
+      const csv =
+        "\uFEFF" +
+        matrix
+          .map((row) =>
+            row
+              .map(
+                (v) =>
+                  '"' +
+                  neutralizeCsvFormula(String(v ?? "")).replaceAll('"', '""') +
+                  '"',
+              )
+              .join(";"),
+          )
+          .join("\r\n");
+      const url = URL.createObjectURL(
+        new Blob([csv], { type: "text/csv;charset=utf-8;" }),
+      );
       const a = document.createElement("a");
       a.href = url;
-      a.download = `transazioni_${new Date().toISOString().split("T")[0]}.xlsx`;
-      document.body.appendChild(a);
+      a.download = `movimenti-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Libreria XLSX non disponibile, usa l'export CSV");
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success(`Esportati ${entries.length} movimenti`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Esportazione non riuscita");
+    } finally {
+      setExporting(false);
     }
   }
-
-  // Summary
-  const summary = useMemo(() => {
-    const base: TotaleMovimento[] = totali ?? transactions;
-    const groups = [...new Set(base.map(t => t.currency || "EUR"))].map(currency => {
-      const rows = base.filter(t => (t.currency || "EUR") === currency);
-      const income = rows.filter(t => t.transaction_type === "credit").reduce((s, t) => s + treasuryTransactionAmount(t), 0);
-      const expenses = rows.filter(t => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(treasuryTransactionAmount(t)), 0);
-      return { currency, income, expenses, net: income - expenses };
-    });
-    return { count: totalCount, groups };
-  }, [transactions, totali, totalCount]);
-
-  const getCategoryBadge = (cat: string | null) => {
-    const found = CATEGORIES.find((c) => c.value === cat);
-    return found ? found.color : "border border-border text-muted-foreground";
-  };
-
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-
-  const nFiltriMobile = [accountFilter !== "all", typeFilter !== "all", reconFilter !== "all", categoryFilter !== "all", !!dateFrom || !!dateTo].filter(Boolean).length;
-
-  return (
-    <div className="space-y-4 max-sm:space-y-3">
-      {/* Filters */}
-      <Card className="max-sm:hidden">
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Cerca descrizione, nome..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-                className="pl-9"
-              />
-            </div>
-            <Select value={accountFilter} onValueChange={(v) => { setAccountFilter(v); setPage(0); }}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Tutti i conti" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti i conti</SelectItem>
-                {accounts.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.display_name || a.account_name || a.iban}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(0); }}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="credit">Entrate</SelectItem>
-                <SelectItem value="debit">Uscite</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={reconFilter} onValueChange={(v) => { setReconFilter(v); setPage(0); }}>
-              <SelectTrigger className="w-[160px]" aria-label="Riconciliazione"><SelectValue placeholder="Riconciliazione" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Riconciliate e no</SelectItem>
-                <SelectItem value="pending">Da riconciliare</SelectItem>
-                <SelectItem value="reconciled">Riconciliate</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(0); }}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutte</SelectItem>
-                {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input type="date" aria-label="Dal" title="Dal" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="w-[150px]" />
-            <Input type="date" aria-label="Al" title="Al" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="w-[150px]" />
-            <Button variant="ghost" size="sm" onClick={resetFilters}><X className="h-4 w-4 mr-1" /> Reset</Button>
-            <Button variant="outline" size="sm" onClick={categorizeAll} disabled={categorizing} title="Applica le regole e categorizza con AI i movimenti senza categoria">
-              {categorizing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />} Categorizza
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" /> Esporta</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={exportCSV}>CSV</DropdownMenuItem>
-                <DropdownMenuItem onClick={exportXLSX}>Excel</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Mobile: ricerca e bottone dei filtri; via categorizza con AI ed export.
-          Dopo la scheda dei filtri: da primo figlio nascosto sposterebbe il desktop. */}
-      <CercaConFiltri
-        className="sm:hidden max-sm:!mt-0"
-        valore={search}
-        onCambia={(v) => { setSearch(v); setPage(0); }}
-        filtriAttivi={nFiltriMobile}
-        onApriFiltri={() => setFiltriMobileAperti(true)}
-      />
-      {/* Table */}
-      {loadError ? (
-        <Card className="border-destructive/30">
-          <CardContent className="flex flex-col gap-3 py-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-            <p className="text-sm text-destructive">{loadError}</p>
-            <Button variant="outline" size="sm" onClick={() => loadTransactions()}>Riprova</Button>
-          </CardContent>
-        </Card>
-      ) : loading ? (
-        <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14" />)}</div>
-      ) : transactions.length === 0 ? (
-        <p className="text-muted-foreground text-center py-12 max-sm:py-4 max-sm:text-xs">Nessuna transazione trovata</p>
-      ) : (
-        <>
-        {/* Mobile: un movimento per riga (descrizione; data, conto e categoria;
-            importo colorato), al posto della tabella a sei colonne. */}
-        <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
-          {transactions.map((tx) => (
-            <button
-              key={tx.id}
-              type="button"
-              onClick={() => {
-                setSelectedTx(tx);
-                setEditCategory(tx.category || "Non categorizzata");
-                setEditNote(tx.note || "");
-              }}
-              className="tap-compact flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
+  function cell(m: BankMovement, k: Column) {
+    switch (k) {
+      case "counterparty":
+        return (
+          <span
+            title={
+              (m.transaction_type === "credit"
+                ? m.debtor_name
+                : m.creditor_name) ?? ""
+            }
+          >
+            {(m.transaction_type === "credit"
+              ? m.debtor_name
+              : m.creditor_name) || "—"}
+          </span>
+        );
+      case "account":
+        return m.account_name;
+      case "category":
+        return m.category || "—";
+      case "state": {
+        const s = bankState(m);
+        return (
+          <button
+            type="button"
+            onClick={() => setSelected(m.id)}
+            aria-label={`${s.label}: apri ${prettyTxDesc(m)}`}
+          >
+            <Badge
+              variant="outline"
+              className={`whitespace-nowrap ${s.className}`}
             >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold leading-tight">{prettyTxDesc(tx)}</p>
-                <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  {formatDateIt(tx.booking_date)}
-                  {tx.category && tx.category !== "Non categorizzata" ? ` · ${tx.category}` : ""}
-                  {accounts.length > 1 && (tx.bank_accounts?.display_name || tx.bank_accounts?.account_name) ? ` · ${tx.bank_accounts?.display_name || tx.bank_accounts?.account_name}` : ""}
-                </p>
-              </div>
-              <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
-                {tx.transaction_type === "credit" ? "+" : ""}{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}
-              </span>
+              {s.label}
+            </Badge>
+          </button>
+        );
+      }
+      case "matched":
+        return money(m.links.matched, "—", m.currency);
+      case "remaining":
+        return money(m.links.remaining, "—", m.currency);
+      case "documents":
+        return m.links.financial.length ? (
+          <button
+            type="button"
+            className="max-w-60 truncate text-left text-primary hover:underline"
+            onClick={() => setSelected(m.id)}
+            title={m.links.financial.map((f) => f.label).join(" · ")}
+          >
+            {m.links.financial[0].label}
+            {m.links.financial.length > 1 &&
+              ` +${m.links.financial.length - 1}`}
+          </button>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
+      case "jobs": {
+        const jobs = bankJobs(m);
+        return jobs.length ? (
+          <span className="flex items-center gap-1">
+            <Link
+              to={jobs[0].url!}
+              className="max-w-48 truncate text-primary hover:underline"
+              title={jobs[0].label}
+            >
+              {jobs[0].label}
+            </Link>
+            {jobs.length > 1 && (
+              <button
+                onClick={() => setSelected(m.id)}
+                className="rounded bg-muted px-1.5 py-0.5 text-xs"
+              >
+                +{jobs.length - 1}
+              </button>
+            )}
+          </span>
+        ) : (
+          <button
+            className="text-primary hover:underline"
+            onClick={() => setSelected(m.id)}
+          >
+            {perms.canReconcileBankTransactions ? "Collega" : "—"}
+          </button>
+        );
+      }
+      case "contexts": {
+        const list = m.links.contexts.filter((c) => c.kind !== "commessa");
+        return list.length ? (
+          <button
+            onClick={() => setSelected(m.id)}
+            className="max-w-52 truncate text-left hover:underline"
+            title={list.map((c) => c.label).join(" · ")}
+          >
+            {list[0].label}
+            {list.length > 1 && ` +${list.length - 1}`}
+          </button>
+        ) : (
+          "—"
+        );
+      }
+      case "notes":
+        return m.note ? (
+          <button
+            type="button"
+            title={m.note}
+            onClick={() => setSelected(m.id)}
+            className="flex max-w-64 items-center gap-2 text-left"
+          >
+            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{m.note}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="text-muted-foreground hover:underline"
+            onClick={() => setSelected(m.id)}
+          >
+            {perms.canReconcileBankTransactions ? "Aggiungi nota" : "—"}
+          </button>
+        );
+      case "reference":
+        return <span title={m.reference ?? ""}>{m.reference || "—"}</span>;
+      case "value_date":
+        return formatDateIt(m.value_date);
+    }
+  }
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">
+            {mode === "reconcile"
+              ? "Verifica e riconcilia"
+              : "Movimenti bancari"}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Un movimento, tutti i collegamenti. Quote, documenti e note nello
+            stesso dettaglio.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {perms.canReconcileBankTransactions && (
+            <Button
+              variant="outline"
+              onClick={() => void scan()}
+              disabled={scanning}
+            >
+              {scanning ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              Trova corrispondenze
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            disabled={exporting || !!validation || !data.data?.count}
+            onClick={() => void exportAll()}
+          >
+            {exporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Esporta risultati
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-56 flex-1">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Cerca movimenti"
+              placeholder="Causale, nome, importo, data, fattura, commessa o note…"
+              className="pl-9"
+            />
+          </div>
+          <select
+            aria-label="Filtra per conto"
+            value={filters.account}
+            onChange={(e) => change("account", e.target.value)}
+            className="h-10 max-w-full rounded-md border bg-background px-3 text-sm"
+          >
+            <option value="all">Tutti i conti</option>
+            {accounts.data?.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.display_name || a.account_name || a.iban || "Conto"}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant={expanded ? "secondary" : "outline"}
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+          >
+            <SlidersHorizontal className="mr-2 h-4 w-4" />
+            Filtri {active.length > 0 && `(${active.length})`}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Columns3 className="mr-2 h-4 w-4" />
+                Colonne
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {Object.entries(columns).map(([k, l]) => (
+                <DropdownMenuCheckboxItem
+                  key={k}
+                  checked={visible.includes(k as Column)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={() => select(k as Column)}
+                >
+                  {l}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {accounts.isError && (
+          <p role="alert" className="mt-2 text-xs text-destructive">
+            Elenco conti non disponibile.{" "}
+            <button
+              className="underline"
+              onClick={() => void accounts.refetch()}
+            >
+              Riprova
             </button>
+          </p>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[
+            "all",
+            "work",
+            "suggestion",
+            "partial",
+            "reconciled",
+            "ignored",
+          ].map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={filters.state === s ? "default" : "outline"}
+              onClick={() => change("state", s)}
+            >
+              {states[s]}
+            </Button>
           ))}
         </div>
-        <div className="border rounded-lg overflow-hidden max-sm:hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
+        {expanded && (
+          <div className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
+            {(
+              [
+                [
+                  "direction",
+                  "Direzione",
+                  [
+                    ["all", "Entrate e uscite"],
+                    ["credit", "Entrate"],
+                    ["debit", "Uscite"],
+                  ],
+                ],
+                ["state", "Riconciliazione", Object.entries(states)],
+                [
+                  "linked",
+                  "Collegamenti",
+                  [
+                    ["all", "Tutti"],
+                    ["yes", "Con collegamenti"],
+                    ["no", "Senza collegamenti"],
+                    ...Object.entries(CONTEXT_LABELS),
+                  ],
+                ],
+                [
+                  "category",
+                  "Categoria",
+                  [
+                    ["all", "Tutte le categorie"],
+                    ...Array.from(
+                      new Set([
+                        ...categoryChoices,
+                        ...(data.data?.facets?.categories ?? []),
+                      ]),
+                    )
+                      .sort()
+                      .map((c) => [c, c]),
+                  ],
+                ],
+                [
+                  "currency",
+                  "Valuta",
+                  [
+                    ["all", "Tutte le valute"],
+                    ...Array.from(
+                      new Set([
+                        "EUR",
+                        ...(accounts.data ?? []).map(
+                          (a) => a.currency || "EUR",
+                        ),
+                        ...(data.data?.facets?.currencies ?? []),
+                      ]),
+                    ).map((c) => [c, c]),
+                  ],
+                ],
+              ] as [keyof BankFilters, string, string[][]][]
+            ).map(([k, label, opts]) => (
+              <label key={k} className="text-xs text-muted-foreground">
+                {label}
+                <select
+                  aria-label={label}
+                  value={filters[k]}
+                  onChange={(e) => change(k, e.target.value)}
+                  className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm text-foreground"
+                >
+                  {opts.map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            {(
+              [
+                ["from", "Dal", "date"],
+                ["to", "Al", "date"],
+                ["min", "Importo minimo (assoluto)", "text"],
+                ["max", "Importo massimo (assoluto)", "text"],
+              ] as [keyof BankFilters, string, string][]
+            ).map(([k, l, t]) => (
+              <label key={k} className="text-xs text-muted-foreground">
+                {l}
+                <Input
+                  aria-label={l}
+                  type={t}
+                  inputMode={t === "text" ? "decimal" : undefined}
+                  value={filters[k]}
+                  onChange={(e) => change(k, e.target.value)}
+                  className="mt-1 text-foreground"
+                />
+              </label>
+            ))}
+          </div>
+        )}
+        {active.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {active.map(([k, v]) => (
+              <button
+                key={k}
+                onClick={() => {
+                  if (k === "search") setSearch("");
+                  change(
+                    k as keyof BankFilters,
+                    EMPTY_BANK_FILTERS[k as keyof BankFilters],
+                  );
+                }}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-xs"
+                aria-label={`Rimuovi filtro ${k}`}
+              >
+                <span className="truncate">
+                  {k === "state"
+                    ? states[v]
+                    : k === "account"
+                      ? accounts.data?.find((a) => a.id === v)?.display_name ||
+                        "Conto selezionato"
+                      : `${({ search: "Ricerca", direction: "Direzione", category: "Categoria", currency: "Valuta", linked: "Collegamenti", from: "Dal", to: "Al", min: "Minimo", max: "Massimo" } as Record<string, string>)[k] ?? k}: ${v}`}
+                </span>
+                <X className="h-3 w-3 shrink-0" />
+              </button>
+            ))}
+            <button
+              onClick={reset}
+              className="text-xs text-primary hover:underline"
+            >
+              Ripristina filtri
+            </button>
+          </div>
+        )}
+      </div>
+      {validation && (
+        <p
+          role="alert"
+          className="rounded-lg border border-red-200 p-3 text-sm text-destructive"
+        >
+          {validation}
+        </p>
+      )}
+      {!validation && data.isError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-200 p-4 text-sm"
+        >
+          <p>Movimenti non disponibili: {data.error.message}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            onClick={() => void data.refetch()}
+          >
+            Riprova
+          </Button>
+        </div>
+      )}
+      {!validation && !data.isError && (
+        <>
+          {data.data?.totals.map((t) => (
+            <div
+              key={t.currency}
+              className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border bg-muted/20 px-4 py-3 text-sm"
+            >
+              <span className="font-medium">
+                {t.n} movimenti · {t.currency}
+              </span>
+              <span>
+                Entrate{" "}
+                <strong className="text-emerald-700">
+                  {money(t.income, "—", t.currency)}
+                </strong>
+              </span>
+              <span>
+                Uscite{" "}
+                <strong className="text-red-700">
+                  {money(t.expenses, "—", t.currency)}
+                </strong>
+              </span>
+              <span>
+                Saldo dei movimenti{" "}
+                <strong>{money(t.net, "—", t.currency)}</strong>
+              </span>
+            </div>
+          ))}
+          <div className="max-h-[70vh] overflow-auto rounded-xl border bg-card">
+            <table className="w-full whitespace-nowrap text-sm">
+              <thead className="sticky top-0 z-20 bg-muted text-xs text-muted-foreground">
                 <tr>
-                  <th className="text-left px-3 py-2 font-medium">Data</th>
-                  <th className="text-left px-3 py-2 font-medium">Descrizione</th>
-                  <th className="text-left px-3 py-2 font-medium">Conto</th>
-                  <th className="text-left px-3 py-2 font-medium">Categoria</th>
-                  <th className="text-right px-3 py-2 font-medium">Importo</th>
+                  <th className="sticky left-0 top-0 z-30 min-w-[112px] bg-muted px-4 py-3 text-left max-sm:static">
+                    Data
+                  </th>
+                  <th className="sticky left-[112px] top-0 z-30 min-w-64 bg-muted px-4 py-3 text-left max-sm:static">
+                    Causale del bonifico
+                  </th>
+                  {shown.map((k) => (
+                    <th key={k} className="px-4 py-3 text-left">
+                      {columns[k]}
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-right">Importo</th>
+                  <th className="sticky right-0 bg-card px-3 py-3 text-right">
+                    Dettaglio
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => (
-                  <tr
-                    key={tx.id}
-                    className="border-t hover:bg-accent/50 cursor-pointer transition-colors"
-                    onClick={() => {
-                      setSelectedTx(tx);
-                      setEditCategory(tx.category || "Non categorizzata");
-                      setEditNote(tx.note || "");
-                    }}
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDateIt(tx.booking_date)}</td>
-                    <td className="px-3 py-2">
-                      <p className="truncate max-w-[300px]">{prettyTxDesc(tx)}</p>
-                      {(tx.creditor_name || tx.debtor_name) && (
-                        <p className="text-xs text-muted-foreground truncate max-w-[300px]">
-                          {tx.creditor_name || tx.debtor_name}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs">
-                      {tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col gap-1 items-start">
-                        {tx.category ? (
-                          <Badge className={getCategoryBadge(tx.category)} variant="secondary">
-                            {tx.category}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                        {tx.chiuso_senza_documento && (
-                          <Badge variant="outline" className="text-[10px] w-fit">Senza fattura</Badge>
-                        )}
-                        {(tx.reconciliation_status === "pending" || tx.reconciliation_status === "parziale") && (
-                          <Badge variant="outline" className="text-[10px] w-fit border-amber-300 text-amber-700">
-                            {tx.reconciliation_status === "parziale" ? "Riconciliata in parte" : "Da riconciliare"}
-                          </Badge>
-                        )}
-                        {tx.linked_invoice_id && invoiceMap[tx.linked_invoice_id] && (
-                          <Badge variant="outline" className="text-[10px] gap-1 w-fit">
-                            <Link2 className="h-3 w-3" />
-                            {invoiceMap[tx.linked_invoice_id].invoice_number}
-                          </Badge>
-                        )}
-                      </div>
-                    </td>
-                    <td className={`px-3 py-2 text-right font-semibold ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
-                      {tx.transaction_type === "credit" ? "+" : ""}{formatTreasuryCurrency(treasuryTransactionAmount(tx), "—", tx.currency)}
+                {data.isPending ? (
+                  <tr>
+                    <td
+                      colSpan={shown.length + 4}
+                      className="p-8 text-center"
+                      role="status"
+                    >
+                      Caricamento movimenti…
                     </td>
                   </tr>
-                ))}
+                ) : data.data?.rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={shown.length + 4}
+                      className="p-10 text-center text-muted-foreground"
+                    >
+                      Nessun movimento con questi filtri.
+                      {active.length > 0 && (
+                        <Button variant="link" onClick={reset}>
+                          Ripristina filtri
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  data.data?.rows.map((m) => (
+                    <tr key={m.id} className="border-t hover:bg-muted/20">
+                      <td className="sticky left-0 z-10 min-w-[112px] bg-card px-4 py-3 max-sm:static">
+                        {formatDateIt(m.booking_date)}
+                      </td>
+                      <td className="sticky left-[112px] z-10 min-w-64 max-w-80 bg-card px-4 py-3 max-sm:static">
+                        <button
+                          type="button"
+                          className="flex max-w-full items-center gap-2 text-left font-medium hover:text-primary"
+                          onClick={() => setSelected(m.id)}
+                          title={bankCausale(m)}
+                        >
+                          {m.transaction_type === "credit" ? (
+                            <ArrowDownLeft className="h-4 w-4 shrink-0 text-emerald-600" />
+                          ) : (
+                            <ArrowUpRight className="h-4 w-4 shrink-0 text-red-600" />
+                          )}
+                          <span className="truncate">{bankCausale(m)}</span>
+                        </button>
+                        {m.status !== "booked" && (
+                          <span className="text-xs text-muted-foreground">
+                            In attesa in banca
+                          </span>
+                        )}
+                      </td>
+                      {shown.map((k) => (
+                        <td key={k} className="max-w-80 px-4 py-3">
+                          {cell(m, k)}
+                        </td>
+                      ))}
+                      <td
+                        className={`px-4 py-3 text-right font-semibold tabular-nums ${m.amount >= 0 ? "text-emerald-700" : "text-red-700"}`}
+                      >
+                        {money(m.amount, "—", m.currency)}
+                      </td>
+                      <td className="sticky right-0 bg-card px-3 py-3 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Dettaglio movimento: ${prettyTxDesc(m)}`}
+                          onClick={() => setSelected(m.id)}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-        </div>
-        </>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground max-sm:text-xs">
-            Pagina {page + 1} di {totalPages}<span className="max-sm:hidden"> · {totalCount} transazioni</span>
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Pagina precedente">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="tap-compact max-sm:h-8 max-sm:w-8 max-sm:px-0" aria-label="Pagina successiva">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Summary. Mobile no: una riga lunga di numeri in fondo alla lista. */}
-      <div className="text-sm text-muted-foreground text-center py-2 max-sm:hidden">
-        {summary.count} transazioni{totali ? " · totali di tutto il periodo filtrato" : " · totali di questa pagina"}
-        {summary.groups.map(g => <div key={g.currency}>{g.currency} · Entrate: {formatTreasuryCurrency(g.income, "—", g.currency)} · Uscite: {formatTreasuryCurrency(g.expenses, "—", g.currency)} · Netto: {formatTreasuryCurrency(g.net, "—", g.currency)}</div>)}
-      </div>
-
-      {/* Detail Sheet — mobile: dal basso, con data, importo, descrizione e
-          controparte; data valuta, stato, IBAN e riferimento al desktop. */}
-      <Sheet open={!!selectedTx} onOpenChange={() => setSelectedTx(null)}>
-        <SheetContent
-          side={isMobile ? "bottom" : "right"}
-          className={isMobile ? "max-h-[85dvh] overflow-y-auto rounded-t-2xl px-4 pb-6" : undefined}
-        >
-          <SheetHeader className="max-sm:text-left">
-            <SheetTitle className="max-sm:text-base">Dettaglio Transazione</SheetTitle>
-          </SheetHeader>
-          {selectedTx && (
-            <div className="space-y-4 mt-6 max-sm:mt-3 max-sm:space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-sm max-sm:gap-2 max-sm:text-[13px]">
-                <div><Label className="text-muted-foreground">Data contabile</Label><p>{formatDateIt(selectedTx.booking_date)}</p></div>
-                <div className="max-sm:hidden"><Label className="text-muted-foreground">Data valuta</Label><p>{formatDateIt(selectedTx.value_date)}</p></div>
-                <div><Label className="text-muted-foreground">Importo</Label>
-                  <p className={`font-bold ${selectedTx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
-                    {formatTreasuryCurrency(treasuryTransactionAmount(selectedTx), "—", selectedTx.currency)}
-                  </p>
-                </div>
-                <div className="max-sm:hidden"><Label className="text-muted-foreground">Stato</Label><p>{selectedTx.status === "booked" ? "Contabilizzata" : selectedTx.status === "pending" ? "In attesa" : selectedTx.status}</p></div>
-                <div className="col-span-2"><Label className="text-muted-foreground">Descrizione</Label><p>{selectedTx.description || "—"}</p></div>
-                <div className={!selectedTx.creditor_name ? "max-sm:hidden" : undefined}><Label className="text-muted-foreground">Creditore</Label><p>{selectedTx.creditor_name || "—"}</p></div>
-                <div className={!selectedTx.debtor_name ? "max-sm:hidden" : undefined}><Label className="text-muted-foreground">Debitore</Label><p>{selectedTx.debtor_name || "—"}</p></div>
-                <div className="max-sm:hidden"><Label className="text-muted-foreground">IBAN Creditore</Label><p className="text-xs font-mono">{selectedTx.creditor_iban || "—"}</p></div>
-                <div className="max-sm:hidden"><Label className="text-muted-foreground">IBAN Debitore</Label><p className="text-xs font-mono">{selectedTx.debtor_iban || "—"}</p></div>
-                <div className="col-span-2 max-sm:hidden"><Label className="text-muted-foreground">Riferimento</Label><p>{selectedTx.reference || "—"}</p></div>
-                {selectedTx.linked_invoice_id && invoiceMap[selectedTx.linked_invoice_id] && (
-                  <div className="col-span-2">
-                    <Label className="text-muted-foreground">Fattura collegata</Label>
-                    <p className="flex items-center gap-1">
-                      <Link2 className="h-3 w-3 text-primary" />
-                      <span className="font-medium">{invoiceMap[selectedTx.linked_invoice_id].invoice_number}</span>
-                      {" — "}
-                      {invoiceMap[selectedTx.linked_invoice_id].client_company_name}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                <Select value={editCategory} onValueChange={setEditCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Nota</Label>
-                <Textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={isMobile ? 2 : 3} />
-              </div>
-
-              <Button onClick={saveDetail} disabled={savingDetail} className="w-full">
-                {savingDetail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Salva Modifiche
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {data.data?.count ?? 0} risultati · pagina {page + 1} di{" "}
+              {Math.max(1, Math.ceil((data.data?.count ?? 0) / 50))}
+              {data.isFetching && !data.isPending && " · aggiornamento…"}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page === 0 || data.isFetching}
+                onClick={() => setPage((p) => p - 1)}
+                aria-label="Pagina precedente"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={
+                  (page + 1) * 50 >= (data.data?.count ?? 0) || data.isFetching
+                }
+                onClick={() => setPage((p) => p + 1)}
+                aria-label="Pagina successiva"
+              >
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* Mobile: tipo, conto, categoria e periodo. */}
-      <PannelloFiltri
-        aperto={filtriMobileAperti}
-        onAperto={setFiltriMobileAperti}
-        attivi={nFiltriMobile}
-        onAzzera={resetFilters}
-        risultati={loading ? undefined : totalCount}
-      >
-        <PilloleFiltro
-          titolo="Movimenti"
-          valore={typeFilter}
-          onScegli={(v) => { setTypeFilter(v); setPage(0); }}
-          scelte={[
-            { value: "all", label: "Tutti" },
-            { value: "credit", label: "Entrate" },
-            { value: "debit", label: "Uscite" },
-          ]}
-        />
-        <PilloleFiltro
-          titolo="Riconciliazione"
-          valore={reconFilter}
-          onScegli={(v) => { setReconFilter(v); setPage(0); }}
-          scelte={[
-            { value: "all", label: "Tutte" },
-            { value: "pending", label: "Da fare" },
-            { value: "reconciled", label: "Fatte" },
-          ]}
-        />
-        {accounts.length > 1 && (
-          <PilloleFiltro
-            titolo="Conto"
-            valore={accountFilter}
-            onScegli={(v) => { setAccountFilter(v); setPage(0); }}
-            scelte={[
-              { value: "all", label: "Tutti" },
-              ...accounts.map((a) => ({ value: a.id as string, label: (a.display_name || a.account_name || a.iban) as string })),
-            ]}
-          />
-        )}
-        <div>
-          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categoria</p>
-          <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(0); }}>
-            <SelectTrigger className="tap-compact h-9 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutte</SelectItem>
-              {CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Periodo</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Input type="date" aria-label="Dal" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="h-9 text-xs" />
-            <Input type="date" aria-label="Al" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="h-9 text-xs" />
           </div>
-        </div>
-      </PannelloFiltri>
+        </>
+      )}
+      {selected && companyId && (
+        <BankMovementDetail
+          key={`${companyId}:${selected}`}
+          company={companyId}
+          id={selected}
+          onClose={close}
+        />
+      )}
     </div>
   );
 }

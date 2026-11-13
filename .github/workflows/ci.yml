@@ -46,6 +46,14 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx vitest run src/test/logic/campoAssignments.test.ts src/test/logic/forecastDataset.test.ts src/test/logic/saltedgeHandlers.test.ts src/test/ui/employeeAccountSelector.test.tsx src/test/logic/protectedBankRequests.test.ts src/test/ui/createUserWizardPermessi.test.tsx src/test/security/bankBalancesPermissions.test.ts src/test/logic/employeeAccountLinking.test.ts src/test/ui/tesoreriaSaldoAggiornato.test.tsx src/test/ui/tesoreriaFattureInterne.test.tsx src/test/ui/tesoreriaErrorePersistente.test.tsx src/test/logic/permissionsRegistryParity.test.ts src/test/logic/staffPermissionsEdgeParity.test.ts --maxWorkers=2
       - run: bunx vitest run src/test/logic/sincronizzazioneBanche.test.ts src/test/ui/tesoreriaSincronizzaDistyra.test.tsx src/test/ui/distyraBankConnections.test.tsx --maxWorkers=2
+      - name: Bank allocations, original causale and payment lifecycle
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/security/bankWorkspace.test.ts
+          src/test/ui/bankMovementWorkspace.test.tsx
+          src/test/security/rateFattureBancaAllineate.test.ts
+          src/test/logic/tesoreriaRestoCassa.test.ts
+          src/test/logic/pagamentiFic.test.ts
 
   migration-history:
     name: Complete offline database reconstruction

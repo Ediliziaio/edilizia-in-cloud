@@ -9,7 +9,7 @@ import {
   type RataFic,
 } from "../../../supabase/functions/_shared/pagamentiFic";
 import funzione from "../../../supabase/functions/billing-payment-push/index.ts?raw";
-import tesoreria from "@/components/tesoreria/BankReconciliation.tsx?raw";
+import tesoreria from "@/components/tesoreria/BankMovementDetail.tsx?raw";
 
 const base = { dataPagamento: "2026-10-30", scadenzaPredefinita: "2026-11-30", contoId: 7 };
 const somma = (r: { amount: number }[]) => Math.round(r.reduce((t, x) => t + x.amount * 100, 0)) / 100;
@@ -117,11 +117,11 @@ describe("billing-payment-push usa il calcolo e resta compatibile", () => {
 
 describe("Tesoreria tiene allineata Fatture in Cloud anche in parte e quando scollega", () => {
   it("un bonifico che paga solo una parte manda l'incasso parziale, non più niente", () => {
-    expect(tesoreria).toContain('azione: "incassa", importo: matchedAmount');
+    expect(tesoreria.replace(/\s+/g, "")).toContain('azione:"incassa",importo:f.importo');
     expect(tesoreria).not.toContain('inv.external_provider === "fattureincloud" && fullyPaid');
   });
 
   it("scollegare una fattura importata toglie il pagamento anche su Fatture in Cloud", () => {
-    expect(tesoreria).toContain('body: { invoice_id: invId, azione: "annulla", importo: Number(rec.matched_amount || 0) }');
+    expect(tesoreria.replace(/\s+/g, "")).toMatch(/invoice_id:result\.invoice_id,azione:"annulla",importo:result\.importo/);
   });
 });

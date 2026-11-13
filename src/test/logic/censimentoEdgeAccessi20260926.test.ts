@@ -106,10 +106,17 @@ describe("6 · user_roles non ha company_id", () => {
   });
 
   it("le tre funzioni corrette passano ora per profiles", () => {
-    for (const fn of ["ai-proactive-proposals-daily", "batch-gps-positions", "bank-auto-reconcile"]) {
+    for (const fn of ["ai-proactive-proposals-daily", "batch-gps-positions"]) {
       const s = leggi(`supabase/functions/${fn}/index.ts`);
       expect(s, fn).toMatch(/from\(\s*["'`]profiles["'`]\s*\)[\s\S]{0,80}?\.eq\(\s*["'`]company_id["'`]/);
     }
+  });
+
+  it("l’analisi bancaria usa l’accesso all’azienda e propaga il JWT alle procedure protette", () => {
+    const s=leggi("supabase/functions/bank-auto-reconcile/index.ts");
+    expect(s).toContain("requireCompanyAccess(supabaseAdmin,userId,company,headers)");
+    expect(s).toContain('Authorization:req.headers.get("Authorization")!');
+    expect(s).toContain('client.rpc("bank_suggerisci_riconciliazioni"');
   });
 
   it("il guardiano riconosce il pattern", () => {

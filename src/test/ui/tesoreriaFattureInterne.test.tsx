@@ -1,158 +1,179 @@
-/**
- * Tesoreria e fatture interne (25/09/2026), con Supabase finto.
- *
- * Una fattura della fatturazione interna compare tra quelle da incassare;
- * «Collega» su un bonifico la incassa con riconcilia_bonifico_fattura (mai
- * scrivendo a mano pagamenti o legami), e «Scollega» storna l'incasso con
- * scollega_bonifico_fattura invece di toccare la scadenza.
- */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-type Riga = Record<string, unknown>;
-const dati: Record<string, Riga[]> = {};
-const chiamate: { tabella: string; metodo: string; args: unknown[] }[] = [];
-const rpc = vi.fn();
-
-function query(tabella: string) {
-  const uguali: [string, unknown][] = [];
-  const q: Record<string, unknown> = {};
-  for (const metodo of ["select", "is", "in", "order", "limit", "not", "gte", "lte", "single", "maybeSingle", "update", "insert", "delete"]) {
-    q[metodo] = (...args: unknown[]) => {
-      chiamate.push({ tabella, metodo, args });
-      return q;
-    };
-  }
-  q.eq = (colonna: string, valore: unknown) => {
-    chiamate.push({ tabella, metodo: "eq", args: [colonna, valore] });
-    uguali.push([colonna, valore]);
-    return q;
-  };
-  q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => {
-    const righe = (dati[tabella] ?? []).filter((r) => uguali.every(([c, v]) => !(c in r) || r[c] === v));
-    return Promise.resolve({ data: righe, error: null }).then(ok, ko);
-  };
-  return q;
-}
-
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: (tabella: string) => query(tabella),
-    rpc: (...a: unknown[]) => rpc(...a),
-    functions: { invoke: vi.fn() },
-  },
+import { MemoryRouter } from "react-router-dom";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+const mocks = vi.hoisted(() => ({
+  rpc: vi.fn(),
+  invoke: vi.fn(),
+  fail: false,
 }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "utente-1" } }) }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() } }));
-
-import BankReconciliation from "@/components/tesoreria/BankReconciliation";
-
-function monta() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+vi.mock("@/hooks/usePermissions", () => ({
+  usePermissions: () => ({
+    canReconcileBankTransactions: true,
+    canViewPrimaNota: true,
+    isAdmin: true,
+    canViewMezzi: true,
+  }),
+}));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { functions: { invoke: mocks.invoke } },
+}));
+vi.mock("@/lib/finance/bankWorkspace", async (original) => ({
+  ...(await original<object>()),
+  bankRpc: mocks.rpc,
+}));
+vi.mock("@/components/tesoreria/MovimentoSenzaFattura", () => ({
+  MovimentoSenzaFattura: (): null => null,
+}));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
+}));
+import { BankMovementDetail } from "@/components/tesoreria/BankMovementDetail";
+const movement = {
+  id: "tx",
+  company_id: "azienda",
+  account_id: "conto",
+  account_name: "Principale",
+  booking_date: "2026-11-12",
+  amount: 1000,
+  currency: "EUR",
+  transaction_type: "credit",
+  status: "booked",
+  description: "Saldo due fatture",
+  reconciliation_status: "pending",
+  links: {
+    financial: [] as unknown[],
+    contexts: [] as unknown[],
+    history: [] as unknown[],
+    matched: 0,
+    remaining: 1000,
+    revision: 0,
+  },
+};
+const candidates = [
+  {
+    key: "documento:doc1",
+    tipo: "documento",
+    id: "doc1",
+    titolo: "FT-001",
+    sottotitolo: "Cliente Alfa",
+    residuo: 400,
+  },
+  {
+    key: "invoice:inv2",
+    tipo: "invoice",
+    id: "inv2",
+    titolo: "FPR-002",
+    sottotitolo: "Cliente Beta",
+    residuo: 600,
+  },
+];
+function view() {
   render(
-    <QueryClientProvider client={qc}>
-      <BankReconciliation companyId="azienda-1" />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <BankMovementDetail company="azienda" id="tx" onClose={vi.fn()} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
-
-const scritture = (tabella: string) =>
-  chiamate.filter((c) => c.tabella === tabella && ["update", "insert", "delete"].includes(c.metodo));
-
 beforeEach(() => {
-  chiamate.length = 0;
-  rpc.mockReset();
-  rpc.mockResolvedValue({ data: "movimento-1", error: null });
-  dati.bank_transactions = [
-    {
-      id: "tx-1", company_id: "azienda-1", amount: 6171, transaction_type: "credit",
-      description: "SALDO FATTURA 37/2026", debtor_name: "Rossi Costruzioni Srl",
-      booking_date: "2026-09-21", bank_accounts: { display_name: "Conto principale" },
-    },
-  ];
-  dati.invoices = [];
-  dati.scadenze = [];
-  dati.documenti_fiscali = [
-    {
-      id: "doc-37", numero: "FT-2026-0037", numero_progressivo: 37, anno: 2026,
-      cliente_snapshot: { ragione_sociale: "Rossi Costruzioni Srl" },
-      totale_da_pagare: 6171, importo_pagato: 0, stato: "consegnata",
-      data_scadenza: "2026-10-31", data_emissione: "2026-09-20",
-    },
-  ];
-  dati.bank_reconciliations = [
-    {
-      id: "rec-30", company_id: "azienda-1", transaction_id: "tx-0", matched_amount: 1000,
-      match_type: "auto", notes: "Fattura n. FT-2026-0030", movimento_id: "movimento-0", invoice_id: null,
-      bank_transactions: { id: "tx-0", description: "Bonifico acconto", amount: 1000 },
-      invoices: null,
-      scadenze: { id: "scad-30", description: "FT-2026-0030 — Rossi", amount: 1000, direction: "entrata", suppliers: null },
-      movimento: { documento: { id: "doc-30", numero: "FT-2026-0030", cliente_snapshot: { ragione_sociale: "Rossi Costruzioni Srl" }, totale_documento: 1000 } },
-    },
-  ];
-});
-
-describe("Tesoreria: le fatture interne si incassano dal bonifico", () => {
-  it("la fattura interna è tra quelle da incassare, col suo segno", async () => {
-    monta();
-    expect(await screen.findByText("Interna")).toBeTruthy();
-    expect(screen.getAllByText("FT-2026-0037").length).toBeGreaterThan(0);
-  });
-
-  it("«Collega» registra l'incasso con la RPC, senza scrivere pagamenti o legami a mano", async () => {
-    monta();
-    const suggerita = await screen.findByText("Fatt. FT-2026-0037");
-    expect(suggerita).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Collega" }));
-    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
-    expect(rpc).toHaveBeenCalledWith("riconcilia_bonifico_fattura", {
-      p_transaction_id: "tx-1",
-      p_documento_id: "doc-37",
-      p_match_type: "manual",
-      // numero breve in causale 60 + importo esatto 50 + nome 20
-      p_match_score: 130,
-    });
-    expect(scritture("invoice_payments")).toEqual([]);
-    expect(scritture("bank_transactions")).toEqual([]);
-    expect(scritture("bank_reconciliations")).toEqual([]);
-  });
-
-  it("«Scollega» su un incasso di fattura interna è uno storno, non una scadenza toccata a mano", async () => {
-    monta();
-    expect(await screen.findByText("FT-2026-0030 — Rossi Costruzioni Srl")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Rimuovi riconciliazione" }));
-    expect(await screen.findByText(/verrà stornato: la fattura, la sua scadenza e la rata della commessa/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
-    await waitFor(() => expect(rpc).toHaveBeenCalledWith("scollega_bonifico_fattura", { p_reconciliation_id: "rec-30" }));
-    expect(scritture("scadenze")).toEqual([]);
-    expect(scritture("bank_transactions")).toEqual([]);
-    expect(scritture("bank_reconciliations")).toEqual([]);
-  });
-
-  it("«Scollega» su un bonifico abbinato a un incasso già registrato: l'incasso resta (30/10/2026)", async () => {
-    dati.bank_reconciliations[0].match_type = "incasso_esistente";
-    monta();
-    expect(await screen.findByText("Incasso già registrato")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Rimuovi riconciliazione" }));
-    expect(await screen.findByText(/L'incasso registrato a mano sulla fattura resta/)).toBeTruthy();
-    expect(screen.queryByText(/verrà stornato/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
-    await waitFor(() => expect(rpc).toHaveBeenCalledWith("scollega_bonifico_fattura", { p_reconciliation_id: "rec-30" }));
-    expect(scritture("bank_reconciliations")).toEqual([]);
-  });
-
-  it("un bonifico già abbinato non torna tra quelli da riconciliare", async () => {
-    dati.bank_transactions.push({
-      id: "tx-0", company_id: "azienda-1", amount: 1000, transaction_type: "credit",
-      description: "Bonifico acconto", booking_date: "2026-09-10",
-    });
-    monta();
-    await screen.findByText("Fatt. FT-2026-0037");
-    // «Bonifico acconto» resta solo nella riga della riconciliazione.
-    expect(screen.getAllByText("Bonifico acconto")).toHaveLength(1);
+  vi.clearAllMocks();
+  mocks.fail = false;
+  mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+  mocks.rpc.mockImplementation(async (name: string) => {
+    if (name === "bank_movimento_dettaglio") return structuredClone(movement);
+    if (name === "bank_candidati_movimento") return structuredClone(candidates);
+    if (name === "bank_conferma_ripartizione") {
+      if (mocks.fail) throw new Error("Quota non valida");
+      return {
+        esterne: [
+          {
+            invoice_id: "inv2",
+            provider: "fattureincloud",
+            saldata: false,
+            importo: 600,
+            numero: "FPR-002",
+          },
+        ],
+      };
+    }
+    return [];
   });
 });
-
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewBankBalances: true, canReconcileBankTransactions: true, solaLettura: false }) }));
+describe("fatture native e importate: un unico pagamento bancario", () => {
+  it("mostra entrambe le fonti, senza conferme automatiche", async () => {
+    view();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Registra incasso su fatture",
+      }),
+    );
+    expect(await screen.findByText("FT-001")).toBeInTheDocument();
+    expect(screen.getByText("FPR-002")).toBeInTheDocument();
+    expect(
+      mocks.rpc.mock.calls.some((c) => c[0] === "bank_conferma_ripartizione"),
+    ).toBe(false);
+  });
+  it("conferma due quote atomiche e aggiorna anche Fatture in Cloud per la quota importata", async () => {
+    view();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Registra incasso su fatture",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Scegli FT-001" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scegli FPR-002" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Conferma$/ }));
+    await waitFor(() =>
+      expect(mocks.rpc).toHaveBeenCalledWith("bank_conferma_ripartizione", {
+        p_company: "azienda",
+        p_tx: "tx",
+        p_rows: [
+          { tipo: "documento", id: "doc1", importo: 400 },
+          { tipo: "invoice", id: "inv2", importo: 600 },
+        ],
+        p_note: null,
+      }),
+    );
+    await waitFor(() =>
+      expect(mocks.invoke).toHaveBeenCalledWith("billing-payment-push", {
+        body: {
+          invoice_id: "inv2",
+          paid_date: "2026-11-12",
+          azione: "incassa",
+          importo: 600,
+        },
+      }),
+    );
+  });
+  it("se la conferma fallisce conserva selezione e quote senza inviare pagamenti al gestionale esterno", async () => {
+    mocks.fail = true;
+    view();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Registra incasso su fatture",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Scegli FT-001" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^Conferma$/ }));
+    await waitFor(() =>
+      expect(mocks.rpc).toHaveBeenCalledWith(
+        "bank_conferma_ripartizione",
+        expect.anything(),
+      ),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Scegli FT-001" }),
+    ).toBeChecked();
+    expect(mocks.invoke).not.toHaveBeenCalled();
+  });
+});

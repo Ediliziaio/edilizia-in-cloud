@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- Prezzi di ordini e offerte: la lettura diretta solo a chi ha il permesso (08/11/2026).
 --
 -- Va applicata DOPO il client che legge le viste `*_senza_prezzi` (commit ae717b291).
@@ -46,3 +48,5 @@ drop policy if exists prezzi_solo_con_permesso on public.supplier_rfq_suppliers;
 create policy prezzi_solo_con_permesso on public.supplier_rfq_suppliers as restrictive for select to authenticated
   using (coalesce((select public.acquisti_lettura_non_diretta()), false) or (select public.utente_super_admin())
          or company_id = any ((select public.aziende_area(array['can_view_costs','can_manage_purchasing']))::uuid[]));
+
+COMMIT;

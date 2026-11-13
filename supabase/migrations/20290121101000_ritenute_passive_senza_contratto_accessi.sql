@@ -1,3 +1,5 @@
+-- Explicit transaction required by the LOCK TABLE statements below.
+BEGIN;
 -- «contratto_id IS NULL» voleva dire «ritenuta attiva». Ora una ritenuta al
 -- subappaltatore può non avere contratto: resta dietro il permesso sui
 -- subappaltatori come quelle col contratto.
@@ -28,3 +30,5 @@ ALTER POLICY ufficio_scrivi ON public.ritenute_garanzia
     AND NOT utente_sola_lettura(company_id)
     AND e_amministratore_di(company_id)
   );
+
+COMMIT;

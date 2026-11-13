@@ -9,6 +9,7 @@ import {
   chiaviAbbinamentiAnnullati,
 } from "../../../supabase/functions/bank-auto-reconcile/abbinamentiAnnullati";
 import autoRiconciliazione from "../../../supabase/functions/bank-auto-reconcile/index.ts?raw";
+import registro from "../../../supabase/migrations/20290316140000_bank_movimenti_workspace_ripartizioni.sql?raw";
 import dialogRiporta from "@/components/fatturazione/RiportaDaIncassare.tsx?raw";
 import migrazione from "../../../supabase/migrations/20281211140000_annulla_incasso_scadenza.sql?raw";
 
@@ -94,14 +95,11 @@ describe("bank-auto-reconcile ricorda gli abbinamenti annullati", () => {
     expect(abbinamentoAnnullato(chiavi, "tx-9", "fattura", "inv-1")).toBe(false);
   });
 
-  it("i tre giri di candidati consultano la memoria, che si legge a pagine e blocca se fallisce", () => {
-    for (const bersaglio of ['tx.id, "scadenza", sc.id', 'tx.id, "fattura", inv.id', 'tx.id, "documento", doc.id']) {
-      expect(autoRiconciliazione).toContain(`abbinamentoAnnullato(annullati, ${bersaglio})`);
-    }
-    expect(autoRiconciliazione).toMatch(/\.not\("unmatched_at", "is", null\)[\s\S]*\.range\(da, da \+ 999\)/);
-    expect(autoRiconciliazione).toMatch(/if \(error\) throw new Error\(`Abbinamenti annullati non letti/);
+  it("le nuove proposte consultano lo storico annullato nel database, senza registrare pagamenti", () => {
+    expect(autoRiconciliazione).toContain('client.rpc("bank_suggerisci_riconciliazioni"');
+    expect(registro).toContain('old.unmatched_at IS NOT NULL');
+    for(const target of ['old.invoice_id=c.id','old.documento_id=c.id','old.scadenza_id=c.id','op.documento_fiscale_id=c.id']) expect(registro).toContain(target);
   });
-
   it("il dialogo di «Riporta da incassare» non avvisa più del riabbinamento", () => {
     expect(dialogRiporta).not.toContain("riabbinarlo");
   });
