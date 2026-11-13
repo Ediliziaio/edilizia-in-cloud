@@ -5,14 +5,12 @@ SET statement_timeout = '30s';
 DO $patch$
 DECLARE
  d text := pg_get_functiondef('public.documento_emetti(uuid)'::regprocedure);
- vecchio text := $old$if coalesce(btrim(v_doc.cliente_snapshot->>'ragione_sociale'), '') = '' then raise exception 'Il cliente è obbligatorio per emettere il documento' using errcode = '22023'; end if;$old$;
+ vecchio text := $old$if coalesce(btrim(v_doc.cliente_snapshot->>'ragione_sociale'), '') = '' then$old$;
  nuovo text := $new$if coalesce(btrim(v_doc.cliente_snapshot->>'ragione_sociale'), '') = ''
     and not (coalesce(btrim(v_doc.cliente_snapshot->>'nome'), '') <> ''
       and coalesce(btrim(v_doc.cliente_snapshot->>'cognome'), '') <> ''
       and coalesce(btrim(v_doc.cliente_snapshot->>'codice_fiscale'), '') <> ''
-      and public.codice_fiscale_valido(v_doc.cliente_snapshot->>'codice_fiscale')) then
-    raise exception 'Il cliente è obbligatorio: ragione sociale oppure nome, cognome e codice fiscale valido.' using errcode = '22023';
-  end if;$new$;
+      and public.codice_fiscale_valido(v_doc.cliente_snapshot->>'codice_fiscale')) then$new$;
 BEGIN
  IF strpos(d, vecchio)>0 THEN d:=replace(d,vecchio,nuovo);
  ELSIF strpos(d,nuovo)=0 THEN RAISE EXCEPTION 'Guardia cliente di documento_emetti non riconosciuta'; END IF;

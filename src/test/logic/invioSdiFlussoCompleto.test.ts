@@ -18,7 +18,7 @@ function documento(cliente:Riga,tipo='fattura'):Riga {
 }
 beforeEach(async()=>{
  m.db=new DbMinimo();m.permesso=true;m.upload.mockReset().mockResolvedValue({data:{},error:null});m.fetch.mockReset().mockResolvedValue(new Response(JSON.stringify({success:true,data:{id:'ID-TRACCIABILE'}}),{status:200}));
- Object.assign(m.db,{auth:{getUser:async()=>({data:{user:{id:'u1'}},error:null})},storage:{from:()=>({upload:m.upload})}});
+ Object.assign(m.db,{auth:{getUser:async():Promise<{data:{user:{id:string}};error:null}>=>({data:{user:{id:'u1'}},error:null})},storage:{from:()=>({upload:m.upload})}});
  m.db.tabelle.anagrafica_azienda=[{...azienda}];m.db.tabelle.documenti_fiscali=[documento(clienti.azienda),{id:'originale',numero:'FT 79/26',data_emissione:'2026-11-01'}];
  m.db.rpcs.puo_gestire_documento_fiscale=()=>m.permesso;
  m.db.rpcs.claim_documento_per_invio=()=>{const d=m.db.tabelle.documenti_fiscali[0],prev=d.stato;if(!['emessa','rifiutata'].includes(String(prev)))return [{claimed:false,current_stato:prev}];d.stato='in_invio';return [{claimed:true,previous_stato:prev,current_stato:'in_invio'}];};
