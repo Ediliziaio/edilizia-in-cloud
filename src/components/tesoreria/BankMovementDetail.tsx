@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -95,11 +95,20 @@ export function BankMovementDetail({
       <DialogContent
         struttura="scorrevole"
         className="top-[50%] w-[calc(100%-2rem)] max-w-5xl rounded-xl"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.target as HTMLElement | null)?.focus({ preventScroll: true });
+        }}
       >
         <DialogHeader className="pr-8">
           <DialogTitle>Dettaglio movimento</DialogTitle>
-          <DialogDescription>
-            Dati bancari, abbinamenti, quote e note interne.
+          <DialogDescription
+            className="line-clamp-2"
+            title={q.data ? bankCausale(q.data) : undefined}
+          >
+            {q.data
+              ? `${money(q.data.amount, "—", q.data.currency)} · ${bankCausale(q.data)}`
+              : "Dati bancari, abbinamenti, quote e note interne."}
           </DialogDescription>
         </DialogHeader>
         {q.isPending ? (
@@ -168,6 +177,10 @@ function Detail({
     category: m.category ?? "",
   });
   const [contextDirty, setContextDirty] = useState(false);
+  const startSection = useRef<HTMLElement>(null);
+  useEffect(() => {
+    startSection.current?.scrollIntoView?.({ block: "start" });
+  }, [initialSection]);
   useEffect(
     () =>
       onDirtyChange(
@@ -295,7 +308,10 @@ function Detail({
         </div>
       )}
       {validMatch && (
-        <section className="space-y-3 rounded-xl border p-4">
+        <section
+          ref={initialSection === "documents" ? startSection : undefined}
+          className="space-y-3 rounded-xl border p-4"
+        >
           <h3 className="font-semibold">Collega fatture e pagamenti</h3>
           <p className="text-sm text-muted-foreground">
             Un bonifico può coprire più fatture. Scegli i documenti e indica la
@@ -466,7 +482,10 @@ function Detail({
           </div>
         ))}
       </section>
-      <section className="space-y-3 rounded-xl border p-4">
+      <section
+        ref={initialSection === "contexts" ? startSection : undefined}
+        className="space-y-3 rounded-xl border p-4"
+      >
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">Collegamenti gestionali</h3>
           {write && !m.links.restricted_contexts && (
