@@ -121,6 +121,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
   const aggiorna = () => {
     void qc.invalidateQueries({ queryKey: chiave });
     void qc.invalidateQueries({ queryKey: ["mezzo-fatture"] });
+    void qc.invalidateQueries({ queryKey: ["mezzo-costo-orario"] });
+    void qc.invalidateQueries({ queryKey: ["mezzi-piano-fonti"] });
     void qc.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
     void qc.invalidateQueries({ queryKey: ["fattura-confronto"] });
     void qc.invalidateQueries({ queryKey: ["fatture-ricevute"] });

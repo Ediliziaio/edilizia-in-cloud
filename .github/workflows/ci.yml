@@ -66,7 +66,7 @@ jobs:
         run: bunx vitest run src/test/ui/mezzoFattureDettaglio.test.tsx src/test/ui/mezzoFatturePermessi.test.tsx src/test/logic/mezzoFatture.test.ts --maxWorkers=2
 
       - name: Independent equipment deadlines and renewal regression
-        run: bunx vitest run src/test/logic/mezzi.test.ts src/test/logic/mezziGruppi.test.ts src/test/security/mezziScadenze.test.ts --maxWorkers=2
+        run: bunx vitest run src/test/logic/mezzi.test.ts src/test/logic/mezziGruppi.test.ts src/test/security/mezziScadenze.test.ts src/test/security/mezziCostiConfermati.test.ts --maxWorkers=2
 
   migration-history:
     name: Complete offline database reconstruction
