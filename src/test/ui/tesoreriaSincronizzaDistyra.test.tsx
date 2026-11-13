@@ -53,7 +53,7 @@ it("se i collegamenti sono stati rimossi indirizza alla gestione banche",async()
  fireEvent.click(await screen.findByRole("button",{name:"Sincronizza"}));await screen.findByText("Gestione collegamenti Distyra");expect(state.toast.success).not.toHaveBeenCalled();
 });
 
-it("Conti e Connessioni aprono la stessa schermata e Riconciliazione è accanto ai movimenti",async()=>{
+it("Conti e Connessioni aprono la stessa schermata e i movimenti hanno una sola tab",async()=>{
  mount("/azienda/tesoreria?tab=connessioni");await screen.findByText("Gestione collegamenti Distyra");expect(screen.getAllByText("Conti").length).toBeGreaterThan(0);
- expect(screen.queryByRole("tab",{name:"Connessioni"})).not.toBeInTheDocument();const tabs=screen.getAllByRole("tab").map(t=>t.textContent?.trim());expect(tabs.indexOf("Riconciliazione")).toBe(tabs.findIndex(t=>t?.includes("Transazioni"))+1);
+ expect(screen.queryByRole("tab",{name:"Connessioni"})).not.toBeInTheDocument();const tabs=screen.getAllByRole("tab").map(t=>t.textContent?.trim());expect(tabs).not.toContain("Riconciliazione");expect(tabs.some(t=>t?.includes("Movimenti e riconciliazione"))).toBe(true);
 });

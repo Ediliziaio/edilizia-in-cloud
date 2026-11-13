@@ -48,6 +48,7 @@ import {
   type BankLink,
 } from "@/lib/finance/bankWorkspace";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
 import { prettyTxDesc } from "./txLabel";
 import { BankContextEditor } from "./BankContextEditor";
 import {
@@ -639,7 +640,9 @@ function Detail({
                 : "Annullare questo abbinamento?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {remove?.existing_payment
+              {remove?.adjustment
+                ? "Verrà annullato l’abbinamento e stornato il pagamento della differenza creato da questa riconciliazione. Gli altri pagamenti restano invariati."
+                : remove?.existing_payment
                 ? "Il pagamento già registrato verrà conservato. Sarà rimossa soltanto l’associazione a questo movimento bancario."
                 : "L’abbinamento sarà annullato con le regole del documento: gli incassi creati dalla riconciliazione possono essere stornati. Le altre quote del bonifico restano collegate."}
             </AlertDialogDescription>
@@ -657,11 +660,12 @@ function Detail({
                     provider?: string;
                     invoice_id?: string;
                     importo?: number;
+                    allinea?: boolean;
                   }>(
-                    f.existing_payment
-                      ? "bank_scollega_pagamento"
-                      : "scollega_riga_ripartita",
-                    { p_riconciliazione: f.id },
+                    f.existing_payment ? "bank_scollega_pagamento"
+                      : f.match_type === "bonifico_parlante" || (f.split === false && f.kind === "documento") ? "scollega_bonifico_fattura"
+                      : f.split === false ? "scollega_uscita_scadenza" : "scollega_riga_ripartita",
+                    f.match_type === "bonifico_parlante" || (f.split === false && f.kind === "documento") ? { p_reconciliation_id: f.id } : { p_riconciliazione: f.id },
                   );
                   if (
                     result?.tipo === "invoice" &&
@@ -673,7 +677,7 @@ function Detail({
                         {
                           body: {
                             invoice_id: result.invoice_id,
-                            azione: "annulla",
+                            azione: result.allinea ? "allinea_banca" : "annulla",
                             importo: result.importo,
                           },
                         },
@@ -751,25 +755,7 @@ function FinancialPicker({
         p_note: note || null,
       });
       committed = true;
-      const failed: string[] = [];
-      for (const f of result.esterne ?? []) {
-        if (f.provider !== "fattureincloud") continue;
-        try {
-          const { data, error } = await supabase.functions.invoke(
-            "billing-payment-push",
-            {
-              body: {
-                invoice_id: f.invoice_id,
-                paid_date: m.booking_date || undefined,
-                ...(f.saldata ? {} : { azione: "incassa", importo: f.importo }),
-              },
-            },
-          );
-          if (error || !data?.ok) failed.push(f.numero);
-        } catch {
-          failed.push(f.numero);
-        }
-      }
+      const failed = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result }]);
       toast.success("Abbinamenti e pagamenti registrati");
       if (failed.length)
         toast.warning(

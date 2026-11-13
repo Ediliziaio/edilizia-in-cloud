@@ -33,6 +33,8 @@ export interface BankLink {
   unmatched_at?: string;
   split?: boolean;
   existing_payment?: boolean;
+  adjustment?: boolean;
+  match_type?: string;
 }
 export interface BankLinks {
   restricted_contexts?: boolean;
@@ -88,6 +90,8 @@ export interface BankPage {
     income: number;
     expenses: number;
     net: number;
+    unreconciled_count?: number;
+    unreconciled_amount?: number;
   }[];
 }
 export const EMPTY_BANK_FILTERS: BankFilters = {
@@ -134,6 +138,8 @@ export async function bankRpc<T>(
     "bank_movimento_dettaglio",
     "bank_context_choices",
     "bank_candidati_movimento",
+    "bank_proposte_movimento",
+    "bank_proposte_lotto",
   ].includes(name);
   const { data, error } = read
     ? await withAbortableClientTimeout(
