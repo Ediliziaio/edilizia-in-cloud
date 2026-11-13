@@ -231,3 +231,10 @@ export function bankVisibilityKey(p: {
     .map(Number)
     .join("");
 }
+
+/** Preserve the bank's wording; a display label must never replace the original causale. */
+export function bankCausale(row: { description?: string | null }): string {
+  return row.description?.trim()
+    ? row.description
+    : "Causale non fornita dalla banca";
+}

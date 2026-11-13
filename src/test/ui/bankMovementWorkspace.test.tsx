@@ -43,6 +43,7 @@ vi.mock("@/components/tesoreria/MovimentoSenzaFattura", () => ({
 }));
 import { BankMovementDetail } from "@/components/tesoreria/BankMovementDetail";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
+import { bankCausale } from "@/lib/finance/bankWorkspace";
 const movement = {
   id: "tx",
   account_id: "account",
@@ -128,6 +129,24 @@ beforeEach(() => {
   });
 });
 describe("popup e registro dei movimenti", () => {
+  it("mantiene la causale originale, anche se somiglia a un codice tecnico", () => {
+    expect(bankCausale({ description: "sepa_credit_transfer" })).toBe(
+      "sepa_credit_transfer",
+    );
+    expect(
+      bankCausale({ description: "Saldo FT 1/2026\nCommessa Alfa | Rif 937" }),
+    ).toBe("Saldo FT 1/2026\nCommessa Alfa | Rif 937");
+    expect(bankCausale({ description: null })).toBe(
+      "Causale non fornita dalla banca",
+    );
+  });
+  it("rende esplicita la colonna Causale del bonifico", async () => {
+    view(<TransactionsFeed companyId="company" />);
+    expect(
+      await screen.findByRole("columnheader", { name: "Causale del bonifico" }),
+    ).toBeInTheDocument();
+  });
+
   it("apre dalla destra e mostra tutti i documenti, le commesse, il mezzo e le note", async () => {
     view(<TransactionsFeed companyId="company" />);
     fireEvent.click(

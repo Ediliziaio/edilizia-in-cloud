@@ -35,6 +35,7 @@ import { neutralizeCsvFormula } from "@/lib/csvExport";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import {
   bankRpc,
+  bankCausale,
   bankVisibilityKey,
   bankState,
   bankJobs,
@@ -278,7 +279,7 @@ export default function TransactionsFeed({
       const matrix: unknown[][] = [
         [
           "Data",
-          "Descrizione",
+          "Causale originale",
           "Controparte",
           "Conto",
           "Importo",
@@ -295,7 +296,7 @@ export default function TransactionsFeed({
         ],
         ...entries.map((m) => [
           m.booking_date,
-          prettyTxDesc(m),
+          m.description ?? "",
           m.transaction_type === "credit" ? m.debtor_name : m.creditor_name,
           m.account_name,
           String(m.amount).replace(".", ","),
@@ -521,7 +522,7 @@ export default function TransactionsFeed({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Cerca movimenti"
-              placeholder="Descrizione, nome, importo, data, fattura, commessa o note…"
+              placeholder="Causale, nome, importo, data, fattura, commessa o note…"
               className="pl-9"
             />
           </div>
@@ -787,7 +788,7 @@ export default function TransactionsFeed({
                     Data
                   </th>
                   <th className="sticky left-[112px] top-0 z-30 min-w-64 bg-muted px-4 py-3 text-left max-sm:static">
-                    Descrizione
+                    Causale del bonifico
                   </th>
                   {shown.map((k) => (
                     <th key={k} className="px-4 py-3 text-left">
@@ -836,14 +837,14 @@ export default function TransactionsFeed({
                           type="button"
                           className="flex max-w-full items-center gap-2 text-left font-medium hover:text-primary"
                           onClick={() => setSelected(m.id)}
-                          title={prettyTxDesc(m)}
+                          title={bankCausale(m)}
                         >
                           {m.transaction_type === "credit" ? (
                             <ArrowDownLeft className="h-4 w-4 shrink-0 text-emerald-600" />
                           ) : (
                             <ArrowUpRight className="h-4 w-4 shrink-0 text-red-600" />
                           )}
-                          <span className="truncate">{prettyTxDesc(m)}</span>
+                          <span className="truncate">{bankCausale(m)}</span>
                         </button>
                         {m.status !== "booked" && (
                           <span className="text-xs text-muted-foreground">

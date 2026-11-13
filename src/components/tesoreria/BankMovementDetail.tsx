@@ -38,6 +38,7 @@ import { formatDateIt } from "@/lib/formatters";
 import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import {
   bankRpc,
+  bankCausale,
   bankVisibilityKey,
   bankState,
   CONTEXT_LABELS,
@@ -206,7 +207,7 @@ function Detail({
           </Badge>
         </div>
         <p className="mt-4 whitespace-pre-wrap break-words font-medium">
-          {prettyTxDesc(m)}
+          {bankCausale(m)}
         </p>
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           {[
