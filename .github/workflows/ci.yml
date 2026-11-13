@@ -59,6 +59,9 @@ jobs:
           src/test/logic/bankExternalPayments.test.ts
           src/test/ui/bankReconciliationBatch.test.tsx
 
+      - name: Received invoices read and unread state
+        run: bunx vitest run src/test/security/ricevutaLettura.test.ts src/test/ui/riepilogoFatturaRicevuta.test.tsx src/test/logic/riepilogoRicevuta.test.ts src/test/logic/ricevutaLettura.test.ts --maxWorkers=2
+
   migration-history:
     name: Complete offline database reconstruction
     runs-on: ubuntu-latest

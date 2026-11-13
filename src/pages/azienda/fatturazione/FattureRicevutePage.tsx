@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,8 @@ import { UsciteSenzaFattura } from "@/components/fatturazione/UsciteSenzaFattura
 import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
 import { chiaveEmessa, chiaveRicevuta, errorePassaggero, identitaFattura, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useLetturaRicevuta } from "@/hooks/useLetturaRicevuta";
+import { ricevutaDaLeggere } from "@/lib/fatturazione/letturaRicevuta";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FattureDaAssegnare } from "@/components/fatturazione/FattureDaAssegnare";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -95,6 +97,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  MoreHorizontal,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -185,6 +188,7 @@ interface FatturaRicevuta {
   /** true = l'aggancio all'ordine l'ha deciso una persona, non l'automatismo. */
   aggancio_oda_manuale: boolean;
   stato: "non_letta" | "letta" | "contabilizzata" | "rifiutata";
+  da_leggere?: boolean | null;
   /** Importata come storico già registrato nel gestionale di prima (data di taglio). */
   storico_esterno?: boolean | null;
   note: string | null;
@@ -217,13 +221,17 @@ const STATO_CONFIG: Record<
 };
 
 /** La contabilizzata dello storico (data di taglio) non è passata da qui: si dice. */
-const etichettaStato = (f: { stato: string; storico_esterno?: boolean | null }) =>
-  f.storico_esterno && f.stato === "contabilizzata" ? "Già registrata (storico)" : STATO_CONFIG[f.stato]?.label ?? f.stato;
+const etichettaStato = (f: { stato: string; storico_esterno?: boolean | null; da_leggere?: boolean | null }) => {
+  if (f.stato === "non_letta" || f.stato === "letta") return ricevutaDaLeggere(f) ? "Non letta" : "Letta";
+  const base = f.storico_esterno && f.stato === "contabilizzata" ? "Già registrata (storico)" : STATO_CONFIG[f.stato]?.label ?? f.stato;
+  return ricevutaDaLeggere(f) ? `${base} · Non letta` : base;
+};
 
-function StatoBadge({ stato, storico }: { stato: string; storico?: boolean | null }) {
-  const config = STATO_CONFIG[stato] || { label: stato, variant: "outline" as const };
-  if (storico && stato === "contabilizzata") return <Badge variant="outline">Già registrata (storico)</Badge>;
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+function StatoBadge({ stato, storico, daLeggere }: { stato: string; storico?: boolean | null; daLeggere?: boolean | null }) {
+  const daAprire = ricevutaDaLeggere({ stato, da_leggere: daLeggere });
+  const visuale = stato === "non_letta" || stato === "letta" ? (daAprire ? "non_letta" : "letta") : stato;
+  const config = STATO_CONFIG[visuale] || { label: visuale, variant: "outline" as const };
+  return <span className="inline-flex flex-wrap gap-1"><Badge variant={storico && stato === "contabilizzata" ? "outline" : config.variant}>{storico && stato === "contabilizzata" ? "Già registrata (storico)" : config.label}</Badge>{daAprire && stato !== "non_letta" && stato !== "letta" && <Badge variant="destructive">Non letta</Badge>}</span>;
 }
 
 /** "materiali_edili" → "Materiali edili". Niente mappa fissa: le categorie
@@ -291,6 +299,7 @@ export default function FattureRicevutePage() {
   const [riquadroTabella, setRiquadroTabella] = useState<HTMLDivElement | null>(null);
   const isMobile = useIsMobile();
   const companyId = useEffectiveCompanyId();
+  const lettura = useLetturaRicevuta(companyId);
   const permessiCosti = usePermissions();
   const { data: pagate } = usePagamentiRicevute(companyId);
   const { data: storni } = useStorniNoteCredito(companyId);
@@ -327,6 +336,7 @@ export default function FattureRicevutePage() {
     const { data, error } = await supabase.storage.from(f.pdf_storage_bucket!).createSignedUrl(f.pdf_storage_path!, 300);
     if (error || !data) { toast.error("PDF non disponibile", { description: error?.message }); return; }
     window.open(data.signedUrl, "_blank", "noopener");
+    if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -441,7 +451,7 @@ export default function FattureRicevutePage() {
       let q = supabase
         .from("fatture_ricevute" as never)
         .select(
-          "id, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path" as never,
+          "id, da_leggere, company_id, sdi_id_trasmissione, cedente_piva, cedente_cf, cedente_ragione_sociale, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, ritenuta_importo, xml_url, stato, note, created_at, purchase_order_id, company_cost_id, aggancio_oda_manuale, categoria_ai, sottocategoria_ai, categoria_confidenza, storico_esterno, fornitore_id, note_interne, piano_pagamento, netto_a_pagare, rettifica_motivo, riepilogo_iva, aliquota_reverse_charge, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, pdf_storage_bucket, pdf_storage_path" as never,
         )
         .eq("company_id", companyId!)
         .order("data_fattura", { ascending: false })
@@ -577,7 +587,7 @@ export default function FattureRicevutePage() {
 
   const kpi = useMemo(() => {
     const totale = fatture.length;
-    const nonLette = fatture.filter((f) => f.stato === "non_letta").length;
+    const nonLette = fatture.filter(ricevutaDaLeggere).length;
     const contabilizzate = fatture.filter((f) => f.stato === "contabilizzata").length;
     const importoTotale = importoFornitori(fatture);
     const { imponibile, iva } = imponibileIvaFornitori(fatture);
@@ -651,7 +661,7 @@ export default function FattureRicevutePage() {
   const filtered = useMemo(() => {
     let result = fatture;
     if (statoFilter !== "all") {
-      result = result.filter((f) => f.stato === statoFilter);
+      result = result.filter((f) => statoFilter === "non_letta" ? ricevutaDaLeggere(f) : statoFilter === "letta" ? !ricevutaDaLeggere(f) : f.stato === statoFilter);
     }
     if (tipoFilter !== "all") {
       result = result.filter((f) => etichettaTipoRicevuta(f.tipo_documento) === tipoFilter);
@@ -733,31 +743,15 @@ export default function FattureRicevutePage() {
   const tutteSelezionate = filtered.length > 0 && righeInBlocco.length === filtered.length;
   const selezionaTutte = useCallback(() => setSelezionate(new Set(filtered.map((f) => f.id))), [filtered]);
 
+  useEffect(() => {
+    if (!dettaglioMobile) return;
+    const current = fatture.find(f => f.id === dettaglioMobile.id);
+    if (current && (current.stato !== dettaglioMobile.stato || current.da_leggere !== dettaglioMobile.da_leggere)) setDettaglioMobile(current);
+  }, [fatture, dettaglioMobile]);
+
   // ─── Mutations ──────────────────────────────────────────
 
-  const updateStatoMutation = useMutation({
-    mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
-      // Il filtro sull'azienda non è pignoleria: senza, una riga fuori dal
-      // perimetro RLS fa tornare a PostgREST "0 righe aggiornate" SENZA
-      // errore, e l'utente si vedeva il toast "Stato aggiornato" su una
-      // scrittura mai avvenuta.
-      const { data, error } = await supabase
-        .from("fatture_ricevute" as never)
-        .update({ stato, updated_at: new Date().toISOString() } as never)
-        .eq("id", id)
-        .eq("company_id", companyId!)
-        .select("id");
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Fattura non aggiornata: non appartiene a questa azienda");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
-      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-tipi-fornitori"] });
-      toast.success("Stato aggiornato");
-    },
-    onError: (e) => toast.error(`Errore: ${e.message}`),
-  });
+
 
   // La decisione umana non è una porta a senso unico: si può restituire la
   // fattura all'aggancio automatico, che riproverà al prossimo aggiornamento.
@@ -1068,9 +1062,6 @@ export default function FattureRicevutePage() {
   // La fattura leggibile (righe, totali, fornitore) con «Stampa / Salva PDF»:
   // prima per le ricevute c'era solo l'XML grezzo.
   const handleViewFattura = async (f: FatturaRicevuta) => {
-    if (f.stato === "non_letta") {
-      updateStatoMutation.mutate({ id: f.id, stato: "letta" });
-    }
     if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
     const { data, error } = await supabase
       .from("fatture_ricevute" as never)
@@ -1097,6 +1088,7 @@ export default function FattureRicevutePage() {
       return;
     }
     setFatturaVista(vista);
+    if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
   };
 
   // Il file originale nell'archivio se c'è; altrimenti l'XML salvato con la fattura
@@ -1602,10 +1594,10 @@ export default function FattureRicevutePage() {
             )}
             <button
               type="button"
-              onClick={() => setDettaglioMobile(f)}
+              onClick={() => { setDettaglioMobile(f); if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false }); }}
               className="tap-compact flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5 text-left active:bg-muted"
             >
-              {f.stato === "non_letta" && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Da leggere" />}
+              {ricevutaDaLeggere(f) && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" aria-label="Da leggere" />}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
                 <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
@@ -1661,7 +1653,7 @@ export default function FattureRicevutePage() {
               {filtered.map((f) => (
                 <TableRow
                   key={f.id}
-                  className={`[&>td]:py-1.5 ${f.stato === "non_letta" ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
+                  className={`[&>td]:py-1.5 ${ricevutaDaLeggere(f) ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
                 >
                   {puoInBlocco && (
                     <TableCell className="w-8 pr-0">
@@ -1706,7 +1698,7 @@ export default function FattureRicevutePage() {
                     {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   {colonne.has("netto") && <TableCell className="whitespace-nowrap text-right">{f.netto_a_pagare != null ? formatCurrency(f.netto_a_pagare) : <span className="text-muted-foreground">—</span>}</TableCell>}
-                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} /></TableCell>}
+                  {colonne.has("stato") && <TableCell><StatoBadge stato={f.stato} storico={f.storico_esterno} daLeggere={f.da_leggere} /></TableCell>}
                   {colonne.has("verifica") && <TableCell>
                     {f.stato === "rifiutata" ? <span className="text-muted-foreground">—</span> : !verifichePronte ? <span className="text-xs text-muted-foreground">{caricaVerifiche ? "Lettura verifica…" : "Verifica non disponibile"}</span> : <VerificaFatturaPill daRettificare={verifiche[f.id] === "da_rettificare"} motivoRettifica={f.rettifica_motivo} id={f.id} numero={f.numero_fattura} verificata={verificata(f)} puoCambiare={!!permessiCosti.canViewCosts && !permessiCosti.solaLettura} />}
                   </TableCell>}
@@ -1820,6 +1812,7 @@ export default function FattureRicevutePage() {
                   {colonne.has("note") && <TableCell className="max-w-[220px] truncate text-xs" title={f.note_interne ?? undefined}>{f.note_interne || <span className="text-muted-foreground">—</span>}</TableCell>}
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Lettura fattura ${f.numero_fattura}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={lettura.isPending} onSelect={() => lettura.mutate({id:f.id,daLeggere:!ricevutaDaLeggere(f)})}>{ricevutaDaLeggere(f) ? "Segna come letta" : "Segna come non letta"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1944,6 +1937,7 @@ export default function FattureRicevutePage() {
               >
                 <FileText className="h-4 w-4 mr-1" /> Vedi la fattura
               </Button>
+              <Button variant="outline" className="mt-2 h-10 w-full" disabled={lettura.isPending} onClick={() => lettura.mutate({id:dettaglioMobile.id,daLeggere:!ricevutaDaLeggere(dettaglioMobile)})}>{ricevutaDaLeggere(dettaglioMobile) ? "Segna come letta" : "Segna come non letta"}</Button>
               {dettaglioMobile.stato !== "contabilizzata" && (
                 <Button
                   className="mt-2 h-10 w-full bg-green-600 hover:bg-green-700"
