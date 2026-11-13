@@ -23,12 +23,12 @@ beforeAll(async () => {
 });
 afterAll(()=>pg.close());
 it('NEOFIN: tutti e tre gli obblighi restano nello scadenzario',async()=>{
-  const r=await pg.query('select id from mezzi_scadenze where mezzo_id=\'neofin\' order by id');
+  const r=await pg.query<{id:string}>('select id from mezzi_scadenze where mezzo_id=\'neofin\' order by id');
   expect(r.rows.map(x=>x.id)).toEqual(['a','t','v']);
 });
 it('stessa descrizione: il rinnovo esclude solo il precedente; UI e database concordano',async()=>{
   await pg.exec(`insert into mezzi_documenti values ('t2','neofin','verifica_periodica','  CONTROLLO   trimestrale  ','2027-01-08',now());`);
-  const r=await pg.query('select id from mezzi_scadenze where mezzo_id=\'neofin\' order by id');
+  const r=await pg.query<{id:string}>('select id from mezzi_scadenze where mezzo_id=\'neofin\' order by id');
   expect(r.rows.map(x=>x.id)).toEqual(['a','t2','v']);
   const docs=await pg.query<{id:string;categoria:'verifica_periodica';titolo:string;data_scadenza:string}>('select id,categoria,titolo,data_scadenza::text from mezzi_documenti where mezzo_id=\'neofin\'');
   expect(documentiConStato(docs.rows.map(x=>({...x,alert_giorni_prima:60})),'2026-11-13').filter(x=>x.stato!=='sostituito').map(x=>x.id).sort()).toEqual(['a','t2','v']);
