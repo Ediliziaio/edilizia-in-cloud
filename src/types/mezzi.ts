@@ -545,25 +545,30 @@ export function statoPerData(dataScadenza: string | null, alertGiorni: number | 
   return "valido";
 }
 
-/**
- * Stato di ogni documento del mezzo. Quando si rinnova (nuova assicurazione,
- * nuova revisione) la polizza vecchia non è più "scaduta": è "rinnovata". Vale
- * per tutte le categorie tranne "altro", dove ogni documento fa storia a sé.
- */
-export function documentiConStato<T extends Pick<MezzoDocumento, "id" | "categoria" | "data_scadenza" | "alert_giorni_prima">>(
+/** Assicurazione, bollo e revisione hanno una sola serie; gli altri obblighi
+ * restano indipendenti per descrizione. Una verifica senza descrizione non
+ * può sostituirne un'altra in modo implicito. Stessa regola in mezzi_scadenze. */
+export function serieDocumento(d: { id: string; categoria: string; titolo?: string | null }): string {
+  if (["assicurazione", "bollo", "revisione"].includes(d.categoria)) return d.categoria;
+  if (d.categoria === "altro") return `${d.categoria}:id:${d.id}`;
+  const titolo = (d.titolo ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  return titolo ? `${d.categoria}:titolo:${titolo}` : `${d.categoria}:id:${d.id}`;
+}
+
+export function documentiConStato<T extends Pick<MezzoDocumento, "id" | "categoria" | "data_scadenza" | "alert_giorni_prima"> & { titolo?: string | null }>(
   docs: T[],
   oggi: string,
 ): Array<T & { stato: StatoScadenza }> {
-  const ultimaPerCategoria = new Map<string, string>();
+  const ultimaPerSerie = new Map<string, string>();
   for (const d of docs) {
-    if (d.categoria === "altro" || !d.data_scadenza) continue;
-    const cur = ultimaPerCategoria.get(d.categoria);
-    if (!cur || d.data_scadenza > cur) ultimaPerCategoria.set(d.categoria, d.data_scadenza);
+    if (!d.data_scadenza) continue;
+    const serie = serieDocumento(d);
+    const cur = ultimaPerSerie.get(serie);
+    if (!cur || d.data_scadenza > cur) ultimaPerSerie.set(serie, d.data_scadenza);
   }
   return docs.map((d) => {
-    const ultima = ultimaPerCategoria.get(d.categoria);
-    const sostituito =
-      d.categoria !== "altro" && !!d.data_scadenza && !!ultima && d.data_scadenza < ultima;
+    const ultima = ultimaPerSerie.get(serieDocumento(d));
+    const sostituito = !!d.data_scadenza && !!ultima && d.data_scadenza < ultima;
     return { ...d, stato: sostituito ? "sostituito" : statoPerData(d.data_scadenza, d.alert_giorni_prima, oggi) };
   });
 }
