@@ -107,6 +107,19 @@ NOTIFY pgrst, 'reload schema';
 -- finestra "ultime 26 ore" continuava a leggere 598 MB di pagine vuote e
 -- sforava gli 8 secondi di statement_timeout di PostgREST. L'indice rende
 -- la finestra una lettura puntuale, qualunque sia la storia della tabella.
-CREATE INDEX IF NOT EXISTS idx_job_run_details_start_time
-  ON cron.job_run_details (start_time);
-ANALYZE cron.job_run_details;
+-- Hosted previews can own the application schema without owning pg_cron's
+-- managed table. The retention job and health function remain available there;
+-- index maintenance is performed only by the extension table's owner.
+DO $maintenance$
+DECLARE v_owner oid; v_super boolean;
+BEGIN
+  SELECT relowner INTO v_owner FROM pg_catalog.pg_class WHERE oid='cron.job_run_details'::regclass;
+  SELECT rolsuper INTO v_super FROM pg_catalog.pg_roles WHERE rolname=current_user;
+  IF coalesce(v_super,false) OR pg_catalog.pg_has_role(current_user,v_owner,'USAGE') THEN
+    CREATE INDEX IF NOT EXISTS idx_job_run_details_start_time ON cron.job_run_details (start_time);
+    ANALYZE cron.job_run_details;
+  ELSE
+    RAISE NOTICE 'pg_cron table index maintenance belongs to the managed table owner';
+  END IF;
+END
+$maintenance$;
