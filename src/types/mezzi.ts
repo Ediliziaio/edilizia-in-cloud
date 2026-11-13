@@ -545,13 +545,14 @@ export function statoPerData(dataScadenza: string | null, alertGiorni: number | 
   return "valido";
 }
 
-/** Assicurazione, bollo e revisione hanno una sola serie; gli altri obblighi
+/** La revisione ha una sola serie; coperture, bollo/superbollo e altri obblighi
  * restano indipendenti per descrizione. Una verifica senza descrizione non
  * può sostituirne un'altra in modo implicito. Stessa regola in mezzi_scadenze. */
 export function serieDocumento(d: { id: string; categoria: string; titolo?: string | null }): string {
-  if (["assicurazione", "bollo", "revisione"].includes(d.categoria)) return d.categoria;
+  if (d.categoria === "revisione") return d.categoria;
   if (d.categoria === "altro") return `${d.categoria}:id:${d.id}`;
   const titolo = (d.titolo ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (!titolo && ["assicurazione", "bollo"].includes(d.categoria)) return d.categoria;
   return titolo ? `${d.categoria}:titolo:${titolo}` : `${d.categoria}:id:${d.id}`;
 }
 

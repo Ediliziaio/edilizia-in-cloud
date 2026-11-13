@@ -15,6 +15,8 @@ beforeAll(async () => {
     grant select on mezzi_scadenze to authenticated;`);
   const sql = await readFile('supabase/migrations/20290317110000_mezzi_scadenze_obblighi_distinti.sql','utf8');
   await pg.exec(sql); await pg.exec(sql);
+  const polizze = await readFile('supabase/migrations/20290317113000_mezzi_polizze_e_superbollo_distinti.sql','utf8');
+  await pg.exec(polizze); await pg.exec(polizze);
   await pg.exec(`insert into mezzi_documenti values
     ('t','neofin','verifica_periodica','Controllo trimestrale','2026-10-08',now()),
     ('a','neofin','verifica_periodica','Controllo annuale','2027-02-04',now()),
@@ -38,4 +40,10 @@ it('la vista continua a rispettare RLS',async()=>{
  const r=await pg.query('select distinct mezzo_id from mezzi_scadenze');
  expect(r.rows).toEqual([{mezzo_id:'neofin'}]);
  await pg.exec('reset role');
+});
+
+it('polizze diverse non si rinnovano tra loro: RCA scaduta resta negli avvisi',async()=>{
+ await pg.exec(`insert into mezzi_documenti values('rca','polizze','assicurazione','Assicurazione RCA','2026-09-30',now()),('cvt','polizze','assicurazione','Assicurazione aggiuntiva Nobis','2027-06-30',now()),('bollo','tasse','bollo','Bollo','2026-09-30',now()),('super','tasse','bollo','Super bollo','2027-06-30',now());`);
+ const r=await pg.query<{id:string}>("select id from mezzi_scadenze where mezzo_id in('polizze','tasse') order by id");
+ expect(r.rows.map(x=>x.id)).toEqual(['bollo','cvt','rca','super']);
 });
