@@ -788,7 +788,7 @@ export default function TransactionsFeed({
                     Data
                   </th>
                   <th className="sticky left-[112px] top-0 z-30 min-w-64 bg-muted px-4 py-3 text-left max-sm:static">
-                    Causale del bonifico
+                    Causale
                   </th>
                   {shown.map((k) => (
                     <th key={k} className="px-4 py-3 text-left">

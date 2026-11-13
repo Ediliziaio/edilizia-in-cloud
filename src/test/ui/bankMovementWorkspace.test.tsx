@@ -140,10 +140,10 @@ describe("popup e registro dei movimenti", () => {
       "Causale non fornita dalla banca",
     );
   });
-  it("rende esplicita la colonna Causale del bonifico", async () => {
+  it("mostra la colonna Causale", async () => {
     view(<TransactionsFeed companyId="company" />);
     expect(
-      await screen.findByRole("columnheader", { name: "Causale del bonifico" }),
+      await screen.findByRole("columnheader", { name: "Causale", exact: true }),
     ).toBeInTheDocument();
   });
 
