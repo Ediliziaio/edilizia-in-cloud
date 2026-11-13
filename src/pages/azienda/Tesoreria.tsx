@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
 import BankAccountsList from "@/components/tesoreria/BankAccountsList";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
-import BankReconciliation from "@/components/tesoreria/BankReconciliation";
 import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
 
 import { usePermissions } from "@/hooks/usePermissions";
@@ -50,6 +49,7 @@ const TREASURY_TABS = new Set([
 
 function getSafeTab(searchParams: URLSearchParams) {
   const requested = searchParams.get("tab");
+  if (requested === "riconciliazione") return "transazioni";
   return requested==="connessioni"?"conti":requested && TREASURY_TABS.has(requested) ? requested : "overview";
 }
 
@@ -306,10 +306,7 @@ export default function Tesoreria() {
             <CreditCard className="h-4 w-4" /><span className="max-sm:hidden">Conti e banche</span><span className="sm:hidden">Conti</span>
           </TabsTrigger>
           <TabsTrigger value="transazioni" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
-            <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Transazioni</span><span className="sm:hidden">Movimenti</span>
-          </TabsTrigger>
-          <TabsTrigger value="riconciliazione" className={cn("gap-2", soloDesktop("riconciliazione"))}>
-            <Link2 className="h-4 w-4" /> Riconciliazione
+            <ArrowLeftRight className="h-4 w-4" /> <span className="max-sm:hidden">Movimenti e riconciliazione</span><span className="sm:hidden">Movimenti</span>
           </TabsTrigger>
           <TabsTrigger value="previsioni" className={cn("gap-2", soloDesktop("previsioni"))}>
             <TrendingUp className="h-4 w-4" /> Previsioni
@@ -361,9 +358,6 @@ export default function Tesoreria() {
         </TabsContent>
         <TabsContent value="transazioni">
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
-        </TabsContent>
-        <TabsContent value="riconciliazione">
-          {permessi.canReconcileBankTransactions ? <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} /> : <p className="p-6 text-sm text-muted-foreground">Non hai il permesso di riconciliare i movimenti bancari.</p>}
         </TabsContent>
         <TabsContent value="previsioni">
           {permessi.canViewForecast && permessi.canViewBankBalances ? (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, lazy, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -48,6 +48,7 @@ import {
   type BankPage,
 } from "@/lib/finance/bankWorkspace";
 import { BankMovementDetail, type BankDetailSection } from "./BankMovementDetail";
+const BankReconciliationWorkspace = lazy(() => import("./BankReconciliationWorkspace").then(m => ({ default: m.BankReconciliationWorkspace })));
 import { prettyTxDesc } from "./txLabel";
 
 const columns = {
@@ -116,6 +117,7 @@ export default function TransactionsFeed({
   const [expanded, setExpanded] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [selected, setSelected] = useState<string | null>(() =>
     params.get("movimento"),
   );
@@ -502,6 +504,7 @@ export default function TransactionsFeed({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {perms.canReconcileBankTransactions && <Button onClick={() => setReconciling(true)}>Riconcilia</Button>}
           {perms.canReconcileBankTransactions && (
             <Button
               variant="outline"
@@ -790,6 +793,9 @@ export default function TransactionsFeed({
                   {money(t.expenses, "—", t.currency)}
                 </strong>
               </span>
+              <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-900">
+                <strong>{t.unreconciled_count ?? 0}</strong> da riconciliare · <strong>{money(t.unreconciled_amount ?? 0, "—", t.currency)}</strong>
+              </span>
               <span>
                 Saldo dei movimenti{" "}
                 <strong>{money(t.net, "—", t.currency)}</strong>
@@ -797,7 +803,7 @@ export default function TransactionsFeed({
             </div>
           ))}
           <div className="max-h-[70vh] overflow-auto rounded-xl border bg-card">
-            <table className="w-full whitespace-nowrap text-sm">
+            <table className="w-full text-sm">
               <thead className="sticky top-0 z-20 bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="sticky left-0 top-0 z-30 min-w-[112px] bg-muted px-4 py-3 text-left max-sm:static">
@@ -870,7 +876,7 @@ export default function TransactionsFeed({
                           ) : (
                             <ArrowUpRight className="h-4 w-4 shrink-0 text-red-600" />
                           )}
-                          <span className="truncate">{bankCausale(m)}</span>
+                          <span className="whitespace-pre-wrap break-words">{bankCausale(m)}</span>
                         </button>
                         {m.status !== "booked" && (
                           <span className="text-xs text-muted-foreground">
@@ -933,6 +939,7 @@ export default function TransactionsFeed({
           </div>
         </>
       )}
+      {reconciling && perms.canReconcileBankTransactions && <Suspense fallback={<p role="status">Apertura riconciliazione…</p>}><BankReconciliationWorkspace key={`${companyId}:${user?.id}`} company={companyId} filters={filters} accounts={accounts.data ?? []} onClose={() => setReconciling(false)} /></Suspense>}
       {selected && companyId && (
         <BankMovementDetail
           key={`${companyId}:${selected}`}

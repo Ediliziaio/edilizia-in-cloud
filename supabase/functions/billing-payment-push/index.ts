@@ -117,6 +117,8 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const invoiceId: string | null = (typeof body.invoice_id === "string" && body.invoice_id) ? body.invoice_id : null;
     if (!invoiceId) return json({ error: "invoice_id richiesto" }, 400);
+    const alignBank = body.azione === "allinea_banca";
+    let bankTarget: number | null = null;
     const paidDate: string = (typeof body.paid_date === "string" && body.paid_date) ? body.paid_date : new Date().toISOString().slice(0, 10);
     // Dal 30/10/2026 anche incassi parziali e annulli: { azione: "incassa" | "annulla", importo }.
     // Senza azione si salda tutto, come prima.
@@ -137,6 +139,13 @@ Deno.serve(async (req) => {
     if (!isInternal) {
       const ok = await canAccessCompany(supabase, userId!, inv.company_id);
       if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+    }
+
+    if (alignBank) {
+      const actorDb = isInternal ? supabase : createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_ROLE, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } });
+      const { data: target, error: targetError } = await actorDb.rpc("bank_external_payment_target", { p_invoice: invoiceId });
+      if (targetError || target === null || !Number.isFinite(Number(target))) return json({ error: targetError?.message || "Riconciliazione bancaria non disponibile" }, 403);
+      bankTarget = Number(target);
     }
 
     // Solo fatture esterne con provider gestito. Per ora: Fatture in Cloud.
@@ -169,7 +178,11 @@ Deno.serve(async (req) => {
 
     // 1a) Quanto deve risultare pagato dopo questa azione.
     const pagatoPrima = pagatoSuFic(existing);
-    const pagatoDopo = nuovoPagato(grossFromFic, pagatoPrima, azione);
+    // Bank write-back aligns an absolute, server-authorized target. Retrying a
+    // lost response cannot add the same partial receipt a second time.
+    if (alignBank && !gr.ok) return json({ ok: false, messaggio: "Impossibile leggere lo stato attuale del documento esterno" });
+    if (bankTarget !== null && (bankTarget < 0 || bankTarget > grossFromFic + 0.004)) return json({ ok: false, messaggio: "Il totale del documento esterno è cambiato: verifica la riconciliazione" });
+    const pagatoDopo = bankTarget === null ? nuovoPagato(grossFromFic, pagatoPrima, azione) : Math.min(grossFromFic, Math.max(0, bankTarget));
 
     // 1b) Conto di saldo per le rate che non ce l'hanno (serve solo se qualcosa
     //     risulterà pagato; un annullo totale non ne ha bisogno).
@@ -246,7 +259,7 @@ Deno.serve(async (req) => {
     // la verità), quindi senza questa riga l'utente vedrebbe «da incassare»
     // fino al prossimo allineamento.
     // Pagata in parte = 'issued' con paid_amount > 0 (come lo legge l'elenco).
-    const { error: locErr } = await supabase.from("invoices")
+    const { error: locErr } = alignBank ? { error: null } : await supabase.from("invoices")
       .update({
         status: statoLocale(grossFromFic, pagatoDopo),
         paid_amount: pagatoDopo,

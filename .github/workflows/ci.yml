@@ -54,6 +54,10 @@ jobs:
           src/test/security/rateFattureBancaAllineate.test.ts
           src/test/logic/tesoreriaRestoCassa.test.ts
           src/test/logic/pagamentiFic.test.ts
+          src/test/security/bankReconciliationBatch.test.ts
+          src/test/logic/bankReconciliationBatch.test.ts
+          src/test/logic/bankExternalPayments.test.ts
+          src/test/ui/bankReconciliationBatch.test.tsx
 
   migration-history:
     name: Complete offline database reconstruction
