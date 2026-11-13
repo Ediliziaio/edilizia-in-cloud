@@ -18,3 +18,7 @@ it('non inventa un originale se il file trasmesso manca o lo storage non rispond
 it('per una bozza genera soltanto una anteprima dichiarata come non trasmessa',async()=>{
  mock.generate.mockReturnValue('<anteprima/>');expect(await leggiXmlFattura({stato:'bozza',tipo:'fattura'} as never,{} as never)).toEqual({xml:'<anteprima/>',partito:false});
 });
+
+it('uno scarto NS senza originale può avere una nuova anteprima corretta con lo stesso numero',async()=>{
+ mock.generate.mockReturnValue('<correzione dopo scarto/>');expect(await leggiXmlFattura({stato:'rifiutata',sdi_stato:'NS',sdi_id_trasmissione:'scartato',tipo:'fattura'} as never,{} as never)).toEqual({xml:'<correzione dopo scarto/>',partito:false});
+});

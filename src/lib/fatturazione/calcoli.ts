@@ -2,6 +2,7 @@
 // Centralized calculation engine for native billing documents
 
 import { controlliFatturaSdi, naturaCassa, ivaRivalsa } from "../../../supabase/functions/_shared/controlliFatturaSdi";
+import { NATURE_IVA } from "@/types/fatturazione";
 import { arrotondaCentesimi } from "@/lib/numberUtils";
 import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
 import type {
@@ -241,7 +242,7 @@ export function calcolaTotaliDocumento(
     const nat = naturaCassa(cassaIvaRaw, riepilogo_iva);
     const bucket = riepilogo_iva.find(r => Number(r.aliquota) === 0 && (r.natura ?? "").replace(/\./g,"_") === nat);
     if (bucket && nat) bucket.imponibile = round2(bucket.imponibile + cassa_importo);
-    else if (nat) riepilogo_iva.push({ aliquota: "0", natura: nat, imponibile: cassa_importo, imposta: 0, esigibilita: "I" });
+    else if (nat && Object.prototype.hasOwnProperty.call(NATURE_IVA, nat)) riepilogo_iva.push({ aliquota: "0", natura: nat as keyof typeof NATURE_IVA, imponibile: cassa_importo, imposta: 0, esigibilita: "I" });
   }
 
   // iva_totale ora include l'IVA sul contributo cassa (FIX #1).

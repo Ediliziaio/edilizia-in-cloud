@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Regime RF19 e contributi sono verificati dal controllo condiviso, che distingue le integrazioni estere.
+    // Controlli fiscali condivisi: RF19, contributi e integrazioni estere. Anche l’archivio XML deve riuscire prima di trasmettere.
 
     // Un documento senza righe non e' trasmissibile: la FatturaPA vuole almeno
     // un DettaglioLinee, e lo SDI lo scarterebbe. Senza questo controllo la

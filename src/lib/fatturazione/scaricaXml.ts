@@ -26,7 +26,7 @@ async function conFatturaCollegata(doc: DocumentoFiscale): Promise<DocumentoFisc
 /** Un documento già trasmesso si rappresenta solo dall'originale archiviato. */
 function esigiOriginaleSeTrasmesso(doc: DocumentoFiscale): void {
   const trasmesso = !!doc.sdi_id_trasmissione || ['inviata_sdi','consegnata','accettata'].includes(doc.stato);
-  if (trasmesso && doc.stato !== 'scartata' && !doc.sdi_file_xml_url) throw new Error("L'XML originale trasmesso non è disponibile. Non è possibile ricrearlo dai dati attuali: recupera l'originale dal cassetto SDI.");
+  if (trasmesso && String(doc.sdi_stato ?? '').toUpperCase() !== 'NS' && !doc.sdi_file_xml_url) throw new Error("L'XML originale trasmesso non è disponibile. Non è possibile ricrearlo dai dati attuali: recupera l'originale dal cassetto SDI.");
 }
 
 export async function scaricaXmlFattura(

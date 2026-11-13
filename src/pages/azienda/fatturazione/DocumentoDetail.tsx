@@ -320,7 +320,7 @@ export default function DocumentoDetail() {
               </AlertDialogHeader>
               <div className="space-y-3 py-2 max-sm:space-y-2 max-sm:py-0">
                 <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("totale")}>
-                  <div className="text-left"><div className="font-medium">Storno totale automatico</div><div className="text-xs text-muted-foreground">Tutte le righe con quantità negate</div></div>
+                  <div className="text-left"><div className="font-medium">Storno totale automatico</div><div className="text-xs text-muted-foreground">Tutte le righe della fattura, con sconti e contributi</div></div>
                 </Button>
                 <Button variant="outline" className="w-full justify-start h-auto py-3 max-sm:py-2" onClick={() => handleCreaNC("parziale")}>
                   <div className="text-left"><div className="font-medium">Storno parziale</div><div className="text-xs text-muted-foreground">Apri l'editor per inserire le righe</div></div>
