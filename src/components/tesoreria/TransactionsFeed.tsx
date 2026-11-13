@@ -47,12 +47,10 @@ import {
   type BankMovement,
   type BankPage,
 } from "@/lib/finance/bankWorkspace";
-import { BankMovementDetail } from "./BankMovementDetail";
+import { BankMovementDetail, type BankDetailSection } from "./BankMovementDetail";
 import { prettyTxDesc } from "./txLabel";
 
 const columns = {
-  counterparty: "Controparte",
-  account: "Conto",
   category: "Categoria",
   state: "Riconciliazione",
   matched: "Abbinato",
@@ -66,8 +64,6 @@ const columns = {
 };
 type Column = keyof typeof columns;
 const defaults: Column[] = [
-  "counterparty",
-  "account",
   "state",
   "remaining",
   "documents",
@@ -123,6 +119,7 @@ export default function TransactionsFeed({
   const [selected, setSelected] = useState<string | null>(() =>
     params.get("movimento"),
   );
+  const [detailSection, setDetailSection] = useState<BankDetailSection>();
   const prefKey = `eic:bank-columns:${user?.id ?? "user"}:${companyId}`;
   const [visible, setVisible] = useState<Column[]>(defaults);
   useEffect(() => {
@@ -144,6 +141,7 @@ export default function TransactionsFeed({
     if (previousCompany.current !== companyId) {
       previousCompany.current = companyId;
       setSelected(null);
+      setDetailSection(undefined);
       setSearch("");
       setFilters({
         ...EMPTY_BANK_FILTERS,
@@ -228,11 +226,16 @@ export default function TransactionsFeed({
     });
   function close() {
     setSelected(null);
+    setDetailSection(undefined);
     if (params.has("movimento")) {
       const next = new URLSearchParams(params);
       next.delete("movimento");
       setParams(next, { replace: true });
     }
+  }
+  function openMovement(id: string, section?: BankDetailSection) {
+    setDetailSection(section);
+    setSelected(id);
   }
   async function scan() {
     setScanning(true);
@@ -279,10 +282,10 @@ export default function TransactionsFeed({
       const matrix: unknown[][] = [
         [
           "Data",
-          "Causale originale",
           "Controparte",
-          "Conto",
           "Importo",
+          "Causale",
+          "Conto",
           "Valuta",
           "Stato",
           "Abbinato",
@@ -296,10 +299,10 @@ export default function TransactionsFeed({
         ],
         ...entries.map((m) => [
           m.booking_date,
-          m.description ?? "",
           m.transaction_type === "credit" ? m.debtor_name : m.creditor_name,
-          m.account_name,
           String(m.amount).replace(".", ","),
+          m.description ?? "",
+          m.account_name,
           m.currency,
           bankState(m).label,
           String(m.links.matched).replace(".", ","),
@@ -345,11 +348,12 @@ export default function TransactionsFeed({
       setExporting(false);
     }
   }
-  function cell(m: BankMovement, k: Column) {
+  function cell(m: BankMovement, k: Column | "counterparty" | "account") {
     switch (k) {
       case "counterparty":
         return (
           <span
+            className="block max-w-56 truncate"
             title={
               (m.transaction_type === "credit"
                 ? m.debtor_name
@@ -362,7 +366,11 @@ export default function TransactionsFeed({
           </span>
         );
       case "account":
-        return m.account_name;
+        return (
+          <span className="block max-w-52 truncate" title={m.account_name}>
+            {m.account_name || "—"}
+          </span>
+        );
       case "category":
         return m.category || "—";
       case "state": {
@@ -370,7 +378,7 @@ export default function TransactionsFeed({
         return (
           <button
             type="button"
-            onClick={() => setSelected(m.id)}
+            onClick={() => openMovement(m.id)}
             aria-label={`${s.label}: apri ${prettyTxDesc(m)}`}
           >
             <Badge
@@ -391,12 +399,20 @@ export default function TransactionsFeed({
           <button
             type="button"
             className="max-w-60 truncate text-left text-primary hover:underline"
-            onClick={() => setSelected(m.id)}
+            onClick={() => openMovement(m.id, "documents")}
             title={m.links.financial.map((f) => f.label).join(" · ")}
           >
             {m.links.financial[0].label}
             {m.links.financial.length > 1 &&
               ` +${m.links.financial.length - 1}`}
+          </button>
+        ) : perms.canReconcileBankTransactions ? (
+          <button
+            className="text-primary hover:underline"
+            onClick={() => openMovement(m.id, "documents")}
+            aria-label={`Collega fatture e pagamenti: ${prettyTxDesc(m)}`}
+          >
+            Collega
           </button>
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -414,7 +430,7 @@ export default function TransactionsFeed({
             </Link>
             {jobs.length > 1 && (
               <button
-                onClick={() => setSelected(m.id)}
+                onClick={() => openMovement(m.id, "contexts")}
                 className="rounded bg-muted px-1.5 py-0.5 text-xs"
               >
                 +{jobs.length - 1}
@@ -424,7 +440,7 @@ export default function TransactionsFeed({
         ) : (
           <button
             className="text-primary hover:underline"
-            onClick={() => setSelected(m.id)}
+            onClick={() => openMovement(m.id, "contexts")}
           >
             {perms.canReconcileBankTransactions ? "Collega" : "—"}
           </button>
@@ -434,7 +450,7 @@ export default function TransactionsFeed({
         const list = m.links.contexts.filter((c) => c.kind !== "commessa");
         return list.length ? (
           <button
-            onClick={() => setSelected(m.id)}
+            onClick={() => openMovement(m.id, "contexts")}
             className="max-w-52 truncate text-left hover:underline"
             title={list.map((c) => c.label).join(" · ")}
           >
@@ -450,7 +466,7 @@ export default function TransactionsFeed({
           <button
             type="button"
             title={m.note}
-            onClick={() => setSelected(m.id)}
+            onClick={() => openMovement(m.id)}
             className="flex max-w-64 items-center gap-2 text-left"
           >
             <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -460,7 +476,7 @@ export default function TransactionsFeed({
           <button
             type="button"
             className="text-muted-foreground hover:underline"
-            onClick={() => setSelected(m.id)}
+            onClick={() => openMovement(m.id)}
           >
             {perms.canReconcileBankTransactions ? "Aggiungi nota" : "—"}
           </button>
@@ -787,15 +803,17 @@ export default function TransactionsFeed({
                   <th className="sticky left-0 top-0 z-30 min-w-[112px] bg-muted px-4 py-3 text-left max-sm:static">
                     Data
                   </th>
-                  <th className="sticky left-[112px] top-0 z-30 min-w-64 bg-muted px-4 py-3 text-left max-sm:static">
+                  <th className="min-w-48 px-4 py-3 text-left">Controparte</th>
+                  <th className="min-w-36 px-4 py-3 text-right">Importo</th>
+                  <th className="min-w-64 px-4 py-3 text-left">
                     Causale
                   </th>
+                  <th className="min-w-44 px-4 py-3 text-left">Conto</th>
                   {shown.map((k) => (
                     <th key={k} className="px-4 py-3 text-left">
                       {columns[k]}
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-right">Importo</th>
                   <th className="sticky right-0 bg-card px-3 py-3 text-right">
                     Dettaglio
                   </th>
@@ -805,7 +823,7 @@ export default function TransactionsFeed({
                 {data.isPending ? (
                   <tr>
                     <td
-                      colSpan={shown.length + 4}
+                      colSpan={shown.length + 6}
                       className="p-8 text-center"
                       role="status"
                     >
@@ -815,7 +833,7 @@ export default function TransactionsFeed({
                 ) : data.data?.rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={shown.length + 4}
+                      colSpan={shown.length + 6}
                       className="p-10 text-center text-muted-foreground"
                     >
                       Nessun movimento con questi filtri.
@@ -832,11 +850,19 @@ export default function TransactionsFeed({
                       <td className="sticky left-0 z-10 min-w-[112px] bg-card px-4 py-3 max-sm:static">
                         {formatDateIt(m.booking_date)}
                       </td>
-                      <td className="sticky left-[112px] z-10 min-w-64 max-w-80 bg-card px-4 py-3 max-sm:static">
+                      <td className="max-w-56 px-4 py-3">
+                        {cell(m, "counterparty")}
+                      </td>
+                      <td
+                        className={`px-4 py-3 text-right font-semibold tabular-nums ${m.amount >= 0 ? "text-emerald-700" : "text-red-700"}`}
+                      >
+                        {money(m.amount, "—", m.currency)}
+                      </td>
+                      <td className="min-w-64 max-w-80 px-4 py-3">
                         <button
                           type="button"
                           className="flex max-w-full items-center gap-2 text-left font-medium hover:text-primary"
-                          onClick={() => setSelected(m.id)}
+                          onClick={() => openMovement(m.id)}
                           title={bankCausale(m)}
                         >
                           {m.transaction_type === "credit" ? (
@@ -852,22 +878,20 @@ export default function TransactionsFeed({
                           </span>
                         )}
                       </td>
+                      <td className="max-w-52 px-4 py-3">
+                        {cell(m, "account")}
+                      </td>
                       {shown.map((k) => (
                         <td key={k} className="max-w-80 px-4 py-3">
                           {cell(m, k)}
                         </td>
                       ))}
-                      <td
-                        className={`px-4 py-3 text-right font-semibold tabular-nums ${m.amount >= 0 ? "text-emerald-700" : "text-red-700"}`}
-                      >
-                        {money(m.amount, "—", m.currency)}
-                      </td>
                       <td className="sticky right-0 bg-card px-3 py-3 text-right">
                         <Button
                           variant="ghost"
                           size="icon"
                           aria-label={`Dettaglio movimento: ${prettyTxDesc(m)}`}
-                          onClick={() => setSelected(m.id)}
+                          onClick={() => openMovement(m.id)}
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -914,6 +938,7 @@ export default function TransactionsFeed({
           key={`${companyId}:${selected}`}
           company={companyId}
           id={selected}
+          initialSection={detailSection}
           onClose={close}
         />
       )}

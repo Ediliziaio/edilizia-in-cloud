@@ -110,7 +110,7 @@ describe("fatture native e importate: un unico pagamento bancario", () => {
     view();
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Registra incasso su fatture",
+        name: "Collega fatture e scadenze",
       }),
     );
     expect(await screen.findByText("FT-001")).toBeInTheDocument();
@@ -123,7 +123,7 @@ describe("fatture native e importate: un unico pagamento bancario", () => {
     view();
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Registra incasso su fatture",
+        name: "Collega fatture e scadenze",
       }),
     );
     fireEvent.click(
@@ -158,7 +158,7 @@ describe("fatture native e importate: un unico pagamento bancario", () => {
     view();
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Registra incasso su fatture",
+        name: "Collega fatture e scadenze",
       }),
     );
     fireEvent.click(

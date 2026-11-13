@@ -7,14 +7,16 @@ import {
   ExternalLink,
   Loader2,
   Unlink,
+  FileText,
+  Link2,
 } from "lucide-react";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -55,14 +57,18 @@ import {
 } from "./RipartizioneMovimento";
 import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
 
+export type BankDetailSection = "documents" | "contexts";
+
 export function BankMovementDetail({
   company,
   id,
   onClose,
+  initialSection,
 }: {
   company: string;
   id: string;
   onClose: () => void;
+  initialSection?: BankDetailSection;
 }) {
   const permissions = usePermissions();
   const [dirty, setDirty] = useState(false);
@@ -77,7 +83,7 @@ export function BankMovementDetail({
     retry: false,
   });
   return (
-    <Sheet
+    <Dialog
       open
       onOpenChange={(v) => {
         if (!v) {
@@ -86,13 +92,16 @@ export function BankMovementDetail({
         }
       }}
     >
-      <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
-        <SheetHeader className="mb-6">
-          <SheetTitle>Dettaglio movimento</SheetTitle>
-          <SheetDescription>
+      <DialogContent
+        struttura="scorrevole"
+        className="top-[50%] w-[calc(100%-2rem)] max-w-5xl rounded-xl"
+      >
+        <DialogHeader className="pr-8">
+          <DialogTitle>Dettaglio movimento</DialogTitle>
+          <DialogDescription>
             Dati bancari, abbinamenti, quote e note interne.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
         {q.isPending ? (
           <p role="status">Caricamento movimento…</p>
         ) : q.isError ? (
@@ -108,9 +117,10 @@ export function BankMovementDetail({
             movement={q.data}
             company={company}
             onDirtyChange={setDirty}
+            initialSection={initialSection}
           />
         )}
-      </SheetContent>
+      </DialogContent>
       <AlertDialog open={discard} onOpenChange={setDiscard}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -127,17 +137,19 @@ export function BankMovementDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Sheet>
+    </Dialog>
   );
 }
 function Detail({
   movement: m,
   company,
   onDirtyChange,
+  initialSection,
 }: {
   movement: BankMovement;
   company: string;
   onDirtyChange: (dirty: boolean) => void;
+  initialSection?: BankDetailSection;
 }) {
   const perms = usePermissions();
   const client = useQueryClient();
@@ -146,8 +158,10 @@ function Detail({
   const [category, setCategory] = useState(m.category ?? "");
   const [revision, setRevision] = useState(m.links.revision);
   const [busy, setBusy] = useState(false);
-  const [editContexts, setEditContexts] = useState(false);
-  const [mode, setMode] = useState<"new" | "existing" | "none" | null>(null);
+  const [editContexts, setEditContexts] = useState(initialSection === "contexts");
+  const [mode, setMode] = useState<"new" | "existing" | "none" | null>(
+    initialSection === "documents" ? "new" : null,
+  );
   const [remove, setRemove] = useState<BankLink | null>(null);
   const [savedAnnotation, setSavedAnnotation] = useState({
     note: m.note ?? "",
@@ -188,7 +202,7 @@ function Detail({
   const monetary = (n: number) => money(n, "—", m.currency);
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border bg-muted/30 p-5">
+      <section className="rounded-xl border bg-muted/30 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {m.transaction_type === "credit" ? (
@@ -209,7 +223,7 @@ function Detail({
         <p className="mt-4 whitespace-pre-wrap break-words font-medium">
           {bankCausale(m)}
         </p>
-        <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+        <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           {[
             [
               "Controparte",
@@ -280,6 +294,108 @@ function Detail({
           )}
         </div>
       )}
+      {validMatch && (
+        <section className="space-y-3 rounded-xl border p-4">
+          <h3 className="font-semibold">Collega fatture e pagamenti</h3>
+          <p className="text-sm text-muted-foreground">
+            Un bonifico può coprire più fatture. Scegli i documenti e indica la
+            quota di ciascuno.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button
+              className="h-auto items-start justify-start gap-2 whitespace-normal p-3 text-left"
+              aria-label="Collega fatture e scadenze"
+              variant={mode === "new" ? "default" : "outline"}
+              onClick={() => setMode((v) => (v === "new" ? null : "new"))}
+            >
+              <FileText className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <span className="block font-medium">Fatture e scadenze</span>
+                <span className="mt-1 block text-xs font-normal">
+                  Cerca e ripartisci su più documenti.
+                </span>
+              </span>
+            </Button>
+            {perms.canViewPrimaNota && (
+              <Button
+                className="h-auto items-start justify-start gap-2 whitespace-normal p-3 text-left"
+                aria-label="Collega pagamenti già registrati"
+                variant={mode === "existing" ? "default" : "outline"}
+                onClick={() =>
+                  setMode((v) => (v === "existing" ? null : "existing"))
+                }
+              >
+                <Link2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block font-medium">Pagamenti già registrati</span>
+                  <span className="mt-1 block text-xs font-normal">
+                    Collega senza duplicare il pagamento.
+                  </span>
+                </span>
+              </Button>
+            )}
+            {m.links.matched === 0 && (
+              <Button
+                className="h-auto items-start justify-start whitespace-normal p-3 text-left"
+                aria-label="Senza fattura"
+                variant={mode === "none" ? "default" : "outline"}
+                onClick={() => setMode((v) => (v === "none" ? null : "none"))}
+              >
+                <span>
+                  <span className="block font-medium">Senza fattura</span>
+                  <span className="mt-1 block text-xs font-normal">
+                    Classifica altri incassi e uscite.
+                  </span>
+                </span>
+              </Button>
+            )}
+          </div>
+          {mode === "new" && (
+            <FinancialPicker
+              key="new"
+              company={company}
+              movement={m}
+              onDone={() => {
+                setMode(null);
+                refresh();
+              }}
+            />
+          )}
+          {mode === "existing" && (
+            <ExistingPicker
+              key="existing"
+              company={company}
+              movement={m}
+              onDone={() => {
+                setMode(null);
+                refresh();
+              }}
+            />
+          )}
+          {mode === "none" && (
+            <MovimentoSenzaFattura
+              companyId={company}
+              tx={m}
+              onFatto={() => {
+                setMode(null);
+                refresh();
+              }}
+            />
+          )}
+        </section>
+      )}
+      {write &&
+        !validMatch &&
+        !m.chiuso_senza_documento &&
+        m.links.remaining > 0 && (
+          <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+            {m.status !== "booked"
+              ? "Attendi che la banca contabilizzi il movimento prima di abbinarlo."
+              : m.currency !== "EUR"
+                ? "Movimento in valuta estera: occorre verificare il cambio prima di registrare pagamenti in euro."
+                : "Questo movimento richiede la verifica degli abbinamenti precedenti."}
+          </p>
+        )}
       <section className="space-y-3">
         <h3 className="font-semibold">
           Fatture e pagamenti abbinati{" "}
@@ -350,87 +466,7 @@ function Detail({
           </div>
         ))}
       </section>
-      {validMatch && (
-        <section className="space-y-3 rounded-xl border p-4">
-          <h3 className="font-semibold">Abbina il residuo</h3>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant={mode === "new" ? "default" : "outline"}
-              onClick={() => setMode((v) => (v === "new" ? null : "new"))}
-            >
-              {m.transaction_type === "credit"
-                ? "Registra incasso su fatture"
-                : "Registra pagamento di scadenze"}
-            </Button>
-            {perms.canViewPrimaNota && (
-              <Button
-                size="sm"
-                variant={mode === "existing" ? "default" : "outline"}
-                onClick={() =>
-                  setMode((v) => (v === "existing" ? null : "existing"))
-                }
-              >
-                Collega pagamenti già registrati
-              </Button>
-            )}
-            {m.links.matched === 0 && (
-              <Button
-                size="sm"
-                variant={mode === "none" ? "default" : "outline"}
-                onClick={() => setMode((v) => (v === "none" ? null : "none"))}
-              >
-                Senza fattura
-              </Button>
-            )}
-          </div>
-          {mode === "new" && (
-            <FinancialPicker
-              key="new"
-              company={company}
-              movement={m}
-              onDone={() => {
-                setMode(null);
-                refresh();
-              }}
-            />
-          )}
-          {mode === "existing" && (
-            <ExistingPicker
-              key="existing"
-              company={company}
-              movement={m}
-              onDone={() => {
-                setMode(null);
-                refresh();
-              }}
-            />
-          )}
-          {mode === "none" && (
-            <MovimentoSenzaFattura
-              companyId={company}
-              tx={m}
-              onFatto={() => {
-                setMode(null);
-                refresh();
-              }}
-            />
-          )}
-        </section>
-      )}
-      {write &&
-        !validMatch &&
-        !m.chiuso_senza_documento &&
-        m.links.remaining > 0 && (
-          <p className="rounded-lg border p-3 text-sm text-muted-foreground">
-            {m.status !== "booked"
-              ? "Attendi che la banca contabilizzi il movimento prima di abbinarlo."
-              : m.currency !== "EUR"
-                ? "Movimento in valuta estera: occorre verificare il cambio prima di registrare pagamenti in euro."
-                : "Questo movimento richiede la verifica degli abbinamenti precedenti."}
-          </p>
-        )}
-      <section className="space-y-3">
+      <section className="space-y-3 rounded-xl border p-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">Collegamenti gestionali</h3>
           {write && !m.links.restricted_contexts && (

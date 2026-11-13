@@ -118,6 +118,7 @@ function view(element: React.ReactNode) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   mock.write = true;
   mock.rpc.mockImplementation(async (name: string) =>
     name === "bank_movimento_dettaglio" ? structuredClone(movement) : [],
@@ -140,11 +141,38 @@ describe("popup e registro dei movimenti", () => {
       "Causale non fornita dalla banca",
     );
   });
-  it("mostra la colonna Causale", async () => {
+  it("mantiene le cinque colonne principali nell’ordine richiesto anche con preferenze salvate", async () => {
+    localStorage.setItem("eic:bank-columns:user:company", JSON.stringify(["notes"]));
     view(<TransactionsFeed companyId="company" />);
     expect(
       await screen.findByRole("columnheader", { name: "Causale" }),
     ).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader").slice(0, 5).map(h => h.textContent)).toEqual([
+      "Data", "Controparte", "Importo", "Causale", "Conto",
+    ]);
+  });
+
+  it("Collega apre la ricerca e conserva più fatture selezionate durante le ricerche senza registrare pagamenti", async () => {
+    const tx = structuredClone(movement);
+    tx.links.financial = [];
+    mock.load.mockResolvedValue({ rows: [tx], count: 1, totals: [] });
+    const a = { key: "a", tipo: "documento", id: "a", titolo: "Fattura Alfa", residuo: 300 };
+    const b = { key: "b", tipo: "documento", id: "b", titolo: "Fattura Beta", residuo: 400 };
+    mock.rpc.mockImplementation(async (name: string, args: { p_search?: string }) => {
+      if (name === "bank_movimento_dettaglio") return structuredClone(tx);
+      if (name === "bank_candidati_movimento") return args.p_search === "Beta" ? [b] : [a];
+      return [];
+    });
+    view(<TransactionsFeed companyId="company" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Collega fatture e pagamenti: Bonifico Alfa Beta" }));
+    expect(await screen.findByRole("dialog", { name: "Dettaglio movimento" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Scegli Fattura Alfa" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Cerca documenti da collegare" }), { target: { value: "Beta" } });
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Scegli Fattura Beta" }));
+    expect(screen.getByLabelText("Importo per Fattura Alfa")).toHaveValue("300,00");
+    expect(screen.getByLabelText("Importo per Fattura Beta")).toHaveValue("200,00");
+    expect(screen.getByRole("button", { name: "Conferma" })).toBeEnabled();
+    expect(mock.rpc.mock.calls.every(c => ["bank_movimento_dettaglio", "bank_candidati_movimento"].includes(c[0]))).toBe(true);
   });
 
   it("apre dalla destra e mostra tutti i documenti, le commesse, il mezzo e le note", async () => {
@@ -186,6 +214,17 @@ describe("popup e registro dei movimenti", () => {
     expect(input).toHaveValue("Testo da non perdere");
     expect(mock.toast.success).not.toHaveBeenCalled();
   });
+  it("il popup protegge le note non salvate quando viene chiuso", async () => {
+    const close = vi.fn();
+    view(<BankMovementDetail company="company" id="tx" onClose={close} />);
+    const note = await screen.findByLabelText("Note interne");
+    fireEvent.change(note, { target: { value: "Nota da conservare" } });
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(await screen.findByRole("alertdialog", { name: "Chiudere senza salvare?" })).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continua a modificare" }));
+    expect(screen.getByLabelText("Note interne")).toHaveValue("Nota da conservare");
+  });
   it("il collegamento di un pagamento esistente ha un’azione esplicita e conserva il pagamento", async () => {
     view(<BankMovementDetail company="company" id="tx" onClose={vi.fn()} />);
     fireEvent.click(
@@ -213,7 +252,7 @@ describe("popup e registro dei movimenti", () => {
       screen.queryByRole("button", { name: "Salva note e categoria" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Registra incasso su fatture" }),
+      screen.queryByRole("button", { name: "Collega fatture e scadenze" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Gestisci collegamenti" }),

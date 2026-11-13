@@ -6,7 +6,7 @@ Aggiornamento richieste del 12 novembre 2026. Le funzionalità sono comuni a tut
 
 Panoramica → Conti e banche → Transazioni → Riconciliazione → Previsioni → Note spese → Impostazioni. I vecchi collegamenti a Conti e Connessioni continuano ad aprire la sezione unica.
 
-Un movimento può riguardare più fatture, scadenze e pagamenti, e più commesse o destinatari. Tutte le informazioni si leggono nello stesso pannello laterale, apribile dalla destra della riga, dallo stato o dal nome del movimento.
+Un movimento può riguardare più fatture, scadenze e pagamenti, e più commesse o destinatari. Tutte le informazioni si leggono nello stesso popup centrale, apribile dalla destra della riga, dallo stato o dal nome del movimento. «Collega» nella colonna Fatture e pagamenti apre direttamente la ricerca e la ripartizione; nella colonna Commesse apre i riferimenti gestionali.
 
 ## 1. Un bonifico, più abbinamenti
 
@@ -33,7 +33,7 @@ I riferimenti del personale sono riservati agli amministratori abilitati. Saldi,
 
 ## 3. Tabella, ricerca e note
 
-Una riga per movimento. Colonne configurabili per persona e azienda: data, causale originale del bonifico, controparte, conto, valuta/importo, stato, abbinato, residuo, documenti, commesse, altri riferimenti, note interne. Data valuta, categoria e riferimento sono disponibili fra le colonne aggiuntive. Il comando per aprire il dettaglio resta raggiungibile a destra.
+Una riga per movimento. Le prime cinque colonne restano sempre in quest’ordine: Data, Controparte, Importo, Causale, Conto. Seguono le colonne configurabili per persona e azienda: stato, abbinato, residuo, documenti, commesse, altri riferimenti e note interne. Data valuta, categoria e riferimento sono disponibili fra le colonne aggiuntive. Il comando per aprire il dettaglio resta raggiungibile a destra. Anche il CSV segue l’ordine delle cinque colonne principali.
 
 La causale ricevuta da Distyra viene dalla remittance bancaria (con il descrittore come ripiego quando manca): il gestionale conserva il testo e il riferimento separato. La colonna e il CSV mostrano la causale originale, consultabile per intero nel dettaglio, senza riscriverla come semplice etichetta.
 

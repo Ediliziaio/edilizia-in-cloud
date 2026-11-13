@@ -125,7 +125,7 @@ export function RipartizioneMovimento({
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={cerca} onChange={(e) => { setCerca(e.target.value); onSearch?.(e.target.value); }} placeholder="Cerca numero, nome o importo…" className="h-8 pl-9 text-sm" />
+        <Input aria-label="Cerca documenti da collegare" value={cerca} onChange={(e) => { setCerca(e.target.value); onSearch?.(e.target.value); }} placeholder="Cerca numero, nome o importo…" className="h-8 pl-9 text-sm" />
       </div>
 
       <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
