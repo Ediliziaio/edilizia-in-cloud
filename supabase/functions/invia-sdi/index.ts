@@ -1,3 +1,4 @@
+import { validateCodiceFiscale } from "../_shared/italianFiscalValidation.ts";
 import { puoGestireDocumento } from "../_shared/permessoDocumentoFiscale.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
@@ -27,18 +28,6 @@ function isValidPartitaIva(piva: string | null | undefined): boolean {
     }
   }
   return (10 - (s % 10)) % 10 === parseInt(p[10]);
-}
-
-/** Validate Italian Codice Fiscale (16 alphanumeric chars for individuals, or 11-digit P.IVA for entities) */
-function isValidCodiceFiscale(cf: string | null | undefined): boolean {
-  if (!cf) return false;
-  const c = cf.replace(/\s/g, "").toUpperCase();
-  // Individual: 16 alphanumeric characters
-  if (/^[A-Z]{6}[0-9LMNPQRSTUV]{2}[ABCDEHLMPRST][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]$/.test(c)) {
-    return true;
-  }
-  // Entity: same as P.IVA (11 digits)
-  return isValidPartitaIva(c);
 }
 
 // generateXML, helpers e costanti importate da _shared/generateXML.ts.
@@ -228,7 +217,7 @@ Deno.serve(async (req) => {
     if (snap.partita_iva && !isValidPartitaIva(snap.partita_iva) && (snap.indirizzo_nazione || "IT") === "IT") {
       validationErrors.push(`Partita IVA cliente non valida: ${snap.partita_iva}`);
     }
-    if (snap.codice_fiscale && !isValidCodiceFiscale(snap.codice_fiscale)) {
+    if (snap.codice_fiscale && !validateCodiceFiscale(snap.codice_fiscale).ok) {
       validationErrors.push(`Codice Fiscale cliente non valido: ${snap.codice_fiscale}`);
     }
     // Un privato non ha ragione sociale: si identifica con nome e cognome.
@@ -344,6 +333,7 @@ Deno.serve(async (req) => {
     const xmlToSend = xml;
     let firmatoP7m = false;
     let p7mUrl: string | null = null;
+    let p7mBase64: string | null = null;
 
     if (requiresFirma) {
       const firmaProvider = azienda.sdi_firma_provider || "manuale";
@@ -359,7 +349,7 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               inputType: "BYNARYNET",
-              binaryInput: btoa(xml),
+              binaryInput: utf8ToBase64(xml),
               signatureType: "CADES_BES",
               user: azienda.sdi_firma_username,
             }),
@@ -371,9 +361,11 @@ Deno.serve(async (req) => {
               // Decode and upload p7m
               const p7mBytes = Uint8Array.from(atob(firmaResult.signedDocument), c => c.charCodeAt(0));
               const p7mPath = xmlPath + ".p7m";
-              await supabase.storage
+              const { error: firmaArchivioError } = await supabase.storage
                 .from("fatture-xml")
                 .upload(p7mPath, p7mBytes, { upsert: true, contentType: "application/pkcs7-mime" });
+              if (firmaArchivioError) throw new Error("Archiviazione della fattura firmata non riuscita");
+              p7mBase64 = firmaResult.signedDocument;
               p7mUrl = p7mPath;
               firmatoP7m = true;
             }
@@ -446,7 +438,7 @@ Deno.serve(async (req) => {
         // legacy con `unescape` deprecato (TC39/MDN) e risultati inconsistenti
         // su alcuni code point Unicode (emoji, surrogate). utf8ToBase64 usa
         // TextEncoder, è portabile e corretto su tutto il range Unicode.
-        const xmlBase64 = utf8ToBase64(xml);
+        const xmlBase64 = firmatoP7m ? p7mBase64! : utf8ToBase64(xml);
         const fileName = `IT${azienda.partita_iva}_${progressivoInvio}.xml${firmatoP7m ? ".p7m" : ""}`;
 
         const resp = await fetch(uploadEndpoint, {

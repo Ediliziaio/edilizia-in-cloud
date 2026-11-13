@@ -62,6 +62,9 @@ jobs:
       - name: Fiscal XML notes, contributions and original XML PDF
         run: bunx vitest run src/test/logic/fatturaPaXml.test.ts src/test/logic/fatturaXmlTabellare.test.ts src/test/logic/originaleXmlFattura.test.ts src/test/ui/fatturaPdfXml.test.tsx src/test/ui/emettiBozzaDalDettaglio.test.tsx src/test/logic/contributiFiscaliSdi.test.ts src/test/logic/verificaFormale.test.ts src/test/logic/generateXmlEstero.test.ts src/test/logic/regoleFiscaliFattura.test.ts src/test/logic/allegatiFatturaSdi.test.ts src/test/logic/fatturaRicevutaHtml.test.ts src/test/logic/noteCreditoImporti.test.ts src/test/logic/duplicaDocumento.test.ts --maxWorkers=2
 
+      - name: Real SDI handler B2C B2B PA invoices and credit notes
+        run: bunx vitest run src/test/logic/invioSdiFlussoCompleto.test.ts src/test/logic/italianFiscalValidation.test.ts --maxWorkers=2
+
       - name: Credit note totals, partial credits and no fictional receipts
         run: bunx vitest run src/test/logic/noteCreditoImporti.test.ts src/test/logic/notaCreditoSegno.test.ts src/test/logic/noteDiCredito.test.ts src/test/logic/noteDiCreditoParziali.test.ts src/test/logic/noteDiCreditoStorno.test.ts src/test/logic/notaCreditoStorno.test.ts src/test/logic/noteDiCreditoRicevute.test.ts src/test/logic/noteCreditoNelBilancio.test.ts src/test/security/notaCreditoNonEIncasso.test.ts --maxWorkers=2
 
