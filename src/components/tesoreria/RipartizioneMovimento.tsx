@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Loader2, Search, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,8 @@ export function RipartizioneMovimento({
   inCorso,
   etichettaDocumenti,
   onConferma,
+  onSearch,
+  caricando = false,
 }: {
   /** Quanto del movimento è ancora da abbinare. */
   resto: number;
@@ -48,12 +50,17 @@ export function RipartizioneMovimento({
   inCorso: boolean;
   etichettaDocumenti: string;
   onConferma: (righe: RigaRipartizione[], nota: string) => void;
+  onSearch?: (value: string) => void;
+  caricando?: boolean;
 }) {
   const [importi, setImporti] = useState<Record<string, string>>({});
   const [cerca, setCerca] = useState("");
   const [nota, setNota] = useState("");
 
-  const perChiave = useMemo(() => new Map(candidati.map((c) => [c.key, c])), [candidati]);
+  // Keep selected rows when a new server search returns a different page.
+  const archivio = useRef(new Map<string, CandidatoRipartizione>());
+  candidati.forEach(c => archivio.current.set(c.key, c));
+  const perChiave = archivio.current;
   const scelti = Object.keys(importi);
 
   const righe = scelti.map((key) => ({ candidato: perChiave.get(key)!, valore: leggiImporto(importi[key]) }));
@@ -69,13 +76,14 @@ export function RipartizioneMovimento({
   );
 
   const visibili = useMemo(() => {
-    const q = cerca.trim().toLowerCase();
+    const q = onSearch ? "" : cerca.trim().toLowerCase();
     if (!q) return candidati;
     const importo = leggiImporto(q);
     return candidati.filter((c) =>
       c.titolo.toLowerCase().includes(q) || (c.sottotitolo ?? "").toLowerCase().includes(q)
       || (importo !== null && Math.abs(c.residuo - importo) < 0.005));
-  }, [candidati, cerca]);
+  }, [candidati, cerca, onSearch]);
+  const elenco = [...scelti.filter(k => !visibili.some(c => c.key === k)).map(k => perChiave.get(k)!).filter(Boolean), ...visibili];
 
   const attiva = (c: CandidatoRipartizione) => {
     setImporti((prima) => {
@@ -117,12 +125,13 @@ export function RipartizioneMovimento({
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca numero, nome o importo…" className="h-8 pl-9 text-sm" />
+        <Input value={cerca} onChange={(e) => { setCerca(e.target.value); onSearch?.(e.target.value); }} placeholder="Cerca numero, nome o importo…" className="h-8 pl-9 text-sm" />
       </div>
 
       <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
-        {visibili.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nessun risultato.</p>}
-        {visibili.map((c) => {
+        {caricando && <p role="status" className="text-sm text-muted-foreground">Ricerca in corso…</p>}
+        {!caricando && elenco.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">Nessun risultato.</p>}
+        {elenco.map((c) => {
           const scelto = c.key in importi;
           const valore = scelto ? leggiImporto(importi[c.key]) : null;
           const fuori = scelto && (valore === null || valore <= 0 || valore > c.residuo + 0.004);

@@ -1,68 +1,93 @@
-# Piano operativo: Tesoreria, conti e riconciliazione
+# Tesoreria: sviluppo e collaudo
 
-Richieste del 12 novembre 2026. Questo documento descrive lo sviluppo successivo alle correzioni di collegamento Distyra, selezione conti e fatture emesse della PR 139. La scelta conti e l’unificazione della navigazione sono incluse nella PR 139; il rifacimento esteso di Transazioni e Riconciliazione qui descritto resta lo sviluppo successivo.
+Aggiornamento richieste del 12 novembre 2026. Le funzionalità sono comuni a tutte le aziende. La scelta dei conti, il limite commerciale e i permessi restano configurazioni di ciascuna azienda: il limite di tre conti di Vulcano non va applicato indistintamente agli altri clienti.
 
-## 1. Navigazione e conti bancari
+## Risultato operativo
 
-Ordine delle sezioni: **Panoramica → Conti e banche → Transazioni → Riconciliazione → Previsioni → Note spese → Impostazioni**.
+Panoramica → Conti e banche → Transazioni → Riconciliazione → Previsioni → Note spese → Impostazioni. I vecchi collegamenti a Conti e Connessioni continuano ad aprire la sezione unica.
 
-Conti e Connessioni diventano una sola schermata. I vecchi indirizzi `tab=conti` e `tab=connessioni` continuano a funzionare e aprono la nuova sezione. Anche da telefono devono essere raggiungibili scelta conti, errori e rinnovo del consenso.
+Un movimento può riguardare più fatture, scadenze e pagamenti, e più commesse o destinatari. Tutte le informazioni si leggono nello stesso pannello laterale, apribile dalla destra della riga, dallo stato o dal nome del movimento.
 
-In alto: **Conti collegati 0/3**, poi 1/3, 2/3, 3/3; «Collega banca» e «Gestisci conti». Il limite è aziendale ed è modificabile soltanto dal superadmin. L'aumento cambia il denominatore (esempio 3/5), senza scegliere automaticamente altri conti.
+## 1. Un bonifico, più abbinamenti
 
-Distinguere chiaramente due numeri: conti resi disponibili dal consenso della banca e conti scelti per l'utilizzo in Tesoreria. Un consenso che espone otto conti non significa otto conti attivati dall'app. Non dedurre dal contatore il costo del contratto del fornitore bancario.
+Il pannello mostra dati comunicati dalla banca, conto, data contabile, data valuta, controparte e IBAN, riferimento, importo e valuta. Lo stato in banca resta distinto dallo stato di riconciliazione.
 
-Ogni banca contiene i suoi conti, con nome modificabile, IBAN abbreviato, valuta, stato, ultimo aggiornamento riuscito ed eventuale errore più recente. **Verde: collegato e selezionato; giallo: da riconnettere o consenso in scadenza; rosso: collegamento assente/revocato.** Per un conto disponibile ma non scelto usare uno stato neutro «Disponibile»; non segnalarlo falsamente come guasto. Icona e testo accompagnano sempre il colore. «Riconnetti banca» non deve essere confuso con «Seleziona conto».
+Gli abbinamenti finanziari mostrano ogni documento o pagamento, la quota, le commesse collegate, il totale abbinato e il residuo. Una conferma non può superare il residuo del bonifico o del documento. I controlli sono anche nel database, dentro una transazione, e valgono per ogni azienda.
 
-Dati operativi e saldi seguono i permessi già presenti: chi non ha diritto ai saldi non li riceve né nel dettaglio né nelle somme. I conti manuali restano riconoscibili e non consumano i posti dei collegamenti Distyra.
+Due azioni differenti:
 
-## 2. Transazioni: tabella operativa leggibile
+- **Registra incasso / pagamento:** registra un nuovo pagamento attraverso le procedure contabili esistenti. Più quote vengono confermate insieme: se una non è valida, nessuna viene salvata.
+- **Collega pagamenti già registrati:** usa i pagamenti presenti in Prima nota come prova bancaria, senza crearli una seconda volta. La somma dei pagamenti selezionati non può superare il bonifico. Scollegare questa prova conserva i pagamenti originali.
 
-Una riga per movimento, con colonne selezionabili e preferenze per persona/azienda. Intestazioni e prime colonne fisse; lettura su telefono con schede compatte e apertura del dettaglio.
+Gli abbinamenti storici rimangono leggibili, senza essere convertiti automaticamente in nuove quote. Gli annulli seguono le regole del documento: annullare un incasso creato dalla riconciliazione può stornarlo; scollegare una prova preesistente conserva il pagamento. Lo storico rimane consultabile.
 
-Colonne iniziali: data contabile, controparte, descrizione, banca/conto, entrata, uscita, valuta, stato della riconciliazione, documento collegato, commessa/lavoro, categoria e note interne. Facoltative: data valuta, riferimento bancario, fornitore/cliente, mezzo/cespite collegato, importo già abbinato e quota ancora libera. Evitare di duplicare l'importo intero su ogni collegamento quando un movimento è ripartito.
+## 2. Commesse, fornitori, personale e mezzi
 
-I collegamenti sono cliccabili: fattura, commessa e mezzo aprono l'oggetto reale. Note e categoria si modificano senza perdere il punto nella tabella. Il dettaglio si apre lateralmente, mostrando causale integrale e collegamenti, con conferma esplicita delle azioni finanziarie.
+I collegamenti gestionali contengono tipo, riferimento, quota e nota. Si possono indicare più commesse, fornitori, dipendenti, cedolini e mezzi. Si sommano le quote dello stesso tipo; non si sommano fra loro fatture, commesse e persone che descrivono lo stesso denaro.
 
-Il collegamento diretto a commessa o mezzo deve rappresentare il fatto economico corretto: associare un bonifico alla fattura che già appartiene a una commessa non crea un secondo costo o un secondo incasso. Le spese senza fattura hanno un percorso distinto e un'unica registrazione contabile.
+Questi riferimenti non creano costi, incassi o nuove registrazioni del personale. Collegare un cedolino non equivale a registrare un secondo stipendio né a modificarne automaticamente lo stato amministrativo. Per attestare il pagamento si collega il pagamento esistente oppure si usa una scadenza effettiva. I movimenti senza fattura conservano la registrazione delle spese e l’allegato della ricevuta attraverso il percorso già esistente.
 
-## 3. Ricerca, filtri e totali
+Nella commessa compare l’elenco dei movimenti bancari collegati, con apertura del dettaglio in Tesoreria. L’importo complessivo del bonifico è distinto dalla quota attribuita alla commessa; quando la quota non è stata indicata, non viene inventata.
 
-Ricerca per descrizione, controparte, riferimento, importo, note e numero del documento collegato. Filtri combinabili: periodo, banca/conto, entrata/uscita, intervallo importi, valuta, categoria, cliente/fornitore, commessa, mezzo, presenza di allegati e stato della riconciliazione.
+I riferimenti del personale sono riservati agli amministratori abilitati. Saldi, documenti, mezzi e commesse rispettano i permessi esistenti. Non vengono restituiti saldi attraverso il nuovo registro quando il ruolo non può leggerli.
 
-Scelte rapide: «Da verificare», «Da collegare», «Riconciliate», «Senza fattura», «Questa settimana», «Questo mese». Pillole dei filtri attivi con rimozione singola, azzera tutto e conteggio risultati.
+## 3. Tabella, ricerca e note
 
-Totali sul risultato filtrato completo, distinti per valuta: entrate, uscite, saldo dei movimenti, importi da verificare. Non chiamare questo saldo «saldo del conto», che è un altro dato. Aggregazione e paginazione sul server: il componente attuale scarica fino a 50.000 movimenti per calcolare i totali; con molti dati va sostituito con un riepilogo autorizzato lato database. Esportazione coerente con gli stessi filtri.
+Una riga per movimento. Colonne configurabili per persona e azienda: data, descrizione, controparte, conto, valuta/importo, stato, abbinato, residuo, documenti, commesse, altri riferimenti, note interne. Data valuta, categoria e riferimento sono disponibili fra le colonne aggiuntive. Il comando per aprire il dettaglio resta raggiungibile a destra.
 
-## 4. Abbinamenti proposti e confermati
+Ricerca su causale, controparte, riferimento, note interne, documenti e collegamenti visibili. Sono riconosciuti importi italiani e date. Filtri: conto, direzione, valuta, categoria, periodo, intervallo di importo, stato e tipo di collegamento. Totali, conteggio, paginazione ed esportazione riguardano l’intero risultato filtrato, con importi separati per valuta.
 
-Il sistema attuale non si limita sempre a suggerire: `bank-auto-reconcile` può già registrare abbinamenti e pagamenti quando il punteggio supera la soglia, mentre altre proposte finiscono in chat. Prima di introdurre il nuovo badge bisogna allineare **pulsante Auto-match, attività periodica e conferme manuali** allo stesso processo.
+Le note sono interne al gestionale: non vanno alla banca né sul PDF/XML della fattura. Il salvataggio controlla la revisione del movimento; una finestra vecchia non può sovrascrivere una nota aggiornata. In caso di errore la bozza resta nel pannello. Chiudere con modifiche non salvate richiede di scegliere se continuare a modificarle o scartarle.
 
-Nuovo ciclo: **Da collegare → Da verificare → Riconciliata**. L'analisi automatica crea una proposta con candidati, motivazione e importi; non registra ancora un nuovo pagamento. Il badge «Da verificare» apre il confronto movimento/documento: numero, cliente o fornitore, importo, residuo, data, commessa e motivi dell'abbinamento. La persona può confermare, cambiare documento, ripartire, scartare o indicare «Senza fattura».
+## 4. Riconciliazione come coda di lavoro
 
-La conferma salva in un'unica transazione abbinamento e, solo quando necessario, pagamento. Se il pagamento è già registrato, il movimento bancario ne diventa la prova, senza raddoppiare l'incasso. Un movimento parzialmente abbinato conserva la quota libera. Le proposte rifiutate o gli abbinamenti annullati non vanno riproposti automaticamente.
+Transazioni e Riconciliazione usano lo stesso registro, gli stessi filtri e lo stesso pannello. Riconciliazione apre direttamente i movimenti da lavorare, evitando due liste di bonifici e fatture sempre aperte.
 
-Mantenere distinti: stato della banca, stato di riconciliazione e stato del pagamento della fattura. Una proposta non rende la fattura incassata. I badge devono coincidere fra Transazioni, Riconciliazione, fatture e commessa.
+Ciclo: **Da collegare → Da verificare → Parziale / Riconciliata**. «Trova corrispondenze» e l’analisi periodica producono proposte, senza registrare pagamenti. Gli abbinamenti annullati e le proposte scartate non vengono ripresentati automaticamente. La conferma rimane un’azione esplicita.
 
-## 5. Riconciliazione come coda di lavoro
+Il sistema distingue movimenti contabilizzati e ancora in attesa. Le conferme finanziarie richiedono la contabilizzazione bancaria. Per valute diverse dall’euro non viene applicato un cambio inventato.
 
-Sostituire le due liste molto lunghe sempre aperte con una coda filtrabile. In alto tre indicatori utili: «Da verificare», «Da collegare», «Riconciliate». Selezionando una riga, il pannello laterale mostra i candidati e il confronto; i filtri e la posizione della lista rimangono conservati.
+## 5. Disegno di Conti e banche e Panoramica
 
-Anomalie raggruppate e richiudibili: importi diversi, possibili duplicati, fatture già incassate, date incoerenti, movimenti senza documento. Le azioni «Conferma», «Scegli altro» e «Senza fattura» devono essere visibili nel contesto della singola riga. Conferma multipla solo per proposte omogenee già verificabili; mai per somiglianze generiche.
+Conti e banche: conteggio utilizzati/massimo, ricerca per banca/nome/IBAN, conti scelti e disponibili distinguibili, conferma della selezione, dettagli bancari richiudibili, ultimo aggiornamento ed errori leggibili. I conti manuali restano separati e non consumano i posti Distyra. Il limite può essere aumentato soltanto dal superadmin.
 
-Gestire esplicitamente fattura unica con più incassi, bonifico unico per più fatture, acconti, rimborsi, note di credito, commissioni, giroconti, stipendi, tributi e leasing/mezzi. L'assenza della fattura non è di per sé un errore.
+Colori accompagnati dal testo: verde collegato; giallo da confermare/riconnettere; rosso errore/disconnessione; neutro conto disponibile non scelto. Un conto non selezionato non è segnalato come guasto. La selezione non è automatica.
 
-## 6. Sequenza di realizzazione e verifica
+Panoramica: liquidità e flussi effettivi in alto, grafici di entrate/uscite e andamento del saldo, poi scadenze complessive dell’azienda, categorie e ultime operazioni. Gli impegni dello scadenzario non si sommano al saldo dei movimenti. Le RiBa restano disponibili fra i dettagli operativi, senza occupare la posizione principale. Non vengono mescolate valute differenti o numeri di tutto il gruppo con quelli della singola azienda.
 
-1. Completare selezione conti, blocco massimo e giri Distyra delle 07/18; nessuna selezione per conto del cliente.
-2. Unire Conti e Connessioni, preservando i vecchi collegamenti; ordinare Transazioni e Riconciliazione vicine.
-3. Definire proposte persistenti e conferma atomica; migrare con criterio gli abbinamenti esistenti, senza trasformare conferme storiche in proposte.
-4. Ampliare tabella Transazioni e filtri usando una proiezione autorizzata e aggregati sul server.
-5. Realizzare la coda di verifica e propagare i badge a fatture, commesse e mezzi.
-6. Collaudo con movimenti reali in sola lettura e scenari sintetici per le scritture: duplicati, parziali, ripartizioni, annullamenti, permessi, aziende diverse, più schede aperte, errori banca e grandi volumi. Confrontare saldi/registri prima e dopo: nessun nuovo denaro per effetto di un semplice collegamento.
+## 6. Aggiornamento fra le pagine
 
-## Dettaglio fattura: intervento successivo
+Il salvataggio finanziario deve aggiornare i lettori della stessa informazione, anche in un’altra scheda già aperta. La notifica avviene dopo il salvataggio, senza letture ripetute ogni pochi secondi.
 
-Nella pagina reale FPR 78/26 di Renova Solution, il PDF occupa lo spazio iniziale e le schede operative sono sotto. La scheda Commessa compare soltanto quando esiste una rata collegata, quindi manca in casi legittimi senza piano rate.
+| Operazione | Dati da rileggere |
+| --- | --- |
+| Incasso su fattura emessa nativa/importata | Residuo e storico fattura, Prima nota, scadenzario, rate/commessa, Tesoreria, statistiche fatturazione |
+| Pagamento di fattura ricevuta / scadenza | Rate fornitore, costo, fattura ricevuta, Prima nota, scadenzario, situazione fornitore, commessa |
+| Pagamento SAL/subappalto | Scadenza e costo effettivo, SAL, contratto, esposizione della commessa, Prima nota |
+| Collegamento della sola prova bancaria | Stato e quota bancaria, riferimento sul pagamento esistente; nessun nuovo denaro |
+| Annullamento | Fonte contabile e residui coerenti, storico conservato; eventuale aggiornamento del gestionale esterno |
+| Nota o riferimento gestionale | Registro, pannello e riferimenti della commessa; nessuna variazione di cassa |
 
-Proposta: riepilogo immediato di totale, incassato, residuo e scadenza; collegamento Commessa sempre raggiungibile, anche senza rata; note interne e allegati accessibili vicino alle azioni; un'azione principale «Registra incasso», con le altre raccolte in un menu coerente. Anteprima PDF in una scheda dedicata o richiudibile. Stato SDI separato dall'incasso e note interne sempre escluse da PDF/XML. Nessuna modifica al contenuto fiscale già trasmesso.
+La contabilità generale mantiene le sue regole di contabilizzazione e verifica dei conti: aggiornare la schermata non deve inventare contropartite mancanti o rendere definitiva una scrittura ancora da verificare. Gli eventuali conti contabili non configurati vanno segnalati, non sostituiti con valori arbitrari.
+
+L’aggiornamento di Fatture in Cloud segue la conferma/annullo locale. Se il servizio esterno non risponde, il pagamento locale rimane registrato e viene mostrato un avviso: non va richiesto di ripagare il documento.
+
+## 7. Matrice di simulazione
+
+| Caso | Esito atteso |
+| --- | --- |
+| Bonifico 1.000 €, due fatture 400 + 600 € | Due quote, due commesse visibili, residuo zero, un solo importo bancario |
+| Pagamenti già registrati 400 + 600 € | Nessuna nuova riga di pagamento; solo prove bancarie |
+| Quote 400 + 700 € su bonifico 1.000 € | Rifiuto e rollback di tutte le quote |
+| Due commesse 400 + 600 € e destinatario 1.000 € | Attribuzioni distinte; nessun raddoppio del denaro |
+| Incasso parziale | Residuo documento e bonifico coerenti |
+| Scollegamento pagamento preesistente | Pagamento conservato, sua quota bancaria nuovamente libera |
+| Proposta rifiutata / abbinamento annullato | Nessuna nuova proposta della stessa corrispondenza |
+| Nota aggiornata da due finestre | Conflitto esplicito e bozza conservata |
+| Ricerca con oltre 50 risultati | Totale e conteggio completi, esportazione di tutte le pagine |
+| EUR e USD | Totali separati, nessuna conversione implicita |
+| Azienda diversa, sola lettura, utente bloccato/esterno | Accesso negato dove richiesto, nessuna scrittura |
+| Personale riservato | Nessuna esposizione di nomi o cedolini a ruoli senza permesso |
+| Banca non disponibile / consenso scaduto | Stato e azione corretti, nessun pagamento artificiale |
+
+Le scritture di collaudo si eseguono su PostgreSQL locale con dati sintetici. Nell’app reale si verificano navigazione, dati autorizzati, apertura e annullamento dei pannelli senza registrare pagamenti di prova sulle aziende clienti. Vanno verificati separatamente il rilascio del frontend e quello delle funzioni bancarie.

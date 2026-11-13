@@ -254,7 +254,7 @@ export default function BankConnectionsCard({
             </p>
           )}
           {accs.length > 0 && (
-            <div className="space-y-1">
+            <details className="space-y-1"><summary className="cursor-pointer text-xs text-muted-foreground">{accs.length} conti utilizzati · dettagli</summary>
               {accs.map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                   <span className="flex min-w-0 items-center gap-1.5" title={a.account_name ?? undefined}>
@@ -266,7 +266,7 @@ export default function BankConnectionsCard({
                   )}
                 </div>
               ))}
-            </div>
+            </details>
           )}
           {c.last_sync_at && (
             <p className="text-[10px] text-muted-foreground">Ultima importazione movimenti: {new Date(c.last_sync_at).toLocaleString("it-IT")}</p>
@@ -314,15 +314,15 @@ export default function BankConnectionsCard({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+    <Card className="overflow-hidden rounded-xl shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 bg-muted/20 px-4 py-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Landmark className="h-4 w-4 text-blue-600" />
-          Conti bancari <span className="text-xs font-normal text-muted-foreground">(Open Banking)</span>
+          Conti e banche <span className="text-xs font-normal text-muted-foreground">· collegamento sicuro</span>
         </CardTitle>
         {pulsanteCollega}
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 p-4">
         {companyId && <BankAccountSelection companyId={companyId} onChanged={onChanged} />}
         {elenco}
       </CardContent>

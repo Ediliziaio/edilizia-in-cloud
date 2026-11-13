@@ -663,7 +663,7 @@ export function usePermissions(): Permissions {
   useEffect(() => {
     if (permessi.isLoading) return;
     if (previousBalances.current === true && !permessi.canViewBankBalances) {
-      const filter = {predicate: (q: {queryKey: readonly unknown[]}) => ["bank-accounts","manual-treasury","cashflow","treasury","cg"].includes(String(q.queryKey[0]))};
+      const filter = {predicate: (q: {queryKey: readonly unknown[]}) => ["bank-accounts","bank-movimenti-workspace","bank-movimento","bank-candidati","bank-context-choices","bank-contesto-movimenti","bank-workspace-accounts","manual-treasury","cashflow","treasury","cg"].includes(String(q.queryKey[0]))};
       void cache.cancelQueries(filter).then(() => cache.removeQueries(filter));
     }
     previousBalances.current = permessi.canViewBankBalances;

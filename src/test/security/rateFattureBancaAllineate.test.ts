@@ -17,7 +17,8 @@ import bonifico from "../../../supabase/migrations/20280925020200_bonifico_su_fa
 import dallaFattura from "../../../supabase/migrations/20281030293000_fattura_incassi_e_banca.sql?raw";
 import importate from "../../../supabase/migrations/20281030294000_annulla_pagamento_importate.sql?raw";
 import notturna from "../../../supabase/functions/bank-auto-reconcile/index.ts?raw";
-import tesoreria from "@/components/tesoreria/BankReconciliation.tsx?raw";
+import tesoreria from "@/components/tesoreria/BankMovementDetail.tsx?raw";
+import registro from "../../../supabase/migrations/20290316140000_bank_movimenti_workspace_ripartizioni.sql?raw";
 import modificaCommessa from "@/pages/azienda/EditOrder.tsx?raw";
 import creaFattura from "@/components/orders/CreaFatturaDialog.tsx?raw";
 
@@ -100,37 +101,27 @@ describe("il bonifico abbinato è l'incasso della fattura interna", () => {
   });
 });
 
-describe("l'abbinamento notturno vede anche le fatture interne", () => {
-  it("le cerca in documenti_fiscali e le incassa con riconcilia_bonifico_fattura", () => {
-    expect(notturna).toContain('.from("documenti_fiscali")');
-    expect(notturna).toContain('supabase.rpc("riconcilia_bonifico_fattura"');
+describe("l’analisi bancaria propone senza registrare pagamenti", () => {
+  it("delega alla procedura protetta che vede anche i documenti nativi", () => {
+    expect(notturna).toContain('client.rpc("bank_suggerisci_riconciliazioni"');
+    expect(registro).toContain("public.documenti_fiscali_elenco_operativo");
+    expect(notturna).not.toContain('rpc("riconcilia_bonifico_fattura"');
   });
-
-  it("il pagamento prende la data del bonifico, non quella del giro", () => {
-    const entrate = notturna.split("// ── ENTRATE")[1];
-    expect(entrate).toMatch(/\.select\("id, amount, booking_date,/);
-  });
-
-  it("le uscite non dipendono più dalle entrate: vengono prima dei loro «continue»", () => {
-    const uscite = notturna.indexOf("// ── USCITE");
-    const entrate = notturna.indexOf("// ── ENTRATE");
-    expect(uscite).toBeGreaterThan(0);
-    expect(entrate).toBeGreaterThan(uscite);
+  it("la conferma esplicita usa il pagamento atomico alla data del bonifico", () => {
+    expect(tesoreria).toContain('"bank_conferma_ripartizione"');
+    expect(registro).toContain("public.riconcilia_movimento_su_documenti(t.id,p_rows,p_note)");
   });
 });
 
 describe("in Tesoreria la riconciliazione di una fattura interna si scollega con lo storno", () => {
-  it("prima del ramo delle scadenze fornitori, che toccherebbe la scadenza a mano", () => {
-    const storno = tesoreria.indexOf("if (eRiconciliazioneFatturaInterna(rec))");
-    const scadenza = tesoreria.indexOf("if (!invId && rec.scadenza_id)");
-    expect(storno).toBeGreaterThan(0);
-    expect(storno).toBeLessThan(scadenza);
-    expect(tesoreria).toContain('supabase.rpc("scollega_bonifico_fattura"');
+  it("l’annullo di una quota passa dalla procedura canonica, la prova preesistente viene solo scollegata", () => {
+    expect(tesoreria).toContain('"scollega_riga_ripartita"');
+    expect(tesoreria).toContain('"bank_scollega_pagamento"');
+    expect(registro).toContain('RETURN public.bank_scollega_pagamento(rc.id)');
   });
-
-  it("l'abbinamento a mano passa dalla stessa RPC della notte", () => {
-    expect(tesoreria).toContain('supabase.rpc("riconcilia_bonifico_fattura"');
-    expect(tesoreria).toContain("if (eFatturaInterna(inv)) return confirmMatchInterna(tx, inv, matchType, notaScelta);");
+  it("la conferma manuale usa la ripartizione atomica protetta", () => {
+    expect(tesoreria).toContain('"bank_conferma_ripartizione"');
+    expect(registro).toContain('public.riconcilia_movimento_su_documenti(t.id,p_rows,p_note)');
   });
 });
 
@@ -190,8 +181,8 @@ describe("dalla fattura: incassi, annulli e bonifico senza doppioni (30/10/2026)
     expect(accrediti).toMatch(/NOT EXISTS \(SELECT 1 FROM public\.bank_reconciliations r\s+WHERE r\.transaction_id = t\.id AND r\.unmatched_at IS NULL\)/);
   });
 
-  it("la notte chiama ancora la stessa RPC con i parametri per nome: il quinto ha un default", () => {
-    expect(notturna).toContain('p_match_type: "auto"');
+  it("la notte propone soltanto; la funzione di incasso conserva il parametro opzionale", () => {
+    expect(notturna).toContain('client.rpc("bank_suggerisci_riconciliazioni"');
     expect(notturna).not.toContain("p_movimento_id");
     expect(dallaFattura).toContain("p_movimento_id uuid DEFAULT NULL::uuid");
   });

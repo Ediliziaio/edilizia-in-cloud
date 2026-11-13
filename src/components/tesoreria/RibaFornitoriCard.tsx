@@ -1,3 +1,4 @@
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 // ============================================================================
 // RiBa ai fornitori — che cosa la banca addebiterà, e se sul conto c'è
 // ----------------------------------------------------------------------------
@@ -99,7 +100,7 @@ export function RibaFornitoriCard({
   /** Il saldo dei conti collegati; NULL se nessun conto è collegato. */
   liquidita: number | null;
 }) {
-  const { data: righe = [] } = useQuery<RibaFornitore[]>({
+  const { data: righe = [], isError, refetch } = useQuery<RibaFornitore[]>({
     queryKey: ["riba-fornitori", companyId],
     queryFn: async () => {
       const { data, error } = await db
@@ -133,6 +134,7 @@ export function RibaFornitoriCard({
     },
     onSuccess: (_d, v) => {
       toast.success(AZIONI_RIBA.find((a) => a.stato === v.stato)?.label ?? "Stato aggiornato");
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["riba-fornitori", companyId] });
       // Pagare tutte le RiBa di una fattura paga il costo: anche i Costi cambiano.
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
@@ -170,6 +172,7 @@ export function RibaFornitoriCard({
     onSuccess: (n) => {
       toast.success(n === 1 ? "Una RiBa segnata pagata" : `${n} RiBa segnate pagate`);
       setConfermaPassate(false);
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["riba-fornitori", companyId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
     },
@@ -185,6 +188,7 @@ export function RibaFornitoriCard({
     .sort((a, b) => ordine[a.stato] - ordine[b.stato] || String(a.scadenza).localeCompare(String(b.scadenza)))
     .slice(0, 8);
 
+  if(isError)return <div role="alert" className="rounded-xl border p-4 text-sm xl:col-span-2">RiBa non disponibili. <button className="underline" onClick={()=>void refetch()}>Riprova</button></div>;
   if (righe.length === 0) return null;
 
   return (
@@ -202,6 +206,7 @@ export function RibaFornitoriCard({
           Vedi nei costi <ArrowRight className="h-3 w-3" />
         </Link>
       </CardHeader>
+      <details><summary className="cursor-pointer px-6 pb-3 text-xs font-medium text-primary">Apri le scadenze RiBa e le azioni</summary>
       <CardContent className="space-y-3">
         <div className="grid gap-2 sm:grid-cols-2">
           {/* In arrivo: la finestra in cui va garantita la provvista */}
@@ -335,7 +340,7 @@ export function RibaFornitoriCard({
             E altre {righe.length - prossime.length}: tutte nei costi, col filtro RiBa.
           </p>
         )}
-      </CardContent>
+      </CardContent></details>
     </Card>
   );
 }

@@ -1,3 +1,4 @@
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,7 @@ const rpc: Rpc = (fn, args) => supabase.rpc(fn as never, args as never) as never
 
 /** Tutto ciò che mostra un incasso: elenco, dettaglio, registro, scadenzario, cassa, Tesoreria. */
 function aggiornaDopoIncasso(queryClient: QueryClient, companyId: string | null | undefined) {
+  refreshFinancialQueries(queryClient);
   invalidaStatisticheFatturazione(queryClient, companyId);
   queryClient.invalidateQueries({ queryKey: ["incassi-fattura"] });
   queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });

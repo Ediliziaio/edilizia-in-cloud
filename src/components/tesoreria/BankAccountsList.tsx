@@ -1,5 +1,5 @@
 import { usePermissions } from "@/hooks/usePermissions";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ interface Props {
 
 export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
   const { canViewBankBalances } = usePermissions();
+  const requestVersion=useRef(0);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -45,12 +46,14 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
   useEffect(() => {
     if (companyId) void loadAccounts();
     else {
+      requestVersion.current++;
       setAccounts([]);
       setLoading(false);
     }
   }, [companyId, refreshKey, canViewBankBalances]);
 
   async function loadAccounts() {
+    const version=++requestVersion.current;
     setLoading(true);
     setLoadError(null);
     try {
@@ -61,13 +64,15 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
         .eq("is_active", true)
         .neq("is_manual", true) // i conti manuali hanno il loro pannello dedicato
         .order("created_at");
+      if(version!==requestVersion.current)return;
       if (error) throw error;
       setAccounts(data || []);
     } catch (e: any) {
+      if(version!==requestVersion.current)return;
       setLoadError(e.message || "Impossibile caricare i conti");
       toast.error("Errore caricamento conti bancari");
     } finally {
-      setLoading(false);
+      if(version===requestVersion.current)setLoading(false);
     }
   }
 
@@ -126,8 +131,8 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
   if (accounts.length === 0) {
     return (
       // Mobile: una riga di testo (la scheda Connessioni è solo al desktop).
-      <div className="flex flex-col items-center justify-center h-64 gap-4 text-center max-sm:h-auto max-sm:py-3">
-        <CreditCard className="h-16 w-16 text-muted-foreground max-sm:hidden" />
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 py-5 text-center max-sm:h-auto max-sm:py-3">
+        <CreditCard className="h-7 w-7 text-muted-foreground max-sm:hidden" />
         <h2 className="text-xl font-semibold max-sm:text-xs max-sm:font-normal max-sm:text-muted-foreground">Nessun conto collegato</h2>
         <p className="text-muted-foreground max-sm:hidden">Scegli i conti disponibili nella sezione sopra oppure collega una banca.</p>
       </div>
@@ -135,7 +140,7 @@ export default function BankAccountsList({ companyId, refreshKey = 0 }: Props) {
   }
 
   return (
-    <div className="space-y-6 max-sm:space-y-2">
+    <div className="space-y-3 max-sm:space-y-2">
       {/* Header — mobile: totale 18px, via «Mostra IBAN». */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>

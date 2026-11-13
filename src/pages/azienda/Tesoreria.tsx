@@ -16,8 +16,9 @@ import { toast } from "sonner";
 import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
 import BankAccountsList from "@/components/tesoreria/BankAccountsList";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
-import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
 import BankReconciliation from "@/components/tesoreria/BankReconciliation";
+import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
+
 import { usePermissions } from "@/hooks/usePermissions";
 // Un solo previsionale (01/11/2026): la scheda Previsioni mostra lo stesso calcolo della pagina
 // Previsionale, con fatture, RiBa, F24, stipendi e garanzie. Prima leggeva get_cash_flow_forecast,
@@ -129,6 +130,12 @@ export default function Tesoreria() {
     const safeTab = getSafeTab(searchParams);
     setActiveTab((current) => (current === safeTab ? current : safeTab));
   }, [searchParams]);
+
+  useEffect(() => {
+    const refresh = () => setRefreshKey(value => value + 1);
+    window.addEventListener("eic-financial-refresh", refresh);
+    return () => window.removeEventListener("eic-financial-refresh", refresh);
+  }, []);
 
   async function handleSync() {
     if (!effectiveCompany?.id) {
@@ -345,7 +352,7 @@ export default function Tesoreria() {
           <TreasuryOverview companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} onNavigateToTransactions={() => handleTabChange("transazioni")} />
         </TabsContent>
         <TabsContent value="conti">
-          <div className="space-y-8 max-sm:space-y-4">
+          <div className="space-y-4 max-sm:space-y-3">
             <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
             {hasConnections && <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />}
             {hasConnections && <div className="border-t border-slate-100 max-sm:hidden" />}

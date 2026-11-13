@@ -1,3 +1,4 @@
+import { TreasuryDueSummary } from "./TreasuryDueSummary";
 import { usePermissions } from "@/hooks/usePermissions";
 import TransactionsFeed from "./TransactionsFeed";
 import { useEffect, useState, useRef, type ReactNode } from "react";
@@ -327,7 +328,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
   // ultime transazioni) stanno a coppie: uno sotto l'altro a tutta larghezza
   // erano grafici di 1100px alti 300 e la pagina scorreva per quattro schermi.
   return (
-    <div className="space-y-6 max-sm:space-y-3 xl:grid xl:grid-cols-2 xl:gap-6 xl:space-y-0">
+    <div className="space-y-4 max-sm:space-y-3 xl:grid xl:grid-cols-2 xl:items-start xl:gap-4 xl:space-y-0">
       {/* Con piu' conti, il totale d'azienda puo' nascondere un conto in
           sofferenza: qui si guarda un conto per volta. */}
       {accounts.filter((a) => a.is_active).length > 1 && (
@@ -433,12 +434,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         </div>
       )}
 
-      {/* Le RiBa ai fornitori: la banca le addebita da sola alla scadenza,
-          quindi stanno qui accanto al saldo. Sparisce se non ce ne sono. */}
-      <RibaFornitoriCard
-        companyId={companyId}
-        liquidita={accounts.some((a) => a.is_active) ? kpis[0].value : null}
-      />
+      <div className="xl:col-span-2"><TreasuryDueSummary company={companyId}/></div>
 
       {/* Andamento saldo — il grafico principe della tesoreria: area con
           gradiente sui 90 giorni, leggibile anche su mobile. */}
@@ -483,16 +479,16 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400">
               <ArrowUpDown className="h-4 w-4" />
             </span>
-            Cash Flow — Ultimi 6 Mesi
+            Entrate, uscite e saldo dei movimenti · 6 mesi
           </CardTitle>
         </CardHeader>
         <CardContent>
           {cashFlow.length === 0 ? (
-            <p className="text-muted-foreground text-center py-12">
+            <p className="text-muted-foreground text-center py-5">
               Collega una banca per vedere il cash flow
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={240}>
               <ComposedChart data={cashFlow} barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
@@ -521,18 +517,18 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
         </CardHeader>
         <CardContent>
           {byCategory.length === 0 ? (
-            <p className="text-muted-foreground text-center py-12">
+            <p className="text-muted-foreground text-center py-5">
               Nessuna uscita nel periodo. Categorizza i movimenti dalla scheda Transazioni per vedere la ripartizione.
             </p>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 items-center xl:grid-cols-1">
+            <div className="grid gap-4 md:grid-cols-2 items-center">
               {/* Donut recharts: solo desktop. Su mobile resta la lista con
                   percentuali (stesso dato, più leggibile a dito). Da 1280 il
                   riquadro è a mezza pagina: col donut accanto la lista restava
                   senza spazio per i nomi delle categorie, quindi resta la lista. */}
               {!isMobile && (
               <div className="xl:hidden">
-              <ResponsiveContainer width="100%" height={240}>
+              <ResponsiveContainer width="100%" height={190}>
                 <PieChart>
                   <Pie data={byCategory} dataKey="total" nameKey="category" innerRadius={62} outerRadius={95} paddingAngle={2} strokeWidth={2}>
                     {byCategory.map((c) => <Cell key={c.category} fill={categoryColor(c.category)} />)}
@@ -561,7 +557,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
       </Card>
 
       {/* Ultime transazioni. Mobile no: doppione della scheda Movimenti. */}
-      <Card className="rounded-2xl shadow-sm max-sm:hidden">
+      <Card className={`rounded-2xl shadow-sm max-sm:hidden ${saldoTrend.length<2?"xl:col-span-2":""}`}>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -611,6 +607,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
           )}
         </CardContent>
       </Card>
+      <RibaFornitoriCard companyId={companyId} liquidita={accounts.some(a=>a.is_active)?kpis[0].value:null}/>
     </div>
   );
 }

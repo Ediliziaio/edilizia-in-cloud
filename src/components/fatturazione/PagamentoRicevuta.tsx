@@ -1,3 +1,4 @@
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Check, Loader2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
@@ -89,6 +90,7 @@ export function usePagamentiParzialiRicevute(companyId: string | null | undefine
 export function useSegnaRicevutaPagata() {
   const queryClient = useQueryClient();
   const invalida = () => {
+  refreshFinancialQueries(queryClient);
     void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute-pagamento"] });
     void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
     void queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
