@@ -1,3 +1,4 @@
+BEGIN;
 -- Numeri WhatsApp: token e PIN fuori dal browser, modifiche solo a chi amministra (25/09/2026).
 --
 -- Verificato il 24/09 su public.ai_whatsapp_numbers, e riprovato il 25/09 con
@@ -221,6 +222,9 @@ create policy wa_numeri_cancellazione_amministratori on public.ai_whatsapp_numbe
   as permissive for delete to authenticated
   using (public.puo_gestire_whatsapp(company_id));
 
+-- Keep backend access explicit even when a fresh hosted project has no default table grants.
+grant select, insert, update, delete on public.ai_whatsapp_numbers to service_role;
+
 -- 5. Se qualcosa non torna, la migrazione si ferma ---------------------------------------------
 do $$
 begin
@@ -238,3 +242,5 @@ begin
   end if;
 end;
 $$;
+
+COMMIT;
