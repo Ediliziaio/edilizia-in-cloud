@@ -1,9 +1,11 @@
 import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
 import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useLetturaRicevuta } from "@/hooks/useLetturaRicevuta";
+import { ricevutaDaLeggere } from "@/lib/fatturazione/letturaRicevuta";
 import { AlertTriangle, ArrowLeftRight, Download, FileText, Link2, Receipt, Sparkles } from "lucide-react";
 import { ConfrontoFatturaDialog } from "./ConfrontoFatturaDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,7 +95,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, da_leggere, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -211,6 +213,16 @@ function ContenutoRiepilogo({
     enabled: !!fatturaId && !!companyId,
     queryFn: () => leggiDettaglio(fatturaId!, companyId!),
   });
+
+  const lettura = useLetturaRicevuta(companyId);
+  const aperturaGestita = useRef(false);
+  const statoAperto = d?.fattura.stato;
+  const daLeggereAperta = d?.fattura.da_leggere;
+  useEffect(() => {
+    if (!d || !fatturaId || !companyId || aperturaGestita.current) return;
+    aperturaGestita.current = true;
+    if (ricevutaDaLeggere({ stato: String(statoAperto ?? ''), da_leggere: daLeggereAperta as boolean | null | undefined })) lettura.mutate({ id: fatturaId, daLeggere: false });
+  }, [d, fatturaId, companyId, statoAperto, daLeggereAperta, lettura.mutate]);
 
   const permessi = usePermissions();
   const [confronto, setConfronto] = useState(false);
@@ -689,6 +701,10 @@ function ContenutoRiepilogo({
         )}
         </div>
         <DialogFooter>
+          {d && fatturaId && <Button variant="outline" size="sm" disabled={lettura.isPending} onClick={() => lettura.mutate({ id: fatturaId, daLeggere: !ricevutaDaLeggere({ stato: String(d.fattura.stato ?? ''), da_leggere: d.fattura.da_leggere as boolean | null | undefined }) })}>
+            {ricevutaDaLeggere({ stato: String(d.fattura.stato ?? ''), da_leggere: d.fattura.da_leggere as boolean | null | undefined }) ? 'Segna come letta' : 'Segna come non letta'}
+          </Button>}
+
           <Button variant="outline" onClick={onClose}>Chiudi riepilogo</Button>
           {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
         </DialogFooter>

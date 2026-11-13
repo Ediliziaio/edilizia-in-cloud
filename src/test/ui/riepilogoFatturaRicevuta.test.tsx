@@ -87,3 +87,22 @@ describe("riepilogo della fattura ricevuta", () => {
     expect(screen.queryByText("L'AI suggerisce")).toBeNull();
   });
 });
+
+
+describe("stato di lettura all’apertura", () => {
+  it("aprire il riepilogo basta; la scelta manuale resta fino alla prossima apertura", async () => {
+    finto.dati.fatture_ricevute = {...FIC,stato:"non_letta",da_leggere:null,note_interne:"Nota del cliente"};
+    finto.rpc.mockImplementation(async (name:string,args:{p_da_leggere?:boolean})=>{
+      if(name!=="fattura_ricevuta_lettura")return {data:null,error:null};
+      const unread=args.p_da_leggere!;
+      finto.dati.fatture_ricevute={...(finto.dati.fatture_ricevute as object),stato:unread?"non_letta":"letta",da_leggere:unread};
+      return {data:{id:"f1",stato:unread?"non_letta":"letta",da_leggere:unread},error:null};
+    });
+    const view=apri();
+    fireEvent.click(await screen.findByRole("button",{name:"Segna come non letta"}));
+    await screen.findByRole("button",{name:"Segna come letta"});
+    expect(finto.rpc.mock.calls.filter(c=>c[0]==="fattura_ricevuta_lettura").map(c=>c[1].p_da_leggere)).toEqual([false,true]);
+    view.unmount();apri();await screen.findByRole("button",{name:"Segna come non letta"});
+    expect(finto.rpc.mock.calls.filter(c=>c[0]==="fattura_ricevuta_lettura").map(c=>c[1].p_da_leggere)).toEqual([false,true,false]);
+  });
+});
