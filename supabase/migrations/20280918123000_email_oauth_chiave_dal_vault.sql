@@ -1,3 +1,5 @@
+-- Vault key creation requires an explicit transaction on hosted PostgreSQL.
+BEGIN;
 -- Token OAuth delle caselle personali (Gmail/Outlook): la chiave dal Vault.
 --
 -- email_oauth_encrypt_token / email_oauth_decrypt_token avevano la chiave
@@ -162,3 +164,5 @@ $$;
 
 revoke all on function public.email_oauth_chiave_configurata() from public, anon, authenticated;
 grant execute on function public.email_oauth_chiave_configurata() to service_role;
+
+COMMIT;
