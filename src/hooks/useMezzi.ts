@@ -721,7 +721,7 @@ export function useCostiParco(abilitato = true) {
       const [doc, man] = await Promise.all([
         supabase
           .from("mezzi_documenti")
-          .select("mezzo_id, categoria, importo, data_scadenza, created_at")
+          .select("mezzo_id, categoria, titolo, importo, data_scadenza, created_at")
           .eq("company_id", companyId!)
           .in("categoria", ["assicurazione", "bollo"])
           .not("importo", "is", null),
@@ -734,7 +734,7 @@ export function useCostiParco(abilitato = true) {
       if (doc.error) throw doc.error;
       if (man.error) throw man.error;
       return {
-        documenti: (doc.data ?? []) as Array<Pick<MezzoDocumento, "mezzo_id" | "categoria" | "importo" | "data_scadenza" | "created_at">>,
+        documenti: (doc.data ?? []) as Array<Pick<MezzoDocumento, "mezzo_id" | "categoria" | "titolo" | "importo" | "data_scadenza" | "created_at">>,
         manutenzioni: (man.data ?? []) as Array<Pick<MezzoManutenzione, "mezzo_id" | "data" | "costo">>,
       };
     },

@@ -689,16 +689,19 @@ export interface CostoAnnuoMezzo {
  */
 export function costoAnnuoMezzo(
   mezzo: Pick<Mezzo, "rata_mensile">,
-  documenti: Pick<MezzoDocumento, "categoria" | "importo" | "data_scadenza" | "created_at">[],
+  documenti: (Pick<MezzoDocumento, "categoria" | "importo" | "data_scadenza" | "created_at"> & { titolo?: string | null })[],
   manutenzioni: Pick<MezzoManutenzione, "data" | "costo">[],
   oggi: string,
 ): CostoAnnuoMezzo {
   let doc = 0;
-  for (const categoria of ["assicurazione", "bollo"] as const) {
-    const ultimo = documenti
-      .filter((d) => d.categoria === categoria && d.importo != null)
-      .sort((a, b) => (b.data_scadenza ?? "").localeCompare(a.data_scadenza ?? "") || b.created_at.localeCompare(a.created_at))[0];
-    if (ultimo) doc += Number(ultimo.importo);
+  const serieViste = new Set<string>();
+  const validi = documenti.filter(d => ["assicurazione", "bollo"].includes(d.categoria) && d.importo != null)
+    .sort((a, b) => (b.data_scadenza ?? "").localeCompare(a.data_scadenza ?? "") || b.created_at.localeCompare(a.created_at));
+  for (const d of validi) {
+    const serie = serieDocumento({ ...d, id: "" });
+    if (serieViste.has(serie)) continue;
+    serieViste.add(serie);
+    doc += Number(d.importo);
   }
   const rate = mezzo.rata_mensile != null ? Number(mezzo.rata_mensile) * 12 : 0;
   const da = aggiungiGiorni(oggi, -365);
