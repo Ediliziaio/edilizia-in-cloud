@@ -452,7 +452,16 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             )}
 
             <section aria-label="Materiali che entrano">
-              <h4 className="mb-1 font-semibold">Entrano {daSalvare.length} materiali{daSalvare.length !== materiali.length ? ` su ${materiali.length}` : ""}</h4>
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <h4 className="font-semibold">Entrano {daSalvare.length} materiali{daSalvare.length !== materiali.length ? ` su ${materiali.length}` : ""}</h4>
+                <label className="ml-auto flex items-center gap-1.5 text-xs">
+                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label="Seleziona tutti i materiali"
+                    checked={!!materiali.length && daSalvare.length === materiali.length}
+                    ref={(el) => { if (el) el.indeterminate = daSalvare.length > 0 && daSalvare.length < materiali.length; }}
+                    onChange={(e) => { const si = e.target.checked; setAccese(Object.fromEntries(materiali.map((r) => [r.chiave, si]))); }} />
+                  Tutti
+                </label>
+              </div>
               <p className="mb-2 text-xs text-muted-foreground">
                 {conteggiFonte.collegati ? `${conteggiFonte.collegati} collegati a un vostro articolo o listino. ` : ""}
                 {conteggiFonte.daControllare ? `${conteggiFonte.daControllare} da controllare. ` : ""}
@@ -460,7 +469,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
               </p>
               {perFase.map(([fase, righe]) => (
                 <details key={fase} className="mb-1 rounded border" open={perFase.length <= 3}>
-                  <summary className="cursor-pointer px-2 py-1.5 font-medium">{nomeFase(fase === SENZA ? null : fase)} · {righe.filter(accesa).length}{righe.some((r) => !accesa(r)) ? ` su ${righe.length}` : ""}</summary>
+                  <summary className="flex cursor-pointer items-center gap-2 px-2 py-1.5 font-medium">
+                    <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={`Seleziona i materiali di ${nomeFase(fase === SENZA ? null : fase)}`}
+                      checked={righe.every(accesa)} ref={(el) => { if (el) el.indeterminate = righe.some(accesa) && !righe.every(accesa); }}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => { const si = e.target.checked; setAccese((a) => ({ ...a, ...Object.fromEntries(righe.map((r) => [r.chiave, si])) })); }} />
+                    <span>{nomeFase(fase === SENZA ? null : fase)} · {righe.filter(accesa).length}{righe.some((r) => !accesa(r)) ? ` su ${righe.length}` : ""}</span>
+                  </summary>
                   <table className="w-full text-xs">
                     <tbody className="divide-y">
                       {righe.map((r) => (

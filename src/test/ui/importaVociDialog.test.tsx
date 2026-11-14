@@ -99,4 +99,43 @@ describe("Importa voci: il popup", () => {
     expect(screen.getByText(/letto con l'AI/)).toBeInTheDocument();
     expect(document.querySelector("tr[data-incerta]")).toHaveTextContent("Lettura incerta");
   });
+
+  it("si scelgono le voci, per voce o per capitolo: solo le selezionate si importano", async () => {
+    const CSV2 = [
+      "N.;Descrizione;U.M.;Quantità;Prezzo;Importo",
+      "1;OPERE MURARIE;;;;",
+      "1.1;Intonaco civile;mq;10,00;24,00;240,00",
+      "1.2;Rasatura;mq;10,00;10,00;100,00",
+      "2;TINTEGGIATURE;;;;",
+      "2.1;Tinteggiatura;mq;20,00;8,00;160,00",
+    ].join("\n");
+    const onAggiungi = await apri([new File([CSV2], "voci.csv", { type: "text/csv" })]);
+    await screen.findByRole("button", { name: "Aggiungi 3 voci" }, { timeout: 3000 });
+    expect(document.querySelectorAll("tbody[data-capitolo]")).toHaveLength(2);
+    expect(screen.getByTestId("contatore-selezione")).toHaveTextContent("3 selezionate su 3");
+    expect(screen.getByText(/totale selezionate/)).toHaveTextContent("500,00 €");
+
+    // Via un capitolo intero, poi una voce torna dentro.
+    fireEvent.click(screen.getByLabelText("Seleziona il capitolo OPERE MURARIE"));
+    expect(screen.getByTestId("contatore-selezione")).toHaveTextContent("1 selezionate su 3");
+    fireEvent.click(screen.getByLabelText("Importa Rasatura"));
+    expect(screen.getByTestId("contatore-selezione")).toHaveTextContent("2 selezionate su 3");
+    expect(screen.getByLabelText("Seleziona il capitolo OPERE MURARIE")).toHaveProperty("indeterminate", true);
+    expect(screen.getByText(/totale selezionate/)).toHaveTextContent("260,00 €");
+
+    // Il capitolo si corregge.
+    const capitoli = screen.getAllByLabelText("Capitolo");
+    fireEvent.change(capitoli[1], { target: { value: "FINITURE" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi 2 voci" }));
+    const [voci] = onAggiungi.mock.calls[0];
+    expect(voci.map((v: { descrizione: string; capitolo: string }) => [v.descrizione, v.capitolo])).toEqual([["Rasatura", "FINITURE"], ["Tinteggiatura", "TINTEGGIATURE"]]);
+  });
+
+  it("mentre legge mostra il foglio con le righe che si accendono", async () => {
+    await apri([new File([CSV], "voci.csv", { type: "text/csv" })]);
+    const foglio = document.querySelector(".importa-voci-foglio");
+    expect(foglio).not.toBeNull();
+    expect(foglio).toHaveTextContent("CSV");
+  });
 });
