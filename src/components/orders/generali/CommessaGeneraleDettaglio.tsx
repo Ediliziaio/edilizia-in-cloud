@@ -145,7 +145,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
       {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
 
-      {r.permessi.costi && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
+      {(r.permessi.costi || r.permessi.importi) && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
 
       {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
         {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}

@@ -1,79 +1,115 @@
 /**
- * Speso contro piano, mese per mese (Panoramica della commessa generale, 14/11/2026).
+ * Previsto contro reale, mese per mese (Panoramica della commessa generale, 14/11/2026).
  *
- * Il piano dice quanto si spende in ogni mese (ogni voce di costo col suo mese, divisa sulla
- * sua durata); il reale dice quanto si è speso davvero (costi alla loro data). Il grafico li
- * mette uno sopra l'altro, cumulati: dove la linea piena sta sopra la tratteggiata si è speso
- * più del previsto a quella data. Il reale si ferma a oggi; il piano prosegue fino alla fine.
+ * Tre misure, ognuna cumulata a fine mese:
+ * - costi: il piano (ogni voce di costo col suo mese, divisa sulla sua durata) contro lo speso
+ *   registrato alla sua data;
+ * - ricavi: il piano (le voci di ricavo, es. le vendite delle unità) contro quello ottenuto
+ *   (fatture e vendite registrate);
+ * - margine: ricavi − costi, del piano e del reale.
+ * Il reale si ferma a oggi; il piano prosegue fino alla fine. Le voci senza mese non entrano.
  */
 import { distanzaMesi, distribuisci, meseDi, type RigaReale, type VocePiano } from "./pianoConti";
 import { aggiungiMesi } from "./pianoCategorie";
 import { stimaMancante } from "./budgetCompletezza";
 
-export interface PuntoSpesa {
+export type Misura = "costi" | "ricavi" | "margine";
+
+export interface PuntoConfronto {
   mese: string;
-  /** Piano cumulato a fine mese. */
-  piano: number;
-  /** Speso cumulato a fine mese; null dopo oggi. */
-  speso: number | null;
+  costiPiano: number;
+  costiReale: number | null;
+  ricaviPiano: number;
+  ricaviReale: number | null;
+  marginePiano: number;
+  margineReale: number | null;
 }
 
-export interface SerieSpesa {
-  punti: PuntoSpesa[];
-  oggi: string;
-  spesoOggi: number;
+export interface TotaliMisura {
+  /** Reale a oggi. */
+  realeOggi: number;
+  /** Piano a oggi. */
   pianoOggi: number;
-  /** Speso − piano a oggi: positivo = si è speso più del previsto. */
-  differenza: number;
+  /** Piano a fine lavori. */
   pianoTotale: number;
+  /** Reale − piano a oggi. */
+  differenza: number;
+}
+
+export interface SerieConfronto {
+  punti: PuntoConfronto[];
+  oggi: string;
+  totali: Record<Misura, TotaliMisura>;
   /** Voci del piano ancora da stimare (stessa regola del percorso «Completa l'operazione»). */
   vociSenzaImporto: number;
+  /** Voci di ricavo senza mese: nel totale del piano ci sono, nella linea no. */
+  ricaviSenzaMese: number;
 }
 
 const tondo = (n: number) => Math.round(n * 100) / 100;
 
-export function serieSpesaPianoReale(voci: VocePiano[], righe: RigaReale[], oggiData: string): SerieSpesa {
+/** Il segno «buono» di ogni misura: un costo sopra il piano è male, un ricavo o un margine sopra è bene. */
+export const sopraEBene = (m: Misura) => m !== "costi";
+
+export function serieConfronto(voci: VocePiano[], righe: RigaReale[], oggiData: string): SerieConfronto {
   const oggi = oggiData.slice(0, 7);
-  const pianoPerMese = new Map<string, number>();
+  const piano = { costo: new Map<string, number>(), ricavo: new Map<string, number>() };
+  const reale = { costo: new Map<string, number>(), ricavo: new Map<string, number>() };
   for (const v of voci) {
-    if (v.tipo !== "costo" || !v.mese || !v.importo) continue;
-    for (const q of distribuisci(v.importo, v.mese, v.durataMesi)) pianoPerMese.set(q.mese, (pianoPerMese.get(q.mese) ?? 0) + q.importo);
+    if (!v.mese || !v.importo) continue;
+    for (const q of distribuisci(v.importo, v.mese, v.durataMesi)) piano[v.tipo].set(q.mese, (piano[v.tipo].get(q.mese) ?? 0) + q.importo);
   }
-  const spesoPerMese = new Map<string, number>();
   for (const r of righe) {
-    if (r.tipo !== "costo" || !r.importo) continue;
+    if (!r.importo) continue;
     const m = meseDi(r.data, oggi);
-    spesoPerMese.set(m, (spesoPerMese.get(m) ?? 0) + r.importo);
+    reale[r.tipo].set(m, (reale[r.tipo].get(m) ?? 0) + r.importo);
   }
   const vociSenzaImporto = voci.filter((v) => v.tipo === "costo" && stimaMancante(v)).length;
-  const mesi = [...pianoPerMese.keys(), ...spesoPerMese.keys(), oggi].sort();
-  if (pianoPerMese.size === 0 && spesoPerMese.size === 0) {
-    return { punti: [], oggi, spesoOggi: 0, pianoOggi: 0, differenza: 0, pianoTotale: 0, vociSenzaImporto };
+  const ricaviSenzaMese = voci.filter((v) => v.tipo === "ricavo" && !v.mese && v.importo).length;
+  const vuoto: TotaliMisura = { realeOggi: 0, pianoOggi: 0, pianoTotale: 0, differenza: 0 };
+  const mesi = [...piano.costo.keys(), ...piano.ricavo.keys(), ...reale.costo.keys(), ...reale.ricavo.keys()].sort();
+  if (mesi.length === 0) {
+    return { punti: [], oggi, totali: { costi: vuoto, ricavi: vuoto, margine: vuoto }, vociSenzaImporto, ricaviSenzaMese };
   }
+  mesi.push(oggi);
+  mesi.sort();
   const primo = mesi[0];
   const quanti = distanzaMesi(primo, mesi[mesi.length - 1]) + 1;
-  let piano = 0;
-  let speso = 0;
-  let pianoOggi = 0;
-  let spesoOggi = 0;
-  const punti: PuntoSpesa[] = [];
+  let cp = 0, cr = 0, rp = 0, rr = 0;
+  const punti: PuntoConfronto[] = [];
+  let aOggi: PuntoConfronto | null = null;
   for (let i = 0; i < quanti; i++) {
     const mese = aggiungiMesi(primo, i);
-    piano = tondo(piano + (pianoPerMese.get(mese) ?? 0));
-    speso = tondo(speso + (spesoPerMese.get(mese) ?? 0));
-    if (mese <= oggi) {
-      pianoOggi = piano;
-      spesoOggi = speso;
-    }
-    punti.push({ mese, piano, speso: mese <= oggi ? speso : null });
+    cp = tondo(cp + (piano.costo.get(mese) ?? 0));
+    rp = tondo(rp + (piano.ricavo.get(mese) ?? 0));
+    cr = tondo(cr + (reale.costo.get(mese) ?? 0));
+    rr = tondo(rr + (reale.ricavo.get(mese) ?? 0));
+    const passato = mese <= oggi;
+    const p: PuntoConfronto = {
+      mese,
+      costiPiano: cp,
+      ricaviPiano: rp,
+      marginePiano: tondo(rp - cp),
+      costiReale: passato ? cr : null,
+      ricaviReale: passato ? rr : null,
+      margineReale: passato ? tondo(rr - cr) : null,
+    };
+    if (passato) aOggi = p;
+    punti.push(p);
   }
+  const fine = punti[punti.length - 1];
+  const tot = (pianoOggi: number, realeOggi: number, pianoTotale: number): TotaliMisura => ({
+    pianoOggi, realeOggi, pianoTotale, differenza: tondo(realeOggi - pianoOggi),
+  });
   return {
     punti,
     oggi,
-    spesoOggi,
-    pianoOggi,
-    differenza: tondo(spesoOggi - pianoOggi),
-    pianoTotale: piano,
+    totali: {
+      costi: tot(aOggi?.costiPiano ?? 0, aOggi?.costiReale ?? 0, fine.costiPiano),
+      ricavi: tot(aOggi?.ricaviPiano ?? 0, aOggi?.ricaviReale ?? 0, fine.ricaviPiano),
+      margine: tot(aOggi?.marginePiano ?? 0, aOggi?.margineReale ?? 0, fine.marginePiano),
+    },
     vociSenzaImporto,
+    ricaviSenzaMese,
   };
 }
