@@ -81,7 +81,7 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
           {/* Commessa cliente standard — flusso esistente, spegnibile in Impostazioni */}
           {commessaCliente && (
             <Link to="/azienda/ordini/nuovo" onClick={() => onOpenChange(false)} className={SCHEDA}>
-              <Scheda icona={ShoppingCart} titolo="Commessa cliente" testo="Un lavoro per un cliente (privato o azienda). Comportamento standard." />
+              <Scheda icona={ShoppingCart} titolo="Commessa cliente" testo="Un lavoro per un cliente: un cantiere, i suoi costi e le sue fatture. La scelta giusta quasi sempre." />
             </Link>
           )}
 
@@ -98,6 +98,12 @@ export function OrderTypeChoiceDialog({ open, onOpenChange, appaltatore = false,
           )}
 
           {/* Commesse generali — una per modello acceso */}
+          {modelliGenerali.length > 0 && (
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              <span className="font-medium text-foreground">Commessa generale</span>: tiene insieme più lavori o più unità sotto un solo contratto o una sola operazione.
+              Per un lavoro singolo scegli «Commessa cliente»: più commesse si possono raggruppare anche dopo, dalla lista.
+            </p>
+          )}
           {modelliGenerali.map((m) => (
             <button
               key={m}

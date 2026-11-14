@@ -46,7 +46,8 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   // Il piano è dentro il permesso sui margini: chi non lo ha non può prepararlo.
   const permessi = usePermissions();
   const puoFarePiano = !!permessi.canViewMargins || !!permessi.isAdmin;
-  const [modello, setModello] = useState<ModelloGenerale | null>(iniziale ?? modelli[0] ?? null);
+  // La tipologia decide i campi: si sceglie per prima, senza preselezione (se ce n'è più d'una).
+  const [modello, setModello] = useState<ModelloGenerale | null>(iniziale ?? (modelli.length === 1 ? modelli[0] : null));
   const [nome, setNome] = useState("");
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [valoreTesto, setValoreTesto] = useState("");
@@ -54,13 +55,42 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   const [conPiano, setConPiano] = useState(true);
   const [originePiano, setOriginePiano] = useState<"tipiche" | "excel">("tipiche");
   const [importaContratto, setImportaContratto] = useState(false);
+  const [tipoAppalto, setTipoAppalto] = useState<"" | "Pubblico" | "Privato">("");
+  const [indirizzo, setIndirizzo] = useState("");
+  const [inizio, setInizio] = useState("");
+  const [prezzoTesto, setPrezzoTesto] = useState("");
+  const [rogito, setRogito] = useState("");
 
   const def = modello ? DEFINIZIONI_MODELLI[modello] : null;
   const valore = valoreTesto.trim() === "" ? null : leggiImporto(valoreTesto);
   const valoreSbagliato = valoreTesto.trim() !== "" && (valore === null || valore < 0);
   const conUnita = modello === "sviluppo" || modello === "compravendita";
   const quante = conUnita ? leggiQuanteUnita(quanteTesto) : 0;
-  const puoCreare = !!modello && nome.trim().length > 0 && !valoreSbagliato && quante !== null && !crea.isPending;
+  const appalto = modello === "appalto";
+  const prezzo = prezzoTesto.trim() === "" ? null : leggiImporto(prezzoTesto);
+  const prezzoSbagliato = prezzoTesto.trim() !== "" && (prezzo === null || prezzo < 0);
+  // Un appalto senza committente non si fattura: lo chiede il modello (DEFINIZIONI_MODELLI).
+  const senzaCommittente = appalto && !clienteId;
+  const puoCreare = !!modello && nome.trim().length > 0 && !valoreSbagliato && !prezzoSbagliato && !senzaCommittente && quante !== null && !crea.isPending;
+
+  /** I dati chiesti qui vanno nella scheda «Dati»: solo quelli scritti. */
+  const datiIniziali = (): Record<string, unknown> => {
+    const d: Record<string, unknown> = {};
+    if (indirizzo.trim()) d.indirizzo = indirizzo.trim();
+    if (inizio) d.inizio = inizio;
+    if (appalto && tipoAppalto) d.appalto = { tipo: tipoAppalto };
+    if (modello === "compravendita" && (indirizzo.trim() || prezzo || rogito)) {
+      d.immobile = { indirizzo: indirizzo.trim() || null, prezzo: prezzo || null, data_rogito: rogito || null };
+    }
+    return d;
+  };
+  /** Compravendita: il prezzo e il mese del rogito diventano la voce d'acquisto del piano. */
+  const vociIniziali = () => {
+    if (!modello) return null;
+    const voci = vociDiPartenza(modello, meseCorrente(), valore);
+    if (modello !== "compravendita" || !prezzo) return voci;
+    return voci.map((v) => (v.tipo === "costo" && v.categoria === "terreno" ? { ...v, importo: prezzo, nota: null, mese: rogito ? rogito.slice(0, 7) : v.mese } : v));
+  };
 
   const conferma = () => {
     if (!modello || !puoCreare) return;
@@ -68,12 +98,13 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
       {
         nuova: { modello, nome: nome.trim(), clienteId, valore },
         unita: unitaDiPartenza(quante ?? 0),
-        voci: conPiano && puoFarePiano && originePiano === "tipiche" ? vociDiPartenza(modello, meseCorrente(), valore) : null,
+        voci: conPiano && puoFarePiano && originePiano === "tipiche" ? vociIniziali() : null,
+        dati: datiIniziali(),
       },
       {
         onSuccess: ({ id, rimasti }) => {
           if (rimasti.length > 0) {
-            toast.warning("Commessa generale creata", { description: `Non sono riuscito a preparare ${rimasti.map((x) => (x === "unita" ? "le unità" : "il piano")).join(" e ")}: fallo dalla sua pagina.` });
+            toast.warning("Commessa generale creata", { description: `Non sono riuscito a preparare ${rimasti.map((x) => (x === "unita" ? "le unità" : x === "piano" ? "il piano" : "i dati")).join(" e ")}: fallo dalla sua pagina.` });
           } else {
             toast.success("Commessa generale creata");
           }
@@ -113,12 +144,15 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
                     )}
                   >
                     {DEFINIZIONI_MODELLI[m].nome}
+                    <span className="mt-0.5 block text-[11px] font-normal leading-snug text-muted-foreground">{DEFINIZIONI_MODELLI[m].perChi}</span>
                   </button>
                 ))}
               </div>
             </fieldset>
           )}
-          {def && <p className="-mt-1 text-xs text-muted-foreground">{def.perChi}</p>}
+          {modelli.length <= 1 && def && <p className="-mt-1 text-xs text-muted-foreground">{def.perChi}</p>}
+          {!modello && <p className="text-sm text-muted-foreground">Scegli il tipo: i dati da chiedere dipendono da questo.</p>}
+          {modello && <>
 
           <div className="space-y-1.5">
             <Label htmlFor="generale-nome">Nome</Label>
@@ -127,11 +161,54 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
 
           <div className="space-y-1.5">
             <Label htmlFor="generale-cliente">
-              {def?.cliente.etichetta ?? "Cliente"} <span className="font-normal text-muted-foreground">(facoltativo)</span>
+              {def?.cliente.etichetta ?? "Cliente"} {!appalto && <span className="font-normal text-muted-foreground">(facoltativo)</span>}
             </Label>
             <ScegliCliente id="generale-cliente" valore={clienteId} onCambia={setClienteId} />
             {conUnita && <p className="text-xs text-muted-foreground">È un riferimento dell'anagrafica clienti. La commessa e i documenti appartengono all'azienda attiva nel gestionale.</p>}
+            {senzaCommittente && <p className="text-xs text-muted-foreground">Scegli il committente: senza, il contratto e le fatture non hanno a chi andare.</p>}
           </div>
+
+          {appalto && (
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">Appalto <span className="font-normal text-muted-foreground">(facoltativo)</span></legend>
+              <div className="flex gap-2" role="radiogroup">
+                {(["Pubblico", "Privato"] as const).map((t) => (
+                  <button key={t} type="button" role="radio" aria-checked={tipoAppalto === t} onClick={() => setTipoAppalto(tipoAppalto === t ? "" : t)}
+                    className={cn("rounded-md border px-3 py-1.5 text-xs font-medium", tipoAppalto === t ? "border-primary bg-primary/5" : "text-muted-foreground hover:border-primary/50")}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {tipoAppalto === "Pubblico" && <p className="text-xs text-muted-foreground">CIG, CUP, RUP e scissione dei pagamenti si completano nella scheda Dati e nel contratto.</p>}
+            </fieldset>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+            <div className="space-y-1.5">
+              <Label htmlFor="generale-indirizzo">
+                {modello === "compravendita" ? "Indirizzo dell'immobile" : modello === "sviluppo" ? "Indirizzo dell'area" : "Indirizzo del cantiere"} <span className="font-normal text-muted-foreground">(facoltativo)</span>
+              </Label>
+              <Input id="generale-indirizzo" value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Via, numero, comune" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="generale-inizio">{appalto ? "Consegna lavori" : "Inizio lavori"}</Label>
+              <Input id="generale-inizio" type="date" value={inizio} onChange={(e) => setInizio(e.target.value)} />
+            </div>
+          </div>
+
+          {modello === "compravendita" && (
+            <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+              <div className="space-y-1.5">
+                <Label htmlFor="generale-prezzo">Prezzo d'acquisto <span className="font-normal text-muted-foreground">(facoltativo, al netto dell'IVA)</span></Label>
+                <Input id="generale-prezzo" inputMode="decimal" value={prezzoTesto} onChange={(e) => setPrezzoTesto(e.target.value)} placeholder="es. 185.000" aria-invalid={prezzoSbagliato || undefined} />
+                {prezzoSbagliato && <p className="text-xs text-destructive">Scrivi un importo, ad esempio 185.000.</p>}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="generale-rogito">Rogito d'acquisto</Label>
+                <Input id="generale-rogito" type="date" value={rogito} onChange={(e) => setRogito(e.target.value)} />
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="generale-valore">
@@ -175,11 +252,13 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
             <Switch id="generale-con-piano" checked={conPiano} onCheckedChange={setConPiano} />
             <Label htmlFor="generale-con-piano" className="text-sm font-normal">Prepara il piano economico</Label>
           </div>}
+          {puoFarePiano && conPiano && modello === "compravendita" && prezzo ? <p className="-mt-2 text-xs text-muted-foreground">Il prezzo d'acquisto entra nel piano come voce d'acquisto{rogito ? ", nel mese del rogito" : ""}.</p> : null}
           {puoFarePiano && conPiano && <fieldset className="space-y-2 rounded-lg border p-3">
             <legend className="px-1 text-xs font-medium">Da dove vuoi partire?</legend>
             <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="tipiche" checked={originePiano === "tipiche"} onChange={() => setOriginePiano("tipiche")} /><span>Voci tipiche da compilare</span></label>
             <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="excel" checked={originePiano === "excel"} onChange={() => setOriginePiano("excel")} /><span>Ho già un business plan Excel o PDF<span className="mt-0.5 block text-xs text-muted-foreground">Dopo la creazione scegli il file e lo scenario. Le voci tipiche non vengono aggiunte.</span></span></label>
           </fieldset>}
+          </>}
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Annulla</Button>

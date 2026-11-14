@@ -18,7 +18,7 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({
   useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: vi.fn(), isPending: false }, commessaCliente: true, salvaCommessaCliente: { mutate: vi.fn(), isPending: false } }),
 }));
 vi.mock("@/hooks/useAvviaGenerale", () => ({ useAvviaGenerale: () => ({ mutate: m.avvia, isPending: false }) }));
-vi.mock("@/components/orders/generali/ScegliCliente", () => ({ ScegliCliente: (): ReactElement => <p>Cliente</p> }));
+vi.mock("@/components/orders/generali/ScegliCliente", () => ({ ScegliCliente: ({ onCambia }: { onCambia: (v: string) => void }): ReactElement => <button type="button" onClick={() => onCambia("cli")}>Cliente</button> }));
 vi.mock("react-router-dom", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-router-dom")>()),
   useNavigate: () => m.navigate,
@@ -113,5 +113,38 @@ describe("impostazione delle commesse generali", () => {
     expect(payload.unita).toEqual([]);
     callback.onSuccess({ id: "nuova-operazione", rimasti: [] });
     expect(m.navigate).toHaveBeenCalledWith("/azienda/ordini/nuova-operazione?scheda=piano&importa=1");
+  });
+
+  it("appalto: senza committente non si crea; il tipo e la consegna lavori vanno nei dati", () => {
+    m.modelli = ["appalto"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Scuole 2027" } });
+    expect(screen.getByRole("button", { name: "Crea commessa generale" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Pubblico" }));
+    fireEvent.change(screen.getByLabelText("Consegna lavori"), { target: { value: "2027-01-10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [payload] = m.avvia.mock.calls[0];
+    expect(payload.nuova).toMatchObject({ modello: "appalto", clienteId: "cli" });
+    expect(payload.dati).toEqual({ inizio: "2027-01-10", appalto: { tipo: "Pubblico" } });
+  });
+
+  it("compravendita: immobile, prezzo e rogito nei dati, e il prezzo diventa la voce d'acquisto del piano", () => {
+    m.modelli = ["compravendita"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Corso Italia" } });
+    fireEvent.change(screen.getByLabelText(/Indirizzo dell'immobile/), { target: { value: "Corso Italia 10, Torino" } });
+    fireEvent.change(screen.getByLabelText(/Prezzo d'acquisto/), { target: { value: "185.000" } });
+    fireEvent.change(screen.getByLabelText("Rogito d'acquisto"), { target: { value: "2027-02-15" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [payload] = m.avvia.mock.calls[0];
+    expect(payload.dati).toEqual({
+      indirizzo: "Corso Italia 10, Torino",
+      immobile: { indirizzo: "Corso Italia 10, Torino", prezzo: 185000, data_rogito: "2027-02-15" },
+    });
+    const acquisto = payload.voci.find((v: { categoria: string; tipo: string }) => v.tipo === "costo" && v.categoria === "terreno");
+    expect(acquisto).toMatchObject({ importo: 185000, mese: "2027-02", nota: null });
   });
 });

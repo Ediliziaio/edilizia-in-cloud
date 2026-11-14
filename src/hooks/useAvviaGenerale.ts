@@ -17,15 +17,21 @@ export interface AvvioGenerale {
   unita: UnitaDaCreare[];
   /** null = il piano si scrive dopo. */
   voci: VoceNuova[] | null;
+  /** Dati della scheda «Dati» chiesti alla creazione (indirizzo, date, sezioni della tipologia). */
+  dati?: Record<string, unknown> | null;
 }
 
 export function useAvviaGenerale() {
   const crea = useCreaGenerale();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ nuova, unita, voci }: AvvioGenerale): Promise<{ id: string; rimasti: ("unita" | "piano")[] }> => {
+    mutationFn: async ({ nuova, unita, voci, dati }: AvvioGenerale): Promise<{ id: string; rimasti: ("unita" | "piano" | "dati")[] }> => {
       const id = await crea.mutateAsync(nuova);
-      const rimasti: ("unita" | "piano")[] = [];
+      const rimasti: ("unita" | "piano" | "dati")[] = [];
+      if (dati && Object.keys(dati).length > 0) {
+        const { error } = await db.rpc("commessa_generale_dati_salva", { p_generale_id: id, p_dati: dati });
+        if (error) rimasti.push("dati");
+      }
       if (unita.length > 0) {
         const { error } = await db.rpc("generale_unita_serie", { p_generale_id: id, p_righe: unita });
         if (error) rimasti.push("unita");

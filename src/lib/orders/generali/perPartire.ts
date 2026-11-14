@@ -4,11 +4,13 @@
 // fallita, permesso mancante) arriva qui come null e non compare: meglio tacere che sbagliare.
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
-export type IdPasso = "contratto" | "figlie" | "piano" | "fonti";
+export type IdPasso = "dati" | "contratto" | "figlie" | "piano" | "fonti";
 
 export interface PassoPerPartire { id: IdPasso; fatto: boolean }
 
 export interface StatoPerPartire {
+  /** Quanti dati essenziali mancano (scheda «Dati», datiMancanti). */
+  datiMancanti?: number;
   figlie: number;
   /** null = non si sa. */
   contrattoCompilato: boolean | null;
@@ -20,9 +22,11 @@ export interface StatoPerPartire {
 export function passiPerPartire(modello: ModelloGenerale, s: StatoPerPartire): PassoPerPartire[] {
   const figlie: PassoPerPartire = { id: "figlie", fatto: s.figlie > 0 };
   const piano: PassoPerPartire | null = s.vociPianoConImporto === null ? null : { id: "piano", fatto: s.vociPianoConImporto > 0 };
+  // I dati della commessa per primi (14/11/2026): committente, indirizzo, date, tipologia.
+  const dati: PassoPerPartire | null = s.datiMancanti === undefined ? null : { id: "dati", fatto: s.datiMancanti === 0 };
   const passi = modello === "appalto"
-    ? [s.contrattoCompilato === null ? null : { id: "contratto" as const, fatto: s.contrattoCompilato }, figlie, piano]
-    : [figlie, piano, s.fonti === null ? null : { id: "fonti" as const, fatto: s.fonti > 0 }];
+    ? [dati, s.contrattoCompilato === null ? null : { id: "contratto" as const, fatto: s.contrattoCompilato }, figlie, piano]
+    : [dati, figlie, piano, s.fonti === null ? null : { id: "fonti" as const, fatto: s.fonti > 0 }];
   return passi.filter((p): p is PassoPerPartire => p !== null);
 }
 

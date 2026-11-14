@@ -11,6 +11,7 @@ import { useVersioniPiano, useVociPiano } from "@/hooks/useGeneralePiano";
 import { DEFINIZIONI_MODELLI, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { valoreContratto } from "@/lib/orders/generali/contratto";
 import { passiPerPartire, perPartireServe, type IdPasso } from "@/lib/orders/generali/perPartire";
+import { datiMancanti } from "@/lib/orders/generali/datiOperazione";
 
 const chiaveNascosta = (id: string) => `generale-per-partire-nascosta:${id}`;
 const leggiNascosta = (id: string) => {
@@ -32,16 +33,20 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
   // Finché una lettura è in corso non si mostra niente: la lista non deve lampeggiare passi già fatti.
   if (nascosta || contratto.isLoading || versioni.isLoading || voci.isLoading || fonti.isLoading) return null;
 
+  const mancanti = datiMancanti({ modello: g.modello, clienteId: g.clienteId, indirizzo: g.indirizzo ?? null, inizio: g.inizio ?? null, fine: g.fine ?? null, dati: g.dati ?? {} }).length;
   // Con un piano, sviluppo e compravendita hanno il percorso «Completa l'operazione»
-  // (AvvisiPiano), che comprende anche le fonti: qui si ripeterebbero gli stessi passi.
-  if (!appalto && margini && (versioni.data?.length ?? 0) > 0) return null;
+  // (AvvisiPiano), che comprende anche le fonti: qui resta solo il passo dei dati, se manca.
+  const conPercorso = !appalto && margini && (versioni.data?.length ?? 0) > 0;
+  if (conPercorso && mancanti === 0) return null;
 
-  const passi = passiPerPartire(g.modello, {
+  const tutti = passiPerPartire(g.modello, {
+    datiMancanti: mancanti,
     figlie: riepilogo.figlie.length,
     contrattoCompilato: contratto.data ? valoreContratto(contratto.data.contratto, contratto.data.atti) !== null : null,
     vociPianoConImporto: !versioni.data ? null : versioni.data.length === 0 ? 0 : voci.data ? voci.data.filter((v) => v.importo > 0).length : null,
     fonti: fonti.data ? fonti.data.length : null,
   });
+  const passi = conPercorso ? tutti.filter((p) => p.id === "dati") : tutti;
   if (!perPartireServe(passi)) return null;
 
   const apriScheda = (scheda: string) => {
@@ -50,6 +55,7 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
     setParametri(dopo, { replace: true });
   };
   const testi: Record<IdPasso, { titolo: string; azione: () => void }> = {
+    dati: { titolo: appalto ? "Completa i dati dell'appalto" : "Completa i dati dell'operazione", azione: () => apriScheda("dati") },
     contratto: { titolo: "Completa i dati del contratto", azione: () => apriScheda("contratto") },
     figlie: {
       titolo: def.figlia.nuova,

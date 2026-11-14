@@ -144,7 +144,8 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
         </section>
       )}
 
-      {puoModificare && r.figlie.length > 0 && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
+      {/* Da subito, anche senza lotti: un appalto non vedeva «completa il contratto» finché non creava un ordine. */}
+      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
 
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
       {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}

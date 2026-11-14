@@ -19,6 +19,11 @@ describe("«Per partire»", () => {
     expect(passiPerPartire("sviluppo", { ...vuota, figlie: 4, vociPianoConImporto: 0 }).find((p) => p.id === "piano")?.fatto).toBe(false);
   });
 
+  it("i dati della commessa sono il primo passo, quando si sa cosa manca", () => {
+    expect(passiPerPartire("appalto", { ...vuota, datiMancanti: 2 }).map((p) => [p.id, p.fatto])[0]).toEqual(["dati", false]);
+    expect(passiPerPartire("sviluppo", { ...vuota, datiMancanti: 0 })[0]).toEqual({ id: "dati", fatto: true });
+  });
+
   it("sparisce quando è tutto fatto", () => {
     const fatti = passiPerPartire("sviluppo", { figlie: 2, contrattoCompilato: null, vociPianoConImporto: 1, fonti: 1 });
     expect(perPartireServe(fatti)).toBe(false);
