@@ -11,6 +11,7 @@ import { etichettaPrezzo, prezzoModificatoAMano, scegliPrezzo, totaliQuadro } fr
 
 const MIGRAZIONE = "supabase/migrations/20290318120000_rapportini_prezzo_dal_listino_e_costi_da_completare.sql";
 const MIGRAZIONE_B = "supabase/migrations/20290318120100_rapportini_ore_in_economia_rendiconto_unita.sql";
+const MIGRAZIONE_G = "supabase/migrations/20290318120200_rapportini_mezzi_e_ditte_dal_listino.sql";
 const C = "11111111-1111-4111-a111-111111111111";
 const ALTRA = "11111111-1111-4111-a111-111111111112";
 const UTENTE = "22222222-2222-4222-a222-222222222222";
@@ -73,6 +74,7 @@ beforeAll(async () => {
     create table public.appalto_tariffe_commessa(id uuid primary key default gen_random_uuid(), order_id uuid, tariffa_id uuid, prezzo_unitario numeric);
     create table public.employees(id uuid primary key, company_id uuid, first_name text, last_name text, costo_orario numeric);
     create table public.mezzi(id uuid primary key, company_id uuid, nome text, possesso text, deleted_at timestamptz, costo numeric);
+    create table public.subappaltatori(id uuid primary key, company_id uuid, ragione_sociale text);
     create table public.campo_rapportini(id uuid primary key, company_id uuid, order_id uuid, data_lavoro date default '2026-11-10',
       presenze jsonb default '[]', mezzi_usati jsonb default '[]', stato text default 'inviato', fasi_lavorate jsonb default '[]',
       costo_manodopera numeric, presenze_registrate jsonb, costo_registrato_at timestamptz, annullato_at timestamptz, approvato boolean default false);
@@ -110,6 +112,7 @@ beforeAll(async () => {
   `);
   await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE), "utf8"));
   await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE_B), "utf8"));
+  await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE_G), "utf8"));
   await db.exec(`create trigger trg_rapportino_costo_manodopera before update on public.campo_rapportini
     for each row execute function public.fn_rapportino_costo_manodopera()`);
 }, 30_000);
@@ -118,7 +121,7 @@ afterAll(() => db.close());
 beforeEach(async () => {
   await db.exec(`
     truncate public.orders, public.tariffe_aziendali, public.appalto_contratti, public.appalto_tariffe, public.appalto_tariffe_commessa,
-      public.appalto_rendiconto_righe, public.company_costs, public.employees, public.mezzi, public.campo_rapportini, public.rapportino_voci_libere, public.rapportino_mezzi_costi, public.order_employees;
+      public.appalto_rendiconto_righe, public.company_costs, public.subappaltatori, public.employees, public.mezzi, public.campo_rapportini, public.rapportino_voci_libere, public.rapportino_mezzi_costi, public.order_employees;
     set test.costi = ''; set test.diritti = '';
     insert into public.orders values
       ('${O_COMM}', '${C}', '${COMMITTENTE}', null, 'cliente', 'a_misura', null),
@@ -399,6 +402,49 @@ describe("Popup dell'ufficio — voce dal listino", () => {
   it("ricerca per commessa e giorno, senza rapportino", async () => {
     const r = await uno<J[]>("select public.commessa_listino_cerca($1, '2026-11-10', 'pos', 10) v", [O_COMM]);
     expect(r[0]).toMatchObject({ tariffa_id: T_POSA, fonte: "committente", prezzo: 45 });
+  });
+});
+
+describe("Lotto G — mezzi e ditte col prezzo dal listino (Vulcano)", () => {
+  const T_NOLO = "66666666-6666-4666-a666-666666666665";
+  const T_DITTA = "66666666-6666-4666-a666-666666666666";
+  const SUB = "bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbb1";
+  const quadro = () => uno<J>("select private.office_rapportino_economia_raw($1) v", [R_COMM]);
+  beforeEach(async () => {
+    await db.exec(`insert into public.tariffe_aziendali (id, company_id, tipo, nome, codice, unita, prezzo_vendita) values
+      ('${T_NOLO}', '${C}', 'nolo', 'Escavatore 40qli - a freddo', 'NOL-40', 'h', 25),
+      ('${T_DITTA}', '${C}', 'manodopera', 'Ore in economia subappaltatore - idraulico', 'SUB-ID', 'h', 35);
+      insert into public.subappaltatori values ('${SUB}', '${C}', 'Idraulica Rossi');
+      update public.campo_rapportini set
+        presenze = '[{"employee_id":"${E_OK}","nome":"Anna","ore":8},{"subappaltatore_id":"${SUB}","nome":"Idraulica Rossi","ore":4}]',
+        mezzi_usati = '[{"mezzo_id":"${M_OK}","ore":"5"}]'
+      where id = '${R_COMM}'`);
+  });
+  it("senza collegamento: mezzo e ditta senza prezzo, e il quadro dice quale voce collegare", async () => {
+    const q = await quadro();
+    expect((q.mezzi as J[])[0]).toMatchObject({ voce_mezzo: null, prezzo: null, ricavo: null, importo: 100 });
+    expect((q.persone as J[]).find((p) => p.ditta)).toMatchObject({ sub: SUB, voce_ditta: null, prezzo: null });
+  });
+  it("collegati: ore del mezzo × nolo, ore della ditta × la sua voce; il costo resta il suo", async () => {
+    await db.exec(`select public.voce_listino_imposta('mezzo', '${M_OK}', '${T_NOLO}'); select public.voce_listino_imposta('ditta', '${SUB}', '${T_DITTA}')`);
+    const q = await quadro();
+    expect((q.mezzi as J[])[0]).toMatchObject({ ore: 5, importo: 100, prezzo: 25, ricavo: 125, prezzo_fonte: "generale", voce_mezzo: T_NOLO });
+    expect((q.persone as J[]).find((p) => p.ditta)).toMatchObject({ nome: "Idraulica Rossi", ore: 4, prezzo: 35, ricavo: 140, prezzo_fonte: "generale" });
+  });
+  it("all'approvazione si fotografano: cambiare il nolo dopo non tocca il rapportino", async () => {
+    await db.exec(`select public.voce_listino_imposta('mezzo', '${M_OK}', '${T_NOLO}'); select public.voce_listino_imposta('ditta', '${SUB}', '${T_DITTA}')`);
+    await db.exec(`update public.campo_rapportini set stato = 'approvato' where id = '${R_COMM}'`);
+    const fissati = await uno<J[]>("select prezzi_registrati v from public.campo_rapportini where id = $1", [R_COMM]);
+    expect(fissati).toEqual(expect.arrayContaining([
+      expect.objectContaining({ mezzo_id: M_OK, ricavo: 125 }), expect.objectContaining({ subappaltatore_id: SUB, ricavo: 140 }),
+    ]));
+    await db.exec(`update public.tariffe_aziendali set prezzo_vendita = 99 where id in ('${T_NOLO}', '${T_DITTA}')`);
+    const q = await quadro();
+    expect((q.mezzi as J[])[0]).toMatchObject({ prezzo: 25, ricavo: 125 });
+    expect((q.persone as J[]).find((p) => p.ditta)).toMatchObject({ prezzo: 35, ricavo: 140 });
+  });
+  it("una voce di un'altra azienda si rifiuta", async () => {
+    await expect(db.exec(`select public.voce_listino_imposta('mezzo', '${M_OK}', '${T_ALTRA}')`)).rejects.toThrow(/non è nel listino/);
   });
 });
 

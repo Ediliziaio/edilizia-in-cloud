@@ -29,6 +29,8 @@ import {
 interface Riga {
   emp: string | null; nome: string; ditta: boolean; ore: number; costo_orario: number | null; costo: number | null;
   unita: string | null; quantita: number | null; prezzo: number | null; ricavo: number | null; prezzo_fonte?: FontePrezzo | null;
+  /** Ditta: il suo id e la voce del listino con cui si vendono le sue ore (14/11/2026). */
+  sub?: string | null; voce_ditta?: string | null;
 }
 /** Come la commessa vende le ore: voce di manodopera del listino, contratto per qualifica, o non a parte. */
 type OreInEconomia = { modo: "voce"; tariffa_id: string; codice: string | null; descrizione: string; unita: string } | { modo: "contratto" } | { modo: "no" };
@@ -36,7 +38,38 @@ interface Voce {
   id: string; descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria: number | null;
   codice?: string | null; prezzo_fonte?: FontePrezzo | null; vendita_proposta?: number | null; prezzo_a_mano?: boolean | null;
 }
-interface Mezzo { mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null }
+interface Mezzo {
+  mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null;
+  /** Il nolo del listino collegato al mezzo, e il prezzo che ne viene (14/11/2026). */
+  voce_mezzo?: string | null; prezzo?: number | null; ricavo?: number | null; unita?: string | null; quantita?: number | null; prezzo_fonte?: FontePrezzo | null;
+}
+
+/** Collega un mezzo o una ditta alla sua voce del listino generale: per id, scelta da una persona. */
+function CollegaVoce({ tipo, id, orderId, onFatto }: { tipo: "mezzo" | "ditta"; id: string; orderId: string; onFatto: () => void }) {
+  const [aperto, setAperto] = useState(false);
+  const collega = useMutation({
+    mutationFn: async (tariffaId: string) => {
+      const { error } = await rpc("voce_listino_imposta", { p_tipo: tipo, p_id: id, p_tariffa_id: tariffaId });
+      if (error) throw error;
+    },
+    onSuccess: () => { setAperto(false); onFatto(); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Collegamento non salvato"),
+  });
+  if (!aperto) {
+    return (
+      <button type="button" className="tap-compact text-xs text-blue-700 underline" onClick={() => setAperto(true)}>
+        {tipo === "mezzo" ? "Collega il mezzo al suo nolo del listino" : "Collega la ditta alla sua voce del listino"}
+      </button>
+    );
+  }
+  return (
+    <div className="col-span-2 space-y-1">
+      <CercaNelListino dove={{ orderId, data: null }} segnaposto={tipo === "mezzo" ? "Nolo del listino (es. escavatore 40 qli)" : "Voce delle ore della ditta"}
+        onScegli={(v) => collega.mutate(v.tariffa_id)} />
+      <p className="text-[11px] text-muted-foreground">Vale per i rapportini che non hanno già un prezzo fissato all’approvazione. <button type="button" className="underline" onClick={() => setAperto(false)}>Annulla</button></p>
+    </div>
+  );
+}
 interface Quadro {
   personale_aggregato?: { costo: number | null }; persone: Riga[]; voci?: Voce[]; mezzi?: Mezzo[];
   costo_da_completare?: MancanzaCosto[]; ore_in_economia?: OreInEconomia; order_id?: string;
@@ -120,7 +153,9 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   const mezzi = Array.isArray(data.mezzi) ? data.mezzi : [];
   const mancanze = Array.isArray(data.costo_da_completare) ? data.costo_da_completare : [];
   const economia = data.ore_in_economia;
-  const conVendita = vedeImporti && ((data.appalto && !data.a_corpo) || economia?.modo === "voce" || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0 || v.prezzo_fonte));
+  const aggiornaQuadro = () => { void qc.invalidateQueries({ queryKey: ["rapportino-quadro-economico"] }); };
+  const conVendita = vedeImporti && ((data.appalto && !data.a_corpo) || economia?.modo === "voce" || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0 || v.prezzo_fonte)
+    || mezzi.some((m) => m.prezzo != null) || data.persone.some((p) => p.ditta && p.prezzo != null));
   const costoVoce = (v: Voce) => (v.costo_unitario == null ? null : Number(v.quantita) * Number(v.costo_unitario));
   const ricavoVoce = (v: Voce) => (v.vendita_unitaria == null ? null : Number(v.quantita) * Number(v.vendita_unitaria));
   const tot = totaliQuadro({
@@ -192,7 +227,11 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
                 <span className="text-xs text-blue-800">
                   {r.prezzo != null
                     ? `Vendita ${euro(r.prezzo)}${UNITA[r.unita ?? ""] ?? ""} · ricavo ${euro(r.ricavo)}${r.prezzo_fonte ? ` · ${DOVE_PREZZO[r.prezzo_fonte]}` : ""}`
-                    : r.ditta ? "" : r.prezzo_fonte === "mancante" ? "Prezzo delle ore da definire" : economia?.modo === "no" ? "Ore non vendute a parte" : "Vendita da impostare"}
+                    : r.ditta ? (r.voce_ditta ? "Prezzo della ditta da definire" : "")
+                    : r.prezzo_fonte === "mancante" ? "Prezzo delle ore da definire" : economia?.modo === "no" ? "Ore non vendute a parte" : "Vendita da impostare"}
+                  {r.ditta && !r.voce_ditta && r.sub && puoModificare && data.order_id && (
+                    <CollegaVoce tipo="ditta" id={r.sub} orderId={data.order_id} onFatto={aggiornaQuadro} />
+                  )}
                 </span>
                 <span className={`text-right text-xs font-semibold tabular-nums ${(margine(r) ?? 0) < 0 ? "text-red-700" : "text-emerald-700"}`}>
                   {!permissions.canViewMargins || margine(r) == null ? "" : `margine ${euro(margine(r))}`}
@@ -211,6 +250,21 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
               {ore(Number(m.ore))}{m.ore_stimate ? " stimate" : ""}{m.noleggio ? " · noleggio" : m.costo_orario != null ? ` × ${euro(m.costo_orario)}/h` : " · costo orario mancante"}
             </span>
             <span className="text-right text-xs text-muted-foreground">{m.noleggio ? "" : "quota interna"}</span>
+            {vedeImporti && (
+              <>
+                <span className="text-xs text-blue-800">
+                  {m.prezzo != null
+                    ? `Nolo ${euro(m.prezzo)}${UNITA[m.unita ?? ""] ?? ""} · ricavo ${euro(m.ricavo)}${m.prezzo_fonte ? ` · ${DOVE_PREZZO[m.prezzo_fonte]}` : ""}`
+                    : m.voce_mezzo ? "Prezzo del nolo da definire" : ""}
+                  {!m.voce_mezzo && puoModificare && data.order_id && (
+                    <CollegaVoce tipo="mezzo" id={m.mezzo_id} orderId={data.order_id} onFatto={aggiornaQuadro} />
+                  )}
+                </span>
+                <span className={`text-right text-xs font-semibold tabular-nums ${m.ricavo != null && m.importo != null && m.ricavo - m.importo < 0 ? "text-red-700" : "text-emerald-700"}`}>
+                  {permissions.canViewMargins && m.ricavo != null && m.importo != null ? `margine ${euro(Number(m.ricavo) - Number(m.importo))}` : ""}
+                </span>
+              </>
+            )}
           </li>
         ))}
         {voci.map((v) => (

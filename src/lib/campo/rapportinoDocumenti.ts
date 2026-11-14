@@ -18,7 +18,10 @@ export interface PersonaQuadro {
   emp: string | null; nome: string; ditta: boolean; ore: number; costo_orario: number | null; costo: number | null;
   unita: string | null; quantita: number | null; prezzo: number | null; ricavo: number | null; prezzo_fonte?: FontePrezzo | null;
 }
-export interface MezzoQuadro { mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null }
+export interface MezzoQuadro {
+  mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null;
+  prezzo?: number | null; ricavo?: number | null; unita?: string | null; quantita?: number | null; prezzo_fonte?: FontePrezzo | null;
+}
 export interface VoceQuadro {
   id: string; descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria: number | null;
   codice?: string | null; prezzo_fonte?: FontePrezzo | null; vendita_proposta?: number | null; prezzo_a_mano?: boolean | null;
@@ -42,7 +45,7 @@ const num = (n: number): string => n.toLocaleString("it-IT", { maximumFractionDi
 export function documentoPerCommittente(q: QuadroDocumento, info: InfoRapportino, destinatario: DocumentoOperativo["destinatario"]): DocumentoOperativo {
   const gruppo = `${dataIt(info.data)} - ${info.commessa ?? ""} - ${info.descrizione?.trim() || "Intervento"}`;
   const persone: RigaDocumentoOperativo[] = q.persone.filter((p) => p.ore > 0).map((p) => {
-    const conPrezzo = !p.ditta && p.prezzo != null;
+    const conPrezzo = p.prezzo != null;
     return {
       gruppo,
       descrizione: `${p.ditta ? "Ditta" : "Manodopera"} - ${p.nome}`,
@@ -53,10 +56,18 @@ export function documentoPerCommittente(q: QuadroDocumento, info: InfoRapportino
       iva: null as number | null,
     };
   });
-  // Mezzi: le ore si dichiarano; il prezzo, se si vende il nolo, si scrive nella bozza.
-  const mezzi: RigaDocumentoOperativo[] = (q.mezzi ?? []).filter((m) => Number(m.ore) > 0).map((m) => ({
-    gruppo, descrizione: `Mezzo - ${m.nome ?? "Mezzo"}`, unita: "h", quantita: Number(m.ore), prezzo: null as number | null, iva: null as number | null,
-  }));
+  // Mezzi: col nolo del listino collegato al mezzo; senza, il prezzo si scrive nella bozza.
+  const mezzi: RigaDocumentoOperativo[] = (q.mezzi ?? []).filter((m) => Number(m.ore) > 0).map((m) => {
+    const conPrezzo = m.prezzo != null;
+    return {
+      gruppo, descrizione: `Mezzo - ${m.nome ?? "Mezzo"}`,
+      unita: conPrezzo ? (UNITA[m.unita ?? ""] ?? m.unita ?? "h") : "h",
+      quantita: conPrezzo && m.quantita != null ? Number(m.quantita) : Number(m.ore),
+      prezzo: conPrezzo ? Number(m.prezzo) : null as number | null,
+      ...(conPrezzo && m.ricavo != null ? { importo: Number(m.ricavo) } : {}),
+      iva: null as number | null,
+    };
+  });
   const voci: RigaDocumentoOperativo[] = (q.voci ?? []).filter((v) => v.descrizione?.trim() && Number(v.quantita) > 0).map((v) => ({
     gruppo, descrizione: v.codice ? `${v.codice} - ${v.descrizione}` : v.descrizione, unita: v.unita || "cad",
     quantita: Number(v.quantita), prezzo: v.vendita_unitaria == null ? null : Number(v.vendita_unitaria), iva: null as number | null,
@@ -94,7 +105,7 @@ export function righeInterne(q: QuadroDocumento): RigaInterna[] {
     righe.push({
       gruppo: "Mezzi", voce: m.nome ?? "Mezzo",
       dettaglio: m.noleggio ? `${num(m.ore)} h · noleggio` : m.costo_orario != null ? `${num(m.ore)} h × ${euro(m.costo_orario)}/h` : `${num(m.ore)} h · manca il costo orario`,
-      costo: m.noleggio ? null : m.importo, ricavo: null,
+      costo: m.noleggio ? null : m.importo, ricavo: m.ricavo ?? null,
       nota: m.noleggio ? "da fattura" : m.importo == null ? "da completare" : undefined,
     });
   }

@@ -61,7 +61,7 @@ export function prezzoModificatoAMano(vendita: number | null | undefined, propos
 export interface MancanzaCosto { tipo: "persona" | "mezzo"; nome: string; motivo: string }
 
 interface RigaPersona { costo: number | null; ditta: boolean; ricavo?: number | null; prezzo_fonte?: FontePrezzo | null; prezzo?: number | null }
-interface RigaMezzo { importo: number | null; noleggio: boolean }
+interface RigaMezzo { importo: number | null; noleggio: boolean; ricavo?: number | null; prezzo?: number | null; prezzo_fonte?: FontePrezzo | null }
 interface RigaVoce { quantita: number; costo_unitario: number | null; vendita_unitaria: number | null; prezzo_fonte?: FontePrezzo | null }
 
 export interface TotaliQuadro {
@@ -89,12 +89,14 @@ export function totaliQuadro(q: { persone: RigaPersona[]; mezzi?: RigaMezzo[]; v
     + mezzi.reduce((s, m) => s + (m.noleggio ? 0 : Number(m.importo ?? 0)), 0)
     + voci.reduce((s, v) => s + Number(v.quantita) * Number(v.costo_unitario ?? 0), 0);
   const ricavo = q.persone.reduce((s, r) => s + Number(r.ricavo ?? 0), 0)
+    + mezzi.reduce((s, m) => s + Number(m.ricavo ?? 0), 0)
     + voci.reduce((s, v) => s + Number(v.quantita) * Number(v.vendita_unitaria ?? 0), 0);
   const mancanoLocali = q.persone.filter((r) => !r.ditta && r.costo == null).length + mezzi.filter((m) => !m.noleggio && m.importo == null).length;
   const mancano = Math.max(mancanoLocali, q.costoDaCompletare?.length ?? 0);
   const completo = mancano === 0;
   const prezziDaDefinire = voci.filter((v) => v.prezzo_fonte === "mancante" && v.vendita_unitaria == null).length
-    + q.persone.filter((r) => r.prezzo_fonte === "mancante" && r.prezzo == null).length;
+    + q.persone.filter((r) => r.prezzo_fonte === "mancante" && r.prezzo == null).length
+    + mezzi.filter((m) => m.prezzo_fonte === "mancante" && m.prezzo == null).length;
   const margine = completo && prezziDaDefinire === 0 ? arrotonda(ricavo - costo) : null;
   return {
     costo: arrotonda(costo), ricavo: arrotonda(ricavo), margine, completo, mancano, prezziDaDefinire,
