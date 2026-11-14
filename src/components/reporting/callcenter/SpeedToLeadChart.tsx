@@ -49,15 +49,15 @@ export function SpeedToLeadChart({ data, isLoading }: Props) {
         ) : (
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-border" />
-              <XAxis type="number" tickFormatter={v => `${v}%`} className="fill-muted-foreground" />
-              <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 12 }} className="fill-muted-foreground" />
+              <CartesianGrid strokeDasharray="4 6" horizontal={false} stroke="hsl(var(--border))" />
+              <XAxis type="number" tickFormatter={v => `${v}%`} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="label" width={140} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip
                 formatter={(value: number) => [`${value}%`, "Percentuale"]}
                 labelFormatter={(label: string) => label}
-                contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }}
               />
-              <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+              <Bar dataKey="pct" radius={[0, 6, 6, 0]} maxBarSize={28} fillOpacity={0.9}>
                 {chartData.map((entry, i) => (
                   <Cell key={i} fill={BUCKET_COLORS[entry.bucket_ordine] ?? "hsl(var(--primary))"} />
                 ))}

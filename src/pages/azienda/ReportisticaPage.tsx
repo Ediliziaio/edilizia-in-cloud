@@ -48,7 +48,7 @@ const ReportisticaPage = () => {
       <div>
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground max-sm:text-lg">
               Reportistica<span className="max-sm:hidden"> marketing e vendite</span>
             </h1>
           </div>
@@ -56,7 +56,7 @@ const ReportisticaPage = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v })}>
-        <TabsList className="flex flex-wrap h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-sm:w-full max-sm:flex-nowrap max-sm:rounded-xl max-sm:p-1 max-sm:shadow-none">
+        <TabsList className="flex flex-wrap h-auto gap-1 rounded-2xl border border-border bg-card p-2 shadow-sm max-sm:w-full max-sm:flex-nowrap max-sm:rounded-xl max-sm:p-1 max-sm:shadow-none">
           {TABS.map((t) => (
             <TabsTrigger
               key={t.key}

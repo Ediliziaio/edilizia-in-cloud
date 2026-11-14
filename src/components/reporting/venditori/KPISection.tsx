@@ -1,6 +1,7 @@
 import { Target, Users, Euro, TrendingUp, Percent, Timer } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { KPICard, type ColorKey } from "@/components/reporting/shared/KPICard";
+import { variazionePercento, variazionePunti } from "@/lib/reporting/variazioneKpi";
 import type { VendorKPI } from "@/hooks/useVendorReport";
 import { semaforoVenditori, tassoTesto, giorniTesto, type CampoConSoglia } from "@/lib/reporting/venditoriRegole";
 
@@ -12,25 +13,8 @@ function colore(campo: CampoConSoglia, valore: number | null | undefined): Color
   return s ? COLORE[s] : "blue";
 }
 
-type Variazione = { testo: string; buona: boolean | null } | null;
-
-/** Differenza in punti percentuali tra due tassi. */
-function variazionePunti(ora: number | null | undefined, prima: number | null | undefined): Variazione {
-  if (ora == null || prima == null) return null;
-  const d = Math.round((ora - prima) * 10) / 10;
-  if (d === 0) return { testo: "= periodo precedente", buona: null };
-  return { testo: `${d > 0 ? "▲ +" : "▼ "}${d.toLocaleString("it-IT")} pt vs periodo precedente`, buona: d > 0 };
-}
-
-/** Variazione percentuale di un importo; meglioSeMinore per il ciclo di vendita. */
-function variazionePercento(ora: number | null | undefined, prima: number | null | undefined, meglioSeMinore = false): Variazione {
-  if (ora == null || prima == null) return null;
-  if (prima === 0) return ora > 0 ? { testo: "nuovo rispetto al periodo precedente", buona: !meglioSeMinore } : null;
-  const d = Math.round(((ora - prima) / prima) * 100);
-  if (d === 0) return { testo: "= periodo precedente", buona: null };
-  return { testo: `${d > 0 ? "▲ +" : "▼ "}${d}% vs periodo precedente`, buona: meglioSeMinore ? d < 0 : d > 0 };
-}
-
+// Le frasi della variazione (variazionePunti / variazionePercento) sono comuni
+// col report Call center: stanno in lib/reporting/variazioneKpi.
 interface Props {
   kpi: VendorKPI | null;
   isLoading: boolean;

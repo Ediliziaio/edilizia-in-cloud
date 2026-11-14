@@ -43,10 +43,10 @@ export function AgentRadarProfile({ selected, all }: Props) {
       <CardContent>
         <ResponsiveContainer width="100%" height={260}>
           <RadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
-            <PolarGrid strokeDasharray="3 3" />
-            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11 }} />
-            <Radar name="Agente" dataKey="Agente" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
-            <Radar name="Media Team" dataKey="Media Team" stroke="hsl(var(--muted-foreground))" fill="hsl(var(--muted-foreground))" fillOpacity={0.1} />
+            <PolarGrid strokeDasharray="4 6" stroke="hsl(var(--border))" />
+            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+            <Radar name="Agente" dataKey="Agente" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="hsl(var(--primary))" fillOpacity={0.25} dot={{ r: 3, fill: "hsl(var(--primary))", strokeWidth: 0 }} />
+            <Radar name="Media Team" dataKey="Media Team" stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" fill="hsl(var(--muted-foreground))" fillOpacity={0.08} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
           </RadarChart>
         </ResponsiveContainer>

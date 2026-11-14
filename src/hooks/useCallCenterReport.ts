@@ -82,6 +82,26 @@ export function useCallCenterKPI(periodo: PeriodoVendor, operatoreId?: string) {
   });
 }
 
+/** Gli stessi KPI su date libere: serve per il periodo di confronto. */
+export function useCallCenterKPIRange(inizio: Date, fine: Date, enabled = true) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["callcenter-kpi-range", companyId, fmtDate(inizio), fmtDate(fine)],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_callcenter_kpi_per_operatore" as any, {
+        p_company_id: companyId,
+        p_data_inizio: fmtDate(inizio),
+        p_data_fine: fmtDate(fine),
+        p_operatore_id: null,
+      });
+      if (error) throw error;
+      return (data ?? []) as CallCenterKPI[];
+    },
+    enabled: !!companyId && enabled,
+    staleTime: 3 * 60_000,
+  });
+}
+
 export function useSpeedToLeadDistribuzione(periodo: PeriodoVendor, operatoreId?: string, enabled = true) {
   const companyId = useEffectiveCompanyId();
   const { inizio, fine } = usePeriodoDate(periodo);

@@ -40,7 +40,8 @@ export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmar
   }
   // Telefono: nome e cifra (con la variazione); senza icona, sottotitolo né benchmark.
   return (
-    <Card className={s.bg}>
+    // Entrata dal basso (ferma con «riduci movimento») e ombra al passaggio.
+    <Card className={`${s.bg} shadow-sm transition-shadow hover:shadow-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500 motion-safe:fill-mode-both`}>
       <CardContent className="p-5 max-sm:px-2.5 max-sm:py-2">
         <div className="flex items-start justify-between mb-2 max-sm:mb-0.5">
           <p className="text-sm font-medium text-muted-foreground max-sm:truncate max-sm:text-[11px]">{title}</p>

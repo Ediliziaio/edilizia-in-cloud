@@ -3,8 +3,6 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowUp,
   Calendar,
   ChevronDown,
   ChevronRight,
@@ -65,7 +63,11 @@ import {
   subMonths,
   subYears,
 } from "date-fns";
-import { CartesianGrid, Line, LineChart as RLineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
+import { useId } from "react";
+import { COLORI_GRAFICO, PillolaVariazione, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { Tendenza } from "@/components/dashboard/RiquadroNumero";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { cn } from "@/lib/utils";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -201,9 +203,9 @@ export function CrmSalesReportPanel({
   return (
     <div className="space-y-5 max-sm:space-y-3">
       {/* Telefono: solo il periodo, senza barra fissa né riquadro. */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm max-sm:static max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm max-sm:static max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-wrap items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400 max-sm:hidden" />
+          <Calendar className="h-4 w-4 text-muted-foreground/80 max-sm:hidden" />
           <Select value={periodKey} onValueChange={setPeriodKey}>
             <SelectTrigger className="h-9 w-[200px] max-sm:w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -220,16 +222,16 @@ export function CrmSalesReportPanel({
                 max={customTo || undefined}
                 onChange={(e) => setCustomFrom(e.target.value)}
                 aria-label="Data inizio"
-                className="h-9 rounded-md border border-slate-200 px-2 text-sm text-slate-700"
+                className="h-9 rounded-md border border-border px-2 text-sm text-muted-foreground"
               />
-              <span className="text-slate-400">→</span>
+              <span className="text-muted-foreground/80">→</span>
               <input
                 type="date"
                 value={customTo}
                 min={customFrom || undefined}
                 onChange={(e) => setCustomTo(e.target.value)}
                 aria-label="Data fine"
-                className="h-9 rounded-md border border-slate-200 px-2 text-sm text-slate-700"
+                className="h-9 rounded-md border border-border px-2 text-sm text-muted-foreground"
               />
             </div>
           )}
@@ -244,14 +246,14 @@ export function CrmSalesReportPanel({
       </div>
 
       {/* Telefono: i quattro numeri 2×2, senza titolo, periodo e spiegazione (li dice già la pagina). */}
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+      <section className="rounded-xl border border-border bg-card p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-2xl max-sm:hidden">
-            <Badge variant="outline" className="mb-3 border-orange-200 bg-orange-50 text-orange-700">
+            <Badge variant="outline" className="mb-3 border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-200">
               {periodLabel}
             </Badge>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">CRM e vendite</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">CRM e vendite</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Pipeline, preventivi, margini e campagne che generano vendite — con le azioni da fare per prime.
             </p>
           </div>
@@ -291,14 +293,14 @@ export function CrmSalesReportPanel({
         </div>
 
         {errors.length > 0 && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>Dati parziali: {errors.join(" · ")}</span>
           </div>
         )}
       </section>
 
-      <section className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
+      <section className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeader
             icon={TrendingUp}
@@ -326,7 +328,7 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <section className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
+      <section className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
         <SectionHeader icon={TrendingUp} title="Funnel commerciale" description="Dal lead alla vendita: barre proporzionali e % di conversione tra gli stadi (sui primi appuntamenti)." />
         <div className="mt-4 grid gap-5 lg:grid-cols-[1.5fr_1fr] max-sm:mt-1.5 max-sm:gap-2">
           {commercial.isLoading ? (
@@ -338,10 +340,15 @@ export function CrmSalesReportPanel({
             <MiniMetric label="Fatturato comm." value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
             <MiniMetric label="Ticket medio" value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
             <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
+            {!commercial.isLoading && (report.forecast.monthlyTargetCents ?? 0) > 0 && (
+              <div className="col-span-2 max-sm:col-span-3">
+                <ObiettivoMese vintoCents={report.forecast.wonThisMonthCents ?? 0} obiettivoCents={report.forecast.monthlyTargetCents ?? 0} />
+              </div>
+            )}
           </div>
         </div>
         {!commercial.isLoading && (
-          <p className="mt-2 text-[11px] leading-snug text-slate-500 max-sm:hidden">
+          <p className="mt-2 text-[11px] leading-snug text-muted-foreground max-sm:hidden">
             Conversioni sui <strong>primi appuntamenti</strong> del calendario marketing: {funnelConv.appuntamenti} primi su{" "}
             {funnelConv.appuntamentiTotali} totali ({Math.max(funnelConv.appuntamentiTotali - funnelConv.appuntamenti, 0)} follow-up).
           </p>
@@ -349,7 +356,7 @@ export function CrmSalesReportPanel({
       </section>
 
       {/* Telefono: il grafico dell'andamento, il dettaglio operativo e i canali paid restano al computer. */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-sm:hidden">
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm max-sm:hidden">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <SectionHeader icon={TrendingUp} title="Andamento nel tempo" description={`Aggregato per ${effectiveGranularity === "month" ? "mese" : effectiveGranularity === "week" ? "settimana" : "giorno"}.`} />
           <div className="flex flex-wrap items-center gap-2">
@@ -371,8 +378,8 @@ export function CrmSalesReportPanel({
                   className={cn(
                     "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
                     trendMetric === m.key
-                      ? "border-orange-300 bg-orange-50 text-orange-700"
-                      : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                      ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-orange-300"
+                      : "border-border text-muted-foreground hover:bg-muted/50",
                   )}
                 >
                   {m.label}
@@ -381,11 +388,11 @@ export function CrmSalesReportPanel({
             </div>
           </div>
         </div>
-        <div className="mt-4 h-64 w-full">
+        <div className="mt-4 w-full">
           {commercial.isLoading ? (
-            <Skeleton className="h-full w-full rounded-lg" />
+            <Skeleton className="h-64 w-full rounded-lg" />
           ) : trend.length === 0 ? (
-            <p className="flex h-full items-center justify-center text-sm text-slate-500">Nessun dato nel periodo selezionato.</p>
+            <p className="flex h-64 items-center justify-center text-sm text-muted-foreground">Nessun dato nel periodo selezionato.</p>
           ) : (
             <TrendChart data={trend} metric={trendMetric} />
           )}
@@ -418,12 +425,12 @@ export function CrmSalesReportPanel({
               <MiniMetric label="Copertura" value={`${report.margin.coveragePct}%`} loading={commercial.isLoading} tone={report.margin.coveragePct >= 80 ? "green" : "amber"} />
             </div>
             {aging.stale90 > 0 && !commercial.isLoading && (
-              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">
                 Pipeline ferma: {aging.stale90} opportunità aperte da oltre 90 giorni ({formatMoney(aging.staleValueCents)}) — da chiudere o archiviare.
               </p>
             )}
             {report.margin.dataQualityWarning && !commercial.isLoading && (
-              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 p-3 text-sm text-amber-800">
                 {report.margin.dataQualityWarning}
               </p>
             )}
@@ -451,7 +458,7 @@ export function CrmSalesReportPanel({
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         {/* Telefono: le tre letture ripetono i numeri in alto; resta solo «Da fare adesso». */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm max-sm:hidden">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm max-sm:hidden">
           <SectionHeader icon={Target} title="Cosa guardare" description="Le tre letture chiave di salute commerciale." />
           <div className="mt-4 grid gap-3">
             <FocusCard
@@ -481,7 +488,7 @@ export function CrmSalesReportPanel({
           </div>
         </div>
 
-        <div className={cn("rounded-xl border border-slate-200 bg-white p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
+        <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", SEZIONE_SENZA_RIQUADRO_TELEFONO)}>
           <SectionHeader icon={ListIcon} title="Da fare adesso" description="Priorità ordinate per impatto commerciale." />
           <div className="mt-4 space-y-3 max-sm:mt-1.5 max-sm:space-y-2">
             {loading ? (
@@ -508,7 +515,7 @@ export function CrmSalesReportPanel({
       </section>
 
       <CollapsibleSection icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati)." defaultOpen={false} className="max-sm:hidden">
-        <AdsSalesReportPanel provider="all" daysBack={adsDaysBack} compact className="border-slate-200 bg-white shadow-sm" />
+        <AdsSalesReportPanel provider="all" daysBack={adsDaysBack} compact className="border-border bg-card shadow-sm" />
       </CollapsibleSection>
     </div>
   );
@@ -593,8 +600,8 @@ function ExecutiveKpi({
 }) {
   return (
     // Telefono: nome e cifra; senza icona né riga di dettaglio.
-    <div className={cn("rounded-lg border bg-white p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2", toneClassName(tone))}>
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500 max-sm:mb-0.5 max-sm:truncate max-sm:text-[11px] max-sm:font-medium max-sm:normal-case">
+    <div className={cn("rounded-lg border bg-card p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2", toneClassName(tone))}>
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground max-sm:mb-0.5 max-sm:truncate max-sm:text-[11px] max-sm:font-medium max-sm:normal-case">
         <Icon className="h-4 w-4 max-sm:hidden" />
         {label}
       </div>
@@ -605,8 +612,8 @@ function ExecutiveKpi({
         </>
       ) : (
         <>
-          <p className="text-2xl font-semibold tracking-tight text-slate-950 max-sm:truncate max-sm:text-base">{value}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500 max-sm:hidden">{detail}</p>
+          <p className="text-2xl font-semibold tracking-tight text-foreground max-sm:truncate max-sm:text-base">{value}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground max-sm:hidden">{detail}</p>
         </>
       )}
     </div>
@@ -630,11 +637,11 @@ function FocusCard({
 }) {
   return (
     <div className={cn("flex gap-3 rounded-lg border p-3", toneClassName(tone))}>
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-slate-700 shadow-sm">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-card text-sm font-semibold text-muted-foreground shadow-sm">
         {label}
       </div>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-950">{title}</p>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
         {loading ? (
           <>
             <Skeleton className="mt-2 h-6 w-40" />
@@ -642,8 +649,8 @@ function FocusCard({
           </>
         ) : (
           <>
-            <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">{detail}</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
           </>
         )}
       </div>
@@ -661,23 +668,23 @@ function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
   ];
   return (
     <div className="space-y-3 max-sm:space-y-1.5">
-      {stages.map((s) => {
+      {stages.map((s, i) => {
         const width = s.value > 0 ? Math.max((s.value / max) * 100, 5) : 0;
         return (
           <div key={s.label}>
             <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-              <span className="font-medium text-slate-700">{s.label}</span>
-              <span className="tabular-nums text-slate-500">
-                <span className="font-semibold text-slate-900">{s.value}</span>
+              <span className="font-medium text-muted-foreground">{s.label}</span>
+              <span className="tabular-nums text-muted-foreground">
+                <span className="font-semibold text-foreground">{s.value}</span>
                 {s.conv != null && (
-                  <span className="ml-2 text-slate-400">
+                  <span className="ml-2 text-muted-foreground/80">
                     {s.conv}%<span className="max-sm:hidden"> dal precedente</span>
                   </span>
                 )}
               </span>
             </div>
-            <div className="h-7 w-full overflow-hidden rounded-md bg-slate-100 max-sm:h-4">
-              <div className="h-full rounded-md bg-gradient-to-r from-orange-400 to-orange-500 transition-all" style={{ width: `${width}%` }} />
+            <div className="h-7 w-full overflow-hidden rounded-md bg-muted max-sm:h-4">
+              <div className="cg-barra-cresce h-full rounded-md bg-gradient-to-r from-orange-400 to-orange-500" style={{ width: `${width}%`, animationDelay: `${200 + i * 110}ms` }} />
             </div>
           </div>
         );
@@ -724,11 +731,11 @@ function CollapsibleSection({
         <div>
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4 text-orange-600" />
-            <h3 className="text-base font-semibold text-slate-950">{title}</h3>
+            <h3 className="text-base font-semibold text-foreground">{title}</h3>
           </div>
-          <p className="mt-1 text-sm text-slate-600">{description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
-        <ChevronDown className={cn("h-5 w-5 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("h-5 w-5 shrink-0 text-muted-foreground/80 transition-transform", open && "rotate-180")} />
       </button>
       {open && children}
     </section>
@@ -745,10 +752,10 @@ function DetailPanel({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <Icon className="h-4 w-4 text-orange-600" />
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
       </div>
       {children}
     </div>
@@ -768,29 +775,10 @@ function SectionHeader({
     <div>
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-orange-600 max-sm:hidden" />
-        <h3 className="text-base font-semibold text-slate-950 max-sm:text-[13px]">{title}</h3>
+        <h3 className="text-base font-semibold text-foreground max-sm:text-[13px]">{title}</h3>
       </div>
-      <p className="mt-1 text-sm text-slate-600 max-sm:hidden">{description}</p>
+      <p className="mt-1 text-sm text-muted-foreground max-sm:hidden">{description}</p>
     </div>
-  );
-}
-
-function Sparkline({ values, className }: { values: number[]; className?: string }) {
-  const pts = values.filter((v) => Number.isFinite(v));
-  if (pts.length < 2) return null;
-  const max = Math.max(...pts);
-  const min = Math.min(...pts);
-  const range = max - min || 1;
-  const w = 72;
-  const h = 20;
-  const step = w / (pts.length - 1);
-  const d = pts
-    .map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`)
-    .join(" ");
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className={className} preserveAspectRatio="none" aria-hidden="true">
-      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
@@ -800,30 +788,24 @@ function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMe
   const up = delta != null && delta >= 0;
   return (
     // Telefono: nome, cifra e variazione sulla stessa riga; senza minigrafico.
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
+    <div className="rounded-lg border border-border bg-muted/50 p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase text-slate-500 max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{metric.label}</p>
+        <p className="text-xs font-medium uppercase text-muted-foreground max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{metric.label}</p>
         {!loading && spark && spark.length >= 2 && (
-          <Sparkline values={spark} className={cn("mt-0.5 shrink-0 max-sm:hidden", up ? "text-emerald-500/70" : "text-rose-500/70")} />
+          <span className="mt-0.5 shrink-0 max-sm:hidden">
+            <Tendenza valori={spark} colore={up ? "#10b981" : "#ef4444"} etichetta={`Andamento di ${metric.label}`} />
+          </span>
         )}
       </div>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-24 max-sm:mt-1 max-sm:h-5 max-sm:w-16" />
       ) : (
         <div className="max-sm:flex max-sm:items-baseline max-sm:justify-between max-sm:gap-1">
-          <p className="mt-1 text-lg font-semibold text-slate-950 max-sm:mt-0 max-sm:truncate max-sm:text-base">{value}</p>
+          <p className="mt-1 text-lg font-semibold text-foreground max-sm:mt-0 max-sm:truncate max-sm:text-base">{value}</p>
           {delta === null ? (
-            <p className="mt-1 text-xs text-slate-400 max-sm:hidden">nessun confronto</p>
+            <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">nessun confronto</p>
           ) : (
-            <p
-              className={cn(
-                "mt-1 inline-flex items-center gap-1 text-xs font-medium max-sm:mt-0 max-sm:shrink-0 max-sm:text-[11px]",
-                up ? "text-emerald-700" : "text-rose-700",
-              )}
-            >
-              {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-              {Math.abs(delta)}%
-            </p>
+            <PillolaVariazione pct={delta} className="mt-1 max-sm:mt-0 max-sm:shrink-0" titolo="Rispetto al periodo di confronto" />
           )}
         </div>
       )}
@@ -843,12 +825,12 @@ function MiniMetric({
   tone?: "default" | "green" | "amber" | "red";
 }) {
   return (
-    <div className={cn("rounded-lg border bg-slate-50 p-3 max-sm:min-w-0 max-sm:px-2 max-sm:py-1.5", toneClassName(tone))}>
-      <p className="text-xs font-medium uppercase text-slate-500 max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{label}</p>
+    <div className={cn("rounded-lg border bg-muted/50 p-3 max-sm:min-w-0 max-sm:px-2 max-sm:py-1.5", toneClassName(tone))}>
+      <p className="text-xs font-medium uppercase text-muted-foreground max-sm:truncate max-sm:text-[11px] max-sm:normal-case">{label}</p>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-20 max-sm:mt-1 max-sm:h-5 max-sm:w-14" />
       ) : (
-        <p className="mt-2 text-lg font-semibold text-slate-950 max-sm:mt-0 max-sm:truncate max-sm:text-[13px]">{value}</p>
+        <p className="mt-2 text-lg font-semibold text-foreground max-sm:mt-0 max-sm:truncate max-sm:text-[13px]">{value}</p>
       )}
     </div>
   );
@@ -863,7 +845,7 @@ function LeadSegmentTable({
 }) {
   if (loading) return <Skeleton className="mt-3 h-28 w-full rounded-lg" />;
   if (!rows.length) {
-    return <p className="mt-3 rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">Nessun lead con score ICP/AI nel periodo.</p>;
+    return <p className="mt-3 rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">Nessun lead con score ICP/AI nel periodo.</p>;
   }
 
   return (
@@ -885,7 +867,7 @@ function LeadSegmentTable({
                 <TableBar value={row.leads} max={Math.max(...rows.map((r) => r.leads), 1)} />
               </TableCell>
               <TableCell className="text-right tabular-nums">{row.leads}</TableCell>
-              <TableCell className="text-right tabular-nums text-emerald-700">{row.good}</TableCell>
+              <TableCell className="text-right tabular-nums text-emerald-700 dark:text-emerald-400">{row.good}</TableCell>
               <TableCell className="text-right tabular-nums text-rose-700">{row.poor}</TableCell>
             </TableRow>
           ))}
@@ -909,39 +891,39 @@ function LossReasonsList({
   const nome = (id: string | null) => (id ? staff.find((s) => s.id === id)?.name || "Venditore" : "Senza venditore");
   if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
   if (!rows.length) {
-    return <p className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">Nessun motivo di perdita registrato nel periodo.</p>;
+    return <p className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">Nessun motivo di perdita registrato nel periodo.</p>;
   }
 
   const totale = rows.reduce((t, r) => t + r.count, 0);
   return (
     <div className="space-y-2">
       {rows.slice(0, tutti ? rows.length : 5).map((row) => (
-        <div key={row.reason} className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">
+        <div key={row.reason} className="rounded-lg border bg-muted/50 px-3 py-2 text-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-medium capitalize text-slate-900">{row.reason}</p>
-              <p className="text-xs text-slate-500">{row.count} casi{totale ? ` · ${Math.round((row.count / totale) * 100)}%` : ""}</p>
+              <p className="font-medium capitalize text-foreground">{row.reason}</p>
+              <p className="text-xs text-muted-foreground">{row.count} casi{totale ? ` · ${Math.round((row.count / totale) * 100)}%` : ""}</p>
             </div>
-            <p className="font-semibold tabular-nums text-slate-950">{formatMoney(row.valueCents)}</p>
+            <p className="font-semibold tabular-nums text-foreground">{formatMoney(row.valueCents)}</p>
           </div>
           <TableBar value={row.valueCents} max={Math.max(...rows.map((r) => r.valueCents), 1)} tone="rose" />
         </div>
       ))}
       {rows.length > 5 && (
-        <button type="button" className="text-xs font-medium text-slate-600 hover:underline" onClick={() => setTutti((v) => !v)}>
+        <button type="button" className="text-xs font-medium text-muted-foreground hover:underline" onClick={() => setTutti((v) => !v)}>
           {tutti ? "Mostra i primi 5" : `Mostra tutti i ${rows.length} motivi`}
         </button>
       )}
       {perVenditore.length > 0 && (
         <div className="pt-2">
-          <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Perse per venditore</p>
+          <p className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Perse per venditore</p>
           <table className="w-full text-sm">
             <tbody>
               {perVenditore.slice(0, 8).map((v) => (
                 <tr key={v.ownerId ?? "nessuno"} className="border-t">
                   <td className="py-1 pr-2">{nome(v.ownerId)}</td>
                   <td className="py-1 pr-2 text-right tabular-nums">{v.count}</td>
-                  <td className="py-1 pr-2 text-xs capitalize text-slate-500">{v.topReason}</td>
+                  <td className="py-1 pr-2 text-xs capitalize text-muted-foreground">{v.topReason}</td>
                   <td className="py-1 text-right tabular-nums">{formatMoney(v.valueCents)}</td>
                 </tr>
               ))}
@@ -964,7 +946,7 @@ function SourceBreakdownTable({
 }) {
   if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
   if (!rows.length) {
-    return <p className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">Nessuna fonte con dati nel periodo.</p>;
+    return <p className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">Nessuna fonte con dati nel periodo.</p>;
   }
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -982,19 +964,19 @@ function SourceBreakdownTable({
           {rows.slice(0, 6).map((row) => (
             <TableRow
               key={row.source}
-              className={onDrill ? "cursor-pointer hover:bg-slate-50" : undefined}
+              className={onDrill ? "cursor-pointer hover:bg-muted/50" : undefined}
               onClick={onDrill ? () => onDrill(row.source) : undefined}
               title={onDrill ? `Apri i contatti con fonte "${row.source}"` : undefined}
             >
               <TableCell className="font-medium capitalize">
                 <span className="inline-flex items-center gap-1">
                   {row.source}
-                  {onDrill && <ChevronRight className="h-3 w-3 text-slate-400" />}
+                  {onDrill && <ChevronRight className="h-3 w-3 text-muted-foreground/80" />}
                 </span>
                 <TableBar value={row.fatturatoCents} max={Math.max(...rows.map((r) => r.fatturatoCents), 1)} />
               </TableCell>
               <TableCell className="text-right tabular-nums">{row.lead}</TableCell>
-              <TableCell className="text-right tabular-nums text-emerald-700">{row.vinti}</TableCell>
+              <TableCell className="text-right tabular-nums text-emerald-700 dark:text-emerald-400">{row.vinti}</TableCell>
               <TableCell className="text-right tabular-nums">{formatMoney(row.fatturatoCents)}</TableCell>
               <TableCell className="text-right tabular-nums">{row.marginePct == null ? "—" : `${row.marginePct}%`}</TableCell>
             </TableRow>
@@ -1010,17 +992,17 @@ function ListIcon({ className }: { className?: string }) {
 }
 
 function priorityClassName(tone: PriorityTone) {
-  if (tone === "good") return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  if (tone === "critical") return "border-rose-200 bg-rose-50 text-rose-800";
-  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-800";
-  return "border-sky-200 bg-sky-50 text-sky-800";
+  if (tone === "good") return "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200";
+  if (tone === "critical") return "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200";
+  if (tone === "warning") return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200";
+  return "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200";
 }
 
 function toneClassName(tone: "default" | "green" | "amber" | "red") {
-  if (tone === "green") return "border-emerald-200 bg-emerald-50/50";
-  if (tone === "amber") return "border-amber-200 bg-amber-50/50";
-  if (tone === "red") return "border-rose-200 bg-rose-50/50";
-  return "border-slate-200";
+  if (tone === "green") return "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-500/10";
+  if (tone === "amber") return "border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10";
+  if (tone === "red") return "border-rose-200 bg-rose-50/50 dark:border-rose-500/30 dark:bg-rose-500/10";
+  return "border-border";
 }
 
 function formatDays(value: number | null) {
@@ -1037,30 +1019,93 @@ function TrendChart({ data, metric }: { data: CommercialTrendPoint[]; metric: Co
   const isMoney = !!meta?.money;
   const isPercent = !!meta?.percent;
   const labelForMetric = meta?.label ?? "";
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
+  const fmt = (v: number) => (isMoney ? formatMoney(v) : isPercent ? `${v}%` : v.toLocaleString("it-IT"));
+  // Riga sopra il grafico: punto più alto, più basso e media della metrica scelta.
+  const valori = data.map((d) => ({ d, v: d[metric] })).filter((x): x is { d: CommercialTrendPoint; v: number } => typeof x.v === "number");
+  const alto = valori.length ? valori.reduce((a, b) => (b.v > a.v ? b : a)) : null;
+  const basso = valori.length ? valori.reduce((a, b) => (b.v < a.v ? b : a)) : null;
+  const media = valori.length ? valori.reduce((s, x) => s + x.v, 0) / valori.length : null;
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <RLineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} tickMargin={8} />
-        <YAxis
-          tick={{ fontSize: 11, fill: "#64748b" }}
-          tickLine={false}
-          axisLine={false}
-          width={isMoney ? 64 : 40}
-          allowDecimals={false}
-          tickFormatter={(value) => (isMoney ? formatMoneyShort(Number(value)) : isPercent ? `${value}%` : String(value))}
-        />
-        <RechartsTooltip
-          formatter={(value: number | string) => [
-            isMoney ? formatMoney(Number(value)) : isPercent ? `${value}%` : String(value),
-            labelForMetric,
-          ]}
-          labelStyle={{ color: "#0f172a", fontWeight: 600 }}
-          contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}
-        />
-        <Line type="monotone" dataKey={metric} stroke="#f97316" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} connectNulls />
-      </RLineChart>
-    </ResponsiveContainer>
+    <div className="space-y-3">
+      {/* Senza nessun valore diverso da zero la riga direbbe tre volte «0». */}
+      {alto && basso && media != null && alto.v !== 0 && (
+        <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+          <StatGrafico etichetta="Più alto" valore={fmt(alto.v)} nota={alto.d.label} />
+          <StatGrafico etichetta="Più basso" valore={fmt(basso.v)} nota={basso.d.label} />
+          <StatGrafico etichetta="Media" valore={fmt(isMoney ? Math.round(media) : Math.round(media * 10) / 10)} nota={`su ${valori.length} punti`} />
+        </div>
+      )}
+      <div className="h-56 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+            {defsGrafico(id, { serie: COLORI_GRAFICO.arancio })}
+            <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="label" tick={TESTO_ASSE} tickLine={false} axisLine={false} tickMargin={8} />
+            <YAxis
+              tick={TESTO_ASSE}
+              tickLine={false}
+              axisLine={false}
+              width={isMoney ? 64 : 40}
+              allowDecimals={false}
+              tickFormatter={(value) => (isMoney ? formatMoneyShort(Number(value)) : isPercent ? `${value}%` : String(value))}
+            />
+            <RechartsTooltip
+              cursor={{ stroke: COLORI_GRAFICO.arancio, strokeOpacity: 0.35, strokeDasharray: "3 3" }}
+              content={(p) => (
+                <TooltipScheda
+                  active={p.active}
+                  payload={(p.payload ?? []).filter((x) => x.name !== "area").map((x) => ({ ...x, name: labelForMetric })) as never}
+                  label={String(p.label ?? "")}
+                  formato={(v) => fmt(v)}
+                />
+              )}
+            />
+            <Area type="monotone" dataKey={metric} name="area" stroke="none" fill={`url(#${id}-sfuma-serie)`} connectNulls isAnimationActive={!fermo} animationDuration={900} activeDot={false} legendType="none" />
+            <Line
+              type="monotone"
+              dataKey={metric}
+              stroke={COLORI_GRAFICO.arancio}
+              strokeWidth={2.5}
+              filter={`url(#${id}-ombra)`}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))", fill: COLORI_GRAFICO.arancio }}
+              connectNulls
+              isAnimationActive={!fermo}
+              animationDuration={900}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+/** Riquadro scuro: il venduto del mese contro l'obiettivo mensile (se c'è). */
+function ObiettivoMese({ vintoCents, obiettivoCents }: { vintoCents: number; obiettivoCents: number }) {
+  const pct = obiettivoCents > 0 ? (vintoCents / obiettivoCents) * 100 : 0;
+  const oggi = new Date();
+  const fineMese = new Date(oggi.getFullYear(), oggi.getMonth() + 1, 0);
+  const giorniRimasti = fineMese.getDate() - oggi.getDate();
+  const manca = Math.max(0, obiettivoCents - vintoCents);
+  const raggiunto = pct >= 100;
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">Obiettivo del mese</p>
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <span className="text-3xl font-bold tabular-nums tracking-tight">{Math.round(pct)}%</span>
+        <span className="text-xs text-muted-foreground/80">{raggiunto ? "raggiunto" : `${giorniRimasti} giorni alla fine del mese`}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pct, 100))} aria-label="Obiettivo del mese">
+        <div className={cn("cg-barra-cresce h-full rounded-full bg-gradient-to-r", raggiunto ? "from-emerald-400 to-teal-300" : "from-orange-400 to-amber-300")} style={{ width: `${Math.max(2, Math.min(pct, 100))}%` }} />
+      </div>
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+        <div><dt className="text-muted-foreground/80">Venduto</dt><dd className="font-semibold tabular-nums">{formatMoneyShort(vintoCents)}</dd></div>
+        <div><dt className="text-muted-foreground/80">Obiettivo</dt><dd className="font-semibold tabular-nums">{formatMoneyShort(obiettivoCents)}</dd></div>
+        <div><dt className="text-muted-foreground/80">Manca</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? "niente" : formatMoneyShort(manca)}</dd></div>
+      </dl>
+    </div>
   );
 }
 

@@ -28,15 +28,15 @@ const SORT_OPTIONS: { value: SortField; label: string; inverti?: boolean }[] = [
 
 function semaforoClass(field: string, val: number): string {
   if (field === "tasso_contatto")
-    return val >= 60 ? "text-green-700 bg-green-50" : val >= 40 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
+    return val >= 60 ? "text-green-700 bg-green-50" : val >= 40 ? "text-amber-700 bg-amber-50" : "text-red-700 dark:text-red-400 bg-red-50";
   if (field === "tasso_app_su_contattati" || field === "tasso_app_su_assegnati")
-    return val >= 20 ? "text-green-700 bg-green-50" : val >= 10 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
+    return val >= 20 ? "text-green-700 bg-green-50" : val >= 10 ? "text-amber-700 bg-amber-50" : "text-red-700 dark:text-red-400 bg-red-50";
   if (field === "avg_speed_to_lead_min")
-    return val <= 10 ? "text-green-700 bg-green-50" : val <= 60 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
+    return val <= 10 ? "text-green-700 bg-green-50" : val <= 60 ? "text-amber-700 bg-amber-50" : "text-red-700 dark:text-red-400 bg-red-50";
   if (field === "tentativi_per_contatto")
-    return val <= 2.5 ? "text-green-700 bg-green-50" : val <= 4 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
+    return val <= 2.5 ? "text-green-700 bg-green-50" : val <= 4 ? "text-amber-700 bg-amber-50" : "text-red-700 dark:text-red-400 bg-red-50";
   if (field === "pct_lead_lavorati")
-    return val >= 90 ? "text-green-700 bg-green-50" : val >= 70 ? "text-amber-700 bg-amber-50" : "text-red-700 bg-red-50";
+    return val >= 90 ? "text-green-700 bg-green-50" : val >= 70 ? "text-amber-700 bg-amber-50" : "text-red-700 dark:text-red-400 bg-red-50";
   return "";
 }
 

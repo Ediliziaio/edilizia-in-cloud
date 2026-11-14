@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { StatGrafico, TESTO_ASSE, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -23,6 +25,21 @@ interface Props {
 
 export function CallCenterTrendChart({ data, isLoading }: Props) {
   const [vista, setVista] = useState<Vista>("volumi");
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
+  // Riga sopra il grafico: giorno con più chiamate, media sui giorni lavorati, tasso di contatto.
+  const statGiorni = useMemo(() => {
+    const attivi = data.filter((d) => d.nr_chiamate > 0);
+    if (attivi.length === 0) return null;
+    const chiamate = attivi.reduce((s, d) => s + d.nr_chiamate, 0);
+    const contatti = attivi.reduce((s, d) => s + d.nr_contatti, 0);
+    return {
+      migliore: attivi.reduce((a, b) => (b.nr_chiamate > a.nr_chiamate ? b : a)),
+      media: Math.round((chiamate / attivi.length) * 10) / 10,
+      tasso: chiamate > 0 ? Math.round((contatti / chiamate) * 1000) / 10 : 0,
+      attivi: attivi.length,
+    };
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -69,31 +86,39 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
           <CardTitle className="text-base">Andamento Giornaliero</CardTitle>
         </CardHeader>
         <CardContent>
+          {data.length > 0 && statGiorni && (
+            <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+              <StatGrafico etichetta="Giorno con più chiamate" valore={String(statGiorni.migliore.nr_chiamate)} nota={`${statGiorni.migliore.giorno_settimana} ${statGiorni.migliore.giorno_label}`} />
+              <StatGrafico etichetta="Chiamate al giorno" valore={statGiorni.media.toLocaleString("it-IT")} nota={`media su ${statGiorni.attivi} giorni con chiamate`} />
+              <StatGrafico etichetta="Tasso di contatto" valore={`${statGiorni.tasso.toLocaleString("it-IT")}%`} nota="contatti sulle chiamate" tono={statGiorni.tasso >= 40 ? "buono" : "cattivo"} />
+            </div>
+          )}
           {data.length === 0 ? (
             <p className="text-center text-muted-foreground py-10">Nessun dato disponibile</p>
           ) : (
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height={330}>
               <ComposedChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="giorno_label" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                {defsGrafico(id, { chiamate: "hsl(var(--primary))", contatti: "hsl(142, 71%, 45%)", appuntamenti: "hsl(38, 92%, 50%)" })}
+                <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="giorno_label" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
                 {vista === "volumi" ? (
                   <>
-                    <YAxis yAxisId="left" className="fill-muted-foreground" />
-                    <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} className="fill-muted-foreground" />
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="nr_chiamate" name="Chiamate" fill="hsl(var(--primary))" opacity={0.7} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="left" dataKey="nr_contatti" name="Contatti" fill="hsl(142, 71%, 45%)" opacity={0.8} radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="left" dataKey="nr_appuntamenti" name="Appuntamenti" fill="hsl(38, 92%, 50%)" opacity={0.8} radius={[2, 2, 0, 0]} />
-                    <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2} dot={false} />
+                    <YAxis yAxisId="left" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                    <Bar yAxisId="left" dataKey="nr_chiamate" name="Chiamate" fill={`url(#${id}-barra-chiamate)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
+                    <Bar yAxisId="left" dataKey="nr_contatti" name="Contatti" fill={`url(#${id}-barra-contatti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={100} />
+                    <Bar yAxisId="left" dataKey="nr_appuntamenti" name="Appuntamenti" fill={`url(#${id}-barra-appuntamenti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={200} />
+                    <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
                   </>
                 ) : (
                   <>
-                    <YAxis tickFormatter={v => `${v}%`} domain={[0, 100]} className="fill-muted-foreground" />
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} formatter={(v: number) => [`${v}%`]} />
-                    <Legend />
-                    <Line type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2} />
-                    <Line type="monotone" dataKey="tasso_appuntamento" name="Tasso App. %" stroke="hsl(38, 92%, 50%)" strokeWidth={2} />
+                    <YAxis tickFormatter={v => `${v}%`} domain={[0, 100]} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} formatter={(v: number) => [`${v}%`]} />
+                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                    <Line type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                    <Line type="monotone" dataKey="tasso_appuntamento" name="Tasso App. %" stroke="hsl(38, 92%, 50%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} animationBegin={150} />
                   </>
                 )}
               </ComposedChart>
@@ -112,15 +137,16 @@ export function CallCenterTrendChart({ data, isLoading }: Props) {
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               <ComposedChart data={perGiornoSettimana}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="giorno" className="fill-muted-foreground" />
-                <YAxis yAxisId="left" className="fill-muted-foreground" />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} domain={[0, 100]} className="fill-muted-foreground" />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="avg_chiamate" name="Avg Chiamate" fill="hsl(var(--primary))" opacity={0.7} radius={[2, 2, 0, 0]} />
-                <Bar yAxisId="left" dataKey="avg_contatti" name="Avg Contatti" fill="hsl(142, 71%, 45%)" opacity={0.8} radius={[2, 2, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2} />
+                {defsGrafico(id, { chiamate: "hsl(var(--primary))", contatti: "hsl(142, 71%, 45%)", appuntamenti: "hsl(38, 92%, 50%)" })}
+                <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="giorno" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={v => `${v}%`} domain={[0, 100]} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))", fontSize: 12 }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                <Bar yAxisId="left" dataKey="avg_chiamate" name="Avg Chiamate" fill={`url(#${id}-barra-chiamate)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
+                <Bar yAxisId="left" dataKey="avg_contatti" name="Avg Contatti" fill={`url(#${id}-barra-contatti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={100} />
+                <Line yAxisId="right" type="monotone" dataKey="tasso_contatto" name="Tasso Contatto %" stroke="hsl(262, 83%, 58%)" strokeWidth={2.5} dot={false} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>

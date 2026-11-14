@@ -24,7 +24,7 @@ const RANK_COLORS = ["text-yellow-500", "text-gray-400", "text-amber-600"];
 const BADGE: Record<Semaforo, string> = {
   buono: "bg-green-50 text-green-700 border-green-200",
   medio: "bg-amber-50 text-amber-700 border-amber-200",
-  critico: "bg-red-50 text-red-700 border-red-200",
+  critico: "bg-red-50 text-red-700 dark:text-red-400 border-red-200",
 };
 
 /** Badge con le soglie comuni del report; «—» grigio quando il numero non c'è. */
@@ -44,7 +44,7 @@ function Obiettivo({ fatto, obiettivo }: { fatto: number; obiettivo: number }) {
   if (!(obiettivo > 0)) return <span className="text-xs text-muted-foreground">—</span>;
   const pct = Math.round((fatto / obiettivo) * 100);
   const colore = pct >= 100 ? "bg-emerald-500" : pct >= 60 ? "bg-amber-500" : "bg-red-500";
-  const testo = pct >= 100 ? "text-emerald-700" : pct >= 60 ? "text-amber-700" : "text-red-700";
+  const testo = pct >= 100 ? "text-emerald-700 dark:text-emerald-400" : pct >= 60 ? "text-amber-700" : "text-red-700 dark:text-red-400";
   return (
     <div className="flex min-w-[92px] items-center gap-1.5" title={`${formatCurrency(fatto)} su ${formatCurrency(obiettivo)}`}>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
@@ -220,7 +220,7 @@ export function VenditoriRanking({
       <div className="flex flex-wrap items-center gap-4 px-6 pb-4 text-xs text-muted-foreground max-sm:hidden">
         <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">val</Badge> Ottimo</span>
         <span><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">val</Badge> Da migliorare</span>
-        <span><Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">val</Badge> Critico</span>
+        <span><Badge variant="outline" className="bg-red-50 text-red-700 dark:text-red-400 border-red-200 text-xs">val</Badge> Critico</span>
         <span>«—» = non calcolabile (niente chiuso o nessun appuntamento con esito)</span>
         {onApriVenditore && <span>Clic su un venditore per aprire le sue opportunità</span>}
       </div>

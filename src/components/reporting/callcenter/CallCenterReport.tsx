@@ -3,9 +3,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Phone, GitCompareArrows } from "lucide-react";
-import type { PeriodoVendor } from "@/hooks/useVendorReport";
+import { usePeriodoDate, type PeriodoVendor } from "@/hooks/useVendorReport";
+import { periodoPrecedente } from "@/lib/reporting/venditoriRegole";
 import {
   useCallCenterKPI,
+  useCallCenterKPIRange,
   useSpeedToLeadDistribuzione,
   useTrendGiornaliero,
   useFonteLeadPerformance,
@@ -58,6 +60,63 @@ const EXPORT_COLUMNS = [
   { key: "giorni_lavorati", label: "Giorni Lavorati" },
 ];
 
+/**
+ * Il KPI del team (somma degli operatori) o di un operatore solo, dall'elenco
+ * per operatore. Lo stesso calcolo per il periodo scelto e per quello prima.
+ */
+function aggregaKpi(kpiList: CallCenterKPI[] | undefined, operatoreId: string): CallCenterKPI | null {
+  if (!kpiList?.length) return null;
+  if (operatoreId !== "tutti") {
+    return kpiList.find(k => k.operatore_id === operatoreId) ?? null;
+  }
+  const agg = kpiList.reduce((acc, k) => ({
+    ...acc,
+    lead_assegnati: acc.lead_assegnati + (k.lead_assegnati ?? 0),
+    lead_lavorati: acc.lead_lavorati + (k.lead_lavorati ?? 0),
+    lead_contattati: acc.lead_contattati + (k.lead_contattati ?? 0),
+    tentativi_totali: acc.tentativi_totali + (k.tentativi_totali ?? 0),
+    appuntamenti_fissati: acc.appuntamenti_fissati + (k.appuntamenti_fissati ?? 0),
+    show_up_count: acc.show_up_count + (k.show_up_count ?? 0),
+    giorni_lavorati: Math.max(acc.giorni_lavorati, k.giorni_lavorati ?? 0),
+  }), {
+    operatore_id: "tutti",
+    nome_operatore: "Tutto il Team",
+    email_operatore: "",
+    lead_assegnati: 0, lead_lavorati: 0, pct_lead_lavorati: 0,
+    lead_contattati: 0, tasso_contatto: 0,
+    tentativi_totali: 0, tentativi_per_contatto: 0,
+    avg_speed_to_lead_min: 0, median_speed_to_lead_min: 0,
+    pct_entro_5min: 0, pct_entro_1ora: 0, pct_oltre_24ore: 0,
+    appuntamenti_fissati: 0, tasso_app_su_contattati: 0, tasso_app_su_assegnati: 0,
+    show_up_count: 0, tasso_show_up: 0,
+    durata_media_min: 0, chiamate_per_giorno: 0, giorni_lavorati: 0,
+  } as CallCenterKPI);
+
+  agg.pct_lead_lavorati = agg.lead_assegnati ? Math.round(1000 * agg.lead_lavorati / agg.lead_assegnati) / 10 : 0;
+  agg.tasso_contatto = agg.lead_lavorati ? Math.round(1000 * agg.lead_contattati / agg.lead_lavorati) / 10 : 0;
+  agg.tentativi_per_contatto = agg.lead_contattati ? Math.round(100 * agg.tentativi_totali / agg.lead_contattati) / 100 : 0;
+  agg.tasso_app_su_contattati = agg.lead_contattati ? Math.round(1000 * agg.appuntamenti_fissati / agg.lead_contattati) / 10 : 0;
+  agg.tasso_app_su_assegnati = agg.lead_assegnati ? Math.round(1000 * agg.appuntamenti_fissati / agg.lead_assegnati) / 10 : 0;
+  agg.tasso_show_up = agg.appuntamenti_fissati ? Math.round(1000 * agg.show_up_count / agg.appuntamenti_fissati) / 10 : 0;
+
+  const withSpeed = kpiList.filter(k => (k.avg_speed_to_lead_min ?? 0) > 0);
+  agg.avg_speed_to_lead_min = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + k.avg_speed_to_lead_min, 0) / withSpeed.length) / 10 : 0;
+  agg.median_speed_to_lead_min = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.median_speed_to_lead_min ?? 0), 0) / withSpeed.length) / 10 : 0;
+
+  const withDurata = kpiList.filter(k => (k.durata_media_min ?? 0) > 0);
+  agg.durata_media_min = withDurata.length ? Math.round(10 * withDurata.reduce((s, k) => s + k.durata_media_min, 0) / withDurata.length) / 10 : 0;
+  agg.chiamate_per_giorno = kpiList.reduce((s, k) => s + (k.chiamate_per_giorno ?? 0), 0);
+
+  agg.pct_entro_5min = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_entro_5min ?? 0), 0) / withSpeed.length) / 10 : 0;
+  agg.pct_entro_1ora = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_entro_1ora ?? 0), 0) / withSpeed.length) / 10 : 0;
+  agg.pct_oltre_24ore = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_oltre_24ore ?? 0), 0) / withSpeed.length) / 10 : 0;
+
+  return agg;
+}
+
+// Mesi di cui arretrare per il confronto (vedi periodoPrecedente).
+const MESI_CONFRONTO: Record<PeriodoVendor, number> = { mese: 1, mese_prec: 1, trimestre: 3, semestre: 6, anno: 12 };
+
 export default function CallCenterReport() {
   const [periodo, setPeriodo] = useState<PeriodoVendor>("mese");
   const [operatoreId, setOperatoreId] = useState<string>("tutti");
@@ -79,55 +138,13 @@ export default function CallCenterReport() {
   const { data: leadHandling, isLoading: lhLoading } = useCallCenterLeadHandling(periodo, effectiveOpId, schedaAttiva === "panoramica");
 
   // Aggregate team or find individual — all client-side from kpiList
-  const currentKpi = useMemo(() => {
-    if (!kpiList?.length) return null;
-    if (operatoreId !== "tutti") {
-      return kpiList.find(k => k.operatore_id === operatoreId) ?? null;
-    }
-    const agg = kpiList.reduce((acc, k) => ({
-      ...acc,
-      lead_assegnati: acc.lead_assegnati + (k.lead_assegnati ?? 0),
-      lead_lavorati: acc.lead_lavorati + (k.lead_lavorati ?? 0),
-      lead_contattati: acc.lead_contattati + (k.lead_contattati ?? 0),
-      tentativi_totali: acc.tentativi_totali + (k.tentativi_totali ?? 0),
-      appuntamenti_fissati: acc.appuntamenti_fissati + (k.appuntamenti_fissati ?? 0),
-      show_up_count: acc.show_up_count + (k.show_up_count ?? 0),
-      giorni_lavorati: Math.max(acc.giorni_lavorati, k.giorni_lavorati ?? 0),
-    }), {
-      operatore_id: "tutti",
-      nome_operatore: "Tutto il Team",
-      email_operatore: "",
-      lead_assegnati: 0, lead_lavorati: 0, pct_lead_lavorati: 0,
-      lead_contattati: 0, tasso_contatto: 0,
-      tentativi_totali: 0, tentativi_per_contatto: 0,
-      avg_speed_to_lead_min: 0, median_speed_to_lead_min: 0,
-      pct_entro_5min: 0, pct_entro_1ora: 0, pct_oltre_24ore: 0,
-      appuntamenti_fissati: 0, tasso_app_su_contattati: 0, tasso_app_su_assegnati: 0,
-      show_up_count: 0, tasso_show_up: 0,
-      durata_media_min: 0, chiamate_per_giorno: 0, giorni_lavorati: 0,
-    } as CallCenterKPI);
-
-    agg.pct_lead_lavorati = agg.lead_assegnati ? Math.round(1000 * agg.lead_lavorati / agg.lead_assegnati) / 10 : 0;
-    agg.tasso_contatto = agg.lead_lavorati ? Math.round(1000 * agg.lead_contattati / agg.lead_lavorati) / 10 : 0;
-    agg.tentativi_per_contatto = agg.lead_contattati ? Math.round(100 * agg.tentativi_totali / agg.lead_contattati) / 100 : 0;
-    agg.tasso_app_su_contattati = agg.lead_contattati ? Math.round(1000 * agg.appuntamenti_fissati / agg.lead_contattati) / 10 : 0;
-    agg.tasso_app_su_assegnati = agg.lead_assegnati ? Math.round(1000 * agg.appuntamenti_fissati / agg.lead_assegnati) / 10 : 0;
-    agg.tasso_show_up = agg.appuntamenti_fissati ? Math.round(1000 * agg.show_up_count / agg.appuntamenti_fissati) / 10 : 0;
-
-    const withSpeed = kpiList.filter(k => (k.avg_speed_to_lead_min ?? 0) > 0);
-    agg.avg_speed_to_lead_min = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + k.avg_speed_to_lead_min, 0) / withSpeed.length) / 10 : 0;
-    agg.median_speed_to_lead_min = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.median_speed_to_lead_min ?? 0), 0) / withSpeed.length) / 10 : 0;
-
-    const withDurata = kpiList.filter(k => (k.durata_media_min ?? 0) > 0);
-    agg.durata_media_min = withDurata.length ? Math.round(10 * withDurata.reduce((s, k) => s + k.durata_media_min, 0) / withDurata.length) / 10 : 0;
-    agg.chiamate_per_giorno = kpiList.reduce((s, k) => s + (k.chiamate_per_giorno ?? 0), 0);
-
-    agg.pct_entro_5min = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_entro_5min ?? 0), 0) / withSpeed.length) / 10 : 0;
-    agg.pct_entro_1ora = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_entro_1ora ?? 0), 0) / withSpeed.length) / 10 : 0;
-    agg.pct_oltre_24ore = withSpeed.length ? Math.round(10 * withSpeed.reduce((s, k) => s + (k.pct_oltre_24ore ?? 0), 0) / withSpeed.length) / 10 : 0;
-
-    return agg;
-  }, [kpiList, operatoreId]);
+  const currentKpi = useMemo(() => aggregaKpi(kpiList, operatoreId), [kpiList, operatoreId]);
+  // Lo stesso numero di giorni, tanti mesi prima (come nel report Venditori):
+  // «questo mese» all'11 contro 1–11 del mese prima.
+  const { inizio, fine } = usePeriodoDate(periodo);
+  const prima = useMemo(() => periodoPrecedente(inizio, fine, MESI_CONFRONTO[periodo] ?? null), [inizio.getTime(), fine.getTime(), periodo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: kpiListPrima } = useCallCenterKPIRange(prima.inizio, prima.fine, schedaAttiva === "panoramica");
+  const kpiPrima = useMemo(() => aggregaKpi(kpiListPrima, operatoreId), [kpiListPrima, operatoreId]);
 
   // Export data
   const exportRows = useMemo(() =>
@@ -197,7 +214,7 @@ export default function CallCenterReport() {
         </TabsList>
 
         <TabsContent value="panoramica" className="mt-4 space-y-6 max-sm:mt-3 max-sm:space-y-3">
-          <CallCenterKPISection kpi={currentKpi} isLoading={kpiLoading} />
+          <CallCenterKPISection kpi={currentKpi} prima={kpiPrima} isLoading={kpiLoading} />
           <CallCenterOperationalDiagnosis kpi={currentKpi} isLoading={kpiLoading} />
           <LavorazioneLeadPanel data={leadHandling} isLoading={lhLoading} />
           {/* Telefono: il report delle campagne e gli insight testuali restano al computer. */}

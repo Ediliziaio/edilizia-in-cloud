@@ -255,3 +255,9 @@ Dentro Tesoreria la pagina ha **due titoli**: la testata di Tesoreria più l'`<h
 
 Ogni lotto si pubblica su `main` appena è verde. Prima di pubblicare un lotto
 si aggiorna qui la tabella del lotto 0 con il commit.
+
+### Cosa è cambiato rispetto al piano (lotto 3, fatto)
+
+- **Call center, anelli per tasso di contatto e show-up:** non fatti. Le otto schede hanno già la variazione col colore; gli anelli sono nella dashboard Call center.
+- **Venditori:** al posto dei «tre più vicini e tre più lontani», ogni agente con un obiettivo ha la sua barra (fino a otto), dal più avanti al più indietro. «Mese scorso» invece di «ultimo mese», perché il mese in corso è a metà e dicembre non è ancora arrivato.
+- **Prova a video:** Demo Azienda 2 non ha chiamate, non ha obiettivi dei venditori e ha fatturato solo a maggio. Il trend dei venditori è quello vero; obiettivi e chiamate sono numeri di prova. Il pannello CRM è stato visto vuoto, per controllare il disegno e il tema scuro.

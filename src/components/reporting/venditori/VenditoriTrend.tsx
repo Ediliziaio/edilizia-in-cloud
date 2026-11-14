@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { PillolaVariazione, StatGrafico, TESTO_ASSE, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -44,6 +46,20 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agentId: string }) {
   const [metrica, setMetrica] = useState<MetricaVisibile>("fatturato");
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
+  // Riga sopra il grafico: mese migliore, media mensile, ultimo mese contro la media (fatturato).
+  const statMesi = useMemo(() => {
+    const conFatt = trend.filter((t) => (Number(t.fatturato) || 0) > 0);
+    if (conFatt.length === 0) return null;
+    const migliore = conFatt.reduce((a, b) => ((Number(b.fatturato) || 0) > (Number(a.fatturato) || 0) ? b : a));
+    const media = conFatt.reduce((s, t) => s + (Number(t.fatturato) || 0), 0) / conFatt.length;
+    // Il mese scorso, l'ultimo finito: dicembre a novembre non è ancora
+    // arrivato e quello in corso è a metà (darebbero sempre il segno meno).
+    const meseScorso = new Date().getMonth(); // 1–12 del mese prima; 0 a gennaio
+    const ultimo = trend.find((t) => Number(t.mese) === meseScorso) ?? trend[0];
+    return { migliore, media, ultimo };
+  }, [trend]);
   const meseCorrente = new Date().getMonth() + 1;
 
   if (!trend.length) {
@@ -85,50 +101,70 @@ export function VenditoriTrend({ trend, agentId }: { trend: VendorTrend[]; agent
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={320}>
+          {statMesi && (
+            <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+              <StatGrafico etichetta="Mese migliore" valore={formatCurrencyCompact(Number(statMesi.migliore.fatturato) || 0)} nota={statMesi.migliore.mese_label} />
+              <StatGrafico etichetta="Media al mese" valore={formatCurrencyCompact(statMesi.media)} nota="mesi con fatturato" />
+              <StatGrafico
+                etichetta="Mese scorso"
+                valore={
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {formatCurrencyCompact(Number(statMesi.ultimo.fatturato) || 0)}
+                    <PillolaVariazione pct={statMesi.media > 0 ? (((Number(statMesi.ultimo.fatturato) || 0) - statMesi.media) / statMesi.media) * 100 : null} titolo="Rispetto alla media dei mesi con fatturato" />
+                  </span>
+                }
+                nota={`${statMesi.ultimo.mese_label}, contro la media`}
+              />
+            </div>
+          )}
+          <ResponsiveContainer width="100%" height={300}>
             {metrica === "fatturato" ? (
               <ComposedChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="mese_label" tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="left" tickFormatter={(v) => formatCurrencyCompact(v)} tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="fatturato" name="Fatturato" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="tasso_chiusura" name="Chiusura %" stroke="hsl(142 76% 36%)" strokeWidth={2} dot={{ r: 3 }} />
-                <Line yAxisId="right" type="monotone" dataKey="tasso_show_up" name="Show-Up %" stroke="hsl(45 93% 47%)" strokeWidth={2} dot={{ r: 3 }} />
+                {defsGrafico(id, { primario: "hsl(var(--primary))", verde: "hsl(142 76% 36%)", rosso: "hsl(0 84% 60%)", blu: "hsl(210 100% 50%)" })}
+                <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="mese_label" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tickFormatter={(v) => formatCurrencyCompact(v)} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                <Bar yAxisId="left" dataKey="fatturato" name="Fatturato" fill={`url(#${id}-barra-primario)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Line yAxisId="right" type="monotone" dataKey="tasso_chiusura" name="Chiusura %" stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Line yAxisId="right" type="monotone" dataKey="tasso_show_up" name="Show-Up %" stroke="hsl(45 93% 47%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             ) : metrica === "tassi" ? (
               <ComposedChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="mese_label" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Line type="monotone" dataKey="tasso_chiusura" name="Chiusura %" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="tasso_show_up" name="Show-Up %" stroke="hsl(142 76% 36%)" strokeWidth={2} dot={{ r: 3 }} />
+                {defsGrafico(id, { primario: "hsl(var(--primary))", verde: "hsl(142 76% 36%)", rosso: "hsl(0 84% 60%)", blu: "hsl(210 100% 50%)" })}
+                <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="mese_label" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(v) => `${v}%`} tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                <Line type="monotone" dataKey="tasso_chiusura" name="Chiusura %" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
+                <Line type="monotone" dataKey="tasso_show_up" name="Show-Up %" stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             ) : metrica === "volumi" ? (
               <ComposedChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="mese_label" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar dataKey="opp_vinte" name="Opp. Vinte" fill="hsl(142 76% 36%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="opp_perse" name="Opp. Perse" fill="hsl(0 84% 60%)" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="appuntamenti_effettuati" name="App. Effettuati" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                {defsGrafico(id, { primario: "hsl(var(--primary))", verde: "hsl(142 76% 36%)", rosso: "hsl(0 84% 60%)", blu: "hsl(210 100% 50%)" })}
+                <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="mese_label" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                <Bar dataKey="opp_vinte" name="Opp. Vinte" fill={`url(#${id}-barra-verde)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Bar dataKey="opp_perse" name="Opp. Perse" fill={`url(#${id}-barra-rosso)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Line type="monotone" dataKey="appuntamenti_effettuati" name="App. Effettuati" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             ) : (
               <ComposedChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="mese_label" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar dataKey="nuovi_contatti" name="Nuovi Contatti" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="appuntamenti_fissati" name="App. Fissati" fill="hsl(210 100% 50%)" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="appuntamenti_effettuati" name="App. Effettuati" stroke="hsl(142 76% 36%)" strokeWidth={2} dot={{ r: 3 }} />
+                {defsGrafico(id, { primario: "hsl(var(--primary))", verde: "hsl(142 76% 36%)", rosso: "hsl(0 84% 60%)", blu: "hsl(210 100% 50%)" })}
+                <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                <XAxis dataKey="mese_label" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<CustomTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                <Bar dataKey="nuovi_contatti" name="Nuovi Contatti" fill={`url(#${id}-barra-primario)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Bar dataKey="appuntamenti_fissati" name="App. Fissati" fill={`url(#${id}-barra-blu)`} radius={[5, 5, 0, 0]} maxBarSize={28} isAnimationActive={!fermo} animationDuration={700} />
+                <Line type="monotone" dataKey="appuntamenti_effettuati" name="App. Effettuati" stroke="hsl(142 76% 36%)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} filter={`url(#${id}-ombra)`} isAnimationActive={!fermo} animationDuration={900} />
               </ComposedChart>
             )}
           </ResponsiveContainer>

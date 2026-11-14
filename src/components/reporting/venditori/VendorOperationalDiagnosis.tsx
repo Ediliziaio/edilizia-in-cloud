@@ -23,24 +23,24 @@ import type { VendorKPI } from "@/hooks/useVendorReport";
 
 const SEVERITY_STYLES: Record<VendorDiagnosisSeverity, { badge: string; icon: string; border: string }> = {
   good: {
-    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    badge: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:text-emerald-400",
     icon: "text-emerald-600",
-    border: "border-emerald-200 bg-emerald-50/50",
+    border: "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-500/10",
   },
   info: {
-    badge: "border-sky-200 bg-sky-50 text-sky-700",
+    badge: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200",
     icon: "text-sky-600",
-    border: "border-sky-200 bg-sky-50/50",
+    border: "border-sky-200 bg-sky-50/50 dark:border-sky-500/30 dark:bg-sky-500/10",
   },
   warning: {
-    badge: "border-amber-200 bg-amber-50 text-amber-700",
+    badge: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200",
     icon: "text-amber-600",
-    border: "border-amber-200 bg-amber-50/50",
+    border: "border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10",
   },
   critical: {
-    badge: "border-red-200 bg-red-50 text-red-700",
+    badge: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200 dark:text-red-400",
     icon: "text-red-600",
-    border: "border-red-200 bg-red-50/50",
+    border: "border-red-200 bg-red-50/50 dark:border-red-500/30 dark:bg-red-500/10",
   },
 };
 
@@ -67,7 +67,7 @@ export function VendorOperationalDiagnosis({
                 Controllo di conversione, pipeline e integrazione CRM prima dei grafici.
               </CardDescription>
             </div>
-            <Badge variant="outline" className="w-fit border-slate-200 bg-white text-slate-600">
+            <Badge variant="outline" className="w-fit border-border bg-card text-muted-foreground">
               Caricamento
             </Badge>
           </div>
@@ -80,12 +80,12 @@ export function VendorOperationalDiagnosis({
             <LoadingTile label="Controllo integrazione CRM" />
           </div>
           <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-lg border bg-white p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-900">Azioni consigliate</h3>
+            <div className="rounded-lg border bg-card p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Azioni consigliate</h3>
               <Skeleton className="h-20 rounded-md" />
             </div>
-            <div className="rounded-lg border bg-white p-4">
-              <h3 className="mb-3 text-sm font-semibold text-slate-900">Controllo integrazione CRM</h3>
+            <div className="rounded-lg border bg-card p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">Controllo integrazione CRM</h3>
               <div className="space-y-2">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-11/12" />
@@ -113,7 +113,7 @@ export function VendorOperationalDiagnosis({
   return (
     // Telefono: titolo e stato su una riga, i quattro numeri 2×2, le azioni senza spiegazione;
     // il dettaglio dell'integrazione CRM resta al computer (il numero è già nel riquadro).
-    <Card className={cn("border-slate-200", healthStyle.border)}>
+    <Card className={cn("border-border", healthStyle.border)}>
       <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between max-sm:flex-row max-sm:items-center max-sm:justify-between">
           <div>
@@ -164,25 +164,25 @@ export function VendorOperationalDiagnosis({
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-lg border bg-white p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
+          <div className="rounded-lg border bg-card p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
             <div className="mb-3 flex items-center gap-2 max-sm:mb-1.5">
               <AlertTriangle className="h-4 w-4 text-amber-600 max-sm:hidden" />
-              <h3 className="text-sm font-semibold text-slate-900 max-sm:text-[13px]">Azioni consigliate</h3>
+              <h3 className="text-sm font-semibold text-foreground max-sm:text-[13px]">Azioni consigliate</h3>
             </div>
             <div className="space-y-2 max-sm:space-y-1.5">
               {diagnosis.actions.map((action) => {
                 const style = SEVERITY_STYLES[action.severity];
                 return (
-                  <div key={action.key} className="flex gap-3 rounded-md border border-slate-100 bg-slate-50/60 p-3 max-sm:gap-2 max-sm:bg-white max-sm:px-2.5 max-sm:py-2">
+                  <div key={action.key} className="flex gap-3 rounded-md border border-border/60 bg-muted/50/60 p-3 max-sm:gap-2 max-sm:bg-white max-sm:px-2.5 max-sm:py-2">
                     <CheckCircle2 className={cn("mt-0.5 h-4 w-4 shrink-0", style.icon)} />
                     <div className="max-sm:min-w-0 max-sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap max-sm:justify-between">
-                        <p className="text-sm font-medium text-slate-900 max-sm:text-[13px] max-sm:leading-tight">{action.title}</p>
+                        <p className="text-sm font-medium text-foreground max-sm:text-[13px] max-sm:leading-tight">{action.title}</p>
                         <Badge variant="outline" className={cn("text-[11px] max-sm:shrink-0 max-sm:px-1.5", style.badge)}>
                           {severityLabel(action.severity)}
                         </Badge>
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-600 max-sm:hidden">{action.detail}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">{action.detail}</p>
                     </div>
                   </div>
                 );
@@ -190,15 +190,15 @@ export function VendorOperationalDiagnosis({
             </div>
           </div>
 
-          <div className="rounded-lg border bg-white p-4 max-sm:hidden">
+          <div className="rounded-lg border bg-card p-4 max-sm:hidden">
             <div className="mb-3 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              <h3 className="text-sm font-semibold text-slate-900">Controllo integrazione CRM</h3>
+              <h3 className="text-sm font-semibold text-foreground">Controllo integrazione CRM</h3>
             </div>
             <div className="space-y-2">
               {integrationIssues.map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-600">{item.label}</span>
+                  <span className="text-muted-foreground">{item.label}</span>
                   <Badge
                     variant="outline"
                     className={cn(
@@ -211,7 +211,7 @@ export function VendorOperationalDiagnosis({
                 </div>
               ))}
             </div>
-            <div className="mt-4 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+            <div className="mt-4 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
               Un venditore è misurabile bene solo se contatto, appuntamento e opportunità restano collegati fino alla chiusura vinta o persa.
             </div>
           </div>
@@ -236,21 +236,21 @@ function DiagnosisTile({
 }) {
   const style = SEVERITY_STYLES[severity];
   return (
-    <div className="rounded-lg border bg-white p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
+    <div className="rounded-lg border bg-card p-3 max-sm:min-w-0 max-sm:px-2.5 max-sm:py-2">
       <div className="mb-2 flex items-center justify-between gap-2 max-sm:mb-0.5">
-        <p className="text-xs font-medium uppercase text-slate-500 max-sm:line-clamp-2 max-sm:text-[11px] max-sm:normal-case max-sm:leading-tight">{label}</p>
+        <p className="text-xs font-medium uppercase text-muted-foreground max-sm:line-clamp-2 max-sm:text-[11px] max-sm:normal-case max-sm:leading-tight">{label}</p>
         <Icon className={cn("h-4 w-4 max-sm:hidden", style.icon)} />
       </div>
-      <p className="text-xl font-semibold text-slate-950 max-sm:truncate max-sm:text-base">{value}</p>
-      <p className="mt-1 line-clamp-2 text-xs text-slate-500 max-sm:hidden">{detail}</p>
+      <p className="text-xl font-semibold text-foreground max-sm:truncate max-sm:text-base">{value}</p>
+      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground max-sm:hidden">{detail}</p>
     </div>
   );
 }
 
 function LoadingTile({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border bg-white p-3">
-      <p className="mb-2 text-xs font-medium uppercase text-slate-500">{label}</p>
+    <div className="rounded-lg border bg-card p-3">
+      <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{label}</p>
       <Skeleton className="h-7 w-16" />
       <Skeleton className="mt-2 h-3 w-28" />
     </div>

@@ -39,18 +39,18 @@ function Stat({
 }) {
   const toneCls =
     tone === "green"
-      ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
+      ? "border-emerald-200 bg-emerald-50/50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200 dark:text-emerald-400"
       : tone === "amber"
-        ? "border-amber-200 bg-amber-50/50 text-amber-700"
-        : "border-sky-200 bg-sky-50/50 text-sky-700";
+        ? "border-amber-200 bg-amber-50/50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+        : "border-sky-200 bg-sky-50/50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200";
   return (
     <div className={cn("rounded-lg border p-3 max-sm:min-w-0 max-sm:px-2 max-sm:py-1.5", toneCls)}>
       <div className="flex items-center gap-1.5 text-xs font-medium max-sm:text-[11px] max-sm:leading-tight">
         <Icon className="h-3.5 w-3.5 max-sm:hidden" />
         {label}
       </div>
-      <p className="mt-1.5 text-2xl font-bold text-slate-950 tabular-nums max-sm:mt-0.5 max-sm:text-base">{value}</p>
-      {sub && <p className="mt-0.5 text-[11px] text-slate-500 max-sm:hidden">{sub}</p>}
+      <p className="mt-1.5 text-2xl font-bold text-foreground tabular-nums max-sm:mt-0.5 max-sm:text-base">{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-muted-foreground max-sm:hidden">{sub}</p>}
     </div>
   );
 }
@@ -129,15 +129,15 @@ export function LavorazioneLeadPanel({
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-slate-600">Chiamate per età del lead al momento della chiamata</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Chiamate per età del lead al momento della chiamata</p>
           <div className="space-y-1.5">
             {aging.map((a) => (
               <div key={a.label} className="flex items-center gap-2 text-xs">
                 <span className="w-16 shrink-0 text-muted-foreground">{a.label}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded bg-slate-100">
+                <div className="h-2 flex-1 overflow-hidden rounded bg-muted">
                   <div className={cn("h-full rounded", a.color)} style={{ width: `${(a.v / agingMax) * 100}%` }} />
                 </div>
-                <span className="w-8 shrink-0 text-right tabular-nums text-slate-700">{a.v}</span>
+                <span className="w-8 shrink-0 text-right tabular-nums text-muted-foreground">{a.v}</span>
               </div>
             ))}
           </div>

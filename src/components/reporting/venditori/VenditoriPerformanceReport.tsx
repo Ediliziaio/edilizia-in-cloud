@@ -24,6 +24,7 @@ import { TempisticheScorecard } from "./TempisticheScorecard";
 import { AgentRadarProfile } from "./AgentRadarProfile";
 import { VendorOperationalDiagnosis } from "./VendorOperationalDiagnosis";
 import { VenditoriFunnel } from "./VenditoriFunnel";
+import { ObiettivoTeam } from "./ObiettivoTeam";
 import { VenditoriRanking } from "./VenditoriRanking";
 import { VenditoriTrend } from "./VenditoriTrend";
 import { VenditoriInsights } from "./VenditoriInsights";
@@ -293,16 +294,16 @@ const VenditoriPerformanceReport = () => {
                     max={customTo || undefined}
                     onChange={(e) => setCustomFrom(e.target.value)}
                     aria-label="Data inizio"
-                    className="h-10 rounded-md border border-slate-200 px-2 text-sm text-slate-700 max-sm:min-w-0 max-sm:flex-1"
+                    className="h-10 rounded-md border border-border px-2 text-sm text-muted-foreground max-sm:min-w-0 max-sm:flex-1"
                   />
-                  <span className="text-slate-400">→</span>
+                  <span className="text-muted-foreground/80">→</span>
                   <input
                     type="date"
                     value={customTo}
                     min={customFrom || undefined}
                     onChange={(e) => setCustomTo(e.target.value)}
                     aria-label="Data fine"
-                    className="h-10 rounded-md border border-slate-200 px-2 text-sm text-slate-700 max-sm:min-w-0 max-sm:flex-1"
+                    className="h-10 rounded-md border border-border px-2 text-sm text-muted-foreground max-sm:min-w-0 max-sm:flex-1"
                   />
                 </div>
               )}
@@ -312,7 +313,7 @@ const VenditoriPerformanceReport = () => {
       </Card>
 
       {nonArrivati.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           <span>Non sono arrivati {nonArrivati.join(", ")}: quello che manca non è uno zero.</span>
           <Button size="sm" variant="outline" onClick={riprova}>Riprova</Button>
         </div>
@@ -352,6 +353,8 @@ const VenditoriPerformanceReport = () => {
               precedente={kpiPrecedente}
               etichettaPrecedente={etichettaPrecedente}
             />
+
+            <ObiettivoTeam kpiList={kpiList} obiettivi={obiettivi} agentId={agentId} />
 
             {!erroreIntegrazione && (
               <VendorOperationalDiagnosis

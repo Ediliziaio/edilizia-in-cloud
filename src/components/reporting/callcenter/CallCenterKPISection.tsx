@@ -1,6 +1,7 @@
 import { Phone, Users, Zap, CalendarCheck, Timer, Target, PhoneCall, Clock } from "lucide-react";
 import { KPICard, type ColorKey } from "@/components/reporting/shared/KPICard";
 import type { CallCenterKPI } from "@/hooks/useCallCenterReport";
+import { variazionePercento, variazionePunti } from "@/lib/reporting/variazioneKpi";
 
 function getSpeedColor(min: number): ColorKey {
   if (min <= 5) return "green";
@@ -22,10 +23,15 @@ function getAppRateColor(pct: number): ColorKey {
 
 interface Props {
   kpi: CallCenterKPI | null;
+  /** Gli stessi numeri sul periodo prima (stessi giorni, tanti mesi prima). */
+  prima?: CallCenterKPI | null;
   isLoading: boolean;
 }
 
-export function CallCenterKPISection({ kpi, isLoading }: Props) {
+export function CallCenterKPISection({ kpi, prima, isLoading }: Props) {
+  const p = prima ?? null;
+  // Senza il periodo prima (o con zero lead) niente frase di confronto.
+  const conPrima = !!p && (p.lead_assegnati ?? 0) > 0;
   if (!kpi && !isLoading) {
     return (
       <div className="text-center py-10 max-sm:py-4">
@@ -43,6 +49,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: Zap,
       colorKey: getSpeedColor(kpi?.avg_speed_to_lead_min ?? 0),
       benchmark: "<5 min ottimo, <60 min buono",
+      variazione: conPrima && (kpi?.avg_speed_to_lead_min ?? 0) > 0 ? variazionePercento(kpi?.avg_speed_to_lead_min, p?.avg_speed_to_lead_min, true) : null,
     },
     {
       title: "Tasso di Contatto",
@@ -51,6 +58,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: Phone,
       colorKey: getContactRateColor(kpi?.tasso_contatto ?? 0),
       benchmark: "40–70%",
+      variazione: conPrima ? variazionePunti(kpi?.tasso_contatto, p?.tasso_contatto) : null,
     },
     {
       title: "Tentativi / Contatto",
@@ -59,6 +67,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: PhoneCall,
       colorKey: (kpi?.tentativi_per_contatto ?? 0) <= 3 ? "green" as ColorKey : (kpi?.tentativi_per_contatto ?? 0) <= 5 ? "yellow" as ColorKey : "red" as ColorKey,
       benchmark: "<3 ottimo, <5 ok",
+      variazione: conPrima ? variazionePercento(kpi?.tentativi_per_contatto, p?.tentativi_per_contatto, true) : null,
     },
     {
       title: "Appuntamenti Fissati",
@@ -67,6 +76,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: CalendarCheck,
       colorKey: getAppRateColor(kpi?.tasso_app_su_contattati ?? 0),
       benchmark: "20–40% su contattati",
+      variazione: conPrima ? variazionePercento(kpi?.appuntamenti_fissati, p?.appuntamenti_fissati) : null,
     },
     {
       title: "Show-Up Rate",
@@ -75,6 +85,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: Users,
       colorKey: (kpi?.tasso_show_up ?? 0) >= 70 ? "green" as ColorKey : (kpi?.tasso_show_up ?? 0) >= 50 ? "yellow" as ColorKey : "red" as ColorKey,
       benchmark: ">70% ottimo",
+      variazione: conPrima && (p?.appuntamenti_fissati ?? 0) > 0 ? variazionePunti(kpi?.tasso_show_up, p?.tasso_show_up) : null,
     },
     {
       title: "Lead Lavorati",
@@ -83,6 +94,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: Target,
       colorKey: (kpi?.pct_lead_lavorati ?? 0) >= 90 ? "green" as ColorKey : (kpi?.pct_lead_lavorati ?? 0) >= 70 ? "yellow" as ColorKey : "red" as ColorKey,
       benchmark: ">90%",
+      variazione: conPrima ? variazionePunti(kpi?.pct_lead_lavorati, p?.pct_lead_lavorati) : null,
     },
     {
       title: "Chiamate / Giorno",
@@ -91,6 +103,7 @@ export function CallCenterKPISection({ kpi, isLoading }: Props) {
       icon: Clock,
       colorKey: (kpi?.chiamate_per_giorno ?? 0) >= 50 ? "green" as ColorKey : (kpi?.chiamate_per_giorno ?? 0) >= 20 ? "yellow" as ColorKey : "red" as ColorKey,
       benchmark: "50–100/gg",
+      variazione: conPrima ? variazionePercento(kpi?.chiamate_per_giorno, p?.chiamate_per_giorno) : null,
     },
     {
       title: "Durata Media Chiamata",

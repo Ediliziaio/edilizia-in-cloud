@@ -126,7 +126,7 @@ export function FonteLeadTable({ data, isLoading }: Props) {
       {/* Insights */}
       {data.length > 1 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Card className="border-green-200 bg-green-50/50">
+          <Card className="border-green-200 bg-green-50/50 dark:border-green-500/30 dark:bg-green-500/10">
             <CardContent className="pt-4 pb-3">
               <div className="flex items-start gap-2">
                 <TrendingUp className="h-4 w-4 text-green-600 mt-0.5" />
@@ -142,7 +142,7 @@ export function FonteLeadTable({ data, isLoading }: Props) {
           </Card>
 
           {worst.fonte !== best.fonte && worst.lead_totali >= 10 && (
-            <Card className="border-amber-200 bg-amber-50/50">
+            <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10">
               <CardContent className="pt-4 pb-3">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
