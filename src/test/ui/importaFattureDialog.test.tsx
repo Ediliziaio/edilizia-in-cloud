@@ -191,7 +191,7 @@ describe("Popup «Importa fatture» — le fatture da completare", () => {
 
     expect(await screen.findByRole("checkbox", { name: "Importa senza-file.xml" })).toBeChecked();
     expect(screen.getByText("da completare")).toBeInTheDocument();
-    expect(screen.getByText(/le si attacca l'originale/)).toBeInTheDocument();
+    expect(screen.getByText(/una fattura è già registrata senza\s+il file/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Importa 1 fattura$/ })).toBeEnabled();
   });
 });

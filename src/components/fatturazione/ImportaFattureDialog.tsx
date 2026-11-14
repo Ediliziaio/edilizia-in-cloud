@@ -454,6 +454,13 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
               )}
             </div>
 
+            {conto.daCompletare > 0 && (
+              <p className="text-xs text-muted-foreground">
+                «Da completare»: {conto.daCompletare === 1 ? "una fattura è già registrata" : `${conto.daCompletare} fatture sono già registrate`} senza
+                il file. Importandole, alla riga che c'è già viene attaccato l'originale.
+              </p>
+            )}
+
             {voci.length > 8 && (
               <Input
                 value={cerca}
@@ -495,7 +502,6 @@ function CorpoImport({ companyId, partitaIvaAzienda, onChiudi, onImportate, onPd
                         <span className="font-medium text-foreground">{formatCurrency(v.dati.totale)}</span> · {v.nome}
                       </p>
                     )}
-                    {v.nota && <p className="text-xs text-muted-foreground">{v.nota}</p>}
                     {v.motivo && (
                       <p className="text-xs text-destructive">
                         {v.motivo}
