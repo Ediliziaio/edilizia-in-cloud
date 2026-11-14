@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { generaDistinta, nomeMateriale, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
 import { collegaMateriali, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
-import { faseDaTesto, propostaFasi } from "@/lib/distinta/fasiMateriali";
+import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
 
 const voce = (p: Partial<VoceComputo> & { id: string; descrizione_breve: string }): VoceComputo => ({ quantita: 1, unita_misura: "cad", ...p });
 
@@ -150,5 +150,59 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
     expect(nomiInConflitto("Rivestimento in ceramica", "Piastrelle gres porcellanato")).toBe(false);
     expect(nomiInConflitto("Tubo multistrato 20 mm", "Tubo in polipropilene 20 mm")).toBe(true);
     expect(somiglianzaNome("Lavabo in ceramica", "Lavabo ceramica sospeso")).toBeGreaterThan(0);
+  });
+
+  describe("un secondo computo, più difficile (simulazione del 14/11/2026)", () => {
+    const FASI = ["Demolizioni e rimozioni", "Opere murarie", "Impianto idraulico", "Impianto elettrico", "Massetti e sottofondi",
+      "Intonaci e cartongessi", "Posa pavimenti e rivestimenti", "Serramenti", "Tinteggiature"].map((name) => ({ id: name, name }));
+    const prova = (descrizione_breve: string, unita_misura: string, quantita: number) => {
+      const v = voce({ id: "x", descrizione_breve, unita_misura, quantita });
+      const r = generaDistinta({ voci: [v], scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      const q = (nome: string) => r.righe.find((m) => m.descrizione === nome)?.quantita_calcolata;
+      return { r, q, fase: faseDaTesto(v, FASI), nomi: r.righe.map((m) => m.descrizione) };
+    };
+
+    it("il cappotto «compresi collante, tasselli, rete e rasatura» è il sistema intero, pannelli compresi", () => {
+      const { nomi } = prova("Isolamento a cappotto con pannelli in EPS sp. 10 cm, compresi collante, tasselli, rete e rasatura", "mq", 180);
+      expect(nomi).toEqual(expect.arrayContaining(["Pannello isolante per cappotto", "Collante per pannelli isolanti", "Tassello per cappotto", "Rasante per cappotto"]));
+    });
+
+    it("l'autolivellante è un premiscelato a spessore; il primer resta a superficie", () => {
+      const { q, nomi, fase } = prova("Massetto autolivellante a base cementizia spessore 3 cm", "mq", 60);
+      expect(nomi).not.toContain("Cemento");
+      expect(q("Massetto autolivellante premiscelato")).toBe(3213); // 17 kg/mq·cm × 3 × 60 + 5%
+      expect(q("Primer per autolivellante")).toBe(9.45);
+      expect(fase).toBe("Massetti e sottofondi");
+    });
+
+    it("pittura al quarzo, rasatura e muratura hanno una regola; la pittura si compra a litri", () => {
+      expect(prova("Pittura al quarzo per esterni, due mani", "mq", 220).q("Pittura al quarzo per esterni")).toBe(69.3);
+      expect(prova("Rasatura di pareti con stucco in polvere, due mani", "mq", 150).r.senzaScomposizione).toHaveLength(0);
+      expect(prova("Muratura in blocchi di laterizio forato sp. 12 cm, malta cementizia", "mq", 30).q("Blocco in laterizio forato")).toBe(504);
+    });
+
+    it("la caldaia «fornita e posta in opera» ha il nome pulito e la posa esclusa; le tubazioni sono il materiale", () => {
+      const caldaia = prova("Caldaia a condensazione 25 kW, fornita e posta in opera, compreso allacciamenti", "cad", 1).r.righe[0];
+      expect(caldaia.descrizione).toBe("Caldaia a condensazione 25 kW");
+      expect(caldaia.note).toContain("Posa e manodopera della voce escluse: si compra solo il materiale");
+      expect(prova("Tubazioni in multistrato per impianto idrico, diametro 16-20 mm", "m", 80).r.righe).toHaveLength(1);
+    });
+
+    it("«rimozione e rifacimento» non è una demolizione pura: il materiale nuovo si compra, nella fase dell'intonaco", () => {
+      const { nomi, fase } = prova("Rimozione e rifacimento di intonaco ammalorato su facciata", "mq", 25);
+      expect(nomi).toContain("Intonaco premiscelato di fondo");
+      expect(fase).toBe("Intonaci e cartongessi");
+      expect(prova("Rimozione di intonaco ammalorato", "mq", 25).r.escluse).toHaveLength(1);
+    });
+
+    it("senza capitolo, la fase viene dal mestiere della voce", () => {
+      const fase = (t: string) => faseDelMestiere(t, FASI);
+      expect(fase("Controsoffitto in cartongesso con lastra da 12,5 mm")).toBe("Intonaci e cartongessi");
+      expect(fase("Fornitura e posa di vaso sospeso in ceramica")).toBe("Impianto idraulico");
+      expect(fase("Porta interna tamburata laccata bianca 80x210")).toBe("Serramenti");
+      expect(fase("Battiscopa in legno h 8 cm")).toBe("Posa pavimenti e rivestimenti");
+      expect(fase("Demolizione di tramezzi")).toBe("Demolizioni e rimozioni");
+      expect(fase("Smaltimento rifiuti misti da cantiere")).toBeNull();
+    });
   });
 });

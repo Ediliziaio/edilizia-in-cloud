@@ -95,6 +95,8 @@ export function propostaFasi(voci: VoceComputo[], fasi: FaseCommessa[], soglia =
  * nomi delle fasi («Intonaco civile…» va in «Intonaci e rasature»).
  */
 export function faseDaTesto(v: VoceComputo, fasi: FaseCommessa[], soglia = 0.5): string | null {
+  const perMestiere = faseDelMestiere(v.descrizione_breve, fasi);
+  if (perMestiere) return perMestiere;
   let migliore: FaseCommessa | null = null;
   let max = 0;
   for (const f of fasi) {
@@ -102,6 +104,41 @@ export function faseDaTesto(v: VoceComputo, fasi: FaseCommessa[], soglia = 0.5):
     if (s > max) { max = s; migliore = f; }
   }
   return migliore && max >= soglia ? migliore.id : null;
+}
+
+/**
+ * Il mestiere di una voce dalle sue parole, e la fase che lo nomina (14/11/2026).
+ * Una voce senza capitolo («Controsoffitto in cartongesso…», «Vaso sospeso…») non
+ * somiglia a nessun nome di fase parola per parola: qui le parole del cantiere
+ * portano alla fase giusta. In ordine: prima il mestiere più preciso (la
+ * demolizione prima dell'intonaco che si toglie, il controsoffitto prima delle
+ * opere murarie). La prima fase che il mestiere trova vince.
+ */
+const MESTIERI: [voce: RegExp, fase: RegExp][] = [
+  [/^(?:demolizion|rimozion|smontaggi|scarific|spicconatur|sgombero)(?!.*\b(?:rifaciment|ricostruzion|ripristin|sostituzion))/, /demoliz|rimozion|smantell/],
+  [/\b(?:controsoffitt|cartongess)/, /cartongess|controsoffitt/],
+  [/\b(?:massett|sottofond|autolivell)/, /massett|sottofond/],
+  [/\b(?:cappott|isolament termic)/, /cappott|isolament|facciat/],
+  [/\b(?:impermeabilizz|guaina|membrana bituminos)/, /impermeab|copertur|terrazz/],
+  [/\b(?:intonac|rasatur|rasante)/, /intonac|rasatur/],
+  [/\b(?:muratur|tramezz|blocchi|forati|laterizi|malta|malte)/, /murari|muratur|tramezz/],
+  [/\b(?:paviment|piastrell|gres|parquet|laminat|battiscopa|rivestiment|zoccolin)/, /paviment|rivestiment/],
+  [/\b(?:tinteggi|idropittur|pittur|vernic|smalt[oi]\b|quarz)/, /tinteggi|pittur|verniciat/],
+  [/\b(?:serrament|finestr|portafinestr|infiss|persian|tapparell|scuri|port[ae] (?:intern|blindat|tamburat|scorrevol)|porta\b|porte\b|zanzarier)/, /serrament|infiss|porte|finestre/],
+  [/\b(?:caldaia|radiator|termosifon|pompa di calore|riscaldament|condizionator|climatizzator|split|fancoil|ventilconvettor|collettor|radiante)/, /termic|riscaldament|climatizz|termoidraul|meccanic/],
+  [/\b(?:idric|sanitari|vaso|wc|lavabo|bidet|doccia|vasca|miscelator|rubinett|scaric|tubazion|multistrato|caldaia|radiator|scaldabagn|boiler)/, /idraul|idric|sanitari|termoidraul|bagn/],
+  [/\b(?:elettric|punto luce|punti luce|punto presa|punti presa|prese?\b|interruttor|quadro|cavo|cavi|corrugat|plafonier|illuminazion|citofon|videocitofon)/, /elettric/],
+  [/\b(?:fotovoltaic|inverter|modul[oi] fv|accumulo)/, /fotovolt|\bfv\b/],
+];
+
+export function faseDelMestiere(testo: string, fasi: FaseCommessa[]): string | null {
+  const t = normalizzaTesto(testo);
+  for (const [voce, fase] of MESTIERI) {
+    if (!voce.test(t)) continue;
+    const trovata = fasi.find((f) => fase.test(normalizzaTesto(f.name)));
+    if (trovata) return trovata.id;
+  }
+  return null;
 }
 
 /** Nomi di fase da creare per i capitoli che non trovano posto (in ordine di computo). */

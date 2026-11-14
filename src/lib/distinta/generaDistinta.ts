@@ -297,7 +297,7 @@ const NON_MATERIALI: { re: RegExp; motivo: string }[] = [
 const PREFISSO_FORNITURA = /^(fornitura|f\.?\s?e p\.?|f\.? e p\.? in opera)( e (posa|messa)( in opera)?)?( in opera)?( (di|del|della|dello|dei|degli|delle))?\s+/;
 /** Dopo «fornitura e posa di…»: un punto o un impianto è una lavorazione, non un materiale. */
 const LAVORAZIONE_DOPO_FORNITURA = /^(punt[oi]|impiant[oi]|realizzazion|esecuzion|opere|lavori|predisposizion|linea|linee|allacci|collegament)/;
-const FORNITURA_DIRETTA = /^(cavo|cavi|tubo|tubi|corrugat|guaina|canal(a|ina|ette)|pompa di calore|pompe di calore|modul[oi] (fotovoltaic|fv)|pannell[oi] (fotovoltaic|solar)|inverter|batteri[ae] di accumulo|accumulo|plafonier|lampad|apparecchi[oa]? (illuminant|di illuminazione)|corpo illuminante|quadro elettrico|centrale|rilevator|rivelator|pulsante|segnalatore|interruttore|scatol|cassett|caldaia|radiatore|termosifon|collettore|boiler|scaldacqua|scaldabagno|serbatoio|split|unita (interna|esterna)|climatizzator|ventilconvettor|sanitari|vaso|lavabo|piatto doccia|rubinett|miscelator|serramento|infisso|porta|finestra|tegol|coppi|pannell[oi]|lastr[ae]|profilat|travi?|putrell|tondin|rete elettrosaldata|mattoni|blocchi|laterizi|cemento|calcestruzzo|malta|sabbia|ghiaia|piastrell|gres|parquet|battiscopa|vernice|pittura|idropittura|isolante|lana di (roccia|vetro)|polistirene|eps|xps|membrana|guaina)/;
+const FORNITURA_DIRETTA = /^(cavo|cavi|tubo|tubi|tubazion|corrugat|guaina|canal(a|ina|ette)|pompa di calore|pompe di calore|modul[oi] (fotovoltaic|fv)|pannell[oi] (fotovoltaic|solar)|inverter|batteri[ae] di accumulo|accumulo|plafonier|lampad|apparecchi[oa]? (illuminant|di illuminazione)|corpo illuminante|quadro elettrico|centrale|rilevator|rivelator|pulsante|segnalatore|interruttore|scatol|cassett|caldaia|radiatore|termosifon|collettore|boiler|scaldacqua|scaldabagno|serbatoio|split|unita (interna|esterna)|climatizzator|ventilconvettor|sanitari|vaso|lavabo|piatto doccia|rubinett|miscelator|serramento|infisso|porta|finestra|tegol|coppi|pannell[oi]|lastr[ae]|profilat|travi?|putrell|tondin|rete elettrosaldata|mattoni|blocchi|laterizi|cemento|calcestruzzo|malta|sabbia|ghiaia|piastrell|gres|parquet|battiscopa|vernice|pittura|idropittura|isolante|lana di (roccia|vetro)|polistirene|eps|xps|membrana|guaina)/;
 
 const UNITA_MATERIALE = new Set(["cad", "pz", "m", "mq", "mc", "kg", "t", "q", "l"]);
 
@@ -312,6 +312,8 @@ const SOLO_POSA = /^(?:sola |solo )?(?:posa|messa)(?: in opera)?\b/;
 const MATERIALE_DEL_COMMITTENTE = /\b(?:fornit[oaie] dal(?:la|l)? ?(?:committent|committenza|stazione appaltante|cliente|proprieta)|esclus[ao] (?:la )?fornitura|(?:materiale|materiali) (?:esclus|a carico del committent))/;
 const SENZA_MATERIALI = /^(?:demolizion|rimozion|smontaggi|scarific|scavo|scavi|rinterr|pulizi|sgombero|carico (?:e trasporto|su automezzo)|trasporto|movimentazion|taglio (?:di|del|della)|spicconatur|asportazion)/;
 
+const RIFACIMENTO = /\b(?:e|con|compreso il|compreso|per)\s+(?:successiv[oa]\s+)?(?:rifaciment|ricostruzion|ripristin|nuov[oa] (?:posa|fornitura|realizzazion)|sostituzion)/;
+
 /** «Fornitura e posa in opera di» e simili: c'è la posa dentro la voce. */
 const CON_POSA = /\b(posa|in opera|messa in opera|posto in opera|posti in opera)\b/;
 
@@ -322,7 +324,7 @@ const CON_POSA = /\b(posa|in opera|messa in opera|posto in opera|posti in opera)
 export function nomeMateriale(descrizione: string): string {
   let t = descrizione.trim().replace(/\s+/g, " ");
   t = t.replace(/^(?:fornitura|f\.? ?e ?p\.?(?: ?o\.?)?|f\.? ?p\.? ?o\.?)(?:\s+e\s+(?:posa|messa)(?:\s+in\s+opera)?)?(?:\s+in\s+opera)?(?:\s+(?:di|del|della|dello|dei|degli|delle|d'))?\s*/i, "");
-  t = t.split(/\s*(?:[,;:(]\s*)?\b(?:compres[oaie]|inclus[oaie]|dat[oaie] in opera|post[oaie] in opera|in opera|eseguit[oaie]|realizzat[oaie]|ogni onere|per dare|a regola d'arte|e quant'altro|nonch[eé])\b/i)[0];
+  t = t.split(/\s*(?:[,;:(]\s*)?\b(?:compres[oaie]|inclus[oaie]|fornit[oaie] e post[oaie] in opera|fornit[oaie] in opera|dat[oaie] in opera|post[oaie] in opera|in opera|eseguit[oaie]|realizzat[oaie]|ogni onere|per dare|a regola d'arte|e quant'altro|nonch[eé])\b/i)[0];
   t = t.replace(/[\s,.;:–-]+$/, "").trim();
   if (!t) return descrizione.trim();
   return t.charAt(0).toUpperCase() + t.slice(1);
@@ -332,6 +334,7 @@ export function nomeMateriale(descrizione: string): string {
 const SPESSORE_BASE_CM: Record<string, number> = {
   "ED-INTONACO-PREMISCELATO": 1.5,
   "ED-MASSETTO-SABBIA-CEMENTO": 5,
+  "ED-MASSETTO-AUTOLIVELLANTE": 1,
 };
 
 /** Lo spessore in cm scritto nella voce («sp. 2 cm», «spessore 20 mm»), se c'è. */
@@ -372,7 +375,8 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   // in un noleggio. Limitiamo la rimozione a elenchi di prestazioni noti.
   const prestazioniNegate = /\b(?:nessun[ao]?|senza)\s+(?:posa|manodopera|mano d.opera|nolo|noleggio)(?:\s*(?:,|e|o|né)\s*(?:posa|manodopera|mano d.opera|nolo|noleggio))*\b/gi;
   const testoClassificazione = normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`.replace(prestazioniNegate, " "));
-  if (SENZA_MATERIALI.test(breve)) return { tipo: "esclusa", motivo: "Demolizione, rimozione, scavo o trasporto: nessun materiale da comprare" };
+  // «Rimozione e rifacimento di intonaco»: si toglie e si rifà, il materiale nuovo si compra.
+  if (SENZA_MATERIALI.test(breve) && !RIFACIMENTO.test(breve)) return { tipo: "esclusa", motivo: "Demolizione, rimozione, scavo o trasporto: nessun materiale da comprare" };
   for (const { re, motivo } of NON_MATERIALI) if (re.test(testoClassificazione)) return { tipo: "esclusa", motivo };
   const um = normalizzaUnita(v.unita_misura);
   if (um === "h") return { tipo: "esclusa", motivo: "Manodopera (a ore)" };
@@ -381,7 +385,7 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
 
   const prefisso = PREFISSO_FORNITURA.exec(breve);
   const resto = prefisso ? breve.slice(prefisso[0].length) : breve;
-  const conPosa = !!prefisso && CON_POSA.test(prefisso[0]);
+  const conPosa = (!!prefisso && CON_POSA.test(prefisso[0])) || /\b(?:post[oaie]|dat[oaie]|mess[oaie]) in opera\b/.test(breve);
   const fornitura = (): ClassificazioneVoce => ({
     tipo: "fornitura",
     nome: nomeMateriale(v.descrizione_breve),
@@ -457,6 +461,8 @@ interface Parte {
 
 /** Componenti che scalano con lo spessore: i materiali a peso o volume, non i profili. */
 const SCALA_CON_SPESSORE = new Set(["kg", "mc", "l", "q", "t"]);
+/** Primer, fissativi e fondi si danno sulla superficie: lo spessore non li cambia. */
+const SOLO_SUPERFICIE = /^(?:primer|fissativ|fondo)/;
 
 function categoriaVoce(v: VoceComputo): string | null {
   return v.categoria || v.super_categoria || v.capitolo_nome || null;
@@ -473,7 +479,7 @@ function partiDaComponenti(
   return s.componenti
     .filter((c) => Number(c.quantita_per_unita) > 0 && c.descrizione.trim())
     .map((c) => {
-      const scala = fattoreSpessore && SCALA_CON_SPESSORE.has(normalizzaUnita(c.unita_misura)) ? fattoreSpessore : 1;
+      const scala = fattoreSpessore && SCALA_CON_SPESSORE.has(normalizzaUnita(c.unita_misura)) && !SOLO_SUPERFICIE.test(normalizzaTesto(c.descrizione)) ? fattoreSpessore : 1;
       const netta = quantitaBase * Number(c.quantita_per_unita) * scala;
       const sfrido = Math.max(0, Number(c.sfrido_percentuale ?? 0));
       const conSfrido = netta * (1 + sfrido / 100);

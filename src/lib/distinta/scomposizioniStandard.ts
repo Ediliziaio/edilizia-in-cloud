@@ -502,6 +502,20 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
     note: "Rasatura e finitura sono voci a parte (Rasatura armata, Finitura a intonachino).",
   },
   {
+    // 14/11/2026: «cappotto con pannelli…, compresi collante, tasselli, rete e rasatura» è
+    // il sistema intero; prima la voce prendeva solo la rasatura e perdeva i pannelli.
+    codice_standard: "ED-CAPPOTTO-COMPLETO", ambito: "edile", nome: "Isolamento a cappotto completo (pannelli e rasatura armata)", unita_misura: "mq",
+    parole_chiave: ["cappott", "pannell", "rasatur"], simboli: [],
+    componenti: [
+      ed("Pannello isolante per cappotto", "EPS o lana minerale, spessore da progetto", "mq", 1, 5),
+      ed("Collante per pannelli isolanti", "Per incollaggio a cordolo e punti", "kg", 4, 5),
+      ed("Tassello per cappotto", "Lunghezza = spessore pannello + 40 mm di ancoraggio", "pz", 6, 3),
+      ed("Rasante per cappotto", "In due mani, spessore 3-4 mm", "kg", 3, 5),
+      ed("Rete in fibra di vetro alcali-resistente", "160 g/m², sormonti 10 cm", "mq", 1.1, 0),
+    ],
+    note: "La finitura (intonachino) è una voce a parte.",
+  },
+  {
     codice_standard: "ED-CAPPOTTO-RASATURA", ambito: "edile", nome: "Rasatura armata su cappotto", unita_misura: "mq",
     parole_chiave: ["rasatur", "cappott"], simboli: [],
     componenti: [
@@ -527,6 +541,41 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
       ed("Cemento", "Tipo CEM II 32,5 R, in sacchi", "kg", 15, 5),
     ],
     note: "Per uno spessore di 5 cm: per spessori diversi le quantità vanno in proporzione.",
+  },
+  {
+    // Un autolivellante è un premiscelato: niente sabbia e cemento sfusi (14/11/2026).
+    codice_standard: "ED-MASSETTO-AUTOLIVELLANTE", ambito: "edile", nome: "Massetto autolivellante (1 cm)", unita_misura: "mq",
+    parole_chiave: ["massett", "autolivell"], simboli: [],
+    componenti: [
+      ed("Primer per autolivellante", null, "l", 0.15, 5),
+      ed("Massetto autolivellante premiscelato", "A base cementizia, in sacchi", "kg", 17, 5),
+      ed("Striscia isolante perimetrale", null, "m", 0.4, 0),
+    ],
+    note: "Per 1 cm di spessore (circa 1,7 kg/m² per mm): le quantità vanno in proporzione allo spessore.",
+  },
+  {
+    codice_standard: "ED-RASATURA-PARETI", ambito: "edile", nome: "Rasatura di pareti e soffitti (due mani)", unita_misura: "mq",
+    parole_chiave: ["rasatur"], simboli: [],
+    componenti: [ed("Rasante o stucco in polvere", "Per interni, due mani", "kg", 1.5, 5)],
+    note: null,
+  },
+  {
+    codice_standard: "ED-MURATURA-FORATI", ambito: "edile", nome: "Muratura in blocchi forati", unita_misura: "mq",
+    parole_chiave: ["muratur"], simboli: [],
+    componenti: [
+      ed("Blocco in laterizio forato", "25×25 cm in faccia, spessore da progetto", "pz", 16, 5),
+      ed("Malta per muratura premiscelata", "M5, in sacchi", "kg", 35, 5),
+    ],
+    note: "Con blocchi 25×25 in faccia: con altri formati cambia il numero di pezzi.",
+  },
+  {
+    codice_standard: "ED-TRAMEZZO-FORATI", ambito: "edile", nome: "Tramezzo in forati", unita_misura: "mq",
+    parole_chiave: ["tramezz"], simboli: [],
+    componenti: [
+      ed("Blocco in laterizio forato", "25×25 cm in faccia, spessore 8 cm", "pz", 16, 5),
+      ed("Malta per muratura premiscelata", "M5, in sacchi", "kg", 25, 5),
+    ],
+    note: null,
   },
   {
     codice_standard: "ED-RADIANTE-PAVIMENTO", ambito: "edile", nome: "Impianto radiante a pavimento", unita_misura: "mq",
@@ -588,6 +637,25 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
     componenti: [
       ed("Fissativo", null, "l", 0.1, 5),
       ed("Idropittura per interni", "Due mani", "l", 0.25, 5),
+    ],
+    note: null,
+  },
+  {
+    // Le voci di pittura che non dicono «tinteggiatura» (14/11/2026).
+    codice_standard: "ED-IDROPITTURA-INTERNA", ambito: "edile", nome: "Idropittura per interni (due mani)", unita_misura: "mq",
+    parole_chiave: ["idropittur"], simboli: [],
+    componenti: [
+      ed("Fissativo", null, "l", 0.1, 5),
+      ed("Idropittura per interni", "Due mani", "l", 0.25, 5),
+    ],
+    note: null,
+  },
+  {
+    codice_standard: "ED-PITTURA-QUARZO", ambito: "edile", nome: "Pittura al quarzo per esterni (due mani)", unita_misura: "mq",
+    parole_chiave: ["quarz"], simboli: [],
+    componenti: [
+      ed("Fondo fissativo per esterni", null, "l", 0.15, 5),
+      ed("Pittura al quarzo per esterni", "Due mani", "l", 0.3, 5),
     ],
     note: null,
   },
