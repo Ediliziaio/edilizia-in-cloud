@@ -55,7 +55,8 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
     },
   });
   const nome = (f: Fase) => (f.order_id === generaleId ? f.name : `${f.name} (${codici.get(f.order_id) ?? "commessa"})`);
-  const sulleFiglie = (fasi.data ?? []).some((f) => f.order_id !== generaleId);
+  // Il riquadro vive nella Panoramica: una risposta strana non deve farla cadere.
+  const sulleFiglie = Array.isArray(fasi.data) && fasi.data.some((f) => f.order_id !== generaleId);
 
   const apri = (vista?: string) => {
     const dopo = new URLSearchParams(parametri);

@@ -406,13 +406,18 @@ function Stato({ f }: { f: FigliaGenerale }) {
   );
 }
 
-function Avanzamento({ valore }: { valore: number }) {
+function Avanzamento({ valore, fasi, aMisura }: { valore: number; fasi?: number | null; aMisura?: boolean }) {
+  // A misura, la barra è il misurato (quello che si fattura); le fasi si dicono accanto se diverse.
+  const diverse = aMisura && fasi != null && Math.abs(fasi - valore) >= 5;
   return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${valore}%` }} />
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-2">
+        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${valore}%` }} />
+        </div>
+        <span className="tabular-nums text-xs">{Math.round(valore)}%{aMisura && <span className="text-muted-foreground"> misurato</span>}</span>
       </div>
-      <span className="tabular-nums text-xs">{Math.round(valore)}%</span>
+      {diverse && <span className="text-[11px] text-amber-700" title="Le fasi del cantiere dicono un avanzamento diverso dalle misure contabilizzate">fasi in cantiere {Math.round(fasi!)}%</span>}
     </div>
   );
 }
@@ -454,7 +459,7 @@ function TabellaFiglie({ r, t, puoModificare, quote, analisi }: { r: RiepilogoGe
                 {f.indirizzo && <p className="truncate text-xs text-muted-foreground">{f.indirizzo}</p>}
               </td>
               <td className="max-w-[10rem] px-2 py-2 text-xs">{analisi ? <Stato f={f} /> : <StatoCommerciale stato={f.statoVendita} />}</td>
-              {analisi && <td className="px-2 py-2"><Avanzamento valore={f.avanzamento} /></td>}
+              {analisi && <td className="px-2 py-2"><Avanzamento valore={f.avanzamento} fasi={f.avanzamentoFasi} aMisura={f.aMisura} /></td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(f.importo)}</td>}
               {p.importi && analisi && <td className="px-2 py-2 text-right tabular-nums">{euro(f.eseguito)}</td>}
               {p.importi && <td className="px-2 py-2 text-right tabular-nums">{euro(f.fatturato)}</td>}

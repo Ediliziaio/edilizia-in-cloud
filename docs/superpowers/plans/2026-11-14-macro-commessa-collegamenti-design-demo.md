@@ -110,9 +110,13 @@ Emerso costruendo la demo (da fare):
   (20290322132000): i SAL approvati contano per la parte non coperta da fatture collegate o costi
   delle ditte. Cambiati: Bonarrigo 27-0002 +38.000 €, O-0101 +15.000 €, una commessa di Demo 2
   +500 €. Calcolo di tutte le commesse: 694 → 751 ms.
-- L'avanzamento della generale (100 %) viene dalla sua sola fase «Allestimento cantiere».
-- Il riepilogo mostra il lotto 2 al 60 % (misure del contratto) mentre le sue fasi dicono 15 %.
-- Un mezzo senza costo orario dà un costo vuoto (Demolitore Hilti): nessun avviso.
+- ~~L'avanzamento della generale (100 %) viene dalla sua sola fase~~ **FATTO** (20290322133000):
+  conta anche le fasi delle commesse dentro, e una fase di un lotto ricalcola la generale. O-0071: 100 → 58 %.
+- ~~Lotto 2 al 60 % nel riepilogo, 15 % nelle fasi~~ **FATTO**: il riepilogo dà i due numeri
+  (misurato e fasi); la tabella scrive «60% misurato · fasi in cantiere 15%» quando differiscono.
+- ~~Mezzo senza costo orario: costo vuoto senza avviso~~ **FATTO**: il contatore di Marginalità
+  conta anche i mezzi dei rapportini (20290322133000); salvare il costo orario completa i rapportini
+  rimasti vuoti (20290322134000). Demolitore Hilti a 6,50 €/h: 19,50 € su O-0100.
 - I rapportini scritti dall'ufficio hanno come autore l'ufficio: per averli a nome degli operai
   servono le assegnazioni al cantiere.
 

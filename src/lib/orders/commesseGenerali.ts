@@ -79,6 +79,12 @@ export interface FigliaGenerale {
   inizio: string | null;
   fine: string | null;
   avanzamento: number;
+  /**
+   * Avanzamento delle fasi in cantiere. Per una commessa a misura `avanzamento` è il misurato
+   * (quello che si fattura a SAL) e può differire dalle fasi: si mostrano tutti e due (14/11/2026).
+   */
+  avanzamentoFasi?: number | null;
+  aMisura?: boolean;
   /** null = chi guarda non ha il permesso di vedere gli importi (o i costi, o i margini). */
   importo: number | null;
   eseguito: number | null;
@@ -150,6 +156,8 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
         inizio: testo(f.inizio),
         fine: testo(f.fine),
         avanzamento: Math.min(100, Math.max(0, numero(f.avanzamento) ?? 0)),
+        avanzamentoFasi: numero(f.avanzamento_fasi),
+        aMisura: f.a_misura === true,
         importo: numero(f.importo),
         eseguito: numero(f.eseguito),
         fatturato: numero(f.fatturato),

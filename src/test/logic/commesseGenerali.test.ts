@@ -127,6 +127,19 @@ describe("lettura della risposta del database", () => {
     expect(r?.permessi).toEqual({ importi: true, costi: false, margini: false });
   });
 
+  it("a misura: il misurato e le fasi restano due numeri distinti", () => {
+    const r = leggiRiepilogo({
+      generale: { id: "g", nome: "Aurora", modello: "appalto" },
+      figlie: [
+        { id: "a", nome: "Lotto 2", avanzamento: "60.0", avanzamento_fasi: 15, a_misura: true },
+        { id: "b", nome: "Lotto 1", avanzamento: 80, avanzamento_fasi: 80, a_misura: false },
+      ],
+      permessi: {},
+    });
+    expect(r?.figlie[0]).toMatchObject({ avanzamento: 60, avanzamentoFasi: 15, aMisura: true });
+    expect(r?.figlie[1]).toMatchObject({ avanzamento: 80, avanzamentoFasi: 80, aMisura: false });
+  });
+
   it("risposta vuota o senza generale: null", () => {
     expect(leggiRiepilogo(null)).toBeNull();
     expect(leggiRiepilogo({ figlie: [] })).toBeNull();
