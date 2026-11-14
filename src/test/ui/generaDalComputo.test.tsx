@@ -131,8 +131,12 @@ describe("Genera dal computo", () => {
     expect(screen.getAllByText(/Probabile 70%/).length).toBe(2);
     expect(screen.getByText(/Spessore 2 cm invece di 1,5/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
+    expect(screen.queryByLabelText("Ricorda per i prossimi computi")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Includi Paraspigolo"));
     expect(screen.getByRole("button", { name: "Salva i materiali (1)" })).toBeEnabled();
+    // Tolto il paraspigolo, la finestra propone di ricordarlo per i prossimi computi.
+    expect(screen.getByLabelText("Ricorda per i prossimi computi")).toBeChecked();
+    expect(screen.getByText("«Intonaco premiscelato (1,5 cm)» senza Paraspigolo")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Seleziona tutti i materiali"));
     expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
     fireEvent.click(screen.getByLabelText(/Seleziona i materiali di/));

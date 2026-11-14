@@ -37,6 +37,7 @@ import { ETICHETTA_FONTE_MATERIALE, generaDistinta, type ConteggioConfermato, ty
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
 import { collegaMateriali, rigaDaSalvare, type ArticoloCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type VoceListino } from "@/lib/distinta/collegaArticoli";
 import { capitoloVoce, faseDaTesto, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
+import { sceltePerRicordare, testoRicordi, type SceltePerRicordare } from "@/lib/distinta/ricordaScelte";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
 
 const OrderComputoTab = lazy(() => import("@/components/computo/commessa/OrderComputoTab"));
@@ -48,7 +49,7 @@ const SENZA = VALORE_SENZA;
 async function caricaScomposizioni(companyId: string): Promise<{ attive: Scomposizione[]; proposteAI: Scomposizione[] }> {
   const { data, error } = await supabase
     .from("scomposizioni_voce")
-    .select("id, nome, codice_prezzario, parole_chiave, unita_misura, categoria, attiva, origine, componenti:scomposizioni_voce_componenti(descrizione, specifiche, unita_misura, quantita_per_unita, sfrido_percentuale, categoria, article_template_id, supplier_id, ordine)")
+    .select("id, nome, codice_prezzario, codice_standard, parole_chiave, unita_misura, categoria, attiva, origine, componenti:scomposizioni_voce_componenti(descrizione, specifiche, unita_misura, quantita_per_unita, sfrido_percentuale, categoria, article_template_id, supplier_id, ordine)")
     .eq("company_id", companyId)
     .or("attiva.eq.true,origine.eq.ai");
   if (error) throw error;
@@ -57,6 +58,51 @@ async function caricaScomposizioni(companyId: string): Promise<{ attive: Scompos
     componenti: [...((s as { componenti?: { ordine: number }[] }).componenti ?? [])].sort((a, b) => a.ordine - b.ordine),
   })) as unknown as (Scomposizione & { origine?: string | null })[];
   return { attive: tutte.filter((s) => s.attiva), proposteAI: tutte.filter((s) => !s.attiva && s.origine === "ai") };
+}
+
+/**
+ * Scrive le scelte da ricordare (14/11/2026): proposte dell'AI approvate, scomposizioni
+ * della libreria senza i materiali tolti. Se l'azienda ha già quella scomposizione
+ * standard (importata e non approvata), si aggiorna quella: il codice è unico per azienda.
+ */
+async function ricordaScelte(companyId: string, r: SceltePerRicordare): Promise<number> {
+  let fatte = 0;
+  if (r.approvaAI.length) {
+    const { error } = await supabase.from("scomposizioni_voce").update({ attiva: true })
+      .eq("company_id", companyId).in("id", r.approvaAI.map((a) => a.id));
+    if (error) throw error;
+    fatte += r.approvaAI.length;
+  }
+  for (const l of r.libreria) {
+    const s = l.standard;
+    const testata = {
+      company_id: companyId, nome: s.nome, codice_standard: s.id, parole_chiave: s.parole_chiave ?? [],
+      unita_misura: s.unita_misura ?? null, categoria: s.categoria ?? null, attiva: true,
+      note: `Dalla libreria standard, senza ${l.tolti.join(", ")}: scelta in «Genera dal computo» il ${new Date().toLocaleDateString("it-IT")}.`,
+    };
+    const { data: gia, error: errGia } = await supabase.from("scomposizioni_voce").select("id")
+      .eq("company_id", companyId).eq("codice_standard", s.id).limit(1);
+    if (errGia) throw errGia;
+    let id = gia?.[0]?.id as string | undefined;
+    if (id) {
+      const { error } = await supabase.from("scomposizioni_voce").update(testata).eq("id", id);
+      if (error) throw error;
+      const { error: e2 } = await supabase.from("scomposizioni_voce_componenti").delete().eq("scomposizione_id", id);
+      if (e2) throw e2;
+    } else {
+      const { data, error } = await supabase.from("scomposizioni_voce").insert({ ...testata, origine: "manuale" }).select("id").single();
+      if (error) throw error;
+      id = data.id;
+    }
+    const { error: e3 } = await supabase.from("scomposizioni_voce_componenti").insert(l.tenuti.map((c, i) => ({
+      scomposizione_id: id!, company_id: companyId, ordine: i, descrizione: c.descrizione, specifiche: c.specifiche ?? null,
+      unita_misura: c.unita_misura || "pz", quantita_per_unita: Number(c.quantita_per_unita), sfrido_percentuale: Number(c.sfrido_percentuale ?? 0),
+      categoria: c.categoria ?? null,
+    })));
+    if (e3) throw e3;
+    fatte++;
+  }
+  return fatte;
 }
 
 /** Articoli, voci dei listini in corso e materiali già comprati: per collegare i materiali proposti. */
@@ -250,6 +296,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const [accese, setAccese] = useState<Record<string, boolean>>({});
   const accesa = (m: MaterialeCollegato) => accese[m.chiave] ?? !m.proposta_ai;
   const daSalvare = materiali.filter(accesa);
+  // Quello che le scelte di questa commessa insegnano per i prossimi computi.
+  const ricordi = useMemo(
+    () => sceltePerRicordare(materiali, (m) => accese[m.chiave] ?? !m.proposta_ai, RISERVA, dati.data?.scomposizioni.proposteAI ?? []),
+    [materiali, accese, dati.data],
+  );
+  const righeRicordi = testoRicordi(ricordi);
+  const [ricorda, setRicorda] = useState(true);
 
   const nomeFase = (id: string | null) => {
     if (!id) return "Senza fase";
@@ -332,6 +385,17 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
       });
       qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
       qc.invalidateQueries({ queryKey: ["order-work-phases"] });
+      // I materiali sono salvati: le scelte da ricordare non devono più fermarli.
+      if (ricorda && righeRicordi.length) {
+        try {
+          const n = await ricordaScelte(companyId, ricordi);
+          toast.success(`Ricordato per i prossimi computi (${n})`, { description: righeRicordi.join(" · ") });
+          qc.invalidateQueries({ queryKey: ["scomposizioni"] });
+          qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
+        } catch (e) {
+          toast.error("Scelte non ricordate", { description: e instanceof Error ? e.message : String(e) });
+        }
+      }
       onOpenChange(false);
     } catch (e) {
       toast.error("Materiali non salvati", { description: e instanceof Error ? e.message : String(e) });
@@ -559,7 +623,16 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           </div>
         )}
 
-        <DialogFooter>
+        <DialogFooter className="sm:items-center">
+          {righeRicordi.length > 0 && risultato && (
+            <label className="mr-auto flex min-w-0 items-start gap-2 text-xs text-slate-600">
+              <Checkbox checked={ricorda} onCheckedChange={(v) => setRicorda(!!v)} aria-label="Ricorda per i prossimi computi" className="mt-0.5" />
+              <span className="min-w-0">
+                <span className="font-medium text-slate-800">Ricorda per i prossimi computi</span>
+                <span className="block truncate" title={righeRicordi.join("\n")}>{righeRicordi.join(" · ")}</span>
+              </span>
+            </label>
+          )}
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Chiudi</Button>
           <Button disabled={!daSalvare.length || salvando || salvaComputo.isPending} onClick={salva}>
             {salvando ? "Salvo…" : `Salva i materiali (${daSalvare.length})`}

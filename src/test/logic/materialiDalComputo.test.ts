@@ -4,7 +4,8 @@
  * collegati ad articoli e listini dell'azienda, con fonte e sicurezza.
  */
 import { describe, expect, it } from "vitest";
-import { generaDistinta, nomeMateriale, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
+import { generaDistinta, materialiCompresi, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
+import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
 import { collegaMateriali, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
@@ -203,6 +204,64 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       expect(fase("Battiscopa in legno h 8 cm")).toBe("Posa pavimenti e rivestimenti");
       expect(fase("Demolizione di tramezzi")).toBe("Demolizioni e rimozioni");
       expect(fase("Smaltimento rifiuti misti da cantiere")).toBeNull();
+    });
+  });
+
+  describe("compreso, misure della voce, scelte da ricordare (14/11/2026)", () => {
+    const una = (descrizione_breve: string, unita_misura: string, quantita: number) =>
+      generaDistinta({ voci: [voce({ id: "x", descrizione_breve, unita_misura, quantita })], scomposizioni: [], riserva: catalogoComeScomposizioni() });
+
+    it("quello che la voce di fornitura dice «compreso» si compra anche lui, da controllare", () => {
+      const r = una("Fornitura e posa in opera di piatto doccia in ceramica 80x120, compreso piletta e silicone", "cad", 2);
+      expect(r.righe.map((m) => [m.descrizione, m.quantita_calcolata, m.fonte])).toEqual(expect.arrayContaining([
+        ["Piatto doccia in ceramica 80x120", 2, "fornitura"], ["Piletta", 2, "compreso"], ["Silicone", 2, "compreso"],
+      ]));
+      expect(r.righe.find((m) => m.descrizione === "Piletta")!.affidabilita).toBeLessThan(0.65);
+      expect(una("Fornitura e posa di pavimento in laminato AC4 sp. 8 mm, compreso materassino", "mq", 55).righe.map((m) => m.descrizione)).toContain("Materassino");
+    });
+
+    it("prestazioni e «completa di» non sono materiali da comprare a parte", () => {
+      expect(materialiCompresi("Caldaia a condensazione 25 kW, compreso allacciamenti, trasporto e ogni onere")).toEqual([]);
+      expect(materialiCompresi("Radiatore in alluminio, compresi valvola, detentore e accessori")).toEqual(["Valvola", "Detentore"]);
+      expect(una("Porta interna tamburata 80x210, completa di maniglia, serratura e cerniere", "cad", 5).righe).toHaveLength(1);
+      // Nella libreria «compreso collante e stuccatura» è già dentro la scomposizione: niente doppioni.
+      expect(una("Pavimento in gres porcellanato 60x60, compreso collante e stuccatura", "mq", 45).righe.every((m) => m.fonte === "libreria_standard")).toBe(true);
+    });
+
+    it("spessore, isolante e formato della voce entrano nelle specifiche del materiale", () => {
+      const cappotto = una("Isolamento a cappotto con pannelli in EPS sp. 10 cm, compresi collante, tasselli, rete e rasatura", "mq", 180).righe;
+      expect(cappotto.find((m) => m.descrizione === "Pannello isolante per cappotto")!.specifiche).toBe("EPS, spessore 10 cm");
+      expect(cappotto.find((m) => m.descrizione === "Tassello per cappotto")!.specifiche).toMatch(/^Lunghezza almeno 140 mm/);
+      expect(una("Pavimento in gres porcellanato 60x60", "mq", 45).righe.find((m) => m.descrizione === "Piastrelle in gres porcellanato")!.specifiche).toBe("Formato 60x60");
+      expect(specificheDallaVoce("25×25 cm in faccia, spessore da progetto", "Muratura in forati sp. 12 cm")).toBe("25×25 cm in faccia, spessore 12 cm");
+      expect(specificheDallaVoce("EPS o lana minerale, spessore da progetto", "cappotto in lana di roccia")).toBe("lana di roccia, spessore da progetto");
+    });
+
+    it("ricorda una scomposizione della libreria senza i materiali tolti, e le proposte dell'AI accese", () => {
+      const libreria = catalogoComeScomposizioni();
+      const r = generaDistinta({ voci: [COMPUTO[0]], scomposizioni: [], riserva: libreria });
+      const materiali = collegaMateriali(r.righe, { articoli: [], listini: [], giaUsati: [] });
+      const spento = new Set(["Paraspigolo"]);
+      const scelte = sceltePerRicordare(materiali, (m) => !spento.has(m.descrizione), libreria);
+      expect(scelte.libreria).toHaveLength(1);
+      expect(scelte.libreria[0]).toMatchObject({ tolti: ["Paraspigolo"] });
+      expect(scelte.libreria[0].standard.id).toBe("ED-INTONACO-PREMISCELATO");
+      expect(scelte.libreria[0].tenuti.map((c) => c.descrizione)).toEqual(["Intonaco premiscelato di fondo"]);
+      expect(testoRicordi(scelte)).toEqual(["«Intonaco premiscelato (1,5 cm)» senza Paraspigolo"]);
+      // La copia ricordata vale prima della libreria, è «dell'azienda» e scala ancora con lo spessore.
+      const copia: Scomposizione = { ...scelte.libreria[0].standard, id: "s-az", codice_standard: "ED-INTONACO-PREMISCELATO", componenti: scelte.libreria[0].tenuti };
+      const dopo = generaDistinta({ voci: [COMPUTO[0]], scomposizioni: [copia], riserva: libreria });
+      expect(dopo.righe.map((m) => [m.descrizione, m.quantita_calcolata, m.fonte])).toEqual([["Intonaco premiscelato di fondo", 2100, "scomposizione"]]);
+      // Niente da ricordare se nulla è tolto, o se è tolto tutto (in questa commessa non si compra).
+      expect(sceltePerRicordare(materiali, () => true, libreria).libreria).toEqual([]);
+      expect(sceltePerRicordare(materiali, () => false, libreria).libreria).toEqual([]);
+      // Una proposta dell'AI accesa si approva.
+      const ai: Scomposizione = { id: "s-ai", nome: "Nicchia", codice_prezzario: null, parole_chiave: ["nicchia"], unita_misura: "cad", attiva: false,
+        componenti: [{ descrizione: "Lastra in cartongesso", unita_misura: "mq", quantita_per_unita: 1.5 }] };
+      const conAI = generaDistinta({ voci: [COMPUTO[8]], scomposizioni: [], riserva: libreria, proposteAI: [ai] });
+      const mAI = collegaMateriali(conAI.righe, { articoli: [], listini: [], giaUsati: [] });
+      expect(sceltePerRicordare(mAI, () => true, libreria, [ai]).approvaAI).toEqual([{ id: "s-ai", nome: "Nicchia" }]);
+      expect(sceltePerRicordare(mAI, (m) => !m.proposta_ai, libreria, [ai]).approvaAI).toEqual([]);
     });
   });
 });
