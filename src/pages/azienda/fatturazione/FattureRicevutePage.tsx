@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,6 @@ import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiF
 import { Checkbox } from "@/components/ui/checkbox";
 import { UsciteSenzaFattura } from "@/components/fatturazione/UsciteSenzaFattura";
 import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
-import { chiaveEmessa, chiaveRicevuta, errorePassaggero, identitaFattura, inParallelo, tempoRimanente } from "@/lib/fatturazione/importMassivo";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useLetturaRicevuta } from "@/hooks/useLetturaRicevuta";
 import { ricevutaDaLeggere } from "@/lib/fatturazione/letturaRicevuta";
@@ -28,6 +27,7 @@ import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaF
 import { CollegaNotaCreditoDialog } from "@/components/fatturazione/CollegaNotaCreditoDialog";
 import { IntegrazioneRicevutaDialog } from "@/components/fatturazione/IntegrazioneRicevutaDialog";
 import { CaricaRicevutaPdfDialog } from "@/components/fatturazione/CaricaRicevutaPdfDialog";
+import { ImportaFattureDialog } from "@/components/fatturazione/ImportaFattureDialog";
 import { serveIntegrazione } from "@/lib/fatturazione/integrazioneRicevuta";
 import { useStorniNoteCredito } from "@/hooks/useStorniNoteCredito";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
@@ -37,7 +37,7 @@ import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizion
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
 import { etichettaTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,17 +105,6 @@ import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazio
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import { esportaElencoRicevute, esportaXmlRicevuteZip, type RigaRicevuta } from "@/lib/fatturazione/esportaRicevute";
 import { toast } from "sonner";
-import {
-  espandiXmlDaFiles,
-  eliminaDoppioniInterni,
-  riepilogoEsiti,
-  descriviRiepilogo,
-  classificaDirezione,
-  type EsitoImport,
-  type FileScartato,
-  type XmlDaImportare,
-} from "@/lib/fatturazione/bulkXmlImport";
-import { bytesToBase64 } from "../../../../supabase/functions/_shared/base64";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
 
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -338,7 +327,6 @@ export default function FattureRicevutePage() {
     window.open(data.signedUrl, "_blank", "noopener");
     if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
   };
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dai Tipi dei fornitori si arriva qui con le fatture di quel fornitore già cercate.
   const [parametri] = useSearchParams();
@@ -378,10 +366,8 @@ export default function FattureRicevutePage() {
   const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
   const [esportando, setEsportando] = useState<string | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
-  const [progress, setProgress] = useState<{ fatte: number; totale: number; inizio?: number; aggiornato?: number } | null>(null);
-  // Prima di importare si dice cosa c'è nel file: quante nuove, quante già dentro.
-  const [anteprima, setAnteprima] = useState<{ nuove: XmlDaImportare[]; presenti: XmlDaImportare[]; scartati: FileScartato[]; emesse: number; ricevute: number; incerte: number } | null>(null);
-  const [report, setReport] = useState<{ esiti: EsitoImport[]; scartati: FileScartato[] } | null>(null);
+  // L'import vive tutto nel popup: file, anteprima riga per riga, spunte, esito.
+  const [importaAperto, setImportaAperto] = useState(false);
   const [confermaClassifica, setConfermaClassifica] = useState(false);
   const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
   // Mobile: anno e stato in un pannello dal basso; una fattura si apre in un
@@ -903,158 +889,20 @@ export default function FattureRicevutePage() {
     onError: (e) => toast.error(`Errore: ${e.message}`),
   });
 
-  // ─── File Upload Handler ────────────────────────────────
+  // ─── Importazione ───────────────────────────────────────
 
-  // Import massivo: si possono selezionare tante fatture insieme, o uno zip
-  // scaricato dal portale. Le fatture partono una alla volta perche' ognuna
-  // deve poter fallire per conto suo senza trascinarsi dietro le altre: su un
-  // carico di trecento file sapere QUALI non sono passate, e perche', e' tutto.
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const tutti = Array.from(e.target.files ?? []);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    // Un PDF non è una fattura elettronica: i suoi dati li scrive chi lo carica.
-    const pdf = tutti.filter((f) => /\.pdf$/i.test(f.name));
-    if (pdf.length > 0) setPdfInCoda((coda) => [...coda, ...pdf]);
-    const files = tutti.filter((f) => !/\.pdf$/i.test(f.name));
-    if (files.length === 0) return;
-
-    setReport(null);
-    setProgress({ fatte: 0, totale: 0 });
-
-    const { xml, scartati } = await espandiXmlDaFiles(files);
-    const daImportare = eliminaDoppioniInterni(xml);
-
-    if (daImportare.length === 0) {
-      setProgress(null);
-      setReport({ esiti: [], scartati });
-      toast.error("Nessuna fattura da importare", {
-        description: scartati[0]?.motivo ?? "I file selezionati non contengono fatture elettroniche.",
-      });
-      return;
-    }
-
-    // Quello che è già dentro col suo file si salta: così si ricarica lo stesso archivio
-    // dopo un'interruzione e si riparte da dove era.
-    const presentiNoti = new Set<string>();
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const db = supabase as any;
-      const [ric, em] = await Promise.all([
-        tutteLePagine<{ cedente_piva: string | null; cedente_cf: string | null; numero_fattura: string; data_fattura: string }>((from, to) => db.from("fatture_ricevute")
-          .select("id, cedente_piva, cedente_cf, numero_fattura, data_fattura").eq("company_id", companyId).not("xml_url", "is", null).order("id").range(from, to)),
-        tutteLePagine<{ invoice_number: string; issue_date: string }>((from, to) => db.from("invoices")
-          .select("id, invoice_number, issue_date").eq("company_id", companyId).eq("external_provider", "xml_import").not("external_xml_url", "is", null).order("id").range(from, to)),
-      ]);
-      for (const r of ric) presentiNoti.add(chiaveRicevuta(r.cedente_piva || r.cedente_cf, r.numero_fattura, r.data_fattura));
-      for (const e of em) presentiNoti.add(`E|${chiaveEmessa(e.invoice_number, e.issue_date)}`);
-    } catch { /* senza il confronto ci pensa il server: i doppioni non si scrivono comunque */ }
-
-    const nuove: XmlDaImportare[] = [];
-    const presenti: XmlDaImportare[] = [];
-    let emesse = 0; let ricevute = 0; let incerte = 0;
-    for (const f of daImportare) {
-      const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
-      if (direzione === "attiva") emesse++; else if (direzione === "passiva") ricevute++; else incerte++;
-      const id = identitaFattura(f.contenuto);
-      const chiave = id && (direzione === "attiva" ? `E|${chiaveEmessa(id.numero, id.data)}` : chiaveRicevuta(id.cedente, id.numero, id.data));
-      if (chiave && presentiNoti.has(chiave)) presenti.push(f); else nuove.push(f);
-    }
-    setProgress(null);
-    setAnteprima({ nuove, presenti, scartati, emesse, ricevute, incerte });
-  };
-
-  const importaUna = async (f: XmlDaImportare): Promise<EsitoImport> => {
-      // Emessa o ricevuta? Lo dice il confronto fra le partite IVA. Quando non
-      // e' chiaro NON si indovina: mandare una fattura nel posto sbagliato
-      // falserebbe ricavi o costi, e sistemarlo dopo e' molto piu' caro.
-      const direzione = classificaDirezione(f.contenuto, partitaIvaAzienda);
-      if (direzione === "incerta") {
-        return {
-          nome: f.nome,
-          stato: "errore",
-          motivo: partitaIvaAzienda
-            ? "Non risulta ne' emessa ne' ricevuta da questa azienda: controlla le partite IVA nel file."
-            : "Partita IVA dell'azienda non configurata: impostala in Impostazioni per poter distinguere emesse e ricevute.",
-        };
-      }
-
-      const funzione = direzione === "attiva" ? "importa-fattura-attiva-xml" : "ricevi-sdi";
-      // Il file va al server intero anche per le emesse e per gli XML non
-      // firmati. xml_content resta per compatibilità durante il deploy:
-      // le funzioni nuove ricavano comunque il testo dal file originale.
-      const originale = f.originale ?? f.firmato;
-      const body = originale
-        ? { originale_base64: bytesToBase64(originale), xml_content: f.contenuto, company_id: companyId }
-        : { xml_content: f.contenuto, company_id: companyId };
-
-      try {
-        let resp = await supabase.functions.invoke(funzione, { body });
-        // Errori passeggeri: riprovare è innocuo, un doppione non si scrive due volte.
-        for (let tentativo = 1; tentativo <= 2 && resp.error; tentativo++) {
-          const stato = (resp.error as { context?: Response }).context?.status;
-          if (!errorePassaggero(resp.error.message, stato)) break;
-          await new Promise((ok) => setTimeout(ok, 1500 * tentativo));
-          resp = await supabase.functions.invoke(funzione, { body });
-        }
-        if (resp.error) {
-          // Il corpo della risposta porta il motivo vero (numero gia' esistente,
-          // cedente sbagliato); resp.error.message da solo direbbe solo "non-2xx".
-          let motivo = resp.error.message;
-          try {
-            const dettaglio = await (resp.error as { context?: Response }).context?.json?.();
-            if (dettaglio?.error) motivo = dettaglio.error;
-          } catch { /* resta il messaggio generico */ }
-          return { nome: f.nome, stato: "errore", motivo, direzione };
-        } else if (resp.data?.duplicate && resp.data?.completed) {
-          // Già registrata coi soli dati: ora ha anche il file originale.
-          return { nome: f.nome, stato: "importata", direzione };
-        } else if (resp.data?.duplicate) {
-          return { nome: f.nome, stato: "duplicata", direzione };
-        } else if (resp.data?.success) {
-          return { nome: f.nome, stato: "importata", direzione, ...(resp.data.warning ? {avviso:String(resp.data.warning)} : {}) };
-        } else {
-          return { nome: f.nome, stato: "errore", motivo: resp.data?.error ?? "Fattura rifiutata dal sistema.", direzione };
-        }
-      } catch (err) {
-        return { nome: f.nome, stato: "errore", motivo: err instanceof Error ? err.message : "Errore imprevisto.", direzione };
-      }
-  };
-
-  const avviaImport = async () => {
-    if (!anteprima) return;
-    const { nuove, presenti, scartati } = anteprima;
-    setAnteprima(null);
-    setReport(null);
-    const inizio = Date.now();
-    setProgress({ fatte: 0, totale: nuove.length, inizio, aggiornato: inizio });
-    // Chi chiude la scheda a metà perde solo quelle non ancora partite: basta ricaricare il file.
-    const avvisaUscita = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    window.addEventListener("beforeunload", avvisaUscita);
-    let esiti: EsitoImport[] = presenti.map((f) => ({ nome: f.nome, stato: "duplicata" as const }));
-    try {
-      esiti = [...esiti, ...await inParallelo(nuove, 4, importaUna, (fatte) => setProgress({ fatte, totale: nuove.length, inizio, aggiornato: Date.now() }))];
-    } finally {
-      window.removeEventListener("beforeunload", avvisaUscita);
-    }
-
-    setProgress(null);
-    setReport({ esiti, scartati });
-    invalidaStatisticheFatturazione(queryClient,companyId);
-    queryClient.invalidateQueries({ queryKey:["anagrafiche-native",companyId] });
+  // Il popup «Importa fatture» fa tutto: più file insieme, anteprima riga per
+  // riga con le spunte, duplicati segnalati, esito. Qui resta solo cosa
+  // ricaricare quando ha finito.
+  const dopoImportazione = () => {
+    invalidaStatisticheFatturazione(queryClient, companyId);
+    queryClient.invalidateQueries({ queryKey: ["anagrafiche-native", companyId] });
     queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
+    queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     queryClient.invalidateQueries({ queryKey: ["fatture-emesse-importate", companyId] });
     queryClient.invalidateQueries({ queryKey: ["emessa-importata-dettaglio", companyId] });
     queryClient.invalidateQueries({ queryKey: ["emessa-importata-originale", companyId] });
-
-    const r = riepilogoEsiti(esiti);
-    const testo = descriviRiepilogo(r);
-    if (r.errori > 0 || scartati.length > 0 || esiti.some(e => e.avviso)) {
-      toast.warning("Import completato con eccezioni", { description: testo });
-    } else {
-      toast.success("Import completato", { description: testo });
-    }
   };
 
   // ─── Mark as read on view ──────────────────────────────
@@ -1170,14 +1018,6 @@ export default function FattureRicevutePage() {
           <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Fatture Ricevute</h1>
         </div>
         <div className="flex items-center gap-3 max-sm:hidden">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xml,.p7m,.zip,.pdf"
-            multiple
-            className="hidden"
-            onChange={handleFileUpload}
-          />
           {/* Il tipo del fornitore decide se la fattura va su una commessa o nelle spese generali. */}
           <Button variant="outline" asChild>
             <Link to="/azienda/documenti/tipi-fornitori">Tipi dei fornitori</Link>
@@ -1216,21 +1056,9 @@ export default function FattureRicevutePage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={progress !== null}
-          >
-            {progress !== null ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Upload className="h-4 w-4 mr-2" />
-            )}
-            {progress !== null
-              ? progress.totale > 0
-                ? `Importazione ${progress.fatte} di ${progress.totale}${progress.inizio && progress.aggiornato && tempoRimanente(progress.fatte, progress.totale, progress.aggiornato - progress.inizio) ? ` · ${tempoRimanente(progress.fatte, progress.totale, progress.aggiornato - progress.inizio)}` : "…"}`
-                : "Lettura file…"
-              : "Importa XML o PDF"}
+          <Button variant="outline" onClick={() => setImportaAperto(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importa XML o PDF
           </Button>
         </div>
       </div>
@@ -1261,95 +1089,11 @@ export default function FattureRicevutePage() {
         </div>
       )}
 
-      {/* Resoconto dell'ultimo import: dice quante sono passate e, soprattutto,
-          quali no e per quale motivo — cosi' si sa cosa ricaricare. */}
-      {anteprima && (
-        <Card className="border-l-4 border-l-primary">
-          <CardContent className="space-y-3 p-4">
-            <p className="font-medium">Cosa c'è nel file</p>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <Badge variant="default">{anteprima.nuove.length} da importare</Badge>
-              {anteprima.presenti.length > 0 && <Badge variant="secondary">{anteprima.presenti.length} già presenti</Badge>}
-              <Badge variant="outline">{anteprima.emesse} emesse</Badge>
-              <Badge variant="outline">{anteprima.ricevute} ricevute</Badge>
-              {anteprima.incerte > 0 && <Badge variant="destructive">{anteprima.incerte} di un'altra azienda</Badge>}
-              {anteprima.scartati.length > 0 && <Badge variant="destructive">{anteprima.scartati.length} scartate</Badge>}
-            </div>
-            {anteprima.scartati.length > 0 && (
-              <ul className="max-h-32 overflow-y-auto text-xs text-muted-foreground">
-                {anteprima.scartati.slice(0, 50).map((x) => <li key={x.nome}>{x.nome}: {x.motivo}</li>)}
-              </ul>
-            )}
-            <p className="text-xs text-muted-foreground">Tieni aperta questa pagina fino alla fine. Se si interrompe, ricarica lo stesso file: riparte da quelle che mancano.</p>
-            <div className="flex gap-2">
-              <Button size="sm" disabled={anteprima.nuove.length === 0} onClick={() => void avviaImport()}>Importa {anteprima.nuove.length} fatture</Button>
-              <Button size="sm" variant="outline" onClick={() => setAnteprima(null)}>Annulla</Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Controlli da ufficio: da telefono si parte dall'elenco. */}
       <div className="space-y-4 max-md:hidden">
         {companyId && <CompletezzaFatture companyId={companyId} />}
         {companyId && permessiCosti.canViewCosts && <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} />}
       </div>
-
-      {report && (
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-base">
-              <span>Esito importazione</span>
-              <Button variant="ghost" size="sm" onClick={() => setReport(null)}>
-                Chiudi
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="default">{riepilogoEsiti(report.esiti).importate} importate</Badge>
-              {riepilogoEsiti(report.esiti).duplicate > 0 && (
-                <Badge variant="secondary">{riepilogoEsiti(report.esiti).duplicate} gia&apos; presenti</Badge>
-              )}
-              {riepilogoEsiti(report.esiti).errori > 0 && (
-                <Badge variant="destructive">{riepilogoEsiti(report.esiti).errori} non riuscite</Badge>
-              )}
-              {report.esiti.some((e) => e.direzione === "attiva") && (
-                <Badge variant="outline">
-                  {report.esiti.filter((e) => e.direzione === "attiva" && e.stato !== "errore").length} emesse
-                </Badge>
-              )}
-              {report.esiti.some((e) => e.direzione === "passiva") && (
-                <Badge variant="outline">
-                  {report.esiti.filter((e) => e.direzione === "passiva" && e.stato !== "errore").length} ricevute
-                </Badge>
-              )}
-              {report.scartati.length > 0 && (
-                <Badge variant="outline">{report.scartati.length} file scartati</Badge>
-              )}
-            </div>
-
-            {(report.esiti.some((e) => e.stato === "errore" || e.avviso) || report.scartati.length > 0) && (
-              <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border bg-muted/30 p-2 text-xs">
-                {report.esiti
-                  .filter((e) => e.stato === "errore" || e.avviso)
-                  .map((e) => (
-                    <div key={`err-${e.nome}`} className="flex gap-2">
-                      <span className="shrink-0 font-medium text-destructive">{e.nome}</span>
-                      <span className="text-muted-foreground">{e.motivo || e.avviso}</span>
-                    </div>
-                  ))}
-                {report.scartati.map((f) => (
-                  <div key={`scarto-${f.nome}`} className="flex gap-2">
-                    <span className="shrink-0 font-medium text-amber-700">{f.nome}</span>
-                    <span className="text-muted-foreground">{f.motivo}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Testata navy di famiglia. Mobile: due numeri (vedi sotto). */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
@@ -2069,6 +1813,15 @@ export default function FattureRicevutePage() {
       />
 
       <IntegrazioneRicevutaDialog fattura={daIntegrare} onClose={() => setDaIntegrare(null)} />
+      <ImportaFattureDialog
+        aperto={importaAperto}
+        companyId={companyId}
+        partitaIvaAzienda={partitaIvaAzienda}
+        onChiudi={() => setImportaAperto(false)}
+        onImportate={dopoImportazione}
+        onPdfAMano={(f) => setPdfInCoda((coda) => [...coda, f])}
+      />
+
       <CaricaRicevutaPdfDialog
         file={pdfInCoda[0] ?? null}
         companyId={companyId}
