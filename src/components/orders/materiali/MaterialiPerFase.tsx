@@ -38,6 +38,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
   DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import { computoLetto, useComputiCommessa } from "@/hooks/useComputoCommessa";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { useAzioniMateriali, useMaterialiPerFase, type FaseMateriali, type MaterialeFase } from "@/hooks/useMaterialiPerFase";
@@ -719,6 +721,15 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const nomeFornitore = (id: string | null) => (id ? suppliers.find((s: { id: string }) => s.id === id)?.name ?? "Fornitore" : null);
   const tutteRighe = useMemo(() => fasi.flatMap((f) => f.materiali), [fasi]);
   const tuttiMateriali = useMemo(() => tutteRighe.filter(eMateriale), [tutteRighe]);
+  // Il computo letto ma i suoi materiali non ancora nella commessa (14/11/2026): su 260
+  // commesse in quattro mesi, 252 senza materiali e «Genera dal computo» mai usato.
+  // Lo si dice dove si guarda, con il pulsante accanto.
+  const { effectiveCompany } = useAuth();
+  const computiCommessa = useComputiCommessa(orderId, effectiveCompany?.id ?? "");
+  const computoLettoCommessa = (computiCommessa.data ?? []).find(computoLetto) ?? null;
+  const nomeComputo = computoLettoCommessa ? (computoLettoCommessa.titolo || computoLettoCommessa.file_name) : null;
+  const generatiDalComputo = tutteRighe.some((m) => m.origine_materiale === "computo");
+  const invitoGenera = permessi.canEditOrders && !!computoLettoCommessa && !generatiDalComputo;
   const scelti = tutteRighe.filter((m) => selezione.has(m.id));
   const sceltiMateriali = scelti.filter(eMateriale);
   const faseDi = (m: MaterialeFase) => fasi.find((f) => f.materiali.includes(m));
@@ -1037,17 +1048,36 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
           />
         )}
 
+        {invitoGenera && fasi.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm" role="note">
+            <Sparkles className="h-4 w-4 shrink-0 text-violet-600" aria-hidden />
+            <span className="min-w-0 flex-1">Il computo «{nomeComputo}» è letto, ma i suoi materiali non sono ancora nella commessa.</span>
+            <Button size="sm" className="h-7 text-xs" onClick={() => setGenera(true)}>Genera i materiali</Button>
+          </div>
+        )}
+
         {fasi.length === 0 ? (
           <div className="rounded-lg border border-dashed bg-card p-6 text-center">
             <p className="font-medium text-foreground">Nessun articolo ancora</p>
             <p className="mt-1 text-sm text-muted-foreground">
               Aggiungili a mano, dal listino o dal magazzino, oppure generali dal computo metrico e dalle tavole: il sistema prepara la lista dei materiali con quantità e specifiche, divisa per fase. Il tecnico la valida e l'ufficio acquisti ordina.
             </p>
+            {permessi.canEditOrders && (
+              <Button size="sm" className="mt-3 h-8 text-xs" onClick={() => setGenera(true)}>
+                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />
+                {nomeComputo ? `Genera i materiali dal computo «${nomeComputo}»` : "Carica il computo e genera i materiali"}
+              </Button>
+            )}
           </div>
         ) : visibili.length === 0 ? (
-          <p className="rounded-lg border bg-card px-3 py-3 text-sm text-muted-foreground">
-            {filtrato ? "Nessuna riga con questo filtro." : "Le fasi della commessa non hanno ancora materiali."}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-3 text-sm text-muted-foreground">
+            <span className="min-w-0 flex-1">{filtrato ? "Nessuna riga con questo filtro." : "Le fasi della commessa non hanno ancora materiali."}</span>
+            {!filtrato && permessi.canEditOrders && !invitoGenera && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGenera(true)}>
+                <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />{nomeComputo ? "Genera dal computo" : "Carica il computo e genera i materiali"}
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="overflow-hidden rounded-lg border bg-card">
             <table className="block w-full text-sm lg:table lg:table-fixed">
