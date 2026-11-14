@@ -6,6 +6,7 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 
 const m = vi.hoisted(() => ({ completo: true, errore: false }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useGeneralePianoNumeri: () => ({
     isLoading: false,

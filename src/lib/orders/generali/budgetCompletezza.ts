@@ -23,7 +23,11 @@ export function controllaBudget<T extends Pick<VocePiano, "descrizione" | "impor
     problemi.push(
       "Una precedente importazione ha escluso stime mancanti: reimporta il file in una nuova bozza includendo le voci da completare.",
     );
-  return { completo: problemi.length === 0, problemi, mancanti, calendario };
+  // Gli altri problemi, oltre alle stime e ai mesi mancanti: chi mostra quei due con la loro azione
+  // (il riquadro del budget da completare) elenca questi come testo.
+  const altri = problemi.filter((p) => !(mancanti.length && p.startsWith(`${mancanti.length} voci hanno ancora un importo`))
+    && !(calendario.length && p.startsWith(`${calendario.length} voci valorizzate non hanno il mese`)));
+  return { completo: problemi.length === 0, problemi, mancanti, calendario, altri };
 }
 export function riferimentoImportazione(hash: string, foglio: string, riga: number) {
   return `[EIC-BP:${hash}:${encodeURIComponent(foglio)}:${riga}]`;

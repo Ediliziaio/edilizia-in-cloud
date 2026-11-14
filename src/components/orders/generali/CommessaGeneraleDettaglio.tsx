@@ -8,7 +8,7 @@ import "../commessa-workspace.css";
 // schede accanto a «Panoramica», solo quando sono pronti e accesi dal modello (schede.tsx).
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
@@ -31,6 +31,7 @@ import { useQuoteCostiComuni, type QuoteCostiComuni } from "@/hooks/useQuoteCost
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRiepilogoGenerale } from "@/hooks/useCommesseGenerali";
+import { useUnitaDalPiano } from "@/hooks/useUnitaDalPiano";
 import {
   DEFINIZIONI_MODELLI, avvisiGenerale, formattaEuro, quota, totaliGenerale,
   type FigliaGenerale, type RiepilogoGenerale, type TotaliGenerale,
@@ -41,6 +42,7 @@ import { cn } from "@/lib/utils";
 
 const euro = (n: number | null) => (n === null ? "—" : formattaEuro(n));
 const percento = (n: number | null) => (n === null ? "" : `${Math.round(n)}%`);
+const NESSUNA_SIGLA: string[] = [];
 
 export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }) {
   const { data: r, isLoading, isError, refetch } = useRiepilogoGenerale(generaleId);
@@ -55,6 +57,9 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const puoModificare = !!permissions.canEditOrders && !isMobile;
 
   const totali = useMemo(() => (r ? totaliGenerale(r) : null), [r]);
+  // Un'operazione immobiliare appena nata da un business plan: le unità sono già scritte nelle vendite del piano.
+  const senzaUnita = !!r && r.generale.modello !== "appalto" && r.figlie.length === 0;
+  const dalPiano = useUnitaDalPiano(generaleId, NESSUNA_SIGLA, puoModificare && senzaUnita && !!r?.permessi.margini);
 
   if (isLoading) {
     return (
@@ -107,7 +112,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const panoramica = (
     <>
       <QuadroGenerale r={r} t={totali} quote={quote} />
-      <div className="generale-attention" aria-label="Da seguire"><AvvisiPiano riepilogo={r} />{riquadri.filter(x => x.id === "documenti").map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}</div>
+      <div className="generale-attention" aria-label="Da seguire"><AvvisiPiano riepilogo={r} dalPiano={dalPiano} puoModificare={puoModificare} />{riquadri.filter(x => x.id === "documenti").map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}</div>
 
       {avvisi.length > 0 && (
         <section aria-label="Cosa richiede attenzione" className="space-y-1.5">
@@ -139,7 +144,21 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
           {r.figlie.length > 0 && (immobiliare ? <Button size="sm" variant="ghost" aria-pressed={analisiUnita} onClick={() => setAnalisiUnita(v => !v)}>{analisiUnita ? "Torna alle vendite" : "Analisi per unità"}</Button> : <span className="text-xs text-muted-foreground">Avanzamento {Math.round(totali.avanzamento)}%</span>)}
         </header>
         {immobiliare && r.figlie.length > 0 && <p className="border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">Costi e margine si controllano sull'intera operazione. L'analisi per unità mostra una ripartizione indicativa dei costi registrati, distinta dal margine finale del piano.</p>}
-        {r.figlie.length === 0 ? (
+        {r.figlie.length === 0 && dalPiano ? (
+          <div className="space-y-3 px-4 py-7 text-center">
+            <div>
+              <p className="text-sm">Il piano economico elenca <span className="font-medium">{dalPiano.composizione}</span>.</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Creale per seguire disponibilità, acquirenti e incassi. Nomi e prezzi vengono dal piano; prima di confermare li controlli.</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button size="sm" variant="brand" onClick={() => { const p = new URLSearchParams(parametri); p.set("scheda", "unita"); p.set("dal-piano", "1"); setParametri(p, { replace: true }); }}>
+                <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Crea le unità dal piano
+              </Button>
+              {schede.some(s => s.id === "cantiere") && <Button size="sm" variant="outline" onClick={() => apriScheda("cantiere")}><HardHat className="mr-1.5 h-3.5 w-3.5" /> Apri il cantiere generale</Button>}
+              <Button size="sm" variant="ghost" onClick={() => setCollega(true)}><Link2 className="mr-1.5 h-3.5 w-3.5" /> Collega commesse esistenti</Button>
+            </div>
+          </div>
+        ) : r.figlie.length === 0 ? (
           <div className="space-y-3 px-4 py-8 text-center">
             <p className="text-sm text-muted-foreground">Puoi lavorare direttamente sulla commessa generale. {immobiliare ? "Le unità sono facoltative." : "Gli ordini di lavoro collegati sono facoltativi."}</p>
             {!isMobile && schede.some(s => s.id === "cantiere") && <Button size="sm" onClick={() => apriScheda("cantiere")}><HardHat className="mr-1.5 h-3.5 w-3.5" /> Apri il cantiere generale</Button>}

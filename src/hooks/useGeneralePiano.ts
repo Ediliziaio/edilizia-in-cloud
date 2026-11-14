@@ -460,6 +460,49 @@ export function useAggiungiVoci(generaleId: string, versioneId: string | null) {
   });
 }
 
+/**
+ * Il calendario rapido (lib/orders/generali/calendarioPiano): mese e durata a molte voci insieme.
+ * Una richiesta per ogni coppia mese/durata — una per gruppo, una decina in tutto — non una per
+ * voce. Se una parte non va (la versione nel frattempo approvata) lo si dice con i numeri: le
+ * voci già scritte restano giuste, e rifarlo riscrive solo quelle che mancano.
+ */
+export function useCalendarioPiano(generaleId: string, versioneId: string | null) {
+  const invalida = useInvalidaPiano(generaleId);
+  return useMutation({
+    mutationFn: async (modifiche: { id: string; mese: string; durataMesi: number }[]): Promise<number> => {
+      if (!versioneId) throw new Error("Nessuna bozza aperta.");
+      const gruppi = new Map<string, string[]>();
+      for (const m of modifiche) {
+        const k = `${m.mese}|${m.durataMesi}`;
+        gruppi.set(k, [...(gruppi.get(k) ?? []), m.id]);
+      }
+      let fatte = 0;
+      for (const [k, ids] of gruppi) {
+        const [mese, durata] = k.split("|");
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data, error } = await db
+            .from("generale_piano_voci")
+            .update({ mese: dataDaMese(mese), durata_mesi: Number(durata) })
+            .eq("versione_id", versioneId)
+            .in("id", ids.slice(i, i + 200))
+            .select("id");
+          if (error) throw error;
+          fatte += (data ?? []).length;
+        }
+      }
+      if (fatte < modifiche.length) {
+        throw new Error(`Mesi messi a ${fatte} voci su ${modifiche.length}. Se la versione è stata approvata nel frattempo, apri una revisione.`);
+      }
+      return fatte;
+    },
+    onSettled: () => {
+      void invalida.voci(versioneId);
+      void invalida.reale();
+      void invalida.versioni();
+    },
+  });
+}
+
 export function useEliminaVoce(generaleId: string, versioneId: string | null) {
   const invalida = useInvalidaPiano(generaleId);
   return useMutation({

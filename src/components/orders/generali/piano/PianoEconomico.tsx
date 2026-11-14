@@ -8,6 +8,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
+  CalendarDays,
   ChartNoAxesCombined,
   CheckCircle2,
   ClipboardList,
@@ -61,6 +62,7 @@ import {
 } from "@/components/orders/generali/piano/DettaglioRighe";
 import { IncollaExcelDialog } from "@/components/orders/generali/piano/IncollaExcelDialog";
 import { ImportaBusinessPlanDialog } from "@/components/orders/generali/piano/ImportaBusinessPlanDialog";
+import { CalendarioPianoDialog } from "@/components/orders/generali/piano/CalendarioPianoDialog";
 import { PrimoPiano } from "@/components/orders/generali/piano/PrimoPiano";
 import { TabellaVoci } from "@/components/orders/generali/piano/TabellaVoci";
 import {
@@ -78,7 +80,7 @@ import {
   useNuovaVersionePiano,
 } from "@/hooks/useGeneralePiano";
 import { meseCorrente } from "@/lib/orders/generali/avvio";
-import type { RigaReale, Scenario } from "@/lib/orders/generali/pianoConti";
+import { avvisoSenzaMese, avvisoStimeMancanti, type RigaReale, type Scenario } from "@/lib/orders/generali/pianoConti";
 import type { VersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { cn } from "@/lib/utils";
 import { controllaBudget } from "@/lib/orders/generali/budgetCompletezza";
@@ -171,6 +173,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
     }
   };
   const [approva, setApprova] = useState(false);
+  const [calendario, setCalendario] = useState(false);
   const n = useGeneralePianoNumeri(riepilogo, {
     versioneId,
     preferenza: "bozza",
@@ -263,6 +266,14 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
   const apriRighe = (titolo: string, righe: RigaReale[]) =>
     setDettaglio({ titolo, righe });
   const t = piano.confronto.totali.margine;
+  // Stime e mesi mancanti li dice il riquadro del budget da completare, con la loro azione:
+  // qui non si ripetono. Le frasi si riconoscono dalle funzioni che le scrivono.
+  const budget = controllaBudget(n.voci);
+  const giaNelRiquadro = new Set<string>([
+    ...(budget.mancanti.length ? [avvisoStimeMancanti(budget.mancanti.length)] : []),
+    ...(n.voci.some((x) => !x.mese && x.importo > 0) ? [avvisoSenzaMese(n.voci.filter((x) => !x.mese && x.importo > 0))] : []),
+  ]);
+  const avvisiSenzaBudget = piano.avvisi.filter((a) => !giaNelRiquadro.has(a));
 
   const nuovaRevisione = () =>
     nuova.mutate(null, {
@@ -371,6 +382,14 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                     <ClipboardPaste className="mr-1.5 h-3.5 w-3.5" /> Incolla da
                     Excel
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCalendario(true)}
+                    disabled={n.voci.length === 0}
+                  >
+                    <CalendarDays className="mr-1.5 h-3.5 w-3.5" /> Calendario
+                  </Button>
                   {n.approvata && (
                     <Button
                       variant="ghost"
@@ -397,7 +416,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                     variant="brand"
                     size="sm"
                     onClick={() => setApprova(true)}
-                    disabled={!controllaBudget(n.voci).completo}
+                    disabled={!budget.completo}
                   >
                     <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Approva
                   </Button>
@@ -456,13 +475,13 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             <Numero
               etichetta="Capitale massimo impegnato"
               valore={euro(piano.calendarioCompleto === false ? null : piano.capitale.massimoStima)}
-              nota={piano.calendarioCompleto === false ? "Completa il calendario del piano" : piano.capitale.meseMassimoStima ? `Picco a ${nomeMese(piano.capitale.meseMassimoStima)}` : `Previsto ${euro(piano.capitale.massimoPrevisto)}`}
+              nota={piano.calendarioCompleto === false ? (budget.calendario.length === 0 ? "Completa prima le stime" : piano.budgetCompleto === false ? "Completa stime e calendario" : "Completa il calendario del piano") : piano.capitale.meseMassimoStima ? `Picco a ${nomeMese(piano.capitale.meseMassimoStima)}` : `Previsto ${euro(piano.capitale.massimoPrevisto)}`}
             />
           </section>
           <p className="generale-plan-context">Importi del piano al netto dell’IVA <span aria-hidden="true">·</span> Capitale investito a oggi <strong>{euro(piano.capitale.investitoOggi)}</strong>{conApprovato && t.approvato !== null && <> <span aria-hidden="true">·</span> Margine approvato {euro(t.approvato)}</>}</p>
         </>}
 
-        {(piano.avvisi.length > 0 ||
+        {(avvisiSenzaBudget.length > 0 ||
           (n.reale &&
             (!n.reale.permessi.costi || !n.reale.permessi.importi))) && (
           <section aria-label="Cosa manca" className="space-y-1.5">
@@ -472,7 +491,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             {n.reale && !n.reale.permessi.importi && (
               <Avviso testo="Non hai il permesso di vedere gli importi delle commesse: le fatture emesse non compaiono nel reale." />
             )}
-            {piano.avvisi.map((a) => (
+            {avvisiSenzaBudget.map((a) => (
               <Avviso key={a} testo={a} />
             ))}
           </section>
@@ -483,7 +502,27 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           versioneId={v.id}
           voci={n.voci}
           modificabile={modificabile}
+          onCalendario={() => setCalendario(true)}
+          stimeAperte={parametri.get("stime") === "1"}
         />
+        {/* Si apre anche dalla Panoramica («Completa l'operazione» → ?calendario=1). */}
+        {modificabile && (calendario || parametri.get("calendario") === "1") && (
+          <CalendarioPianoDialog
+            open
+            onOpenChange={(aperto) => {
+              setCalendario(aperto);
+              if (!aperto && parametri.has("calendario")) {
+                const p = new URLSearchParams(parametri);
+                p.delete("calendario");
+                setParametri(p, { replace: true });
+              }
+            }}
+            generaleId={g.id}
+            versioneId={v.id}
+            modello={g.modello}
+            voci={n.voci}
+          />
+        )}
         {vista === "voci" && (
           <>
             <ConfrontoPiano

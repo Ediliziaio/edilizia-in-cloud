@@ -26,6 +26,8 @@ interface Props {
   generaleId: string;
   sigleEsistenti: string[];
   vedeImporti: boolean;
+  /** Righe già compilate dalle vendite del piano economico: si controllano e si confermano. */
+  dalPiano?: RigaSerie[] | null;
 }
 
 export function SerieUnitaDialog({ open, onOpenChange, ...resto }: Props) {
@@ -39,13 +41,15 @@ export function SerieUnitaDialog({ open, onOpenChange, ...resto }: Props) {
   );
 }
 
+// La sigla è larga abbastanza per i nomi che arrivano dal piano («Posto auto 12»), non solo per «A1».
 const LARGHEZZE: Record<ColonnaSerie, string> = {
-  sigla: "w-24", edificio: "w-28", piano: "w-20", tipologia: "w-36", mq: "w-24", millesimi: "w-24", listino: "w-32",
+  sigla: "w-36", edificio: "w-28", piano: "w-20", tipologia: "w-32", mq: "w-24", millesimi: "w-24", listino: "w-32",
 };
 
-function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti }: Omit<Props, "open">) {
+function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti, dalPiano }: Omit<Props, "open">) {
   const crea = useCreaUnitaInSerie(generaleId);
-  const [righe, setRighe] = useState<RigaSerie[]>(() => Array.from({ length: 6 }, rigaVuota));
+  const daPiano = !!dalPiano && dalPiano.length > 0;
+  const [righe, setRighe] = useState<RigaSerie[]>(() => (daPiano ? dalPiano!.map((r) => ({ ...r })) : Array.from({ length: 6 }, rigaVuota)));
   const [prefisso, setPrefisso] = useState("A");
   const [da, setDa] = useState("1");
   const [a, setA] = useState("6");
@@ -55,6 +59,8 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti }: Omit<
   const errori = controllo.righe.flatMap((r) => r.errori.map((e) => ({ riga: righe.indexOf(r.riga) + 1, errore: e })));
   const totaleMq = controllo.unita.reduce((t, u) => t + (u.mq_commerciali ?? 0), 0);
   const totaleMillesimi = controllo.unita.reduce((t, u) => t + (u.millesimi ?? 0), 0);
+  // Il totale dei listini è il numero da confrontare con i ricavi del piano prima di confermare.
+  const totaleListino = controllo.unita.reduce((t, u) => t + (u.prezzo_listino ?? 0), 0);
   const quante = controllo.unita.length;
 
   const scrivi = (i: number, c: ColonnaSerie, valore: string) =>
@@ -87,13 +93,16 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti }: Omit<
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Nuove unità in serie</DialogTitle>
+        <DialogTitle>{daPiano ? "Unità dalle vendite del piano" : "Nuove unità in serie"}</DialogTitle>
         <DialogDescription>
-          Scrivi le unità o incolla le righe da Excel (anche con le intestazioni). Ogni unità diventa una commessa dentro questa generale.
+          {daPiano
+            ? "Nomi e prezzi vengono dal piano economico. Aggiungi piano, m² e millesimi se li hai, togli quello che non si vende come unità, poi conferma. Ogni unità diventa una commessa dentro questa generale."
+            : "Scrivi le unità o incolla le righe da Excel (anche con le intestazioni). Ogni unità diventa una commessa dentro questa generale."}
         </DialogDescription>
       </DialogHeader>
 
-      <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 px-3 py-2">
+      {/* Partendo dal piano le sigle ci sono già: «Prepara righe» le cancellerebbe. */}
+      {!daPiano && <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 px-3 py-2">
         <div className="space-y-1">
           <Label htmlFor="serie-prefisso">Sigle</Label>
           <Input id="serie-prefisso" className="h-8 w-20" value={prefisso} onChange={(e) => setPrefisso(e.target.value)} />
@@ -109,7 +118,7 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti }: Omit<
         <Button type="button" size="sm" variant="outline" className="h-8" onClick={riempiSigle}>
           <Wand2 className="mr-1.5 h-3.5 w-3.5" /> Prepara {generaSigle(prefisso, Number(da), Number(a)).length || ""} righe
         </Button>
-      </div>
+      </div>}
 
       <div className="max-h-[50vh] overflow-auto rounded-md border">
         <table className="w-full text-sm">
@@ -163,6 +172,9 @@ function Modulo({ onOpenChange, generaleId, sigleEsistenti, vedeImporti }: Omit<
           {quante === 1 ? "1 unità" : `${quante} unità`}
           {totaleMq > 0 && ` · ${formattaNumero(totaleMq)} m²`}
           {totaleMillesimi > 0 && ` · ${formattaNumero(totaleMillesimi)} ‰`}
+          {vedeImporti && totaleListino > 0 && (
+            <> · listino <span className="font-medium tabular-nums text-foreground">{formattaNumero(totaleListino)} €</span></>
+          )}
         </span>
       </div>
       {errori.length > 0 && (

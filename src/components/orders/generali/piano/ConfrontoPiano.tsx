@@ -160,7 +160,9 @@ export function ConfrontoPiano({
               <dd>
                 {r.valore === null ? "Da completare" : formatCurrency(r.valore)}
               </dd>
-              {r.valore !== null && (
+              {/* Col budget da completare il registrato non ha un riferimento: la sua barra,
+                  scalata su sé stessa, sarebbe sempre piena e direbbe «budget consumato». */}
+              {r.valore !== null && completo && (
                 <Barra valore={r.valore} valori={valori} classe={r.classe} />
               )}
             </div>

@@ -4,7 +4,9 @@
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import type { TipoVoce } from "@/lib/orders/generali/pianoCategorie";
 
-const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+// useGrouping "always": il CLDR italiano scrive «4100 €» sotto i diecimila, e in colonna accanto a
+// «98.759 €» sembra un altro numero (come in lib/formatters).
+const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" as unknown as boolean });
 const NUMERO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 2 });
 
 /** Euro senza centesimi; «—» quando il numero non c'è. */

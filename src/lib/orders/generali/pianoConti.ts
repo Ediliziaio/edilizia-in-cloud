@@ -678,6 +678,18 @@ export function conVariantiAcquirenti(c: Confronto, v: InputPiano["varianti"]): 
 }
 
 /** Tutti i numeri del piano in una chiamata: la pagina, il riquadro in Panoramica e gli investitori. */
+/**
+ * Le due cose che tengono il budget incompleto, dette come le dice l'elenco «Cosa manca».
+ * Esportate perché la pagina del piano, che le mostra già nel riquadro del budget da completare
+ * con la loro azione, le riconosca nell'elenco senza confrontare testi scritti due volte.
+ */
+export const avvisoStimeMancanti = (n: number) =>
+  `${n} stime mancanti: budget e margine sono parziali. Completa o conferma esplicitamente gli zeri prima di approvare.`;
+export const avvisoSenzaMese = (voci: Pick<VocePiano, "descrizione" | "categoria">[]) =>
+  voci.length === 1
+    ? `«${voci[0].descrizione || CATEGORIE_PIANO[voci[0].categoria].nome}» non ha il mese: non entra nel flusso di cassa né nel rendimento.`
+    : `${voci.length} voci non hanno il mese: non entrano nel flusso di cassa né nel rendimento.`;
+
 export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   const oggi = meseDi(input.oggi, input.oggi.slice(0, 7));
   const confronto = conVariantiAcquirenti(confrontoVoci(input.voci, input.righe, input.approvate ?? null), input.varianti);
@@ -724,13 +736,9 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
 
   const avvisi: string[] = [];
   const senzaStima = input.voci.filter(stimaMancante);
-  if (senzaStima.length) avvisi.push(`${senzaStima.length} stime mancanti: budget e margine sono parziali. Completa o conferma esplicitamente gli zeri prima di approvare.`);
+  if (senzaStima.length) avvisi.push(avvisoStimeMancanti(senzaStima.length));
   const senzaMese = input.voci.filter((v) => !v.mese && v.importo > 0);
-  if (senzaMese.length > 0) {
-    avvisi.push(senzaMese.length === 1
-      ? `«${senzaMese[0].descrizione || CATEGORIE_PIANO[senzaMese[0].categoria].nome}» non ha il mese: non entra nel flusso di cassa né nel rendimento.`
-      : `${senzaMese.length} voci non hanno il mese: non entrano nel flusso di cassa né nel rendimento.`);
-  }
+  if (senzaMese.length > 0) avvisi.push(avvisoSenzaMese(senzaMese));
   const fuori = [...confronto.costi, ...confronto.ricavi].filter((r) => r.voce === null && r.categoria !== CATEGORIA_VARIANTI);
   if (fuori.length > 0) {
     const tot = somma(fuori.map((r) => Math.abs(r.reale)));

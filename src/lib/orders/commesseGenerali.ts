@@ -266,7 +266,7 @@ export function avvisiGenerale(r: RiepilogoGenerale, t: TotaliGenerale): AvvisoG
   return avvisi;
 }
 
-const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const EURO = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" as unknown as boolean }); // «2.444 €», non «2444 €» (vedi lib/formatters)
 /** Importi in euro senza decimali: nei riepiloghi i centesimi sono rumore. */
 /**
  * Le somme da coprire con la fideiussione 122/2005: caparre e acconti versati prima del rogito.

@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   foto: [] as FotografiaPiano[],
   scatta: vi.fn(),
 }));
+vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useFotografieGenerale: () => ({
     data: m.foto,

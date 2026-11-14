@@ -6,7 +6,9 @@ import { CaricaFileUnita } from "@/components/orders/generali/unita/CaricaFileUn
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FiltroAttivo, IntestazioneScheda } from "../design/ElementiScheda";
-import { LayoutGrid, Plus, ShieldAlert, Table2, FolderUp } from "lucide-react";
+import { LayoutGrid, Plus, ShieldAlert, Table2, FolderUp, ListChecks } from "lucide-react";
+import { useUnitaDalPiano } from "@/hooks/useUnitaDalPiano";
+import type { RigaSerie } from "@/lib/orders/generali/unitaSerie";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -42,6 +44,26 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
   const criterio = useCriterioRipartizione(riepilogo.generale.id);
   const conti = useMemo(() => (e ? contiUnita(e, criterio.data?.criterio ?? "auto") : null), [e, criterio.data]);
   const vendite = useMemo(() => (e ? riepilogoVendite(e) : null), [e]);
+
+  // Le vendite del piano che non sono ancora unità: si propongono già compilate.
+  const sigleNote = useMemo(() => e?.unita.map((u) => u.sigla) ?? [], [e]);
+  const puoGestire = !!puoModificare && !telefono && !!e?.permessi.modifica;
+  const dalPiano = useUnitaDalPiano(generaleId, sigleNote, puoGestire && riepilogo.permessi.margini);
+  const [serieDalPiano, setSerieDalPiano] = useState<RigaSerie[] | null>(null);
+  const apriSerie = (righe: RigaSerie[] | null) => { setSerieDalPiano(righe); setSerie(true); };
+  // Dalla panoramica («Crea le unità dal piano») si arriva con ?dal-piano=1: la finestra si apre
+  // già compilata, appena il piano è letto; chiudendola il parametro se ne va.
+  const chiestoDalPiano = parametri.get("dal-piano") === "1" && !!dalPiano && puoGestire;
+  const serieAperta = serie || chiestoDalPiano;
+  const righeSerie = chiestoDalPiano && !serie ? dalPiano!.righe : serieDalPiano;
+  const cambiaSerie = (aperta: boolean) => {
+    setSerie(aperta);
+    if (!aperta && parametri.has("dal-piano")) {
+      const p = new URLSearchParams(parametri);
+      p.delete("dal-piano");
+      setParametri(p, { replace: true });
+    }
+  };
 
   if (isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
   if (isError || !e || !conti || !vendite) {
@@ -94,8 +116,13 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
               {gestisci && (
                 <Button size="sm" variant="outline" onClick={() => setCaricaFile(true)}><FolderUp className="mr-1.5 h-3.5 w-3.5" /> Carica piante e documenti</Button>
               )}
+              {gestisci && dalPiano && (
+                <Button size="sm" variant="outline" onClick={() => apriSerie(dalPiano.righe)} title={`Il piano elenca ancora ${dalPiano.composizione} da creare`}>
+                  <ListChecks className="mr-1.5 h-3.5 w-3.5" /> Dal piano ({dalPiano.righe.length})
+                </Button>
+              )}
               {gestisci && (
-                <Button size="sm" onClick={() => setSerie(true)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
+                <Button size="sm" onClick={() => apriSerie(null)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
               )}
             </div>
           )}
@@ -119,11 +146,28 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
 
       {vuota ? (
         <div className="rounded-lg border bg-card px-4 py-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            {telefono ? "Nessuna unità." : "Scrivi le unità tutte insieme: A1, A2… con piano, m², millesimi e prezzo di listino, anche incollandole da Excel."}
-          </p>
-          {gestisci && (
-            <Button size="sm" className="mt-3" onClick={() => setSerie(true)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
+          {gestisci && dalPiano ? (
+            <>
+              {/* Due partenze esplicite, nessuna nascosta: dalle vendite del piano o a mano. */}
+              <p className="text-sm">
+                Il piano economico elenca <span className="font-medium">{dalPiano.composizione}</span>
+                {e.permessi.importi && dalPiano.valore > 0 && <> per <span className="font-medium tabular-nums">{euro(dalPiano.valore)}</span></>}.
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Si creano con i nomi e i prezzi del piano: prima di confermare li controlli e li correggi.</p>
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <Button size="sm" onClick={() => apriSerie(dalPiano.righe)}><ListChecks className="mr-1.5 h-3.5 w-3.5" /> Crea dalle vendite del piano</Button>
+                <Button size="sm" variant="outline" onClick={() => apriSerie(null)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Scrivi a mano</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {telefono ? "Nessuna unità." : "Scrivi le unità tutte insieme: A1, A2… con piano, m², millesimi e prezzo di listino, anche incollandole da Excel."}
+              </p>
+              {gestisci && (
+                <Button size="sm" className="mt-3" onClick={() => apriSerie(null)}><Plus className="mr-1.5 h-3.5 w-3.5" /> Nuove unità in serie</Button>
+              )}
+            </>
           )}
         </div>
       ) : elencoInVista.unita.length === 0 ? <div className="generale-panel p-6 text-sm text-muted-foreground">Nessuna unità con questo stato. Rimuovi il filtro per tornare all'elenco completo.</div> : vista === "tabella" && !telefono ? (
@@ -156,7 +200,7 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
       />
       {gestisci && (
         <>
-          <SerieUnitaDialog open={serie} onOpenChange={setSerie} generaleId={generaleId} sigleEsistenti={sigle} vedeImporti={e.permessi.importi} />
+          <SerieUnitaDialog open={serieAperta} onOpenChange={cambiaSerie} generaleId={generaleId} sigleEsistenti={sigle} vedeImporti={e.permessi.importi} dalPiano={righeSerie} />
           <DividiUnitaDialog
             generaleId={generaleId}
             unita={e.unita.find((u) => u.orderId === daDividere) ?? null}

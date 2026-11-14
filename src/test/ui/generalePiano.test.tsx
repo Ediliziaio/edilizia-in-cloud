@@ -19,6 +19,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/components/orders/generali/piano/StoricoBusinessPlan", () => ({ StoricoBusinessPlan: () => <p>Archivio Excel</p> }));
 vi.mock("@/components/orders/generali/piano/CassaScadenze", () => ({ CassaScadenze: () => <p>Scadenze IVA inclusa</p> }));
+vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useGeneralePianoNumeri: () => m.numeri,
   useNuovaVersionePiano: () => ({ mutate: m.crea, isPending: false }),

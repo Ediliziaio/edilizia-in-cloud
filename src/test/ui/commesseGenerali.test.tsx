@@ -22,6 +22,7 @@ const m = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/useQuoteCostiComuni", () => ({ useQuoteCostiComuni: () => m.quote }));
 
+vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: (): { piano: null } => ({ piano: null }) }));
 vi.mock("@/hooks/useGeneraleContratto", () => ({ useDatiContratto: () => ({ data: m.contratto }) }));
 vi.mock("@/components/orders/generali/PerPartire", () => ({ PerPartire: (): ReactElement => <p>Per partire</p> }));

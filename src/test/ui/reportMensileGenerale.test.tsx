@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ effectiveCompany: { name: "Società dell'operazione" } }),
 }));
+vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useGeneralePianoNumeri: () =>
     m.corrente
@@ -169,7 +170,7 @@ it("il report corrente usa il piano approvato aggiornato a oggi e non una vecchi
   expect(
     screen.getByText(/Capitale riferito al 2026-11-11/),
   ).toBeInTheDocument();
-  expect(screen.getByText(/stima finale 1300/)).toBeInTheDocument();
+  expect(screen.getByText(/stima finale 1\.300/)).toBeInTheDocument();
   expect(screen.getByText(/Versato 10.099/)).toBeInTheDocument();
   expect(
     screen.getByRole("button", {
