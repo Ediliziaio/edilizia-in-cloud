@@ -8,9 +8,9 @@
  *   Il rapportino salva prezzo, provenienza e modifica a mano: cambiare il listino dopo non lo tocca.
  * - Un costo orario mancante (operaio o mezzo) non vale 0 €: «costo da completare», margine incompleto.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Plus, Search, X } from "lucide-react";
+import { AlertTriangle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { formatCurrency } from "@/lib/formatters";
+import { avvisoUnita, CercaNelListino, COLORE_FONTE } from "@/components/orders/CercaNelListino";
 import {
   etichettaPrezzo, prezzoModificatoAMano, totaliQuadro,
   type FontePrezzo, type MancanzaCosto, type VoceListino,
@@ -26,8 +27,10 @@ import {
 
 interface Riga {
   emp: string | null; nome: string; ditta: boolean; ore: number; costo_orario: number | null; costo: number | null;
-  unita: string | null; quantita: number | null; prezzo: number | null; ricavo: number | null;
+  unita: string | null; quantita: number | null; prezzo: number | null; ricavo: number | null; prezzo_fonte?: FontePrezzo | null;
 }
+/** Come la commessa vende le ore: voce di manodopera del listino, contratto per qualifica, o non a parte. */
+type OreInEconomia = { modo: "voce"; tariffa_id: string; codice: string | null; descrizione: string; unita: string } | { modo: "contratto" } | { modo: "no" };
 interface Voce {
   id: string; descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria: number | null;
   codice?: string | null; prezzo_fonte?: FontePrezzo | null; vendita_proposta?: number | null; prezzo_a_mano?: boolean | null;
@@ -35,15 +38,15 @@ interface Voce {
 interface Mezzo { mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null }
 interface Quadro {
   personale_aggregato?: { costo: number | null }; persone: Riga[]; voci?: Voce[]; mezzi?: Mezzo[];
-  costo_da_completare?: MancanzaCosto[]; appalto: boolean; a_corpo: boolean; registrato: boolean;
+  costo_da_completare?: MancanzaCosto[]; ore_in_economia?: OreInEconomia; order_id?: string;
+  appalto: boolean; a_corpo: boolean; registrato: boolean;
 }
 
 const ore = (n: number) => `${n.toLocaleString("it-IT", { maximumFractionDigits: 2 })} h`;
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
-const UNITA: Record<string, string> = { ora: "/h", giornata: "/giorno", uomo_giorno: "/giorno" };
-const COLORE_FONTE: Record<FontePrezzo, string> = {
-  cantiere: "text-violet-700", committente: "text-blue-800", generale: "text-slate-600", mancante: "text-amber-700",
-};
+const UNITA: Record<string, string> = { ora: "/h", h: "/h", giornata: "/giorno", uomo_giorno: "/giorno" };
+const DOVE_PREZZO: Record<FontePrezzo, string> = { cantiere: "eccezione di cantiere", committente: "listino committente", generale: "listino generale", mancante: "prezzo da definire" };
+
 
 const numero = (v: string) => { const n = Number(v.replace(",", ".")); return Number.isFinite(n) ? n : 0; };
 const testoNumero = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
@@ -52,50 +55,6 @@ const VUOTA: Bozza = { descrizione: "", quantita: "1", unita: "cad", costo: "", 
 
 // Le funzioni nuove non sono ancora nei tipi generati.
 const rpc = (supabase as unknown as { rpc: (f: string, a: object) => Promise<{ data: unknown; error: Error | null }> }).rpc.bind(supabase);
-
-/** Cerca nel listino generale dell'azienda, col prezzo già deciso dalla regola per la commessa del rapportino. */
-function CercaNelListino({ rapportinoId, onScegli }: { rapportinoId: string; onScegli: (v: VoceListino) => void }) {
-  const [testo, setTesto] = useState("");
-  const [cercato, setCercato] = useState("");
-  useEffect(() => { const t = setTimeout(() => setCercato(testo.trim()), 250); return () => clearTimeout(t); }, [testo]);
-  const { data, isFetching, error } = useQuery({
-    queryKey: ["rapportino-listino-cerca", rapportinoId, cercato],
-    enabled: cercato.length >= 2,
-    retry: false,
-    staleTime: 30_000,
-    queryFn: async () => {
-      const { data, error } = await rpc("rapportino_listino_cerca", { p_rapportino_id: rapportinoId, p_testo: cercato, p_limite: 20 });
-      if (error) throw error;
-      return (Array.isArray(data) ? data : []) as VoceListino[];
-    },
-  });
-  return (
-    <div className="col-span-6 space-y-1">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-        <Input aria-label="Cerca nel listino" placeholder="Cerca nel listino: codice, descrizione, categoria" className="h-8 pl-7 text-[13px]"
-          value={testo} onChange={(e) => setTesto(e.target.value)} />
-      </div>
-      {cercato.length >= 2 && (
-        <ul aria-label="Voci del listino" className="max-h-48 divide-y overflow-y-auto rounded-md border bg-background">
-          {error && <li className="px-2 py-1.5 text-xs text-destructive">{error instanceof Error ? error.message : "Ricerca non riuscita"}</li>}
-          {!error && !isFetching && (data ?? []).length === 0 && <li className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna voce del listino con «{cercato}»</li>}
-          {(data ?? []).map((v) => (
-            <li key={v.tariffa_id}>
-              <button type="button" onClick={() => { onScegli(v); setTesto(""); setCercato(""); }}
-                className="tap-compact grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 px-2 py-1.5 text-left hover:bg-muted/50">
-                <span className="min-w-0 truncate text-[13px] font-medium">{v.codice ? <span className="mr-1 font-mono text-xs text-muted-foreground">{v.codice}</span> : null}{v.descrizione}</span>
-                <span className="text-right text-[13px] tabular-nums">{"prezzo" in v ? (v.prezzo == null ? "—" : `${euro(v.prezzo)}/${v.unita}`) : v.unita}</span>
-                <span className="truncate text-[11px] text-muted-foreground">{v.categoria ?? ""}</span>
-                <span className={`text-right text-[11px] ${COLORE_FONTE[v.fonte]}`}>{etichettaPrezzo(v.fonte).replace("Prezzo applicato: ", "")}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false }: { rapportinoId: string; puoModificare?: boolean }) {
   const qc = useQueryClient();
@@ -129,6 +88,15 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
     onSuccess: aggiorna,
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Voce non tolta"),
   });
+  const [scegliOre, setScegliOre] = useState(false);
+  const impostaOre = useMutation({
+    mutationFn: async ({ orderId, tariffaId }: { orderId: string; tariffaId: string | null }) => {
+      const { error } = await rpc("commessa_imposta_ore_in_economia", { p_order_id: orderId, p_tariffa_id: tariffaId });
+      if (error) throw error;
+    },
+    onSuccess: () => { setScegliOre(false); void qc.invalidateQueries({ queryKey: ["rapportino-quadro-economico"] }); },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Impostazione non salvata"),
+  });
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const { data: catalogo } = useCatalogoVociRapportino(companyId, puoModificare);
@@ -150,7 +118,8 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   const voci = data.voci ?? [];
   const mezzi = Array.isArray(data.mezzi) ? data.mezzi : [];
   const mancanze = Array.isArray(data.costo_da_completare) ? data.costo_da_completare : [];
-  const conVendita = vedeImporti && ((data.appalto && !data.a_corpo) || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0 || v.prezzo_fonte));
+  const economia = data.ore_in_economia;
+  const conVendita = vedeImporti && ((data.appalto && !data.a_corpo) || economia?.modo === "voce" || voci.some((v) => Number(v.vendita_unitaria ?? 0) > 0 || v.prezzo_fonte));
   const costoVoce = (v: Voce) => (v.costo_unitario == null ? null : Number(v.quantita) * Number(v.costo_unitario));
   const ricavoVoce = (v: Voce) => (v.vendita_unitaria == null ? null : Number(v.quantita) * Number(v.vendita_unitaria));
   const tot = totaliQuadro({
@@ -178,6 +147,33 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
           <p><strong>Costo da completare</strong>: {mancanze.map((m) => `${m.nome} (${m.motivo})`).join(", ")}. Il costo del giorno è parziale e il margine non si calcola.</p>
         </div>
       )}
+      {vedeImporti && economia && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1.5 text-xs text-muted-foreground">
+          <span>
+            {economia.modo === "voce" ? <>Ore vendute in economia: <strong className="font-medium text-slate-800">{economia.codice ? `${economia.codice} · ` : ""}{economia.descrizione}</strong></>
+              : economia.modo === "contratto" ? "Ore prezzate dal contratto del committente, per qualifica"
+              : "Le ore non si vendono a parte: il prezzo è quello del contratto o del preventivo"}
+          </span>
+          {puoModificare && data.order_id && !scegliOre && (
+            <>
+              <button type="button" className="tap-compact text-blue-700 underline" onClick={() => setScegliOre(true)}>
+                {economia.modo === "voce" ? "cambia" : "Vendi le ore in economia"}
+              </button>
+              {economia.modo === "voce" && (
+                <button type="button" className="tap-compact text-blue-700 underline" disabled={impostaOre.isPending}
+                  onClick={() => impostaOre.mutate({ orderId: data.order_id!, tariffaId: null })}>non venderle a parte</button>
+              )}
+            </>
+          )}
+          {puoModificare && data.order_id && scegliOre && (
+            <div className="basis-full space-y-1">
+              <CercaNelListino dove={{ orderId: data.order_id, data: null }} segnaposto="Voce di manodopera del listino (es. ore operaio)"
+                onScegli={(v) => impostaOre.mutate({ orderId: data.order_id!, tariffaId: v.tariffa_id })} />
+              <p>Vale per tutti i rapportini della commessa: il prezzo segue il listino del committente se ha la voce, altrimenti il generale. <button type="button" className="underline" onClick={() => setScegliOre(false)}>Annulla</button></p>
+            </div>
+          )}
+        </div>
+      )}
       {data.personale_aggregato && <p className="flex justify-between border-b px-3 py-2"><span>Personale interno · costo aggregato</span><strong>{euro(data.personale_aggregato.costo)}</strong></p>}
       <ul className="divide-y">
         {data.persone.map((r, i) => (
@@ -193,7 +189,9 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             {conVendita && (
               <>
                 <span className="text-xs text-blue-800">
-                  {r.prezzo != null ? `Vendita ${euro(r.prezzo)}${UNITA[r.unita ?? ""] ?? ""} · ricavo ${euro(r.ricavo)}` : "Vendita da impostare"}
+                  {r.prezzo != null
+                    ? `Vendita ${euro(r.prezzo)}${UNITA[r.unita ?? ""] ?? ""} · ricavo ${euro(r.ricavo)}${r.prezzo_fonte ? ` · ${DOVE_PREZZO[r.prezzo_fonte]}` : ""}`
+                    : r.ditta ? "" : r.prezzo_fonte === "mancante" ? "Prezzo delle ore da definire" : economia?.modo === "no" ? "Ore non vendute a parte" : "Vendita da impostare"}
                 </span>
                 <span className={`text-right text-xs font-semibold tabular-nums ${(margine(r) ?? 0) < 0 ? "text-red-700" : "text-emerald-700"}`}>
                   {!permissions.canViewMargins || margine(r) == null ? "" : `margine ${euro(margine(r))}`}
@@ -239,12 +237,13 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
       </ul>
       {puoAggiungere && (nuova ? (
         <form className="grid grid-cols-6 gap-1.5 border-t p-2" onSubmit={(e) => { e.preventDefault(); if (nuova.descrizione.trim()) aggiungi.mutate(nuova); }}>
-          <CercaNelListino rapportinoId={rapportinoId} onScegli={scegliDalListino} />
+          <CercaNelListino className="col-span-6" dove={{ rapportinoId }} onScegli={scegliDalListino} />
           {nuova.voce && (
             <p className="col-span-6 flex flex-wrap items-center gap-x-2 text-xs">
               <span className="font-medium">{nuova.voce.codice ? `${nuova.voce.codice} · ` : ""}{nuova.voce.descrizione}</span>
               {vedeImporti && <span className={COLORE_FONTE[nuova.voce.fonte]}>{etichettaPrezzo(nuova.voce.fonte)}{nuova.voce.prezzo != null ? ` ${euro(nuova.voce.prezzo)}` : ""}</span>}
               {aManoNuova && <span className="text-amber-700">· prezzo modificato a mano</span>}
+              {avvisoUnita(nuova.voce) && <span className="basis-full text-amber-700">{avvisoUnita(nuova.voce)}</span>}
               <button type="button" className="text-muted-foreground underline" onClick={() => setNuova({ ...VUOTA })}>cambia</button>
             </p>
           )}
@@ -289,7 +288,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             <dt className="text-[11px] text-muted-foreground">Margine</dt>
             {tot.margine == null
               ? <dd className="text-xs font-semibold text-amber-700">Incompleto: {[tot.mancano ? `${tot.mancano} ${tot.mancano === 1 ? "costo" : "costi"} da completare` : "", tot.prezziDaDefinire ? `${tot.prezziDaDefinire} ${tot.prezziDaDefinire === 1 ? "prezzo" : "prezzi"} da definire` : ""].filter(Boolean).join(", ")}</dd>
-              : <dd className={`font-semibold ${tot.margine < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(tot.margine)}</dd>}
+              : <dd className={`font-semibold ${tot.margine < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(tot.margine)}{tot.marginePct != null ? <span className="ml-1 text-xs font-normal">({tot.marginePct.toLocaleString("it-IT")}%)</span> : null}</dd>}
           </div>
         )}
       </dl>

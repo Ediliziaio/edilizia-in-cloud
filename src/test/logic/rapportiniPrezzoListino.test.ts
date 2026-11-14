@@ -10,6 +10,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { etichettaPrezzo, prezzoModificatoAMano, scegliPrezzo, totaliQuadro } from "@/lib/campo/prezzoVoceRapportino";
 
 const MIGRAZIONE = "supabase/migrations/20290318120000_rapportini_prezzo_dal_listino_e_costi_da_completare.sql";
+const MIGRAZIONE_B = "supabase/migrations/20290318120100_rapportini_ore_in_economia_rendiconto_unita.sql";
 const C = "11111111-1111-4111-a111-111111111111";
 const ALTRA = "11111111-1111-4111-a111-111111111112";
 const UTENTE = "22222222-2222-4222-a222-222222222222";
@@ -60,18 +61,24 @@ beforeAll(async () => {
       descrizione text, codice text, unita text, prezzo_vendita numeric, prezzo_costo numeric default 0, costo_interno numeric,
       categoria_prodotto text, custom_field_values jsonb default '{}', attivo boolean default true);
     create table public.appalto_contratti(id uuid primary key, company_id uuid, committente_id uuid, attivo boolean default true,
-      valido_dal date, valido_al date);
+      valido_dal date, valido_al date, maggiorazione_straordinario_pct numeric);
     create table public.appalto_tariffe(id uuid primary key, company_id uuid, contratto_id uuid, tariffa_id uuid, descrizione text,
-      prezzo_unitario numeric, unita_misura text default 'cad', attivo boolean default true, valido_dal date, valido_al date, ordine int default 0);
+      prezzo_unitario numeric, unita_misura text default 'cad', attivo boolean default true, valido_dal date, valido_al date, ordine int default 0,
+      maggiorazione_straordinario_pct numeric);
+    create table public.appalto_rendiconto_righe(id uuid primary key default gen_random_uuid(), order_id uuid, data date, tariffa_id uuid,
+      quantita numeric, employee_id uuid, fase_id uuid, origine text, rapportino_id uuid, stato text, descrizione text, unita_misura text,
+      prezzo_unitario numeric, costo_interno numeric, note text, voce_libera_id uuid, extra_contratto boolean);
+    create table public.company_costs(id uuid primary key default gen_random_uuid(), company_id uuid, name text, cost_type text, amount numeric,
+      recurrence text, due_date date, is_paid boolean, paid_date date, category text, notes text, order_id uuid, senza_fattura boolean);
     create table public.appalto_tariffe_commessa(id uuid primary key default gen_random_uuid(), order_id uuid, tariffa_id uuid, prezzo_unitario numeric);
     create table public.employees(id uuid primary key, company_id uuid, first_name text, last_name text, costo_orario numeric);
     create table public.mezzi(id uuid primary key, company_id uuid, nome text, possesso text, deleted_at timestamptz, costo numeric);
     create table public.campo_rapportini(id uuid primary key, company_id uuid, order_id uuid, data_lavoro date default '2026-11-10',
       presenze jsonb default '[]', mezzi_usati jsonb default '[]', stato text default 'inviato', fasi_lavorate jsonb default '[]',
-      costo_manodopera numeric, presenze_registrate jsonb, costo_registrato_at timestamptz, annullato_at timestamptz);
+      costo_manodopera numeric, presenze_registrate jsonb, costo_registrato_at timestamptz, annullato_at timestamptz, approvato boolean default false);
     create table public.rapportino_voci_libere(id uuid primary key default gen_random_uuid(), company_id uuid, order_id uuid,
       rapportino_id uuid, descrizione text check (length(btrim(descrizione)) > 0), quantita numeric, unita text,
-      costo_unitario numeric, vendita_unitaria numeric, created_at timestamptz default clock_timestamp());
+      costo_unitario numeric, vendita_unitaria numeric, company_cost_id uuid, created_at timestamptz default clock_timestamp());
     create table public.rapportino_mezzi_costi(rapportino_id uuid, mezzo_id uuid, ore numeric, ore_stimate boolean, costo_orario numeric, importo numeric);
     create table public.order_employees(id uuid primary key default gen_random_uuid(), order_id uuid, employee_id uuid, phase_id uuid,
       hourly_rate numeric not null, hours_worked numeric not null, total_cost numeric not null);
@@ -88,8 +95,21 @@ beforeAll(async () => {
     create function public.voce_azienda() returns trigger language plpgsql as $$begin
       select company_id, order_id into new.company_id, new.order_id from public.campo_rapportini where id = new.rapportino_id; return new; end$$;
     create trigger trg_voci_libere_prima before insert on public.rapportino_voci_libere for each row execute function public.voce_azienda();
+    create function public.rapportino_voce_ritira(v public.rapportino_voci_libere) returns void language sql as $$select$$;
+    -- Il pezzo di ufficio_crea_rapportini che la migrazione B ritocca, con lo stesso testo di produzione.
+    create function public.ufficio_crea_rapportini(p_order_id uuid, p_rapportini jsonb) returns integer language plpgsql as $f$
+    declare v_id uuid; v_voci jsonb;
+    begin
+      v_id := (p_rapportini->0->>'id')::uuid; v_voci := p_rapportini->0->'voci_libere';
+      insert into public.rapportino_voci_libere (rapportino_id, descrizione, quantita, unita, costo_unitario, vendita_unitaria)
+      select v_id, left(btrim(e->>'descrizione'), 500), (e->>'quantita')::numeric, coalesce(nullif(btrim(e->>'unita'), ''), 'cad'),
+             nullif(e->>'costo_unitario', '')::numeric, nullif(e->>'vendita_unitaria', '')::numeric
+        from jsonb_array_elements(v_voci) e;
+      return 1;
+    end $f$;
   `);
   await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE), "utf8"));
+  await db.exec(readFileSync(resolve(process.cwd(), MIGRAZIONE_B), "utf8"));
   await db.exec(`create trigger trg_rapportino_costo_manodopera before update on public.campo_rapportini
     for each row execute function public.fn_rapportino_costo_manodopera()`);
 }, 30_000);
@@ -98,7 +118,7 @@ afterAll(() => db.close());
 beforeEach(async () => {
   await db.exec(`
     truncate public.orders, public.tariffe_aziendali, public.appalto_contratti, public.appalto_tariffe, public.appalto_tariffe_commessa,
-      public.employees, public.mezzi, public.campo_rapportini, public.rapportino_voci_libere, public.rapportino_mezzi_costi, public.order_employees;
+      public.appalto_rendiconto_righe, public.company_costs, public.employees, public.mezzi, public.campo_rapportini, public.rapportino_voci_libere, public.rapportino_mezzi_costi, public.order_employees;
     set test.costi = ''; set test.diritti = '';
     insert into public.orders values
       ('${O_COMM}', '${C}', '${COMMITTENTE}', null, 'cliente', 'a_misura', null),
@@ -110,9 +130,9 @@ beforeEach(async () => {
       ('${T_SMALT}', '${C}', 'smaltimento', 'Smaltimento macerie', 'SMA-01', 'pz', 0, 10),
       ('${T_ALTRA}', '${ALTRA}', 'posa', 'Posa di un''altra azienda', 'POS-01', 'pz', 99, 1);
     insert into public.appalto_contratti values
-      ('${K_COMM}', '${C}', '${COMMITTENTE}', true, '2026-01-01', null),
+      ('${K_COMM}', '${C}', '${COMMITTENTE}', true, '2026-01-01', null, null),
       -- Spento: vale solo perché è il contratto della commessa in appalto.
-      ('${K_APP}', '${C}', '${COMMITTENTE}', false, '2025-01-01', null);
+      ('${K_APP}', '${C}', '${COMMITTENTE}', false, '2025-01-01', null, null);
     insert into public.appalto_tariffe (id, company_id, contratto_id, tariffa_id, prezzo_unitario) values
       ('${AT_COMM}', '${C}', '${K_COMM}', '${T_POSA}', 45),
       ('${AT_APP}', '${C}', '${K_APP}', '${T_POSA}', 44);
@@ -290,3 +310,95 @@ describe("Le parole e i totali dell'interfaccia", () => {
       .toMatchObject({ costo: 180, ricavo: 0, completo: true, prezziDaDefinire: 1, margine: null });
   });
 });
+
+describe("Lotto B — le ore vendute in economia, per tutte le commesse", () => {
+  const T_ORE = "66666666-6666-4666-a666-666666666664";
+  const AT_ORE = "88888888-8888-4888-a888-888888888884";
+  const quadro = () => uno<J>("select private.office_rapportino_economia_raw($1) v", [R_COMM]);
+  beforeEach(async () => {
+    await db.exec(`insert into public.tariffe_aziendali (id, company_id, tipo, nome, codice, unita, prezzo_vendita, costo_interno)
+      values ('${T_ORE}', '${C}', 'manodopera', 'Ore operaio in economia', 'ORE-01', 'h', 35, 32)`);
+  });
+  it("senza voce delle ore la commessa non le vende a parte: niente prezzo, e lo dice", async () => {
+    const q = await quadro();
+    expect(q.ore_in_economia).toEqual({ modo: "no" });
+    expect((q.persone as J[])[0]).toMatchObject({ prezzo: null, ricavo: null });
+  });
+  it("con la voce: ore × prezzo del listino generale, costo distinto", async () => {
+    await db.exec(`select public.commessa_imposta_ore_in_economia('${O_COMM}', '${T_ORE}')`);
+    const q = await quadro();
+    expect(q.ore_in_economia).toMatchObject({ modo: "voce", codice: "ORE-01" });
+    expect((q.persone as J[])[0]).toMatchObject({ ore: 8, costo: 200, prezzo: 35, ricavo: 280, prezzo_fonte: "generale", unita: "h" });
+  });
+  it("l'esempio del titolare: il committente le paga 38 €/h col suo listino", async () => {
+    await db.exec(`insert into public.appalto_tariffe (id, company_id, contratto_id, tariffa_id, prezzo_unitario, unita_misura)
+      values ('${AT_ORE}', '${C}', '${K_COMM}', '${T_ORE}', 38, 'ora')`);
+    await db.exec(`select public.commessa_imposta_ore_in_economia('${O_COMM}', '${T_ORE}')`);
+    expect(((await quadro()).persone as J[])[0]).toMatchObject({ prezzo: 38, ricavo: 304, prezzo_fonte: "committente" });
+  });
+  it("tariffa a giornata del committente: 8 ore = 1 giornata, 4 ore = mezza", async () => {
+    await db.exec(`insert into public.appalto_tariffe (id, company_id, contratto_id, tariffa_id, prezzo_unitario, unita_misura)
+      values ('${AT_ORE}', '${C}', '${K_COMM}', '${T_ORE}', 260, 'giornata')`);
+    await db.exec(`select public.commessa_imposta_ore_in_economia('${O_COMM}', '${T_ORE}')`);
+    expect(((await quadro()).persone as J[])[0]).toMatchObject({ quantita: 1, prezzo: 260, ricavo: 260 });
+    await db.exec(`update public.campo_rapportini set presenze = '[{"employee_id":"${E_OK}","nome":"Anna","ore":4}]' where id = '${R_COMM}'`);
+    expect(((await quadro()).persone as J[])[0]).toMatchObject({ quantita: 0.5, ricavo: 130 });
+  });
+  it("all'approvazione il prezzo delle ore si fotografa: cambiare listino o voce dopo non lo tocca", async () => {
+    await db.exec(`select public.commessa_imposta_ore_in_economia('${O_COMM}', '${T_ORE}')`);
+    await db.exec(`update public.campo_rapportini set stato = 'approvato' where id = '${R_COMM}'`);
+    const fissati = await uno<J[]>("select prezzi_registrati v from public.campo_rapportini where id = $1", [R_COMM]);
+    expect(fissati[0]).toMatchObject({ employee_id: E_OK, prezzo: 35, ricavo: 280, prezzo_fonte: "generale" });
+    // Il prezzo non finisce nelle presenze registrate, che altre funzioni danno a chi vede solo i costi.
+    expect((await uno<J[]>("select presenze_registrate v from public.campo_rapportini where id = $1", [R_COMM]))[0]).not.toHaveProperty("prezzo");
+    await db.exec(`update public.tariffe_aziendali set prezzo_vendita = 50 where id = '${T_ORE}'`);
+    await db.exec(`select public.commessa_imposta_ore_in_economia('${O_COMM}', null)`);
+    expect(((await quadro()).persone as J[])[0]).toMatchObject({ prezzo: 35, ricavo: 280 });
+  });
+  it("una voce delle ore non oraria né a giornata non inventa un prezzo", async () => {
+    await db.exec(`select public.commessa_imposta_ore_in_economia('${O_COMM}', '${T_POSA}')`);
+    expect(((await quadro()).persone as J[])[0]).toMatchObject({ prezzo: null, ricavo: null });
+  });
+  it("chi non vede gli importi non riceve come si vendono le ore", async () => {
+    // La proiezione per permesso la fa rapportino_quadro_economico; qui si controlla che la chiave sia registrata.
+    expect(await uno("select right_name v from private.office_projection_fields where column_name = 'ore_in_economia'")).toBe("amounts");
+  });
+});
+
+describe("Lotto D — unità diverse fra i due listini", () => {
+  it("generale a pezzo, committente a mq: la regola lo dice", async () => {
+    await db.exec(`update public.appalto_tariffe set unita_misura = 'mq' where id = '${AT_COMM}'`);
+    expect(await prezzo(O_COMM, T_POSA)).toMatchObject({ unita: "mq", unita_generale: "pz", unita_diverse: true });
+  });
+  it("pz e cad, h e ora sono la stessa unità", async () => {
+    expect(await prezzo(O_COMM, T_POSA)).toMatchObject({ unita: "cad", unita_diverse: false });
+  });
+});
+
+describe("Lotto C — rendiconto del committente", () => {
+  it("la voce presa dal suo listino porta la tariffa e non è extra contratto; quella a mano sì", async () => {
+    await db.exec(`update public.orders set order_type = 'appaltatore_lavoro' where id = '${O_COMM}'`);
+    await db.exec(`update public.campo_rapportini set approvato = true where id = '${R_COMM}'`);
+    const a = await uno<J>(`insert into public.rapportino_voci_libere (rapportino_id, descrizione, quantita, unita, tariffa_id)
+      values ($1, '', 2, 'cad', $2) returning to_jsonb(rapportino_voci_libere.*) v`, [R_COMM, T_POSA]);
+    const b = await uno<J>(`insert into public.rapportino_voci_libere (rapportino_id, descrizione, quantita, unita, vendita_unitaria)
+      values ($1, 'Nolo ponteggio', 1, 'cad', 100) returning to_jsonb(rapportino_voci_libere.*) v`, [R_COMM]);
+    await db.exec(`select public.rapportino_voce_applica('${a.id}'); select public.rapportino_voce_applica('${b.id}')`);
+    const righe = (await db.query<J>("select voce_libera_id, tariffa_id, extra_contratto, prezzo_unitario::float8 p from public.appalto_rendiconto_righe")).rows;
+    expect(righe.find((r) => r.voce_libera_id === a.id)).toMatchObject({ tariffa_id: AT_COMM, extra_contratto: false, p: 45 });
+    expect(righe.find((r) => r.voce_libera_id === b.id)).toMatchObject({ tariffa_id: null, extra_contratto: true, p: 100 });
+  });
+});
+
+describe("Popup dell'ufficio — voce dal listino", () => {
+  it("ufficio_crea_rapportini passa la voce del listino: prezzo e provenienza come «Aggiungi voce»", async () => {
+    await db.exec(`select public.ufficio_crea_rapportini('${O_COMM}', '[{"id":"${R_COMM}","voci_libere":[{"descrizione":"Posa","quantita":"3","unita":"cad","tariffa_id":"${T_POSA}"}]}]')`);
+    expect(await uno<J>("select to_jsonb(x.*) v from public.rapportino_voci_libere x where rapportino_id = $1", [R_COMM]))
+      .toMatchObject({ quantita: 3, prezzo_fonte: "committente", vendita_unitaria: 45, codice: "POS-01" });
+  });
+  it("ricerca per commessa e giorno, senza rapportino", async () => {
+    const r = await uno<J[]>("select public.commessa_listino_cerca($1, '2026-11-10', 'pos', 10) v", [O_COMM]);
+    expect(r[0]).toMatchObject({ tariffa_id: T_POSA, fonte: "committente", prezzo: 45 });
+  });
+});
+

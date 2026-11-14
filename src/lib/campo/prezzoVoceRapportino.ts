@@ -23,6 +23,9 @@ export interface VoceListino {
   fonte: FontePrezzo;
   /** Assente se chi guarda non vede i costi. */
   costo_unitario?: number | null;
+  /** Unità del listino generale, e se quella del committente è diversa (ora/giornata, pz/mq…). */
+  unita_generale?: string | null;
+  unita_diverse?: boolean;
 }
 
 const ETICHETTE: Record<FontePrezzo, string> = {
@@ -57,7 +60,7 @@ export function prezzoModificatoAMano(vendita: number | null | undefined, propos
 
 export interface MancanzaCosto { tipo: "persona" | "mezzo"; nome: string; motivo: string }
 
-interface RigaPersona { costo: number | null; ditta: boolean; ricavo?: number | null }
+interface RigaPersona { costo: number | null; ditta: boolean; ricavo?: number | null; prezzo_fonte?: FontePrezzo | null; prezzo?: number | null }
 interface RigaMezzo { importo: number | null; noleggio: boolean }
 interface RigaVoce { quantita: number; costo_unitario: number | null; vendita_unitaria: number | null; prezzo_fonte?: FontePrezzo | null }
 
@@ -68,8 +71,10 @@ export interface TotaliQuadro {
   margine: number | null;
   completo: boolean;
   mancano: number;
-  /** Voci del listino col prezzo ancora da definire: il ricavo è parziale. */
+  /** Voci (e ore in economia) col prezzo ancora da definire: il ricavo è parziale. */
   prezziDaDefinire: number;
+  /** Margine sul ricavo, in percentuale; null come il margine. */
+  marginePct: number | null;
 }
 
 /**
@@ -88,11 +93,12 @@ export function totaliQuadro(q: { persone: RigaPersona[]; mezzi?: RigaMezzo[]; v
   const mancanoLocali = q.persone.filter((r) => !r.ditta && r.costo == null).length + mezzi.filter((m) => !m.noleggio && m.importo == null).length;
   const mancano = Math.max(mancanoLocali, q.costoDaCompletare?.length ?? 0);
   const completo = mancano === 0;
-  const prezziDaDefinire = voci.filter((v) => v.prezzo_fonte === "mancante" && v.vendita_unitaria == null).length;
+  const prezziDaDefinire = voci.filter((v) => v.prezzo_fonte === "mancante" && v.vendita_unitaria == null).length
+    + q.persone.filter((r) => r.prezzo_fonte === "mancante" && r.prezzo == null).length;
+  const margine = completo && prezziDaDefinire === 0 ? arrotonda(ricavo - costo) : null;
   return {
-    costo: arrotonda(costo), ricavo: arrotonda(ricavo),
-    margine: completo && prezziDaDefinire === 0 ? arrotonda(ricavo - costo) : null,
-    completo, mancano, prezziDaDefinire,
+    costo: arrotonda(costo), ricavo: arrotonda(ricavo), margine, completo, mancano, prezziDaDefinire,
+    marginePct: margine != null && ricavo > 0 ? Math.round((margine / ricavo) * 1000) / 10 : null,
   };
 }
 

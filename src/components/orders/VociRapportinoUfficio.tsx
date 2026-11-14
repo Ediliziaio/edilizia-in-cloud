@@ -1,19 +1,25 @@
 // Voci libere nel modulo dell'ufficio: si salvano insieme al rapportino. Solo per chi vede i costi.
+// Dal 14/11/2026 si cercano nel listino generale, col prezzo della regola (cantiere → committente → generale).
 import type { ReactElement } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
+import { avvisoUnita, CercaNelListino, COLORE_FONTE } from "@/components/orders/CercaNelListino";
+import { etichettaPrezzo, type FontePrezzo } from "@/lib/campo/prezzoVoceRapportino";
 import type { VoceUfficio } from "@/lib/campo/rapportiniUfficio";
 
 const nuovaChiave = (): string => crypto.randomUUID();
 const CAMPO = "h-8 px-1.5 text-[13px]";
 
-export function VociRapportinoUfficio({ companyId, voci, onCambia }: { companyId: string | undefined; voci: VoceUfficio[]; onCambia: (v: VoceUfficio[]) => void }): ReactElement | null {
+export function VociRapportinoUfficio({ companyId, orderId, giorno, voci, onCambia }: {
+  companyId: string | undefined; orderId?: string; giorno?: string; voci: VoceUfficio[]; onCambia: (v: VoceUfficio[]) => void;
+}): ReactElement | null {
   const { data: catalogo } = useCatalogoVociRapportino(companyId, true);
   const pronte = Array.isArray(catalogo?.voci) ? catalogo!.voci : [];
   const aMano = catalogo?.aMano ?? true;
-  if (!pronte.length && !aMano && !voci.length) return null;
+  if (!pronte.length && !aMano && !voci.length && !orderId) return null;
+  const testo = (n: number | null | undefined): string => (n == null ? "" : String(n).replace(".", ","));
   const cambia = (chiave: string, patch: Partial<VoceUfficio>): void => onCambia(voci.map((v) => (v.chiave === chiave ? { ...v, ...patch } : v)));
   return (
     <div className="space-y-1.5">
@@ -24,9 +30,22 @@ export function VociRapportinoUfficio({ companyId, voci, onCambia }: { companyId
           <Input aria-label={`Quantità voce ${i + 1}`} inputMode="decimal" placeholder="Q.tà" className={`col-span-1 ${CAMPO}`} value={v.quantita} onChange={(e) => cambia(v.chiave, { quantita: e.target.value })} />
           <Input aria-label={`Unità voce ${i + 1}`} placeholder="Unità" className={`col-span-1 ${CAMPO}`} value={v.unita} onChange={(e) => cambia(v.chiave, { unita: e.target.value })} />
           <Input aria-label={`Costo voce ${i + 1}`} inputMode="decimal" placeholder="Costo €" className={`col-span-2 sm:col-span-1 ${CAMPO}`} value={v.costo} onChange={(e) => cambia(v.chiave, { costo: e.target.value })} />
-          <Input aria-label={`Vendita voce ${i + 1}`} inputMode="decimal" placeholder="Vendita €" className={`col-span-2 sm:col-span-1 ${CAMPO}`} value={v.vendita} onChange={(e) => cambia(v.chiave, { vendita: e.target.value })} />
+          <Input aria-label={`Vendita voce ${i + 1}`} inputMode="decimal" placeholder={v.fonte === "mancante" ? "Da definire" : "Vendita €"} className={`col-span-2 sm:col-span-1 ${CAMPO}`} value={v.vendita} onChange={(e) => cambia(v.chiave, { vendita: e.target.value })} />
+          {v.fonte && (
+            <p className={`col-span-6 text-[11px] sm:col-span-6 ${COLORE_FONTE[v.fonte as FontePrezzo] ?? ""}`}>
+              {v.codice ? `${v.codice} · ` : ""}{etichettaPrezzo(v.fonte as FontePrezzo)}
+              {v.proposta != null && v.vendita.trim() && Number(v.vendita.replace(",", ".")) !== Number(v.proposta) ? ` · modificato a mano (listino ${testo(v.proposta)} €)` : ""}
+              {v.avviso ? ` · ${v.avviso}` : ""}
+            </p>
+          )}
         </div>
       ))}
+      {orderId && (
+        <CercaNelListino dove={{ orderId, data: giorno ?? null }} onScegli={(m) => onCambia([...voci, {
+          chiave: nuovaChiave(), descrizione: m.descrizione, quantita: "1", unita: m.unita, costo: testo(m.costo_unitario), vendita: testo(m.prezzo),
+          tariffa_id: m.tariffa_id, codice: m.codice, fonte: m.fonte, proposta: m.prezzo ?? null, avviso: avvisoUnita(m),
+        }])} />
+      )}
       <div className="flex flex-wrap gap-1.5">
         {pronte.length > 0 && (
           <select aria-label="Aggiungi una voce" className="h-8 rounded-md border bg-background px-2 text-[13px]" value=""

@@ -22,7 +22,11 @@ export const METEO = [
 export interface PersonaPresenza { chiave: string; nome: string; employee_id?: string; subappaltatore_id?: string }
 
 /** Una voce libera con i suoi prezzi: si salva col rapportino. */
-export interface VoceUfficio { chiave: string; descrizione: string; quantita: string; unita: string; costo: string; vendita: string }
+export interface VoceUfficio {
+  chiave: string; descrizione: string; quantita: string; unita: string; costo: string; vendita: string;
+  /** Voce del listino generale (14/11/2026): il database ne rifà prezzo e provenienza al salvataggio. */
+  tariffa_id?: string; codice?: string | null; fonte?: string; proposta?: number | null; avviso?: string | null;
+}
 
 export interface GiornoUfficio {
   chiave: string;
@@ -160,6 +164,7 @@ export function caricoRapportini(
       ...((g.voci ?? []).some((v) => v.descrizione.trim()) ? { voci_libere: (g.voci ?? []).filter((v) => v.descrizione.trim()).map((v) => ({
         descrizione: v.descrizione.trim(), quantita: oreLette(v.quantita) ?? 0, unita: v.unita.trim() || "cad",
         costo_unitario: oreLette(v.costo), vendita_unitaria: oreLette(v.vendita),
+        ...(v.tariffa_id ? { tariffa_id: v.tariffa_id } : {}),
       })) } : {}),
       meteo: g.meteo || null,
       ...(valori.length > 0 ? { campi_extra: valori } : {}),

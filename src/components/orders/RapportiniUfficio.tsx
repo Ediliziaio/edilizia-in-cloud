@@ -416,7 +416,7 @@ function Finestra({ orderId, onFatto }: { orderId: string; onFatto: () => void }
 
             {canViewCosts && (
               <Blocco titolo="Voci e costi">
-                <VociRapportinoUfficio companyId={companyId} voci={g.voci ?? []} onCambia={(voci) => setGiorni((p) => p.map((x) => (x.chiave === g.chiave ? { ...x, voci } : x)))} />
+                <VociRapportinoUfficio companyId={companyId} orderId={orderId} giorno={g.data} voci={g.voci ?? []} onCambia={(voci) => setGiorni((p) => p.map((x) => (x.chiave === g.chiave ? { ...x, voci } : x)))} />
               </Blocco>
             )}
             {campiModulo.length > 0 && <Blocco titolo="Altre informazioni">
