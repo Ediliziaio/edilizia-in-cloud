@@ -22,7 +22,7 @@ si possono ripartire (millesimi, m², importo, parti uguali) senza contarli due 
 |---|---|---|
 | 1 | Riepilogo della generale lento (1,4 s): calcolava tutte le commesse dell'azienda | **FATTO** 21db7cf59 — 86 ms, numeri identici su 40 figlie di Demo 1 |
 | 2 | Selettori di commessa piatti: generale e figlie mescolate, senza etichetta. Nel selettore di DDT / fatture ricevute / magazzino / mezzi la generale si trovava solo per codice e mai fra i «Prossimi 30gg» | **FATTO** a10006da5 — etichetta «Generale», figlie rientrate sotto, «in O-0003 · Via Lotti», filtro «Grandi lavori», ricerca per nome |
-| 3 | Scheda Cantiere: rapportini, ODA, DDT, fatture, costi, pagamenti si vedono una commessa alla volta (selettore «Registra e consulta su»). Manca «Tutta l'operazione» | da fare — lotto B |
+| 3 | Scheda Cantiere: rapportini, ODA, DDT, fatture, costi, pagamenti si vedono una commessa alla volta (selettore «Registra e consulta su»). Manca «Tutta l'operazione» | **FATTO** 70989cf74 — «Tutta l'operazione» nel selettore: rapportini, ordini, DDT, costi di generale + figlie con la colonna Commessa (sola lettura) |
 | 4 | Mai letti dalla generale: mezzi (`mezzi_giornate`: nemmeno nel costo delle commesse singole), timbrature, giornale lavori, rate non ancora fatturate (`order_installments`) | da fare — lotto C |
 | 5 | Ricavi del piano: leggono `invoices` + unità, non le fatture del modulo fiscale (`documenti_fiscali`), che invece contano nel «fatturato» della Panoramica | da fare — lotto C |
 | 6 | Subappalti registrati sulla generale stessa esclusi dall'elenco e dalla soglia subappaltabile (contano solo le figlie) | da fare — lotto C |
@@ -81,6 +81,16 @@ Proposta (lotto E):
    (sicurezza, direzione lavori) ripartiti sui tre lotti.
 3. Lo stesso per lo sviluppo immobiliare: «[Esempio] Residenza Via Roma» ha già unità e piano;
    si aggiungono fasi, rapportini e fatture fornitori sulla generale, come URBAN VISION.
+
+## Grafici (14/11, su richiesta)
+
+- **FATTO** 616666eda — «Speso contro piano»: linea dello speso cumulato fino a oggi contro il
+  piano cumulato fino alla fine, linea di oggi, area che si accende fino al mese sotto il mouse,
+  schede «Dove siamo sul piano» e «Prossimi tre mesi», entrata scaglionata dei riquadri.
+  Contenitore `components/ui/line-charts-9.tsx` (shadcn chart, adattato a Tailwind 3).
+- **FATTO** 70989cf74 — la ciambella resta (Florin: «usala per altre cose»): se c'è un piano parte
+  dal budget per gruppo, non dallo speso che è già nella linea.
+- Non copiati Card/Button/Badge/Avatar dei pacchetti incollati: `components/ui` ha già i suoi.
 
 ## Ordine dei lotti
 
