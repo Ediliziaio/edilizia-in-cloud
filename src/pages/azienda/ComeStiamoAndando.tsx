@@ -117,20 +117,22 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         id: "scaduto",
         gravita: "urgente",
         titolo: `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso scaduto" : "incassi scaduti"} da sollecitare`,
-        dettaglio: `${formatCurrency(scadutoEuro)} che i clienti dovevano già averti pagato.`,
+        dettaglio: formatCurrency(scadutoEuro),
         url: scadutoUrl ?? "/azienda/cruscotto/aziendale",
         importo: scadutoEuro,
       });
     }
 
     const soglia = companyTargets?.alert_margin_min_pct ?? 0;
-    const sottoSoglia = margini.peggiori.filter((c) => (c.margine_perc ?? 100) < soglia);
+    // 14/11/2026: si contano tutti, non solo i tre peggiori (prima il numero non superava mai 3).
+    const sottoSoglia = margini.ordinati.filter((c) => (c.margine_perc ?? 100) < soglia);
     if (soglia > 0 && sottoSoglia.length > 0) {
       voci.push({
         id: "margine-basso",
         gravita: "attenzione",
         titolo: `${sottoSoglia.length} ${sottoSoglia.length === 1 ? "cantiere aperto è" : "cantieri aperti sono"} sotto il margine minimo (${soglia}%)`,
-        dettaglio: sottoSoglia.map((c) => `${c.order_code || c.description || "—"} al ${(c.margine_perc ?? 0).toFixed(1)}%`).join(" · "),
+        dettaglio: sottoSoglia.slice(0, 3).map((c) => `${c.order_code || c.description || "—"} al ${(c.margine_perc ?? 0).toFixed(1)}%`).join(" · ")
+          + (sottoSoglia.length > 3 ? ` e altri ${sottoSoglia.length - 3}` : ""),
         url: "/azienda/ordini?tab=marginalita",
       });
     }
@@ -141,8 +143,22 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         id: "costi-da-completare",
         gravita: "attenzione",
         titolo: `${senzaCosti} ${senzaCosti === 1 ? "cantiere aperto non ha" : "cantieri aperti non hanno"} costi registrati`,
-        dettaglio: "Il margine resta nascosto finché il consuntivo non è iniziato.",
+        dettaglio: "Margine non calcolabile",
         url: "/azienda/ordini?tab=marginalita",
+      });
+    }
+
+    // 14/11/2026: i fornitori già scaduti. Prima la voce guardava solo i prossimi
+    // sette giorni: su Demo 2 diceva 573 € con quasi 800.000 € di costi già scaduti.
+    const fornitoriScaduti = finance.priorPayables ?? 0;
+    if (fornitoriScaduti > 0) {
+      voci.push({
+        id: "fornitori-scaduti",
+        gravita: "urgente",
+        titolo: "Fornitori scaduti da pagare",
+        dettaglio: formatCurrency(fornitoriScaduti),
+        url: "/azienda/scadenzario",
+        importo: fornitoriScaduti,
       });
     }
 
@@ -152,7 +168,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       voci.push({
         id: "fornitori",
         gravita: "attenzione",
-        titolo: "Fornitori da pagare a breve",
+        titolo: "Fornitori da pagare entro 7 giorni",
         dettaglio: `${formatCurrency(daPagare)} in scadenza${debito > 0 ? ` su ${formatCurrency(debito)} di debito totale` : ""}.`,
         url: "/azienda/scadenzario",
         importo: daPagare,
@@ -172,8 +188,8 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
           ? `${bozze} ${bozze === 1 ? "fattura in bozza" : "fatture in bozza"} da emettere`
           : `${proforma} ${proforma === 1 ? "proforma da convertire" : "proforma da convertire"} in fattura`,
         dettaglio: bozze > 0 && proforma > 0
-          ? `E ${proforma} ${proforma === 1 ? "proforma da convertire" : "proforma da convertire"}. Finché non le emetti, il cliente non deve niente.`
-          : "Finché non le emetti, il cliente non deve niente.",
+          ? `E ${proforma} proforma da convertire`
+          : "",
         url: bozze > 0 ? "/azienda/documenti?stato=bozza" : "/azienda/documenti",
       });
     }
@@ -190,7 +206,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
     }
 
     return ordinaAttenzioni(voci);
-  }, [todayData, scadutoEuro, scadutoQuanti, scadutoUrl, margini.peggiori, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, incassi, fatturazione]);
+  }, [todayData, scadutoEuro, scadutoQuanti, scadutoUrl, margini.ordinati, margini.quanti, margini.quantiValutabili, companyTargets, finance.supplierDebt, finance.priorPayables, incassi, fatturazione]);
 
   if (error) {
     return (
@@ -239,7 +255,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
               incassi.previsione == null ? (
                 // Nessuna pagina delle impostazioni scrive la previsione (companies.monthly_revenue_target): finché non
                 // c'è un posto dove metterla, qui è solo una constatazione, senza rimando.
-                finance.collectedUndatedCount ? `${finance.collectedUndatedCount} rate pagate senza data, contate alla data prevista · IVA inclusa` : "Rate registrate per data pagamento · IVA inclusa"
+                finance.collectedUndatedCount ? `${finance.collectedUndatedCount} rate pagate senza data, contate alla data prevista · IVA inclusa` : "IVA inclusa"
               ) : (
                 <>
                   <Progress value={Math.min(100, incassi.percentuale ?? 0)} className="my-1 h-1.5" />
@@ -275,7 +291,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
             contesto={
               scaduto?.fontiMancanti.length
                 ? `${scadutoQuanti} incassi oltre la scadenza · non letti: ${scaduto.fontiMancanti.join(", ")}`
-                : `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso" : "incassi"} oltre la scadenza · rate, scadenze e fatture`
+                : `${scadutoQuanti} ${scadutoQuanti === 1 ? "incasso" : "incassi"} oltre la scadenza`
             }
           />
           {/* Qui stava «Cantieri in ritardo»: un numero di cantiere, non di soldi,
@@ -284,11 +300,11 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
               (il saldo in banca non entra), ed è scritto. */}
           <RiquadroNumero
             etichetta="Saldo delle scadenze"
-            periodo="Questo mese"
+            periodo="Da oggi a fine mese"
             to="/azienda/scadenzario"
             valore={formatCurrency(finance.cashFlowNet ?? 0)}
             tono={(finance.cashFlowNet ?? 0) < 0 ? "male" : "buono"}
-            contesto={`${formatCurrency(finance.thisMonthIncome ?? 0)} da incassare − ${formatCurrency(finance.thisMonthOutflow ?? 0)} da pagare · non è il saldo di cassa`}
+            contesto={`${formatCurrency(finance.thisMonthIncome ?? 0)} da incassare − ${formatCurrency(finance.thisMonthOutflow ?? 0)} da pagare`}
           />
         </div>
       )}
@@ -297,8 +313,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="text-xs">
-            Il margine dei cantieri non è disponibile in questo momento: gli altri
-            numeri qui sopra sono validi, quelli sui cantieri no. Non li stimo.
+            Margine dei cantieri non disponibile in questo momento.
           </AlertDescription>
         </Alert>
       )}
@@ -312,7 +327,6 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border/60 px-4 py-2.5">
           <h2 className="text-sm font-semibold text-foreground">Da guardare oggi</h2>
-          <p className="hidden text-xs text-muted-foreground sm:block">in ordine di quanto costa non farlo</p>
         </div>
 
         {caricando ? (
@@ -320,7 +334,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
         ) : attenzioni.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-4 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            Niente che richieda attenzione: nessuno scaduto, nessun fornitore in scadenza.
+            Niente da guardare oggi.
           </div>
         ) : (
           <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-border/60 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-border/60"}>
@@ -329,7 +343,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
               <li key={v.id} className={cn(comeSezione && "lg:border-b lg:border-border/60 lg:odd:border-r", i >= 3 && "max-sm:hidden")}>
                 <Link
                   to={v.url}
-                  title={`${v.titolo} — ${v.dettaglio}`}
+                  title={v.dettaglio ? `${v.titolo} — ${v.dettaglio}` : v.titolo}
                   className="group flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-muted/50"
                   style={{
                     borderLeftColor:
@@ -340,7 +354,7 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium leading-snug text-foreground">{v.titolo}</p>
-                    <p className="truncate text-xs leading-4 text-muted-foreground">{v.dettaglio}</p>
+                    {v.dettaglio && <p className="truncate text-xs leading-4 text-muted-foreground">{v.dettaglio}</p>}
                   </div>
                   <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
                 </Link>

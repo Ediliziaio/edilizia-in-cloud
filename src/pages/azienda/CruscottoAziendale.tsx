@@ -10,7 +10,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { CruscottoFilters } from "@/components/cruscotto/CruscottoFilters";
 import { ScadutoPerEtaWidget } from "@/components/cruscotto/ScadutoPerEtaWidget";
 import { CashFlowForecast } from "@/components/cruscotto/CashFlowForecast";
-import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
 import { EmptyStateGuide } from "@/components/cruscotto/EmptyStateGuide";
 import { SectionErrorBoundary } from "@/components/cruscotto/SectionErrorBoundary";
 import { DrilldownDrawer, type DrilldownType } from "@/components/cruscotto/DrilldownDrawer";
@@ -92,7 +91,7 @@ export default function CruscottoAziendale() {
   const cruscotto = useCruscottoData();
   const {
     marketing, finance, workOrders, companyTargets, cashFlowForecast,
-    isLoading, error, financeError, filters, updateFilters,
+    isLoading, error, filters, updateFilters,
   } = cruscotto;
   const [drilldown, setDrilldown] = useState<DrilldownType>(null);
   // P3.3 — persistenza tab attiva tra navigazioni (sessione corrente).
@@ -213,7 +212,7 @@ export default function CruscottoAziendale() {
       label: "Venduto periodo (IVA escl.)",
       etichetta: "Venduto",
       value: eur(finance.revenueThisMonth),
-      hint: `${eur(finance.revenuePrevMonth)} nel periodo precedente · IVA esclusa`,
+      hint: `prima ${eur(finance.revenuePrevMonth)} · IVA escl.`,
       tone: (finance.revenueThisMonth >= finance.revenuePrevMonth ? "buono" : "attenzione") as TonoNumero,
       tendenza: ultimiSei.map((m) => m.venduto),
       variazione: variazioneSu(finance.revenueThisMonth, finance.revenuePrevMonth),
@@ -226,7 +225,7 @@ export default function CruscottoAziendale() {
       label: "Incassato periodo (IVA incl.)",
       etichetta: "Incassato",
       value: eur(finance.collectedInPeriod ?? 0),
-      hint: `${eur(finance.collectedPrevPeriod ?? 0)} nel periodo precedente · IVA inclusa`,
+      hint: `prima ${eur(finance.collectedPrevPeriod ?? 0)} · IVA incl.`,
       tone: ((finance.collectedInPeriod ?? 0) >= (finance.collectedPrevPeriod ?? 0) ? "buono" : "attenzione") as TonoNumero,
       tendenza: ultimiSei.map((m) => m.incassato),
       variazione: variazioneSu(finance.collectedInPeriod ?? 0, finance.collectedPrevPeriod ?? 0),
@@ -356,7 +355,7 @@ export default function CruscottoAziendale() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">Venduto, incassato e cassa</h3>
-                    <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Ultimi 12 mesi · non segue il filtro del periodo</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Ultimi 12 mesi</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_VENDUTO }} /> Venduto <span className="opacity-70">IVA escl.</span></span>
@@ -367,12 +366,11 @@ export default function CruscottoAziendale() {
 
                 {!trendIsEmpty && executiveTrend.length > 0 && (
                   <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-                    <StatGrafico etichetta="Venduto 12 mesi" valore={formatEuroRiquadro(totali12.venduto)} nota="IVA esclusa" />
-                    <StatGrafico etichetta="Incassato 12 mesi" valore={formatEuroRiquadro(totali12.incassato)} nota="IVA inclusa" />
+                    <StatGrafico etichetta="Venduto 12 mesi" valore={formatEuroRiquadro(totali12.venduto)} />
+                    <StatGrafico etichetta="Incassato 12 mesi" valore={formatEuroRiquadro(totali12.incassato)} />
                     <StatGrafico
                       etichetta="Cassa netta 12 mesi"
                       valore={`${totali12.cassa > 0 ? "+" : ""}${formatEuroRiquadro(totali12.cassa)}`}
-                      nota="entrate meno uscite"
                       tono={totali12.cassa >= 0 ? "buono" : "cattivo"}
                     />
                   </div>
@@ -424,9 +422,6 @@ export default function CruscottoAziendale() {
                     </ResponsiveContainer>
                   )}
                 </div>
-                {!trendIsEmpty && (
-                  <p className="mt-2 text-right text-[10px] text-muted-foreground">Clicca su un mese per aprire le commesse del periodo</p>
-                )}
               </div>
               </Comparsa>
             )}
@@ -473,7 +468,6 @@ export default function CruscottoAziendale() {
                   <div className="space-y-3">
                     <CashFlowForecast cashFlowForecast={cashFlowForecast} isLoading={isLoading} />
                     <ScadutoPerEtaWidget scaduto={scadutoTesoreria ?? { fasce: [], totale: 0, rate: 0, ritardoMedio: null }} isLoading={previsionale.isLoading} />
-                    <FinanzaCashFlow finance={finance} isLoading={isLoading} dataError={financeError} />
                   </div>
                 </SectionErrorBoundary>
               )}

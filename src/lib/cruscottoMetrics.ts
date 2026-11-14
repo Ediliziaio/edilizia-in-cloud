@@ -50,8 +50,14 @@ export function registeredCostAmount(row: {amount: number | null; vat_rate?: num
 
 export interface OpenPayment { amount: number | null; expected_date: string | null }
 /** Remaining scheduled flows, not movements or the balance of a bank account. */
+/**
+ * 14/11/2026: da OGGI a fine mese. Prima partiva dal primo del mese: le rate già
+ * scadute nel mese stavano qui e anche nello «Scaduto da incassare» (contate due
+ * volte), e i costi già scaduti sembravano «da pagare nel mese». Quello che è
+ * scaduto (anche nei mesi prima) va in prior*.
+ */
 export function scheduledMonthFlows(payments: OpenPayment[], costs: Array<{amount: number | null; due_date: string | null; vat_rate?: number | null}>, today = new Date()) {
-  const from = format(new Date(today.getFullYear(), today.getMonth(), 1), "yyyy-MM-dd");
+  const from = format(today, "yyyy-MM-dd");
   const until = format(new Date(today.getFullYear(), today.getMonth() + 1, 1), "yyyy-MM-dd");
   let incoming = 0, outgoing = 0, priorReceivables = 0, priorPayables = 0;
   for (const row of payments) {

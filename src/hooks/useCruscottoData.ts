@@ -318,8 +318,16 @@ export function useCruscottoData() {
           .is("deleted_at", null)
           .gte("created_at", prevFromStr).lte("created_at", prevToStr)
           .order("id").range(from, to)),
-        readAllOrderRows<{amount: number; due_date: string | null; is_paid: boolean; vat_rate: number | null}>((from, to) => supabase.from("company_costs").select("id, amount, due_date, is_paid, vat_rate")
-          .eq("company_id", companyId!).eq("is_paid", false).order("id").range(from, to)),
+        // 14/11/2026: fuori i costi delle commesse nel cestino (entravano nel debito ma non nella cassa dei 12 mesi).
+        Promise.all([
+          readAllOrderRows<{amount: number; due_date: string | null; is_paid: boolean; vat_rate: number | null; order_id: string | null}>((from, to) => supabase.from("company_costs").select("id, amount, due_date, is_paid, vat_rate, order_id")
+            .eq("company_id", companyId!).eq("is_paid", false).order("id").range(from, to)),
+          readAllOrderRows<{id: string}>((from, to) => supabase.from("orders").select("id")
+            .eq("company_id", companyId!).not("deleted_at", "is", null).order("id").range(from, to)),
+        ]).then(([costi, cestinate]) => {
+          const fuori = new Set(cestinate.map((o) => o.id));
+          return costi.filter((c) => !c.order_id || !fuori.has(c.order_id));
+        }),
         // Incassato con la regola della scheda commessa (dal database), nel periodo e nel precedente
         incassatoTra(periodoGiorni.da, periodoGiorni.a),
         incassatoTra(periodoGiorni.prevDa, periodoGiorni.prevA),

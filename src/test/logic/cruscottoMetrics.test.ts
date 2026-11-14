@@ -46,13 +46,13 @@ describe("cruscotto: registrato e previsto",()=>{
    {amount:200,due_date:"2026-10-01"},{amount:100,due_date:"2026-10-31"},
    {amount:500,due_date:"2026-09-30"},{amount:800,due_date:"2026-11-01"},{amount:999,due_date:null},
   ],now);
-  expect(flows).toEqual({incoming:1000,outgoing:300,priorReceivables:300,priorPayables:500,net:700});
+  expect(flows).toEqual({incoming:400,outgoing:100,priorReceivables:900,priorPayables:700,net:300});
  });
  it("gestisce il cambio anno senza includere gennaio nel mese di dicembre",()=>{
   expect(scheduledMonthFlows([{amount:10,expected_date:"2026-12-31"},{amount:20,expected_date:"2027-01-01"}],[],new Date(2026,11,31,12)).incoming).toBe(10);
  });
  it("conserva gli storni dei costi senza trasformarli in uscite positive",()=>{
-  expect(scheduledMonthFlows([],[{amount:100,due_date:"2026-10-10"},{amount:-20,due_date:"2026-10-10"}],now).outgoing).toBe(80);
+  expect(scheduledMonthFlows([],[{amount:100,due_date:"2026-10-20"},{amount:-20,due_date:"2026-10-20"}],now).outgoing).toBe(80);
  });
 });
 

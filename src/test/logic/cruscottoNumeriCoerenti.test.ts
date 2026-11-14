@@ -143,7 +143,8 @@ describe("schede del cruscotto (08/11/2026)", () => {
     expect(inCima).not.toContain('id: "cantieri-ritardo"');
     expect(inCima).not.toContain('id: "ticket"');
     expect(inCima).toContain('etichetta="Saldo delle scadenze"');
-    expect(inCima).toContain("non è il saldo di cassa");
+    // 14/11/2026: da oggi a fine mese, così le rate già scadute stanno solo nello scaduto.
+    expect(inCima).toContain(`periodo="Da oggi a fine mese"`);
   });
 
   it("si chiamano Cruscotto Economico e Dashboard Operativa, anche nel selettore", () => {

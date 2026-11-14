@@ -56,6 +56,8 @@ export interface MargineCantieriAperti {
   marginePerc: number | null;
   /** I peggiori per margine percentuale, per guardarli subito. */
   peggiori: CantiereMargine[];
+  /** Tutti i valutabili con un margine %, dal peggiore: per contare chi sta sotto soglia. */
+  ordinati: CantiereMargine[];
 }
 
 export function margineCantieriAperti(
@@ -71,10 +73,10 @@ export function margineCantieriAperti(
   );
   const margineEuro = valutabili.reduce((s, c) => s + (c.margine ?? 0), 0);
   const valoreEuro = valutabili.reduce((s, c) => s + (c.preventivo_totale ?? 0), 0);
-  const peggiori = [...valutabili]
+  const ordinati = [...valutabili]
     .filter((c) => c.margine_perc != null)
-    .sort((a, b) => (a.margine_perc ?? 0) - (b.margine_perc ?? 0))
-    .slice(0, quantiPeggiori);
+    .sort((a, b) => (a.margine_perc ?? 0) - (b.margine_perc ?? 0));
+  const peggiori = ordinati.slice(0, quantiPeggiori);
   return {
     quanti: aperti.length,
     quantiValutabili: valutabili.length,
@@ -82,6 +84,7 @@ export function margineCantieriAperti(
     valoreEuro,
     marginePerc: valoreEuro > 0 ? (margineEuro / valoreEuro) * 100 : null,
     peggiori,
+    ordinati,
   };
 }
 
