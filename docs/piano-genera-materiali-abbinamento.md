@@ -92,11 +92,10 @@ righe che ci sono, filtri come pastiglie in una riga.
 
 ## Stato (14/11/2026)
 
-- Lotto 1: confezioni d'uso comune fatte. Prezzo del listino: il client lo manda già;
-  la migrazione `20290322120000_materiali_generazione_prezzo_listino` è pronta e
-  provata in una transazione annullata, ma l'applicazione è stata fermata dal
-  controllo dei permessi: è fuori da `supabase/migrations/` finché il titolare non
-  la approva (finché non c'è, le righe col solo listino si salvano senza prezzo).
+- Lotto 1: confezioni d'uso comune fatte. Prezzo del listino: migrazione
+  `20290322120000_materiali_generazione_prezzo_listino` provata in una transazione
+  annullata e applicata il 14/11/2026 con l'approvazione del titolare (versione
+  riallineata al file).
 - Lotto 2: candidati col motivo, scelta nella riga con ricerca, «Nessun articolo»,
   alias in `product_aliases` (colonna `alias_normalized` generata dal database: non
   si scrive), magazzino in sola lettura. Provato su Demo 2 andata e ritorno.
