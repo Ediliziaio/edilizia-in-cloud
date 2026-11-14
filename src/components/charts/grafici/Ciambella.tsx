@@ -74,7 +74,10 @@ export function Ciambella({
               data={dati} dataKey="valore" nameKey="nome" innerRadius={interno} outerRadius={esterno}
               paddingAngle={dati.length > 1 ? 2 : 0} cornerRadius={3} stroke="hsl(var(--card))" strokeWidth={2}
               isAnimationActive={!fermo} animationDuration={800}
-              onClick={onFetta ? (d: { nome?: string }) => d?.nome && cliccabile(d.nome) && onFetta(d.nome) : undefined}
+              onClick={onFetta ? (d: unknown) => {
+                const nome = (d as { nome?: string } | null)?.nome;
+                if (nome && cliccabile(nome)) onFetta(nome);
+              } : undefined}
               className={onFetta ? "cursor-pointer" : undefined}
             >
               {dati.map((f) => <Cell key={f.nome} fill={f.colore} />)}
