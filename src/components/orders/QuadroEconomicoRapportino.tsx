@@ -278,12 +278,17 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
           <dt className="text-[11px] text-muted-foreground">Costo{tot.completo ? "" : " (parziale)"}</dt>
           <dd className={`font-semibold ${tot.completo ? "" : "text-amber-700"}`}>{euro(tot.costo)}</dd>
         </div>
-        {conVendita && <div><dt className="text-[11px] text-muted-foreground">Ricavo</dt><dd className="font-semibold">{euro(tot.ricavo)}</dd></div>}
+        {conVendita && (
+          <div>
+            <dt className="text-[11px] text-muted-foreground">Ricavo{tot.prezziDaDefinire ? " (parziale)" : ""}</dt>
+            <dd className={`font-semibold ${tot.prezziDaDefinire ? "text-amber-700" : ""}`}>{euro(tot.ricavo)}</dd>
+          </div>
+        )}
         {conVendita && permissions.canViewMargins && (
           <div>
             <dt className="text-[11px] text-muted-foreground">Margine</dt>
             {tot.margine == null
-              ? <dd className="text-xs font-semibold text-amber-700">Incompleto: mancano {tot.mancano} costi</dd>
+              ? <dd className="text-xs font-semibold text-amber-700">Incompleto: {[tot.mancano ? `${tot.mancano} ${tot.mancano === 1 ? "costo" : "costi"} da completare` : "", tot.prezziDaDefinire ? `${tot.prezziDaDefinire} ${tot.prezziDaDefinire === 1 ? "prezzo" : "prezzi"} da definire` : ""].filter(Boolean).join(", ")}</dd>
               : <dd className={`font-semibold ${tot.margine < 0 ? "text-red-700" : "text-emerald-700"}`}>{euro(tot.margine)}</dd>}
           </div>
         )}

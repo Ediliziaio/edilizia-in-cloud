@@ -11,22 +11,23 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (...a: unknown[]) => stato.rpc(...a),
     from: (t: string) => {
-      if (t === "rapportino_voci_libere") return { insert: (r: unknown) => stato.insert(r), delete: () => ({ eq: async () => ({ error: null }) }) };
-      return { select: () => ({ eq: () => ({ eq: () => ({ order: async () => ({ data: [] }) }), maybeSingle: async () => ({ data: null }) }) }) };
+      if (t === "rapportino_voci_libere") return { insert: (r: unknown) => stato.insert(r), delete: () => ({ eq: async () => ({ error: null as Error | null }) }) };
+      return { select: () => ({ eq: () => ({ eq: () => ({ order: async () => ({ data: [] as unknown[] }) }), maybeSingle: async () => ({ data: null as unknown }) }) }) };
     },
   },
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c" } }) }));
-vi.mock("@/hooks/useCatalogoVociRapportino", () => ({ useCatalogoVociRapportino: () => ({ data: { voci: [], aMano: true } }) }));
+vi.mock("@/hooks/useCatalogoVociRapportino", () => ({ useCatalogoVociRapportino: () => ({ data: { voci: [] as unknown[], aMano: true } }) }));
 
 import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
 
+const N = null as number | null;
 const quadro = {
   appalto: false, a_corpo: false, registrato: false,
   persone: [
-    { emp: "e1", nome: "Anna Costata", ditta: false, ore: 8, costo_orario: 25, costo: 200, unita: null, quantita: null, prezzo: null, ricavo: null },
-    { emp: "e2", nome: "Marco Senzacosto", ditta: false, ore: 6, costo_orario: null, costo: null, unita: null, quantita: null, prezzo: null, ricavo: null },
+    { emp: "e1", nome: "Anna Costata", ditta: false, ore: 8, costo_orario: 25, costo: 200, unita: null as string | null, quantita: N, prezzo: N, ricavo: N },
+    { emp: "e2", nome: "Marco Senzacosto", ditta: false, ore: 6, costo_orario: N, costo: N, unita: null as string | null, quantita: N, prezzo: N, ricavo: N },
   ],
   mezzi: [{ mezzo_id: "m1", nome: "Escavatore", noleggio: false, ore: 5, ore_stimate: false, costo_orario: 20, importo: 100 }],
   voci: [
@@ -37,7 +38,7 @@ const quadro = {
 };
 const listino = [
   { tariffa_id: "t1", codice: "POS-01", descrizione: "Posa serramento", unita: "pz", prezzo: 45, fonte: "committente", costo_unitario: 30, categoria: "posa" },
-  { tariffa_id: "t3", codice: "SMA-01", descrizione: "Smaltimento", unita: "pz", prezzo: null, fonte: "mancante", costo_unitario: 10, categoria: "smaltimento" },
+  { tariffa_id: "t3", codice: "SMA-01", descrizione: "Smaltimento", unita: "pz", prezzo: N, fonte: "mancante", costo_unitario: 10, categoria: "smaltimento" },
 ];
 
 const disegna = () => render(
@@ -60,7 +61,7 @@ describe("Quadro economico del rapportino", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Costo da completare: Marco Senzacosto (costo orario mancante)");
     expect(screen.getByText("Costo da completare", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText("Costo (parziale)")).toBeInTheDocument();
-    expect(screen.getByText(/Incompleto: mancano 1 costi/)).toBeInTheDocument();
+    expect(screen.getByText(/Incompleto: 1 costo da completare/)).toBeInTheDocument();
     // ore × costo orario per operai e mezzi
     expect(screen.getByText(/8 h × 25,00/)).toBeInTheDocument();
     expect(screen.getByText(/5 h × 20,00/)).toBeInTheDocument();

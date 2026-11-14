@@ -285,5 +285,8 @@ describe("Le parole e i totali dell'interfaccia", () => {
     expect(t).toMatchObject({ costo: 360, ricavo: 90, completo: false, margine: null, mancano: 1 });
     expect(totaliQuadro({ persone: [{ costo: 200, ditta: false }], voci: [{ quantita: 2, costo_unitario: 30, vendita_unitaria: 150 }] }))
       .toMatchObject({ costo: 260, ricavo: 300, completo: true, margine: 40 });
+    // Un prezzo ancora da definire: il ricavo è parziale, il margine non si dà.
+    expect(totaliQuadro({ persone: [], voci: [{ quantita: 2, costo_unitario: 90, vendita_unitaria: null, prezzo_fonte: "mancante" }] }))
+      .toMatchObject({ costo: 180, ricavo: 0, completo: true, prezziDaDefinire: 1, margine: null });
   });
 });

@@ -59,15 +59,17 @@ export interface MancanzaCosto { tipo: "persona" | "mezzo"; nome: string; motivo
 
 interface RigaPersona { costo: number | null; ditta: boolean; ricavo?: number | null }
 interface RigaMezzo { importo: number | null; noleggio: boolean }
-interface RigaVoce { quantita: number; costo_unitario: number | null; vendita_unitaria: number | null }
+interface RigaVoce { quantita: number; costo_unitario: number | null; vendita_unitaria: number | null; prezzo_fonte?: FontePrezzo | null }
 
 export interface TotaliQuadro {
   costo: number;
   ricavo: number;
-  /** Null quando il costo è incompleto: un margine su un costo a metà non è un margine. */
+  /** Null quando costo o ricavo sono incompleti: un margine su numeri a metà non è un margine. */
   margine: number | null;
   completo: boolean;
   mancano: number;
+  /** Voci del listino col prezzo ancora da definire: il ricavo è parziale. */
+  prezziDaDefinire: number;
 }
 
 /**
@@ -86,7 +88,12 @@ export function totaliQuadro(q: { persone: RigaPersona[]; mezzi?: RigaMezzo[]; v
   const mancanoLocali = q.persone.filter((r) => !r.ditta && r.costo == null).length + mezzi.filter((m) => !m.noleggio && m.importo == null).length;
   const mancano = Math.max(mancanoLocali, q.costoDaCompletare?.length ?? 0);
   const completo = mancano === 0;
-  return { costo: arrotonda(costo), ricavo: arrotonda(ricavo), margine: completo ? arrotonda(ricavo - costo) : null, completo, mancano };
+  const prezziDaDefinire = voci.filter((v) => v.prezzo_fonte === "mancante" && v.vendita_unitaria == null).length;
+  return {
+    costo: arrotonda(costo), ricavo: arrotonda(ricavo),
+    margine: completo && prezziDaDefinire === 0 ? arrotonda(ricavo - costo) : null,
+    completo, mancano, prezziDaDefinire,
+  };
 }
 
 const arrotonda = (n: number): number => Math.round(n * 100) / 100;
