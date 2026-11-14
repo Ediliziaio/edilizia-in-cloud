@@ -257,6 +257,19 @@ describe("le schede dei moduli", () => {
     expect(screen.getByText("A SAL").parentElement).toHaveTextContent(/40\.000/);
   });
 
+  it("appalto: in testata i giorni alla fine contrattuale, e in ritardo la penale col tetto", () => {
+    const contratto = (fine: string) => ({ contratto: { importoBase: 100_000, ribassoPct: 0, oneriSicurezza: 0, dataFinePrevista: fine, dataUltimazione: null, penaleGiornaliera: 100, penaleMassimaPct: 10 }, atti: [], sal: [] });
+    m.contratto = contratto("2099-01-01") as never;
+    disegna();
+    expect(screen.getByText("Fine lavori").closest(".generale-kpi")).toHaveTextContent(/tra \d+ giorni/);
+    cleanup();
+    m.contratto = contratto("2020-01-01") as never;
+    disegna();
+    const kpi = screen.getByText("Fine lavori").closest(".generale-kpi") as HTMLElement;
+    expect(kpi).toHaveTextContent(/giorni di ritardo/);
+    expect(kpi).toHaveTextContent(/penale maturata 10\.000.*al tetto/);
+  });
+
   it("«Per partire» è per chi può fare i passi, non per chi legge da telefono", () => {
     disegna();
     expect(screen.getByText("Per partire")).toBeInTheDocument();

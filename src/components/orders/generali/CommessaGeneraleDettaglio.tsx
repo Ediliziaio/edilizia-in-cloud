@@ -38,11 +38,12 @@ import {
   DEFINIZIONI_MODELLI, avvisiGenerale, formattaEuro, quota, totaliGenerale,
   type FigliaGenerale, type RiepilogoGenerale, type TotaliGenerale,
 } from "@/lib/orders/commesseGenerali";
-import { SEZIONI_CONTRATTO, totaliSal, valoreContratto } from "@/lib/orders/generali/contratto";
+import { SEZIONI_CONTRATTO, fineAggiornata, giorniTra, oggiIso, penaleMaturata, totaliSal, valoreContratto } from "@/lib/orders/generali/contratto";
 import { numeriChiave, pianoPerNumeri, type NumeroChiave } from "@/lib/orders/generali/numeriChiave";
 import { cn } from "@/lib/utils";
 
 const euro = (n: number | null) => (n === null ? "—" : formattaEuro(n));
+const dataIt = (d: string) => (/^\d{4}-\d{2}-\d{2}/.test(d) ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : d);
 const percento = (n: number | null) => (n === null ? "" : `${Math.round(n)}%`);
 const NESSUNA_SIGLA: string[] = [];
 
@@ -333,6 +334,12 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
   const budgetCompleto = n.piano?.budgetCompleto !== false;
   const conCapitale = numeri.some((x) => x.id === "capitale") && r.permessi.margini && n.piano?.calendarioCompleto !== false;
   const conMargine = r.permessi.margini && margine !== null;
+  // Appalto: quanto manca alla fine contrattuale (con le proroghe) e la penale se si è in ritardo (T3, 14/11/2026).
+  const oggi = oggiIso();
+  const fineContratto = appalto && contratto.data ? fineAggiornata(contratto.data.contratto, contratto.data.atti).data : null;
+  const ultimati = appalto ? contratto.data?.contratto?.dataUltimazione ?? null : null;
+  const penale = appalto && contratto.data ? penaleMaturata(contratto.data.contratto, contratto.data.atti, oggi) : null;
+  const giorniAllaFine = fineContratto && !ultimati ? giorniTra(oggi, fineContratto) : null;
 
   const righe = [
     ...(appalto || r.figlie.length ? [{ etichetta: appalto ? "Assegnato" : "Prezzi delle unità", valore: t.assegnato, tono: "bg-blue-300" }] : []),
@@ -352,7 +359,7 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
   const colonne = barre.length === 5 ? "lg:grid-cols-5" : barre.length === 3 ? "lg:grid-cols-3" : barre.length === 2 ? "lg:grid-cols-2" : barre.length === 1 ? "lg:grid-cols-1" : "lg:grid-cols-4";
   const quantiNumeri = costruzione
     ? 1 + (speso !== null ? 1 : 0) + (conCapitale ? 1 : 0) + (conMargine ? 1 : 0)
-    : 4;
+    : 4 + (appalto && (fineContratto || ultimati) ? 1 : 0);
 
   return (
     <section aria-label={r.permessi.importi ? `${def.valore.etichetta}: ${euro(r.generale.valore ?? t.assegnato)}` : undefined} className="generale-hero">
@@ -376,6 +383,15 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
             <Numero etichetta={def.valore.etichetta} valore={euro(r.generale.valore ?? t.assegnato)} nota={r.generale.valore === null ? `somma delle ${def.figlia.tante.toLowerCase()}` : undefined} />
             <Numero tipo="incasso" etichetta="Da incassare" valore={euro(t.daIncassare)} nota={appalto ? "fatturato e non ancora pagato" : "venduto o fatturato, non ancora pagato"} />
             {numeri.some((x) => x.id === "residuo") && <Numero etichetta="Residuo del contratto" valore={euro(di("residuo"))} nota="non ancora a SAL" />}
+            {appalto && ultimati && <Numero etichetta="Fine lavori" valore="Ultimati" nota={`il ${dataIt(ultimati)}${penale ? ` · penale ${euro(penale.importo)}` : ""}`} tono={penale ? "rosso" : undefined} />}
+            {appalto && !ultimati && giorniAllaFine !== null && (
+              <Numero
+                etichetta="Fine lavori"
+                valore={giorniAllaFine >= 0 ? `tra ${giorniAllaFine} ${giorniAllaFine === 1 ? "giorno" : "giorni"}` : `${-giorniAllaFine} giorni di ritardo`}
+                tono={giorniAllaFine < 0 ? "rosso" : undefined}
+                nota={giorniAllaFine >= 0 ? `scadenza contrattuale ${dataIt(fineContratto!)}` : penale ? `penale maturata ${euro(penale.importo)}${penale.alTetto ? " (al tetto)" : ""}` : `scadenza ${dataIt(fineContratto!)}, penale non indicata`}
+              />
+            )}
             {numeri.some((x) => x.id === "capitale") && r.permessi.margini && <Numero tipo="capitale" etichetta="Capitale impegnato" valore={euro(di("capitale"))} nota={n.piano?.calendarioCompleto === false ? (n.voci.some((v) => v.importo > 0 && !v.mese) ? "completa il calendario del piano" : "completa le stime del piano") : "il massimo previsto"} />}
             {numeri.some((x) => x.id === "assegnare") && (
               <Numero
