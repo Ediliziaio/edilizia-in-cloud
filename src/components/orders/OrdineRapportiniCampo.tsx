@@ -37,6 +37,7 @@ import { CorreggiRapportino, StoricoRapportino } from "@/components/orders/Corre
 
 const StoricoSpazio = ({ rapportinoId }: { rapportinoId: string }) => <div className="w-full"><StoricoRapportino rapportinoId={rapportinoId} /></div>;
 import { QuadroEconomicoRapportino } from "@/components/orders/QuadroEconomicoRapportino";
+import { CostiDaCompletareCommessa } from "@/components/orders/CostiDaCompletareCommessa";
 import { AnnullaRapportinoDialog, RifiutaRapportinoDialog, useDecisioneRapportino } from "@/components/orders/DecisioneRapportino";
 import { orePersoneRapportino } from "@/lib/campo/orePersone";
 
@@ -265,6 +266,7 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
           <p className="text-sm text-muted-foreground">{soloDaApprovare ? "Nessun rapportino da approvare" : "Nessun rapportino caricato dagli operai"}</p>
         ) : (
           <div className="space-y-4">
+            {!soloDaApprovare && canViewCosts && <CostiDaCompletareCommessa orderId={orderId} />}
             {!soloDaApprovare && <TotaliCampiCommessa orderId={orderId} rapportini={rapportini} />}
             {gruppi.map((gruppo) => (
               <section key={gruppo.mese} aria-label={gruppo.etichetta} className="space-y-2">

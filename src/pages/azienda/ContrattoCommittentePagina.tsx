@@ -45,7 +45,11 @@ interface Bozza {
   giorni_pagamento: string; ritenuta_pct: string; maggiorazione_straordinario_pct: string; maggiorazione_festivo_pct: string;
   modo_fatturazione: string; regime_iva: string; include_fornitura: boolean; condizioni: string;
 }
-interface RigaTariffa { chiave: string; id?: string; tipo: string; descrizione: string; unita_misura: string; prezzo: string; tolta?: boolean }
+// tariffa_id: la voce del listino generale che questa tariffa sostituisce per il committente (14/11/2026).
+// Il prezzo nei rapportini la trova per id, mai per descrizione somigliante.
+interface RigaTariffa { chiave: string; id?: string; tipo: string; descrizione: string; unita_misura: string; prezzo: string; tariffa_id?: string | null; tolta?: boolean }
+interface VoceGenerale { id: string; codice: string | null; nome: string }
+const nomeVoce = (v: VoceGenerale): string => (v.codice ? `${v.codice} · ${v.nome}` : v.nome);
 
 let contatore = 0;
 const rigaVuota = (): RigaTariffa => ({ chiave: `n${++contatore}`, tipo: "manodopera", descrizione: "", unita_misura: "ora", prezzo: "" });
@@ -103,6 +107,21 @@ export default function ContrattoCommittentePagina() {
       return (data ?? []) as Array<Record<string, unknown>>;
     },
   });
+  const listinoGenerale = useQuery({
+    queryKey: ["listino-generale-voci", companyId], enabled: !!companyId && vedeImporti, staleTime: 60_000,
+    queryFn: async () => {
+      const tutte: VoceGenerale[] = [];
+      for (let da = 0; da < 5000; da += 1000) {
+        const { data, error } = await db.from("tariffe_aziendali").select("id, codice, nome").eq("company_id", companyId).eq("attivo", true)
+          .order("nome").order("id").range(da, da + 999);
+        if (error) throw error;
+        tutte.push(...((data ?? []) as VoceGenerale[]));
+        if ((data ?? []).length < 1000) break;
+      }
+      return tutte;
+    },
+  });
+  const vociGenerali = listinoGenerale.data ?? [];
   const altriContratti = useQuery({
     queryKey: ["appalto-contratti-azienda", companyId], enabled: !!companyId && vedeImporti,
     queryFn: async () => {
@@ -131,6 +150,7 @@ export default function ContrattoCommittentePagina() {
 
   const righeBase: RigaTariffa[] = useMemo(() => (tariffeSalvate.data ?? []).map((t) => ({
     chiave: String(t.id), id: String(t.id), tipo: String(t.tipo), descrizione: String(t.descrizione), unita_misura: String(t.unita_misura), prezzo: formatDecimalIT(Number(t.prezzo_unitario)),
+    tariffa_id: (t.tariffa_id as string | null) ?? null,
   })), [tariffeSalvate.data]);
   const [righeModificate, setRighe] = useState<RigaTariffa[] | null>(null);
   const righe = righeModificate ?? (righeBase.length || !nuovo ? righeBase : [rigaVuota()]);
@@ -140,9 +160,9 @@ export default function ContrattoCommittentePagina() {
   // Una tariffa già salvata si spegne, non si cancella: i rendiconti fatti la citano.
   const togli = (r: RigaTariffa): void => setRighe(r.id ? righe.map((x) => (x.chiave === r.chiave ? { ...x, tolta: true } : x)) : righe.filter((x) => x.chiave !== r.chiave));
   const copiaDa = async (origine: string): Promise<void> => {
-    const { data, error } = await db.from("appalto_tariffe").select("tipo, descrizione, unita_misura, prezzo_unitario").eq("contratto_id", origine).eq("attivo", true).order("ordine", { ascending: true });
+    const { data, error } = await db.from("appalto_tariffe").select("tipo, descrizione, unita_misura, prezzo_unitario, tariffa_id").eq("contratto_id", origine).eq("attivo", true).order("ordine", { ascending: true });
     if (error) { toast({ title: "Tariffe non copiate", description: "Riprova.", variant: "destructive" }); return; }
-    const nuove = ((data ?? []) as Array<Record<string, unknown>>).map((t) => ({ chiave: `n${++contatore}`, tipo: String(t.tipo), descrizione: String(t.descrizione), unita_misura: String(t.unita_misura), prezzo: formatDecimalIT(Number(t.prezzo_unitario)) }));
+    const nuove = ((data ?? []) as Array<Record<string, unknown>>).map((t) => ({ chiave: `n${++contatore}`, tipo: String(t.tipo), descrizione: String(t.descrizione), unita_misura: String(t.unita_misura), prezzo: formatDecimalIT(Number(t.prezzo_unitario)), tariffa_id: (t.tariffa_id as string | null) ?? null }));
     setRighe([...righe.filter((r) => r.id || r.descrizione.trim()), ...nuove]);
   };
 
@@ -186,7 +206,7 @@ export default function ContrattoCommittentePagina() {
         for (const [ordine, r] of righe.entries()) {
           if (r.tolta && r.id) { const { error } = await db.from("appalto_tariffe").update({ attivo: false }).eq("id", r.id); if (error) throw error; continue; }
           if (r.tolta || !r.descrizione.trim()) continue;
-          const t = { company_id: companyId, contratto_id: idContratto, tipo: r.tipo, descrizione: r.descrizione.trim(), unita_misura: r.unita_misura, prezzo_unitario: parseDecimalIT(r.prezzo), ordine, attivo: true };
+          const t = { company_id: companyId, contratto_id: idContratto, tipo: r.tipo, descrizione: r.descrizione.trim(), unita_misura: r.unita_misura, prezzo_unitario: parseDecimalIT(r.prezzo), tariffa_id: r.tariffa_id ?? null, ordine, attivo: true };
           const { error } = r.id ? await db.from("appalto_tariffe").update(t).eq("id", r.id) : await db.from("appalto_tariffe").insert(t);
           if (error) throw error;
         }
@@ -279,6 +299,8 @@ export default function ContrattoCommittentePagina() {
                           onBlur={() => r.prezzo.trim() && cambiaRiga(r.chiave, { prezzo: formatDecimalIT(parseDecimalIT(r.prezzo)) })}
                           onKeyDown={(e) => { if (e.key === "Enter" && i === visibili.length - 1) { e.preventDefault(); aggiungi(); } }} />
                         {puoModificare && <Button variant="ghost" size="sm" className="h-9 px-1.5" aria-label={`Togli ${r.descrizione || "tariffa"}`} onClick={() => togli(r)}><X className="h-4 w-4" /></Button>}
+                        <VoceDelListino indice={i} riga={r} voci={vociGenerali} disabled={!puoModificare}
+                          onScegli={(v) => cambiaRiga(r.chiave, { tariffa_id: v?.id ?? null, ...(v && !r.descrizione.trim() ? { descrizione: v.nome } : {}) })} />
                       </div>
                     ))}
                   </div>
@@ -331,6 +353,36 @@ export default function ContrattoCommittentePagina() {
           </div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Collega la tariffa del committente alla voce del listino generale. Ricerca col datalist del browser
+ * (codice o descrizione); si salva l'id. Senza collegamento la tariffa vale solo per manodopera e
+ * rendiconto, non per le voci che l'ufficio aggiunge al rapportino.
+ */
+function VoceDelListino({ indice, riga, voci, disabled, onScegli }: {
+  indice: number; riga: RigaTariffa; voci: VoceGenerale[]; disabled: boolean; onScegli: (v: VoceGenerale | null) => void;
+}) {
+  const scelta = voci.find((v) => v.id === riga.tariffa_id) ?? null;
+  const [testo, setTesto] = useState<string | null>(null);
+  const valore = testo ?? (scelta ? nomeVoce(scelta) : "");
+  const idLista = `voci-listino-${riga.chiave}`;
+  return (
+    <div className="col-span-full -mt-0.5 mb-1 flex items-center gap-1.5 pl-1 text-xs text-muted-foreground">
+      <span className="shrink-0">Voce del listino generale:</span>
+      <Input aria-label={`Voce del listino generale per la tariffa ${indice + 1}`} list={idLista} className="h-7 max-w-md text-xs" disabled={disabled}
+        placeholder="Nessuna: cerca per codice o descrizione" value={valore}
+        onChange={(e) => {
+          const t = e.target.value;
+          setTesto(t);
+          const v = voci.find((x) => nomeVoce(x) === t);
+          if (v) { onScegli(v); setTesto(null); } else if (!t.trim()) onScegli(null);
+        }}
+        onBlur={() => setTesto(null)} />
+      <datalist id={idLista}>{voci.map((v) => <option key={v.id} value={nomeVoce(v)} />)}</datalist>
+      {riga.tariffa_id && !scelta && voci.length > 0 && <span className="text-amber-700">voce non più attiva</span>}
     </div>
   );
 }
