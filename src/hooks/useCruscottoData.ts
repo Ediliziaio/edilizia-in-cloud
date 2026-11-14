@@ -12,7 +12,8 @@ import { getDateRange } from "@/lib/dateRangeUtils";
 import { safeNumber } from "@/lib/numberUtils";
 import type { ScadutoPerEta } from "@/lib/finance/incassiScaduti";
 import { queryKeys } from "@/lib/queryKeys";
-import { copertura, idABlocchi, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
+import { copertura, margineCommesseNelPeriodo, type RigaMargineCommessa } from "@/lib/cruscottoMargine";
+import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 
 // Re-export for backward compatibility with existing consumers
 export { safeNumber } from "@/lib/numberUtils";
@@ -257,13 +258,14 @@ export function useCruscottoData() {
         // 08/11/2026: l'azienda va passata. La versione senza leggeva get_my_company_id():
         // con due schede su due aziende, l'incassato era di quella scelta per ultima.
         (supabase as any).rpc("incassato_rate_periodo", { p_company_id: companyId, p_da: monthStart, p_a: todayDate }) as Promise<{ data: number | null; error: unknown }>,
-        // rate pagate senza data: il cestino non conta (rate_incassi lo esclude)
-        supabase.from("order_installments").select("id, order:orders!inner(company_id, deleted_at)", { count: "exact", head: true })
-          .eq("order.company_id", companyId!).is("order.deleted_at", null).eq("is_paid", true).is("paid_date", null),
+        // rate pagate senza data: il cestino non conta (rate_incassi lo esclude).
+        // 14/11/2026: una funzione che conta sulle sole rate dell'azienda; la vista
+        // delle rate calcolava i diritti su tutte le rate del database (2,5 s).
+        (supabase as any).rpc("cruscotto_rate_pagate_senza_data", { p_company_id: companyId }) as Promise<{ data: number | null; error: unknown }>,
       ]);
       if (incassato.error) throw incassato.error;
       if (undated.error) throw undated.error;
-      return { amount: safeNumber(incassato.data), undated: undated.count ?? 0 };
+      return { amount: safeNumber(incassato.data), undated: safeNumber(undated.data) };
     },
   });
 
@@ -325,17 +327,9 @@ export function useCruscottoData() {
 
       // Margine dalla vista condivisa v_ordine_marginalita, sulle sole commesse
       // del periodo (quelle lette sopra, non cestinate): la vista non filtra il cestino.
-      const marginiDi = async (orders: OrderCostRow[]): Promise<RigaMargineCommessa[]> => {
-        const righe: RigaMargineCommessa[] = [];
-        for (const blocco of idABlocchi(orders.map(o => o.id))) {
-          const { data, error } = await supabase.from("v_ordine_marginalita")
-            .select("id, margine, preventivo_totale, consuntivo, variazioni_approvate")
-            .eq("company_id", companyId!).in("id", blocco);
-          if (error) throw error;
-          righe.push(...(data ?? []));
-        }
-        return righe;
-      };
+      // 14/11/2026: economia_commesse sui soli id (la vista rifaceva tutte le commesse).
+      const marginiDi = (orders: OrderCostRow[]): Promise<RigaMargineCommessa[]> =>
+        leggiEconomiaCommesse<RigaMargineCommessa>(orders.map(o => o.id));
       const [marginiCorrenti, marginiPrecedenti] = await Promise.all([marginiDi(currentOrdersRes), marginiDi(prevOrdersRes)]);
 
       // Venduto = contratto più varianti approvate, come il preventivo totale della scheda commessa.

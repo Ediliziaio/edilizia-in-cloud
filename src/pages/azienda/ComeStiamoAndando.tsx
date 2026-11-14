@@ -15,13 +15,11 @@
  * I numeri arrivano da `useCruscottoData`, che c'era già: questa pagina non
  * rifà le query, le mette in fila.
  */
-import { readAllOrderRows } from "@/lib/orders/listScope";
+import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { useBillingMode } from "@/contexts/BillingModeContext";
@@ -77,17 +75,17 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
 
   // Marginalità dei cantieri: la vista esiste già ed è quella che alimenta
   // Marginalità cantieri. Qui serve solo per i cantieri APERTI.
+  // 14/11/2026: solo i cantieri aperti, per id (economia_commesse): la vista
+  // ricalcolava ogni volta tutte le commesse dell'azienda.
+  const idAperti = useMemo(
+    () => workOrders.filter((o) => o.work_state === "open").map((o) => o.id).sort(),
+    [workOrders],
+  );
   const { data: cantieriRaw = [], isLoading: cantieriLoading, error: cantieriError } = useQuery<Omit<CantiereMargine, "work_state">[]>({
-    queryKey: ["come-stiamo-andando-marginalita", companyId],
-    enabled: !!companyId,
+    queryKey: ["come-stiamo-andando-marginalita", companyId, idAperti],
+    enabled: !!companyId && !isLoading,
     staleTime: 60_000,
-    queryFn: async () => {
-      const archivedIds = await loadArchivedOrderIds(companyId!);
-      return readAllOrderRows<Omit<CantiereMargine, "work_state">>((from, to) => excludeArchivedOrders(supabase
-        .from("v_ordine_marginalita")
-        .select("id, order_code, description, cliente_nome, margine, margine_perc, preventivo_totale, consuntivo, work_start_date, work_end_date")
-        .eq("company_id", companyId!).order("id").range(from, to), archivedIds));
-    },
+    queryFn: () => leggiEconomiaCommesse<Omit<CantiereMargine, "work_state">>(idAperti),
   });
 
   const cantieri = useMemo<CantiereMargine[]>(() => {

@@ -34,10 +34,12 @@ describe("cruscotto: margine commesse nel periodo", () => {
     expect(idABlocchi([])).toEqual([]);
   });
 
-  it("il cruscotto legge la vista per le commesse del periodo e lascia fuori il cestino dai crediti", () => {
+  it("il cruscotto legge l'economia delle sole commesse del periodo e lascia fuori il cestino dai crediti", () => {
     const src = readFileSync(resolve(process.cwd(), "src/hooks/useCruscottoData.ts"), "utf8");
-    expect(src).toContain('.from("v_ordine_marginalita")');
-    expect(src).toContain('.select("id, margine, preventivo_totale, consuntivo, variazioni_approvate")');
+    // 14/11/2026: per id con economia_commesse; la vista ricalcolava tutte le
+    // commesse a ogni lettura e il Cruscotto andava oltre gli 8 s del database.
+    expect(src).not.toContain('.from("v_ordine_marginalita")');
+    expect(src).toContain("leggiEconomiaCommesse<RigaMargineCommessa>(orders.map(o => o.id))");
     expect(src).toContain("margineCommesseNelPeriodo(margini)");
     // Le rate da incassare le calcola il database (cruscotto_rate_da_incassare →
     // rate_da_incassare → rate_importi, che lascia fuori le commesse nel cestino):
