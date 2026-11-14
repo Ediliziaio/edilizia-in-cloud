@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { datiMancanti, giorniA, leggiDatiSezioni, SEZIONI_PER_MODELLO } from "@/lib/orders/generali/datiOperazione";
+import { avvisiGenerale, totaliGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { datiDaIpotesi } from "@/lib/orders/generali/simulatoreOperazione";
 
 /** Dati della commessa generale per tipologia (14/11/2026). */
 const base = { clienteId: null, indirizzo: null, inizio: null, fine: null, dati: {} };
@@ -30,5 +32,26 @@ describe("dati per tipologia", () => {
     expect(giorniA("2026-11-24", oggi)).toBe(10);
     expect(giorniA("2026-11-04", oggi)).toBe(-10);
     expect(giorniA(null, oggi)).toBeNull();
+  });
+
+  it("sviluppo: il titolo edilizio che scade fra meno di 90 giorni (o è scaduto) è un avviso", () => {
+    const fra = (giorni: number) => new Date(Date.now() + giorni * 86_400_000).toISOString().slice(0, 10);
+    const r = (scadenza: string) => ({
+      generale: { id: "g", codice: null, nome: "Op", cliente: null, clienteId: null, modello: "sviluppo", creataIl: null, valore: 1, dati: { titolo: { tipo: "Permesso di costruire", numero: "12/2026", scadenza } } },
+      figlie: [{ id: "f" } as never], permessi: { importi: true, costi: true, margini: true },
+    }) as unknown as RiepilogoGenerale;
+    const titolo = (x: RiepilogoGenerale) => avvisiGenerale(x, totaliGenerale({ ...x, figlie: [] })).find((a) => a.id === "titolo");
+    expect(titolo(r(fra(30)))?.testo).toMatch(/Permesso di costruire n\. 12\/2026: i lavori vanno finiti entro il .*, fra 30 giorni\./);
+    expect(titolo(r(fra(-5)))?.testo).toMatch(/Serve una proroga/);
+    expect(titolo(r(fra(200)))).toBeUndefined();
+  });
+});
+
+describe("dal Simulatore alla scheda Dati", () => {
+  it("inizio dopo i permessi, fine dopo i lavori; compravendita con prezzo e rogito", () => {
+    expect(datiDaIpotesi({ modello: "sviluppo", inizio: "2027-01", acquisto: 400000, mesiPermessi: 6, mesiLavori: 18 })).toEqual({ inizio: "2027-07-01", fine: "2028-12-31" });
+    expect(datiDaIpotesi({ modello: "compravendita", inizio: "2027-03", acquisto: 185000, mesiPermessi: 1, mesiLavori: 4 })).toEqual({
+      inizio: "2027-04-01", fine: "2027-07-31", immobile: { prezzo: 185000, data_rogito: "2027-03-01" },
+    });
   });
 });

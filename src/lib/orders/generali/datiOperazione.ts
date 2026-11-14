@@ -5,7 +5,7 @@
  * di uno sviluppo, l'immobile acquistato di una compravendita. Le chiavi sono quelle che accetta
  * commessa_generale_dati_salva (20290322135000): una chiave nuova va aggiunta anche lì.
  */
-import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
+import type { ModelloGenerale } from "../commesseGenerali.ts";
 
 export type TipoCampo = "testo" | "data" | "importo" | "numero" | "scelta";
 

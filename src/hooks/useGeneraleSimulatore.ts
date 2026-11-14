@@ -111,6 +111,11 @@ export function useDiventaOperazione() {
       });
       if (error) throw error;
       if (typeof data !== "string") throw new Error("L'operazione non risulta creata. Ricarica la pagina.");
+      // Le date e l'acquisto vanno anche nella scheda «Dati». Se non riesce, l'operazione c'è
+      // lo stesso: si completano dalla sua pagina.
+      if (v.operazione.dati && Object.keys(v.operazione.dati).length > 0) {
+        await db.rpc("commessa_generale_dati_salva", { p_generale_id: data, p_dati: v.operazione.dati });
+      }
       if (v.origine) await collegaOriginaleAi(supabase, data, effectiveCompany!.id, user!.id, v.origine);
       return data;
     },

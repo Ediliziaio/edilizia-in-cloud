@@ -208,6 +208,8 @@ export interface DatiDossier {
     modelloNome: string;
     cliente: string | null;
     clienteEtichetta: string;
+    /** Dove si lavora (scheda «Dati»): in copertina, accanto al nome. */
+    indirizzo?: string | null;
     figlie: number;
     figliaTante: string;
   };
@@ -512,6 +514,7 @@ export function componiDossier(i: InputDossier): DatiDossier {
     operazione: {
       nome: r.generale.nome, codice: r.generale.codice, modello: r.generale.modello, modelloNome: def.nome,
       cliente: r.generale.cliente, clienteEtichetta: def.cliente.etichetta, figlie: r.figlie.length, figliaTante: def.figlia.tante,
+      indirizzo: r.generale.indirizzo ?? null,
     },
     sintesi: null,
     avanzamento: c.has("avanzamento") ? avanzamento : null,

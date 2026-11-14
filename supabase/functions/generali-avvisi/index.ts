@@ -5,6 +5,8 @@
  * penali, documenti richiesti in scadenza, scaduti o mancanti da oltre 30 giorni, unità con
  * acconti senza fideiussione 122/2005, commesse dentro oltre il valore o in perdita.
  * Prima si vedevano solo aprendo la scheda della generale.
+ * 14/11/2026: commesseGenerali.ts ora importa generali/datiOperazione.ts (scheda «Dati», titolo
+ * edilizio in scadenza fra gli avvisi della pagina): ripubblicata perché il bundle li comprenda.
  *
  * UN GIRO (cron `generali-avvisi`, migrazione 20281105111000):
  *   1. fino a 20 generali non ancora guardate oggi, le meno recenti prima

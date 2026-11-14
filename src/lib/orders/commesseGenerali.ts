@@ -6,7 +6,7 @@
 // Qui solo parole e conti, senza React né database: i numeri della generale si
 // calcolano dalle figlie che arrivano da `commessa_generale_riepilogo`.
 
-import { leggiDatiSezioni, type DatiSezioni } from "@/lib/orders/generali/datiOperazione";
+import { giorniA, leggiDatiSezioni, type DatiSezioni } from "./generali/datiOperazione.ts";
 export const MODELLI_GENERALE = ["appalto", "sviluppo", "compravendita"] as const;
 export type ModelloGenerale = typeof MODELLI_GENERALE[number];
 
@@ -271,6 +271,19 @@ export function avvisiGenerale(r: RiepilogoGenerale, t: TotaliGenerale): AvvisoG
   }
   if (t.daAssegnare !== null && t.daAssegnare < 0) {
     avvisi.push({ id: "oltre", testo: `Le commesse dentro superano ${def.valore.etichetta.toLowerCase()} di ${formattaEuro(-t.daAssegnare)}.`, tono: "attenzione" });
+  }
+  // Sviluppo: il titolo edilizio scade (fine lavori entro…): si avvisa a 90 giorni (T5, 14/11/2026).
+  const titolo = r.generale.dati?.titolo;
+  const scadenza = typeof titolo?.scadenza === "string" ? titolo.scadenza : null;
+  const giorni = giorniA(scadenza);
+  if (r.generale.modello === "sviluppo" && scadenza && giorni !== null && giorni <= 90) {
+    const nome = [typeof titolo?.tipo === "string" ? titolo.tipo : "Titolo edilizio", typeof titolo?.numero === "string" ? `n. ${titolo.numero}` : null].filter(Boolean).join(" ");
+    const data = `${scadenza.slice(8, 10)}/${scadenza.slice(5, 7)}/${scadenza.slice(0, 4)}`;
+    avvisi.push({
+      id: "titolo",
+      testo: giorni < 0 ? `${nome}: i lavori dovevano finire entro il ${data}. Serve una proroga.` : `${nome}: i lavori vanno finiti entro il ${data}, fra ${giorni} ${giorni === 1 ? "giorno" : "giorni"}.`,
+      tono: "attenzione",
+    });
   }
   // Un'unità divisa vale zero e passa i costi alle parti: non è una perdita.
   const oltreCosto = r.figlie.filter((f) => !f.divisa && f.margine !== null && f.margine < 0);

@@ -43,6 +43,32 @@ export interface OperazioneDaCreare {
   voci: VoceDaCreare[];
   fonti: FonteDaCreare[];
   unita: UnitaDaCreare[];
+  /** Per la scheda «Dati» (14/11/2026): date dei lavori e, per la compravendita, l'acquisto. */
+  dati: Record<string, unknown>;
+}
+
+/** «2027-03» + n mesi, primo giorno del mese. */
+const meseDopo = (mese: string, n: number) => {
+  const [a, m] = mese.split("-").map(Number);
+  const d = new Date(Date.UTC(a, m - 1 + n, 1));
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * I dati che l'ipotesi conosce già: inizio lavori (acquisto + mesi per i permessi), fine (più la
+ * durata), e per una compravendita prezzo e mese del rogito d'acquisto. Prima finivano solo nel piano.
+ */
+export function datiDaIpotesi(ip: Pick<Ipotesi, "modello" | "inizio" | "acquisto" | "mesiPermessi" | "mesiLavori">): Record<string, unknown> {
+  if (!/^\d{4}-\d{2}$/.test(ip.inizio)) return {};
+  const inizio = meseDopo(ip.inizio, Math.max(0, Math.round(ip.mesiPermessi)));
+  // La fine è l'ultimo giorno dell'ultimo mese di lavori.
+  const fineMese = meseDopo(inizio.slice(0, 7), Math.max(1, Math.round(ip.mesiLavori)));
+  const fine = new Date(Date.parse(fineMese) - 86_400_000).toISOString().slice(0, 10);
+  const dati: Record<string, unknown> = { inizio, fine };
+  if (ip.modello === "compravendita" && ip.acquisto > 0) {
+    dati.immobile = { prezzo: arrotonda(ip.acquisto), data_rogito: `${ip.inizio}-01` };
+  }
+  return dati;
 }
 
 /** Il prefisso delle sigle di una tipologia: la sua iniziale, oppure A, B, C… se si ripete. */
@@ -96,6 +122,7 @@ export function operazioneDaIpotesi(ip: Ipotesi, opzioni: { nome: string; conUni
     ordine: i + 1,
   }));
   return {
+    dati: datiDaIpotesi(ip),
     modello: ip.modello,
     nome: opzioni.nome.trim(),
     valore: arrotonda(voci.filter((v) => v.tipo === "ricavo").reduce((t, v) => t + v.importo, 0)),

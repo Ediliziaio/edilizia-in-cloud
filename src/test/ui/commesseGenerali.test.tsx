@@ -222,6 +222,18 @@ describe("le schede dei moduli", () => {
     expect(within(testata).queryByRole("button", { name: /Nuova unità/ })).not.toBeInTheDocument();
   });
 
+  it("compravendita in corso: la testata mette in fila acquisto e rivendita", () => {
+    const base = riepilogo();
+    m.riepilogo = {
+      ...base,
+      generale: { ...base.generale, modello: "compravendita", valore: 320_000, dati: { immobile: { prezzo: 185_000 } } },
+      figlie: base.figlie.map((f) => ({ ...f, statoVendita: "libera", fatturato: 0, incassato: 0 })),
+    };
+    disegna();
+    expect(screen.getByText("Acquisto").parentElement).toHaveTextContent(/185\.000/);
+    expect(screen.getByText("Rivendita").parentElement).toHaveTextContent(/320\.000/);
+  });
+
   it("appena un'unità è prenotata la testata torna a parlare di vendite", () => {
     const base = riepilogo();
     m.riepilogo = {

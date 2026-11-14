@@ -303,6 +303,7 @@ describe("la edge function gira in Deno", () => {
     "src/lib/orders/generali/documenti.ts",
     "src/lib/orders/generali/contratto.ts",
     "src/lib/orders/commesseGenerali.ts",
+    "src/lib/orders/generali/datiOperazione.ts",
   ];
   it.each(FILE)("%s non usa alias e scrive l'estensione negli import", (file) => {
     const sorgente = readFileSync(resolve(process.cwd(), file), "utf8");

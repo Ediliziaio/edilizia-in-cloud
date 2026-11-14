@@ -354,8 +354,20 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
     { etichetta: budgetCompleto ? "Budget dei costi" : "Budget (stime da completare)", valore: budget, tono: "bg-slate-300" },
     { etichetta: "Ancora da spendere", valore: Math.max(0, budget! - speso!), tono: "bg-orange-400" },
   ] : [];
-  const barre = costruzione ? righeCostruzione : righe;
-  const baseBarre = costruzione ? budget : t.base;
+  // Compravendita: la catena acquisto → lavori → rivendita sulla stessa base (T4, 14/11/2026).
+  const prezzoDati = r.generale.dati?.immobile?.prezzo;
+  const prezzoAcquisto = typeof prezzoDati === "number" ? prezzoDati
+    : n.piano ? n.piano.confronto.costi.filter((x) => x.categoria === "terreno").reduce((s, x) => s + x.previsto, 0) || null : null;
+  const rivendita = r.generale.valore ?? t.assegnato;
+  const catena = r.generale.modello === "compravendita" && costruzione && r.permessi.importi && r.permessi.costi
+    && prezzoAcquisto !== null && prezzoAcquisto > 0 && rivendita !== null && rivendita > 0;
+  const righeCatena = catena ? [
+    { etichetta: "Acquisto", valore: prezzoAcquisto, tono: "bg-slate-400" },
+    ...(budget !== null && budget > prezzoAcquisto! ? [{ etichetta: budgetCompleto ? "Lavori e spese" : "Lavori e spese (stime da completare)", valore: budget - prezzoAcquisto!, tono: "bg-orange-400" }] : []),
+    { etichetta: "Rivendita", valore: rivendita, tono: "bg-emerald-400" },
+  ] : [];
+  const barre = catena ? righeCatena : costruzione ? righeCostruzione : righe;
+  const baseBarre = catena ? rivendita : costruzione ? budget : t.base;
   const colonne = barre.length === 5 ? "lg:grid-cols-5" : barre.length === 3 ? "lg:grid-cols-3" : barre.length === 2 ? "lg:grid-cols-2" : barre.length === 1 ? "lg:grid-cols-1" : "lg:grid-cols-4";
   const quantiNumeri = costruzione
     ? 1 + (speso !== null ? 1 : 0) + (conCapitale ? 1 : 0) + (conMargine ? 1 : 0)

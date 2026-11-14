@@ -642,7 +642,7 @@ function Copertina({ d }: { d: DatiDossier }) {
         </View>
         <Text style={s.coverKicker}>{d.titolo}</Text>
         <Text style={s.coverTitolo}>{o.nome}</Text>
-        <Text style={s.coverSotto}>{[o.modelloNome, o.codice ? `codice ${o.codice}` : null].filter(Boolean).join(" · ")}</Text>
+        <Text style={s.coverSotto}>{[o.modelloNome, o.codice ? `codice ${o.codice}` : null, o.indirizzo ?? null].filter(Boolean).join(" · ")}</Text>
       </View>
       <View style={s.coverDati}>
         <View style={s.coverDato}><Text style={s.coverDatoLabel}>Data</Text><Text style={s.coverDatoValore}>{giornoIt(d.data)}</Text></View>
