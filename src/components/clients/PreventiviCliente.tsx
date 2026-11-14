@@ -54,7 +54,7 @@ export function PreventiviCliente({ customerId, companyId, elenco }: {
     },
   });
 
-  const classici = preventivi.data ?? [];
+  const classici = useMemo(() => preventivi.data ?? [], [preventivi.data]);
   const altri = useMemo(() => {
     const visti = new Set(classici.map((q) => q.id));
     return elenco.filter((p) => !visti.has(p.id));

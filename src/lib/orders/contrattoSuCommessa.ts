@@ -131,7 +131,10 @@ export function pianoContrattoSuCommessa(
   } else {
     const { rate, eccedenza } = pianoAlNettoDelleTenute(piano, rateTenute);
     const dopo = rateTenute.reduce((m, r) => Math.max(m, Number(r.position) || 0), -1) + 1;
-    rateNuove = rate.map((r, i) => ({ ...r, id: undefined, position: dopo + i, amount_from_contract: undefined }));
+    rateNuove = rate.map((r, i): Installment => {
+      const { id: _id, amount_from_contract: _contratto, ...resto } = r;
+      return { ...resto, position: dopo + i };
+    });
     if (rateTenute.length > 0) {
       avvisi.push(`${rateTenute.length === 1 ? "Una rata è già fatturata o incassata e resta" : `${rateTenute.length} rate sono già fatturate o incassate e restano`} com'è: il contratto copre il resto.`);
     }
@@ -159,7 +162,7 @@ export function rateDaSalvare(piano: Pick<PianoContrattoSuCommessa, "rateNuove" 
   }));
   const nuove = piano.rateNuove.map((r) => ({
     position: r.position, label: r.label, type: r.type, amount: r.amount, is_paid: false,
-    paid_date: null, expected_date: r.expected_date ?? null, trigger_evento: "data_fissa", giorni_preavviso: 7,
+    paid_date: null as string | null, expected_date: r.expected_date ?? null, trigger_evento: "data_fissa", giorni_preavviso: 7,
   }));
   return [...tenute, ...nuove];
 }
