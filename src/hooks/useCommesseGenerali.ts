@@ -561,3 +561,22 @@ export async function leggiMovimentiUnita(companyId: string): Promise<{
   } catch { /* la lista funziona anche senza */ }
   return { incassi, permute, statoVendita };
 }
+
+/**
+ * Salva i dati della generale (scheda «Dati», 20290322135000): cliente, indirizzo, inizio e fine
+ * lavori vanno sulla commessa; responsabile, note e le sezioni per tipologia in `dati`. Si manda
+ * solo quello che cambia; una sezione si manda intera, un campo vuoto si manda null.
+ */
+export function useSalvaDatiGenerale(generaleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dati: Record<string, unknown>) => {
+      const { error } = await db.rpc("commessa_generale_dati_salva", { p_generale_id: generaleId, p_dati: dati });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chiaviGenerali.riepilogo(generaleId) });
+      void qc.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}

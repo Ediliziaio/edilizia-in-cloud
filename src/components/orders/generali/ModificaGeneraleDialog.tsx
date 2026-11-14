@@ -135,7 +135,7 @@ function Modulo({ onOpenChange, riepilogo }: { onOpenChange: (o: boolean) => voi
               <p className="text-xs text-muted-foreground">
                 {criterioDisponibile
                   ? "I costi registrati sulla generale (terreno, oneri, costi di cantiere) si dividono così sulle commesse dentro: piano economico, unità e margini."
-                  : "Automatica: per millesimi, altrimenti per m², altrimenti in proporzione all'importo. La scelta manuale arriva col prossimo aggiornamento."}
+                  : "Automatica: per millesimi, altrimenti per m², altrimenti in proporzione all'importo. Per sceglierla a mano serve il permesso di vedere i costi."}
               </p>
             </div>
           )}

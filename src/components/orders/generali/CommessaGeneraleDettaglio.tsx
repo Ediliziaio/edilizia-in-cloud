@@ -8,7 +8,7 @@ import "../commessa-workspace.css";
 // schede accanto a «Panoramica», solo quando sono pronti e accesi dal modello (schede.tsx).
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
@@ -103,7 +103,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
     && !r.figlie.some((f) => !!f.statoVendita && f.statoVendita !== "libera") && (totali.fatturato ?? 0) <= 0 && (totali.incassato ?? 0) <= 0;
   const riquadri = riquadriDelModello(r.generale.modello);
   const propsScheda = { riepilogo: r, totali, puoModificare };
-  const iconeSchede = { unita: Building2, contratto: FileCheck2, piano: ChartNoAxesCombined, cantiere: HardHat, investitori: Landmark, documenti: FolderOpen };
+  const iconeSchede = { dati: ClipboardList, unita: Building2, contratto: FileCheck2, piano: ChartNoAxesCombined, cantiere: HardHat, investitori: Landmark, documenti: FolderOpen };
   // Il grafico delle vendite compare dalla prima prenotazione: con tutte le unità libere ripete
   // la riga delle unità (26 «Libere», tutto a zero) a chi sta ancora costruendo.
   const grafici = riquadri.filter(x => x.id === "contratto" || (x.id === "unita" && quanteVive > 0 && !unitaTutteLibere));
@@ -158,7 +158,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
       <section aria-labelledby="figlie-titolo" className="generale-panel generale-children">
         <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
-          <h2 id="figlie-titolo" className="flex items-center gap-2.5 text-base font-semibold"><span className="generale-section-icon">{immobiliare ? <Building2 aria-hidden="true" /> : <HardHat aria-hidden="true" />}</span>{r.figlie.length ? def.figlia.tante : "Gestione dell'operazione"}{r.figlie.length > 0 && <span className="generale-count">{quanteVive}</span>}</h2>
+          <h2 id="figlie-titolo" className="flex items-center gap-2.5 text-base font-semibold"><span className="generale-section-icon">{immobiliare ? <Building2 aria-hidden="true" /> : <HardHat aria-hidden="true" />}</span>{r.figlie.length ? def.figlia.tante : immobiliare ? "Gestione dell'operazione" : "Lavori sulla commessa generale"}{r.figlie.length > 0 && <span className="generale-count">{quanteVive}</span>}</h2>
           {r.figlie.length > 0 && (immobiliare ? <Button size="sm" variant="ghost" aria-pressed={analisiUnita} onClick={() => setAnalisiUnita(v => !v)}>{analisiUnita ? "Torna alle vendite" : "Analisi per unità"}</Button> : <span className="text-xs text-muted-foreground">Avanzamento {Math.round(totali.avanzamento)}%</span>)}
         </header>
         {immobiliare && r.figlie.length > 0 && !unitaInUnaRiga && <p className="border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">Costi e margine si controllano sull'intera operazione. L'analisi per unità mostra una ripartizione indicativa dei costi registrati, distinta dal margine finale del piano.</p>}

@@ -6,6 +6,7 @@
 // Qui solo parole e conti, senza React né database: i numeri della generale si
 // calcolano dalle figlie che arrivano da `commessa_generale_riepilogo`.
 
+import { leggiDatiSezioni, type DatiSezioni } from "@/lib/orders/generali/datiOperazione";
 export const MODELLI_GENERALE = ["appalto", "sviluppo", "compravendita"] as const;
 export type ModelloGenerale = typeof MODELLI_GENERALE[number];
 
@@ -111,6 +112,11 @@ export interface RiepilogoGenerale {
     modello: ModelloGenerale;
     creataIl: string | null;
     valore: number | null;
+    /** Scheda «Dati» (20290322135000): indirizzo del cantiere o dell'immobile, date, sezioni per tipologia. */
+    indirizzo?: string | null;
+    inizio?: string | null;
+    fine?: string | null;
+    dati?: DatiSezioni;
   };
   figlie: FigliaGenerale[];
   /** Fatture registrate sulla generale stessa (es. SAL di contratto fatturato sul contratto). */
@@ -141,6 +147,10 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
       clienteId: testo(g.cliente_id),
       modello: isModelloGenerale(g.modello) ? g.modello : "appalto",
       creataIl: testo(g.creata_il),
+      indirizzo: testo(g.indirizzo),
+      inizio: testo(g.inizio),
+      fine: testo(g.fine),
+      dati: leggiDatiSezioni(g.dati),
       valore: numero(g.valore),
     },
     figlie: figlie
