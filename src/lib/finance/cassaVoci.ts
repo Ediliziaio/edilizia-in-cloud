@@ -1,0 +1,203 @@
+/**
+ * Categorie di cassa (catalogo `cassa_voci`, 14/11/2026): una sola fonte per il
+ * movimento bancario, il popup di classificazione del Cash flow e la
+ * Configurazione. Il catalogo dell'azienda nasce da `cassa_catalogo_base` (le
+ * 330 voci del file) alla prima apertura, con `cassa_catalogo_prepara`.
+ */
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { bankRpc } from "@/lib/finance/bankWorkspace";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import type { VoceCassa } from "@/lib/controlloGestione/vociCassa";
+
+// Tabelle e funzioni non ancora nei tipi generati.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+
+export type FlussoVoce = "entrata" | "uscita" | "entrambi" | "nessuno";
+export type LivelloVoce = "area" | "categoria" | "voce" | "sottovoce";
+
+export interface VoceCatalogo {
+  id: string;
+  codice: string;
+  parent_id: string | null;
+  livello: LivelloVoce;
+  nome: string;
+  descrizione: string | null;
+  esempio: string | null;
+  flusso: FlussoVoce;
+  sezione: string;
+  voce_cassa_in: VoceCassa | null;
+  voce_cassa_out: VoceCassa | null;
+  richiede_commessa: boolean;
+  attiva: boolean;
+  archiviata_il: string | null;
+  ordine: number;
+  origine: "catalogo" | "azienda";
+}
+
+/** Categoria di un movimento come la restituisce `cassa_voci_movimenti`. */
+export interface VoceMovimento {
+  id: string;
+  codice: string;
+  nome: string;
+  categoria: string | null;
+  /** manuale, regola, documento, controparte, proposta; «storico» = ricavata dal vecchio testo. */
+  origine: string;
+  confermata: boolean;
+  il: string | null;
+}
+
+export const ORIGINE_VOCE: Record<string, string> = {
+  manuale: "Scelta da una persona",
+  regola: "Da una regola",
+  documento: "Dalla fattura collegata",
+  controparte: "Dalla controparte",
+  proposta: "Proposta, da confermare",
+  storico: "Dalla vecchia categoria, da confermare",
+};
+
+export const SEZIONI: Record<string, string> = {
+  operativa: "Gestione operativa",
+  finanziaria: "Oneri e proventi finanziari",
+  investimenti: "Investimenti",
+  finanziamenti: "Finanziamenti",
+  patrimoniale: "Cauzioni e depositi",
+  trasferimenti: "Giroconti",
+  senza_cassa: "Senza movimento di denaro",
+  da_classificare: "Da classificare",
+  da_configurare: "Da configurare",
+};
+
+export const chiaveCatalogo = (company: string | null | undefined) => ["cassa-voci", company] as const;
+
+/** Il catalogo dell'azienda; se è vuoto lo crea dal catalogo base (una volta sola, idempotente). */
+export function useCatalogoCassa(company: string | null | undefined) {
+  return useQuery({
+    queryKey: chiaveCatalogo(company),
+    enabled: !!company,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<VoceCatalogo[]> => {
+      const leggi = async () => {
+        const { data, error } = await db
+          .from("cassa_voci")
+          .select("id,codice,parent_id,livello,nome,descrizione,esempio,flusso,sezione,voce_cassa_in,voce_cassa_out,richiede_commessa,attiva,archiviata_il,ordine,origine")
+          .eq("company_id", company)
+          .order("ordine")
+          .order("codice")
+          .limit(5000);
+        if (error) throw error;
+        return (data ?? []) as VoceCatalogo[];
+      };
+      const voci = await leggi();
+      if (voci.length) return voci;
+      const { error } = await db.rpc("cassa_catalogo_prepara", { p_company: company });
+      if (error) throw error;
+      return leggi();
+    },
+  });
+}
+
+/** Una voce si può mettere su un movimento con quel segno? */
+export function voceUsabile(v: VoceCatalogo, importo: number): boolean {
+  if (v.livello !== "voce" && v.livello !== "sottovoce") return false;
+  if (!v.attiva || v.archiviata_il || v.flusso === "nessuno") return false;
+  if (importo >= 0 && v.flusso === "uscita") return false;
+  if (importo < 0 && v.flusso === "entrata") return false;
+  return true;
+}
+
+export interface GruppoVoci {
+  categoria: VoceCatalogo;
+  area: VoceCatalogo | null;
+  voci: VoceCatalogo[];
+}
+
+/**
+ * Le voci scelte per un movimento, raggruppate per categoria e cercate per
+ * nome, codice, categoria o descrizione. Le sottovoci stanno sotto la loro voce.
+ */
+export function vociPerMovimento(catalogo: VoceCatalogo[], importo: number, cerca = ""): GruppoVoci[] {
+  const perId = new Map(catalogo.map((v) => [v.id, v]));
+  const q = cerca.trim().toLocaleLowerCase("it-IT");
+  const gruppi = new Map<string, GruppoVoci>();
+  for (const v of catalogo) {
+    if (!voceUsabile(v, importo)) continue;
+    const padre = v.parent_id ? perId.get(v.parent_id) : undefined;
+    const categoria = v.livello === "sottovoce" && padre?.parent_id ? perId.get(padre.parent_id) : padre;
+    if (!categoria) continue;
+    const testo = `${v.codice} ${v.nome} ${categoria.nome} ${v.descrizione ?? ""} ${v.livello === "sottovoce" ? padre?.nome ?? "" : ""}`.toLocaleLowerCase("it-IT");
+    if (q && !q.split(/\s+/).every((p) => testo.includes(p))) continue;
+    const g = gruppi.get(categoria.id) ?? { categoria, area: categoria.parent_id ? perId.get(categoria.parent_id) ?? null : null, voci: [] };
+    g.voci.push(v);
+    gruppi.set(categoria.id, g);
+  }
+  return [...gruppi.values()].sort((a, b) => a.categoria.ordine - b.categoria.ordine || a.categoria.codice.localeCompare(b.categoria.codice));
+}
+
+/** Le categorie dei movimenti richiesti (confermate o proposte dal vecchio testo). */
+export function useVociMovimenti(company: string | null | undefined, ids: string[]) {
+  const chiave = [...ids].sort().join(",");
+  return useQuery({
+    queryKey: ["cassa-voci-movimenti", company, chiave],
+    enabled: !!company && ids.length > 0,
+    staleTime: 30_000,
+    queryFn: async (): Promise<Record<string, VoceMovimento>> => {
+      const out: Record<string, VoceMovimento> = {};
+      for (let i = 0; i < ids.length; i += 200) {
+        const parte = await bankRpc<Record<string, VoceMovimento>>("cassa_voci_movimenti", {
+          p_company: company,
+          p_ids: ids.slice(i, i + 200),
+        });
+        Object.assign(out, parte ?? {});
+      }
+      return out;
+    },
+  });
+}
+
+/** Dopo una classificazione: tesoreria, cash flow e categorie dei movimenti si rileggono. */
+export function useAggiornaDopoCategoria() {
+  const qc = useQueryClient();
+  return () => {
+    refreshFinancialQueries(qc);
+    void qc.invalidateQueries({ queryKey: ["cassa-voci-movimenti"] });
+    void qc.invalidateQueries({ queryKey: ["cassa-da-classificare"] });
+    void qc.invalidateQueries({ queryKey: ["cg", "rendiconto-cassa"] });
+    void qc.invalidateQueries({ queryKey: ["bank-movimento"] });
+    void qc.invalidateQueries({ queryKey: ["bank-movimenti"] });
+  };
+}
+
+/** Salva la categoria di un movimento; restituisce la nuova revisione. */
+export async function salvaCategoriaMovimento(args: {
+  company: string;
+  tx: string;
+  voce: string | null;
+  revision: number;
+  motivo?: string | null;
+}): Promise<number> {
+  return bankRpc<number>("bank_movimento_categoria", {
+    p_company: args.company,
+    p_tx: args.tx,
+    p_voce: args.voce,
+    p_revision: args.revision,
+    p_motivo: args.motivo ?? null,
+  });
+}
+
+/** Configurazione di una voce (nuova se `id` è null). */
+export function useSalvaVoceCassa(company: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dati }: { id: string | null; dati: Record<string, unknown> }) => {
+      const { data, error } = await db.rpc("cassa_voce_salva", { p_company: company, p_id: id, p_dati: dati });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chiaveCatalogo(company) });
+      void qc.invalidateQueries({ queryKey: ["cg", "rendiconto-cassa"] });
+    },
+  });
+}

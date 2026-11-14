@@ -50,6 +50,8 @@ import {
 import { BankMovementDetail, type BankDetailSection } from "./BankMovementDetail";
 const BankReconciliationWorkspace = lazy(() => import("./BankReconciliationWorkspace").then(m => ({ default: m.BankReconciliationWorkspace })));
 import { prettyTxDesc } from "./txLabel";
+import { CategoriaMovimento } from "./CategoriaMovimento";
+import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 
 const columns = {
   category: "Categoria",
@@ -66,6 +68,7 @@ const columns = {
 type Column = keyof typeof columns;
 const defaults: Column[] = [
   "state",
+  "category",
   "remaining",
   "documents",
   "jobs",
@@ -122,7 +125,9 @@ export default function TransactionsFeed({
     params.get("movimento"),
   );
   const [detailSection, setDetailSection] = useState<BankDetailSection>();
-  const prefKey = `eic:bank-columns:${user?.id ?? "user"}:${companyId}`;
+  // v2 (14/11/2026): la colonna Categoria è diventata di serie; le scelte salvate
+  // prima non la contenevano e l'avrebbero tenuta nascosta.
+  const prefKey = `eic:bank-columns:v2:${user?.id ?? "user"}:${companyId}`;
   const [visible, setVisible] = useState<Column[]>(defaults);
   useEffect(() => {
     try {
@@ -189,6 +194,10 @@ export default function TransactionsFeed({
     enabled: !!companyId && !validation,
     retry: false,
   });
+  const vociPagina = useVociMovimenti(
+    visible.includes("category") ? companyId : null,
+    (data.data?.rows ?? []).map((r) => r.id),
+  );
   const accounts = useQuery({
     queryKey: ["bank-workspace-accounts", companyId, refreshKey],
     queryFn: async () => {
@@ -374,7 +383,18 @@ export default function TransactionsFeed({
           </span>
         );
       case "category":
-        return m.category || "—";
+        return (
+          <CategoriaMovimento
+            company={companyId}
+            tx={m.id}
+            importo={m.amount}
+            revisione={m.links.revision}
+            voce={vociPagina.data?.[m.id]}
+            testoVecchio={m.category}
+            puoModificare={perms.canReconcileBankTransactions && m.status === "booked"}
+            compatta
+          />
+        );
       case "state": {
         const s = bankState(m);
         return (

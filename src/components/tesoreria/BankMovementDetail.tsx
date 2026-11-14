@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -46,7 +46,9 @@ import {
   CONTEXT_LABELS,
   type BankMovement,
   type BankLink,
+  type BankTarget,
 } from "@/lib/finance/bankWorkspace";
+import type { VoceMovimento } from "@/lib/finance/cassaVoci";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
 import { prettyTxDesc } from "./txLabel";
@@ -57,6 +59,8 @@ import {
   type RigaRipartizione,
 } from "./RipartizioneMovimento";
 import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
+import { CategoriaMovimento } from "./CategoriaMovimento";
+import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { MovimentoSuggerimenti } from "./MovimentoSuggerimenti";
 
 export type BankDetailSection = "documents" | "contexts";
@@ -180,6 +184,11 @@ function Detail({
   });
   const [contextDirty, setContextDirty] = useState(false);
   const startSection = useRef<HTMLElement>(null);
+  const sezioneDocumenti = useRef<HTMLElement>(null);
+  const sezioneContesti = useRef<HTMLElement>(null);
+  const sezioneNote = useRef<HTMLElement>(null);
+  const vai = (r: RefObject<HTMLElement>) => setTimeout(() => r.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  const voce = useVociMovimenti(company, [m.id]);
   useEffect(() => {
     startSection.current?.scrollIntoView?.({ block: "start" });
   }, [initialSection]);
@@ -290,6 +299,26 @@ function Detail({
           onAbbinato={refresh}
         />
       )}
+      <CollegatoA
+        movimento={m}
+        company={company}
+        voce={voce.data?.[m.id]}
+        revisione={revision}
+        categoriaTesto={category}
+        puoModificare={write && m.status === "booked"}
+        onCategoria={(rev, nome) => {
+          setRevision(rev);
+          if (nome) {
+            setCategory(nome);
+            setSavedAnnotation((a) => ({ ...a, category: nome }));
+          }
+        }}
+        onCollegaDocumenti={validMatch ? () => { setMode("new"); vai(sezioneDocumenti); } : undefined}
+        onVaiDocumenti={() => vai(sezioneDocumenti)}
+        onCollegaContesti={write && !m.links.restricted_contexts ? () => { setEditContexts(true); vai(sezioneContesti); } : undefined}
+        onVaiNote={() => vai(sezioneNote)}
+        note={note}
+      />
       {m.reconciliation_status === "suggestion" && (
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
           <p className="font-semibold">Proposta da verificare</p>
@@ -319,8 +348,11 @@ function Detail({
       )}
       {validMatch && (
         <section
-          ref={initialSection === "documents" ? startSection : undefined}
-          className="space-y-3 rounded-xl border p-4"
+          ref={(el) => {
+            sezioneDocumenti.current = el;
+            if (initialSection === "documents") startSection.current = el;
+          }}
+          className="scroll-mt-4 space-y-3 rounded-xl border p-4"
         >
           <h3 className="font-semibold">Collega fatture e pagamenti</h3>
           <p className="text-sm text-muted-foreground">
@@ -493,8 +525,11 @@ function Detail({
         ))}
       </section>
       <section
-        ref={initialSection === "contexts" ? startSection : undefined}
-        className="space-y-3 rounded-xl border p-4"
+        ref={(el) => {
+          sezioneContesti.current = el;
+          if (initialSection === "contexts") startSection.current = el;
+        }}
+        className="scroll-mt-4 space-y-3 rounded-xl border p-4"
       >
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-semibold">Collegamenti gestionali</h3>
@@ -571,22 +606,13 @@ function Detail({
           />
         )}
       </section>
-      <section className="space-y-3 rounded-xl border p-4">
-        <h3 className="font-semibold">Note interne e categoria</h3>
+      <section ref={sezioneNote} className="scroll-mt-4 space-y-3 rounded-xl border p-4">
+        <h3 className="font-semibold">Note interne</h3>
         <p className="text-xs text-muted-foreground">
           Le note restano nel gestionale e non vengono inviate alla banca o
-          riportate sulle fatture.
+          riportate sulle fatture. La categoria si sceglie in alto, in «A cosa è collegato».
         </p>
-        <Label htmlFor="bank-category">Categoria</Label>
-        <Input
-          id="bank-category"
-          maxLength={100}
-          value={category}
-          readOnly={!write}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Fornitori, stipendi, utenze…"
-        />
-        <Label htmlFor="bank-note">Note interne</Label>
+        <Label htmlFor="bank-note" className="sr-only">Note interne</Label>
         <Textarea
           id="bank-note"
           rows={4}
@@ -610,11 +636,11 @@ function Detail({
                 });
                 setRevision(r);
                 setSavedAnnotation({ note, category });
-              }, "Note e categoria salvate")
+              }, "Note salvate")
             }
           >
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva
-            note e categoria
+            note
           </Button>
         )}
       </section>
@@ -930,5 +956,138 @@ function ExistingPicker({
         collegamento
       </Button>
     </div>
+  );
+}
+
+/**
+ * «A cosa è collegato», come nella scheda della fattura ricevuta: una riga per
+ * ogni legame (categoria, fatture, commesse, mezzi, fornitori, personale, note),
+ * con il valore o «Nessuno» e un'azione accanto. I moduli completi restano più
+ * sotto: da qui ci si arriva con un clic.
+ */
+function CollegatoA({
+  movimento: m,
+  company,
+  voce,
+  revisione,
+  categoriaTesto,
+  puoModificare,
+  onCategoria,
+  onCollegaDocumenti,
+  onVaiDocumenti,
+  onCollegaContesti,
+  onVaiNote,
+  note,
+}: {
+  movimento: BankMovement;
+  company: string;
+  voce: VoceMovimento | undefined;
+  revisione: number;
+  categoriaTesto: string;
+  puoModificare: boolean;
+  onCategoria: (revisione: number, nome: string | null) => void;
+  onCollegaDocumenti?: () => void;
+  onVaiDocumenti: () => void;
+  onCollegaContesti?: () => void;
+  onVaiNote: () => void;
+  note: string;
+}) {
+  const valuta = (n: number) => money(n, "—", m.currency);
+  const controparte = m.transaction_type === "credit" ? m.debtor_name : m.creditor_name;
+  const commesse = new Map<string, BankTarget & { amount?: number }>();
+  for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
+  for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
+  const contesti = (tipi: string[]) => m.links.contexts.filter((c) => tipi.includes(c.kind));
+  const Azione = ({ children, onClick, label }: { children: string; onClick?: () => void; label: string }) =>
+    onClick ? (
+      <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onClick} aria-label={label}>
+        {children}
+      </Button>
+    ) : null;
+  const Pastiglia = ({ t, importo }: { t: BankTarget; importo?: number }) => (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+      {t.url ? (
+        <Link to={t.url} className="truncate font-medium hover:underline">
+          {t.label}
+        </Link>
+      ) : (
+        <span className="truncate font-medium">{t.label}</span>
+      )}
+      {importo != null && <span className="shrink-0 text-muted-foreground">{valuta(importo)}</span>}
+    </span>
+  );
+  const Nessuno = () => <span className="text-muted-foreground">Nessuno</span>;
+  const riga = (titolo: string, contenuto: ReactNode) => (
+    <>
+      <dt className="pt-0.5 text-muted-foreground">{titolo}</dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">{contenuto}</dd>
+    </>
+  );
+  return (
+    <section className="rounded-xl border p-4" aria-labelledby="collegato-a">
+      <h3 id="collegato-a" className="mb-3 flex items-center gap-2 font-semibold">
+        <Link2 className="h-4 w-4" /> A cosa è collegato
+      </h3>
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
+        {riga("Controparte", controparte ? <span className="font-medium">{controparte}</span> : <Nessuno />)}
+        {riga(
+          "Categoria",
+          <CategoriaMovimento
+            company={company}
+            tx={m.id}
+            importo={m.amount}
+            revisione={revisione}
+            voce={voce}
+            testoVecchio={categoriaTesto || null}
+            puoModificare={puoModificare}
+            onSalvata={onCategoria}
+          />,
+        )}
+        {riga(
+          "Fatture e pagamenti",
+          <>
+            {m.links.financial.length ? (
+              m.links.financial.map((f, i) => (
+                <Pastiglia key={f.id ?? i} t={{ id: f.id ?? String(i), kind: "commessa", label: f.label, url: f.url }} importo={f.amount} />
+              ))
+            ) : (
+              <Nessuno />
+            )}
+            {m.links.financial.length > 0 && <Azione onClick={onVaiDocumenti} label="Vedi fatture e pagamenti">Dettagli</Azione>}
+            <Azione onClick={onCollegaDocumenti} label="Collega fatture e pagamenti">
+              {m.links.financial.length ? "Aggiungi" : "Collega"}
+            </Azione>
+            {m.links.remaining > 0 && m.links.matched > 0 && (
+              <span className="text-xs text-amber-700 dark:text-amber-400">restano {valuta(m.links.remaining)}</span>
+            )}
+          </>,
+        )}
+        {riga(
+          "Commesse",
+          <>
+            {commesse.size ? [...commesse.values()].map((j) => <Pastiglia key={j.id} t={j} importo={(j as { amount?: number }).amount} />) : <Nessuno />}
+            <Azione onClick={onCollegaContesti} label="Collega una commessa">Collega</Azione>
+          </>,
+        )}
+        {riga(
+          "Mezzi",
+          <>
+            {contesti(["mezzo"]).length ? contesti(["mezzo"]).map((c) => <Pastiglia key={c.context_id ?? c.id} t={c} importo={c.amount} />) : <Nessuno />}
+            <Azione onClick={onCollegaContesti} label="Collega un mezzo">Collega</Azione>
+          </>,
+        )}
+        {contesti(["fornitore"]).length > 0 &&
+          riga("Fornitori", contesti(["fornitore"]).map((c) => <Pastiglia key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+        {contesti(["dipendente", "cedolino"]).length > 0 &&
+          riga("Personale", contesti(["dipendente", "cedolino"]).map((c) => <Pastiglia key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+        {riga(
+          "Note interne",
+          <>
+            {note.trim() ? <span className="line-clamp-2 whitespace-pre-wrap break-words">{note}</span> : <Nessuno />}
+            <Azione onClick={onVaiNote} label="Scrivi una nota">{note.trim() ? "Modifica" : "Scrivi"}</Azione>
+          </>,
+        )}
+      </dl>
+    </section>
   );
 }

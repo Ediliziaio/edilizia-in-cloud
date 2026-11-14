@@ -21,6 +21,7 @@ import {
   type BankRow,
   type ForecastMovement,
 } from "@/lib/finance/forecastLedger";
+import { uniscMovimentiBanca, type MovimentoBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
 import type {
   MovimentoRegistrato,
   MutuoCG,
@@ -39,6 +40,10 @@ export interface DatiRendicontoCassa {
   mutui: MutuoCG[];
   /** Fonti non lette: i numeri riguardano solo il resto. */
   fontiNonLette: string[];
+  /** Movimenti di banca entrati nel consuntivo senza essere in prima nota. */
+  daBanca: number;
+  /** Movimenti di banca lasciati fuori perché hanno una scrittura gemella non collegata. */
+  bancaForseDoppi: { numero: number; cents: number };
 }
 
 interface RigaPrimaNota {
@@ -54,6 +59,7 @@ interface RigaPrimaNota {
   invoice_id: string | null;
   documento_fiscale_id: string | null;
   installment_id: string | null;
+  bank_transaction_id: string | null;
   cost: { category: string | null } | null;
   installment: { type: string | null } | null;
   supplier: { name: string | null } | null;
@@ -89,7 +95,7 @@ export function useRendicontoCassa(anno: number) {
         db
           .from("prima_nota_entries")
           .select(
-            "id,direction,amount,entry_date,category,description,supplier_id,order_item_id,order_id,invoice_id,documento_fiscale_id,installment_id,cost:company_costs(category),installment:order_installments(type),supplier:suppliers(name)",
+            "id,direction,amount,entry_date,category,description,supplier_id,order_item_id,order_id,invoice_id,documento_fiscale_id,installment_id,bank_transaction_id,cost:company_costs(category),installment:order_installments(type),supplier:suppliers(name)",
           )
           .eq("company_id", companyId)
           .gte("entry_date", `${anno}-01-01`)
@@ -162,12 +168,21 @@ export function useRendicontoCassa(anno: number) {
           }, [] as MutuoCG[])
         : Promise.resolve([] as MutuoCG[]);
 
-      const [righe, dataset, storico, vociManuali, finanziamenti] = await Promise.all([
+      // I movimenti di banca: quelli non ancora in prima nota (prima sparivano dal
+      // consuntivo) e la categoria confermata di quelli già registrati.
+      const banca = facoltativo("Movimenti di banca", async () => {
+        const { data, error } = await db.rpc("cassa_rendiconto_banca", { p_company: companyId, p_anno: anno });
+        if (error) throw error;
+        return (data ?? { movimenti: [], dopo_anno_cents: 0 }) as { movimenti: MovimentoBancaCassa[]; dopo_anno_cents: number };
+      }, { movimenti: [] as MovimentoBancaCassa[], dopo_anno_cents: 0 });
+
+      const [righe, dataset, storico, vociManuali, finanziamenti, movimentiBanca] = await Promise.all([
         primaNota,
         previsione,
         saldoStorico,
         manuali,
         mutui,
+        banca,
       ]);
 
       const registrati: MovimentoRegistrato[] = righe.map((r) => ({
@@ -186,7 +201,9 @@ export function useRendicontoCassa(anno: number) {
         documentoFiscaleId: r.documento_fiscale_id,
         installmentId: r.installment_id,
         orderId: r.order_id,
+        bankTransactionId: r.bank_transaction_id,
       }));
+      const unione = uniscMovimentiBanca(registrati, movimentiBanca.movimenti);
 
       const opening = dataset?.opening ?? storico?.opening ?? { cents: null, source: "nessuna" as const, updatedAt: null };
       return {
@@ -194,8 +211,11 @@ export function useRendicontoCassa(anno: number) {
         saldoOggiCents: opening.cents,
         saldoFonte: opening.source,
         saldoAggiornatoAl: opening.updatedAt,
-        registrati,
-        flussoDopoAnnoCents: storico ? storico.dopo : null,
+        registrati: unione.registrati,
+        // Il saldo degli anni passati si ricostruisce anche coi movimenti di banca dopo l'anno.
+        flussoDopoAnnoCents: storico && storico.dopo != null ? storico.dopo + Number(movimentiBanca.dopo_anno_cents ?? 0) : null,
+        daBanca: unione.daBanca,
+        bancaForseDoppi: unione.forseDoppi,
         previsti: dataset?.movements ?? null,
         manuali: vociManuali,
         mutui: finanziamenti,

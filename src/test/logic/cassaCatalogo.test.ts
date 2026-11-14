@@ -21,8 +21,8 @@ const CONTO_B = "00000000-0000-0000-0000-0000000000c2";
 
 let db: PGlite;
 
-function migrazione(): string {
-  const f = readdirSync("supabase/migrations").filter((x) => x.endsWith("_cassa_catalogo_voci.sql"));
+function migrazione(nome = "_cassa_catalogo_voci.sql"): string {
+  const f = readdirSync("supabase/migrations").filter((x) => x.endsWith(nome));
   if (f.length !== 1) throw new Error(`attesa una migrazione, trovate ${f.length}`);
   return readFileSync(`supabase/migrations/${f[0]}`, "utf8");
 }
@@ -63,6 +63,7 @@ beforeAll(async () => {
       company_id uuid not null, account_id uuid,
       booking_date date, amount numeric, amount_eur numeric, currency text default 'EUR',
       description text, counterparty_name text, debtor_name text, creditor_name text,
+      counterparty_iban text, debtor_iban text, creditor_iban text,
       transaction_type text, status text default 'booked', category text, note text,
       reconciliation_status text default 'pending',
       operativita_revision integer not null default 1
@@ -72,6 +73,7 @@ beforeAll(async () => {
       bank_transaction_id uuid, reversal_of uuid);
   `);
   await db.exec(migrazione());
+  await db.exec(migrazione("_cassa_classifica_movimenti.sql"));
   await db.exec(`
     create trigger bank_transaction_operator_guard before insert or delete or update on bank_transactions
       for each row execute function bank_transaction_operator_guard();
@@ -95,12 +97,13 @@ const prepara = (c = A) => uno<{ r: { create: number; totale: number } }>(`selec
 const voce = (codice: string, c = A) =>
   uno<{ id: string; nome: string; livello: string; flusso: string }>(
     "select id, nome, livello, flusso from cassa_voci where company_id = $1 and codice = $2", [c, codice]);
-async function movimento(campi: { amount: number; category?: string | null; data?: string; company?: string; status?: string; riconciliazione?: string }) {
+async function movimento(campi: { amount: number; category?: string | null; data?: string; company?: string; status?: string; riconciliazione?: string; controparte?: string; iban?: string }) {
   const r = await uno<{ id: string }>(
-    `insert into bank_transactions (company_id, account_id, booking_date, amount, transaction_type, category, status, reconciliation_status, description)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, 'mov') returning id`,
+    `insert into bank_transactions (company_id, account_id, booking_date, amount, transaction_type, category, status, reconciliation_status, description, counterparty_name, counterparty_iban)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, 'mov', $9, $10) returning id`,
     [campi.company ?? A, (campi.company ?? A) === A ? CONTO_A : CONTO_B, campi.data ?? "2026-11-13", campi.amount,
-     campi.amount >= 0 ? "credit" : "debit", campi.category ?? null, campi.status ?? "booked", campi.riconciliazione ?? "pending"]);
+     campi.amount >= 0 ? "credit" : "debit", campi.category ?? null, campi.status ?? "booked", campi.riconciliazione ?? "pending",
+     campi.controparte ?? null, campi.iban ?? null]);
   return r.id;
 }
 const categoria = (tx: string, v: string | null, rev = 1, motivo: string | null = null) =>
@@ -349,5 +352,83 @@ describe("i movimenti di banca per il cash flow consuntivo", () => {
     await movimento({ amount: -100, data: "2026-03-01" });
     await movimento({ amount: 250, data: "2026-04-01" });
     expect((await banca(2025)).dopo_anno_cents).toBe(15000);
+  });
+});
+
+describe("classificare in blocco dal Cash flow", () => {
+  beforeEach(async () => { await prepara(); });
+  type Riga = { id: string; revisione: number; voce: { codice: string; origine: string; confermata: boolean } | null };
+  const lista = async () =>
+    (await uno<{ r: Riga[] }>("select public.cassa_movimenti_da_classificare($1, '2026-01-01', '2026-12-31') r", [A])).r;
+  const inBlocco = (ids: string[], voce: string, anche = false) =>
+    uno<{ r: { aggiornati: number; saltati: number } }>(
+      "select public.cassa_classifica_movimenti($1, $2, $3, 'prova', $4) r", [A, ids, voce, anche]);
+
+  it("propone la categoria che hai scelto l'ultima volta per la stessa controparte", async () => {
+    const vecchio = await movimento({ amount: -900, controparte: "Ferramenta Rossi", iban: "IT60X0542811101000000123456", data: "2026-10-01" });
+    const nuovo = await movimento({ amount: -1200, controparte: "FERRAMENTA ROSSI SRL", iban: "IT60X0542811101000000123456", category: "altro" });
+    await comeUtente();
+    await categoria(vecchio, (await voce("04.12")).id);
+    const r = (await lista()).find((x) => x.id === nuovo)!;
+    expect(r.voce).toMatchObject({ codice: "04.12", origine: "controparte", confermata: false });
+  });
+
+  it("la proposta della controparte non attraversa il verso: un rimborso dal fornitore non diventa un acquisto", async () => {
+    const uscita = await movimento({ amount: -900, controparte: "Ferramenta Rossi", iban: "IT00A", data: "2026-10-01" });
+    const entrata = await movimento({ amount: 50, controparte: "Ferramenta Rossi", iban: "IT00A" });
+    await comeUtente();
+    await categoria(uscita, (await voce("04.12")).id);
+    expect((await lista()).find((x) => x.id === entrata)!.voce).toBeNull();
+  });
+
+  it("classifica più movimenti insieme, con storico per ognuno", async () => {
+    const a = await movimento({ amount: -100 });
+    const b = await movimento({ amount: -200 });
+    await comeUtente();
+    const r = await inBlocco([a, b], (await voce("09.01")).id);
+    expect(r.r).toEqual({ aggiornati: 2, saltati: 0 });
+    expect((await uno<{ n: number }>("select count(*)::int n from cassa_voce_storico where motivo = 'prova'")).n).toBe(2);
+  });
+
+  it("non riclassifica in silenzio quello che una persona ha già confermato", async () => {
+    const a = await movimento({ amount: -100 });
+    const b = await movimento({ amount: -200 });
+    await comeUtente();
+    await categoria(a, (await voce("04.02")).id);
+    const r = await inBlocco([a, b], (await voce("09.01")).id);
+    expect(r.r).toEqual({ aggiornati: 1, saltati: 1 });
+    expect((await uno<{ c: string }>("select v.codice c from bank_transactions t join cassa_voci v on v.id = t.cassa_voce_id where t.id = $1", [a])).c).toBe("04.02");
+    const forzato = await inBlocco([a], (await voce("09.01")).id, true);
+    expect(forzato.r.aggiornati).toBe(1);
+  });
+
+  it("rifiuta tutto se nella selezione c'è un movimento nel verso sbagliato", async () => {
+    const a = await movimento({ amount: -100 });
+    const b = await movimento({ amount: 300 });
+    await comeUtente();
+    const v = (await voce("09.01")).id;
+    await db.exec("savepoint prima");
+    await expect(inBlocco([a, b], v)).rejects.toThrow(/altro verso/);
+    await db.exec("rollback to savepoint prima");
+    expect((await uno<{ n: number }>("select count(*)::int n from bank_transactions where cassa_voce_id is not null")).n).toBe(0);
+  });
+
+  it("non tocca i movimenti di un'altra azienda anche se il loro id è nella lista", async () => {
+    await prepara(B);
+    const mio = await movimento({ amount: -100 });
+    const altrui = await movimento({ amount: -100, company: B });
+    await comeUtente();
+    const r = await inBlocco([mio, altrui], (await voce("09.01")).id);
+    expect(r.r.aggiornati).toBe(1);
+    expect((await uno<{ v: string | null }>("select cassa_voce_id v from bank_transactions where id = $1", [altrui])).v).toBeNull();
+  });
+
+  it("la lista dà la revisione giusta per una modifica successiva", async () => {
+    const a = await movimento({ amount: -100 });
+    await comeUtente();
+    await inBlocco([a], (await voce("09.01")).id);
+    const r = (await lista()).find((x) => x.id === a)!;
+    expect(r.revisione).toBe(2);
+    expect(r.voce).toMatchObject({ codice: "09.01", origine: "manuale", confermata: true });
   });
 });

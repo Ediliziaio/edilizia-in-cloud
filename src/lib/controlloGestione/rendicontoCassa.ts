@@ -50,6 +50,13 @@ export interface MovimentoRegistrato {
   documentoFiscaleId?: string | null;
   installmentId?: string | null;
   orderId?: string | null;
+  /** Movimento di banca collegato (o da cui viene la riga). */
+  bankTransactionId?: string | null;
+  /** Vero se la riga è un movimento di banca non ancora in prima nota. */
+  fonteBanca?: boolean;
+  /** Riga del rendiconto indicata dalla categoria CONFERMATA del movimento: vince sul testo. */
+  voceCassa?: VoceCassa | null;
+  voceNome?: string | null;
 }
 
 
@@ -75,6 +82,8 @@ export interface DettaglioCella {
   tipo: "registrato" | "previsto";
   stimato: boolean;
   nota?: string;
+  /** Movimento di banca da cui viene (per classificarlo dal dettaglio). */
+  bankTransactionId?: string | null;
 }
 
 export interface RendicontoCassa {
@@ -204,7 +213,7 @@ export function costruisciRendiconto(input: {
     }
     const mese = Number(data.slice(5, 7));
     const entrata = r.direction === "entrata";
-    const c = classificaRegistrato({
+    const c = r.voceCassa ? { voce: r.voceCassa, nonClassificato: false } : classificaRegistrato({
       direction: r.direction,
       category: r.category,
       costCategory: r.costCategory,
@@ -229,8 +238,13 @@ export function costruisciRendiconto(input: {
       descrizione: r.description || r.category || (entrata ? "Entrata registrata" : "Uscita registrata"),
       controparte: r.supplierName ?? "",
       cents: firmato,
-      fonte: `Prima nota${r.category ? ` · ${r.category}` : ""}`,
-      href: r.orderId ? `/azienda/ordini/${r.orderId}` : "/azienda/prima-nota",
+      fonte: r.fonteBanca
+        ? `Banca, non ancora in prima nota${r.voceNome ? ` · ${r.voceNome}` : ""}`
+        : `Prima nota${r.voceNome ? ` · ${r.voceNome}` : r.category ? ` · ${r.category}` : ""}`,
+      href: r.bankTransactionId
+        ? `/azienda/tesoreria?tab=transazioni&movimento=${r.bankTransactionId}`
+        : r.orderId ? `/azienda/ordini/${r.orderId}` : "/azienda/prima-nota",
+      bankTransactionId: r.bankTransactionId ?? null,
       tipo: "registrato",
       stimato: false,
     });
