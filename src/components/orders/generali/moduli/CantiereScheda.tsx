@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { AspettoOperativoProvider } from "../design/ContestoOperativo";
+import { InvitoFasiDalPiano } from "../design/FasiDalPianoDialog";
 import { DocumentiInPopup } from "@/components/orders/DocumentiInPopup";
 import { IntestazioneScheda } from "../design/ElementiScheda";
 import { DEFINIZIONI_MODELLI } from "@/lib/orders/commesseGenerali";
@@ -285,6 +286,9 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 />
               </TabsContent>
               <TabsContent value="lavorazioni" className="pt-2">
+                {orderId === g.id && puoModificare && g.modello !== "appalto" && riepilogo.permessi.margini && (
+                  <InvitoFasiDalPiano riepilogo={riepilogo} />
+                )}
                 <Lavorazioni
                   key={orderId}
                   orderId={orderId}

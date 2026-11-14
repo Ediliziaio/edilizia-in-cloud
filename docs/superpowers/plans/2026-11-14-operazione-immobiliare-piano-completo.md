@@ -153,7 +153,7 @@ avvio. Per chi costruisce, in quest'ordine:
    vendite) finché nessuna è venduta; la tabella torna dalla prima prenotazione.
 - Nel Cantiere, «Registra e consulta su»: la generale in cima, le unità in un gruppo chiuso.
 
-### Lotto 6 — P3 · Il cantiere dal piano (dopo D2 e D8)
+### Lotto 6 — P3 · Il cantiere dal piano — STRUMENTO FATTO 14/11 (`20290322094500`); fasi di URBAN VISION da confermare
 Le voci di costruzione del piano (32-34 per operazione) sono in parte lavori (opere civili,
 impianti, serramenti) e in parte costi (magazzini edili, assicurazioni, locazione ufficio).
 Proposta da far scegliere al titolare:
@@ -218,4 +218,13 @@ I lotti 1-4 non chiedono niente al titolare e si possono fare subito.
   ultimi costi. Unità in una riga finché sono tutte libere, senza il grafico delle vendite;
   tornano tabella e grafico dalla prima prenotazione. Nel Cantiere le unità sono un gruppo a
   parte sotto la generale. Documenti mancanti di Via Callimaco: 59 → 7.
+- **Lotto 6.** «Proponi le fasi dal piano» (Panoramica → riquadro Cantiere, e Cantiere →
+  Lavorazioni finché non ci sono fasi): 8 fasi tipiche (`FASI_TIPICHE` in `fasiDalPiano.ts`),
+  ogni voce di cantiere nella sua fase dal nome, date dalla finestra della costruzione nel
+  calendario, i costi che non sono un lavoro restano sulla generale. Si sposta una voce, si
+  rinomina o si toglie una fase, poi `generale_fasi_dal_piano` crea fasi, sottofasi e
+  lavorazioni (`order_work_phase_voci`, origine «piano», a corpo, importo = costo previsto:
+  materiali per le voci materiali, lavoro per le altre). Su Via Callimaco: 28 lavori in 8 fasi,
+  9 costi restano sulla generale. **Le fasi di URBAN VISION non sono state create**: le conferma
+  il titolare (D2: costruisce lui o un'impresa in appalto).
 

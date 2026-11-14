@@ -142,7 +142,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
       {puoModificare && r.figlie.length > 0 && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
 
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
-      {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} />}
+      {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
 
       {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
         {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}

@@ -3,6 +3,7 @@
 // Un'operazione immobiliare, finché costruisce, si segue dal cantiere: quali fasi sono in corso,
 // quanto si è speso questo mese contro quanto prevedeva il piano, gli ultimi costi arrivati.
 // Prima la Panoramica parlava solo di vendite (la tabella delle unità) a chi stava costruendo.
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { ArrowRight, HardHat } from "lucide-react";
@@ -13,6 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
 import { dataBreve, euro, nomeMese } from "../piano/formato";
+import { FasiDalPianoDialog } from "./FasiDalPianoDialog";
 
 interface Fase {
   id: string;
@@ -26,7 +28,8 @@ interface Fase {
 const FINITA = (f: Fase) => f.status === "completata" || f.percentuale >= 100;
 const IN_CORSO = (f: Fase) => !FINITA(f) && (f.status === "in_corso" || f.percentuale > 0);
 
-export function RiquadroCantiereOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale }) {
+export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }: { riepilogo: RiepilogoGenerale; puoModificare?: boolean }) {
+  const [dalPiano, setDalPiano] = useState(false);
   const generaleId = riepilogo.generale.id;
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
@@ -55,6 +58,7 @@ export function RiquadroCantiereOperazione({ riepilogo }: { riepilogo: Riepilogo
 
   // Il riquadro vive nella Panoramica: qualunque cosa arrivi, non deve farla cadere.
   const elenco = Array.isArray(fasi.data) ? fasi.data : [];
+  const conVoci = Array.isArray(n.voci) && n.voci.length > 0;
   const finite = elenco.filter(FINITA).length;
   const inCorso = elenco.filter(IN_CORSO);
   const prossime = elenco.filter((f) => !FINITA(f) && !IN_CORSO(f)).slice(0, 2);
@@ -96,9 +100,16 @@ export function RiquadroCantiereOperazione({ riepilogo }: { riepilogo: Riepilogo
               <p className="mt-0.5 text-sm font-medium">Nessuna fase</p>
               <p className="text-xs text-muted-foreground">Dividi il lavoro in fasi, con le date e chi le fa.</p>
               {!telefono && (
-                <button type="button" onClick={() => apri("lavorazioni")} className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300">
-                  Imposta le fasi <ArrowRight className="h-3 w-3" aria-hidden="true" />
-                </button>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {puoModificare && conVoci && (
+                    <button type="button" onClick={() => setDalPiano(true)} className="inline-flex items-center gap-1 text-xs font-semibold text-orange-700 hover:text-orange-800 dark:text-orange-300">
+                      Proponi le fasi dal piano <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  )}
+                  <button type="button" onClick={() => apri("lavorazioni")} className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    {puoModificare && conVoci ? "o a mano" : "Imposta le fasi"} <ArrowRight className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </div>
               )}
             </>
           ) : (
@@ -157,6 +168,7 @@ export function RiquadroCantiereOperazione({ riepilogo }: { riepilogo: Riepilogo
           )}
         </div>
       </div>
+      {dalPiano && <FasiDalPianoDialog open onOpenChange={setDalPiano} riepilogo={riepilogo} fasiEsistenti={elenco.length} />}
     </section>
   );
 }
