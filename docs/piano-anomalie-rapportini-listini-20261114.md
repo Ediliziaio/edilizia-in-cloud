@@ -79,3 +79,18 @@ per partita IVA, salva, ricarica, è ancora lì.
 
 Prove: fattura con targa di un solo mezzo → collegata senza AI; due fatture identiche → una sola
 lettura AI; incasso parziale e saldo; nessun costo contato due volte nella commessa.
+
+## Fase 6 — Commessa del cliente privato allineata a quella del committente
+
+Richiesta del titolare (14/11): nella commessa del committente si importano preventivi e
+contratti (anche con l'AI) e ci sono strumenti che nella commessa del cliente privato mancano.
+Le due devono offrire le stesse cose dove hanno senso.
+
+1. Censimento: cosa ha la commessa del committente (import di preventivo, contratto letto con
+   l'AI, listino concordato, rendiconto, SAL) e cosa manca a quella del privato, pagina per pagina.
+2. Import del preventivo o del contratto nella commessa del privato: testata, importi, rate e
+   fasi (riusa «Da computo o preventivo» e la lettura del contratto già esistente).
+3. Stessi pulsanti e stesso ordine delle schede dove la funzione è la stessa.
+
+Prove: da super admin «visualizza come» un utente d'ufficio, una commessa privata e una del
+committente affiancate; import di un preventivo e di un contratto su Demo Azienda 2.
