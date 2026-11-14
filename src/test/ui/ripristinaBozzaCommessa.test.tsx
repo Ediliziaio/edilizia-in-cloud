@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, it, vi } from "vitest";
 const empty:never[]=[];
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"company"},user:{id:"user"}})}));
-vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({onlyAssigned:false})}));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({onlyAssigned:false,canViewOrderAmounts:true,canViewCosts:true})}));
 vi.mock("@/hooks/useBonusFiscaliFlags",()=>({useBonusFiscaliFlags:()=>({bonusMultipli:false})}));
 vi.mock("@/hooks/useCompanyCustomers",()=>({useCompanyCustomers:()=>({data:[] as never[],isLoading:false})}));
 vi.mock("@/hooks/billing/useFatturaOrdineLink",()=>({useFattureByOrdine:()=>({data:empty,isError:false})}));

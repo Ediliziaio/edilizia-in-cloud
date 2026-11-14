@@ -132,7 +132,11 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
-  const { onlyAssignedWork: onlyAssigned, canViewCosts } = usePermissions();
+  const { onlyAssignedWork: onlyAssigned, canViewCosts, canViewOrderAmounts } = usePermissions();
+  // Chi modifica la commessa senza «Venduto e importi» riceve totale, IVA e rate vuoti (la vista
+  // li nasconde). Rimandarli indietro azzerava il totale e rifaceva il piano con un «Saldo» da 0
+  // (14/11/2026): la parte economica per loro non si mostra e non si salva.
+  const puoImporti = canViewOrderAmounts;
 
   const [customerId, setCustomerId] = useState("");
   const [orderCode, setOrderCode] = useState("");
@@ -622,14 +626,14 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     mutationFn: async (args?: { customerId?: string }) => {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       if (order?.workflow_kind === "intervento") throw new Error("Gli importi si gestiscono sul contratto di origine.");
-      if (order?.workflow_kind === "contratto" && (!vatRate.trim() || !installments.length)) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
+      if (puoImporti && order?.workflow_kind === "contratto" && (!vatRate.trim() || !installments.length)) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
       // Solo il saldo finale prende il residuo: i SAL intermedi restano col loro importo.
-      if (paymentType === "financing" && parseDecimalIT(financingCost) > 0 && !financingCostMode &&
+      if (puoImporti && paymentType === "financing" && parseDecimalIT(financingCost) > 0 && !financingCostMode &&
           (order?.payment_type !== paymentType || Number(order?.financing_cost ?? 0) !== parseDecimalIT(financingCost))) {
         throw new Error("Scegli se il costo della finanziaria è trattenuto o pagato separatamente.");
       }
-      if (order?.financing_cost_mode && !financingCostMode) throw new Error("Scegli come viene pagato il costo della finanziaria.");
-      if (financingCostMode) {
+      if (puoImporti && order?.financing_cost_mode && !financingCostMode) throw new Error("Scegli come viene pagato il costo della finanziaria.");
+      if (puoImporti && financingCostMode) {
         verificaCostoSuPiano(parseDecimalIT(financingCost), financingCostMode, installments);
         await verificaSupportoModalitaFinanziaria();
       }
@@ -682,6 +686,15 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
           ? parseDecimalIT(tettoImporto)
           : (valorizzazione === "a_misura" ? null : (order?.tetto_importo ?? null));
         campi.riferimento_committente = riferimentoCommittente.trim() || null;
+      }
+
+      // Senza «Venduto e importi» la testata economica resta com'è sul database.
+      if (!puoImporti) {
+        for (const k of ["total_amount", "vat_rate", "payment_type", "tetto_importo", "financing_cost", "financing_cost_mode"]) delete campi[k];
+      }
+      if (!canViewCosts) {
+        delete campi.financing_cost;
+        delete campi.financing_cost_mode;
       }
 
       const rate = installmentsForSave.map((i, idx) => ({
@@ -774,8 +787,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       const { error } = await supabase.rpc("commessa_salva", {
         p_commessa: id!,
         p_campi: campi,
-        p_rate: rate,
-        p_bonus: righeBonus,
+        // `null` = rate e righe bonus restano come sono: chi non vede gli importi non le riscrive.
+        p_rate: puoImporti ? rate : null,
+        p_bonus: puoImporti ? righeBonus : null,
         p_voci: voci,
         p_venditore: venditore,
         // Guardia sulla modifica concorrente: se un collega ha salvato mentre
@@ -889,15 +903,16 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     }
     // Per i lavori per appaltatore (sola manodopera) l'importo può essere 0
     // perché spesso il compenso è gestito a SAL/contratto separato.
-    if (orderTypeState !== "appaltatore_lavoro" && total <= 0) {
+    // Senza «Venduto e importi» il totale non si vede né si salva: non si controlla.
+    if (puoImporti && orderTypeState !== "appaltatore_lavoro" && total <= 0) {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;
     }
-    if (vat < 0 || vat > 100) {
+    if (puoImporti && (vat < 0 || vat > 100)) {
       toast.error("IVA non valida", { description: "L'IVA deve essere un valore tra 0 e 100." });
       return;
     }
-    if ((parseDecimalIT(financingCost)) < 0) {
+    if (puoImporti && (parseDecimalIT(financingCost)) < 0) {
       toast.error("Costo finanziaria non valido", { description: "Il costo finanziaria non può essere negativo." });
       return;
     }
@@ -1099,7 +1114,15 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               «Importo Totale *», IVA, bonus edilizio, acconti e saldo — cioe'
               proprio quello che genera una previsione di incasso falsa.
               Quello che fatturi esce dal rendiconto. */}
-          {orderTypeState === "appaltatore_lavoro" && valorizzazione === "a_misura" ? (
+          {!puoImporti ? (
+            <QuoteCard title="Importi e pagamenti" icon={<HardHat className="h-4 w-4" />}>
+              <p className="text-sm text-muted-foreground">
+                Importo, IVA e piano dei pagamenti li vede e li modifica chi ha il permesso
+                «Venduto e importi». Salvando da qui restano come sono. Per averlo, chiedi al
+                titolare dell'azienda.
+              </p>
+            </QuoteCard>
+          ) : orderTypeState === "appaltatore_lavoro" && valorizzazione === "a_misura" ? (
             <QuoteCard
               title="Quanto vale questo lavoro"
               icon={<HardHat className="h-4 w-4" />}
@@ -1179,7 +1202,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
             onFinancingCostChange={setFinancingCost}
           />
           )}
-          {variazioniApprovate !== 0 && (
+          {puoImporti && variazioniApprovate !== 0 && (
             <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
               Varianti approvate: <strong className="text-foreground">{variazioniApprovate > 0 ? "+" : ""}{formatDecimalIT(variazioniApprovate)} €</strong> IVA esclusa.
               Il saldo le comprende, come nella scheda della commessa.
