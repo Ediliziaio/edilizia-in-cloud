@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/formatters";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 import { conAvvisi, type VoceImportata } from "@/lib/computo/importaVoci";
+import type { RiepilogoComputoCloud } from "@/lib/computo/cloudComputo";
 import {
   filtraDocumenti, vociDaPreventivo, type DocumentoGestionale, type RigaPreventivo, type fasiPerIlDatabase,
 } from "@/lib/orders/fasiDaComputo";
@@ -81,7 +82,7 @@ export function DocumentiDelGestionale({ companyId, mostraImporti, onScelto }: {
     queryKey: ["importa-fasi", "documenti", companyId],
     queryFn: async (): Promise<DocumentoGestionale[]> => {
       const [computi, preventivi] = await Promise.all([
-        (await import("@/lib/computo/cloudComputo")).elencaComputiCloud(companyId).catch(() => []),
+        (await import("@/lib/computo/cloudComputo")).elencaComputiCloud(companyId).catch((): RiepilogoComputoCloud[] => []),
         db.from("quotes").select("id, quote_number, title, client_name, status, total, updated_at")
           .eq("company_id", companyId).is("deleted_at", null).order("updated_at", { ascending: false }).limit(300),
       ]);
