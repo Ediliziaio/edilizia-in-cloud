@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { generaDistinta, materialiCompresi, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
-import { collegaMateriali, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
+import { collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
 
 const voce = (p: Partial<VoceComputo> & { id: string; descrizione_breve: string }): VoceComputo => ({ quantita: 1, unita_misura: "cad", ...p });
@@ -262,6 +262,37 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       const mAI = collegaMateriali(conAI.righe, { articoli: [], listini: [], giaUsati: [] });
       expect(sceltePerRicordare(mAI, () => true, libreria, [ai]).approvaAI).toEqual([{ id: "s-ai", nome: "Nicchia" }]);
       expect(sceltePerRicordare(mAI, (m) => !m.proposta_ai, libreria, [ai]).approvaAI).toEqual([]);
+    });
+  });
+
+  describe("confezioni e prezzo del listino (14/11/2026)", () => {
+    it("senza articolo, i materiali a peso o a volume si ordinano nelle confezioni d'uso comune", () => {
+      // Il massetto, in un'azienda senza catalogo: 945 kg di cemento → 38 sacchi da 25 kg.
+      const soloMassetto = generaDistinta({ voci: [COMPUTO[5]], scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      const cemento = collegaMateriali(soloMassetto.righe, { articoli: [], listini: [], giaUsati: [] }).find((m) => m.descrizione === "Cemento")!;
+      expect(cemento.conversione).toMatchObject({ quantita: 38, unita: "sacco", contenuto: 25, comune: true });
+      expect(rigaDaSalvare(cemento)).toMatchObject({ quantita_calcolata: 38, unita_misura: "sacco", specifiche: expect.stringMatching(/945 kg = 38 sacco da 25 kg/) });
+      // L'articolo collegato decide lui la confezione (intonaco: sacco 25 kg dell'articolo, non «comune»).
+      const { materiali } = proposta();
+      expect(materiali.find((m) => m.descrizione === "Intonaco premiscelato di fondo")!.conversione?.comune).toBeUndefined();
+      expect(confezioneComune("Idropittura per interni", "l")).toEqual({ quantita: 14, unita: "l", nome: "secchio" });
+      expect(confezioneComune("Primer per autolivellante", "l")).toMatchObject({ nome: "tanica" });
+      expect(confezioneComune("Sabbia per massetti", "mc")).toBeNull();
+      expect(confezioneComune("Cavo unipolare", "m")).toBeNull();
+    });
+
+    it("un listino venduto a kg resta a kg; il prezzo netto del listino va sulla riga salvata", () => {
+      const r = generaDistinta({ voci: [COMPUTO[4]], scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      const aKg = collegaMateriali(r.righe, { articoli: [], giaUsati: [],
+        listini: [{ id: "l-kg", codice: null, descrizione: "Cemento CEM II 32,5 R sfuso", unita: "kg", prezzo: 0.2, sconto_pct: 0, supplier_id: "f1", listino: "Sfuso" }] })[0];
+      expect(aKg.conversione).toBeNull();
+      expect(rigaDaSalvare(aKg)).toMatchObject({ unita_misura: "kg", purchase_price: 0.2, prezzo_fonte: "listino", supplier_id: "f1" });
+      // Col listino a sacchi: 20 sacchi a 4,68 € netti.
+      const { materiali } = proposta();
+      const sacchi = materiali.find((m) => m.origini.some((o) => o.tipo === "computo" && o.voce_id === "v5"))!;
+      expect(rigaDaSalvare(sacchi)).toMatchObject({ quantita_calcolata: 20, unita_misura: "sacco", purchase_price: 4.68, prezzo_fonte: "listino" });
+      // Un articolo dell'azienda: il prezzo lo mette il database dall'articolo.
+      expect(rigaDaSalvare(materiali.find((m) => m.descrizione === "Intonaco premiscelato di fondo")!)).toMatchObject({ purchase_price: null, prezzo_fonte: null });
     });
   });
 });

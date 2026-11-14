@@ -67,6 +67,30 @@ export interface Conversione {
   contenuto: number;
   /** «1.500 kg = 60 sacchi da 25 kg». */
   testo: string;
+  /** La confezione non viene da un articolo o un listino ma dall'uso comune (sacchi da 25 kg…). */
+  comune?: boolean;
+}
+
+/**
+ * Le confezioni d'uso comune dei materiali a peso o a volume (14/11/2026): senza un
+ * articolo collegato, 2.520 kg di intonaco si ordinano comunque in sacchi. Il primo
+ * che corrisponde vince; un articolo o un listino con un'altra confezione vincono su
+ * queste.
+ */
+const CONFEZIONI_COMUNI: [RegExp, { quantita: number; unita: "kg" | "l"; nome: string }][] = [
+  [/^(?:stucco|nastro)/, { quantita: 5, unita: "kg", nome: "sacco" }],
+  [/^(?:intonac|premiscelat|malta|massetto|rasante|collante|adesivo|cemento|calce|autolivell|livellin)/, { quantita: 25, unita: "kg", nome: "sacco" }],
+  [/^(?:idropittur|pittur|smalt|vernic|intonachin)/, { quantita: 14, unita: "l", nome: "secchio" }],
+  [/^(?:primer|fissativ|fondo)/, { quantita: 5, unita: "l", nome: "tanica" }],
+  [/^(?:impermeabilizz|guaina liquida)/, { quantita: 20, unita: "kg", nome: "secchio" }],
+];
+
+export function confezioneComune(descrizione: string, unita: string): { quantita: number; unita: "kg" | "l"; nome: string } | null {
+  const m = normalizzaUnita(unita);
+  if (m !== "kg" && m !== "l") return null;
+  const n = normalizzaTesto(descrizione);
+  const c = CONFEZIONI_COMUNI.find(([re]) => re.test(n))?.[1];
+  return c && c.unita === m ? c : null;
 }
 
 export interface MaterialeCollegato extends RigaDistintaCalcolata {
@@ -224,14 +248,20 @@ export function trovaCollegamento(
 const formato = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 
 /** Da kg o litri alle confezioni dell'articolo, quando il nome dice quanto ne contiene. */
-export function convertiInConfezioni(quantita: number, unitaMateriale: string, c: Collegamento | null): Conversione | null {
-  if (!c) return null;
+export function convertiInConfezioni(quantita: number, unitaMateriale: string, c: Collegamento | null, descrizione?: string): Conversione | null {
   const m = normalizzaUnita(unitaMateriale);
   if (m !== "kg" && m !== "l") return null;
-  const contenuto = contenutoConfezione(c.nome);
-  if (!contenuto || contenuto.unita !== m) return null;
-  const unitaArticolo = (c.unita ?? "").trim();
-  if (normalizzaUnita(unitaArticolo) === m) return null;
+  // Un articolo o un listino venduto a kg o litri: si ordina così, niente confezioni.
+  if (c && normalizzaUnita(c.unita) === m) return null;
+  const contenuto = c ? contenutoConfezione(c.nome) : null;
+  if (!contenuto || contenuto.unita !== m) {
+    // Senza una confezione scritta nell'articolo: quella d'uso comune, se il materiale ne ha una.
+    const comune = !c && descrizione ? confezioneComune(descrizione, m) : null;
+    if (!comune) return null;
+    const n = Math.ceil(quantita / comune.quantita - 1e-9);
+    return { quantita: n, unita: comune.nome, contenuto: comune.quantita, comune: true, testo: `${formato(quantita)} ${m} = ${n} ${comune.nome} da ${formato(comune.quantita)} ${m}` };
+  }
+  const unitaArticolo = (c!.unita ?? "").trim();
   const n = Math.ceil(quantita / contenuto.quantita - 1e-9);
   const nomeConfezione = CONFEZIONI.test(normalizzaTesto(unitaArticolo)) ? unitaArticolo : "conf";
   return { quantita: n, unita: nomeConfezione, contenuto: contenuto.quantita, testo: `${formato(quantita)} ${m} = ${n} ${nomeConfezione} da ${formato(contenuto.quantita)} ${m}` };
@@ -247,7 +277,7 @@ export function collegaMateriali(
   return righe.map((r) => {
     const gia = r.article_template_id ? dati.articoli.find((a) => a.id === r.article_template_id) : undefined;
     const collegamento = gia ? daArticolo(gia, "codice") : trovaCollegamento(r, dati);
-    const conversione = convertiInConfezioni(r.quantita_calcolata, r.unita_misura, collegamento);
+    const conversione = convertiInConfezioni(r.quantita_calcolata, r.unita_misura, collegamento, r.descrizione);
     return {
       ...r,
       article_template_id: collegamento?.tipo === "articolo" ? collegamento.id : r.article_template_id,
@@ -275,5 +305,9 @@ export function rigaDaSalvare(m: MaterialeCollegato) {
     quantita_calcolata: conversione ? conversione.quantita : riga.quantita_calcolata,
     quantita_netta: conversione ? Math.round((riga.quantita_netta / conversione.contenuto) * 10000) / 10000 : riga.quantita_netta,
     origini: riga.origini.map((o) => ({ ...o, fonte, affidabilita, note })),
+    // Il prezzo del listino del fornitore (netto, per l'unità d'acquisto): l'articolo
+    // dell'azienda, se c'è, vince nel database (materiali_salva_generazione).
+    purchase_price: collegamento?.tipo === "listino" && collegamento.prezzo ? collegamento.prezzo : null,
+    prezzo_fonte: collegamento?.tipo === "listino" && collegamento.prezzo ? ("listino" as const) : null,
   };
 }
