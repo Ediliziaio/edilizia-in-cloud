@@ -20,7 +20,7 @@ const catalogo = [
   voce({ id: "v0402", codice: "04.02", nome: "Materiali edili", parent_id: "cat04", descrizione: "Acquisto di materiali edili." }),
   voce({ id: "v0412", codice: "04.12", nome: "Minuteria e ferramenta", parent_id: "cat04", attiva: false }),
 ];
-vi.mock("@/lib/finance/cassaVoci", async (orig) => ({
+vi.mock("@/lib/finance/cassaVoci", async (orig): Promise<Record<string, unknown>> => ({
   ...(await orig<typeof import("@/lib/finance/cassaVoci")>()),
   useCatalogoCassa: () => ({ data: catalogo, isPending: false, isError: false }),
   useSalvaVoceCassa: () => ({ mutate: m.mutate, isPending: false }),

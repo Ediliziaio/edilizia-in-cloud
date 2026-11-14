@@ -26,7 +26,7 @@ const catalogo: VoceCatalogo[] = [
   voce({ id: "cat01", codice: "01", nome: "Incassi clienti", livello: "categoria", parent_id: "area", flusso: "entrata" }),
   voce({ id: "v0104", codice: "01.04", nome: "Lavori edili e ristrutturazioni", parent_id: "cat01", flusso: "entrata", voce_cassa_in: "inc_clienti", voce_cassa_out: null }),
 ];
-vi.mock("@/lib/finance/cassaVoci", async (orig) => ({
+vi.mock("@/lib/finance/cassaVoci", async (orig): Promise<Record<string, unknown>> => ({
   ...(await orig<typeof import("@/lib/finance/cassaVoci")>()),
   useCatalogoCassa: () => ({ data: catalogo, isError: false }),
   useAggiornaDopoCategoria: () => () => undefined,
