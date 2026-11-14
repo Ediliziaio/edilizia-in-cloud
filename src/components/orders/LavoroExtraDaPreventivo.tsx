@@ -32,17 +32,21 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
-      const [{ data: q, error: e1 }, { data: righe, error: e2 }] = await Promise.all([
+      const [{ data: q, error: e1 }, { data: righe, error: e2 }, { data: giaCommessa, error: e3 }] = await Promise.all([
         db.from("quotes")
           .select("id, status, variante_id, quote_number, title, description, signed_at, signed_by_name, subtotal, discount_amount, total, vat_amount")
           .eq("id", quoteId).eq("company_id", companyId).maybeSingle(),
         db.from("quote_items")
           .select("name, description, quantity, unit_price, unit_of_measure, item_category, is_optional, discount_percent")
           .eq("quote_id", quoteId).order("sort_order"),
+        // Un preventivo diventato commessa resta «accettata»: va escluso anche lui (14/11/2026).
+        db.from("orders").select("id").eq("quote_id", quoteId).eq("company_id", companyId).is("deleted_at", null).limit(1),
       ]);
-      if (e1 || e2) throw e1 ?? e2;
+      if (e1 || e2 || e3) throw e1 ?? e2 ?? e3;
       if (!q) throw new Error("Preventivo non trovato.");
-      if (q.status !== "accettata" || q.variante_id) throw new Error("Questo preventivo non è accettato, oppure è già diventato una commessa o un lavoro extra.");
+      if (q.status !== "accettata" || q.variante_id || (giaCommessa ?? []).length > 0) {
+        throw new Error("Questo preventivo non è accettato, oppure è già diventato una commessa o un lavoro extra.");
+      }
       return { q: q as TestataPerVariante, righe: (righe ?? []) as RigaPerVariante[] };
     },
   });
@@ -57,12 +61,18 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
     try {
       const { data: variante } = await supabase.from("ordini_variazione").select("id").eq("id", idVariante).eq("order_id", orderId).maybeSingle();
       if (variante) {
-        const { error } = await supabase.from("quotes")
+        const { data: segnato, error } = await supabase.from("quotes")
           .update({ status: "convertita", variante_id: idVariante } as never)
-          .eq("id", quoteId).eq("company_id", companyId).eq("status", "accettata");
+          .eq("id", quoteId).eq("company_id", companyId).eq("status", "accettata").is("variante_id", null)
+          .select("id");
         if (error) throw error;
+        // Nessuna riga: nel frattempo il preventivo è stato usato da qualcun altro. Il lavoro extra resta in bozza
+        // e va guardato, non nascosto dietro un «creato».
+        if (!segnato?.length) throw new Error("Nel frattempo il preventivo è stato usato altrove: controlla il lavoro extra appena salvato prima di mandarlo.");
         toast.success("Lavoro extra creato dal preventivo", { description: "Mandalo da firmare o carica la copia firmata: all'approvazione diventa una fase." });
         queryClient.invalidateQueries({ queryKey: ["preventivi-committente"] });
+        queryClient.invalidateQueries({ queryKey: ["preventivi-cliente"] });
+        queryClient.invalidateQueries({ queryKey: ["preventivi-per-commessa"] });
       }
     } catch (e) {
       toast.error("Il lavoro extra c'è, ma il preventivo non risulta collegato", { description: e instanceof Error ? e.message : String(e) });

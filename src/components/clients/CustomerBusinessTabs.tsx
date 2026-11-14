@@ -17,6 +17,7 @@ import { it } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { FascicoloCliente } from "@/components/clients/FascicoloCliente";
+import { PreventiviCliente } from "@/components/clients/PreventiviCliente";
 import { DocumentiCommesseCliente } from "@/components/clients/DocumentiCommesseCliente";
 import { useDocumentiCommesseCliente } from "@/hooks/useDocumentiCommesseCliente";
 import type { CommessaDelCliente } from "@/lib/clienti/documentiCommesseCliente";
@@ -989,7 +990,10 @@ export function CustomerBusinessTabs({
         <OrdiniTab orders={orders} customerId={customerId} customerFullName={customerFullName} />
       </TabsContent>
       <TabsContent value="preventivi">
-        <PreventiviTab items={preventivi} customerId={customerId} customerFullName={customerFullName} />
+        {/* Cliente privato: lo stesso riquadro del committente, con le azioni (14/11/2026). */}
+        {!perCommittente && companyId
+          ? <PreventiviCliente customerId={customerId} companyId={companyId} elenco={preventivi} />
+          : <PreventiviTab items={preventivi} customerId={customerId} customerFullName={customerFullName} />}
       </TabsContent>
       <TabsContent value="assistenza">
         <AssistenzaTab tickets={tickets} customerId={customerId} customerFullName={customerFullName} />

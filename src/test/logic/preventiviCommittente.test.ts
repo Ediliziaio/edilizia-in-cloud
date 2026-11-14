@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bozzaLavoroExtra, clienteDaCollegare, daDecidere, datiClienteDaProfilo, datiRifiuto, etichettaRifiuto,
-  numeroPreventivo, preventivoDaRichiamare, righeDaContratto, sceltaIniziale, statoCommittente,
+  numeroPreventivo, preventiviImportabili, preventivoDaRichiamare, righeDaContratto, sceltaIniziale, statoCommittente,
   type PreventivoCommittente, type TariffaContratto,
 } from "@/lib/preventivi/preventiviCommittente";
 import { costruisciCopiaQuote } from "@/lib/quotes/duplicaPreventivo";
@@ -179,5 +179,16 @@ describe("lo scaduto nel «Cosa fare adesso»", () => {
     const revisione = { ...base, id: "r", parent_quote_id: "a", revision_number: 1, status: "bozza", created_at: "2026-11-02T09:00:00Z" };
     expect(preventivoDaRichiamare([vecchio, revisione], "2026-11-10", true)).toBeNull();
     expect(preventivoDaRichiamare([base], "2026-10-15", true)).toBeNull();
+  });
+});
+
+describe("preventiviImportabili (14/11/2026)", () => {
+  const q = (id: string, status: string, variante_id: string | null = null) => ({ id, status, variante_id });
+  it("solo accettati, mai diventati lavoro extra né commessa", () => {
+    const lista = [q("a", "accettata"), q("b", "accettata", "var-1"), q("c", "convertita", "var-2"), q("d", "accettata"), q("e", "inviata")];
+    expect(preventiviImportabili(lista, ["d", null]).map((x) => x.id)).toEqual(["a"]);
+  });
+  it("senza commesse collegate restano tutti gli accettati liberi", () => {
+    expect(preventiviImportabili([q("a", "accettata"), q("d", "accettata")], []).map((x) => x.id)).toEqual(["a", "d"]);
   });
 });

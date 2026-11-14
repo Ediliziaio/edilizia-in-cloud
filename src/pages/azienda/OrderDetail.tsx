@@ -128,6 +128,8 @@ import { useConteggioRichiesteCommessa } from "@/hooks/useSupplierRfqs";
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { LavoriExtraPopup } from "@/components/orders/LavoriExtraPopup";
 import { LavoroExtraDaPreventivo } from "@/components/orders/LavoroExtraDaPreventivo";
+import { ImportaDaPreventivoCommessa } from "@/components/orders/ImportaDaPreventivoCommessa";
+import { LeggiContrattoCommessa } from "@/components/orders/LeggiContrattoCommessa";
 
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { RiepilogoPdfDialog, type SceltaRiepilogo } from "@/components/orders/RiepilogoPdfDialog";
@@ -1573,6 +1575,7 @@ function OrderDetailInner() {
   ) : null;
 
   // Lo stesso contesto per le varianti in Economia e per il popup «Lavori extra» delle Lavorazioni.
+  const puoImportareNellaCommessa = permissions.canEditOrders && permissions.canViewOrderAmounts && !permissions.solaLettura && !operationalIntervention;
   const contestoVarianti = { currentNet: agreedAmount, vatRate: order.vat_rate ?? undefined, customerName: [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(" "), customerEmail: order.customer?.email ?? undefined, orderCode: order.order_code, companyName: effectiveCompany?.name, customerAddress: order.customer?.address ?? undefined, siteAddress: order.indirizzo_lavori || order.work_address || undefined };
   return (
     // Presentazione condivisa per testata, navigazione e riepiloghi delle commesse.
@@ -1811,7 +1814,10 @@ function OrderDetailInner() {
             {/* Da telefono i documenti si aprono dall'icona in testata: qui erano quasi mille pixel. */}
             {!isMobile && <div id="section-documenti" className="scroll-mt-24">
               <OrderAttachments key={id} orderId={id!} editable={permissions.canEditOrders}
-                actions={permissions.canEditOrders && effectiveCompany?.id && id ? <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} /> : undefined}
+                actions={permissions.canEditOrders && effectiveCompany?.id && id ? <>
+                  <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} />
+                  {puoImportareNellaCommessa && <LeggiContrattoCommessa orderId={id} companyId={effectiveCompany.id} perCommittente={inAppalto} etichetta="Leggi un contratto firmato" />}
+                </> : undefined}
               />
             </div>}
             </OrderViewTransition>
@@ -2123,6 +2129,15 @@ function OrderDetailInner() {
             </div>}
             {activeEconomiaView === "margini" && !(permissions.canViewCosts || permissions.canViewMargins) && <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare costi e margini. Puoi aprire le altre viste consentite.</p>}
             {activeEconomiaView === "varianti" && effectiveCompany?.id && <div id="section-varianti" className="scroll-mt-24">
+              {/* Per privato e committente (14/11/2026): un preventivo accettato diventa lavoro extra, un contratto
+                  letto con l'AI aggiorna importo, voci e rate. Solo a chi modifica le commesse e ne vede gli importi. */}
+              {puoImportareNellaCommessa && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <ImportaDaPreventivoCommessa orderId={id!} companyId={effectiveCompany.id} customerId={order.customer_id ?? null}
+                    onScelto={(quoteId) => setParametriUrl((p) => { const n = new URLSearchParams(p); n.set("lavoro_extra_da", quoteId); return n; }, { replace: true })} />
+                  <LeggiContrattoCommessa orderId={id!} companyId={effectiveCompany.id} perCommittente={inAppalto} />
+                </div>
+              )}
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} context={contestoVarianti} onOpenDocuments={()=>navigateTo({tab:"panoramica",section:"section-documenti"})} />
             </div>}
 

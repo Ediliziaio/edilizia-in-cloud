@@ -11,12 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/formatters";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { FileText, ChevronsUpDown, Loader2 } from "lucide-react";
+import { preventiviImportabili } from "@/lib/preventivi/preventiviCommittente";
 
 /**
  * ImportFromQuotePicker — selettore in pagina "Crea commessa" per importare un
  * preventivo esistente. Carica la lista solo quando aperto (lazy), filtra per
  * numero/cliente/titolo, e su scelta chiama onSelect(quoteId): la commessa
  * eredita righe, prezzi e — per gli articoli su misura — la spina misure.
+ *
+ * Con `customerId` (14/11/2026, lavoro del committente): solo i preventivi di quel cliente, accettati e mai usati
+ * per una commessa o un lavoro extra (`preventiviImportabili`).
  */
 
 interface QuoteLite {
@@ -32,17 +36,35 @@ interface QuoteLite {
 interface ImportFromQuotePickerProps {
   onSelect: (quoteId: string) => void;
   disabled?: boolean;
+  /** Solo i preventivi accettati e liberi di questo cliente. */
+  customerId?: string | null;
 }
 
-export function ImportFromQuotePicker({ onSelect, disabled }: ImportFromQuotePickerProps) {
+export function ImportFromQuotePicker({ onSelect, disabled, customerId }: ImportFromQuotePickerProps) {
   const [open, setOpen] = useState(false);
   const companyId = useEffectiveCompanyId();
 
   const { data: quotes, isLoading } = useQuery({
-    queryKey: ["importable-quotes", companyId],
+    queryKey: ["importable-quotes", companyId, customerId ?? null],
     enabled: open && !!companyId, // fetch solo all'apertura
     staleTime: 60_000,
     queryFn: async (): Promise<QuoteLite[]> => {
+      if (customerId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = supabase as any;
+        const { data, error } = await db.from("quotes")
+          .select("id, quote_number, title, client_name, status, total, created_at, variante_id")
+          .eq("company_id", companyId!).eq("customer_id", customerId).is("deleted_at", null)
+          .eq("status", "accettata").is("variante_id", null)
+          .order("created_at", { ascending: false }).limit(50);
+        if (error) throw error;
+        const righe = (data ?? []) as Array<QuoteLite & { variante_id: string | null }>;
+        if (righe.length === 0) return [];
+        const { data: usati, error: e2 } = await db.from("orders").select("quote_id")
+          .eq("company_id", companyId!).is("deleted_at", null).in("quote_id", righe.map((q) => q.id));
+        if (e2) throw e2;
+        return preventiviImportabili(righe, ((usati ?? []) as Array<{ quote_id: string | null }>).map((o) => o.quote_id));
+      }
       const { data, error } = await supabase
         .from("quotes")
         .select("id, quote_number, title, client_name, status, total, created_at")
@@ -80,7 +102,7 @@ export function ImportFromQuotePicker({ onSelect, disabled }: ImportFromQuotePic
                 <Loader2 className="h-4 w-4 animate-spin" /> Carico i preventivi…
               </div>
             )}
-            {!isLoading && <CommandEmpty>Nessun preventivo trovato.</CommandEmpty>}
+            {!isLoading && <CommandEmpty>{customerId ? "Nessun preventivo accettato e non ancora usato per questo committente." : "Nessun preventivo trovato."}</CommandEmpty>}
             <CommandGroup>
               {(quotes ?? []).map((q) => {
                 const cfg = QUOTE_STATUS_CONFIG[q.status as QuoteStatus];

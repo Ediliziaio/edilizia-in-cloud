@@ -323,3 +323,19 @@ export function bozzaLavoroExtra(q: TestataPerVariante, righe: RigaPerVariante[]
     destinazione: "nuova",
   };
 }
+
+/* ─── Dentro la commessa: quali preventivi si possono ancora importare ── */
+
+/**
+ * I preventivi che una commessa può importare come lavoro extra (14/11/2026): accettati, mai diventati un lavoro
+ * extra (`variante_id`) né una commessa (un preventivo convertito in commessa resta «accettata», con
+ * `orders.quote_id` che lo ricorda). Così nessun preventivo si usa due volte.
+ */
+export function preventiviImportabili<T extends Pick<PreventivoCommittente, "id" | "status" | "variante_id">>(
+  lista: readonly T[],
+  usatiDaCommesse: Iterable<string | null | undefined>,
+): T[] {
+  const usati = new Set<string>();
+  for (const id of usatiDaCommesse) if (id) usati.add(id);
+  return lista.filter((q) => (q.status ?? "") === "accettata" && !q.variante_id && !usati.has(q.id));
+}

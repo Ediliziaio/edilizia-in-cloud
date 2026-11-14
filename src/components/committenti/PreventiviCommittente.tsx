@@ -7,6 +7,10 @@
  *  - rifiutato → resta nello storico col motivo, e se ne fa una revisione da rimandare;
  *  - scaduto → «Cosa fare adesso» lo propone da richiamare; anche lui si può rivedere.
  * Gli euro si vedono solo col permesso sugli importi.
+ *
+ * Dal 14/11/2026 lo stesso riquadro sta anche nella scheda del cliente privato (`perPrivato`): stesse azioni, senza
+ * i testi «a corpo / contratto del committente». I preventivi dei moduli (fotovoltaico, serramenti…) non stanno in
+ * `quotes`: arrivano in `altri` e restano collegamenti, la commessa si fa dal loro preventivatore.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -36,11 +40,14 @@ import {
 
 export type PreventivoScheda = PreventivoCommittente & { source?: string | null };
 export interface CommessaScheda { id: string; order_code: string | null; description: string | null; quote_id?: string | null }
+/** Un preventivo di un modulo (fotovoltaico, serramenti…): solo da aprire. */
+export interface PreventivoAltro { id: string; quote_number: string | null; title: string | null; total: number | null; status: string | null; created_at: string }
 
 const giornoIT = (iso: string | null | undefined) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "—");
 
 export function PreventiviCommittente({
   committenteId, companyId, preventivi, caricamento, errore, commesse, oggi, vedeImporti, puoPreventivi, puoCommesse,
+  perPrivato = false, altri = [],
 }: {
   committenteId: string;
   companyId: string;
@@ -52,13 +59,21 @@ export function PreventiviCommittente({
   vedeImporti: boolean;
   puoPreventivi: boolean;
   puoCommesse: boolean;
+  /** Scheda del cliente privato: testi da cliente, chiave di cache sua. */
+  perPrivato?: boolean;
+  altri?: PreventivoAltro[];
 }) {
+  const chi = perPrivato ? "cliente" : "committente";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [rifiuto, setRifiuto] = useState<{ q: PreventivoScheda; motivo: MotivoRifiuto | null; testo: string } | null>(null);
   const [commessaDa, setCommessaDa] = useState<PreventivoScheda | null>(null);
   const [extraDa, setExtraDa] = useState<{ q: PreventivoScheda; orderId: string } | null>(null);
-  const ricarica = () => queryClient.invalidateQueries({ queryKey: ["preventivi-committente", companyId, committenteId] });
+  const ricarica = () => {
+    queryClient.invalidateQueries({ queryKey: ["preventivi-committente"] });
+    queryClient.invalidateQueries({ queryKey: ["preventivi-cliente"] });
+    queryClient.invalidateQueries({ queryKey: ["scheda-cliente"] });
+  };
   const commessaDi = (quoteId: string) => commesse.find((o) => o.quote_id === quoteId);
 
   const segnaRifiutato = useMutation({
@@ -104,10 +119,10 @@ export function PreventiviCommittente({
         <Skeleton className="h-24 w-full" />
       ) : errore ? (
         <p className="text-sm text-destructive">Non riesco a leggere i preventivi: riprova tra poco.</p>
-      ) : preventivi.length === 0 ? (
-        <p className="text-sm text-slate-500">Nessun preventivo a questo committente.</p>
+      ) : preventivi.length === 0 && altri.length === 0 ? (
+        <p className="text-sm text-slate-500">Nessun preventivo a questo {chi}.</p>
       ) : (
-        <ul className="divide-y" aria-label="Preventivi del committente">
+        <ul className="divide-y" aria-label={`Preventivi del ${chi}`}>
           {preventivi.map((q) => {
             const stato = statoCommittente(q, oggi);
             const conf = STATI_COMMITTENTE[stato];
@@ -144,7 +159,7 @@ export function PreventiviCommittente({
                         <HardHat className="h-3.5 w-3.5" /> Nuova commessa
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={commesse.length === 0}
-                        title={commesse.length === 0 ? "Il committente non ha commesse aperte" : undefined}
+                        title={commesse.length === 0 ? `Il ${chi} non ha commesse aperte` : undefined}
                         onClick={() => setExtraDa({ q, orderId: commesse[0]?.id ?? "" })}>
                         <GitBranch className="h-3.5 w-3.5" /> Lavoro extra
                       </Button>
@@ -165,6 +180,23 @@ export function PreventiviCommittente({
               </li>
             );
           })}
+          {altri.map((q) => (
+            <li key={q.id} className="py-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <button type="button" className="min-w-0 truncate text-left text-sm font-medium hover:underline"
+                  onClick={() => navigate(`/azienda/marketing/preventivi/${q.id}`)}>
+                  {q.quote_number || q.title || "Preventivo"}
+                </button>
+                {vedeImporti && q.total != null && <span className="shrink-0 text-sm font-medium tabular-nums">{euro(q.total, true)}</span>}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                {q.title && q.quote_number && <span className="capitalize">{q.title}</span>}
+                {q.status && <Badge variant="outline" className="h-5 px-1.5 text-[11px] font-normal">{q.status}</Badge>}
+                <span>{giornoIT(q.created_at)}</span>
+                <span>dal preventivatore del modulo</span>
+              </div>
+            </li>
+          ))}
         </ul>
       )}
 
@@ -206,7 +238,9 @@ export function PreventiviCommittente({
           <DialogHeader>
             <DialogTitle>Nuova commessa · {commessaDa ? numeroPreventivo(commessaDa) : ""}</DialogTitle>
             <DialogDescription>
-              Il preventivo accettato è il contratto: le voci diventano lavorazioni, a corpo, col contratto in corso del committente.
+              {perPrivato
+                ? "Il preventivo accettato è il contratto: le voci diventano le lavorazioni della commessa."
+                : "Il preventivo accettato è il contratto: le voci diventano lavorazioni, a corpo, col contratto in corso del committente."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

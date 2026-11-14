@@ -83,6 +83,27 @@ it("elenca i preventivi con numero, data, importo e stato", () => {
   expect(within(riga("PRV/2026/1")).getByText("01/10/2026")).toBeInTheDocument();
 });
 
+it("cliente privato (14/11/2026): stesse azioni, testi da cliente, i preventivi dei moduli restano collegamenti", () => {
+  mostra({
+    perPrivato: true,
+    altri: [{ id: "fv1", quote_number: "FV-2026-7", title: "fotovoltaico", total: 9000, status: "accettato", created_at: "2026-10-05T09:00:00Z" }],
+  });
+  expect(screen.getByRole("list", { name: "Preventivi del cliente" })).toBeInTheDocument();
+  expect(within(riga("PRV/2026/3")).getByRole("button", { name: /Nuova commessa/ })).toBeInTheDocument();
+  expect(within(riga("PRV/2026/3")).getByRole("button", { name: /Lavoro extra/ })).toBeInTheDocument();
+  const modulo = riga("FV-2026-7");
+  expect(within(modulo).getByText("dal preventivatore del modulo")).toBeInTheDocument();
+  expect(within(modulo).queryByRole("button", { name: /Nuova commessa|Lavoro extra|Segna rifiutato/ })).not.toBeInTheDocument();
+  fireEvent.click(within(riga("PRV/2026/3")).getByRole("button", { name: /Nuova commessa/ }));
+  expect(screen.getByText(/le voci diventano le lavorazioni della commessa/)).toBeInTheDocument();
+  expect(screen.queryByText(/contratto in corso del committente/)).not.toBeInTheDocument();
+});
+
+it("cliente privato senza preventivi: lo dice al cliente, non al committente", () => {
+  mostra({ perPrivato: true, preventivi: [] });
+  expect(screen.getByText("Nessun preventivo a questo cliente.")).toBeInTheDocument();
+});
+
 it("senza il permesso sugli importi gli euro non ci sono", () => {
   mostra({ vedeImporti: false });
   expect(screen.queryByText(/€/)).not.toBeInTheDocument();

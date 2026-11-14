@@ -21,6 +21,8 @@
  */
 import { lazy, Suspense, useMemo, useState, useEffect, useRef } from "react";
 import { lavoroDaContratto } from "@/lib/orders/contrattiDestinazioni";
+import { convertiPreventivoInCantiere } from "@/lib/quotes/convertiPreventivoInCantiere";
+import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { contractInstallmentWarning, type ContractExtract } from "@/lib/orders/contractExtract";
 import type { StoredContractFile } from "@/lib/orders/contractPreparation";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -128,6 +130,15 @@ function ModuloLavoroAppaltatore() {
   const [internalNotes, setInternalNotes] = useState(iniziale("internal_notes"));
   const [salvataggioIniziato, setSalvataggioIniziato] = useState(!!scritturaIniziale);
   const [importAi, setImportAi] = useState(false);
+  const daPreventivo = useMutation({
+    mutationFn: async (quoteId: string) => convertiPreventivoInCantiere(quoteId),
+    onSuccess: (esito) => {
+      if (esito.avviso) toast({ title: "Commessa creata, ma non completa", description: esito.avviso });
+      else toast({ title: "Commessa creata dal preventivo" });
+      navigate(`/azienda/ordini/${esito.orderId}`);
+    },
+    onError: (e) => toast({ title: "Commessa non creata", description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+  });
   const [originaleAi, setOriginaleAi] = useState<StoredContractFile | null>(scritturaIniziale?.documento ?? null);
   const [avvisiAi, setAvvisiAi] = useState<string[]>([]);
   const [scelteAiConfermate, setScelteAiConfermate] = useState(!scritturaIniziale?.documento);
@@ -577,7 +588,15 @@ function ModuloLavoroAppaltatore() {
       />
 
       <div className="space-y-3 rounded-lg border bg-card p-4">
-        <Button type="button" variant="outline" disabled={salvataggioIniziato} onClick={() => setImportAi(true)}>Carica contratto (AI)</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" disabled={salvataggioIniziato} onClick={() => setImportAi(true)}>Carica contratto (AI)</Button>
+          {/* Da un preventivo accettato del committente (14/11/2026): la commessa nasce dal preventivo come dalla sua
+              scheda, in appalto a corpo col contratto in corso (converti-preventivo-cantiere). */}
+          <ImportFromQuotePicker customerId={customerId || null} disabled={salvataggioIniziato || !customerId || daPreventivo.isPending}
+            onSelect={(qid) => daPreventivo.mutate(qid)} />
+          {!customerId && <span className="self-center text-xs text-muted-foreground">Scegli il committente per importare un suo preventivo.</span>}
+          {daPreventivo.isPending && <span role="status" className="self-center text-xs text-muted-foreground">Creo la commessa dal preventivo…</span>}
+        </div>
         {originaleAi && <><p className="text-sm">Originale da conservare: <strong>{originaleAi.name}</strong></p><ul className="list-disc pl-5 text-sm text-muted-foreground">{avvisiAi.map(a => <li key={a}>{a}</li>)}</ul><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={scelteAiConfermate} disabled={salvataggioIniziato} onChange={e => setScelteAiConfermate(e.target.checked)} className="mt-1"/>Ho verificato committente, contratto/listino, corpo o misura e regime IVA nel modulo.</label></>}
       </div>
       {originaleAi && <div className="max-w-md space-y-1"><Label htmlFor="stato-import-ai">Stato iniziale da confermare</Label><Select value={statoImportAi} onValueChange={setStatoImportAi} disabled={salvataggioIniziato}><SelectTrigger id="stato-import-ai"><SelectValue placeholder="Scegli lo stato del lavoro"/></SelectTrigger><SelectContent>{statiImportAi.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">La data del documento non prova la firma. Nessuno stato viene scelto automaticamente dall’importazione.</p></div>}
