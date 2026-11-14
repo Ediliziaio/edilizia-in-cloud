@@ -39,7 +39,7 @@ export interface ImportaVociDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Le voci rivedute; `esito` c'è solo se è stato letto un file, per riempire l'intestazione vuota. */
-  onAggiungi: (voci: VoceImportata[], esito: EsitoImportComputo | null) => void;
+  onAggiungi: (voci: VoceImportata[], esito: EsitoImportComputo | null, letti: FileLetto[]) => void;
   /** Le voci già nel documento: restano intatte, lo si dice. */
   vociPresenti: number;
   /** Scansioni, foto e PDF qualsiasi si leggono sul server con l'AI: dove non è attiva si rifiutano con un motivo. */
@@ -54,6 +54,9 @@ export interface ImportaVociDialogProps {
   /** Sotto il riquadro dei file, al primo passo: altre fonti (computo o preventivo del gestionale). */
   altreFonti?: React.ReactNode;
 }
+
+/** I file letti, per chi deve conservarli (14/11/2026: il computo della commessa da «Genera dal computo»). */
+export interface FileLetto { file: File; formato: string; via: "browser" | "server" }
 
 const FORMATI = ["PriMus (XPWE)", "PDF", "Excel", "CSV", "Word", "Foto"];
 const RIGHE_VISIBILI = 300;
@@ -201,7 +204,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   const conferma = () => {
     if (!voci.length || troppe) return;
     const unico = lavoriLetti.length === 1 ? lavoriLetti[0].letto!.esito : null;
-    onAggiungi(voci, unico);
+    onAggiungi(voci, unico, lavoriLetti.map(l => ({ file: l.file, formato: l.formato, via: l.letto!.via })));
     chiudi();
   };
 

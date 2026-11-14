@@ -13,6 +13,14 @@
  *      senza scomposizione → escluse, col motivo;
  *   5. tutto il resto è una lavorazione senza scomposizione → avviso (la
  *      scomposizione la propone l'AI o la scrive il tecnico).
+ * Dal 14/11/2026 (richiesta del titolare: «sviluppare bene la ricerca dei
+ * materiali») prima delle regole generiche si scartano le voci di sola posa,
+ * di materiale fornito dal committente e le demolizioni; la libreria standard
+ * (scomposizioniStandard) fa da riserva quando l'azienda non ha una sua
+ * scomposizione, con le quantità adattate allo spessore scritto; le proposte
+ * dell'AI ancora da approvare entrano come righe a bassa sicurezza, spente.
+ * Ogni riga dice da dove viene (`fonte`) e quanto è sicura (`affidabilita`).
+ *
  * Le righe uguali (stessa descrizione normalizzata, unità e specifiche) si
  * sommano e tengono l'elenco delle voci da cui vengono. Le righe dalle
  * planimetrie restano separate da quelle del computo: la stessa cosa contata
@@ -77,8 +85,32 @@ export interface ConteggioConfermato {
   unita?: string | null;
 }
 
+/** Da dove viene un materiale: decide quanto è sicuro. */
+export type FonteMateriale =
+  | "scomposizione_codice" | "scomposizione" | "libreria_standard" | "fornitura" | "proposta_ai" | "tavola" | "tavola_fornitura";
+
+export const ETICHETTA_FONTE_MATERIALE: Record<FonteMateriale, string> = {
+  scomposizione_codice: "Scomposizione dell'azienda (codice)",
+  scomposizione: "Scomposizione dell'azienda",
+  libreria_standard: "Libreria standard (resa media)",
+  fornitura: "La voce è già il materiale",
+  proposta_ai: "Proposta dell'AI, da approvare",
+  tavola: "Tavola contata",
+  tavola_fornitura: "Tavola contata (simbolo come fornitura)",
+};
+
+export const AFFIDABILITA_FONTE: Record<FonteMateriale, number> = {
+  scomposizione_codice: 0.95,
+  scomposizione: 0.85,
+  libreria_standard: 0.7,
+  fornitura: 0.75,
+  proposta_ai: 0.45,
+  tavola: 0.9,
+  tavola_fornitura: 0.6,
+};
+
 export type OrigineRiga =
-  | { tipo: "computo"; voce_id: string; codice: string | null; descrizione: string; quantita_voce: number; unita_voce: string | null; quantita: number }
+  | { tipo: "computo"; voce_id: string; codice: string | null; descrizione: string; quantita_voce: number; unita_voce: string | null; quantita: number; fonte?: FonteMateriale; nota?: string | null }
   | { tipo: "planimetria"; conteggio_id: string; documento_id: string | null; documento: string | null; locale: string | null; simbolo: string; quantita_simbolo: number; quantita: number };
 
 export interface RigaDistintaCalcolata {
@@ -104,6 +136,14 @@ export interface RigaDistintaCalcolata {
   supplier_id: string | null;
   /** Fase di lavoro della commessa in cui va il materiale (null = senza fase). */
   phase_id: string | null;
+  /** Da dove viene (la fonte meno sicura fra le parti sommate). */
+  fonte: FonteMateriale;
+  /** Da 0 a 1: quanto è sicuro che sia da comprare così. */
+  affidabilita: number;
+  /** Viene da una scomposizione proposta dall'AI e non ancora approvata: si propone spenta. */
+  proposta_ai: boolean;
+  /** Note sul calcolo («spessore 2 cm: quantità × 1,33», «posa esclusa»). */
+  note: string[];
 }
 
 export interface VoceEsclusa {
@@ -263,11 +303,56 @@ const UNITA_MATERIALE = new Set(["cad", "pz", "m", "mq", "mc", "kg", "t", "q", "
 
 export type ClassificazioneVoce =
   | { tipo: "esclusa"; motivo: string }
-  | { tipo: "scomposta"; scomposizione: Scomposizione }
-  | { tipo: "fornitura" }
+  | { tipo: "scomposta"; scomposizione: Scomposizione; fonte: FonteMateriale; fattore?: number; nota?: string | null }
+  | { tipo: "fornitura"; nome: string; nota: string | null }
   | { tipo: "senza_scomposizione" };
 
-export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[]): ClassificazioneVoce {
+/** Voci che non comprano niente: sola posa, materiale del committente, demolizioni e scavi. */
+const SOLO_POSA = /^(?:sola |solo )?(?:posa|messa)(?: in opera)?\b/;
+const MATERIALE_DEL_COMMITTENTE = /\b(?:fornit[oaie] dal(?:la|l)? ?(?:committent|committenza|stazione appaltante|cliente|proprieta)|esclus[ao] (?:la )?fornitura|(?:materiale|materiali) (?:esclus|a carico del committent))/;
+const SENZA_MATERIALI = /^(?:demolizion|rimozion|smontaggi|scarific|scavo|scavi|rinterr|pulizi|sgombero|carico (?:e trasporto|su automezzo)|trasporto|movimentazion|taglio (?:di|del|della)|spicconatur|asportazion)/;
+
+/** «Fornitura e posa in opera di» e simili: c'è la posa dentro la voce. */
+const CON_POSA = /\b(posa|in opera|messa in opera|posto in opera|posti in opera)\b/;
+
+/**
+ * Il nome del materiale da una voce di fornitura: senza «Fornitura e posa in opera di»,
+ * senza «compreso…», «dato in opera…» e il resto delle condizioni.
+ */
+export function nomeMateriale(descrizione: string): string {
+  let t = descrizione.trim().replace(/\s+/g, " ");
+  t = t.replace(/^(?:fornitura|f\.? ?e ?p\.?(?: ?o\.?)?|f\.? ?p\.? ?o\.?)(?:\s+e\s+(?:posa|messa)(?:\s+in\s+opera)?)?(?:\s+in\s+opera)?(?:\s+(?:di|del|della|dello|dei|degli|delle|d'))?\s*/i, "");
+  t = t.split(/\s*(?:[,;:(]\s*)?\b(?:compres[oaie]|inclus[oaie]|dat[oaie] in opera|post[oaie] in opera|in opera|eseguit[oaie]|realizzat[oaie]|ogni onere|per dare|a regola d'arte|e quant'altro|nonch[eé])\b/i)[0];
+  t = t.replace(/[\s,.;:–-]+$/, "").trim();
+  if (!t) return descrizione.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Quanto pesa lo spessore scritto nella voce, per le scomposizioni a spessore noto. */
+const SPESSORE_BASE_CM: Record<string, number> = {
+  "ED-INTONACO-PREMISCELATO": 1.5,
+  "ED-MASSETTO-SABBIA-CEMENTO": 5,
+};
+
+/** Lo spessore in cm scritto nella voce («sp. 2 cm», «spessore 20 mm»), se c'è. */
+export function spessoreCm(testo: string): number | null {
+  const m = testo.match(/\b(?:sp\.?|spess(?:ore)?|di spessore)\s*(?:medio|minimo|finito|complessivo|totale)?\s*(?:di\s*)?(?:cm\.?\s*)?(\d+(?:[.,]\d+)?)\s*(cm|mm)?\b/i)
+    ?? testo.match(/\b(\d+(?:[.,]\d+)?)\s*(cm|mm)\s+(?:di\s+)?spessore\b/i);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  if (!(n > 0)) return null;
+  const cm = (m[2] ?? "cm").toLowerCase() === "mm" ? n / 10 : n;
+  return cm > 0 && cm <= 30 ? cm : null;
+}
+
+export interface OpzioniRiconoscimento {
+  /** Libreria standard: vale dove l'azienda non ha una scomposizione sua. */
+  riserva?: Scomposizione[];
+  /** Scomposizioni proposte dall'AI e non ancora approvate. */
+  proposteAI?: Scomposizione[];
+}
+
+export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], opzioni: OpzioniRiconoscimento = {}): ClassificazioneVoce {
   if (v.is_included === false) return { tipo: "esclusa", motivo: "Voce tolta dal computo" };
   if (v.is_sicurezza) return { tipo: "esclusa", motivo: "Oneri della sicurezza: non sono materiali da ordinare" };
   if (v.is_detrazione) return { tipo: "esclusa", motivo: "Voce in detrazione" };
@@ -275,29 +360,78 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[]): 
   if (!(q > 0)) return { tipo: "esclusa", motivo: "Quantità zero o mancante" };
 
   const testo = testoVoce(v);
-  const s = trovaScomposizione(scomposizioni, { codice: v.codice_prezzario, codiceTariffa: v.codice_tariffa, codiceVoce: v.codice_voce, testo, unita: v.unita_misura });
-  if (s) return { tipo: "scomposta", scomposizione: s };
+  const datiVoce = { codice: v.codice_prezzario, codiceTariffa: v.codice_tariffa, codiceVoce: v.codice_voce, testo, unita: v.unita_misura };
+  const s = trovaScomposizione(scomposizioni, datiVoce);
+  if (s) {
+    const perCodice = punteggioScomposizione(s, datiVoce) >= 900;
+    return { tipo: "scomposta", scomposizione: s, fonte: perCodice ? "scomposizione_codice" : "scomposizione" };
+  }
 
   const breve = normalizzaTesto(v.descrizione_breve);
   // Le esclusioni esplicite di prestazioni non trasformano una fornitura
   // in un noleggio. Limitiamo la rimozione a elenchi di prestazioni noti.
   const prestazioniNegate = /\b(?:nessun[ao]?|senza)\s+(?:posa|manodopera|mano d.opera|nolo|noleggio)(?:\s*(?:,|e|o|né)\s*(?:posa|manodopera|mano d.opera|nolo|noleggio))*\b/gi;
   const testoClassificazione = normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`.replace(prestazioniNegate, " "));
+  if (SENZA_MATERIALI.test(breve)) return { tipo: "esclusa", motivo: "Demolizione, rimozione, scavo o trasporto: nessun materiale da comprare" };
   for (const { re, motivo } of NON_MATERIALI) if (re.test(testoClassificazione)) return { tipo: "esclusa", motivo };
   const um = normalizzaUnita(v.unita_misura);
   if (um === "h") return { tipo: "esclusa", motivo: "Manodopera (a ore)" };
+  if (SOLO_POSA.test(breve)) return { tipo: "esclusa", motivo: "Solo posa: il materiale non è da comprare" };
+  if (MATERIALE_DEL_COMMITTENTE.test(testoClassificazione)) return { tipo: "esclusa", motivo: "Materiale fornito dal committente: si fa solo la posa" };
 
-  if (UNITA_MATERIALE.has(um) && !v.a_corpo) {
-    const prefisso = PREFISSO_FORNITURA.exec(breve);
-    const resto = prefisso ? breve.slice(prefisso[0].length) : breve;
-    if (prefisso && !LAVORAZIONE_DOPO_FORNITURA.test(resto)) return { tipo: "fornitura" };
-    if (!prefisso && FORNITURA_DIRETTA.test(resto)) return { tipo: "fornitura" };
+  const prefisso = PREFISSO_FORNITURA.exec(breve);
+  const resto = prefisso ? breve.slice(prefisso[0].length) : breve;
+  const conPosa = !!prefisso && CON_POSA.test(prefisso[0]);
+  const fornitura = (): ClassificazioneVoce => ({
+    tipo: "fornitura",
+    nome: nomeMateriale(v.descrizione_breve),
+    nota: conPosa ? "Posa e manodopera della voce escluse: si compra solo il materiale" : null,
+  });
+  const fornituraPossibile = UNITA_MATERIALE.has(um) && !v.a_corpo;
+  // «Fornitura di…» senza posa: è il materiale, la libreria non aggiunge collanti o accessori.
+  if (fornituraPossibile && prefisso && !conPosa && !LAVORAZIONE_DOPO_FORNITURA.test(resto)) return fornitura();
+
+  // La libreria standard, dove l'azienda non ha una scomposizione sua: si guarda la
+  // descrizione breve (l'estesa elenca spesso lavorazioni compre­se che ingannerebbero).
+  const breveConsiderato = breve.length >= 25 ? breve : normalizzaTesto(`${v.descrizione_breve} ${(v.descrizione_estesa ?? "").slice(0, 160)}`);
+  const standard = opzioni.riserva?.length
+    ? trovaScomposizione(opzioni.riserva, { testo: breveConsiderato, unita: v.unita_misura })
+    : null;
+  if (standard) {
+    const base = SPESSORE_BASE_CM[standard.id];
+    const sp = base ? spessoreCm(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`) : null;
+    const fattore = base && sp && Math.abs(sp - base) > 0.01 ? sp / base : undefined;
+    const nota = fattore
+      ? `Spessore ${sp!.toLocaleString("it-IT")} cm invece di ${base.toLocaleString("it-IT")}: quantità × ${fattore.toLocaleString("it-IT", { maximumFractionDigits: 2 })}`
+      : null;
+    return { tipo: "scomposta", scomposizione: standard, fonte: "libreria_standard", fattore, nota };
   }
+
+  if (fornituraPossibile) {
+    if (prefisso && !LAVORAZIONE_DOPO_FORNITURA.test(resto)) return fornitura();
+    if (!prefisso && FORNITURA_DIRETTA.test(resto)) return fornitura();
+  }
+  const ai = opzioni.proposteAI?.length
+    ? trovaScomposizione(opzioni.proposteAI.map((x) => ({ ...x, attiva: true })), datiVoce)
+    : null;
+  if (ai) return { tipo: "scomposta", scomposizione: ai, fonte: "proposta_ai" };
   if (v.a_corpo || um === "a corpo") return { tipo: "esclusa", motivo: "A corpo senza scomposizione: va scomposta per sapere cosa comprare" };
   return { tipo: "senza_scomposizione" };
 }
 
 // ─── Generazione ───────────────────────────────────────────────────────────
+
+/** La fonte meno sicura fra le parti sommate decide la sicurezza della riga. */
+function fonteRiga(ps: { fonte: FonteMateriale; nota: string | null }[]): Pick<RigaDistintaCalcolata, "fonte" | "affidabilita" | "proposta_ai" | "note"> {
+  let fonte = ps[0].fonte;
+  for (const p of ps) if (AFFIDABILITA_FONTE[p.fonte] < AFFIDABILITA_FONTE[fonte]) fonte = p.fonte;
+  return {
+    fonte,
+    affidabilita: AFFIDABILITA_FONTE[fonte],
+    proposta_ai: fonte === "proposta_ai",
+    note: [...new Set(ps.map((p) => p.nota).filter((n): n is string => !!n))],
+  };
+}
 
 interface Parte {
   descrizione: string;
@@ -317,7 +451,12 @@ interface Parte {
   documento: string | null;
   locale: string | null;
   phase_id: string | null;
+  fonte: FonteMateriale;
+  nota: string | null;
 }
+
+/** Componenti che scalano con lo spessore: i materiali a peso o volume, non i profili. */
+const SCALA_CON_SPESSORE = new Set(["kg", "mc", "l", "q", "t"]);
 
 function categoriaVoce(v: VoceComputo): string | null {
   return v.categoria || v.super_categoria || v.capitolo_nome || null;
@@ -329,11 +468,13 @@ function partiDaComponenti(
   base: Omit<Parte, "descrizione" | "specifiche" | "unita" | "netta" | "conSfrido" | "sfrido" | "provenienza" | "categoria" | "article_template_id" | "supplier_id" | "scomposizione_id">,
   provenienza: (q: number) => OrigineRiga,
   categoriaRiserva: string | null,
+  fattoreSpessore?: number,
 ): Parte[] {
   return s.componenti
     .filter((c) => Number(c.quantita_per_unita) > 0 && c.descrizione.trim())
     .map((c) => {
-      const netta = quantitaBase * Number(c.quantita_per_unita);
+      const scala = fattoreSpessore && SCALA_CON_SPESSORE.has(normalizzaUnita(c.unita_misura)) ? fattoreSpessore : 1;
+      const netta = quantitaBase * Number(c.quantita_per_unita) * scala;
       const sfrido = Math.max(0, Number(c.sfrido_percentuale ?? 0));
       const conSfrido = netta * (1 + sfrido / 100);
       return {
@@ -348,7 +489,10 @@ function partiDaComponenti(
         categoria: c.categoria || s.categoria || categoriaRiserva,
         article_template_id: c.article_template_id ?? null,
         supplier_id: c.supplier_id ?? null,
-        scomposizione_id: s.id,
+        // La libreria standard non è una riga del database: non si collega.
+        scomposizione_id: base.fonte === "libreria_standard" ? null : s.id,
+        // La nota sullo spessore vale solo per i componenti che ne seguono la quantità.
+        nota: fattoreSpessore && scala === 1 ? null : base.nota,
       };
     });
 }
@@ -356,6 +500,9 @@ function partiDaComponenti(
 export function generaDistinta(input: {
   voci: VoceComputo[];
   scomposizioni: Scomposizione[];
+  /** Libreria standard e proposte dell'AI (vedi OpzioniRiconoscimento). */
+  riserva?: Scomposizione[];
+  proposteAI?: Scomposizione[];
   conteggi?: ConteggioConfermato[];
   /** In quale fase va il materiale di una voce (di solito dal capitolo/categoria). */
   faseVoce?: (v: VoceComputo) => string | null;
@@ -367,24 +514,27 @@ export function generaDistinta(input: {
   const senzaScomposizione: VoceComputo[] = [];
 
   for (const v of input.voci) {
-    const c = classificaVoce(v, attive);
+    const c = classificaVoce(v, attive, { riserva: input.riserva, proposteAI: input.proposteAI });
     const q = Number(v.quantita ?? 0);
     const codice = v.codice_prezzario || v.codice_tariffa || v.codice_voce || v.numero_ordine || null;
+    const fonte: FonteMateriale = c.tipo === "scomposta" ? c.fonte : "fornitura";
+    const nota = c.tipo === "scomposta" || c.tipo === "fornitura" ? c.nota ?? null : null;
     const origineComputo = (quantita: number): OrigineRiga => ({
       tipo: "computo", voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita_voce: q, unita_voce: v.unita_misura ?? null, quantita,
+      fonte, nota,
     });
     const base = {
       origine: "computo" as const, computo_voce_id: v.id, documento_id: null as string | null, documento: null as string | null, locale: null as string | null,
-      phase_id: input.faseVoce?.(v) ?? null,
+      phase_id: input.faseVoce?.(v) ?? null, fonte, nota,
     };
     if (c.tipo === "esclusa") {
       escluse.push({ voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita: v.quantita ?? null, unita_misura: v.unita_misura ?? null, motivo: c.motivo });
     } else if (c.tipo === "scomposta") {
-      parti.push(...partiDaComponenti(c.scomposizione, q, base, origineComputo, categoriaVoce(v)));
+      parti.push(...partiDaComponenti(c.scomposizione, q, base, origineComputo, categoriaVoce(v), c.fattore));
     } else if (c.tipo === "fornitura") {
       parti.push({
         ...base,
-        descrizione: v.descrizione_breve.trim(),
+        descrizione: c.nome,
         specifiche: null,
         unita: normalizzaUnita(v.unita_misura),
         netta: q, conSfrido: q, sfrido: 0,
@@ -417,6 +567,7 @@ export function generaDistinta(input: {
     const base = {
       origine: "planimetria" as const, computo_voce_id: null as string | null, documento_id: k.documento_id ?? null,
       documento: k.documento_nome ?? null, locale: k.locale ?? null, phase_id: k.phase_id ?? null,
+      fonte: (s ? "tavola" : "tavola_fornitura") as FonteMateriale, nota: null as string | null,
     };
     if (s) {
       parti.push(...partiDaComponenti(s, q, base, provenienza, null));
@@ -438,10 +589,11 @@ export function generaDistinta(input: {
     }
   }
 
-  // Somma delle righe uguali.
+  // Somma delle righe uguali. Le proposte dell'AI non si sommano alle righe sicure:
+  // restano a parte, spente, finché un tecnico non le approva.
   const mappa = new Map<string, { parti: Parte[] }>();
   for (const p of parti) {
-    const chiave = chiaveRiga(p.descrizione, p.unita, p.specifiche, p.origine, p.phase_id);
+    const chiave = chiaveRiga(p.descrizione, p.unita, p.specifiche, p.fonte === "proposta_ai" ? `${p.origine}-ai` : p.origine, p.phase_id);
     const g = mappa.get(chiave);
     if (g) g.parti.push(p); else mappa.set(chiave, { parti: [p] });
   }
@@ -475,6 +627,7 @@ export function generaDistinta(input: {
       article_template_id: ps.map((p) => p.article_template_id).find(Boolean) ?? null,
       supplier_id: ps.map((p) => p.supplier_id).find(Boolean) ?? null,
       phase_id: prima.phase_id,
+      ...fonteRiga(ps),
     });
   }
 

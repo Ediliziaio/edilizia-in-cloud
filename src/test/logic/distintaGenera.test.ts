@@ -108,7 +108,7 @@ describe("forniture dirette: la voce è già il materiale", () => {
     expect(r.righe.map((x) => [x.descrizione, x.unita_misura, x.quantita_calcolata])).toEqual(
       expect.arrayContaining([
         ["Cavo FG16OR16 3G1,5", "m", 8390],
-        ["Fornitura e posa in opera di pompa di calore aria-acqua 12 kW", "cad", 8],
+        ["Pompa di calore aria-acqua 12 kW", "cad", 8],
         ["Moduli fotovoltaici monocristallini 450 Wp", "cad", 90],
       ]),
     );

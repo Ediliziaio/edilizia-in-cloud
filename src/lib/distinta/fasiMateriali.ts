@@ -58,6 +58,21 @@ export function somiglianza(a: string, b: string): number {
   return comuni / Math.min(ra.size, rb.size);
 }
 
+/**
+ * Punteggio di una fase per un testo: la somiglianza (con i sinonimi) e, a parità,
+ * le parole scritte uguali. «Intonaci e cartongessi» batte «Opere murarie» per il
+ * capitolo «INTONACI E CARTONGESSI», anche se il sinonimo li rende pari (14/11/2026).
+ */
+function punteggioFase(testo: string, fase: string): number {
+  const s = somiglianza(testo, fase);
+  if (!s) return 0;
+  const rt = radici(testo);
+  const rf = radici(fase);
+  let dirette = 0;
+  for (const x of rf) if (rt.has(x)) dirette++;
+  return s + dirette / 100;
+}
+
 /** Per ogni capitolo del computo, la fase più simile (o null se nessuna lo è abbastanza). */
 export function propostaFasi(voci: VoceComputo[], fasi: FaseCommessa[], soglia = 0.5): Map<string, string | null> {
   const capitoli = [...new Set(voci.map(capitoloVoce))];
@@ -66,12 +81,27 @@ export function propostaFasi(voci: VoceComputo[], fasi: FaseCommessa[], soglia =
     let migliore: FaseCommessa | null = null;
     let max = 0;
     for (const f of fasi) {
-      const s = somiglianza(c, f.name);
+      const s = punteggioFase(c, f.name);
       if (s > max) { max = s; migliore = f; }
     }
     out.set(c, migliore && max >= soglia ? migliore.id : null);
   }
   return out;
+}
+
+/**
+ * La fase di una sola voce dal suo testo (14/11/2026): per le voci senza capitolo,
+ * o il cui capitolo non trova una fase, si confronta la descrizione breve con i
+ * nomi delle fasi («Intonaco civile…» va in «Intonaci e rasature»).
+ */
+export function faseDaTesto(v: VoceComputo, fasi: FaseCommessa[], soglia = 0.5): string | null {
+  let migliore: FaseCommessa | null = null;
+  let max = 0;
+  for (const f of fasi) {
+    const s = punteggioFase(v.descrizione_breve, f.name);
+    if (s > max) { max = s; migliore = f; }
+  }
+  return migliore && max >= soglia ? migliore.id : null;
 }
 
 /** Nomi di fase da creare per i capitoli che non trovano posto (in ordine di computo). */
