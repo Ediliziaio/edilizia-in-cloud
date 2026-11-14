@@ -4,7 +4,7 @@ import { avvisiGenerale, totaliGenerale, type RiepilogoGenerale } from "@/lib/or
 import { datiDaIpotesi } from "@/lib/orders/generali/simulatoreOperazione";
 
 /** Dati della commessa generale per tipologia (14/11/2026). */
-const base = { clienteId: null, indirizzo: null, inizio: null, fine: null, dati: {} };
+const base: { clienteId: string | null; indirizzo: string | null; inizio: string | null; fine: string | null; dati: Record<string, never> } = { clienteId: null, indirizzo: null, inizio: null, fine: null, dati: {} };
 
 describe("dati per tipologia", () => {
   it("ogni tipologia ha le sue sezioni", () => {

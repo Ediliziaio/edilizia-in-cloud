@@ -270,7 +270,7 @@ describe("le schede dei moduli", () => {
   });
 
   it("appalto: in testata i giorni alla fine contrattuale, e in ritardo la penale col tetto", () => {
-    const contratto = (fine: string) => ({ contratto: { importoBase: 100_000, ribassoPct: 0, oneriSicurezza: 0, dataFinePrevista: fine, dataUltimazione: null, penaleGiornaliera: 100, penaleMassimaPct: 10 }, atti: [], sal: [] });
+    const contratto = (fine: string) => ({ contratto: { importoBase: 100_000, ribassoPct: 0, oneriSicurezza: 0, dataFinePrevista: fine, dataUltimazione: null as string | null, penaleGiornaliera: 100, penaleMassimaPct: 10 }, atti: [] as never[], sal: [] as never[] });
     m.contratto = contratto("2099-01-01") as never;
     disegna();
     expect(screen.getByText("Fine lavori").closest(".generale-kpi")).toHaveTextContent(/tra \d+ giorni/);

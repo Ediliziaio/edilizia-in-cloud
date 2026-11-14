@@ -90,16 +90,17 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
     <section aria-label="Piano economico" className="generale-panel px-4 py-4">
       {intestazione}
       <div className="mt-2 grid grid-cols-2 gap-3">
-        <Numero etichetta="Margine previsto" valore={euro(n.piano.budgetCompleto === false ? null : t.previsto)} nota={n.piano.budgetCompleto === false ? "completa le stime mancanti" : n.inVista ? `versione ${n.inVista.numero}` : undefined} />
+        {/* Qui il budget è completo: con le stime incomplete il riquadro è la riga sola qui sopra. */}
+        <Numero etichetta="Margine previsto" valore={euro(t.previsto)} nota={n.inVista ? `versione ${n.inVista.numero}` : undefined} />
         <Numero
           etichetta="Scostamento del margine"
-          valore={n.piano.budgetCompleto === false ? "—" : euroSegno(t.scostamento)}
+          valore={euroSegno(t.scostamento)}
           tono={t.scostamento < 0 ? "text-destructive" : undefined}
-          nota={n.piano.budgetCompleto === false ? "completa le stime mancanti" : "stima finale rispetto al previsto"}
+          nota="stima finale rispetto al previsto"
         />
         <Numero etichetta="Capitale investito a oggi" valore={euro(c.investitoOggi)} nota="costi registrati meno incassi" />
       </div>
-      {n.piano.budgetCompleto !== false && Math.abs(t.scostamento) >= 1 && (
+      {Math.abs(t.scostamento) >= 1 && (
         <p className={cn("mt-2 text-xs", tonoScostamento(t.scostamento, "margine"))}>
           {t.scostamento < 0
             ? `La stima finale è sotto il previsto di ${euro(-t.scostamento)}: apri il piano per vedere quali voci pesano.`
