@@ -29,7 +29,7 @@ const catalogo: VoceCatalogo[] = [
 vi.mock("@/lib/finance/cassaVoci", async (orig): Promise<Record<string, unknown>> => ({
   ...(await orig<typeof import("@/lib/finance/cassaVoci")>()),
   useCatalogoCassa: () => ({ data: catalogo, isError: false }),
-  useAggiornaDopoCategoria: () => () => undefined,
+  useAggiornaDopoCategoria: () => (): void => undefined,
 }));
 import { ClassificaMovimentiDialog } from "@/components/controllo-gestione/ClassificaMovimentiDialog";
 
