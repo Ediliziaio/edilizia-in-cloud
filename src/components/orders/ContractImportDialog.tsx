@@ -26,6 +26,7 @@ import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
 import { prepareContract, readableContractWarning, dataFirmaVerificata, contractAnalysisHint, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "./ContractPreparationCard";
 import { useAuth } from "@/contexts/AuthContext";
+import { BUCKET_ORIGINALI_AI } from "@/lib/orders/documentImportAi";
 
 const ACCEPTED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
@@ -123,8 +124,11 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     const hashBuf = await crypto.subtle.digest("SHA-256", buf);
     const sha = Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
     const path = `${orderId ?? companyId}/ai-contratti/${sha.slice(0, 32)}-${safeName(originale.name)}`;
+    // Senza commessa l'originale aspetta in documenti-smart: order-attachments accetta solo cartelle di
+    // commesse esistenti. Alla creazione collegaOriginaleAi lo copia nei documenti della commessa.
+    const bucket = orderId ? BUCKET : BUCKET_ORIGINALI_AI;
     // Lo stesso contenuto riusa il riferimento privato senza sovrascriverlo.
-    const {error} = await supabase.storage.from(BUCKET).upload(path,originale,{upsert:false});
+    const {error} = await supabase.storage.from(bucket).upload(path,originale,{upsert:false});
     if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(`Upload: ${error.message}`);
     // Commessa già creata: l'originale entra subito nei suoi documenti (non visibile al cliente). Serve anche per
     // leggerlo: la regola office_attachment_file_read lascia leggere in order-attachments solo i file registrati.
@@ -140,7 +144,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         if (eDoc) throw new Error(`Documenti della commessa: ${eDoc.message}`);
       }
     }
-    return {bucket:BUCKET,path,name:originale.name,mime:originale.type || "application/pdf"};
+    return {bucket,path,name:originale.name,mime:originale.type || "application/pdf",size:originale.size};
   };
 
   const analyze = async () => {
@@ -552,7 +556,8 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     }
     const slash = pathAnalizzato?.indexOf("/") ?? -1;
     let source: StoredContractFile | null = pathAnalizzato && slash > 0 ? { bucket: pathAnalizzato.slice(0,slash), path: pathAnalizzato.slice(slash+1), name: sorgente?.name ?? remoteFile?.name ?? "contratto.pdf", mime: sorgente?.type ?? remoteFile?.mime ?? "application/pdf" } : null;
-    if (source && sorgente && (source.bucket !== BUCKET || !source.path.startsWith(`${companyId}/`))) {
+    // Un file non caricato da questo lettore (es. quello di Silvio) si conserva tra gli originali del contratto.
+    if (source && sorgente && (source.bucket !== (orderId ? BUCKET : BUCKET_ORIGINALI_AI) || !source.path.startsWith(`${orderId ?? companyId}/ai-contratti/`))) {
       try { source = await caricaOriginale(sorgente); }
       catch { toast.error("Non riesco a conservare l'originale nei documenti della commessa. Riprova prima di applicare i dati."); return; }
     }

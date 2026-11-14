@@ -93,7 +93,7 @@ describe("il problema: il parser degli indirizzi sale davvero", () => {
   it("e accetta i percorsi che l'app genera, che non cambiano l'indirizzo", () => {
     const percorsi: Array<[string, string]> = [
       ["documenti-smart", `${AZIENDA}/smart-1730300000000-Contratto-di-prova.pdf`], // SmartDocumentImportModal
-      ["order-attachments", `${AZIENDA}/ai-contratti/0123456789abcdef0123456789abcdef-contratto.pdf`], // ContractImportDialog
+      ["documenti-smart", `${AZIENDA}/ai-contratti/0123456789abcdef0123456789abcdef-contratto.pdf`], // ContractImportDialog, conservaOriginaleAi (prima della commessa)
       ["mezzi-documenti", `${AZIENDA}/${SCHEDA}/${UTENTE}-libretto.pdf`], // useMezzi
       ["silvio-uploads", `${UTENTE}/silvio_1730300000000_ab12cd.pdf`], // InternalChat
       ["silvio-uploads", `${AZIENDA}/${UTENTE}/1730300000000-fattura_di_prova.pdf`], // SilvioChatSheet
@@ -193,7 +193,7 @@ describe("valutaFile: la chiave di servizio solo per le coppie ammesse", () => {
     expect(servizio("quote-template-assets", `${AZIENDA}/import-condizioni-1730300000000.pdf`, BUCKET_IMPORT_CONDIZIONI))
       .toEqual({ ok: true, conChiaveDiServizio: true });
     // import contratti di commessa e libretti dei mezzi → lettura generica
-    expect(servizio("order-attachments", `${AZIENDA}/ai-contratti/${sha}-contratto.pdf`, BUCKET_LETTURA_GENERICA))
+    expect(servizio("documenti-smart", `${AZIENDA}/ai-contratti/${sha}-contratto.pdf`, BUCKET_LETTURA_GENERICA))
       .toEqual({ ok: true, conChiaveDiServizio: true });
     expect(servizio("mezzi-documenti", `${AZIENDA}/${SCHEDA}/${UTENTE}-libretto.pdf`, BUCKET_LETTURA_GENERICA))
       .toEqual({ ok: true, conChiaveDiServizio: true });
@@ -249,13 +249,24 @@ describe("l'elenco coincide con quello che l'app manda davvero", () => {
     for (const p of pagine) expect(leggi(p), p).not.toMatch(/storageBucket=/);
   });
 
-  it("import contratti di commessa: order-attachments, cartella dell'azienda", () => {
+  it("import contratti di commessa: documenti-smart prima della commessa, order-attachments dopo", () => {
     const s = leggi("src/components/orders/ContractImportDialog.tsx");
     expect(s).toContain('const BUCKET = "order-attachments";');
-    // Alla creazione la cartella è l'azienda (chiave di servizio, vedi sopra); a commessa creata (14/11/2026) è la
-    // commessa: fuori dall'elenco, quindi la funzione scarica coi diritti di chi chiama, e il file è registrato
-    // fra i documenti della commessa perché office_attachment_file_read lo lasci leggere.
+    // Prima della commessa (14/11/2026) l'originale aspetta in documenti-smart sotto l'azienda: in order-attachments
+    // office_attachment_file_insert accetta solo cartelle di commesse, e sotto <azienda>/ il caricamento era
+    // rifiutato a tutti. La funzione lo legge con la chiave di servizio (cartella dell'azienda).
+    expect(s).toContain("const bucket = orderId ? BUCKET : BUCKET_ORIGINALI_AI;");
     expect(s).toContain("path = `${orderId ?? companyId}/ai-contratti/");
+    expect(ha(BUCKET_LETTURA_GENERICA, "documenti-smart", "azienda")).toBe(true);
+    // A commessa creata la cartella è la commessa: fuori dall'elenco, quindi la funzione scarica coi diritti di chi
+    // chiama, e il file è registrato fra i documenti della commessa perché office_attachment_file_read lo lasci leggere.
+    const d = leggi("src/lib/orders/documentImportAi.ts");
+    expect(d).toContain('export const BUCKET_ORIGINALI_AI = "documenti-smart";');
+    expect(d).toContain("const { error } = await supabase.storage.from(BUCKET_ORIGINALI_AI).upload(path, file, { upsert: false });");
+    // Alla creazione l'originale si copia nella cartella della commessa e si registra come «vendita».
+    expect(d).toContain("`${orderId}/ai-contratti/${nome}`");
+    expect(d).toContain('access_scope: "vendita"');
+    // order-attachments resta ammesso per gli originali caricati prima, sotto l'azienda.
     expect(ha(BUCKET_LETTURA_GENERICA, "order-attachments", "azienda")).toBe(true);
   });
 

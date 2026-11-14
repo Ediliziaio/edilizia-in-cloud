@@ -14,6 +14,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
+import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
 import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
 import { prepareContract, contractPreparationNotes, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
@@ -405,7 +406,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Recupera il contratto privato già analizzato dopo una riapertura della bozza.
   useEffect(() => {
     if (!contractSource || !effectiveCompany?.id || pendingFiles.some(p => p.file.name === contractSource.name)) return;
-    if (contractSource.bucket !== "order-attachments" || !contractSource.path.startsWith(`${effectiveCompany.id}/`) || contractSource.path.includes("..")) return;
+    if ((contractSource.bucket !== "order-attachments" && contractSource.bucket !== BUCKET_ORIGINALI_AI) || !contractSource.path.startsWith(`${effectiveCompany.id}/`) || contractSource.path.includes("..")) return;
     let cancelled = false;
     void supabase.storage.from(contractSource.bucket).download(contractSource.path).then(({data,error}) => {
       if (cancelled) return;
@@ -1207,16 +1208,26 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // La lettura AI non certifica una firma. Il contratto firmato nasce solo
       // dopo la verifica esplicita dell'utente e della data effettiva di firma.
       // Il file non confermato resta tra gli allegati della commessa.
+      // L'originale letto dall'AI aspetta fuori dalla commessa (documenti-smart): ora che la commessa esiste
+      // entra nei suoi documenti, registrato come «vendita», e il contratto firmato punta a quella copia.
+      let originaleInCommessa: StoredContractFile | null = null;
+      if (contractSource && contrattoImportato && !selectedQuoteId) {
+        try {
+          originaleInCommessa = await collegaOriginaleAi(supabase, result.id, effectiveCompany!.id, user!.id, contractSource);
+        } catch (e) {
+          toast.warning("Commessa creata, ma l'originale del contratto non è nei documenti", { description: e instanceof Error ? e.message : String(e), duration: 12000 });
+        }
+      }
       const firmaConfermata = dataFirmaVerificata(contractSource, new Date().toLocaleDateString("en-CA"));
-      if (!selectedQuoteId && contrattoImportato && contractSource && firmaConfermata && contrattoImportato.natura_documento !== "offerta_fornitore") {
+      if (!selectedQuoteId && contrattoImportato && originaleInCommessa && firmaConfermata && contrattoImportato.natura_documento !== "offerta_fornitore") {
         const collegaContratto = supabase.rpc.bind(supabase) as unknown as (
           fn: "contratto_importato_collega", args: Record<string, unknown>,
         ) => Promise<{ error: { message: string } | null }>;
         const { error: erroreContratto } = await collegaContratto("contratto_importato_collega", {
           p_order: result.id,
-          p_path: contractSource.path,
-          p_nome: contractSource.name,
-          p_mime: contractSource.mime,
+          p_path: originaleInCommessa.path,
+          p_nome: originaleInCommessa.name,
+          p_mime: originaleInCommessa.mime,
           p_firmato_il: firmaConfermata,
         });
         if (erroreContratto) {
@@ -1306,11 +1317,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             description: "La commessa è stata creata. Verifica le fasi nel Cantiere prima di aggiungerle di nuovo.",
             duration: 15000,
           });
-          return { ...result, fasiDaVerificare: true };
+          return { ...result, fasiDaVerificare: true, originaleInCommessa };
         }
       }
 
-      return result;
+      return { ...result, originaleInCommessa };
     },
     onSuccess: async (order) => {
       if (invoiceId && effectiveCompany?.id) {
@@ -1378,7 +1389,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // Upload pending files
       if (pendingFiles.length > 0) {
         let uploaded = 0;
+        const originaleInCommessa = "originaleInCommessa" in order ? order.originaleInCommessa : null;
         for (const pf of pendingFiles) {
+          // L'originale del contratto è già entrato nei documenti con collegaOriginaleAi.
+          if (originaleInCommessa && pf.file.name === originaleInCommessa.name && (originaleInCommessa.size == null || pf.file.size === originaleInCommessa.size)) { uploaded++; continue; }
           try {
             const { file } = await riduciFile(pf.file);
             const filePath = percorsoDocumento(order.id, file.name);

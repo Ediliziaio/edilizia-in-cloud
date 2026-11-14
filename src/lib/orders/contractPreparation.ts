@@ -29,7 +29,7 @@ export function contractAnalysisHint(azienda: string | null | undefined, note: s
 export function storedContractFromDraft(value: unknown, companyId: string): StoredContractFile | null {
   if (!value || typeof value !== "object") return null;
   const s = value as Record<string, unknown>;
-  if (s.bucket !== "order-attachments" || typeof s.path !== "string" || !s.path.startsWith(`${companyId}/`) || s.path.includes("..") || s.path.length > 2048 || typeof s.name !== "string" || !s.name || s.name.length > 255 || typeof s.mime !== "string") return null;
+  if ((s.bucket !== "order-attachments" && s.bucket !== "documenti-smart") || typeof s.path !== "string" || !s.path.startsWith(`${companyId}/`) || s.path.includes("..") || s.path.length > 2048 || typeof s.name !== "string" || !s.name || s.name.length > 255 || typeof s.mime !== "string") return null;
   const firma = dataFirmaVerificata(typeof s.firmaConfermataIl === "string" ? {firmaConfermataIl:s.firmaConfermataIl} : null, new Date().toLocaleDateString("en-CA"));
   return {bucket:s.bucket, path:s.path, name:s.name, mime:s.mime, ...(typeof s.size === "number" && Number.isFinite(s.size) && s.size >= 0 ? {size:s.size} : {}), ...(firma ? {firmaConfermataIl:firma} : {})};
 }
