@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,7 @@ import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEs
 import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
+import { ScadenzaDettaglio } from "@/components/scadenzario/ScadenzaDettaglio";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
 import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 import AdempimentiFiscali from "@/components/scadenzario/AdempimentiFiscali";
@@ -142,10 +143,12 @@ export default function Scadenzario() {
 
   const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
+  // Il dettaglio segue la riga aggiornata: dopo un incasso si vede il nuovo stato.
+  const [dettaglio, setDettaglio] = useState<string | null>(null);
+  const scadenzaAperta = dettaglio ? scadenze.find((x) => x.id === dettaglio) ?? null : null;
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
 
   // Export CSV di TUTTE le scadenze che rispettano i filtri correnti (anno/tab/ricerca),
@@ -447,7 +450,7 @@ export default function Scadenzario() {
               onCancel={(id) => cancel.mutate(id)}
               onAnnullaIncasso={setDaAnnullare}
               onAdd={() => setNewOpen(true)}
-              onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/documenti/importata/${s.invoice_id}`); }}
+              onRowClick={(s) => setDettaglio(s.id)}
             />
             {/* Mobile: solo precedente/successiva (via righe per pagina e salti). Il
                 contenitore c'è solo quando la paginazione compare, per non
@@ -526,6 +529,14 @@ export default function Scadenzario() {
       </PannelloFiltri>
 
       {/* Dialogs */}
+      {scadenzaAperta && (
+        <ScadenzaDettaglio
+          scadenza={scadenzaAperta}
+          onClose={() => setDettaglio(null)}
+          onMarkPaid={(x) => { setDettaglio(null); setPayDialog(x); }}
+          onAnnullaIncasso={(x) => { setDettaglio(null); setDaAnnullare(x); }}
+        />
+      )}
       <MarkPaidDialog
         scadenza={payDialog}
         open={!!payDialog}

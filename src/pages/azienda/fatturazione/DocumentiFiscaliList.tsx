@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
-import { CelleEmesse, IntestazioniEmesse, SceltaColonneEmesse, useColonneEmesse } from "@/components/fatturazione/ColonneFattureEmesse";
+import { CelleEmesse, IntestazioniEmesse, SceltaColonneEmesse, STICKY_SELEZIONE, useColonneEmesse } from "@/components/fatturazione/ColonneFattureEmesse";
 import { FILTRI_EMESSE_VUOTI, FiltriEmesseAttivi, FiltriFattureEmesse, type FiltriEmesse } from "@/components/fatturazione/FiltriFattureEmesse";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useState, useMemo, useCallback, useEffect } from "react";
@@ -990,7 +990,7 @@ function DocumentiFiscaliListInner() {
             <Table wrapperRef={setRiquadroTabella} wrapperClassName={elencoEmesse ? "max-h-[70vh] tabella-scorrevole" : undefined} className={elencoEmesse ? "[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap" : undefined}>
               <TableHeader className={elencoEmesse ? "sticky top-0 z-10 bg-card shadow-[0_1px_0_hsl(var(--border))]" : undefined}>
                  <TableRow>
-                  <TableHead className="w-10" onClick={(e) => e.stopPropagation()}>
+                  <TableHead className={elencoEmesse ? `${STICKY_SELEZIONE} z-20 bg-card` : "w-10"} onClick={(e) => e.stopPropagation()}>
                     <Checkbox
                       checked={allSelected}
                       onCheckedChange={toggleSelectAll}
@@ -1020,11 +1020,11 @@ function DocumentiFiscaliListInner() {
                   return (
                     <TableRow
                       key={doc.id}
-                      className="cursor-pointer"
+                      className="group cursor-pointer"
                       onClick={() => apriDocumento(doc)}
                     >
                       {/* Checkbox */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className={elencoEmesse ? `${STICKY_SELEZIONE} z-[1] bg-card group-hover:bg-[color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]` : undefined} onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedIds.has(doc.id)}
                           onCheckedChange={() => toggleSelect(doc.id)}

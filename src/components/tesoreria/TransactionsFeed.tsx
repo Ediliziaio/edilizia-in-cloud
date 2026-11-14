@@ -425,7 +425,7 @@ export default function TransactionsFeed({
           <span className="flex items-center gap-1">
             <Link
               to={jobs[0].url!}
-              className="max-w-48 truncate text-primary hover:underline"
+              className="block max-w-48 truncate text-primary hover:underline"
               title={jobs[0].label}
             >
               {jobs[0].label}
@@ -803,7 +803,8 @@ export default function TransactionsFeed({
             </div>
           ))}
           <div className="max-h-[70vh] overflow-auto rounded-xl border bg-card">
-            <table className="w-full text-sm">
+            {/* Un movimento per riga: niente a capo, la causale intera sta nel title e nel dettaglio. */}
+            <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:py-2 [&_th]:py-2.5">
               <thead className="sticky top-0 z-20 bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="sticky left-0 top-0 z-30 min-w-[112px] bg-muted px-4 py-3 text-left max-sm:static">
@@ -864,7 +865,7 @@ export default function TransactionsFeed({
                       >
                         {money(m.amount, "—", m.currency)}
                       </td>
-                      <td className="min-w-64 max-w-80 px-4 py-3">
+                      <td className="px-4 py-3">
                         <button
                           type="button"
                           className="flex max-w-full items-center gap-2 text-left font-medium hover:text-primary"
@@ -876,13 +877,13 @@ export default function TransactionsFeed({
                           ) : (
                             <ArrowUpRight className="h-4 w-4 shrink-0 text-red-600" />
                           )}
-                          <span className="whitespace-pre-wrap break-words">{bankCausale(m)}</span>
+                          <span className="block max-w-[360px] truncate">{bankCausale(m)}</span>
+                          {m.status !== "booked" && (
+                            <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                              · in attesa in banca
+                            </span>
+                          )}
                         </button>
-                        {m.status !== "booked" && (
-                          <span className="text-xs text-muted-foreground">
-                            In attesa in banca
-                          </span>
-                        )}
                       </td>
                       <td className="max-w-52 px-4 py-3">
                         {cell(m, "account")}

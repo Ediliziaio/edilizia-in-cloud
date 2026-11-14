@@ -193,8 +193,9 @@ describe("popup e registro dei movimenti", () => {
     expect(screen.getByLabelText("Note interne")).toHaveValue(
       "Nota conservata",
     );
+    // Aprire il popup legge soltanto: il dettaglio e i documenti aperti per i suggerimenti.
     expect(
-      mock.rpc.mock.calls.filter((c) => c[0] !== "bank_movimento_dettaglio"),
+      mock.rpc.mock.calls.filter((c) => !["bank_movimento_dettaglio", "bank_candidati_movimento"].includes(c[0])),
     ).toHaveLength(0);
   });
   it("un salvataggio fallito mantiene la nota e non mostra successo", async () => {
@@ -233,7 +234,7 @@ describe("popup e registro dei movimenti", () => {
     expect(
       await screen.findByText(/Il pagamento già registrato verrà conservato/),
     ).toBeInTheDocument();
-    expect(mock.rpc).toHaveBeenCalledTimes(1);
+    expect(mock.rpc.mock.calls.filter((c) => c[0] !== "bank_candidati_movimento")).toHaveLength(1);
     fireEvent.click(
       screen.getByRole("button", { name: "Conferma scollegamento" }),
     );

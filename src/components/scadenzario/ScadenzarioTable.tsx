@@ -3,9 +3,9 @@ import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle2, CreditCard, Ban, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus, Undo2 } from "lucide-react";
-import type { Scadenza } from "@/hooks/useScadenzario";
+import { AlertTriangle, CreditCard, ArrowUpRight, ArrowDownLeft, CalendarClock, Plus, Undo2 } from "lucide-react";
+import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
+import { CLASSE_TONO, giorniDaOggi, statoScadenza } from "@/lib/finance/collegamentiFinanza";
 import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -135,160 +135,107 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
         );
       })}
     </div>
-    {/* Desktop table. Sotto 1280 senza «Tipo» (entrata o uscita lo dicono
-        già il segno e il colore dell'importo) e con celle più strette: a
-        1024 la colonna Stato usciva dalla pagina. */}
+    {/* Desktop: una scadenza per riga, niente a capo. Controparte, documento,
+        commessa e metodo hanno le loro colonne; il clic apre il dettaglio con
+        pagamenti e bonifico abbinato. Le colonne meno importanti spariscono
+        sotto 1280/1536 invece di andare a capo. */}
     <div className="hidden sm:block rounded-lg border overflow-x-auto">
-      <table className="w-full text-sm [&_td]:px-2.5 [&_th]:px-2.5 xl:[&_td]:px-3 xl:[&_th]:px-3">
+      <table className="w-full text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_td]:px-2 [&_th]:px-2 [&_td]:py-1.5">
         <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="text-left p-3 font-medium">Scadenza</th>
-            <th className="hidden text-left p-3 font-medium xl:table-cell">Tipo</th>
-            <th className="text-left p-3 font-medium">Descrizione</th>
-            <th className="text-right p-3 font-medium">Importo</th>
-            <th className="text-right p-3 font-medium">Residuo</th>
-            <th className="text-left p-3 font-medium">Stato</th>
-            <th className="p-3 w-20"></th>
+          <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+            <th className="py-2 font-medium">Scadenza</th>
+            <th className="hidden py-2 font-medium 2xl:table-cell">Tipo</th>
+            <th className="py-2 font-medium">Cliente / fornitore</th>
+            <th className="py-2 font-medium">Descrizione</th>
+            <th className="hidden py-2 font-medium lg:table-cell">Documento · commessa</th>
+            <th className="hidden py-2 font-medium 2xl:table-cell">Metodo</th>
+            <th className="py-2 text-right font-medium">Importo</th>
+            <th className="py-2 text-right font-medium">Residuo</th>
+            <th className="py-2 font-medium">Stato</th>
+            <th className="py-2"><span className="sr-only">Azioni</span></th>
           </tr>
         </thead>
         <tbody>
           {scadenze.map((s, idx) => {
             const dueDate = new Date(s.due_date);
             const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(new Date(scadenze[idx - 1].due_date));
-            const remaining = s.amount - s.paid_amount;
-            const daysLeft = differenceInDays(dueDate, new Date());
-            const isOverdue = isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
-            const isDueToday = isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
-            const isDueSoon = daysLeft > 0 && daysLeft <= 7 && s.status !== "pagata" && s.status !== "annullata";
-            const isPaid = s.status === "pagata";
+            const remaining = Math.max(0, s.amount - s.paid_amount);
+            const stato = statoScadenza(s);
+            const daysLeft = giorniDaOggi(s.due_date);
+            const isPaid = stato.tono === "ok";
             const isCancelled = s.status === "annullata";
+            const isOverdue = stato.tono === "scaduta";
+            const isDueToday = !isPaid && !isCancelled && daysLeft === 0;
+            const isDueSoon = !isPaid && !isCancelled && daysLeft > 0 && daysLeft <= 7;
             const tipoInfo = TIPO_LABELS[s.tipo] || { label: s.tipo, color: "bg-muted text-muted-foreground" };
-
-            const rowStyle = isCancelled
-              ? "opacity-50"
-              : isPaid
-                ? "opacity-60"
-                : isOverdue
-                  ? "bg-destructive/5"
-                  : isDueToday
-                    ? "bg-amber-50 dark:bg-amber-950/20"
-                    : isDueSoon
-                      ? "bg-orange-50/50 dark:bg-orange-950/10"
-                      : "";
-
-            const refLabel = s.invoices?.invoice_number
-              ? `Fatt. ${s.invoices.invoice_number}`
-              : s.orders?.order_code
-                ? `Ord. ${s.orders.order_code}`
-                : s.suppliers?.name
-                  ? s.suppliers.name
-                  : s.marketing_contacts
-                    ? `${s.marketing_contacts.first_name} ${s.marketing_contacts.last_name}`
-                    : null;
-
+            const rowStyle = isCancelled ? "opacity-50" : isPaid ? "opacity-70" : isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : isDueSoon ? "bg-orange-50/50 dark:bg-orange-950/10" : "";
+            const controparte = controparteScadenza(s);
+            const documento = s.invoices?.invoice_number ? `Fatt. ${s.invoices.invoice_number}` : s.company_costs?.name ? "Costo" : null;
             return (
               <Fragment key={s.id}>
                 {showMonthHeader && (
                   <tr className="bg-muted/20">
-                    <td colSpan={7} className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">{monthLabel(dueDate)}</td>
+                    <td colSpan={10} className="!py-1 text-xs font-semibold text-muted-foreground">{monthLabel(dueDate)}</td>
                   </tr>
                 )}
               <tr
                 className={`border-b hover:bg-muted/30 ${rowStyle} ${onRowClick ? "cursor-pointer" : ""}`}
                 onClick={onRowClick ? () => onRowClick(s) : undefined}
               >
-                <td className="p-3">
-                  <div className="flex items-center gap-2">
-                    {isOverdue && <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />}
-                    {isPaid && <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />}
-                    {isCancelled && <Ban className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
-                    <span className={isOverdue ? "font-semibold text-destructive" : ""}>
-                      {format(dueDate, "dd/MM/yyyy", { locale: it })}
-                    </span>
-                  </div>
+                <td>
+                  <span className={`inline-flex items-center gap-1.5 tabular-nums ${isOverdue ? "font-semibold text-destructive" : ""}`}>
+                    {isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                    {format(dueDate, "dd/MM/yyyy", { locale: it })}
+                  </span>
                   {!isPaid && !isCancelled && (
-                    <span className="text-xs text-muted-foreground">
-                      {isOverdue
-                        ? `${Math.abs(daysLeft)} giorni fa`
-                        : isDueToday
-                          ? "Oggi"
-                          : `tra ${daysLeft} giorni`}
+                    <span className={`ml-1.5 text-xs tabular-nums ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}
+                      title={isOverdue ? `Scaduta da ${stato.giorniRitardo} giorni` : undefined}>
+                      {isOverdue ? `+${stato.giorniRitardo} gg` : isDueToday ? "oggi" : `fra ${daysLeft} gg`}
                     </span>
                   )}
                 </td>
-                <td className="hidden p-3 xl:table-cell">
+                <td className="hidden 2xl:table-cell">
                   <Badge variant="secondary" className={`text-xs ${tipoInfo.color}`}>
-                    {s.direction === "entrata"
-                      ? <ArrowDownLeft className="h-3 w-3 mr-1 inline" />
-                      : <ArrowUpRight className="h-3 w-3 mr-1 inline" />
-                    }
+                    {s.direction === "entrata" ? <ArrowDownLeft className="mr-1 inline h-3 w-3" /> : <ArrowUpRight className="mr-1 inline h-3 w-3" />}
                     {tipoInfo.label}
                   </Badge>
                 </td>
-                <td className="p-3">
-                  <p className="font-medium truncate max-w-[160px] xl:max-w-[200px]">{s.description}</p>
-                  {refLabel && <p className="text-xs text-muted-foreground">{refLabel}</p>}
-                </td>
-                <td className="p-3 text-right tabular-nums">
-                  <span className={s.direction === "entrata" ? "text-green-700" : ""}>
-                    {s.direction === "uscita" ? "-" : "+"}{fmtEur(s.amount)}
+                <td><span className="block max-w-[130px] truncate 2xl:max-w-[200px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
+                <td><span className="block max-w-[170px] truncate font-medium 2xl:max-w-[320px]" title={s.description}>{s.description}</span></td>
+                <td className="hidden lg:table-cell">
+                  <span className="block max-w-[120px] truncate font-mono text-xs 2xl:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, s.orders?.order_code ? `Commessa ${s.orders.order_code}` : null].filter(Boolean).join(" · ") || undefined}>
+                    {[documento, s.orders?.order_code].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </span>
                 </td>
-                <td className="p-3 text-right">
-                  {/* Pagata o annullata: niente residuo e niente seconda pastiglia
-                      («Saldato» accanto a «Pagata» nella colonna Stato). */}
-                  {isPaid || isCancelled ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : s.status === "parziale" ? (
-                    <div className="space-y-1">
-                      <span className="font-medium">{fmtEur(remaining)}</span>
-                      <Progress value={(s.paid_amount / s.amount) * 100} className="h-1.5" />
-                      <span className="text-xs text-muted-foreground">{Math.round((s.paid_amount / s.amount) * 100)}%</span>
-                    </div>
-                  ) : (
-                    <span className={isOverdue ? "text-destructive font-bold" : "font-medium"}>{fmtEur(remaining)}</span>
-                  )}
+                <td className="hidden 2xl:table-cell text-xs">{s.payment_method || <span className="text-muted-foreground">—</span>}</td>
+                <td className={`text-right tabular-nums ${s.direction === "entrata" ? "text-green-700" : ""}`}>
+                  {s.direction === "uscita" ? "−" : "+"}{fmtEur(s.amount)}
                 </td>
-                <td className="p-3">
-                  <Badge variant={
-                    isPaid ? "default" :
-                    isCancelled ? "secondary" :
-                    isOverdue ? "destructive" :
-                    "outline"
-                  } className="text-xs">
-                    {isPaid ? (s.direction === "entrata" ? "Incassata" : "Pagata") : isCancelled ? "Annullata" : isOverdue ? "Scaduta" : s.status === "parziale" ? "Parziale" : "Aperta"}
-                  </Badge>
+                <td className={`text-right tabular-nums ${isOverdue ? "font-semibold text-destructive" : "font-medium"}`}
+                  title={s.status === "parziale" && s.amount > 0 ? `${fmtEur(s.paid_amount)} già ${s.direction === "entrata" ? "incassati" : "pagati"} (${Math.round((s.paid_amount / s.amount) * 100)}%)` : undefined}>
+                  {isPaid || isCancelled ? <span className="font-normal text-muted-foreground">—</span> : <>
+                    {fmtEur(remaining)}
+                  </>}
                 </td>
-                <td className="p-3">
-                  <div className="flex flex-col items-start gap-1">
+                <td><Badge variant="outline" className={`px-1.5 text-[11px] ${CLASSE_TONO[stato.tono]}`}>{stato.label}</Badge></td>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-end gap-1">
                     {onNota && (
-                      <span onClick={(e) => e.stopPropagation()}>
-                        <NotaRiga
-                          nota={s.notes}
-                          titolo={`${format(new Date(s.due_date), "dd/MM/yyyy", { locale: it })} · ${s.description}`}
-                          onSalva={(nota) => onNota(s, nota)}
-                        />
-                      </span>
+                      <NotaRiga
+                        nota={s.notes}
+                        titolo={`${format(dueDate, "dd/MM/yyyy", { locale: it })} · ${s.description}`}
+                        onSalva={(nota) => onNota(s, nota)}
+                      />
                     )}
                     {!isPaid && !isCancelled && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs h-7 px-2"
-                        onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
-                      >
-                        <CreditCard className="h-3.5 w-3.5 mr-1" /> {s.direction === "entrata" ? "Incassa" : "Paga"}
+                      <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => onMarkPaid(s)}>
+                        <CreditCard className="mr-1 h-3.5 w-3.5" />{s.direction === "entrata" ? "Incassa" : "Paga"}
                       </Button>
                     )}
                     {onAnnullaIncasso && siAnnullaIncasso(s) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs h-7 px-2 whitespace-nowrap"
-                        aria-label={`Annulla l'incasso di ${s.description}`}
-                        onClick={(e) => { e.stopPropagation(); onAnnullaIncasso(s); }}
-                      >
-                        <Undo2 className="h-3.5 w-3.5 mr-1" /> Annulla incasso
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Annulla incasso"
+                        aria-label={`Annulla l'incasso di ${s.description}`} onClick={() => onAnnullaIncasso(s)}>
+                        <Undo2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                   </div>

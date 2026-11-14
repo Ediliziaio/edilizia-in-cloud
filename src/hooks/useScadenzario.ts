@@ -35,9 +35,18 @@ export interface Scadenza {
   updated_at: string;
   // joined
   suppliers?: { name: string } | null;
-  invoices?: { invoice_number: string; client_company_name: string } | null;
-  orders?: { order_code: string } | null;
+  invoices?: { invoice_number: string; client_company_name: string; issue_date?: string | null } | null;
+  orders?: { order_code: string; client_name?: string | null; client_company?: string | null } | null;
+  company_costs?: { name: string | null } | null;
   marketing_contacts?: { first_name: string; last_name: string; company_name: string | null } | null;
+}
+
+/** Chi paga o chi incassa: dalla fattura, dal fornitore, dalla commessa o dal contatto. */
+export function controparteScadenza(s: Pick<Scadenza, "invoices" | "suppliers" | "orders" | "marketing_contacts">): string | null {
+  const contatto = s.marketing_contacts
+    ? s.marketing_contacts.company_name || `${s.marketing_contacts.first_name ?? ""} ${s.marketing_contacts.last_name ?? ""}`.trim()
+    : "";
+  return s.invoices?.client_company_name || s.suppliers?.name || s.orders?.client_company || s.orders?.client_name || contatto || null;
 }
 
 export interface ScadenzarioSummary {
@@ -98,8 +107,9 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
         .select(`
           *,
           suppliers(name),
-          invoices(invoice_number, client_company_name),
-          orders(order_code),
+          invoices(invoice_number, client_company_name, issue_date),
+          orders(order_code, client_name, client_company),
+          company_costs(name),
           marketing_contacts(first_name, last_name, company_name)
         `, { count: "exact" })
         .eq("company_id", companyId!)

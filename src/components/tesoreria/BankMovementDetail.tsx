@@ -57,6 +57,7 @@ import {
   type RigaRipartizione,
 } from "./RipartizioneMovimento";
 import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
+import { MovimentoSuggerimenti } from "./MovimentoSuggerimenti";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -234,10 +235,10 @@ function Detail({
             {state.label}
           </Badge>
         </div>
-        <p className="mt-4 whitespace-pre-wrap break-words font-medium">
+        <p className="mt-3 whitespace-pre-wrap break-words font-medium">
           {bankCausale(m)}
         </p>
-        <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           {[
             [
               "Controparte",
@@ -266,7 +267,7 @@ function Detail({
         </dl>
       </section>
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border p-4">
+        <div className="rounded-xl border px-4 py-3">
           <p className="text-xs text-muted-foreground">
             Abbinato a pagamenti / documenti
           </p>
@@ -274,13 +275,21 @@ function Detail({
             {monetary(m.links.matched)}
           </p>
         </div>
-        <div className="rounded-xl border p-4">
+        <div className="rounded-xl border px-4 py-3">
           <p className="text-xs text-muted-foreground">Ancora da abbinare</p>
           <p className="mt-1 text-xl font-semibold tabular-nums">
             {monetary(m.links.remaining)}
           </p>
         </div>
       </div>
+      {!m.chiuso_senza_documento && (
+        <MovimentoSuggerimenti
+          company={company}
+          movement={m}
+          puoAbbinare={validMatch}
+          onAbbinato={refresh}
+        />
+      )}
       {m.reconciliation_status === "suggestion" && (
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
           <p className="font-semibold">Proposta da verificare</p>

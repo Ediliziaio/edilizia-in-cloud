@@ -18,8 +18,8 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
 export const COLONNE_EMESSE = [
-  { id: "cliente", label: "Cliente", fissa: true },
-  { id: "numero", label: "Numero", fissa: true },
+  // Numero e cliente insieme, fermi a sinistra: scorrendo a destra si sa sempre di quale fattura si parla.
+  { id: "documento", label: "Fattura · cliente", fissa: true },
   { id: "data", label: "Emessa il" },
   { id: "imponibile", label: "Imponibile", cifra: true },
   { id: "iva", label: "IVA", cifra: true, opzionale: true },
@@ -75,9 +75,13 @@ export function SceltaColonneEmesse({ colonne, cambia }: ReturnType<typeof useCo
   </DropdownMenu>;
 }
 
+/** La casella di selezione è larga 2.5rem e ferma a sinistra: la colonna della fattura le sta accanto. */
+export const STICKY_SELEZIONE = "sticky left-0 w-10 min-w-10 max-w-10";
+const STICKY_DOCUMENTO = "sticky left-10 min-w-[260px] max-w-[320px] shadow-[1px_0_0_hsl(var(--border))]";
+
 export function IntestazioniEmesse({ colonne }: { colonne: ColonnaEmesse[] }) {
   return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableHead key={c.id}
-    className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${c.id === "cliente" ? "sticky left-0 z-10 bg-card min-w-[210px]" : ""}`}>{c.label}</TableHead>)}</>;
+    className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${c.id === "documento" ? `${STICKY_DOCUMENTO} z-20 bg-card` : ""}`}>{c.label}</TableHead>)}</>;
 }
 
 export function NoteEmessa({ doc, interne=false }: { doc: DocumentoFiscale; interne?:boolean }) {
@@ -129,8 +133,10 @@ export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: Doc
   const cliente = nomeCliente(doc.cliente_snapshot as never) || "—";
   const credito = creditoCliente(doc);
   const valori: Record<ColonnaEmesse, React.ReactNode> = {
-    cliente: <span className="block max-w-[230px] truncate font-medium" title={cliente}>{cliente}</span>,
-    numero: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="block max-w-[200px] truncate font-mono text-xs hover:underline" title={doc.numero}>{doc.numero || "Bozza senza numero"}</button>,
+    documento: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="flex w-full min-w-0 items-baseline gap-2 text-left hover:underline" title={`${doc.numero || "Bozza senza numero"} · ${cliente}`}>
+      <span className="shrink-0 font-mono text-xs text-muted-foreground">{doc.numero || "Bozza"}</span>
+      <span className="min-w-0 truncate font-medium">{cliente}</span>
+    </button>,
     data: formatDateShort(doc.data_emissione),
     imponibile: formatCurrency(doc.imponibile_totale), iva: formatCurrency(doc.iva_totale),
     totale: formatCurrency(doc.totale_documento), netto: formatCurrency(doc.totale_da_pagare),
@@ -147,5 +153,5 @@ export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: Doc
     origine: doc.origine === "importata" ? (doc.external_provider || "Importata") : "Edilizia in Cloud",
   };
   return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableCell key={c.id}
-    className={`whitespace-nowrap py-3 ${"cifra" in c ? "text-right tabular-nums" : ""} ${c.id === "cliente" ? "sticky left-0 z-[1] bg-card" : ""}`}>{valori[c.id]}</TableCell>)}</>;
+    className={`whitespace-nowrap py-2 ${"cifra" in c ? "text-right tabular-nums" : ""} ${c.id === "documento" ? `${STICKY_DOCUMENTO} z-[1] bg-card group-hover:bg-[color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]` : ""}`}>{valori[c.id]}</TableCell>)}</>;
 }
