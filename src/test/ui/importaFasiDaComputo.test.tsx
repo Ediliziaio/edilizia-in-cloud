@@ -76,7 +76,23 @@ describe("Dove si trova", () => {
     const { readFileSync } = await import("node:fs");
     const f = readFileSync("src/components/orders/OrderWorkPhases.tsx", "utf8");
     expect(f).toContain('<FileUp className="mr-1 h-4 w-4" />Importa');
-    expect(f).toContain("<DialogTitle>Importa le fasi</DialogTitle>");
+    // La stessa finestra di «Importa voci» del computo, col suo titolo.
+    expect(f).toContain("<ImportaVociDialog");
+    expect(f).toContain('titolo="Importa le fasi"');
+    expect(f).toContain("<ImportaFasiDaComputo soloGestionale");
     expect(f).not.toContain("Da computo o preventivo</Button>");
   });
 });
+
+describe("Dentro «Importa le fasi»", () => {
+  it("sotto il riquadro del file: solo computo e preventivo del gestionale", () => {
+    render(<QueryClientProvider client={new QueryClient()}>
+      <ImportaFasiDaComputo soloGestionale orderId="o1" companyId="c1" userId="u1" fasiEsistenti={[]} mostraImporti onFatto={vi.fn()} />
+    </QueryClientProvider>);
+    expect(screen.getByText("Oppure dal gestionale")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Da un file" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Da un computo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Da un preventivo" })).toBeInTheDocument();
+  });
+});
+

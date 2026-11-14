@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, CheckCircle2, FileText, FileUp, Loader2, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,13 @@ export interface ImportaVociDialogProps {
   consentiAi: boolean;
   /** Tetto delle voci del documento (l'editor del computo ne regge 5000). */
   massimoVoci?: number;
+  /** La stessa finestra per altri usi (14/11/2026: «Importa le fasi» della commessa). */
+  titolo?: string;
+  descrizione?: string;
+  /** Il testo del pulsante di conferma, col numero delle voci: «Importa 12 voci nelle fasi». */
+  etichettaConferma?: (n: number) => string;
+  /** Sotto il riquadro dei file, al primo passo: altre fonti (computo o preventivo del gestionale). */
+  altreFonti?: React.ReactNode;
 }
 
 const FORMATI = ["PriMus (XPWE)", "PDF", "Excel", "CSV", "Word", "Foto"];
@@ -114,7 +122,7 @@ function Campo({ etichetta, valore, onCambia, classe = "", numero = false, disab
     className={`h-8 w-full rounded-md border border-input bg-background px-2 text-xs disabled:bg-muted disabled:text-muted-foreground ${numero ? "text-right tabular-nums" : ""} ${classe}`} />;
 }
 
-export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000 }: ImportaVociDialogProps) {
+export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000, titolo, descrizione, etichettaConferma, altreFonti }: ImportaVociDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const [lavori, setLavori] = useState<Lavoro[]>([]);
   const [voci, setVoci] = useState<VoceImportata[]>([]);
@@ -207,9 +215,9 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
         @media (prefers-reduced-motion: reduce){.importa-voci-scan{animation:none;top:0;height:100%;background:hsl(var(--primary)/.12)}}
       `}</style>
       <DialogHeader>
-        <DialogTitle>Importa voci</DialogTitle>
+        <DialogTitle>{titolo ?? "Importa voci"}</DialogTitle>
         <DialogDescription>
-          {passo === "scegli" && "Un computo o un preventivo che hai già: le voci si leggono da sole e le rivedi prima di aggiungerle."}
+          {passo === "scegli" && (descrizione ?? "Un computo o un preventivo che hai già: le voci si leggono da sole e le rivedi prima di aggiungerle.")}
           {passo === "lettura" && (inLettura ? "Sto leggendo i file. Puoi chiudere quando vuoi: niente cambia finché non confermi." : "Lettura finita.")}
           {passo === "anteprima" && `${voci.length} ${voci.length === 1 ? "voce letta" : "voci lette"}${incerte ? `, ${incerte} da controllare` : ""}. Correggi o togli quello che non va: niente cambia finché non confermi.`}
         </DialogDescription>
@@ -235,6 +243,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
           {consentiAi ? " Scansioni, foto e altri PDF li legge l'AI: controlla le voci segnalate." : " Scansioni e foto richiedono l'AI, che qui non è attiva."}
         </p>
       </div>}
+      {passo === "scegli" && altreFonti}
 
       {passo === "lettura" && <div className="space-y-3">
         <ul className="space-y-2">{lavori.map(l => <SchedaFile key={l.chiave} lavoro={l} />)}</ul>
@@ -331,7 +340,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
         <div className="flex gap-2">
           <Button variant="outline" onClick={chiudi}><X className="mr-1 h-4 w-4" />{passo === "anteprima" ? "Annulla" : "Chiudi"}</Button>
           {passo === "anteprima" && <Button onClick={conferma} disabled={!voci.length || troppe}>
-            <Check className="mr-1 h-4 w-4" />Aggiungi {voci.length} {voci.length === 1 ? "voce" : "voci"}
+            <Check className="mr-1 h-4 w-4" />{etichettaConferma ? etichettaConferma(voci.length) : `Aggiungi ${voci.length} ${voci.length === 1 ? "voce" : "voci"}`}
           </Button>}
         </div>
       </DialogFooter>

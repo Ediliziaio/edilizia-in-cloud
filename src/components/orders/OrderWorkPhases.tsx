@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -57,7 +58,9 @@ import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
 import { SilvioAiuto } from "@/components/silvio/SilvioAiuto";
 import { controlliFasi, type AzioneSilvio } from "@/lib/orders/silvioControlli";
-import { ImportaFasiDaComputo } from "@/components/orders/ImportaFasiDaComputo";
+import { ImportaFasiDaComputo, avvisaEsitoImport, importaFasiNelDatabase } from "@/components/orders/ImportaFasiDaComputo";
+import { ImportaVociDialog } from "@/components/computo/ImportaVociDialog";
+import { fasiDaRighe, fasiPerIlDatabase, righeDaVociComputo } from "@/lib/orders/fasiDaComputo";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
 import { faseHaSottofasi, fineDaGiorni, vociDelleSottofasi, type Sottofase, type VoceSottofase } from "@/lib/orders/sottofasi";
@@ -471,20 +474,30 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 <FileUp className="mr-1 h-4 w-4" />Importa
               </Button>
             )}
-            {canEditOrders && showWork && effectiveCompany?.id && user?.id && (
-              <Dialog open={importaAperto} onOpenChange={setImportaAperto}>
-                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Importa le fasi</DialogTitle>
-                    <DialogDescription>Da un computo o da un preventivo: un capitolo diventa una fase, ogni riga una lavorazione con quantità e importo, pronte per i SAL.</DialogDescription>
-                  </DialogHeader>
-                  {importaAperto && <ImportaFasiDaComputo
+            {canEditOrders && showWork && effectiveCompany?.id && user?.id && importaAperto && (
+              <ImportaVociDialog
+                open
+                onOpenChange={setImportaAperto}
+                consentiAi
+                vociPresenti={0}
+                titolo="Importa le fasi"
+                descrizione="Un computo o un preventivo che hai già: ogni capitolo diventa una fase, ogni voce una lavorazione con quantità e importo, pronte per i SAL. Le rivedi prima di importarle; le fasi già presenti si saltano."
+                etichettaConferma={(n) => `Importa ${n} ${n === 1 ? "voce" : "voci"} nelle fasi`}
+                onAggiungi={(voci, esito) => {
+                  const fasi = fasiDaRighe(righeDaVociComputo(voci), phases.map((p) => p.name));
+                  const daMandare = fasiPerIlDatabase(fasi, new Set(fasi.map((f) => f.nome)));
+                  importaFasiNelDatabase(orderId, daMandare, "computo", esito?.intestazione?.titolo ?? voci[0]?.origine ?? null)
+                    .then((r) => { avvisaEsitoImport(r); void refetch(); })
+                    .catch((e: unknown) => toast.error("Fasi non importate", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") }));
+                }}
+                altreFonti={
+                  <ImportaFasiDaComputo soloGestionale
                     orderId={orderId} companyId={effectiveCompany.id} userId={user.id}
                     fasiEsistenti={phases.map((p) => p.name)} mostraImporti={canViewOrderAmounts}
                     onFatto={() => { void refetch(); setImportaAperto(false); }}
-                  />}
-                </DialogContent>
-              </Dialog>
+                  />
+                }
+              />
             )}
             {showTeam && (canEditOrders || puoSquadre) && <>
               {/* Da telefono si assegna dentro la fase: qui solo «Aggiungi fasi». */}

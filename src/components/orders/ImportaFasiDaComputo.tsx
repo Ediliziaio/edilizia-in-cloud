@@ -27,7 +27,29 @@ import {
 const db = supabase as any;
 type Fonte = "file" | "computo" | "preventivo";
 
-export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti, mostraImporti, onFatto }: {
+export interface EsitoImportFasi { aggiunte: number; saltate: number; voci: number; con_importi: boolean }
+
+/** Scrive le fasi scelte nella commessa (RPC commessa_importa_fasi) e dice com'è andata. */
+export async function importaFasiNelDatabase(orderId: string, fasi: ReturnType<typeof fasiPerIlDatabase>, origine: "computo" | "preventivo", codice: string | null): Promise<EsitoImportFasi> {
+  if (!fasi.length) throw new Error("Nessuna fase nuova da importare: quelle del file ci sono già.");
+  const { data, error } = await db.rpc("commessa_importa_fasi", { p_order_id: orderId, p_fasi: fasi, p_origine: origine, p_codice: codice });
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883") throw new Error("L'import nelle fasi non è ancora attivo: serve un aggiornamento del database.");
+    throw error;
+  }
+  return data as EsitoImportFasi;
+}
+
+/** Il messaggio dopo l'import, uguale da ogni fonte. */
+export function avvisaEsitoImport(r: EsitoImportFasi) {
+  const parti = [`${r.aggiunte} ${r.aggiunte === 1 ? "fase aggiunta" : "fasi aggiunte"} con ${r.voci} ${r.voci === 1 ? "riga" : "righe"}`];
+  if (r.saltate) parti.push(`${r.saltate} già presenti, saltate`);
+  toast.success(parti.join(" · "), {
+    description: r.con_importi ? undefined : "Gli importi non sono stati scritti: servono «Venduto e importi». Chiedi al titolare dell'azienda di darti l'accesso.",
+  });
+}
+
+export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti, mostraImporti, onFatto, soloGestionale = false }: {
   orderId: string;
   companyId: string;
   userId: string;
@@ -35,8 +57,10 @@ export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti
   /** «Venduto e importi»: senza, si importano fasi e quantità ma non gli importi. */
   mostraImporti: boolean;
   onFatto: () => void;
+  /** Dentro «Importa le fasi» il file lo legge la finestra delle voci: qui solo computo e preventivo del gestionale. */
+  soloGestionale?: boolean;
 }) {
-  const [fonte, setFonte] = useState<Fonte>("file");
+  const [fonte, setFonte] = useState<Fonte>(soloGestionale ? "computo" : "file");
   const [fasi, setFasi] = useState<FaseDaImportare[] | null>(null);
   const [scelte, setScelte] = useState<Set<string>>(new Set());
   const [codice, setCodice] = useState<string>("");
@@ -105,34 +129,17 @@ export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti
   };
 
   const importa = useMutation({
-    mutationFn: async () => {
-      const daMandare = fasiPerIlDatabase(fasi ?? [], scelte);
-      if (!daMandare.length) throw new Error("Scegli almeno una fase da importare.");
-      const { data, error } = await db.rpc("commessa_importa_fasi", {
-        p_order_id: orderId, p_fasi: daMandare, p_origine: fonte === "preventivo" ? "preventivo" : "computo", p_codice: codice || null,
-      });
-      if (error) {
-        if (error.code === "PGRST202" || error.code === "42883") throw new Error("L'import nelle fasi non è ancora attivo: serve un aggiornamento del database.");
-        throw error;
-      }
-      return data as { aggiunte: number; saltate: number; voci: number; con_importi: boolean };
-    },
-    onSuccess: (r) => {
-      const parti = [`${r.aggiunte} ${r.aggiunte === 1 ? "fase aggiunta" : "fasi aggiunte"} con ${r.voci} ${r.voci === 1 ? "riga" : "righe"}`];
-      if (r.saltate) parti.push(`${r.saltate} già presenti, saltate`);
-      toast.success(parti.join(" · "), {
-        description: r.con_importi ? undefined : "Gli importi non sono stati scritti: servono «Venduto e importi». Chiedi al titolare dell'azienda di darti l'accesso.",
-      });
-      onFatto();
-    },
+    mutationFn: async () => importaFasiNelDatabase(orderId, fasiPerIlDatabase(fasi ?? [], scelte), fonte === "preventivo" ? "preventivo" : "computo", codice || null),
+    onSuccess: (r) => { avvisaEsitoImport(r); onFatto(); },
     onError: (e) => toast.error("Fasi non importate", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") }),
   });
 
   const scelteValide = (fasi ?? []).filter((f) => !f.presente && scelte.has(f.nome)).length;
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-2" aria-label="Da dove importare">
-        {([["file", "Da un file"], ["computo", "Da un computo"], ["preventivo", "Da un preventivo"]] as const).map(([k, l]) => (
+      {soloGestionale && <p className="text-sm font-medium">Oppure dal gestionale</p>}
+      <div className={`grid gap-2 ${soloGestionale ? "grid-cols-2" : "grid-cols-3"}`} aria-label="Da dove importare">
+        {([["file", "Da un file"], ["computo", "Da un computo"], ["preventivo", "Da un preventivo"]] as const).filter(([k]) => !soloGestionale || k !== "file").map(([k, l]) => (
           <Button key={k} type="button" size="sm" variant={fonte === k ? "default" : "outline"} aria-pressed={fonte === k}
             onClick={() => { setFonte(k); setFasi(null); setErrore(null); }}>{l}</Button>
         ))}
