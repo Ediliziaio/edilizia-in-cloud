@@ -153,7 +153,7 @@ avvio. Per chi costruisce, in quest'ordine:
    vendite) finché nessuna è venduta; la tabella torna dalla prima prenotazione.
 - Nel Cantiere, «Registra e consulta su»: la generale in cima, le unità in un gruppo chiuso.
 
-### Lotto 6 — P3 · Il cantiere dal piano — STRUMENTO FATTO 14/11 (`20290322094500`); fasi di URBAN VISION da confermare
+### Lotto 6 — P3 · Il cantiere dal piano — FATTO 14/11 (`20290322094500`, `20290322095500`)
 Le voci di costruzione del piano (32-34 per operazione) sono in parte lavori (opere civili,
 impianti, serramenti) e in parte costi (magazzini edili, assicurazioni, locazione ufficio).
 Proposta da far scegliere al titolare:
@@ -225,6 +225,9 @@ I lotti 1-4 non chiedono niente al titolare e si possono fare subito.
   rinomina o si toglie una fase, poi `generale_fasi_dal_piano` crea fasi, sottofasi e
   lavorazioni (`order_work_phase_voci`, origine «piano», a corpo, importo = costo previsto:
   materiali per le voci materiali, lavoro per le altre). Su Via Callimaco: 28 lavori in 8 fasi,
-  9 costi restano sulla generale. **Le fasi di URBAN VISION non sono state create**: le conferma
-  il titolare (D2: costruisce lui o un'impresa in appalto).
+  9 costi restano sulla generale. **Create il 14/11 su richiesta di Florin** dalla finestra, sulle
+  tre operazioni: 8 fasi ciascuna (Callimaco 28 lavorazioni, 710.000 € previsti; Cherubini e
+  Lotti 25 lavorazioni a 0 €, stime da fare; «Scavi e fondazioni» accesa a mano sulle due nuove
+  costruzioni). Le lavorazioni prendono le date della fase, in parallelo (`20290322095500`).
+  Resta «Verifica 8 lavorazioni»: nessuna fase ha ancora chi la fa (D2).
 
