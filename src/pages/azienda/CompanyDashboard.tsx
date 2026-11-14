@@ -56,6 +56,9 @@ import {
   type TipoEvento,
 } from "@/lib/regia/agendaOperativa";
 import { useAzioniRegia } from "@/hooks/useAzioniRegia";
+import { CaricoSettimana, caricoSettimana } from "@/components/regia/CaricoSettimana";
+import { Comparsa } from "@/components/charts/grafici/comune";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { SegnaFinita, SpostaData } from "@/components/regia/AzioniRegia";
 
 export default function CompanyDashboard() {
@@ -86,9 +89,9 @@ const ICONA_EVENTO = {
   appuntamento: CalendarDays,
 } as const;
 const COLORE_EVENTO = {
-  lavoro: "text-blue-600 bg-blue-50",
-  merce: "text-amber-700 bg-amber-50",
-  appuntamento: "text-violet-600 bg-violet-50",
+  lavoro: "text-blue-600 bg-blue-500/10 dark:text-blue-400",
+  merce: "text-amber-700 bg-amber-500/10 dark:text-amber-400",
+  appuntamento: "text-violet-600 bg-violet-500/10 dark:text-violet-400",
 } as const;
 
 const EVENTI_ANTEPRIMA = 4;
@@ -107,6 +110,7 @@ function RegiaOperativa() {
   const permissions = usePermissions();
   const r = useRegiaOperativa();
   const azioni = useAzioniRegia();
+  const isMobile = useIsMobile();
   const [filtroAgenda, setFiltroAgenda] = useState<"tutti" | TipoEvento>(
     "tutti",
   );
@@ -201,6 +205,10 @@ function RegiaOperativa() {
       grave: false,
     });
 
+  // I sette giorni da oggi, per tipo: la linea nei riquadri e il grafico del carico.
+  const settimana = caricoSettimana(r.agenda);
+  const perGiornoTipo = (t: "lavoro" | "merce" | "appuntamento") => settimana.map((g) => g[t]);
+
   const eventiFiltrati = r.agenda.filter(
     (e) => filtroAgenda === "tutti" || e.tipo === filtroAgenda,
   );
@@ -217,15 +225,15 @@ function RegiaOperativa() {
       <OnboardingChecklist />
       <header className="flex flex-col justify-between gap-4 pt-1 xl:flex-row xl:items-center">
         <div className="min-w-0">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <LayoutDashboard className="h-3.5 w-3.5" />
             <span>Dashboard Operativa</span>
             <DashboardSelectorBar title="Dashboard Operativa" soloSelettore />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Panoramica operativa
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             {effectiveCompany.name} ·{" "}
             <span>{oggi.replace(/^./, (c) => c.toUpperCase())}</span>
           </p>
@@ -235,7 +243,7 @@ function RegiaOperativa() {
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8 bg-white"
+            className="h-8 w-8 bg-card"
             onClick={aggiorna}
             aria-label="Aggiorna"
             title="Aggiorna dati"
@@ -248,7 +256,7 @@ function RegiaOperativa() {
       {r.error && (
         <p
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
         >
           Non riesco a caricare una parte della regia. Riprova con il tasto
           aggiorna.
@@ -257,13 +265,13 @@ function RegiaOperativa() {
 
       <section aria-label="Riepilogo operativo">
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-medium text-slate-500">
+          <p className="text-xs font-medium text-muted-foreground">
             Lavori, consegne e appuntamenti nei prossimi 7 giorni
           </p>
           {(permissions.isAdmin || permissions.canViewCruscotto) && (
             <Link
               to="/azienda/cruscotto/aziendale"
-              className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-primary"
+              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary"
             >
               Cruscotto Economico <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
@@ -283,18 +291,24 @@ function RegiaOperativa() {
                   dove un numero sopra zero è qualcuno che aspetta. */}
               <RiquadroNumero
                 etichetta="Lavori programmati"
+                tendenza={perGiornoTipo("lavoro")}
+                etichettaTendenza="Lavori programmati, giorno per giorno nei prossimi 7 giorni"
                 valore={String(r.numeri.lavori)}
                 periodo="Prossimi 7 giorni"
                 to="/azienda/calendario"
               />
               <RiquadroNumero
                 etichetta="Consegne in arrivo"
+                tendenza={perGiornoTipo("merce")}
+                etichettaTendenza="Consegne in arrivo, giorno per giorno nei prossimi 7 giorni"
                 valore={String(r.numeri.merce)}
                 periodo="Prossimi 7 giorni"
                 to="/azienda/ordini-acquisto"
               />
               <RiquadroNumero
                 etichetta="Appuntamenti"
+                tendenza={perGiornoTipo("appuntamento")}
+                etichettaTendenza="Appuntamenti, giorno per giorno nei prossimi 7 giorni"
                 valore={String(r.numeri.appuntamenti)}
                 periodo="Prossimi 7 giorni"
                 to="/azienda/calendario"
@@ -313,7 +327,7 @@ function RegiaOperativa() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,1fr)] items-start">
         {/* Agenda: solo i giorni con qualcosa */}
-        <Card className="overflow-hidden rounded-xl border-slate-200/80 shadow-none">
+        <Card className="overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-base font-semibold">
@@ -332,7 +346,7 @@ function RegiaOperativa() {
           </CardHeader>
           <CardContent className="pt-0">
             <div
-              className="mb-4 mt-2 flex flex-wrap gap-1 rounded-lg bg-slate-100/70 p-1"
+              className="mb-4 mt-2 flex flex-wrap gap-1 rounded-lg bg-muted/70 p-1"
               role="group"
               aria-label="Tipo di evento in agenda"
             >
@@ -348,8 +362,8 @@ function RegiaOperativa() {
                   className={cn(
                     "rounded-md px-3 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                     filtroAgenda === f.id
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900",
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {f.nome}
@@ -360,8 +374,8 @@ function RegiaOperativa() {
               <Skeleton className="h-48 w-full" />
             ) : perGiorno.size === 0 ? (
               <div className="flex min-h-52 flex-col items-center justify-center gap-2 text-center">
-                <CalendarDays className="mb-1 h-7 w-7 text-slate-300" />
-                <p className="text-sm font-medium text-slate-700">
+                <CalendarDays className="mb-1 h-7 w-7 text-muted-foreground/50" />
+                <p className="text-sm font-medium text-muted-foreground">
                   {filtroAgenda === "tutti"
                     ? "Niente in programma"
                     : "Nessun evento di questo tipo"}
@@ -376,16 +390,16 @@ function RegiaOperativa() {
               <div className="space-y-3">
                 {[...perGiorno.entries()].map(([g, eventi]) => (
                   <div key={g}>
-                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
                       <span>{quando(g)}</span>
-                      <span className="h-px flex-1 bg-slate-100" />
+                      <span className="h-px flex-1 bg-muted" />
                       <span className="font-normal">
                         {eventi.length < (totaliPerGiorno.get(g) ?? 0)
                           ? `${eventi.length} di ${totaliPerGiorno.get(g)} eventi`
                           : `${eventi.length} ${eventi.length === 1 ? "evento" : "eventi"}`}
                       </span>
                     </p>
-                    <ul className="divide-y divide-slate-100">
+                    <ul className="divide-y divide-border/60">
                       {eventi.map((e) => {
                         const Icona = ICONA_EVENTO[e.tipo];
                         const riga = (
@@ -400,11 +414,11 @@ function RegiaOperativa() {
                             </span>
                             <span className="min-w-0 flex-1">
                               <span
-                                className="block truncate text-sm font-medium text-slate-800"
+                                className="block truncate text-sm font-medium text-foreground"
                                 title={`${e.cosa} · ${e.riferimento}`}
                               >
                                 {e.cosa}
-                                <span className="font-normal text-slate-500">
+                                <span className="font-normal text-muted-foreground">
                                   {" "}
                                   · {e.riferimento}
                                 </span>
@@ -422,7 +436,7 @@ function RegiaOperativa() {
                             {e.orderId ? (
                               <Link
                                 to={`/azienda/ordini/${e.orderId}`}
-                                className="group flex items-center gap-3 rounded-lg px-1 py-2 hover:bg-slate-50"
+                                className="group flex items-center gap-3 rounded-lg px-1 py-2 hover:bg-muted/50"
                               >
                                 {riga}
                               </Link>
@@ -437,8 +451,8 @@ function RegiaOperativa() {
                     </ul>
                   </div>
                 ))}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                  <span className="text-xs text-slate-500">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
+                  <span className="text-xs text-muted-foreground">
                     {Math.min(eventiFiltrati.length, limiteAgenda)} di{" "}
                     {eventiFiltrati.length} eventi
                   </span>
@@ -475,14 +489,27 @@ function RegiaOperativa() {
         </Card>
 
         <div className="space-y-4">
-          <Card className="overflow-hidden rounded-xl border-slate-200/80 shadow-none">
+          {/* Il carico della settimana: quanti impegni per giorno, per tipo. */}
+          {!isMobile && !r.isLoading && (
+            <Comparsa indice={2}>
+              <Card className="overflow-hidden rounded-xl border shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold">Carico dei prossimi 7 giorni</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <CaricoSettimana giorni={settimana} />
+                </CardContent>
+              </Card>
+            </Comparsa>
+          )}
+          <Card className="overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-2">
                 <CardTitle className="text-base font-semibold">
                   Da sbloccare
                 </CardTitle>
                 {!r.isLoading && blocchi.length > 0 && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
                     {blocchi.length} aree
                   </span>
                 )}
@@ -495,7 +522,7 @@ function RegiaOperativa() {
               {r.isLoading ? (
                 <Skeleton className="h-28 w-full" />
               ) : blocchi.length === 0 ? (
-                <p className="flex items-center gap-2 py-3 text-sm text-slate-600">
+                <p className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Niente
                   di fermo.
                 </p>
@@ -507,8 +534,8 @@ function RegiaOperativa() {
                       className={cn(
                         "rounded-lg border-l-2 px-3",
                         b.grave
-                          ? "border-rose-300 bg-rose-50/40"
-                          : "border-amber-300 bg-amber-50/40",
+                          ? "border-rose-300 bg-rose-50/40 dark:border-rose-500/60 dark:bg-rose-500/10"
+                          : "border-amber-300 bg-amber-50/40 dark:border-amber-500/60 dark:bg-amber-500/10",
                       )}
                     >
                       <Link
@@ -521,7 +548,7 @@ function RegiaOperativa() {
                           <ClipboardCheck className="h-4 w-4 shrink-0 text-amber-500" />
                         )}
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium text-slate-800">
+                          <span className="block text-sm font-medium text-foreground">
                             {b.titolo}
                           </span>
                           {!b.voci && (
@@ -530,11 +557,11 @@ function RegiaOperativa() {
                             </span>
                           )}
                         </span>
-                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-slate-500" />
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground" />
                       </Link>
                       {b.voci && (
                         <details className="pb-2 pl-7">
-                          <summary className="cursor-pointer text-xs font-medium text-slate-600">
+                          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
                             Mostra i primi {b.voci.length} ordini
                           </summary>
                           <ul className="mt-2 space-y-1">
@@ -545,7 +572,7 @@ function RegiaOperativa() {
                               >
                                 <Link
                                   to={`/azienda/ordini-acquisto/${v.id}`}
-                                  className="min-w-0 flex-1 truncate text-xs text-muted-foreground hover:text-slate-800 hover:underline"
+                                  className="min-w-0 flex-1 truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
                                   title="Apri l'ordine per registrare l'arrivo"
                                 >
                                   {v.suppliers?.name ||
@@ -587,7 +614,7 @@ function RegiaOperativa() {
         </div>
       </div>
       <section aria-label="Commesse da seguire">
-        <Card className="overflow-hidden rounded-xl border-slate-200/80 shadow-none">
+        <Card className="overflow-hidden rounded-xl border shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
             <div>
               <CardTitle className="text-base font-semibold">
@@ -612,22 +639,22 @@ function RegiaOperativa() {
                 Nessuna commessa aperta con lavori in programma.
               </p>
             ) : (
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-border/60">
                 {r.daSeguire.map((c: CommessaDaSeguire) => (
                   <li key={c.id} className="flex items-center gap-2 py-1.5">
                     <Link
                       to={`/azienda/ordini/${c.id}`}
-                      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg px-1 py-2 hover:bg-slate-50 sm:flex-nowrap"
+                      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-lg px-1 py-2 hover:bg-muted/50 sm:flex-nowrap"
                     >
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-slate-800">
+                        <span className="block truncate text-sm font-medium text-foreground">
                           {c.cliente || c.codice}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                           {c.cliente ? c.codice : "Commessa"}
                         </span>
                       </span>
-                      <span className="hidden min-w-0 flex-1 truncate text-xs text-slate-500 sm:block">
+                      <span className="hidden min-w-0 flex-1 truncate text-xs text-muted-foreground sm:block">
                         {c.fase || "Fase non indicata"}
                       </span>
                       <span
@@ -635,7 +662,7 @@ function RegiaOperativa() {
                           "shrink-0 rounded-md px-2 py-1 text-xs font-medium tabular-nums",
                           c.ritardo !== null
                             ? "bg-rose-50 text-rose-700"
-                            : "bg-slate-100 text-slate-600",
+                            : "bg-muted text-muted-foreground",
                         )}
                       >
                         {c.ritardo !== null
