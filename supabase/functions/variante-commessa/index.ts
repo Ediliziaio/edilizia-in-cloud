@@ -74,7 +74,10 @@ Deno.serve(async req => {
     const actions=["save","load","document","open","publish","upload_evidence","approve_offline","cancel"];
     if (!actions.includes(body.action) || !uuid(body.order_id) || !uuid(body.id) || (body.revision!==undefined && (!Number.isSafeInteger(body.revision)||body.revision<0))) return errorResponse("Richiesta non valida",400,cors);
     const caller=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_ANON_KEY")!,{global:{headers:{Authorization:req.headers.get("Authorization")!}},auth:{persistSession:false}});
-    const {data:order,error:orderError} = await caller.from("orders").select("id,company_id,order_code,total_amount,vat_rate").eq("id",body.order_id).maybeSingle();
+    // orders_visibili, non orders (14/11/2026): la regola office_financial_select nasconde la lettura diretta a chi non
+    // ha costi e margini, e un utente d'ufficio con «Ordini e Commesse» non poteva creare alcun lavoro extra.
+    // La vista applica la stessa visibilità per riga (azienda, solo assegnati) senza chiedere i costi.
+    const {data:order,error:orderError} = await caller.from("orders_visibili").select("id,company_id,order_code,total_amount,vat_rate").eq("id",body.order_id).maybeSingle();
     if (orderError || !order) return errorResponse("Commessa non disponibile o non autorizzata",403,cors);
     await requireCompanyAccess(admin,userId,order.company_id,cors);
     const {data:canEdit,error:permissionError} = await caller.rpc("has_permission_for_company",{_user_id:userId,_permission:"can_edit_orders",_company_id:order.company_id});
