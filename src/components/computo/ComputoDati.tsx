@@ -78,7 +78,7 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold"><User className="h-4 w-4 text-slate-500" />Cliente</h2>
       </div>
-      <SelezionaCliente
+      <SelezionaCliente clienteSiCollega
         collegatoId={bozza.clienteId || bozza.clienteAnagraficaId || null}
         collegatoOrigine={bozza.clienteId ? "contatto" : "cliente"}
         collegatoNome={bozza.clienteId || bozza.clienteAnagraficaId ? bozza.committente || null : null}

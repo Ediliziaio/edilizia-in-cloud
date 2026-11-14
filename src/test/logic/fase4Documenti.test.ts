@@ -86,3 +86,10 @@ describe("Cliente per partita IVA, collegamento salvato", () => {
     expect(sorgenteCommessaDaComputo).toContain("patch.customer_id = d.bozza.clienteAnagraficaId");
   });
 });
+
+describe("Il popup dice il vero sul collegamento", () => {
+  it("preventivo classico e computo dichiarano che il cliente resta collegato", () => {
+    expect(sorgenteQuoteBuilder).toContain("<SelezionaCliente clienteSiCollega");
+    expect(sorgenteComputoDati).toContain("<SelezionaCliente clienteSiCollega");
+  });
+});

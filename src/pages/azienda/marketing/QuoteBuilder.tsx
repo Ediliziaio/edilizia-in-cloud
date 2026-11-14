@@ -2533,7 +2533,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {/* Blocco 1: Selezione rapida da contatto — telefono: senza riquadro
                 e senza la riga di spiegazione, è il primo campo e basta. */}
             <div className="rounded-lg border bg-muted/30 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-              <SelezionaCliente
+              <SelezionaCliente clienteSiCollega
                 collegatoId={contactId ?? customerId}
                 collegatoOrigine={contactId ? "contatto" : "cliente"}
                 collegatoNome={(contactId || customerId) ? (clientCompany || clientName || null) : null}

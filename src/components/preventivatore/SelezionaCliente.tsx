@@ -45,9 +45,11 @@ interface Props {
    */
   collegatoOrigine?: OrigineScelta;
   collegatoNome?: string | null;
+  /** Il documento salva anche il cliente dell'anagrafica (preventivo classico, computo): il popup lo dice. */
+  clienteSiCollega?: boolean;
 }
 
-export function SelezionaCliente({ collegatoId, onScegli, onScollega, className, etichetta = "Seleziona cliente", collegatoOrigine = "contatto", collegatoNome }: Props) {
+export function SelezionaCliente({ collegatoId, onScegli, onScollega, className, etichetta = "Seleziona cliente", collegatoOrigine = "contatto", collegatoNome, clienteSiCollega = false }: Props) {
   const [aperto, setAperto] = useState(false);
   const titoloCollegato = collegatoOrigine === "cliente" ? "Cliente dell'anagrafica collegato" : "Contatto CRM collegato";
   return (
@@ -71,15 +73,15 @@ export function SelezionaCliente({ collegatoId, onScegli, onScollega, className,
       </div>
       {/* Montato solo da aperto: a popup chiuso nessuna lettura di permessi o dati. */}
       {aperto && (
-        <SelezionaClienteDialog aperto={aperto} onAperto={setAperto} collegatoId={collegatoId} collegatoOrigine={collegatoOrigine}
+        <SelezionaClienteDialog aperto={aperto} onAperto={setAperto} collegatoId={collegatoId} collegatoOrigine={collegatoOrigine} clienteSiCollega={clienteSiCollega}
           onScegli={(s) => { onScegli(s); setAperto(false); }} />
       )}
     </div>
   );
 }
 
-export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegatoOrigine = "contatto", onScegli }: {
-  aperto: boolean; onAperto: (v: boolean) => void; collegatoId?: string | null; collegatoOrigine?: OrigineScelta; onScegli: (s: ClienteScelto) => void;
+export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegatoOrigine = "contatto", onScegli, clienteSiCollega = false }: {
+  aperto: boolean; onAperto: (v: boolean) => void; collegatoId?: string | null; collegatoOrigine?: OrigineScelta; onScegli: (s: ClienteScelto) => void; clienteSiCollega?: boolean;
 }) {
   const permessi = usePermissions();
   const fonti = fontiVisibili(permessi);
@@ -217,7 +219,7 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegat
             </div>
             <p className="text-[11px] text-muted-foreground">
               {righe.length >= QUANTI ? `I primi ${QUANTI}: scrivi per restringere. ` : ""}
-              {fonte === "cliente" ? "Un cliente compila i dati senza collegarsi: il preventivo si collega ai contatti del CRM." : "Il contatto resta collegato al preventivo."}
+              {fonte === "contatto" ? "Il contatto resta collegato al preventivo." : clienteSiCollega ? "Il cliente resta collegato al preventivo." : "Un cliente compila i dati senza collegarsi: il preventivo si collega ai contatti del CRM."}
             </p>
           </>
         )}
