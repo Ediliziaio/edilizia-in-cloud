@@ -42,6 +42,7 @@ export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti
   const [codice, setCodice] = useState<string>("");
   const [lettura, setLettura] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
+  const [trascina, setTrascina] = useState(false);
 
   const mostra = (nuove: FaseDaImportare[], da: string) => {
     setErrore(null);
@@ -138,11 +139,18 @@ export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti
       </div>
 
       {fonte === "file" && (
-        <div className="space-y-1">
-          <Label htmlFor="importa-fasi-file">Computo o preventivo: Excel, PriMus, XPWE, CSV, Word o PDF</Label>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed p-4 text-sm text-muted-foreground hover:bg-muted/40">
-            <FileUp className="h-4 w-4" aria-hidden />Scegli il file
-            <input id="importa-fasi-file" type="file" className="sr-only" accept={ACCEPT_IMPORTA_VOCI}
+        <div
+          className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${trascina ? "border-primary bg-primary/5" : "border-muted-foreground/30"}`}
+          onDragOver={(e) => { e.preventDefault(); setTrascina(true); }}
+          onDragLeave={() => setTrascina(false)}
+          onDrop={(e) => { e.preventDefault(); setTrascina(false); const f = e.dataTransfer.files?.[0]; if (f) void leggiFile(f); }}
+        >
+          <FileUp className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden />
+          <p className="mt-2 text-sm">Trascina qui il computo o il preventivo</p>
+          <p className="text-xs text-muted-foreground">PDF, Excel, PriMus (XPWE), CSV o Word. Il file originale non viene modificato.</p>
+          <label className="mt-3 inline-flex cursor-pointer items-center rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted/50">
+            Scegli il file
+            <input type="file" className="sr-only" accept={ACCEPT_IMPORTA_VOCI} aria-label="Computo o preventivo: PDF, Excel, PriMus, CSV o Word"
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void leggiFile(f); }} />
           </label>
         </div>

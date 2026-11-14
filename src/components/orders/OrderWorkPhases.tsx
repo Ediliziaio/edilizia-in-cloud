@@ -31,6 +31,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   UsersRound,
+  FileUp,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -383,7 +384,9 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     }]));
   }, [modoFasi, phases, employees, externalTeams, squadrePerFase, mezziPerFase, materialsByPhase]);
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
-  const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello" | "computo">("manuale");
+  const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello">("manuale");
+  // «Importa» accanto ad «Aggiungi fasi» (14/11/2026): una finestra sua per computo e preventivo.
+  const [importaAperto, setImportaAperto] = useState(false);
   const [filter, setFilter] = useState<WorkFilter>("all");
   const [search, setSearch] = useState("");
   const [completedVisibility, setCompletedVisibility] = useState<{orderId: string; value: boolean} | null>(null);
@@ -463,6 +466,26 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 <ListPlus className="mr-1 h-4 w-4" />Aggiungi fasi
               </Button>
             )}
+            {canEditOrders && showWork && (
+              <Button size="sm" variant="outline" className={cn("font-semibold", telefono ? "tap-compact h-9" : "min-h-9")} onClick={() => setImportaAperto(true)}>
+                <FileUp className="mr-1 h-4 w-4" />Importa
+              </Button>
+            )}
+            {canEditOrders && showWork && effectiveCompany?.id && user?.id && (
+              <Dialog open={importaAperto} onOpenChange={setImportaAperto}>
+                <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Importa le fasi</DialogTitle>
+                    <DialogDescription>Da un computo o da un preventivo: un capitolo diventa una fase, ogni riga una lavorazione con quantità e importo, pronte per i SAL.</DialogDescription>
+                  </DialogHeader>
+                  {importaAperto && <ImportaFasiDaComputo
+                    orderId={orderId} companyId={effectiveCompany.id} userId={user.id}
+                    fasiEsistenti={phases.map((p) => p.name)} mostraImporti={canViewOrderAmounts}
+                    onFatto={() => { void refetch(); setImportaAperto(false); }}
+                  />}
+                </DialogContent>
+              </Dialog>
+            )}
             {showTeam && (canEditOrders || puoSquadre) && <>
               {/* Da telefono si assegna dentro la fase: qui solo «Aggiungi fasi». */}
               {!telefono && <Button size="sm" variant="outline" className="min-h-9 font-semibold" onClick={() => setAssegnaPersona(true)}><UsersRound className="mr-1 h-4 w-4" />Assegna</Button>}
@@ -484,17 +507,11 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Aggiungi una fase</DialogTitle>
-                  <DialogDescription>Scrivi una fase, usa un modello oppure importa le fasi da un computo o da un preventivo.</DialogDescription>
+                  <DialogDescription>Scrivi una fase oppure usa un modello con più fasi.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-2" aria-label="Come aggiungere le fasi"><Button variant={phaseCreationMode === "manuale" ? "default" : "outline"} aria-pressed={phaseCreationMode === "manuale"} onClick={() => setPhaseCreationMode("manuale")}>Scrivi una fase</Button><Button variant={phaseCreationMode === "modello" ? "default" : "outline"} aria-pressed={phaseCreationMode === "modello"} onClick={() => setPhaseCreationMode("modello")}>Usa un modello</Button><Button className="h-auto min-h-10 whitespace-normal leading-tight" variant={phaseCreationMode === "computo" ? "default" : "outline"} aria-pressed={phaseCreationMode === "computo"} onClick={() => setPhaseCreationMode("computo")}>Da computo o preventivo</Button></div>
-                  {/* Computo o preventivo → fasi con le righe per i SAL (14/11/2026) */}
-                  {phaseCreationMode === "computo" && effectiveCompany?.id && user?.id && <ImportaFasiDaComputo
-                    orderId={orderId} companyId={effectiveCompany.id} userId={user.id}
-                    fasiEsistenti={phases.map((p) => p.name)} mostraImporti={canViewOrderAmounts}
-                    onFatto={() => { void refetch(); closePhaseDialog(); }}
-                  />}
+                  <div className="grid grid-cols-2 gap-2" aria-label="Come aggiungere le fasi"><Button variant={phaseCreationMode === "manuale" ? "default" : "outline"} aria-pressed={phaseCreationMode === "manuale"} onClick={() => setPhaseCreationMode("manuale")}>Scrivi una fase</Button><Button variant={phaseCreationMode === "modello" ? "default" : "outline"} aria-pressed={phaseCreationMode === "modello"} onClick={() => setPhaseCreationMode("modello")}>Usa un modello</Button></div>
                   {/* Modelli di fasi: quelli dell'azienda (con le sottofasi); finché non sono suoi, gli stessi di sempre */}
                   {phaseCreationMode === "modello" && <ModelliFasiPicker
                     inCorso={applyTemplate.isPending}

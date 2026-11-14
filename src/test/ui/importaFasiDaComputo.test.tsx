@@ -30,7 +30,7 @@ function apri(mostraImporti = true, onFatto = vi.fn()) {
   render(<QueryClientProvider client={new QueryClient()}>
     <ImportaFasiDaComputo orderId="o1" companyId="c1" userId="u1" fasiEsistenti={["demolizioni"]} mostraImporti={mostraImporti} onFatto={onFatto} />
   </QueryClientProvider>);
-  fireEvent.change(screen.getByLabelText(/Computo o preventivo: Excel/), { target: { files: [new File(["x"], "computo.xlsx")] } });
+  fireEvent.change(screen.getByLabelText(/Computo o preventivo: PDF, Excel/), { target: { files: [new File(["x"], "computo.xlsx")] } });
   return onFatto;
 }
 
@@ -68,5 +68,15 @@ describe("Importa fasi da un computo", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Importa 1 fase" }));
     await waitFor(() => expect(m.err).toHaveBeenCalled());
     expect(m.err.mock.calls[0][1].description).toMatch(/non è ancora attivo/);
+  });
+});
+
+describe("Dove si trova", () => {
+  it("«Importa» è un pulsante suo accanto ad «Aggiungi fasi», non una scelta dentro «Aggiungi una fase»", async () => {
+    const { readFileSync } = await import("node:fs");
+    const f = readFileSync("src/components/orders/OrderWorkPhases.tsx", "utf8");
+    expect(f).toContain('<FileUp className="mr-1 h-4 w-4" />Importa');
+    expect(f).toContain("<DialogTitle>Importa le fasi</DialogTitle>");
+    expect(f).not.toContain("Da computo o preventivo</Button>");
   });
 });
