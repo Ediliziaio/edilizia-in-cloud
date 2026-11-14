@@ -363,6 +363,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         vociPresenti={0}
         consentiAi
         titolo="Genera dal computo"
+        notaDestinazione="Le voci diventano il computo della commessa."
         descrizione={scelto
           ? `Carica un altro computo: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare. «${scelto.titolo || scelto.file_name}» resta archiviato, non cancellato.`
           : "Carica il computo della commessa: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare, divisi per fase. Niente è salvato come materiale finché non premi «Salva i materiali»."}
