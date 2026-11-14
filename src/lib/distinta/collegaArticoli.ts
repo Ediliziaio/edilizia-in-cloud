@@ -202,9 +202,14 @@ function misure(s: string): Set<string> {
 
 const disgiunti = (a: Set<string>, b: Set<string>) => a.size > 0 && b.size > 0 && ![...a].some((x) => b.has(x));
 
-/** Materiale e articolo dicono cose diverse: fatti di altro, o di altre misure. */
+/** Le classi del calcestruzzo nominate (C28/35…): due classi diverse non sono lo stesso getto. */
+function classi(s: string): Set<string> {
+  return new Set([...normalizzaTesto(s).matchAll(/\bc(\d{2,3})\/(\d{2,3})\b/g)].map((m) => `${m[1]}/${m[2]}`));
+}
+
+/** Materiale e articolo dicono cose diverse: fatti di altro, di altre misure o di un'altra classe. */
 export function nomiInConflitto(materiale: string, articolo: string): boolean {
-  return disgiunti(materie(materiale), materie(articolo)) || disgiunti(misure(materiale), misure(articolo));
+  return disgiunti(materie(materiale), materie(articolo)) || disgiunti(misure(materiale), misure(articolo)) || disgiunti(classi(materiale), classi(articolo));
 }
 
 /** Quanto il nome di un articolo assomiglia al materiale: radici in comune sul totale del materiale. */
@@ -283,14 +288,17 @@ export function candidatiArticolo(r: RigaDistintaCalcolata, dati: DatiCatalogo, 
   }
   // 4. Le parole.
   const testo = `${r.descrizione} ${r.specifiche ?? ""}`;
+  // Lo stesso calcestruzzo della stessa classe (C16/20, C28/35) è lui, comunque si chiami il resto.
+  const stessoGetto = (nome: string) => /^calcestruzz/i.test(r.descrizione) && /calcestruzz/i.test(nome)
+    && [...classi(r.descrizione)].some((c) => classi(nome).has(c)) ? 0.85 : 0;
   for (const a of dati.articoli) {
     if (!unitaCompatibili(r.unita_misura, a.unit_of_measure, a.name)) continue;
-    const p = Math.max(somiglianzaNome(r.descrizione, testoArticolo(a)), somiglianzaNome(testo, testoArticolo(a)) * 0.95);
+    const p = Math.max(somiglianzaNome(r.descrizione, testoArticolo(a)), somiglianzaNome(testo, testoArticolo(a)) * 0.95, nomiInConflitto(r.descrizione, a.name) ? 0 : stessoGetto(a.name));
     if (p >= 0.5) metti(daArticolo(a, "nome"), p * 0.85, `Nome simile ${Math.round(p * 100)}%`, p >= SOGLIA_NOME);
   }
   for (const l of dati.listini) {
     if (!unitaCompatibili(r.unita_misura, l.unita, l.descrizione)) continue;
-    const p = Math.max(somiglianzaNome(r.descrizione, l.descrizione), somiglianzaNome(testo, l.descrizione) * 0.95) - 0.01;
+    const p = Math.max(somiglianzaNome(r.descrizione, l.descrizione), somiglianzaNome(testo, l.descrizione) * 0.95, nomiInConflitto(r.descrizione, l.descrizione) ? 0 : stessoGetto(l.descrizione)) - 0.01;
     if (p >= 0.5) metti(daListino(l, "nome"), p * 0.85, `Nome simile ${Math.round(p * 100)}%${l.listino ? ` · ${l.listino}` : ""}`, p >= SOGLIA_NOME);
   }
   return [...out.values()].sort((a, b) => b.punteggio - a.punteggio).slice(0, quanti);

@@ -4,7 +4,7 @@
  * collegati ad articoli e listini dell'azienda, con fonte e sicurezza.
  */
 import { describe, expect, it } from "vitest";
-import { generaDistinta, materialiCompresi, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
+import { classeCalcestruzzo, generaDistinta, materialiCompresi, nomeDallaVoce, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
 import { aliasDaRicordare, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome, type MaterialeGiaUsato } from "@/lib/distinta/collegaArticoli";
@@ -355,6 +355,69 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       expect(m.magazzino).toEqual({ nome: "Adesivo cementizio per piastrelle C2", disponibile: 300, unita: "kg" });
       const [vuoto] = collegaMateriali([gres()], { ...CATALOGO, magazzino: [{ id: "w1", name: "Adesivo cementizio per piastrelle C2", unita_misura: "kg", quantity_available: 0 }] });
       expect(vuoto.magazzino).toBeNull();
+    });
+  });
+
+  describe("opere strutturali, misurate su un computo vero di strutture (14/11/2026)", () => {
+    // Voci e catalogo inventati, sul modello di quelli veri: il computo di un'impresa di strutture
+    // dava 0 materiali (tutto all'AI); ora 12, e 5 collegati al suo listino.
+    const STRUTTURE: VoceComputo[] = [
+      voce({ id: "m", descrizione_breve: "Magrone di fondazione C12/15", descrizione_estesa: "Fornitura e posa in opera di calcestruzzo magro.", unita_misura: "m3", quantita: 10 }),
+      voce({ id: "p", descrizione_breve: "Platea di fondazione", descrizione_estesa: "Platea, compreso calcestruzzo Rck 30/37, ferro, casseformi e quanto necessario.", unita_misura: "m2", quantita: 100 }),
+      voce({ id: "w", descrizione_breve: "Muri in c.a.", descrizione_estesa: "Muri in c.a. spessore cm 25, compreso calcestruzzo Rck 30/37, ferro, casseformi.", unita_misura: "m2", quantita: 40 }),
+      voce({ id: "t", descrizione_breve: "Pareti vano scala", descrizione_estesa: "Pareti del vano scala di 15 cm, compreso calcestruzzo Rck 30/37, ferro, casseformi.", unita_misura: "m2", quantita: 20 }),
+      voce({ id: "s", descrizione_breve: "Solaio in latero cemento 16+4", descrizione_estesa: "Solaio spess. cm 16+4, compreso calcestruzzo Rck 30/37, ferro, travetti e pignatte.", unita_misura: "m2", quantita: 200 }),
+      voce({ id: "v", descrizione_breve: "Velette in c.a.", descrizione_estesa: "Velette spess. max 15cm, compreso calcestruzzo Rck 30/37, ferro, casseformi.", unita_misura: "ml", quantita: 30 }),
+      voce({ id: "x", descrizione_breve: "Sovrapprezzo velette curve", descrizione_estesa: "Sovrapprezzo per velette curve, compreso calcestruzzo e ferro.", unita_misura: "ml", quantita: 5 }),
+    ];
+    const CATALOGO_STRUTTURE = {
+      articoli: [
+        { id: "a-blocco", name: "FORNACE ROSSI [01/06/2026] - Blocco interposto H16x25x38", unit_of_measure: "pz", prezzo_acquisto_netto: 1.1 },
+        { id: "a-blocco20", name: "FORNACE ROSSI [01/06/2026] - Blocco interposto H20x25x38", unit_of_measure: "pz", prezzo_acquisto_netto: 1.2 },
+        { id: "a-travetto", name: "FORNACE ROSSI [01/06/2026] - Travetto precompresso 9/12 tipo T1", unit_of_measure: "m", prezzo_acquisto_netto: 2.6 },
+        { id: "a-magro", name: "BETON SUD [10/05/2026] - Calcestruzzo C12/15 Dmax 31,5 mm", unit_of_measure: "m3", prezzo_acquisto_netto: 95 },
+      ],
+      listini: [
+        { id: "l-c25", codice: null, descrizione: "Calcestruzzo strutturale Rck 30 (C25/30) S4 - classi XC1/XC2", unita: "mc", prezzo: 102, sconto_pct: 0, supplier_id: "f-beton", listino: "Beton Sud 2026" },
+        { id: "l-c30", codice: null, descrizione: "Calcestruzzo strutturale Rck 37 (C30/37) S4 - classi XC1/XC2", unita: "mc", prezzo: 112, sconto_pct: 0, supplier_id: "f-beton", listino: "Beton Sud 2026" },
+      ],
+      giaUsati: [] as MaterialeGiaUsato[],
+    };
+
+    it("dalle voci strutturali i materiali: calcestruzzo per classe, acciaio, casseforme, travetti e blocchi", () => {
+      const r = generaDistinta({ voci: STRUTTURE, scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      expect(r.senzaScomposizione).toHaveLength(0);
+      expect(r.escluse.map((e) => e.motivo)).toEqual(["Sovrapprezzo: i materiali sono già nella voce principale"]);
+      const q = (nome: string) => r.righe.filter((m) => m.descrizione === nome).reduce((t, m) => t + m.quantita_calcolata, 0);
+      // Platea 100 m² × 0,40 + muri 40 × 0,25 + pareti 20 × 0,15 + velette 30 × 0,165 = 57,95 m³ (+3%) e il getto del solaio a parte.
+      expect(q("Calcestruzzo strutturale C30/37")).toBeCloseTo(57.95 * 1.03 + 200 * 0.085 * 1.03, 1);
+      expect(q("Calcestruzzo per magrone C12/15")).toBeCloseTo(10.3, 2);
+      expect(q("Blocco interposto in laterizio H16x25x38")).toBe(1680);
+      expect(q("Travetto precompresso")).toBe(412);
+      expect(r.righe.find((m) => m.descrizione === "Calcestruzzo strutturale C30/37")!.note.join(" ")).toMatch(/Spessore non scritto nella voce: calcolato su 40 cm/);
+    });
+
+    it("si collegano alla classe giusta del listino e al blocco dell'altezza giusta", () => {
+      const r = generaDistinta({ voci: STRUTTURE, scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      const m = collegaMateriali(r.righe, CATALOGO_STRUTTURE);
+      const id = (nome: string) => m.find((x) => x.descrizione === nome)?.collegamento?.id ?? null;
+      expect(id("Calcestruzzo strutturale C30/37")).toBe("l-c30");
+      expect(id("Calcestruzzo per magrone C12/15")).toBe("a-magro");
+      expect(id("Blocco interposto in laterizio H16x25x38")).toBe("a-blocco");
+      expect(id("Travetto precompresso")).toBe("a-travetto");
+      expect(id("Casseforme")).toBeNull();
+      expect(nomiInConflitto("Calcestruzzo strutturale C30/37", "Calcestruzzo strutturale Rck 30 (C25/30)")).toBe(true);
+    });
+
+    it("le regole di supporto", () => {
+      expect(classeCalcestruzzo("compreso calcestruzzo Rck 28/35, ferro")).toBe("C28/35");
+      expect(classeCalcestruzzo("Magrone C16/20")).toBe("C16/20");
+      expect(classeCalcestruzzo("calcestruzzo magro")).toBeNull();
+      expect(nomeDallaVoce("Blocco interposto in laterizio H20x25x38", "solaio 24+4")).toBe("Blocco interposto in laterizio H24x25x38");
+      expect(spessoreCm("velette spess. max 15cm, altezza 110 cm")).toBe(15);
+      expect(spessoreCm("pareti ascensore, di paretine balconate di 15 cm")).toBe(15);
+      expect(spessoreCm("solaio spess. cm 20+5")).toBeNull();
+      expect(spessoreCm("muri in c.a. spessore cm 25, compreso calcestruzzo")).toBe(25);
     });
   });
 });

@@ -297,6 +297,7 @@ const NON_MATERIALI: { re: RegExp; motivo: string }[] = [
   { re: /\b(mano d.?opera|manodopera|operaio (specializzato|qualificato|comune)|ora di (operaio|lavoro))\b/, motivo: "Manodopera" },
   { re: /\b(smaltiment|conferimento a discarica|oneri di discarica|trasporto a (discarica|rifiuto))/, motivo: "Smaltimento o trasporto a discarica" },
   { re: /\b(assistenza muraria|assistenze murarie)\b/, motivo: "Assistenza muraria: lavorazione senza materiali da ordinare" },
+  { re: /^sovrapprezz/, motivo: "Sovrapprezzo: i materiali sono già nella voce principale" },
 ];
 
 /** Voci che descrivono una cosa da comprare, non una lavorazione. */
@@ -341,12 +342,17 @@ const SPESSORE_BASE_CM: Record<string, number> = {
   "ED-INTONACO-PREMISCELATO": 1.5,
   "ED-MASSETTO-SABBIA-CEMENTO": 5,
   "ED-MASSETTO-AUTOLIVELLANTE": 1,
+  "ST-PLATEA": 40,
+  "ST-CA-SUPERFICIE": 20,
+  "ST-CA-LINEARE": 15,
 };
 
 /** Lo spessore in cm scritto nella voce («sp. 2 cm», «spessore 20 mm»), se c'è. */
 export function spessoreCm(testo: string): number | null {
-  const m = testo.match(/\b(?:sp\.?|spess(?:ore)?|di spessore)\s*(?:medio|minimo|finito|complessivo|totale)?\s*(?:di\s*)?(?:cm\.?\s*)?(\d+(?:[.,]\d+)?)\s*(cm|mm)?\b/i)
-    ?? testo.match(/\b(\d+(?:[.,]\d+)?)\s*(cm|mm)\s+(?:di\s+)?spessore\b/i);
+  const m = testo.match(/\b(?:sp\.?|spess(?:ore|\.)?|di spessore)\s*(?:medio|minimo|finito|complessivo|totale|max\.?|massimo)?\s*(?:di\s*)?(?:cm\.?\s*)?(\d+(?:[.,]\d+)?)(?!\d|[.,]\d)\s*(cm|mm)?(?!\s*\+)/i)
+    ?? testo.match(/\b(\d+(?:[.,]\d+)?)\s*(cm|mm)\s+(?:di\s+)?spessore\b/i)
+    // «paretine balconate di 15 cm», «muro di 30 cm»: lo spessore detto dopo l'elemento.
+    ?? testo.match(/\b(?:paret|mur[oi]\b|sett[oi]\b|solett)\w*[^.,;]*?\bdi\s*(\d+(?:[.,]\d+)?)\s*(cm)\b/i);
   if (!m) return null;
   const n = Number(m[1].replace(",", "."));
   if (!(n > 0)) return null;
@@ -413,8 +419,35 @@ function scalaSpessore(codiceStandard: string | null | undefined, v: VoceComputo
   const fattore = base && sp && Math.abs(sp - base) > 0.01 ? sp / base : undefined;
   const nota = fattore
     ? `Spessore ${sp!.toLocaleString("it-IT")} cm invece di ${base!.toLocaleString("it-IT")}: quantità × ${fattore.toLocaleString("it-IT", { maximumFractionDigits: 2 })}`
-    : null;
+    : base && !sp && codiceStandard?.startsWith("ST-") ? `Spessore non scritto nella voce: calcolato su ${base.toLocaleString("it-IT")} cm, da controllare` : null;
   return { fattore, nota };
+}
+
+/**
+ * La classe del calcestruzzo scritta nella voce, come C28/35: «Rck 28/35» e «C28/35»
+ * dicono la stessa cosa (resistenza cilindrica / cubica). Null se non c'è.
+ */
+export function classeCalcestruzzo(testo: string): string | null {
+  const m = testo.match(/\b(?:rck|c)\s?(\d{2,3})\s?\/\s?(\d{2,3})\b/i);
+  return m ? `C${m[1]}/${m[2]}` : null;
+}
+
+/**
+ * Il nome del materiale con quello che la voce dice (14/11/2026): il calcestruzzo
+ * prende la sua classe («Calcestruzzo strutturale C28/35»), il blocco del solaio
+ * l'altezza del solaio («20+5» → H20x25x38). Così si collega alla voce giusta del
+ * listino (Rck 35 / C28/35) e non a una qualsiasi.
+ */
+export function nomeDallaVoce(nome: string, testoVoce: string): string {
+  if (/^calcestruzzo\b/i.test(nome)) {
+    const classe = classeCalcestruzzo(testoVoce);
+    return classe && !/\bC\d{2,3}\/\d{2,3}\b/.test(nome) ? `${nome} ${classe}` : nome;
+  }
+  if (/^blocco interposto/i.test(nome)) {
+    const solaio = testoVoce.match(/\b(\d{2})\s?\+\s?(\d{1,2})\b/);
+    return solaio ? nome.replace(/H\d{2}x/i, `H${solaio[1]}x`) : nome;
+  }
+  return nome;
 }
 
 export interface OpzioniRiconoscimento {
@@ -471,8 +504,13 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   // La libreria standard, dove l'azienda non ha una scomposizione sua: si guarda la
   // descrizione breve (l'estesa elenca spesso lavorazioni compre­se che ingannerebbero).
   const breveConsiderato = breve.length >= 25 ? breve : normalizzaTesto(`${v.descrizione_breve} ${(v.descrizione_estesa ?? "").slice(0, 160)}`);
+  // Se la breve non basta («Muri in c.a.», «Platea di fondazione»), si guarda anche
+  // l'estesa: «compreso calcestruzzo, ferro, casseformi» dice di che opera si tratta.
   const standard = opzioni.riserva?.length
     ? trovaScomposizione(opzioni.riserva, { testo: breveConsiderato, unita: v.unita_misura })
+      ?? (v.descrizione_estesa && !prefisso
+        ? trovaScomposizione(opzioni.riserva, { testo: normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa.slice(0, 400)}`), unita: v.unita_misura })
+        : null)
     : null;
   if (standard) {
     const { fattore, nota } = scalaSpessore(standard.id, v);
@@ -554,7 +592,7 @@ function partiDaComponenti(
       const conSfrido = netta * (1 + sfrido / 100);
       return {
         ...base,
-        descrizione: c.descrizione.trim(),
+        descrizione: testoVoce ? nomeDallaVoce(c.descrizione.trim(), testoVoce) : c.descrizione.trim(),
         specifiche: testoVoce ? specificheDallaVoce(c.specifiche?.trim() || null, testoVoce) : c.specifiche?.trim() || null,
         unita: normalizzaUnita(c.unita_misura),
         netta,

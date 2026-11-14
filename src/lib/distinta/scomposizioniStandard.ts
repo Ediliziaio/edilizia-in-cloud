@@ -640,6 +640,60 @@ export const SCOMPOSIZIONI_STANDARD: ScomposizioneStandard[] = [
     ],
     note: null,
   },
+  // ─── Opere strutturali (14/11/2026) ────────────────────────────────────
+  // Misurate sul computo vero di un'impresa di strutture: magrone a m³, platea,
+  // muri, pareti e velette in c.a. a m² o a metro, solaio in latero-cemento a m².
+  // Quantità medie per lo spessore di base: lo spessore scritto nella voce le
+  // scala (vedi SPESSORE_BASE_CM in generaDistinta). La classe del calcestruzzo e
+  // l'altezza dei blocchi del solaio vengono dalla voce.
+  {
+    codice_standard: "ST-MAGRONE", ambito: "edile", nome: "Magrone di fondazione", unita_misura: "mc",
+    parole_chiave: ["magron"], simboli: [],
+    componenti: [ed("Calcestruzzo per magrone", "Non strutturale, classe dalla voce", "mc", 1, 3)],
+    note: null,
+  },
+  {
+    codice_standard: "ST-PLATEA", ambito: "edile", nome: "Platea di fondazione in c.a. (40 cm)", unita_misura: "mq",
+    parole_chiave: ["platea", "calcestruzz", "ferro", "cassef"], simboli: [],
+    componenti: [
+      ed("Calcestruzzo strutturale", "Classe da progetto", "mc", 0.4, 3),
+      ed("Acciaio in barre B450C", "Circa 100 kg per m³ di getto", "kg", 40, 5),
+      ed("Casseforme perimetrali", "Quota del bordo per m² di platea", "mq", 0.15, 0),
+    ],
+    note: "Per 40 cm di spessore: con un altro spessore calcestruzzo e acciaio vanno in proporzione.",
+  },
+  {
+    codice_standard: "ST-CA-SUPERFICIE", ambito: "edile", nome: "Muro, parete o setto in c.a. (20 cm)", unita_misura: "mq",
+    parole_chiave: ["calcestruzz", "ferro", "cassef"], simboli: [],
+    componenti: [
+      ed("Calcestruzzo strutturale", "Classe da progetto", "mc", 0.2, 3),
+      ed("Acciaio in barre B450C", "Circa 80 kg per m³ di getto", "kg", 16, 5),
+      ed("Casseforme", "Due facce", "mq", 2, 5),
+    ],
+    note: "Per 20 cm di spessore: con un altro spessore calcestruzzo e acciaio vanno in proporzione.",
+  },
+  {
+    codice_standard: "ST-CA-LINEARE", ambito: "edile", nome: "Veletta o cordolo in c.a. (15 cm, h 110 cm)", unita_misura: "m",
+    parole_chiave: ["calcestruzz", "ferro"], simboli: [],
+    componenti: [
+      ed("Calcestruzzo strutturale", "Classe da progetto", "mc", 0.165, 3),
+      ed("Acciaio in barre B450C", "Circa 80 kg per m³ di getto", "kg", 13, 5),
+      ed("Casseforme", "Due facce, altezza 110 cm", "mq", 2.2, 5),
+    ],
+    note: "Sezione 15 × 110 cm: con un'altra sezione le quantità vanno in proporzione.",
+  },
+  {
+    codice_standard: "ST-SOLAIO-LATEROCEMENTO", ambito: "edile", nome: "Solaio in latero-cemento (20+5)", unita_misura: "mq",
+    parole_chiave: ["solai", "latero"], simboli: [],
+    componenti: [
+      ed("Travetto precompresso", "Interasse 50 cm", "m", 2, 3),
+      ed("Blocco interposto in laterizio H20x25x38", "Pignatta, altezza dalla voce", "pz", 8, 5),
+      ed("Calcestruzzo strutturale", "Getto di completamento e soletta, classe da progetto", "mc", 0.085, 3),
+      ed("Rete elettrosaldata", "Ø6 20×20 cm", "mq", 1.1, 5),
+      ed("Acciaio in barre B450C", "Ferri aggiuntivi e cordoli", "kg", 3, 5),
+    ],
+    note: "Per un solaio 20+5 con interasse 50 cm.",
+  },
   {
     // Le voci di pittura che non dicono «tinteggiatura» (14/11/2026).
     codice_standard: "ED-IDROPITTURA-INTERNA", ambito: "edile", nome: "Idropittura per interni (due mani)", unita_misura: "mq",
