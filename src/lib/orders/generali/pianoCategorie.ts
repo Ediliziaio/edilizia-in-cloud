@@ -100,6 +100,7 @@ export const FONTI_REALI: Record<string, string> = {
   fattura: "Fattura emessa",
   documento_fiscale: "Fattura emessa",
   rogito: "Rogito dell'unità",
+  sal_subappalto: "SAL del subappaltatore (da fatturare)",
 };
 
 export interface VoceDiPartenza {

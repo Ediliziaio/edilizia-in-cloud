@@ -106,8 +106,10 @@ Proposta (lotto E):
 - O-0031 «Residenza Via Roma»: 6 fasi del cantiere dal piano (mar 2027 → mag 2028).
 
 Emerso costruendo la demo (da fare):
-- Il SAL di un subappaltatore non diventa costo finché non arriva la fattura: nel margine dei
-  lotti 15.000 € di lavori eseguiti dal subappaltatore non ci sono.
+- ~~Il SAL di un subappaltatore non diventa costo finché non arriva la fattura~~ **FATTO**
+  (20290322132000): i SAL approvati contano per la parte non coperta da fatture collegate o costi
+  delle ditte. Cambiati: Bonarrigo 27-0002 +38.000 €, O-0101 +15.000 €, una commessa di Demo 2
+  +500 €. Calcolo di tutte le commesse: 694 → 751 ms.
 - L'avanzamento della generale (100 %) viene dalla sua sola fase «Allestimento cantiere».
 - Il riepilogo mostra il lotto 2 al 60 % (misure del contratto) mentre le sue fasi dicono 15 %.
 - Un mezzo senza costo orario dà un costo vuoto (Demolitore Hilti): nessun avviso.
