@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
+import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
@@ -143,6 +144,8 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
       {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
+
+      {r.permessi.costi && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
 
       {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
         {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}
