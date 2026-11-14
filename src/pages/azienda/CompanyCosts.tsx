@@ -60,14 +60,14 @@ export default function CompanyCosts() {
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      <div className="testata-pagina rounded-2xl border border-border bg-gradient-to-br from-card via-card to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex min-w-0 items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
             <TrendingDown className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Costi Aziendali</h1>
-            <p className="mt-0.5 text-sm text-slate-500">
+            <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Costi Aziendali</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               Capisci dove vanno i soldi: personale, materiali e spese, mese per mese.
             </p>
           </div>
@@ -76,7 +76,7 @@ export default function CompanyCosts() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {/* Mobile: tre linguette affiancate da 32px, senza icone. */}
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-slate-100/80 p-1 sm:w-auto max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:[&_svg]:hidden">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-muted/80 p-1 sm:w-auto max-sm:grid max-sm:grid-cols-3 max-sm:rounded-lg max-sm:[&_svg]:hidden">
           <TabsTrigger value="panoramica" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
             <PieChart className="h-4 w-4" /> Panoramica
           </TabsTrigger>

@@ -115,8 +115,10 @@ it("exposes section titles, metric groups and actions on a clear background", ()
   expect(screen.getByRole("heading", { name: "Titolo", level: 2 })).toHaveClass(
     "font-semibold",
   );
+  // Fondo chiaro = il colore delle schede del tema (bianco in chiaro, scuro
+  // nel tema scuro): dal 14/11/2026 non più bg-white fisso.
   expect(screen.getByRole("group", { name: "Dato" })).toHaveClass(
-    "bg-white",
+    "bg-card",
   );
   expect(screen.getByRole("button", { name: "Azione" })).toBeVisible();
 });

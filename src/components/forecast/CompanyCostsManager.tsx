@@ -116,11 +116,11 @@ export function CostIntegrationPanel({
   const paidPct = summary.totalAmount > 0 ? Math.round((summary.paidAmount / summary.totalAmount) * 100) : 0;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-slate-950">I costi, in ordine</h3>
+            <h3 className="text-sm font-semibold text-foreground">I costi, in ordine</h3>
             <Badge variant={qualityIssues > 0 ? "outline" : "secondary"} className={qualityIssues > 0 ? "border-orange-300 text-orange-700" : ""}>
               {qualityIssues > 0 ? `${qualityIssues} da sistemare` : "Tutto in ordine"}
             </Badge>
@@ -133,10 +133,10 @@ export function CostIntegrationPanel({
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        <div className="rounded-xl border border-border bg-muted/50/70 p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da dove arrivano</span>
-            <Landmark className="h-4 w-4 text-slate-500" />
+            <Landmark className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="mt-2 text-lg font-semibold">{summary.manual + summary.linked} costi registrati</div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -150,10 +150,10 @@ export function CostIntegrationPanel({
           </Button>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        <div className="rounded-xl border border-border bg-muted/50/70 p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da sistemare</span>
-            <ListChecks className="h-4 w-4 text-slate-500" />
+            <ListChecks className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="mt-2 text-lg font-semibold">{qualityIssues > 0 ? `${qualityIssues} costi incompleti` : "Niente da sistemare"}</div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -163,14 +163,14 @@ export function CostIntegrationPanel({
             {missingCategory > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingCategories}>Categorie</Button>}
             {missingSupplier > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingSuppliers}>Fornitori</Button>}
             {unscheduled > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowUnscheduled}>Scadenze</Button>}
-            {qualityIssues === 0 && <span className="text-xs text-emerald-700">Tutti i costi hanno categoria, fornitore e scadenza.</span>}
+            {qualityIssues === 0 && <span className="text-xs text-emerald-700 dark:text-emerald-400">Tutti i costi hanno categoria, fornitore e scadenza.</span>}
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+        <div className="rounded-xl border border-border bg-muted/50/70 p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Già pagato</span>
-            <WalletCards className="h-4 w-4 text-slate-500" />
+            <WalletCards className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="mt-2 text-lg font-semibold">{paidPct}% del totale</div>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -761,7 +761,7 @@ export default function CompanyCostsManager({
     <>
       {/* Mobile: senza la scheda intorno, due numeri (il secondo filtra gli
           scaduti) al posto della testata blu con quattro numeri e spiegazioni. */}
-      <Card className="overflow-hidden rounded-2xl border-slate-200 shadow-sm max-sm:overflow-visible max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
+      <Card className="overflow-hidden rounded-2xl border-border shadow-sm max-sm:overflow-visible max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
         {/* Testata NAVY in stile "Riepilogo commesse": il blu scuro fa da
             contrasto e le card bordate portano i numeri che contano. Ogni
             card cliccabile filtra (anello arancio quando attiva). Le azioni
@@ -1068,32 +1068,37 @@ export default function CompanyCostsManager({
             };
             return (
               // Mobile no: grafico a doppio asse illeggibile a 375px.
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-orange-50/40 p-3 sm:p-4 max-sm:hidden">
+              <div className="rounded-xl border border-border bg-gradient-to-br from-card to-orange-50/40 p-3 sm:p-4 max-sm:hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
-                    <h3 className="mt-0.5 text-base font-semibold text-slate-950">
+                    <p className="text-xs font-semibold uppercase text-muted-foreground">Andamento 12 mesi</p>
+                    <h3 className="mt-0.5 text-base font-semibold text-foreground">
                       {typeLock === "fixed" ? "Spese fisse e pagamenti" : "Spese variabili e pagamenti"}
                     </h3>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-3 text-xs">
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-600" /> Spese</span>
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Pagato</span>
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-slate-900" /> N. voci</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-blue-600" /> Spese</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-orange-500" /> Pagato</span>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><span className="h-2 w-2 rounded-full bg-foreground" /> N. voci</span>
                     <span className="text-muted-foreground">clicca un mese per filtrarlo</span>
                   </div>
                 </div>
-                <div className="mt-3 h-[220px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                <div className="mt-3 h-[220px] rounded-xl border border-border/60 bg-card p-3 shadow-sm">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={serie} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                      <defs>
+                        <pattern id="spese-punti" width="12" height="12" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="hsl(var(--muted-foreground))" fillOpacity={0.22} /></pattern>
+                        <linearGradient id="spese-tot" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} /><stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} /></linearGradient>
+                        <linearGradient id="spese-pag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} /><stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} /></linearGradient>
+                      </defs>
+                      <CartesianGrid fill="url(#spese-punti)" strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
                       <YAxis
                         yAxisId="money"
                         tickLine={false}
                         axisLine={false}
                         fontSize={10}
-                        stroke="#94a3b8"
+                        stroke="hsl(var(--muted-foreground))"
                         tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
                       />
                       <YAxis
@@ -1102,14 +1107,16 @@ export default function CompanyCostsManager({
                         tickLine={false}
                         axisLine={false}
                         fontSize={10}
-                        stroke="#94a3b8"
+                        stroke="hsl(var(--muted-foreground))"
                         allowDecimals={false}
                       />
                       <RechartsTooltip
-                        cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                        cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
                         contentStyle={{
                           borderRadius: 12,
-                          border: "1px solid #e2e8f0",
+                          background: "hsl(var(--popover))",
+                          color: "hsl(var(--popover-foreground))",
+                          border: "1px solid hsl(var(--border))",
                           boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                         }}
                         formatter={(value, name) => {
@@ -1130,13 +1137,13 @@ export default function CompanyCostsManager({
                         onClick={(entry: { ym?: string; payload?: { ym?: string } }) => clickMese(entry?.ym ?? entry?.payload?.ym)}
                       >
                         {serie.map((m) => (
-                          <Cell key={m.ym} fill={selYm === m.ym ? "#1e3a8a" : "#2563eb"} />
+                          <Cell key={m.ym} fill="url(#spese-tot)" fillOpacity={selYm && selYm !== m.ym ? 0.5 : 1} />
                         ))}
                       </Bar>
                       <Bar
                         yAxisId="money"
                         dataKey="pagato"
-                        fill="#f97316"
+                        fill="url(#spese-pag)"
                         radius={[6, 6, 0, 0]}
                         maxBarSize={22}
                         className="cursor-pointer"
@@ -1146,9 +1153,9 @@ export default function CompanyCostsManager({
                         yAxisId="count"
                         type="monotone"
                         dataKey="n"
-                        stroke="#0f172a"
+                        stroke="hsl(var(--foreground))"
                         strokeWidth={2}
-                        dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
+                        dot={{ r: 3, fill: "hsl(var(--foreground))", strokeWidth: 0 }}
                         activeDot={{ r: 4 }}
                       />
                     </ComposedChart>
@@ -1177,9 +1184,9 @@ export default function CompanyCostsManager({
                 size="sm"
                 className={cn(
                   "text-xs gap-1",
-                  tab.value === "in_ritardo" && tab.count > 0 && statusTabFilter !== tab.value && "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400",
+                  tab.value === "in_ritardo" && tab.count > 0 && statusTabFilter !== tab.value && "border-red-300 text-red-700 dark:text-red-400 dark:border-red-700 dark:text-red-400",
                   tab.value === "in_scadenza" && tab.count > 0 && statusTabFilter !== tab.value && "border-orange-300 text-orange-700 dark:border-orange-700 dark:text-orange-400",
-                  tab.value === "senza_scadenza" && tab.count > 0 && statusTabFilter !== tab.value && "border-slate-300 text-slate-700",
+                  tab.value === "senza_scadenza" && tab.count > 0 && statusTabFilter !== tab.value && "border-slate-300 text-muted-foreground",
                 )}
                 onClick={() => setStatusTabFilter(tab.value)}
               >

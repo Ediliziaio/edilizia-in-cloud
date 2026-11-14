@@ -37,7 +37,10 @@ const RUOLI_TFR: readonly RuoloConto[] = [
 const RUOLI_UTILI_A_NUOVO: RuoloConto = { ruolo: "10.04", etichetta: "Utili (perdite) portati a nuovo (A.VIII): ci va il risultato dell'anno chiuso", natura: "passivo" };
 const RUOLI_UTILE: RuoloConto = { ruolo: "10.05", etichetta: "Utile (perdita) dell'esercizio (A.IX): ci va il risultato della chiusura", natura: "passivo" };
 import { RimanenzeFineAnno } from "@/components/contabilita/RimanenzeFineAnno";
-import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
+import { bilancioASezioni, bilancioCee, bilancioDiVerifica, htmlBilancioCee, htmlBilancioSezioni, htmlBilancioVerifica, ricaviECostiPerMese, saldiPerConto, type LatoBilancio } from "@/lib/contabilita/bilancioCee";
+import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
+import { GraficoRicaviCosti } from "@/components/charts/grafici/GraficoRicaviCosti";
+import { useIsMobile } from "@/hooks/use-mobile";
 import type { AziendaIntestazione } from "@/lib/contabilita/documentoContabile";
 import { contoAPartite, htmlMastrino, mastrino, partitario } from "@/lib/contabilita/mastrini";
 import {
@@ -472,7 +475,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                   <span className="font-medium">{s.causale}</span>
                   {s.descrizione ? <span className="text-muted-foreground">{s.descrizione}</span> : null}
                   {s.storno_di ? <span className="rounded bg-amber-100 px-1.5 text-xs text-amber-800">storno</span> : null}
-                  {stornate.has(s.id) ? <span className="rounded bg-slate-100 px-1.5 text-xs text-slate-600">stornata</span> : null}
+                  {stornate.has(s.id) ? <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground">stornata</span> : null}
                   <span className="ml-auto tabular-nums">{euro(tot)}</span>
                 </summary>
                 <table className="mt-2 w-full text-sm">
@@ -579,7 +582,7 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto }: {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 p-2 text-sm">
             <span>Dare {euro(esito.dare)} · Avere {euro(esito.avere)}</span>
-            <span className={esito.differenza === 0 ? "text-emerald-700" : "text-destructive"}>
+            <span className={esito.differenza === 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}>
               {esito.differenza === 0 ? "Quadra" : `Differenza ${euro(Math.abs(esito.differenza))}`}
             </span>
           </div>
@@ -640,6 +643,7 @@ function intestazioneDa(a: ReturnType<typeof useAnagraficaAzienda>["data"]): Azi
 /** Bilancio di verifica e bilancio CEE dell'esercizio, dalle scritture. */
 function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number; conti: ContoContabile[] }) {
   const scritture = useScritture(companyId, anno);
+  const isMobile = useIsMobile();
   const anagrafica = useAnagraficaAzienda();
   const [stampa, setStampa] = useState<{ html: string; nome: string } | null>(null);
   // Per default la lettura dello studio: stato patrimoniale e conto economico divisi (11/11/2026).
@@ -654,6 +658,7 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
   const azienda = intestazioneDa(anagrafica.data);
   const periodo = `Esercizio ${anno}`;
   const sbilancio = Math.round((cee.totaleAttivo - cee.totalePassivo) * 100) / 100;
+  const mesi = ricaviECostiPerMese(scritture.data ?? [], conti, anno);
   return (
     <div className="space-y-4">
       {stampa && (
@@ -677,13 +682,35 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           <Printer className="mr-1 h-4 w-4" />Stampa bilancio CEE
         </Button>
       </div>
+      {/* 14/11/2026: i tre numeri col colore dello stato (attivo e passivo
+          ambra se non pareggiano, utile verde, perdita rossa) e ricavi e
+          costi mese per mese. */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border p-3 text-sm"><p className="text-muted-foreground">Totale attivo</p><p className="text-lg font-semibold tabular-nums">{euro(cee.totaleAttivo)}</p></div>
-        <div className="rounded-xl border p-3 text-sm"><p className="text-muted-foreground">Totale passivo e netto</p><p className="text-lg font-semibold tabular-nums">{euro(cee.totalePassivo)}</p></div>
-        <div className="rounded-xl border p-3 text-sm"><p className="text-muted-foreground">Utile (perdita) dell'esercizio</p><p className="text-lg font-semibold tabular-nums">{euro(cee.utile)}</p></div>
+        <RiquadroNumero etichetta="Totale attivo" valore={euro(cee.totaleAttivo)} periodo={periodo} tono={sbilancio !== 0 ? "attenzione" : "neutro"} />
+        <RiquadroNumero
+          etichetta="Totale passivo e netto"
+          valore={euro(cee.totalePassivo)}
+          periodo={periodo}
+          tono={sbilancio !== 0 ? "attenzione" : "neutro"}
+          contesto={sbilancio !== 0 ? `Non pareggia con l'attivo: ${euro(sbilancio)} di differenza` : "Pareggia con l'attivo"}
+        />
+        <RiquadroNumero
+          etichetta={cee.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio"}
+          valore={euro(cee.utile)}
+          periodo={periodo}
+          tono={cee.utile > 0 ? "buono" : cee.utile < 0 ? "male" : "neutro"}
+          tendenza={mesi.some((m) => m.ricavi !== 0 || m.costi !== 0) ? mesi.reduce<number[]>((acc, m) => [...acc, (acc[acc.length - 1] ?? 0) + m.ricavi - m.costi], []) : undefined}
+          etichettaTendenza="Utile progressivo mese per mese"
+        />
       </div>
+      {!isMobile && mesi.some((m) => m.ricavi !== 0 || m.costi !== 0) && (
+        <section aria-label="Ricavi e costi mese per mese" className="rounded-2xl border bg-card p-4 shadow-sm">
+          <h3 className="mb-3 text-sm font-semibold">Ricavi e costi mese per mese</h3>
+          <GraficoRicaviCosti righe={mesi.map((m) => ({ mese: m.mese, ricavi: m.ricavi, costi_var: m.costi, costi_fissi: 0 }))} />
+        </section>
+      )}
       {!verifica.quadra || sbilancio !== 0 || cee.vociNonIndicate.length > 0 ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
           {!verifica.quadra ? <p>Il bilancio di verifica non quadra: dare {euro(verifica.totaleDare)}, avere {euro(verifica.totaleAvere)}.</p> : null}
           {sbilancio !== 0 ? <p>Attivo e passivo differiscono di {euro(sbilancio)}: un conto ha la natura sbagliata nel piano dei conti.</p> : null}
           {cee.vociNonIndicate.length > 0 ? <p>Conti senza una voce CEE riconosciuta: {cee.vociNonIndicate.join(", ")}.</p> : null}
@@ -1106,8 +1133,8 @@ function StatoEsercizio({ companyId, anno }: { companyId: string | undefined; an
   const e = useEsercizio(companyId, anno).data;
   if (!e || (!e.chiuso_il && !e.stampato_fino_al)) return null;
   return (
-    <p className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-      <Lock className="h-4 w-4 text-slate-500" />
+    <p className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
+      <Lock className="h-4 w-4 text-muted-foreground" />
       {e.chiuso_il
         ? `Esercizio ${anno} chiuso il ${dataIt(e.chiuso_il.slice(0, 10))}: non si registra più niente con data ${anno}.`
         : `Libro giornale stampato in definitivo fino al ${dataIt(e.stampato_fino_al!)}: le nuove scritture vanno dopo quel giorno.`}

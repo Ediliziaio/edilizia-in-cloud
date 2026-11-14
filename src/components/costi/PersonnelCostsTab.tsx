@@ -87,7 +87,7 @@ function SaturazioneBar({ value }: { value: number }) {
             : "bg-orange-500";
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-2 w-16 overflow-hidden rounded-full bg-muted">
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${clamped}%` }} />
       </div>
       <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
@@ -108,16 +108,16 @@ function DettaglioRapportini({
     );
   }
   return (
-    <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+    <div className="divide-y divide-border/60 rounded-lg border border-border bg-card">
       {rapportini.map((r) => (
         <div key={r.id} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-3 py-2 text-sm">
-          <span className="w-20 shrink-0 font-medium capitalize text-slate-700">
+          <span className="w-20 shrink-0 font-medium capitalize text-muted-foreground">
             {format(parseISO(r.data_lavoro), "EEE d MMM", { locale: it })}
           </span>
           <Badge variant="outline" className="shrink-0 text-[11px]">
             {r.orderCode ?? "Senza commessa"}
           </Badge>
-          <span className="shrink-0 tabular-nums text-slate-700">{fmtOre(r.ore_lavorate)}</span>
+          <span className="shrink-0 tabular-nums text-muted-foreground">{fmtOre(r.ore_lavorate)}</span>
           {r.ore_straordinario > 0 && (
             <Badge className="shrink-0 bg-orange-100 text-[11px] text-orange-800 hover:bg-orange-100">
               +{fmtOre(r.ore_straordinario)} straord.
@@ -144,7 +144,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
   const haOre = d.oreLavorate + d.oreStraordinario > 0;
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+    <div className="rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -163,7 +163,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
               .toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900">{d.nome}</p>
+            <p className="truncate text-sm font-semibold text-foreground">{d.nome}</p>
             <p className="truncate text-xs text-muted-foreground">
               {[d.qualifica, d.livello].filter(Boolean).join(" · ") || "Dipendente"}
             </p>
@@ -175,7 +175,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
             Costo orario
           </p>
-          <p className="text-sm font-medium tabular-nums text-slate-800">
+          <p className="text-sm font-medium tabular-nums text-foreground">
             {d.costoOrario > 0 ? `${formatCurrency(d.costoOrario)}/h` : "—"}
           </p>
         </div>
@@ -185,7 +185,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
             Ore mese
           </p>
-          <p className="text-sm tabular-nums text-slate-800">
+          <p className="text-sm tabular-nums text-foreground">
             {haOre ? fmtOre(d.oreLavorate) : d.senzaUtente ? "n.d." : "0h"}
             {d.oreStraordinario > 0 && (
               <span className="ml-1 font-medium text-orange-600">
@@ -211,7 +211,7 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
           <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground sm:hidden">
             Costo mese
           </p>
-          <p className="text-sm font-semibold tabular-nums text-slate-900">
+          <p className="text-sm font-semibold tabular-nums text-foreground">
             {formatCurrency(d.costoEffettivo)}
           </p>
           {d.costoStraordinari > 0 ? (
@@ -241,21 +241,21 @@ function RigaDipendente({ d }: { d: DipendenteMese }) {
 
         <ChevronDown
           className={cn(
-            "hidden h-4 w-4 shrink-0 text-slate-400 transition-transform sm:block",
+            "hidden h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform sm:block",
             open && "rotate-180",
           )}
         />
       </button>
 
       {open && (
-        <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+        <div className="border-t border-border/60 bg-muted/50/60 px-4 py-3">
           <div className="mb-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
             <span title="Oneri: mensilità aggiuntive, contributi, INAIL, Cassa Edile e TFR del tipo di dipendente">
-              Contratto: <strong className="text-slate-700">{formatCurrency(d.lordoMensile)}</strong> lordo
-              + <strong className="text-slate-700">{formatCurrency(d.oneriMensili)}</strong> oneri ({d.oneriPercento.toLocaleString("it-IT")}%)
+              Contratto: <strong className="text-muted-foreground">{formatCurrency(d.lordoMensile)}</strong> lordo
+              + <strong className="text-muted-foreground">{formatCurrency(d.oneriMensili)}</strong> oneri ({d.oneriPercento.toLocaleString("it-IT")}%)
             </span>
             <span>
-              Ore contrattuali: <strong className="text-slate-700">{fmtOre(d.oreContrattuali)}</strong>/mese
+              Ore contrattuali: <strong className="text-muted-foreground">{fmtOre(d.oreContrattuali)}</strong>/mese
             </span>
             {d.oreStraordinario > 0 && (
               <span>
@@ -283,9 +283,9 @@ function RigaOperatore({ o }: { o: OperatoreEsterno }) {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-left"
       >
-        <UserRound className="h-4 w-4 shrink-0 text-slate-400" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{o.nome}</span>
-        <span className="text-sm tabular-nums text-slate-700">
+        <UserRound className="h-4 w-4 shrink-0 text-muted-foreground/80" />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{o.nome}</span>
+        <span className="text-sm tabular-nums text-muted-foreground">
           {fmtOre(o.oreLavorate)}
           {o.oreStraordinario > 0 && (
             <span className="ml-1 font-medium text-orange-600">+{fmtOre(o.oreStraordinario)}</span>
@@ -293,10 +293,10 @@ function RigaOperatore({ o }: { o: OperatoreEsterno }) {
         </span>
         <span className="text-xs text-muted-foreground">{o.giorniLavorati} gg</span>
         <CommesseChips commesse={o.commesse} />
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+        <div className="border-t border-border/60 bg-muted/50/60 px-4 py-3">
           <DettaglioRapportini rapportini={o.rapportini} />
         </div>
       )}
@@ -343,26 +343,26 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
       : null;
 
   return (
-    <Card className="rounded-2xl border-slate-200">
+    <Card className="rounded-2xl border-border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
       >
-        <Scale className="h-4 w-4 shrink-0 text-slate-500" />
+        <Scale className="h-4 w-4 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Squadra interna o subappalto?</p>
+          <p className="text-sm font-semibold text-foreground">Squadra interna o subappalto?</p>
           <p className="truncate text-xs text-muted-foreground">
             Quante commesse al mese servono perché la squadra convenga rispetto al sub
           </p>
         </div>
         <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", open && "rotate-180")}
+          className={cn("h-4 w-4 shrink-0 text-muted-foreground/80 transition-transform", open && "rotate-180")}
         />
       </button>
 
       {open && (
-        <CardContent className="space-y-3 border-t border-slate-100 px-4 pb-4 pt-3">
+        <CardContent className="space-y-3 border-t border-border/60 px-4 pb-4 pt-3">
           {squadra.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Questo mese nessun dipendente ha ore nei rapportini di campo: il calcolo parte dal
@@ -374,14 +374,14 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
               <p className="text-xs text-muted-foreground">
                 La tua squadra di campo questo mese: {squadra.length}{" "}
                 {squadra.length === 1 ? "persona" : "persone"},{" "}
-                <strong className="text-slate-700">{formatCurrency(costoMensileSquadra)}</strong> al
+                <strong className="text-muted-foreground">{formatCurrency(costoMensileSquadra)}</strong> al
                 mese di busta e oneri, saturazione reale{" "}
-                <strong className="text-slate-700">{Math.round(saturazione * 100)}%</strong> dai
+                <strong className="text-muted-foreground">{Math.round(saturazione * 100)}%</strong> dai
                 rapportini.
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="space-y-1 text-xs font-medium text-slate-700">
+                <label className="space-y-1 text-xs font-medium text-muted-foreground">
                   Quanto ti quota il sub una commessa tipo (€)
                   <Input
                     inputMode="decimal"
@@ -391,7 +391,7 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
                     className="h-9"
                   />
                 </label>
-                <label className="space-y-1 text-xs font-medium text-slate-700">
+                <label className="space-y-1 text-xs font-medium text-muted-foreground">
                   Ore di posa della tua squadra su quella commessa
                   <Input
                     inputMode="decimal"
@@ -404,7 +404,7 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
               </div>
 
               {puntoIndifferenza > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-800">
+                <div className="rounded-lg border border-border bg-muted/50/70 p-3 text-sm text-foreground">
                   <p>
                     Sotto{" "}
                     <strong>
@@ -428,7 +428,7 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
               )}
 
               {costoInternoCommessa > 0 && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm text-slate-800">
+                <div className="rounded-lg border border-border bg-muted/50/70 p-3 text-sm text-foreground">
                   <p>
                     In casa quella commessa ti costa{" "}
                     <strong>{formatCurrency(costoInternoCommessa)}</strong> di manodopera
@@ -462,6 +462,81 @@ function PuntoIndifferenza({ dipendenti }: { dipendenti: DipendenteMese[] }) {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+/**
+ * Dove vanno le ore del mese: le commesse con più ore dai rapportini, col costo
+ * stimato (ore × costo orario di chi le ha fatte), e la parte di straordinari.
+ */
+function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; totali: { oreLavorate: number; oreStraordinario: number } }) {
+  const perCommessa = new Map<string, { codice: string; ore: number; costo: number; persone: Set<string> }>();
+  for (const d of dipendenti) {
+    for (const c of d.commesse) {
+      const r = perCommessa.get(c.orderId) ?? { codice: c.orderCode, ore: 0, costo: 0, persone: new Set<string>() };
+      // Ordinarie più straordinari, al costo orario di chi le ha fatte (stima).
+      r.ore += c.ore + c.oreStraordinario;
+      r.costo += (c.ore + c.oreStraordinario) * d.costoOrario;
+      r.persone.add(d.employeeId);
+      perCommessa.set(c.orderId, r);
+    }
+  }
+  const righe = [...perCommessa.values()].sort((a, b) => b.ore - a.ore);
+  const prime = righe.slice(0, 6);
+  const max = Math.max(1, ...prime.map((r) => r.ore));
+  // oreLavorate sono le ordinarie: gli straordinari stanno a parte (come nella saturazione).
+  const oreTot = totali.oreLavorate + totali.oreStraordinario;
+  const pctStraord = oreTot > 0 ? Math.round((totali.oreStraordinario / oreTot) * 100) : 0;
+  const saturazioni = dipendenti.filter((d) => d.oreContrattuali > 0).map((d) => d.saturazione);
+  // La saturazione è un rapporto (1 = tutte le ore del contratto).
+  const satMedia = saturazioni.length ? Math.round((saturazioni.reduce((a, b) => a + b, 0) / saturazioni.length) * 100) : null;
+  if (oreTot <= 0 || prime.length === 0) return null;
+  return (
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <Card className="rounded-2xl shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:fill-mode-both">
+        <CardContent className="p-4">
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h3 className="text-sm font-semibold">Ore del mese per commessa</h3>
+            <span className="text-[11px] text-muted-foreground">{righe.length} commesse · costo stimato su ore × costo orario</span>
+          </div>
+          <ol className="space-y-2">
+            {prime.map((r, i) => (
+              <li key={r.codice + i} className="text-xs">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 truncate font-medium">{r.codice}</span>
+                  <span className="shrink-0 tabular-nums">
+                    <strong>{fmtOre(r.ore)}</strong>
+                    <span className="ml-2 text-muted-foreground">{formatCurrency(r.costo)}</span>
+                    <span className="ml-2 text-muted-foreground">{r.persone.size} {r.persone.size === 1 ? "persona" : "persone"}</span>
+                  </span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="cg-barra-cresce h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${Math.max(2, (r.ore / max) * 100)}%`, animationDelay: `${250 + i * 80}ms` }} />
+                </div>
+              </li>
+            ))}
+          </ol>
+        </CardContent>
+      </Card>
+      <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:fill-mode-both dark:border-slate-700" style={{ animationDelay: "80ms" }}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Ore ordinarie e straordinari</p>
+        <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{pctStraord}%</p>
+        <p className="text-xs text-slate-400">delle ore sono straordinari</p>
+        <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
+          <div className="cg-barra-cresce bg-gradient-to-r from-sky-400 to-blue-500" style={{ width: `${100 - pctStraord}%` }} />
+          <div className="cg-barra-cresce bg-gradient-to-r from-amber-400 to-orange-500" style={{ width: `${pctStraord}%`, animationDelay: "350ms" }} />
+        </div>
+        <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <div><dt className="text-slate-400">Ordinarie</dt><dd className="font-semibold tabular-nums">{fmtOre(totali.oreLavorate)}</dd></div>
+          <div><dt className="text-slate-400">Straordinari</dt><dd className="font-semibold tabular-nums text-amber-300">{fmtOre(totali.oreStraordinario)}</dd></div>
+        </dl>
+        {satMedia != null && (
+          <p className="mt-3 border-t border-white/10 pt-2 text-[11px] text-slate-300">
+            Saturazione media della squadra: <strong className="tabular-nums text-white">{satMedia}%</strong> delle ore contrattuali.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -499,14 +574,14 @@ export function PersonnelCostsTab({
         <MonthPicker month={month} onChange={onMonthChange} />
         <p className="text-xs text-muted-foreground">
           Ore e commesse dai rapportini di campo · costi dal contratto in{" "}
-          <Link to="/azienda/personale" className="underline underline-offset-2 hover:text-slate-700">
+          <Link to="/azienda/personale" className="underline underline-offset-2 hover:text-muted-foreground">
             Personale
           </Link>
         </p>
       </div>
 
       {isError && (
-        <Alert className="border-red-200 bg-red-50 text-red-900">
+        <Alert className="border-red-200 bg-red-50 text-red-900 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
             <span>Errore nel caricamento del personale: {errorMessage}</span>
@@ -518,7 +593,7 @@ export function PersonnelCostsTab({
       )}
 
       {/* Testata navy di famiglia (stessa delle Spese fisse/variabili). */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-border shadow-sm">
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           {/* Da 640 niente titoletto «Personale — Le persone: ore vere, costo
               vero»: la linguetta aperta dice già dove sei. */}
@@ -567,13 +642,15 @@ export function PersonnelCostsTab({
         </div>
       </div>
 
+      <DoveVannoLeOre dipendenti={dipendenti} totali={totali} />
+
       {/* Elenco dipendenti */}
       {dipendenti.length === 0 ? (
         <Card className="rounded-2xl border-dashed">
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <Users className="h-8 w-8 text-slate-300" />
+            <Users className="h-8 w-8 text-muted-foreground/50" />
             <div>
-              <p className="font-medium text-slate-900">Nessun dipendente in anagrafica</p>
+              <p className="font-medium text-foreground">Nessun dipendente in anagrafica</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Aggiungi i dipendenti con stipendio e ore contrattuali per vedere qui il costo del
                 personale mese per mese.
@@ -618,11 +695,11 @@ export function PersonnelCostsTab({
       {altriOperatori.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 pt-2">
-            <h3 className="text-sm font-semibold text-slate-900">Altri operatori sul campo</h3>
+            <h3 className="text-sm font-semibold text-foreground">Altri operatori sul campo</h3>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 cursor-help text-slate-400" />
+                  <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/80" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[260px] text-xs">
                   Hanno registrato rapportini ma non hanno una scheda dipendente collegata: le ore

@@ -14,7 +14,10 @@ import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, eu
 const MESI_BREVI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const MESI_INTERI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
-export function GraficoRicaviCosti({ righe, altezza = 220 }: { righe: CEMensileRow[]; altezza?: number }) {
+/** Basta mese, ricavi e costi (variabili + fissi): lo usa anche la contabilità generale. */
+type RigaMese = Pick<CEMensileRow, "mese" | "ricavi" | "costi_var" | "costi_fissi">;
+
+export function GraficoRicaviCosti({ righe, altezza = 220 }: { righe: RigaMese[]; altezza?: number }) {
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
 

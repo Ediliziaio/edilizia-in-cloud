@@ -10,7 +10,7 @@
 // da test in src/test/logic/costsOverviewPeriodi.test.ts.
 // ============================================================================
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   addMonths, endOfMonth, endOfQuarter, endOfYear, format, getQuarter, isWithinInterval,
@@ -36,13 +36,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useCompanyCostsData, type UnifiedCost } from "@/hooks/useCompanyCostsData";
 import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { EMPLOYEE_PROJECTION_MONTHS, computeCostiSenzaScadenza } from "@/lib/costsUtils";
 import { MonthPicker, type PeriodMode } from "./MonthPicker";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
+import { COLORI_GRAFICO, PillolaVariazione, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 
 // Filtri neutri: la Panoramica lavora sempre sul dataset completo e filtra
 // per periodo lato client (le query sono condivise con la tab Spese).
@@ -233,6 +235,15 @@ export function CostsOverviewTab({
     () => buildCostsOverview(allCosts, month, mode),
     [allCosts, month, mode],
   );
+  const idTrend = idSvg(useId());
+  const fermoTrend = usePreferisceMenoMovimento();
+  // Riga sopra il grafico: mese più caro, media dei 12 mesi, ultimo mese contro la media.
+  const statTrend = useMemo(() => {
+    if (trend.length === 0 || trend.every((t) => t.totale === 0)) return null;
+    const caro = trend.reduce((a, b) => (b.totale > a.totale ? b : a));
+    const media = trend.reduce((s, t) => s + t.totale, 0) / trend.length;
+    return { caro, media, ultimo: trend[trend.length - 1] };
+  }, [trend]);
 
   // Il personale è proiettato solo fino a +EMPLOYEE_PROJECTION_MONTHS mesi:
   // oltre, un mese "leggero" non significa meno costi ma fine della proiezione.
@@ -283,7 +294,7 @@ export function CostsOverviewTab({
             }}
           />
           {/* Ampiezza periodo: mese / trimestre / anno */}
-          <div className="flex items-center gap-0.5 rounded-xl border border-slate-200 bg-white p-1 shadow-sm max-sm:hidden">
+          <div className="flex items-center gap-0.5 rounded-xl border border-border bg-card p-1 shadow-sm max-sm:hidden">
             {MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.id}
@@ -296,7 +307,7 @@ export function CostsOverviewTab({
                   "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                   mode === opt.id
                     ? "bg-orange-500 text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-slate-100",
+                    : "text-muted-foreground hover:bg-muted",
                 )}
               >
                 {opt.label}
@@ -309,8 +320,8 @@ export function CostsOverviewTab({
             variant="outline"
             className={cn(
               "gap-1 text-xs max-sm:hidden",
-              deltaPct > 3 && "border-red-300 text-red-700",
-              deltaPct < -3 && "border-emerald-300 text-emerald-700",
+              deltaPct > 3 && "border-red-300 text-red-700 dark:text-red-400",
+              deltaPct < -3 && "border-emerald-300 text-emerald-700 dark:text-emerald-400",
             )}
           >
             {deltaPct > 3 ? (
@@ -327,7 +338,7 @@ export function CostsOverviewTab({
 
       {/* Testata navy di famiglia: il periodo scelto in tre card in vetro.
           Mobile: due numeri, nome e cifra (vedi sotto). */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+      <div className="overflow-hidden rounded-2xl border border-border shadow-sm max-sm:hidden">
         {/* Senza il titoletto «Panoramica — Dove vanno i soldi · settembre»:
             il periodo è nel selettore sopra e «Dove vanno i soldi» è il titolo
             del riquadro subito sotto. */}
@@ -339,6 +350,8 @@ export function CostsOverviewTab({
               sub={`${voci.length} voci · prima ${formatCurrency(totalePrec)}`}
               icon={Wallet}
               tone="text-orange-100"
+              // Costi che salgono: pillola rossa.
+              variazione={totalePrec > 0 ? { pct: ((totalePeriodo - totalePrec) / totalePrec) * 100, piuEMeglio: false, nota: "Rispetto al periodo prima" } : undefined}
             />
             <NavyStatCard
               label="Già pagato"
@@ -389,7 +402,7 @@ export function CostsOverviewTab({
 
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Ripartizione per voce */}
-        <Card className="rounded-2xl border-slate-200 shadow-sm lg:col-span-3 max-sm:rounded-lg">
+        <Card className="rounded-2xl border-border shadow-sm lg:col-span-3 max-sm:rounded-lg">
           <CardHeader className="pb-2 max-sm:p-3 max-sm:pb-1">
             <CardTitle className="text-base max-sm:text-sm">
               {drill ? (
@@ -420,10 +433,10 @@ export function CostsOverviewTab({
                 {drill.costs.map((c) => (
                   <div
                     key={c.id}
-                    className="flex items-center gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2 max-sm:gap-2 max-sm:px-2"
+                    className="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2 max-sm:gap-2 max-sm:px-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800 max-sm:text-[13px]">{c.name}</p>
+                      <p className="truncate text-sm font-medium text-foreground max-sm:text-[13px]">{c.name}</p>
                       <p className="truncate text-xs text-muted-foreground max-sm:text-[11px]">
                         {[
                           c.supplierName,
@@ -442,7 +455,7 @@ export function CostsOverviewTab({
                     >
                       {c.is_paid ? "Pagato" : "Da pagare"}
                     </Badge>
-                    <span className={cn("w-24 shrink-0 text-right text-sm font-semibold tabular-nums max-sm:w-auto max-sm:text-[13px]", c.is_paid && "max-sm:text-emerald-700")}>
+                    <span className={cn("w-24 shrink-0 text-right text-sm font-semibold tabular-nums max-sm:w-auto max-sm:text-[13px]", c.is_paid && "max-sm:text-emerald-700 dark:text-emerald-400")}>
                       {formatCurrency(Number(c.amount))}
                     </span>
                   </div>
@@ -459,10 +472,10 @@ export function CostsOverviewTab({
                       key={v.nome}
                       type="button"
                       onClick={() => setDrillVoce(v.nome)}
-                      className="tap-compact group w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-slate-50"
+                      className="tap-compact group w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
                     >
                       <div className="flex items-baseline justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800 max-sm:text-[13px]">
+                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground max-sm:text-[13px]">
                           <span
                             className="h-2.5 w-2.5 shrink-0 rounded-sm"
                             style={{ backgroundColor: color }}
@@ -472,14 +485,14 @@ export function CostsOverviewTab({
                             {v.count} {v.count === 1 ? "costo" : "costi"}
                           </span>
                         </span>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900 max-sm:text-[13px]">
+                        <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground max-sm:text-[13px]">
                           {formatCurrency(v.totale)}
                           <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                             {pct >= 0.5 ? `${pct.toFixed(0)}%` : "<1%"}
                           </span>
                         </span>
                       </div>
-                      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100 max-sm:mt-1 max-sm:h-1.5">
+                      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted max-sm:mt-1 max-sm:h-1.5">
                         <div
                           className="h-full rounded-full transition-all group-hover:opacity-80"
                           style={{ width: `${Math.max(barPct, 2)}%`, backgroundColor: color }}
@@ -498,16 +511,33 @@ export function CostsOverviewTab({
 
         {/* Trend 12 mesi — cliccabile: un click su un mese ci naviga sopra.
             Mobile no: analisi da scrivania, il mese si cambia in cima. */}
-        <Card className="rounded-2xl border-slate-200 shadow-sm lg:col-span-2 max-sm:hidden">
+        <Card className="rounded-2xl border-border shadow-sm lg:col-span-2 max-sm:hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Andamento — ultimi 12 mesi</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[260px]">
+            {statTrend && (
+              <div className="mb-3 grid grid-cols-3 gap-2 rounded-xl border bg-muted/30 px-3 py-2">
+                <StatGrafico etichetta="Mese più caro" valore={formatCurrencyCompact(statTrend.caro.totale)} nota={statTrend.caro.label} />
+                <StatGrafico etichetta="Media" valore={formatCurrencyCompact(statTrend.media)} nota="al mese" />
+                <StatGrafico
+                  etichetta="Ultimo mese"
+                  valore={
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      {formatCurrencyCompact(statTrend.ultimo.totale)}
+                      <PillolaVariazione pct={statTrend.media > 0 ? ((statTrend.ultimo.totale - statTrend.media) / statTrend.media) * 100 : null} piuEMeglio={false} titolo="Rispetto alla media dei 12 mesi" />
+                    </span>
+                  }
+                  nota="contro la media"
+                />
+              </div>
+            )}
+            <div className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart
                   data={trend}
-                  margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+                  margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
+                  barCategoryGap="22%"
                   onClick={(state) => {
                     const idx = (state as { activeTooltipIndex?: number } | null)?.activeTooltipIndex;
                     if (typeof idx === "number" && trend[idx]) {
@@ -517,30 +547,30 @@ export function CostsOverviewTab({
                   }}
                   className="cursor-pointer"
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis
-                    tick={{ fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={52}
-                    tickFormatter={(v: number) =>
-                      v >= 1000 ? `${Math.round(v / 1000)}k€` : `${v}€`
-                    }
-                  />
+                  {defsGrafico(idTrend, { personale: COLORI_GRAFICO.arancio, altro: "hsl(var(--muted-foreground))", totale: COLORI_GRAFICO.blu })}
+                  <CartesianGrid fill={`url(#${idTrend}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" tick={TESTO_ASSE} axisLine={false} tickLine={false} tickMargin={6} />
+                  <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={56} tickFormatter={euroAsse} />
                   <RechartsTooltip
-                    formatter={(value: number, name: string) => [
-                      formatCurrency(value),
-                      name === "personale" ? "Personale" : name === "altro" ? "Altri costi" : "Totale",
-                    ]}
-                    labelStyle={{ textTransform: "capitalize" }}
+                    cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+                    content={(p) => (
+                      <TooltipScheda
+                        active={p.active}
+                        payload={(p.payload ?? []).map((x) => ({
+                          ...x,
+                          name: x.dataKey === "personale" ? "Personale" : x.dataKey === "altro" ? "Altri costi" : "Totale",
+                          color: x.dataKey === "personale" ? COLORI_GRAFICO.arancio : x.dataKey === "altro" ? "hsl(var(--muted-foreground))" : COLORI_GRAFICO.blu,
+                        })) as never}
+                        label={String(p.label ?? "")}
+                      />
+                    )}
                   />
-                  <Bar dataKey="personale" stackId="tot" fill="#f97316" name="personale">
+                  <Bar dataKey="personale" stackId="tot" fill={`url(#${idTrend}-barra-personale)`} name="personale" isAnimationActive={!fermoTrend} animationDuration={700}>
                     {trend.map((t, i) => (
                       <Cell key={i} fillOpacity={t.inPeriodo ? 1 : 0.55} />
                     ))}
                   </Bar>
-                  <Bar dataKey="altro" stackId="tot" fill="#94a3b8" name="altro" radius={[3, 3, 0, 0]}>
+                  <Bar dataKey="altro" stackId="tot" fill={`url(#${idTrend}-barra-altro)`} name="altro" radius={[4, 4, 0, 0]} isAnimationActive={!fermoTrend} animationDuration={700} animationBegin={120}>
                     {trend.map((t, i) => (
                       <Cell key={i} fillOpacity={t.inPeriodo ? 1 : 0.55} />
                     ))}
@@ -549,23 +579,27 @@ export function CostsOverviewTab({
                     type="monotone"
                     dataKey="totale"
                     name="totale"
-                    stroke="#0ea5e9"
-                    strokeWidth={2}
+                    stroke={COLORI_GRAFICO.blu}
+                    strokeWidth={2.5}
+                    filter={`url(#${idTrend}-ombra)`}
                     dot={false}
-                    activeDot={{ r: 4 }}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))", fill: COLORI_GRAFICO.blu }}
+                    isAnimationActive={!fermoTrend}
+                    animationDuration={900}
+                    animationBegin={250}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-orange-500" /> Personale
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.arancio }} /> Personale
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-sm bg-slate-400" /> Altri costi
+                <span className="h-2.5 w-2.5 rounded-sm bg-muted-foreground" /> Altri costi
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="h-0.5 w-3 rounded-full bg-sky-500" /> Totale
+                <span className="h-0.5 w-3 rounded-full" style={{ background: COLORI_GRAFICO.blu }} /> Totale
               </span>
               <span className="ml-auto text-[11px]">Clicca un mese per navigarci</span>
             </div>

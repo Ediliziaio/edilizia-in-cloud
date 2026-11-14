@@ -178,6 +178,15 @@ Dentro Tesoreria la pagina ha **due titoli**: la testata di Tesoreria più l'`<h
 - **Scritture:** riga dei numeri (scritture dell'esercizio, da registrare, ultima registrazione).
 - **Tema scuro** (5 colori fissi) e **telefono:** viste in un selettore, tabelle che scorrono, niente grafici.
 
+### Cosa è cambiato rispetto al piano (lotto 2, fatto)
+
+- **Costi, riquadro scuro «Budget dell'anno»:** non fatto. Il budget per categoria e mese vive nella scheda Pianificazione, dove «Budget vs Effettivo» ora ha le barre rosse e verdi sfumate; un riquadro annuale avrebbe richiesto una lettura nuova di `cost_budgets` per tutto l'anno.
+- **Costi, «Ripartizione per voce»:** era già a barre con la quota, quindi è passata solo ai colori del tema.
+- **Costi, torta delle categorie (Pianificazione):** resta una torta con le etichette, perché la ciambella senza etichette chiedeva una legenda nuova; ha il bordo del tema e l'animazione.
+- **Personale:** la ciambella ore ordinarie/straordinari è diventata un riquadro scuro con una barra divisa e la saturazione media. Le ore per commessa contano anche gli straordinari.
+- **Contabilità, ciambelle di attivo e passivo, barre della Liquidazione IVA e riga dei numeri nelle Scritture:** non fatti in questo lotto. Il Bilancio ha i riquadri e il grafico mensile; restano da fare.
+- **Demo Azienda 2** non ha né conti né scritture contabili: il Bilancio è stato provato a video con scritture di prova. I costi invece sono quelli veri, raggruppati per mese.
+
 ## Lotto 3: reportistica marketing (3 schede della stessa pagina)
 
 ### `/azienda/marketing/reportistica`, scheda CRM e vendite

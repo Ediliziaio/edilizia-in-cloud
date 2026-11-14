@@ -103,7 +103,12 @@ export function NavyStatCard({
       </span>
       <span className="min-w-0">
         <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{label}</span>
-        <span className="block truncate text-lg font-bold text-white xl:text-xl">{value}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="block truncate text-lg font-bold text-white xl:text-xl">{value}</span>
+          {variazione && (
+            <PillolaVariazione pct={variazione.pct} piuEMeglio={variazione.piuEMeglio} neutra={variazione.neutra} titolo={variazione.nota} suScuro className="shrink-0" />
+          )}
+        </span>
         {sub && <span className="mt-0.5 block text-xs text-blue-50/70">{sub}</span>}
       </span>
     </div>

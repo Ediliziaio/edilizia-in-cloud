@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { COLORI_GRAFICO, TESTO_ASSE, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { Clock, Calculator, TrendingUp, ArrowUpDown, Eye, BarChart3, AlertTriangle, CheckCircle2, Target, WalletCards } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +15,7 @@ import type { BreakEvenData } from "@/hooks/useCompanyCostsData";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  Cell, PieChart, Pie, LineChart, Line,
+  Cell, PieChart, Pie, ComposedChart, Area, Line,
 } from "recharts";
 import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
 
@@ -77,6 +79,8 @@ const PIE_COLORS = [
 ];
 
 export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear, onYearChange, activeStatusTab, onStatusTabChange, categoryDistribution = [], availableYears = [], fixedCostsTrend = [], breakEvenData, senzaScadenza, rateFinanziamenti = 0, circolante = null, mediaUsciteMensili = 0 }: CostsStatsCardsProps) {
+  const idDist = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
   // Il budget in quattro righe: fissi annui + utile voluto → fatturato
   // obiettivo → commesse al mese. L'utile è una scelta del titolare, non una
   // previsione: si scrive qui e non si salva da nessuna parte.
@@ -97,7 +101,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
     <>
       {/* Testata navy di famiglia: la situazione dell'anno in quattro card
           in vetro, col selettore anno in chiaro sul blu. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-border shadow-sm">
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -125,7 +129,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 <Button
                   size="sm"
                   variant="outline"
-                  className={selectedYear === currentYear ? "border-white bg-white text-eic-navy-deep hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
+                  className={selectedYear === currentYear ? "border-white bg-card text-eic-navy-deep hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
                   onClick={() => onYearChange(currentYear)}
                 >
                   {currentYear}
@@ -133,7 +137,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 <Button
                   size="sm"
                   variant="outline"
-                  className={selectedYear === currentYear - 1 ? "border-white bg-white text-eic-navy-deep hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
+                  className={selectedYear === currentYear - 1 ? "border-white bg-card text-eic-navy-deep hover:bg-white" : "border-white/25 bg-white/10 text-white hover:bg-white/20"}
                   onClick={() => onYearChange(currentYear - 1)}
                 >
                   {currentYear - 1}
@@ -221,14 +225,14 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             contenere perché senza scadenza, resi visibili e cliccabili. */}
         <button
           type="button"
-          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "senza_scadenza" ? "ring-2 ring-slate-500 bg-slate-100 dark:bg-slate-900/20 border-slate-400" : "bg-slate-50 dark:bg-slate-900/10 border-slate-200 dark:border-slate-700"}`}
+          className={`p-4 rounded-lg border text-left transition-all hover:shadow-md ${activeStatusTab === "senza_scadenza" ? "ring-2 ring-slate-500 bg-muted dark:bg-slate-900/20 border-slate-400" : "bg-muted/50 dark:bg-slate-900/10 border-border dark:border-slate-700"}`}
           onClick={() => handleCardClick("senza_scadenza")}
         >
           <div className="flex items-center gap-2 mb-1">
-            <ArrowUpDown className="h-4 w-4 text-slate-600" />
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs font-medium">Senza scadenza</span>
           </div>
-          <p className="text-xl font-bold text-slate-700 dark:text-slate-200 tabular-nums">{formatCurrency(senzaScadenza?.totale ?? 0)}</p>
+          <p className="text-xl font-bold text-muted-foreground dark:text-slate-200 tabular-nums">{formatCurrency(senzaScadenza?.totale ?? 0)}</p>
           <p className="text-[10px] text-muted-foreground">{senzaScadenza?.count ?? 0} costi fuori dai totali di periodo · importo senza IVA</p>
         </button>
       </div>
@@ -271,8 +275,9 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
         <CardContent>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyDistribution}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <BarChart data={monthlyDistribution} barCategoryGap="20%">
+                {defsGrafico(idDist, { fissi: COLORI_GRAFICO.rosso, variabili: "hsl(45 93% 47%)", previsto: COLORI_GRAFICO.blu, sostenuto: COLORI_GRAFICO.verde })}
+                <CartesianGrid fill={`url(#${idDist}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="month"
                   className="text-xs"
@@ -294,13 +299,17 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 />
                 <YAxis
                   className="text-xs"
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  tick={TESTO_ASSE}
+                  axisLine={false}
+                  tickLine={false}
+                  width={60}
                   tickFormatter={formatCurrencyCompact}
                 />
                 <RechartsTooltip
+                  cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
                   formatter={(value: number, name: string) => [formatCurrency(value), name]}
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
+                    backgroundColor: "hsl(var(--popover))",
                     borderColor: "hsl(var(--border))",
                     borderRadius: "8px",
                     fontSize: 12,
@@ -330,15 +339,15 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                     );
                   } : undefined}
                 />
-                <Legend />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
                 {chartView === "current" ? (
                   <>
-                    <Bar dataKey="Fissi" fill="hsl(0 84.2% 60.2%)" radius={[2, 2, 0, 0]} barSize={16}>
+                    <Bar dataKey="Fissi" fill={`url(#${idDist}-barra-fissi)`} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={!fermo} animationDuration={700}>
                       {monthlyDistribution.map((entry, i) => (
                         <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
                       ))}
                     </Bar>
-                    <Bar dataKey="Variabili" fill="hsl(45 93% 47%)" radius={[2, 2, 0, 0]} barSize={16}>
+                    <Bar dataKey="Variabili" fill={`url(#${idDist}-barra-variabili)`} radius={[4, 4, 0, 0]} maxBarSize={16} isAnimationActive={!fermo} animationDuration={700} animationBegin={100}>
                       {monthlyDistribution.map((entry, i) => (
                         <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
                       ))}
@@ -351,8 +360,11 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                       stroke="hsl(142 76% 36%)"
                       strokeWidth={1.5}
                       strokeDasharray="4 2"
-                      radius={[2, 2, 0, 0]}
-                      barSize={16}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={16}
+                      isAnimationActive={!fermo}
+                      animationDuration={700}
+                      animationBegin={200}
                     >
                       {monthlyDistribution.map((entry, i) => (
                         <Cell key={i} fillOpacity={entry.isCurrent ? 0.35 : 0.2} />
@@ -361,12 +373,12 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                   </>
                 ) : (
                   <>
-                    <Bar dataKey="Previsto" fill="hsl(217 91% 60%)" radius={[2, 2, 0, 0]} barSize={20}>
+                    <Bar dataKey="Previsto" fill={`url(#${idDist}-barra-previsto)`} radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={!fermo} animationDuration={700}>
                       {monthlyDistribution.map((entry, i) => (
                         <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
                       ))}
                     </Bar>
-                    <Bar dataKey="Sostenuto" fill="hsl(142 76% 36%)" radius={[2, 2, 0, 0]} barSize={20}>
+                    <Bar dataKey="Sostenuto" fill={`url(#${idDist}-barra-sostenuto)`} radius={[4, 4, 0, 0]} maxBarSize={20} isAnimationActive={!fermo} animationDuration={700} animationBegin={120}>
                       {monthlyDistribution.map((entry, i) => (
                         <Cell key={i} fillOpacity={entry.isCurrent ? 1 : 0.7} />
                       ))}
@@ -401,6 +413,10 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                     nameKey="name"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     labelLine={{ strokeWidth: 1 }}
+                    stroke="hsl(var(--card))"
+                    strokeWidth={2}
+                    isAnimationActive={!fermo}
+                    animationDuration={800}
                   >
                     {categoryDistribution.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -408,7 +424,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                   </Pie>
                   <RechartsTooltip
                     formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                    contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: "12px", fontSize: 12 }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -432,9 +448,9 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                 <span className="text-sm font-semibold">Break-even mensile</span>
               </div>
               <Badge className={cn(
-                breakEvenData.status === "above" && "bg-green-100 text-green-800",
-                breakEvenData.status === "near"  && "bg-orange-100 text-orange-800",
-                breakEvenData.status === "below" && "bg-red-100 text-red-800",
+                breakEvenData.status === "above" && "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300",
+                breakEvenData.status === "near"  && "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300",
+                breakEvenData.status === "below" && "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300",
               )}>
                 {breakEvenData.status === "above" ? "Coperto ✓" : breakEvenData.status === "near" ? "Quasi coperto" : "Sotto break-even"}
               </Badge>
@@ -510,7 +526,7 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
 
             {/* Il budget in quattro righe: sopra il pareggio c'è l'obiettivo.
                 Fatturato obiettivo = (fissi annui + utile voluto) ÷ margine%. */}
-            <div className="mt-3 border-t border-slate-200/70 pt-3">
+            <div className="mt-3 border-t border-border/70 pt-3">
               <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="utile-voluto" className="text-xs font-medium">
                   Il pareggio non basta: quanto utile vuoi quest'anno?
@@ -521,11 +537,11 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
                   placeholder="es. 100.000"
                   value={utileVolutoRaw}
                   onChange={(e) => setUtileVolutoRaw(e.target.value)}
-                  className="h-8 w-32 bg-white"
+                  className="h-8 w-32 bg-card"
                 />
               </div>
               {utileVoluto > 0 && breakEvenData.averageOrderMargin > 0 && (
-                <p className="mt-2 text-xs text-slate-700">
+                <p className="mt-2 text-xs text-muted-foreground">
                   Servono{" "}
                   <strong>
                     {formatCurrency((breakEvenData.monthlyFixedCosts * 12 + utileVoluto) / (breakEvenData.averageOrderMargin / 100))}
@@ -571,16 +587,18 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
           <CardContent>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={fixedCostsTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                <ComposedChart data={fixedCostsTrend} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  {defsGrafico(`${idDist}f`, { fissi: COLORI_GRAFICO.rosso })}
+                  <CartesianGrid fill={`url(#${idDist}f-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                  <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
                   <RechartsTooltip
                     formatter={(value: number) => [`${value.toFixed(1)}%`, "Costi Fissi"]}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                    contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: "12px", fontSize: 12 }}
                   />
-                  <Line type="monotone" dataKey="pctFixed" name="% Fissi" stroke="hsl(0 84% 60%)" strokeWidth={2} dot={{ r: 3, fill: "hsl(0 84% 60%)" }} />
-                </LineChart>
+                  <Area type="monotone" dataKey="pctFixed" stroke="none" fill={`url(#${idDist}f-sfuma-fissi)`} isAnimationActive={!fermo} animationDuration={900} tooltipType="none" activeDot={false} />
+                  <Line type="monotone" dataKey="pctFixed" name="% Fissi" stroke={COLORI_GRAFICO.rosso} strokeWidth={2.5} filter={`url(#${idDist}f-ombra)`} dot={{ r: 3, fill: COLORI_GRAFICO.rosso, strokeWidth: 0 }} isAnimationActive={!fermo} animationDuration={900} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

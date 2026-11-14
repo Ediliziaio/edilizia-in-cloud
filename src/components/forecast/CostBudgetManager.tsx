@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useId, useState, useMemo } from "react";
+import { COLORI_GRAFICO, TESTO_ASSE, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfMonth } from "date-fns";
@@ -32,6 +34,8 @@ interface CostBudgetManagerProps {
 }
 
 export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettura = false }: CostBudgetManagerProps) {
+  const idBudget = idSvg(useId());
+  const fermoBudget = usePreferisceMenoMovimento();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -258,20 +262,22 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
           <CardContent>
             <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="category" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={formatCurrencyCompact} />
+                <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="24%">
+                  {defsGrafico(idBudget, { budget: "hsl(var(--muted-foreground))", ok: COLORI_GRAFICO.verde, fuori: COLORI_GRAFICO.rosso })}
+                  <CartesianGrid fill={`url(#${idBudget}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis dataKey="category" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
+                  <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={60} tickFormatter={formatCurrencyCompact} />
                   <RechartsTooltip
+                    cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
                     formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                    contentStyle={{ backgroundColor: "hsl(var(--card))", borderColor: "hsl(var(--border))", borderRadius: "8px", fontSize: 12 }}
+                    contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: "12px", fontSize: 12 }}
                   />
-                  <Legend />
-                  <Bar dataKey="Budget" fill="hsl(var(--muted-foreground))" radius={[3, 3, 0, 0]} barSize={16} opacity={0.4} />
-                  <Bar dataKey="Effettivo" radius={[3, 3, 0, 0]} barSize={16}>
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} formatter={(v: string) => <span className="text-muted-foreground">{v}</span>} />
+                  <Bar dataKey="Budget" fill={`url(#${idBudget}-barra-budget)`} fillOpacity={0.55} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermoBudget} animationDuration={700} />
+                  <Bar dataKey="Effettivo" fill={COLORI_GRAFICO.verde} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermoBudget} animationDuration={700} animationBegin={120}>
                     {chartData.map((entry, index) => (
-                      /* Safe: static color array, no item state */
-                      <Cell key={index} fill={entry.overBudget ? "hsl(0 84% 60%)" : "hsl(142 76% 36%)"} />
+                      /* Rosso se la categoria è fuori budget, verde se ci sta. */
+                      <Cell key={index} fill={`url(#${idBudget}-barra-${entry.overBudget ? "fuori" : "ok"})`} />
                     ))}
                   </Bar>
                 </BarChart>

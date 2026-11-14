@@ -372,3 +372,28 @@ export function htmlBilancioSezioni(d: { azienda: AziendaIntestazione; bilancio:
     vuoto: "Nessuna scrittura: il bilancio nasce dalla contabilità generale.",
   });
 }
+
+export interface RicaviCostiMese {
+  mese: number;
+  ricavi: number;
+  costi: number;
+}
+
+/**
+ * Ricavi e costi di ogni mese dell'esercizio, dalle stesse regole del bilancio
+ * a sezioni (epilogo di chiusura escluso): il conto economico a fine mese meno
+ * quello a fine del mese prima.
+ */
+export function ricaviECostiPerMese(scritture: readonly Scrittura[], conti: readonly ContoContabile[], anno: number): RicaviCostiMese[] {
+  const out: RicaviCostiMese[] = [];
+  let prima = { ricavi: 0, costi: 0 };
+  for (let m = 1; m <= 12; m++) {
+    // «-31» va bene per ogni mese: le date si confrontano come testo.
+    const fine = `${anno}-${String(m).padStart(2, "0")}-31`;
+    const s = bilancioASezioni(saldiPerConto(scritture, conti, fine), conti);
+    const ora = { ricavi: cent(s.ricavi.totale), costi: cent(s.costi.totale) };
+    out.push({ mese: m, ricavi: (ora.ricavi - prima.ricavi) / 100, costi: (ora.costi - prima.costi) / 100 });
+    prima = ora;
+  }
+  return out;
+}
