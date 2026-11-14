@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
+import { codiceNormalizzato, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
 import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
@@ -612,21 +613,36 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setNumInstallments(insts.length);
     if ((ex.modalita_pagamento ?? "").toLowerCase().includes("finanz")) setValue("payment_type", "financing");
     if (ex.cliente.nome_completo.trim() && !contractNeedsAllocation(ex)) {
-      // Match sull'anagrafica PRIMA di proporre "nuovo cliente" (audit
-      // 2026-09, punto 4): se il cliente esiste già — nome uguale, anche
-      // invertito ("Mandelli Riccardo") — lo si aggancia e basta. Il dialog
-      // di creazione apre solo quando davvero non c'è.
-      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-      const cercato = norm(ex.cliente.nome_completo);
-      const cercatoInvertito = cercato.split(" ").reverse().join(" ");
-      const trovati = customers.filter((c) => {
-        const nome = norm(`${c.first_name ?? ""} ${c.last_name ?? ""}`);
-        return nome && (nome === cercato || nome === cercatoInvertito);
-      });
-      if (trovati.length === 1) {
-        setValue("customer_id", trovati[0].id);
-        toast.success(`Cliente agganciato all'anagrafica esistente: ${trovati[0].first_name ?? ""} ${trovati[0].last_name ?? ""}`.trim());
-      } else {
+      // Match sull'anagrafica PRIMA di proporre "nuovo cliente": codice fiscale o partita IVA, email, poi il nome
+      // con le stesse parole in qualsiasi ordine (lib/clienti/clienteDaContratto, 14/11/2026). Prima bastava che
+      // l'AI aggiungesse la città o un «Sig.» per aprire «Nuovo cliente» su un cliente che c'era già.
+      void (async () => {
+        let anagrafica: ClienteAnagrafica[] = customers;
+        const codici = [ex.cliente.codice_fiscale, ex.cliente.partita_iva].map(codiceNormalizzato).filter((c) => c.length >= 11);
+        if (codici.length && effectiveCompany?.id) {
+          // L'elenco dei clienti non porta i codici: si leggono solo per chi ha quei codici.
+          const varianti = [...new Set(codici.flatMap((c) => [c, `IT${c}`]))].join(",");
+          const { data } = await supabase.from("profiles")
+            .select("id, first_name, last_name, email, business_name, fiscal_code, vat_number")
+            .eq("company_id", effectiveCompany.id)
+            .or(`fiscal_code.in.(${varianti}),vat_number.in.(${varianti})`);
+          const sonoClienti = new Set(customers.map((c) => c.id));
+          const conCodice = ((data ?? []) as ClienteAnagrafica[]).filter((c) => sonoClienti.has(c.id));
+          anagrafica = [...conCodice, ...customers.filter((c) => !conCodice.some((x) => x.id === c.id))];
+        }
+        const aggancio = trovaClienteDaContratto(ex.cliente, anagrafica);
+        if (aggancio.esito === "trovato") {
+          const c = aggancio.cliente;
+          setValue("customer_id", c.id);
+          toast.success(`Cliente agganciato all'anagrafica esistente: ${`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || c.business_name || c.email || ""}`.trim(),
+            { description: aggancio.per === "codice" ? "Stesso codice fiscale o partita IVA." : aggancio.per === "email" ? "Stessa email." : "Stesso nome." });
+          return;
+        }
+        if (aggancio.esito === "ambiguo") {
+          // Più clienti uguali: nessuno è scelto a caso, e non se ne crea un altro.
+          toast.warning(`${aggancio.candidati.length} clienti corrispondono a «${ex.cliente.nome_completo}»`, { description: "Scegli quello giusto dall'elenco Cliente.", duration: 10000 });
+          return;
+        }
         setAiCustomerInitial({
           fullName: ex.cliente.nome_completo,
           email: ex.cliente.email ?? undefined,
@@ -635,7 +651,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           fiscalCode: ex.cliente.codice_fiscale ?? ex.cliente.partita_iva ?? undefined,
         });
         setShowCreateCustomer(true);
-      }
+      })();
     }
   };
 
