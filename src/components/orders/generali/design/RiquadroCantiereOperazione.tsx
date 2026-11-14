@@ -18,6 +18,7 @@ import { FasiDalPianoDialog } from "./FasiDalPianoDialog";
 
 interface Fase {
   id: string;
+  order_id: string;
   name: string;
   status: string;
   percentuale: number;
@@ -34,20 +35,27 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
   const n = useGeneralePianoNumeri(riepilogo);
+  // Le fasi della generale e quelle delle commesse dentro (lotto C, 14/11/2026): prima
+  // l'avanzamento contava solo la generale, e un lotto finito non muoveva niente.
+  const ids = [generaleId, ...riepilogo.figlie.map((f) => f.id)];
+  const codici = new Map(riepilogo.figlie.map((f) => [f.id, f.codice] as const));
   const fasi = useQuery({
-    queryKey: ["generale-cantiere-fasi", generaleId],
+    queryKey: ["generale-cantiere-fasi", generaleId, ids.length],
     staleTime: 60_000,
     queryFn: async (): Promise<Fase[]> => {
       const { data, error } = await supabase
         .from("order_work_phases")
-        .select("id, name, status, percentuale, start_date, end_date")
-        .eq("order_id", generaleId)
+        .select("id, order_id, name, status, percentuale, start_date, end_date")
+        .in("order_id", ids)
         .order("position")
-        .limit(200);
+        .limit(500);
       if (error) throw error;
-      return (data ?? []) as Fase[];
+      // Prima quelle della generale, nel loro ordine; poi quelle delle commesse.
+      return ((data ?? []) as Fase[]).sort((a, b) => Number(a.order_id !== generaleId) - Number(b.order_id !== generaleId));
     },
   });
+  const nome = (f: Fase) => (f.order_id === generaleId ? f.name : `${f.name} (${codici.get(f.order_id) ?? "commessa"})`);
+  const sulleFiglie = (fasi.data ?? []).some((f) => f.order_id !== generaleId);
 
   const apri = (vista?: string) => {
     const dopo = new URLSearchParams(parametri);
@@ -119,11 +127,11 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
                 <div className="h-full rounded-full bg-emerald-500" style={{ width: `${avanzamento}%` }} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {finite} di {elenco.length} fasi finite{inCorso.length > 0 && <> · in corso: <span className="text-foreground">{inCorso.map((f) => f.name).join(", ")}</span></>}
+                {finite} di {elenco.length} fasi finite{sulleFiglie && " (con le commesse dentro)"}{inCorso.length > 0 && <> · in corso: <span className="text-foreground">{inCorso.map(nome).join(", ")}</span></>}
               </p>
               {prossime.length > 0 && (
-                <p className="truncate text-xs text-muted-foreground" title={prossime.map((f) => f.name).join(", ")}>
-                  Poi: {prossime.map((f) => `${f.name}${f.start_date ? ` (${dataBreve(f.start_date)})` : ""}`).join(", ")}
+                <p className="truncate text-xs text-muted-foreground" title={prossime.map(nome).join(", ")}>
+                  Poi: {prossime.map((f) => `${nome(f)}${f.start_date ? ` (${dataBreve(f.start_date)})` : ""}`).join(", ")}
                 </p>
               )}
             </>

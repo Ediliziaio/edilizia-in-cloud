@@ -10,7 +10,11 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
  */
 const m = vi.hoisted(() => ({ fasi: [] as unknown[], numeri: null as unknown }));
 vi.mock("@/integrations/supabase/client", () => {
-  const catena = { select: () => catena, eq: () => catena, order: () => catena, limit: async () => ({ data: m.fasi, error: null as unknown }) };
+  // Le fasi senza order_id sono della generale («g»).
+  const catena = {
+    select: () => catena, eq: () => catena, in: () => catena, order: () => catena,
+    limit: async () => ({ data: (m.fasi as Array<Record<string, unknown>>).map((f) => ({ order_id: "g", ...f })), error: null as unknown }),
+  };
   return { supabase: { from: () => catena } };
 });
 vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: () => m.numeri }));
@@ -18,7 +22,7 @@ vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 
-const riepilogo = { generale: { id: "g", modello: "sviluppo" }, figlie: [], permessi: { importi: true, costi: true, margini: true } } as unknown as RiepilogoGenerale;
+let riepilogo = { generale: { id: "g", modello: "sviluppo" }, figlie: [], permessi: { importi: true, costi: true, margini: true } } as unknown as RiepilogoGenerale;
 const riga = (data: string, descrizione: string, importo: number) => ({ id: `${data}${descrizione}`, tipo: "costo", data, descrizione, importo });
 
 function Indirizzo() {
@@ -61,6 +65,19 @@ describe("il cantiere in Panoramica", () => {
     expect(await screen.findByText("47%")).toBeInTheDocument();
     expect(screen.getByText(/1 di 3 fasi finite/)).toHaveTextContent("in corso: Strutture");
     expect(screen.getByText(/Poi: Impianti \(01\/03\/2027\)/)).toBeInTheDocument();
+  });
+
+  it("conta anche le fasi delle commesse dentro, col loro codice", async () => {
+    const prima = riepilogo;
+    riepilogo = { ...prima, figlie: [{ id: "f1", codice: "O-0038" }] } as unknown as RiepilogoGenerale;
+    m.fasi = [
+      { id: "4", order_id: "f1", name: "Massetti", status: "in_corso", percentuale: 50, start_date: null, end_date: null },
+      { id: "1", name: "Scavi", status: "completata", percentuale: 100, start_date: null, end_date: null },
+    ];
+    disegna();
+    expect(await screen.findByText("75%")).toBeInTheDocument();
+    expect(screen.getByText(/1 di 2 fasi finite \(con le commesse dentro\)/)).toHaveTextContent("in corso: Massetti (O-0038)");
+    riepilogo = prima;
   });
 
   it("le uscite del mese contro il previsto, in rosso se sopra; gli ultimi costi per data", async () => {
