@@ -164,7 +164,7 @@ Proposta da far scegliere al titolare:
 - le voci che non sono lavori restano costi della generale, senza fase.
 - Con D2 = appalto: niente fasi proprie, un contratto d'appalto con SAL (modulo esistente).
 
-### Lotto 7 — Dati di URBAN VISION (con il titolare)
+### Lotto 7 — Dati di URBAN VISION (con il titolare) — PARTE FATTA 14/11, domande inviate
 - D5: inizio di Cherubini e Lotti → «Calendario» del piano.
 - D6: le 32 stime → «Completa le stime»; poi approvazione dei tre budget.
 - D4/D1: fonti in Investitori (mezzi propri, mutuo con erogazioni a SAL).
@@ -230,4 +230,22 @@ I lotti 1-4 non chiedono niente al titolare e si possono fare subito.
   Lotti 25 lavorazioni a 0 €, stime da fare; «Scavi e fondazioni» accesa a mano sulle due nuove
   costruzioni). Le lavorazioni prendono le date della fase, in parallelo (`20290322095500`).
   Resta «Verifica 8 lavorazioni»: nessuna fase ha ancora chi la fa (D2).
+- **Lotto 7.** Dai business plan (revisione 10/11/2026) le colonne «Costi reali» e «Saldo costi»
+  (= già pagato: Nuova Chimica 1.067 € = 875 € + IVA). Registrati come costi senza fattura,
+  pagati: acconto terreno Cherubini 200.000 € e acconto terreno Signori Faiola (Via Lotti)
+  200.000 €, data «al 10/11/2026» perché quella vera non c'è. Non registrati: 10.000 € a
+  Cincotta «pagato Pier» (pagati da una persona); fornitori nominati senza P.IVA (Anellino,
+  Cincotta, Andreoli, Falcocchio, Faiola: alla prima fattura XML sarebbero doppioni). Callimaco:
+  terreno 655.000 € nel piano, fattura ANIMA HOME 665.000 €. Le domande al titolare:
+  1. Società: le operazioni restano in URBAN VISION o avranno una società ciascuna?
+  2. Chi costruisce, per ogni operazione: operai vostri e subappalti, o un'impresa in appalto?
+  3. Inizio lavori di Cherubini e Lotti (oggi ipotizzato 03/2027).
+  4. Rogito dei terreni: data prevista; e in che data sono stati pagati i due acconti da 200.000 €?
+  5. Costi di costruzione di Cherubini e Lotti: c'è un computo o una stima a corpo?
+  6. Finanziamento: mutuo edilizio (banca, importo, erogazioni a SAL) e quanto mettono i soci.
+  7. Vendite sulla carta, con acconti e fideiussione, durante i lavori?
+  8. Le «Unità N»: appartamenti? m² e millesimi (o le planimetrie).
+  9. I 10.000 € pagati da Pier a Cincotta: da rimborsare a Pier, fattura in arrivo?
+  10. Callimaco: il piano dice 655.000 € per l'immobile, la fattura 665.000 €: aggiorno il piano?
+  11. Le 38 fatture caricate il 12/11: sono tutte pagate?
 
