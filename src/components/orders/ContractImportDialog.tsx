@@ -43,6 +43,10 @@ interface Props {
    *  né secondo upload (audit 2026-09, punto 1). */
   initialAnalysisId?: string | null;
   destinazione?: "cliente" | "appaltatore" | "generale_appalto";
+  /** Commessa già creata (14/11/2026): l'originale va sotto la sua cartella. La regola del bucket
+   *  (office_attachment_file_insert) accetta in order-attachments solo percorsi che iniziano con una commessa
+   *  modificabile: sotto `<azienda>/ai-contratti/` il caricamento è rifiutato. */
+  orderId?: string | null;
 }
 
 interface RemoteFileRef {
@@ -62,7 +66,7 @@ function fmtBytes(b: number): string {
   return b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId, destinazione = "cliente" }: Props) {
+export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId, destinazione = "cliente", orderId = null }: Props) {
   const { effectiveCompany } = useAuth();
   const workflowProfilo = useContractWorkflowProfile();
   const { perContratto: modelliFasi } = useFasiDiPartenza();
@@ -118,7 +122,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     const buf = await originale.arrayBuffer();
     const hashBuf = await crypto.subtle.digest("SHA-256", buf);
     const sha = Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    const path = `${companyId}/ai-contratti/${sha.slice(0, 32)}-${safeName(originale.name)}`;
+    const path = `${orderId ?? companyId}/ai-contratti/${sha.slice(0, 32)}-${safeName(originale.name)}`;
     // Lo stesso contenuto riusa il riferimento privato senza sovrascriverlo.
     const {error} = await supabase.storage.from(BUCKET).upload(path,originale,{upsert:false});
     if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(`Upload: ${error.message}`);

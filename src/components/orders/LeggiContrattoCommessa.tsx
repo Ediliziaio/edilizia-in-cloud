@@ -165,7 +165,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
       </Button>
       {lettore && (
         <Suspense fallback={<p role="status">Apertura lettore…</p>}>
-          <ContractImportDialog open companyId={companyId} destinazione={perCommittente ? "appaltatore" : "cliente"}
+          <ContractImportDialog open companyId={companyId} orderId={orderId} destinazione={perCommittente ? "appaltatore" : "cliente"}
             onOpenChange={setLettore} onApply={(ex, file) => void preparaAnteprima(ex, file)} />
         </Suspense>
       )}
