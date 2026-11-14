@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { ForecastCashChart } from "./ForecastCashChart";
+import { Ciambella } from "@/components/charts/grafici/Ciambella";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -443,6 +444,14 @@ export function ForecastWorkspace({
     ],
   );
   const weeks = useMemo(() => forecastWeeks(projection.days), [projection]);
+  // 14/11/2026: le uscite del periodo per categoria, per la ciambella sotto il grafico.
+  const usciteCategoria = useMemo(() => {
+    const somme = new Map<ForecastCategory, number>();
+    for (const d of projection.days)
+      for (const m of d.movements)
+        if (m.direction === "out") somme.set(m.category, (somme.get(m.category) ?? 0) + Math.abs(m.cents));
+    return [...somme].sort((a, b) => b[1] - a[1]);
+  }, [projection]);
   const risk = useMemo(
     () => forecastRisk(projection, f.threshold),
     [projection, f.threshold],
@@ -1276,6 +1285,26 @@ export function ForecastWorkspace({
               onPeriod={setChartPeriod}
               onTable={() => setFilter({ scheda: "settimane" })}
             />
+            {usciteCategoria.length > 1 && (
+              <div className="mt-3 rounded-2xl border bg-card p-4 shadow-sm">
+                <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold text-foreground">Dove va la cassa</p>
+                  <p className="text-xs text-muted-foreground">
+                    Uscite dei prossimi {f.horizon} giorni per categoria · clicca per filtrare
+                  </p>
+                </div>
+                <Ciambella
+                  titolo="Uscite per categoria"
+                  etichettaCentro="Uscite"
+                  dimensione={150}
+                  fette={usciteCategoria.map(([cat, cents]) => ({ nome: FORECAST_CATEGORIES[cat], valore: cents / 100 }))}
+                  onFetta={(nome) => {
+                    const cat = usciteCategoria.find(([c]) => FORECAST_CATEGORIES[c] === nome)?.[0];
+                    if (cat) setFilter({ categoria: cat });
+                  }}
+                />
+              </div>
+            )}
             <Sheet
               open={!!chartPeriod}
               onOpenChange={(open) => {

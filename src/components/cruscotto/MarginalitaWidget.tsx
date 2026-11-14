@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { loadArchivedOrderIds } from "@/lib/orders/archivedOrderScope";
 import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
+import { Ciambella } from "@/components/charts/grafici/Ciambella";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { leggiIdGenerali } from "@/hooks/useCommesseGenerali";
 import { formatCurrency } from "@/lib/formatters";
@@ -69,7 +70,16 @@ export function MarginalitaWidget() {
   // conteggio "in perdita" non nasconde commesse a rischio fuori dalle prime N.
   const summary = summarizeScostamenti(rows);
   // Mostra le commesse più a rischio per prime (in perdita → margine % crescente).
-  const topRows = computeScostamenti(rows).filter((row) => row.consuntivo > 0).slice(0, 5);
+  const conCosti = computeScostamenti(rows).filter((row) => row.consuntivo > 0);
+  const topRows = conCosti.slice(0, 5);
+  // 14/11/2026: quante commesse per fascia di margine, in una ciambella accanto
+  // alle cinque più a rischio. Stesse soglie dei bollini (10% e 25%).
+  const fasce = [
+    { nome: "In perdita", valore: conCosti.filter((r) => r.marginePerc < 0).length, colore: "hsl(0 72% 50%)" },
+    { nome: "Sotto il 10%", valore: conCosti.filter((r) => r.marginePerc >= 0 && r.marginePerc < 10).length, colore: "hsl(25 95% 53%)" },
+    { nome: "10–25%", valore: conCosti.filter((r) => r.marginePerc >= 10 && r.marginePerc < 25).length, colore: "hsl(43 96% 50%)" },
+    { nome: "Oltre il 25%", valore: conCosti.filter((r) => r.marginePerc >= 25).length, colore: "hsl(142 64% 40%)" },
+  ];
   const avgPerc = summary.margineMedioPerc;
 
   if (isLoading) {
@@ -169,7 +179,20 @@ export function MarginalitaWidget() {
         </Button>
       </CardHeader>
 
-      <CardContent className="p-3 pt-0 space-y-3">
+      <CardContent className="p-3 pt-0 grid gap-4 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
+        <div className="rounded-xl border bg-muted/20 p-3 max-sm:hidden">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Commesse con costi, per margine</p>
+          <Ciambella
+            titolo="Commesse per margine"
+            etichettaCentro="Commesse"
+            dimensione={120}
+            className="lg:grid-cols-1"
+            fette={fasce}
+            formato={(v) => String(v)}
+            formatoCentro={(v) => String(v)}
+          />
+        </div>
+        <div className="min-w-0 space-y-3">
         {topRows.map((row) => {
           const causa = row.cause[0];
           return (
@@ -224,6 +247,7 @@ export function MarginalitaWidget() {
           <span className={cn("font-semibold", margineColor(avgPerc))}>
             {formatCurrency(summary.margineTotale)}
           </span>
+        </div>
         </div>
       </CardContent>
     </Card>

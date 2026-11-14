@@ -4,6 +4,7 @@ import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { Clock, Calculator, TrendingUp, ArrowUpDown, Eye, BarChart3, AlertTriangle, CheckCircle2, Target, WalletCards } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Ciambella } from "@/components/charts/grafici/Ciambella";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -15,7 +16,7 @@ import type { BreakEvenData } from "@/hooks/useCompanyCostsData";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  Cell, PieChart, Pie, ComposedChart, Area, Line,
+  Cell, ComposedChart, Area, Line,
 } from "recharts";
 import type { StatusTabFilter } from "@/hooks/useCompanyCostsData";
 
@@ -399,36 +400,14 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             <CardDescription>Distribuzione delle uscite per tipologia</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[280px] flex items-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    labelLine={{ strokeWidth: 1 }}
-                    stroke="hsl(var(--card))"
-                    strokeWidth={2}
-                    isAnimationActive={!fermo}
-                    animationDuration={800}
-                  >
-                    {categoryDistribution.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip
-                    formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                    contentStyle={{ backgroundColor: "hsl(var(--popover))", borderColor: "hsl(var(--border))", borderRadius: "12px", fontSize: 12 }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {/* 14/11/2026: la ciambella condivisa, con la legenda in euro e percentuale
+                al posto delle etichette attorno alla torta che si accavallavano. */}
+            <Ciambella
+              titolo="Spese per categoria"
+              dimensione={170}
+              fette={[...categoryDistribution].sort((x, y) => y.value - x.value).map((c, i) => ({ nome: c.name, valore: c.value, colore: PIE_COLORS[i % PIE_COLORS.length] }))}
+              massimo={Math.min(PIE_COLORS.length, 7)}
+            />
           </CardContent>
         </Card>
       )}

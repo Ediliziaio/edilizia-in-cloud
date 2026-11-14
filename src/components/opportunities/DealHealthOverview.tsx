@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { calculateDealHealth, buildDealHealthInput } from "@/lib/dealHealthScore";
 import { CheckCircle, AlertTriangle, XCircle, Skull } from "lucide-react";
 import { salesOSKeys } from "@/hooks/useSalesOS";
+import { Ciambella } from "@/components/charts/grafici/Ciambella";
 
 interface DealHealthOverviewProps {
   companyId: string;
@@ -69,16 +70,49 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
     { label: 'Da recuperare', count: counts.dead, icon: Skull, bgClass: 'bg-slate-100 dark:bg-slate-900/30', iconClass: 'text-slate-500', valueClass: 'text-slate-700 dark:text-slate-400' },
   ];
 
+  // 14/11/2026: da computer una ciambella con la quota di ogni stato accanto ai
+  // quattro numeri; al telefono restano i quattro numeri in una riga.
+  const COLORI = ['hsl(142 64% 40%)', 'hsl(38 92% 50%)', 'hsl(0 72% 51%)', 'hsl(215 16% 47%)'];
+  const daSistemare = counts.critical + counts.dead;
   return (
-    // Telefono: quattro numeri in una riga, senza icone.
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-sm:grid-cols-4 max-sm:gap-1.5">
+    <>
+    <div className="grid grid-cols-4 gap-1.5 sm:hidden">
       {items.map((item) => (
-        <div key={item.label} className={`flex flex-col items-center p-3 rounded-lg max-sm:px-1 max-sm:py-2 ${item.bgClass}`}>
-          <item.icon className={`h-4 w-4 ${item.iconClass} mb-1 max-sm:hidden`} />
-          <span className={`text-xl font-bold max-sm:text-lg max-sm:leading-tight ${item.valueClass}`}>{item.count}</span>
-          <span className="text-[10px] text-muted-foreground max-sm:whitespace-nowrap max-sm:text-[11px]">{item.label}</span>
+        <div key={item.label} className={`flex flex-col items-center rounded-lg px-1 py-2 ${item.bgClass}`}>
+          <span className={`text-lg font-bold leading-tight ${item.valueClass}`}>{item.count}</span>
+          <span className="whitespace-nowrap text-[11px] text-muted-foreground">{item.label}</span>
         </div>
       ))}
     </div>
+    <div className="grid gap-4 rounded-2xl border bg-card p-4 shadow-sm max-sm:hidden lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+      <div>
+        <p className="text-sm font-semibold text-foreground">Salute delle trattative aperte</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          {total} aperte · {daSistemare > 0 ? `${daSistemare} da riprendere in mano (critiche o da recuperare)` : 'nessuna critica'}
+        </p>
+        <Ciambella
+          titolo="Salute delle trattative"
+          etichettaCentro="Aperte"
+          dimensione={130}
+          formato={(v) => String(v)}
+          formatoCentro={(v) => String(v)}
+          fette={items.map((item, i) => ({ nome: item.label, valore: item.count, colore: COLORI[i] }))}
+        />
+      </div>
+      <div className="grid grid-cols-2 content-center gap-3 md:grid-cols-4 lg:grid-cols-2">
+        {items.map((item) => (
+          <div key={item.label} className={`flex items-center gap-3 rounded-xl p-3 ${item.bgClass}`}>
+            <item.icon className={`h-5 w-5 shrink-0 ${item.iconClass}`} />
+            <div className="min-w-0">
+              <p className={`text-2xl font-bold leading-none tabular-nums ${item.valueClass}`}>{item.count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {item.label} · {Math.round((item.count / total) * 100)}%
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+    </>
   );
 });

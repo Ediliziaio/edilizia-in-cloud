@@ -32,7 +32,8 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
+  ComposedChart,
+  Area,
   Line,
   CartesianGrid,
   Legend,
@@ -55,6 +56,8 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
+import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, testoLegenda } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
 import { exportToCSV } from "@/lib/csvExport";
 import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib/export/esportazioniCrm";
@@ -539,12 +542,16 @@ function SalesFocusPanel({
 
   const NON_ARRIVATO = "Dati non arrivati";
   const metrics = [
+    // 14/11/2026: velocity e ricavo firmato stanno già nei due riquadri in cima,
+    // che il telefono non mostra: qui li vede solo il telefono.
     {
+      soloTelefono: true,
       label: "Velocity stimata",
       value: velocity ? `${fmt(velocity.sales_velocity)}/giorno` : erroreVelocity ? "—" : "...",
       detail: erroreVelocity ? NON_ARRIVATO : `${velocity?.open_opportunities ?? 0} opportunità aperte`,
     },
     {
+      soloTelefono: true,
       label: "Ricavo firmato",
       value: quoteRevenue ? fmt(actualRevenue) : errorePreventivi ? "—" : "...",
       detail: errorePreventivi ? NON_ARRIVATO : `${quoteRevenue?.signed_quotes_count ?? 0} preventivi firmati`,
@@ -617,9 +624,9 @@ function SalesFocusPanel({
                 </Badge>
               )}
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 max-sm:mt-0 max-sm:grid-cols-2 max-sm:gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 max-sm:mt-0 max-sm:grid-cols-2 max-sm:gap-2">
               {metrics.map((metric) => (
-                <div key={metric.label} className="rounded-md bg-background p-3 max-sm:border max-sm:px-2.5 max-sm:py-2">
+                <div key={metric.label} className={`rounded-md bg-background p-3 max-sm:border max-sm:px-2.5 max-sm:py-2 ${metric.soloTelefono ? "sm:hidden" : ""}`}>
                   <p className="text-[11px] font-medium text-muted-foreground">{metric.label}</p>
                   <p className="mt-1 text-lg font-semibold leading-tight max-sm:mt-0.5 max-sm:text-base">{metric.value}</p>
                   <p className="mt-1 text-xs text-muted-foreground max-sm:hidden">{metric.detail}</p>
@@ -706,6 +713,7 @@ function SalesFocusPanel({
 function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
   const { data: stages, isLoading, isError, error } = useWeightedPipeline(companyId, pipelineId);
   const navigate = useNavigate();
+  const fermo = usePreferisceMenoMovimento();
 
   if (isLoading || isError || !stages || stages.length === 0) {
     return (
@@ -747,42 +755,41 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
   };
 
   return (
-    <div className="space-y-4">
-      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-        <MousePointerClick className="h-3 w-3" /> Clicca una colonna per filtrare le opportunità
-      </p>
+    <div className="space-y-3">
       <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={chartData} onClick={(e: any) => {
+        <BarChart data={chartData} barGap={-22} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} onClick={(e: any) => {
           const payload = e?.activePayload?.[0]?.payload;
           if (payload) handleBarClick(payload);
         }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={formatCurrencyCompact} />
+          {defsGrafico("salesos-pipeline", { tot: "hsl(var(--muted-foreground))", pesato: COLORI_GRAFICO.blu })}
+          <CartesianGrid fill="url(#salesos-pipeline-punti)" vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+          <XAxis dataKey="name" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} interval={0} />
+          <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={60} tickFormatter={euroAsse} />
           <Tooltip
-            formatter={(value: number, name: string) =>
-              name === "Prob %" ? [`${value}%`, name] : [fmt(value), name]
-            }
+            cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+            content={(p) => (
+              <TooltipScheda
+                active={p.active}
+                label={p.label}
+                payload={(p.payload ?? []).map((x) => ({ ...x, color: x.dataKey === "Valore pesato" ? COLORI_GRAFICO.blu : "hsl(var(--muted-foreground))" })) as never}
+                extra={(r) => <span>{String(r["N° opp"] ?? 0)} opportunità · probabilità media {Math.round(Number(r["Prob %"] ?? 0))}%</span>}
+              />
+            )}
           />
-          <Legend />
-          <Bar dataKey="Valore totale" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} style={{ cursor: "pointer" }} />
-          <Bar dataKey="Valore pesato" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} style={{ cursor: "pointer" }} />
+          <Legend formatter={testoLegenda} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+          {/* Il pesato dentro il totale: la colonna chiara è quanto vale la fase, quella piena quanto ci si aspetta di chiudere. */}
+          <Bar dataKey="Valore totale" fill="url(#salesos-pipeline-barra-tot)" fillOpacity={0.35} maxBarSize={30} radius={[6, 6, 0, 0]} style={{ cursor: "pointer" }} isAnimationActive={!fermo} />
+          <Bar dataKey="Valore pesato" fill="url(#salesos-pipeline-barra-pesato)" maxBarSize={22} radius={[6, 6, 0, 0]} style={{ cursor: "pointer" }} isAnimationActive={!fermo} animationBegin={150} />
         </BarChart>
       </ResponsiveContainer>
-      <div className="grid grid-cols-2 gap-4 text-center">
-        <div>
-          <p className="text-lg font-bold">
-            {fmt(stages.reduce((a, s) => a + s.total_value, 0))}
-          </p>
-          <p className="text-xs text-muted-foreground">Valore totale pipeline</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold">
-            {fmt(stages.reduce((a, s) => a + s.weighted_value, 0))}
-          </p>
-          <p className="text-xs text-muted-foreground">Valore pesato</p>
-        </div>
+      <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+        <StatGrafico etichetta="Valore pipeline" valore={fmt(stages.reduce((a, s) => a + s.total_value, 0))} nota="trattative aperte" />
+        <StatGrafico etichetta="Valore pesato" valore={fmt(stages.reduce((a, s) => a + s.weighted_value, 0))} nota="per la probabilità" />
+        <StatGrafico etichetta="Opportunità" valore={String(stages.reduce((a, s) => a + s.opportunity_count, 0))} nota={`in ${stages.length} fasi`} />
       </div>
+      <p className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+        <MousePointerClick className="h-3 w-3" /> Clicca una colonna per aprire le opportunità
+      </p>
     </div>
   );
 }
@@ -791,6 +798,7 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
 
 function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
   const { data: forecast, isLoading, isError, error } = useSalesForecast(companyId, 3, pipelineId);
+  const fermo = usePreferisceMenoMovimento();
 
   if (isLoading || isError || !forecast || forecast.length === 0) {
     return (
@@ -820,20 +828,34 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-        <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
-        <YAxis
-          tick={{ fontSize: 11 }}
-          tickFormatter={formatCurrencyCompact}
-        />
-        <Tooltip formatter={(value: number, name: string) => [fmt(value), name]} />
-        <Legend />
-        <Line type="monotone" dataKey="Atteso" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" />
-        <Line type="monotone" dataKey="Pesato" stroke="hsl(var(--primary))" strokeWidth={2} />
-      </LineChart>
-    </ResponsiveContainer>
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+        <StatGrafico etichetta="Pesato 3 mesi" valore={fmt(chartData.reduce((a, r) => a + r.Pesato, 0))} nota="atteso × probabilità" />
+        <StatGrafico etichetta="Atteso 3 mesi" valore={fmt(chartData.reduce((a, r) => a + r.Atteso, 0))} nota="se chiudessero tutte" />
+        <StatGrafico etichetta="Opportunità" valore={String(chartData.reduce((a, r) => a + r["N° opp"], 0))} nota="con data di chiusura" />
+      </div>
+      <ResponsiveContainer width="100%" height={210}>
+        <ComposedChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+          {defsGrafico("salesos-forecast", { pesato: COLORI_GRAFICO.verde })}
+          <CartesianGrid fill="url(#salesos-forecast-punti)" vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+          <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
+          <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={60} tickFormatter={euroAsse} />
+          <Tooltip
+            content={(p) => (
+              <TooltipScheda
+                active={p.active}
+                label={p.label}
+                payload={(p.payload ?? []).filter((x) => x.dataKey !== "area").map((x) => ({ ...x, color: x.dataKey === "Pesato" ? COLORI_GRAFICO.verde : "hsl(var(--muted-foreground))" })) as never}
+              />
+            )}
+          />
+          <Legend formatter={testoLegenda} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+          <Area type="monotone" dataKey="Pesato" name="area" stroke="none" fill="url(#salesos-forecast-sfuma-pesato)" legendType="none" tooltipType="none" activeDot={false} isAnimationActive={!fermo} />
+          <Line type="monotone" dataKey="Atteso" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 5" dot={false} isAnimationActive={!fermo} />
+          <Line type="monotone" dataKey="Pesato" stroke={COLORI_GRAFICO.verde} strokeWidth={2.5} filter="url(#salesos-forecast-ombra)" dot={{ r: 3, fill: COLORI_GRAFICO.verde, strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} isAnimationActive={!fermo} animationDuration={900} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 

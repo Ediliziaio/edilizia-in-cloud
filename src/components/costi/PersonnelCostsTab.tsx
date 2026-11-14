@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { useState } from "react";
+import { Ciambella, COLORI_CIAMBELLA } from "@/components/charts/grafici/Ciambella";
 import { Link } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -499,11 +500,26 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
             <h3 className="text-sm font-semibold">Ore del mese per commessa</h3>
             <span className="text-[11px] text-muted-foreground">{righe.length} commesse · costo stimato su ore × costo orario</span>
           </div>
+          {/* 14/11/2026: accanto all'elenco, il costo stimato del mese diviso per commessa. */}
+          <div className="grid items-start gap-4 md:grid-cols-[140px_minmax(0,1fr)]">
+          <div className="max-md:hidden">
+            <Ciambella
+              titolo="Costo stimato per commessa"
+              etichettaCentro="Costo"
+              dimensione={140}
+              legenda={false}
+              massimo={7}
+              fette={righe.map((r, i) => ({ nome: r.codice, valore: r.costo, colore: COLORI_CIAMBELLA[i % COLORI_CIAMBELLA.length] }))}
+            />
+          </div>
           <ol className="space-y-2">
             {prime.map((r, i) => (
               <li key={r.codice + i} className="text-xs">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="min-w-0 truncate font-medium">{r.codice}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 font-medium">
+                    <span className="h-2 w-2 shrink-0 rounded-full max-md:hidden" style={{ background: r.costo > 0 ? COLORI_CIAMBELLA[i % COLORI_CIAMBELLA.length] : "transparent" }} />
+                    <span className="truncate">{r.codice}</span>
+                  </span>
                   <span className="shrink-0 tabular-nums">
                     <strong>{fmtOre(r.ore)}</strong>
                     <span className="ml-2 text-muted-foreground">{formatCurrency(r.costo)}</span>
@@ -516,6 +532,7 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
               </li>
             ))}
           </ol>
+          </div>
         </CardContent>
       </Card>
       <div className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 motion-safe:fill-mode-both dark:border-slate-700" style={{ animationDelay: "80ms" }}>

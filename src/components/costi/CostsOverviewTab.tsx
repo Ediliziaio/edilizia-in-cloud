@@ -34,6 +34,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Ciambella } from "@/components/charts/grafici/Ciambella";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -462,6 +463,17 @@ export function CostsOverviewTab({
                 ))}
               </div>
             ) : (
+              // 14/11/2026: la ciambella delle voci accanto all'elenco (da computer).
+              <div className="grid items-start gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
+              <div className="max-sm:hidden sm:sticky sm:top-2">
+                <Ciambella
+                  titolo="Dove vanno i soldi"
+                  legenda={false}
+                  massimo={VOCE_COLORS.length}
+                  fette={voci.map((v, idx) => ({ nome: v.nome, valore: v.totale, colore: VOCE_COLORS[idx % VOCE_COLORS.length] }))}
+                  onFetta={(nome) => setDrillVoce(nome)}
+                />
+              </div>
               <div className="space-y-2.5">
                 {voci.map((v, idx) => {
                   const pct = totalePeriodo > 0 ? (v.totale / totalePeriodo) * 100 : 0;
@@ -504,6 +516,7 @@ export function CostsOverviewTab({
                 <p className="pt-1 text-[11px] text-muted-foreground max-sm:hidden">
                   Clicca una voce per vedere i singoli costi del periodo.
                 </p>
+              </div>
               </div>
             )}
           </CardContent>
