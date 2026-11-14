@@ -360,12 +360,15 @@ function DocumentoInvioContent({
                   collegamento dell’ordine originale.
                 </p>
               </div>
+              {/* Consegna e referente del fornitore: non riguardano il rapporto dei lavori al committente (14/11/2026). */}
+              {d.tipo !== "economia" && (
               <DestinazioneDocumento
                 documento={d}
                 commessaId={commessaId}
                 onChange={(patch) => setD((prev) => ({ ...prev, ...patch }))}
               />
-              {!!d.referentiFornitore?.length && (
+              )}
+              {d.tipo !== "economia" && !!d.referentiFornitore?.length && (
                 <div className="sm:col-span-2">
                   <Label htmlFor="doc-referente-scelta">
                     Referenti registrati presso il fornitore
@@ -396,6 +399,7 @@ function DocumentoInvioContent({
                   </select>
                 </div>
               )}
+              {d.tipo !== "economia" && (<>
               <div>
                 <Label htmlFor="doc-referente">Nome referente fornitore</Label>
                 <Input
@@ -425,6 +429,7 @@ function DocumentoInvioContent({
                   onChange={(e) => cambia("referenteTelefono", e.target.value)}
                 />
               </div>
+              </>)}
               {(
                 [
                   ["periodo", "Periodo"],

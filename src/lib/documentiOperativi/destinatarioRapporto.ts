@@ -8,6 +8,7 @@ export interface OrdineDestinatarioRapporto {
   client_email?: string | null;
   client_address?: string | null;
   cliente?: {
+    business_name?: string | null;
     first_name?: string | null;
     last_name?: string | null;
     email?: string | null;
@@ -30,8 +31,9 @@ export function destinatarioDaOrdine(
 ): DocumentoOperativo["destinatario"] {
   const p = o.cliente;
   return {
+    // Un committente è una ditta: si intesta alla ragione sociale, non al referente (14/11/2026).
     nome: p
-      ? [p.first_name, p.last_name].filter(Boolean).join(" ").trim()
+      ? p.business_name?.trim() || [p.first_name, p.last_name].filter(Boolean).join(" ").trim()
       : o.client_company?.trim() || o.client_name?.trim() || "",
     email: emailVera(p ? p.email : o.client_email),
     indirizzo: (p ? p.address : o.client_address) ?? null,
@@ -46,7 +48,7 @@ export async function leggiDestinatarioRapporto(
   const { data, error } = await db
     .from("orders")
     .select(
-      "client_name, client_company, client_email, client_address, cliente:profiles!orders_customer_id_fkey(first_name, last_name, email, address)",
+      "client_name, client_company, client_email, client_address, cliente:profiles!orders_customer_id_fkey(business_name, first_name, last_name, email, address)",
     )
     .eq("id", orderId)
     .eq("company_id", companyId)

@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { formatCurrency } from "@/lib/formatters";
 import { avvisoUnita, CercaNelListino, COLORE_FONTE } from "@/components/orders/CercaNelListino";
+import { DocumentiRapportino } from "@/components/orders/DocumentiRapportino";
 import {
   etichettaPrezzo, prezzoModificatoAMano, totaliQuadro,
   type FontePrezzo, type MancanzaCosto, type VoceListino,
@@ -292,6 +293,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
           </div>
         )}
       </dl>
+      <DocumentiRapportino rapportinoId={rapportinoId} quadro={data} vedeImporti={vedeImporti} vedeMargini={!!permissions.canViewMargins} />
     </section>
   );
 }

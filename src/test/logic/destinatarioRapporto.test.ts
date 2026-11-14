@@ -41,6 +41,10 @@ describe("Il destinatario del riepilogo lavori", () => {
       }),
     ).toEqual({ nome: "Nuovo SIM", email: null, indirizzo: null });
   });
+  it("un committente si intesta alla ragione sociale, non al referente", () => {
+    expect(destinatarioDaOrdine({ cliente: { business_name: "Edil Costruzioni Rossi S.r.l.", first_name: "Marco", last_name: "Rossi" } }).nome)
+      .toBe("Edil Costruzioni Rossi S.r.l.");
+  });
   it("la lettura rimane nell’azienda e nella commessa scelte e rifiuta una commessa non accessibile", async () => {
     const eq = vi.fn((_campo: string, _valore: string): LetturaFinta => query);
     const query: LetturaFinta = {
