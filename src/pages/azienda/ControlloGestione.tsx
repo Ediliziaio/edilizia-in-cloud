@@ -34,6 +34,7 @@ import { TabPianoIndustriale } from "@/components/controllo-gestione/tabs/TabPia
 import { TabRatingBancario } from "@/components/controllo-gestione/tabs/TabRatingBancario";
 import { TabPacchettoBanca } from "@/components/controllo-gestione/tabs/TabPacchettoBanca";
 import { TabConfigurazione } from "@/components/controllo-gestione/tabs/TabConfigurazione";
+import { CategorieCassaConfig } from "@/components/controllo-gestione/CategorieCassaConfig";
 import { TabCashFlow } from "@/components/controllo-gestione/tabs/TabCashFlow";
 import { TabPFNDebiti } from "@/components/controllo-gestione/tabs/TabPFNDebiti";
 import { TabCommesse } from "@/components/controllo-gestione/tabs/TabCommesse";
@@ -313,7 +314,21 @@ export default function ControlloGestione() {
             <TabPacchettoBanca anno={filters.anno} />
           </TabsContent>
           <TabsContent value="config" className="mt-0">
-            <TabConfigurazione anno={filters.anno} />
+            {/* Cassa (cosa entra ed esce dal conto) e competenza (costi e ricavi del
+                conto economico) sono due classificazioni distinte: stessa pagina,
+                due schede, per non confonderle. */}
+            <Tabs defaultValue="cassa" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="cassa">Categorie del cash flow</TabsTrigger>
+                <TabsTrigger value="economico">Voci del conto economico</TabsTrigger>
+              </TabsList>
+              <TabsContent value="cassa" className="mt-0">
+                <CategorieCassaConfig />
+              </TabsContent>
+              <TabsContent value="economico" className="mt-0">
+                <TabConfigurazione anno={filters.anno} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </div>
       </Tabs>

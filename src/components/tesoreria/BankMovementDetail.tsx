@@ -51,7 +51,6 @@ import {
 import type { VoceMovimento } from "@/lib/finance/cassaVoci";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
-import { prettyTxDesc } from "./txLabel";
 import { BankContextEditor } from "./BankContextEditor";
 import {
   RipartizioneMovimento,
@@ -998,25 +997,6 @@ function CollegatoA({
   for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
   for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
   const contesti = (tipi: string[]) => m.links.contexts.filter((c) => tipi.includes(c.kind));
-  const Azione = ({ children, onClick, label }: { children: string; onClick?: () => void; label: string }) =>
-    onClick ? (
-      <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onClick} aria-label={label}>
-        {children}
-      </Button>
-    ) : null;
-  const Pastiglia = ({ t, importo }: { t: BankTarget; importo?: number }) => (
-    <span className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
-      {t.url ? (
-        <Link to={t.url} className="truncate font-medium hover:underline">
-          {t.label}
-        </Link>
-      ) : (
-        <span className="truncate font-medium">{t.label}</span>
-      )}
-      {importo != null && <span className="shrink-0 text-muted-foreground">{valuta(importo)}</span>}
-    </span>
-  );
-  const Nessuno = () => <span className="text-muted-foreground">Nessuno</span>;
   const riga = (titolo: string, contenuto: ReactNode) => (
     <>
       <dt className="pt-0.5 text-muted-foreground">{titolo}</dt>
@@ -1048,7 +1028,7 @@ function CollegatoA({
           <>
             {m.links.financial.length ? (
               m.links.financial.map((f, i) => (
-                <Pastiglia key={f.id ?? i} t={{ id: f.id ?? String(i), kind: "commessa", label: f.label, url: f.url }} importo={f.amount} />
+                <Pastiglia valuta={valuta} key={f.id ?? i} t={{ id: f.id ?? String(i), kind: "commessa", label: f.label, url: f.url }} importo={f.amount} />
               ))
             ) : (
               <Nessuno />
@@ -1065,21 +1045,21 @@ function CollegatoA({
         {riga(
           "Commesse",
           <>
-            {commesse.size ? [...commesse.values()].map((j) => <Pastiglia key={j.id} t={j} importo={(j as { amount?: number }).amount} />) : <Nessuno />}
+            {commesse.size ? [...commesse.values()].map((j) => <Pastiglia valuta={valuta} key={j.id} t={j} importo={(j as { amount?: number }).amount} />) : <Nessuno />}
             <Azione onClick={onCollegaContesti} label="Collega una commessa">Collega</Azione>
           </>,
         )}
         {riga(
           "Mezzi",
           <>
-            {contesti(["mezzo"]).length ? contesti(["mezzo"]).map((c) => <Pastiglia key={c.context_id ?? c.id} t={c} importo={c.amount} />) : <Nessuno />}
+            {contesti(["mezzo"]).length ? contesti(["mezzo"]).map((c) => <Pastiglia valuta={valuta} key={c.context_id ?? c.id} t={c} importo={c.amount} />) : <Nessuno />}
             <Azione onClick={onCollegaContesti} label="Collega un mezzo">Collega</Azione>
           </>,
         )}
         {contesti(["fornitore"]).length > 0 &&
-          riga("Fornitori", contesti(["fornitore"]).map((c) => <Pastiglia key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+          riga("Fornitori", contesti(["fornitore"]).map((c) => <Pastiglia valuta={valuta} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
         {contesti(["dipendente", "cedolino"]).length > 0 &&
-          riga("Personale", contesti(["dipendente", "cedolino"]).map((c) => <Pastiglia key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+          riga("Personale", contesti(["dipendente", "cedolino"]).map((c) => <Pastiglia valuta={valuta} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
         {riga(
           "Note interne",
           <>
@@ -1090,4 +1070,31 @@ function CollegatoA({
       </dl>
     </section>
   );
+}
+
+function Azione({ children, onClick, label }: { children: string; onClick?: () => void; label: string }) {
+  return onClick ? (
+    <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" onClick={onClick} aria-label={label}>
+      {children}
+    </Button>
+  ) : null;
+}
+
+function Pastiglia({ t, importo, valuta }: { t: BankTarget; importo?: number; valuta: (n: number) => string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
+      {t.url ? (
+        <Link to={t.url} className="truncate font-medium hover:underline">
+          {t.label}
+        </Link>
+      ) : (
+        <span className="truncate font-medium">{t.label}</span>
+      )}
+      {importo != null && <span className="shrink-0 text-muted-foreground">{valuta(importo)}</span>}
+    </span>
+  );
+}
+
+function Nessuno() {
+  return <span className="text-muted-foreground">Nessuno</span>;
 }

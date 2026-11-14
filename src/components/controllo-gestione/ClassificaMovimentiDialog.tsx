@@ -52,7 +52,7 @@ const euro = (cents: number) => euroIntero(cents / 100);
 const giorno = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("it-IT");
 
 /** Il filtro della vista, uguale per lista e conteggi. */
-export function nellaVista(m: MovimentoDaClassificare, vista: Vista): boolean {
+function nellaVista(m: MovimentoDaClassificare, vista: Vista): boolean {
   if (vista === "tutti") return true;
   if (vista === "classificati") return !!m.voce?.confermata;
   if (vista === "proposte") return !!m.voce && !m.voce.confermata;
@@ -140,7 +140,10 @@ export function ClassificaMovimentiDialog({
   const cambia = (ids: string[], si: boolean) =>
     setScelti((prev) => {
       const next = new Set(prev);
-      for (const id of ids) (si ? next.add(id) : next.delete(id));
+      for (const id of ids) {
+        if (si) next.add(id);
+        else next.delete(id);
+      }
       return next;
     });
   const cambiaVerso = (v: "in" | "out") => { setVerso(v); setScelti(new Set()); };
