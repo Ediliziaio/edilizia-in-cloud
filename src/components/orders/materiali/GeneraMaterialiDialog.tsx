@@ -40,6 +40,9 @@ import {
   type AliasMateriale, type ArticoloCatalogo, type DatiCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type SceltaArticolo, type VoceMagazzino,
 } from "@/lib/distinta/collegaArticoli";
 import { MaterialiProposti } from "./MaterialiProposti";
+import { DopoIlSalvataggio } from "./DopoIlSalvataggio";
+import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
+import { pendingMaterials, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { capitoloVoce, faseDaTesto, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
 import { sceltePerRicordare, testoRicordi, type SceltePerRicordare } from "@/lib/distinta/ricordaScelte";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
@@ -116,6 +119,22 @@ async function ricordaScelte(companyId: string, r: SceltePerRicordare, alias: Al
     fatte++;
   }
   return fatte;
+}
+
+/**
+ * Dopo il salvataggio, i materiali della commessa ancora da ordinare (14/11/2026):
+ * generati dal computo o dalle tavole, «da ordinare», non coperti da offerte o
+ * ordini. Si raggruppano per fornitore; quelli senza fornitore vanno in offerta.
+ */
+async function materialiDaOrdinare(companyId: string, orderId: string): Promise<ProcurementItem[]> {
+  const { data, error } = await supabase.from("order_items")
+    .select("id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura")
+    .eq("order_id", orderId).eq("natura_riga", "materiale").in("origine_materiale", ["computo", "planimetria"]).eq("status", "da_ordinare");
+  if (error) throw error;
+  const righe = (data ?? []) as unknown as ProcurementItem[];
+  if (!righe.length) return [];
+  const copertura = await loadMaterialCoverage(companyId, righe.map((r) => r.id));
+  return pendingMaterials(righe, copertura);
 }
 
 /** Articoli, voci dei listini in corso e materiali già comprati: per collegare i materiali proposti. */
@@ -365,6 +384,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   };
 
   const [salvando, setSalvando] = useState(false);
+  // Dopo «Salva i materiali», chi può comprare vede gli ordini da creare per fornitore.
+  const puoComprare = !!(permessi.canEditOrders || permessi.canManagePurchasing);
+  const [daOrdinare, setDaOrdinare] = useState<ProcurementItem[] | null>(null);
   const salva = async () => {
     if (!risultato || !daSalvare.length) return;
     setSalvando(true);
@@ -410,6 +432,11 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           toast.error("Scelte non ricordate", { description: messaggioErrore(e) });
         }
       }
+      if (puoComprare) {
+        // Il passo dopo: gli ordini. Se la lettura non riesce, si chiude come prima.
+        const restano = await materialiDaOrdinare(companyId, orderId).catch(() => null);
+        if (restano?.length) { setDaOrdinare(restano); return; }
+      }
       onOpenChange(false);
     } catch (e) {
       toast.error("Materiali non salvati", { description: messaggioErrore(e) });
@@ -450,6 +477,22 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           {riprovaUltimo}
           <p className="text-xs text-muted-foreground">Senza computo puoi partire dalle tavole: «Tavole» nella barra degli articoli.</p>
         </div>}
+      />
+    );
+  }
+
+  if (daOrdinare) {
+    return (
+      <DopoIlSalvataggio
+        open={open}
+        onOpenChange={(o) => { if (!o) { setDaOrdinare(null); onOpenChange(false); } }}
+        materiali={daOrdinare}
+        companyId={companyId}
+        orderId={orderId}
+        orderCode={orderCode}
+        userId={user?.id}
+        fornitori={dati.data?.catalogo.fornitori ?? new Map()}
+        mostraPrezzi={mostraPrezzi}
       />
     );
   }
