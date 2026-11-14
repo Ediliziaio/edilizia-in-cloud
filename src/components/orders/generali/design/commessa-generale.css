@@ -126,7 +126,8 @@
 }
 .generale-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Quanti numeri ci sono davvero (--kpi-colonne): niente caselle vuote in fondo. */
+  grid-template-columns: repeat(var(--kpi-colonne, 4), minmax(0, 1fr));
   gap: 8px;
   padding: 0 18px 18px;
 }

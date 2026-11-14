@@ -97,6 +97,10 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   // Il cliente della generale arriva già scelto nella commessa nuova (customer_id è letto da CreateOrder).
   const nuovaFiglia = () => navigate(`/azienda/ordini/nuovo?generale=${generaleId}${r.generale.clienteId ? `&customer_id=${r.generale.clienteId}` : ""}`);
   const schede = schedeDelModello(r.generale.modello, isMobile);
+  // Finché non si vende, il lavoro di un'operazione immobiliare sta nel cantiere: il bottone
+  // principale porta lì, «nuova unità» va fra le altre azioni (stessa regola della testata).
+  const inCostruzione = immobiliare && schede.some((s) => s.id === "cantiere")
+    && !r.figlie.some((f) => !!f.statoVendita && f.statoVendita !== "libera") && (totali.fatturato ?? 0) <= 0 && (totali.incassato ?? 0) <= 0;
   const riquadri = riquadriDelModello(r.generale.modello);
   const propsScheda = { riepilogo: r, totali, puoModificare };
   const iconeSchede = { unita: Building2, contratto: FileCheck2, piano: ChartNoAxesCombined, cantiere: HardHat, investitori: Landmark, documenti: FolderOpen };
@@ -248,11 +252,18 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => setModifica(true)}><Pencil aria-hidden="true" /> Modifica commessa</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setCollega(true)}><Link2 aria-hidden="true" /> Collega commesse</DropdownMenuItem>
+                    {inCostruzione && <DropdownMenuItem onSelect={nuovaFiglia}><Plus aria-hidden="true" /> {def.figlia.nuova}</DropdownMenuItem>}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="brand" size="sm" onClick={nuovaFiglia}>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" /> {def.figlia.nuova}
-                </Button>
+                {inCostruzione ? (
+                  <Button variant="brand" size="sm" onClick={() => apriScheda("cantiere")}>
+                    <HardHat className="mr-1.5 h-3.5 w-3.5" /> Apri il cantiere
+                  </Button>
+                ) : (
+                  <Button variant="brand" size="sm" onClick={nuovaFiglia}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> {def.figlia.nuova}
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -312,6 +323,15 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
   // Senza un costo registrato il margine sarebbe tutto il ricavo: un numero verde che non dice niente.
   const senzaCosti = !piano && r.permessi.margini && (t.costo ?? 0) === 0 && (quote?.totale ?? 0) === 0;
   const margine = senzaCosti ? null : di("margine");
+  // Un'operazione immobiliare che non ha ancora venduto né fatturato sta costruendo: la testata
+  // parla di spesa contro budget, non di «da incassare 0 €» e barre di vendita vuote (14/11/2026).
+  const inVendita = r.figlie.some((f) => !!f.statoVendita && f.statoVendita !== "libera") || (t.fatturato ?? 0) > 0 || (t.incassato ?? 0) > 0;
+  const costruzione = !appalto && !inVendita;
+  const budget = r.permessi.costi && n.piano ? n.piano.confronto.totali.costi.previsto : null;
+  const speso = r.permessi.costi ? (n.piano ? n.piano.confronto.totali.costi.reale : (t.costo ?? 0) + (quote?.totale ?? 0)) : null;
+  const budgetCompleto = n.piano?.budgetCompleto !== false;
+  const conCapitale = numeri.some((x) => x.id === "capitale") && r.permessi.margini && n.piano?.calendarioCompleto !== false;
+  const conMargine = r.permessi.margini && margine !== null;
 
   const righe = [
     ...(appalto || r.figlie.length ? [{ etichetta: appalto ? "Assegnato" : "Prezzi delle unità", valore: t.assegnato, tono: "bg-blue-300" }] : []),
@@ -320,13 +340,37 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
     { etichetta: "Fatturato", valore: t.fatturato, tono: "bg-indigo-300" },
     { etichetta: "Incassato", valore: t.incassato, tono: "bg-emerald-400" },
   ];
-  const colonne = righe.length === 5 ? "lg:grid-cols-5" : righe.length === 3 ? "lg:grid-cols-3" : righe.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-4";
+  // Lo speso è già nel numero in alto: le barre dicono il budget e quanto ne resta.
+  const conBudget = costruzione && speso !== null && budget !== null && budget > 0;
+  const righeCostruzione = conBudget ? [
+    { etichetta: budgetCompleto ? "Budget dei costi" : "Budget (stime da completare)", valore: budget, tono: "bg-slate-300" },
+    { etichetta: "Ancora da spendere", valore: Math.max(0, budget! - speso!), tono: "bg-orange-400" },
+  ] : [];
+  const barre = costruzione ? righeCostruzione : righe;
+  const baseBarre = costruzione ? budget : t.base;
+  const colonne = barre.length === 5 ? "lg:grid-cols-5" : barre.length === 3 ? "lg:grid-cols-3" : barre.length === 2 ? "lg:grid-cols-2" : barre.length === 1 ? "lg:grid-cols-1" : "lg:grid-cols-4";
+  const quantiNumeri = costruzione
+    ? 1 + (speso !== null ? 1 : 0) + (conCapitale ? 1 : 0) + (conMargine ? 1 : 0)
+    : 4;
 
   return (
     <section aria-label={r.permessi.importi ? `${def.valore.etichetta}: ${euro(r.generale.valore ?? t.assegnato)}` : undefined} className="generale-hero">
-      <header className="generale-hero-heading"><div><span className="generale-hero-icon"><LayoutDashboard aria-hidden="true" /></span><h2>La commessa in numeri</h2></div><span className="generale-hero-caption">{appalto ? "Il quadro dell'intero appalto" : "Il quadro dell'intera operazione"}</span></header>
-      <div className="generale-kpi-grid">
-        {r.permessi.importi ? (
+      <header className="generale-hero-heading"><div><span className="generale-hero-icon"><LayoutDashboard aria-hidden="true" /></span><h2>La commessa in numeri</h2></div><span className="generale-hero-caption">{appalto ? "Il quadro dell'intero appalto" : costruzione ? "L'operazione in costruzione" : "Il quadro dell'intera operazione"}</span></header>
+      <div className="generale-kpi-grid" style={{ "--kpi-colonne": Math.max(2, quantiNumeri) } as React.CSSProperties}>
+        {costruzione && r.permessi.importi ? (
+          <>
+            <Numero etichetta={def.valore.etichetta} valore={euro(r.generale.valore ?? t.assegnato)} nota={r.generale.valore === null ? `somma delle ${def.figlia.tante.toLowerCase()}` : undefined} />
+            {speso !== null && (
+              <Numero
+                tipo="capitale"
+                etichetta="Speso finora"
+                valore={euro(speso)}
+                nota={budget !== null && budget > 0 ? `su ${euro(budget)} di budget${budgetCompleto ? "" : ", stime da completare"}` : "il piano non ha ancora un budget"}
+              />
+            )}
+            {conCapitale && <Numero tipo="capitale" etichetta="Capitale impegnato" valore={euro(di("capitale"))} nota="il massimo previsto" />}
+          </>
+        ) : r.permessi.importi ? (
           <>
             <Numero etichetta={def.valore.etichetta} valore={euro(r.generale.valore ?? t.assegnato)} nota={r.generale.valore === null ? `somma delle ${def.figlia.tante.toLowerCase()}` : undefined} />
             <Numero tipo="incasso" etichetta="Da incassare" valore={euro(t.daIncassare)} nota={appalto ? "fatturato e non ancora pagato" : "venduto o fatturato, non ancora pagato"} />
@@ -344,7 +388,7 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
         ) : (
           <Numero etichetta={def.figlia.tante} valore={String(t.figlie)} />
         )}
-        {r.permessi.margini ? (
+        {costruzione && r.permessi.importi && !conMargine ? null : r.permessi.margini ? (
           <Numero
             tipo="margine"
             etichetta={piano ? "Margine a finire" : quote || r.figlie.length === 0 ? "Margine dell'operazione" : `Margine delle ${def.figlia.tante.toLowerCase()}`}
@@ -363,11 +407,11 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
         )}
       </div>
 
-      {r.permessi.importi && (
+      {r.permessi.importi && barre.length > 0 && (
         <div className="generale-hero-progress">
           <dl className={cn("space-y-1.5 lg:grid lg:gap-5 lg:space-y-0", colonne)}>
-            {righe.map((riga) => {
-              const q = quota(riga.valore, t.base);
+            {barre.map((riga) => {
+              const q = quota(riga.valore, baseBarre);
               return (
                 <div key={riga.etichetta} className="grid min-w-0 grid-cols-[6.5rem_1fr] items-center gap-2 text-xs lg:flex lg:flex-col lg:items-stretch lg:gap-1">
                   <dt className="generale-progress-label lg:order-1">{riga.etichetta}</dt>
@@ -384,7 +428,7 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
           </dl>
           <div className="generale-hero-note mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px]">
             <span>Importi al netto dell'IVA.</span>
-            {t.daAssegnare !== null && (appalto || r.figlie.length > 0) && (
+            {!costruzione && t.daAssegnare !== null && (appalto || r.figlie.length > 0) && (
               <span className={cn(t.daAssegnare < 0 && "font-medium text-destructive")}>
                 {appalto ? (t.daAssegnare < 0 ? `Oltre di ${euro(-t.daAssegnare)}` : `Da assegnare ${euro(t.daAssegnare)}`) : `Differenza ricavi previsti / prezzi unità: ${euro(t.daAssegnare)}`}
               </span>

@@ -203,6 +203,37 @@ describe("le schede dei moduli", () => {
     expect(screen.getByText("Scheda del contratto")).toBeVisible();
   });
 
+  it("un'operazione che costruisce e non vende ancora: spesa in testata e «Apri il cantiere» come bottone", () => {
+    const base = riepilogo();
+    m.riepilogo = {
+      ...base,
+      generale: { ...base.generale, modello: "sviluppo", valore: 4_480_000 },
+      figlie: base.figlie.map((f) => ({ ...f, statoVendita: "libera", fatturato: 0, incassato: 0 })),
+    };
+    disegna();
+    expect(screen.getByText("L'operazione in costruzione")).toBeVisible();
+    expect(screen.getByText("Speso finora").closest(".generale-kpi")).toHaveTextContent(/1\.120\.000/);
+    // Senza piano non c'è un budget: niente barre (prima: prezzi, fatturato e incassato a zero).
+    expect(screen.queryByText("Ancora da spendere")).not.toBeInTheDocument();
+    expect(screen.queryByText("Da incassare")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fatturato")).not.toBeInTheDocument();
+    const testata = document.querySelector(".generale-page-heading") as HTMLElement;
+    expect(within(testata).getByRole("button", { name: "Apri il cantiere" })).toBeVisible();
+    expect(within(testata).queryByRole("button", { name: /Nuova unità/ })).not.toBeInTheDocument();
+  });
+
+  it("appena un'unità è prenotata la testata torna a parlare di vendite", () => {
+    const base = riepilogo();
+    m.riepilogo = {
+      ...base,
+      generale: { ...base.generale, modello: "sviluppo" },
+      figlie: base.figlie.map((f, i) => ({ ...f, statoVendita: i === 0 ? "prenotata" : "libera", fatturato: 0, incassato: 0 })),
+    };
+    disegna();
+    expect(screen.getByText("Da incassare")).toBeVisible();
+    expect(screen.queryByText("Speso finora")).not.toBeInTheDocument();
+  });
+
   it("un modello che non usa il modulo non ne mostra la scheda", () => {
     m.riepilogo = { ...riepilogo(), generale: { ...riepilogo().generale, modello: "sviluppo" } };
     disegna();

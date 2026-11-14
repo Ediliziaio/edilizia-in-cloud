@@ -120,6 +120,17 @@ Emerso costruendo la demo (da fare):
 - I rapportini scritti dall'ufficio hanno come autore l'ufficio: per averli a nome degli operai
   servono le assegnazioni al cantiere.
 
+## Design — fatto il 14/11
+
+- Testata per fase (sviluppo e compravendita): finché nessuna unità è prenotata e non c'è niente
+  di fatturato, «L'operazione in costruzione» mostra ricavi previsti, speso finora (su quanto
+  budget), capitale e margine solo se calcolabili; le barre dicono budget e quanto resta da
+  spendere. Dalla prima prenotazione torna la testata delle vendite.
+- Bottone principale: in costruzione «Apri il cantiere»; «Nuova unità» passa in «Altre azioni».
+- Riquadro Piano con le stime incomplete: una riga (capitale investito), non due «—».
+- Scheda Piano: «Ricavi stimati» c'è anche con le stime dei costi incomplete.
+- Già prima: un avviso «Uscite del mese / il piano non ha uscite» resta da trasformare in azione.
+
 ## Ordine dei lotti
 
 - **B** — Cantiere «Tutta l'operazione»: elenchi unici di rapportini, ODA, DDT, fatture

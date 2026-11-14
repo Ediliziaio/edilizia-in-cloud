@@ -72,6 +72,20 @@ export function RiquadroPiano({ riepilogo }: PropsScheda) {
 
   const t = n.piano.confronto.totali.margine;
   const c = n.piano.capitale;
+  // Stime incomplete: margine e scostamento non si possono dire. Una riga sola, non due «—» con
+  // la stessa frase sotto (la Panoramica lo dice già nel percorso «Completa l'operazione»).
+  if (n.piano.budgetCompleto === false) {
+    return (
+      <section aria-label="Piano economico" className="generale-panel px-4 py-4">
+        {intestazione}
+        <p className="mt-2 text-sm">
+          Capitale investito a oggi <span className="font-semibold tabular-nums">{euro(c.investitoOggi)}</span>
+          <span className="text-muted-foreground"> · costi registrati meno incassi</span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">Margine previsto e scostamento compaiono quando il budget ha tutte le stime.</p>
+      </section>
+    );
+  }
   return (
     <section aria-label="Piano economico" className="generale-panel px-4 py-4">
       {intestazione}

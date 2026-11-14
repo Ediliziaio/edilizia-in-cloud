@@ -456,7 +456,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           <section className="generale-indicators" aria-label="Indicatori del piano economico">
             <Numero
               etichetta="Ricavi stimati"
-              valore={riepilogo.permessi.importi ? euro(piano.budgetCompleto === false ? null : piano.confronto.totali.ricavi.stima) : "Riservato"}
+              valore={riepilogo.permessi.importi ? euro(piano.confronto.totali.ricavi.stima) : "Riservato"}
               nota={riepilogo.permessi.importi ? `Previsto ${euro(piano.confronto.totali.ricavi.previsto)}` : undefined}
             />
             <Numero

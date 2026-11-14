@@ -207,6 +207,16 @@ describe("il riquadro in Panoramica", () => {
     expect(screen.getByText(/sotto il previsto di 6\.?000/)).toBeVisible();
   });
 
+  it("con le stime incomplete è una riga: capitale investito, niente «—» ripetuti", () => {
+    const n = numeri("approvata");
+    m.numeri = { ...n, piano: { ...n.piano!, budgetCompleto: false } };
+    riquadro();
+    expect(screen.getByText("Capitale investito a oggi", { exact: false })).toBeVisible();
+    expect(screen.queryByText("Margine previsto")).not.toBeInTheDocument();
+    expect(screen.queryByText("Scostamento del margine")).not.toBeInTheDocument();
+    expect(screen.getByText(/compaiono quando il budget ha tutte le stime/)).toBeVisible();
+  });
+
   it("senza piano dice il prossimo passo; senza margini non c'è", () => {
     m.numeri = numeri(null);
     riquadro();
@@ -230,6 +240,8 @@ describe("indicatori economici nella prima schermata", () => {
     const n=numeri("approvata");m.numeri={...n,piano:{...n.piano!,budgetCompleto:false}};disegna();
     const indicatori=screen.getByRole("region",{name:"Indicatori del piano economico"});
     expect(within(indicatori).getByText("Margine stimato a fine lavori").parentElement).toHaveTextContent("—");
+    // I ricavi non dipendono dalle stime dei costi: restano.
+    expect(within(indicatori).getByText("Ricavi stimati").parentElement).toHaveTextContent("2.400.000");
     expect(within(indicatori).getByText("Costi finali stimati").parentElement).toHaveTextContent("—");
     expect(within(indicatori).queryByText(/844.000/)).not.toBeInTheDocument();
   });
