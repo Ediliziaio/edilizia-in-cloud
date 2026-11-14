@@ -133,7 +133,11 @@ export function creaPdfOperativo(
       const info = pdf.getImageProperties(logo);
       const scala = logoDellaVeste ? 1 : modello.scalaLogo / 100;
       const maxH = mm(logoDellaVeste ? veste.logoAltezza! : stileTestata.logoAltezza) * scala;
-      const maxW = mm(logoDellaVeste ? veste.logoLarghezzaMax! : stileTestata.logoLarghezzaMax) * scala;
+      // Il titolo deve stare su una riga accanto al logo: un logo largo (Vulcano, con le certificazioni) si ferma
+      // prima, invece di mandare il titolo a capo sopra il numero (14/11/2026).
+      font(stileTestata.titoloCorpo, true);
+      const spazioTitolo = Math.min(pdf.getTextWidth(titolo), width * 0.5) + 8;
+      const maxW = Math.min(mm(logoDellaVeste ? veste.logoLarghezzaMax! : stileTestata.logoLarghezzaMax) * scala, width - spazioTitolo);
       const rapporto = info.width / info.height;
       wSx = Math.min(maxW, maxH * rapporto);
       hSx = wSx / rapporto;

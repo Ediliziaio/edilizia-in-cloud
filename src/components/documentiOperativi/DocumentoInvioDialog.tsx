@@ -464,7 +464,9 @@ function DocumentoInvioContent({
                       ["consegna", "Materiale richiesto entro"],
                       ["scadenzaOfferta", "Rispondere entro"],
                     ]
-                  : [["consegna", "Consegna prevista"]]
+                  : d.tipo === "economia"
+                    ? []
+                    : [["consegna", "Consegna prevista"]]
               ).map(([key, label]) => (
                 <div key={key}>
                   <Label htmlFor={`doc-${key}`}>{label}</Label>
@@ -524,7 +526,12 @@ function DocumentoInvioContent({
                   : "Inversione contabile concordata per questo ordine"}
               </label>
             )}
-            {modificaRighe ? (
+            {modificaRighe && d.tipo === "economia" ? (
+              <RigheEconomia
+                righe={d.righe}
+                onChange={(righe) => cambia("righe", righe)}
+              />
+            ) : modificaRighe ? (
               <div className="space-y-2">
                 <p className="text-sm font-semibold">Voci del rapporto</p>
                 <p className="text-xs text-slate-500">
@@ -675,7 +682,11 @@ function DocumentoInvioContent({
                 id="doc-note"
                 value={d.note ?? ""}
                 onChange={(e) => cambia("note", e.target.value)}
-                placeholder="Accordi con il fornitore, caratteristiche richieste, imballo o altre indicazioni…"
+                placeholder={
+                  d.tipo === "economia"
+                    ? "Es. lavori eseguiti su richiesta del vostro direttore lavori; prezzi come da listino concordato."
+                    : "Accordi con il fornitore, caratteristiche richieste, imballo o altre indicazioni…"
+                }
                 rows={4}
               />
               <p className="mt-1 text-xs text-slate-500">
@@ -836,3 +847,95 @@ function DocumentoInvioContent({
     </>
   );
 }
+
+/**
+ * Le voci del rapporto lavori in economia, compatte (14/11/2026): una riga per voce, raggruppate per
+ * intervento, con l'importo calcolato e il totale. Prima ogni voce era un riquadro di cinque campi.
+ */
+function RigheEconomia({ righe, onChange }: {
+  righe: DocumentoOperativo["righe"];
+  onChange: (righe: DocumentoOperativo["righe"]) => void;
+}) {
+  const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  const importo = (r: DocumentoOperativo["righe"][number]) =>
+    r.prezzo == null ? null : Math.round(Number(r.quantita || 0) * Number(r.prezzo) * 100) / 100;
+  const totale = righe.reduce((s, r) => s + (importo(r) ?? 0), 0);
+  const daDefinire = righe.filter((r) => r.prezzo == null).length;
+  const cambiaRiga = (i: number, patch: Partial<DocumentoOperativo["righe"][number]>) =>
+    onChange(righe.map((v, n) => (n === i ? { ...v, ...patch } : v)));
+  const numero = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")));
+  let gruppo: string | undefined;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold">Voci del rapporto</p>
+        <p className="text-xs text-slate-500">Prezzi di vendita: i costi interni non ci sono. Le modifiche valgono solo per questo documento.</p>
+      </div>
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-2 py-1.5 text-left font-medium">Voce</th>
+              <th className="w-20 px-1 py-1.5 text-left font-medium">U.M.</th>
+              <th className="w-20 px-1 py-1.5 text-right font-medium">Q.tà</th>
+              <th className="w-24 px-1 py-1.5 text-right font-medium">Prezzo</th>
+              <th className="w-24 px-2 py-1.5 text-right font-medium">Importo</th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {righe.map((r, i) => {
+              const nuovoGruppo = r.gruppo && r.gruppo !== gruppo;
+              gruppo = r.gruppo ?? gruppo;
+              const imp = importo(r);
+              return [
+                nuovoGruppo ? (
+                  <tr key={`g-${i}`} className="border-t bg-slate-50/60">
+                    <td colSpan={6} className="px-2 py-1 text-xs font-medium text-slate-600">{r.gruppo}</td>
+                  </tr>
+                ) : null,
+                <tr key={i} className="border-t">
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Descrizione voce ${i + 1}`} className="h-8 text-sm" value={r.descrizione}
+                      onChange={(e) => cambiaRiga(i, { descrizione: e.target.value })} />
+                  </td>
+                  <td className="px-1 py-1">
+                    <Input aria-label={`U.M. voce ${i + 1}`} className="h-8 text-sm" value={r.unita}
+                      onChange={(e) => cambiaRiga(i, { unita: e.target.value })} />
+                  </td>
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Quantità voce ${i + 1}`} inputMode="decimal" className="h-8 text-right text-sm tabular-nums" value={r.quantita ?? ""}
+                      onChange={(e) => cambiaRiga(i, { quantita: numero(e.target.value) ?? 0, importo: undefined })} />
+                  </td>
+                  <td className="px-1 py-1">
+                    <Input aria-label={`Prezzo unitario voce ${i + 1}`} inputMode="decimal" placeholder="da definire" className="h-8 text-right text-sm tabular-nums" value={r.prezzo ?? ""}
+                      onChange={(e) => cambiaRiga(i, { prezzo: numero(e.target.value), importo: undefined })} />
+                  </td>
+                  <td className={`px-2 py-1 text-right tabular-nums ${imp == null ? "text-amber-700" : ""}`}>{imp == null ? "da definire" : euro(imp)}</td>
+                  <td className="px-1 py-1 text-right">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Rimuovi voce ${i + 1}`}
+                      onClick={() => onChange(righe.filter((_, n) => n !== i))}>×</Button>
+                  </td>
+                </tr>,
+              ];
+            })}
+          </tbody>
+          <tfoot className="border-t bg-slate-50">
+            <tr>
+              <td colSpan={4} className="px-2 py-1.5 text-right text-xs text-slate-600">
+                Totale IVA esclusa{daDefinire ? ` (parziale: ${daDefinire} ${daDefinire === 1 ? "voce" : "voci"} da definire)` : ""}
+              </td>
+              <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{euro(totale)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <Button variant="outline" size="sm"
+        onClick={() => onChange([...righe, { gruppo: righe.at(-1)?.gruppo, descrizione: "", unita: "h", quantita: 1, prezzo: null, iva: null }])}>
+        Aggiungi voce
+      </Button>
+    </div>
+  );
+}
+

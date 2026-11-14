@@ -11,7 +11,15 @@
  * I due interni non si mandano a nessuno: lo dicono in testa e in piè di pagina.
  */
 import { jsPDF } from "jspdf";
-import type { DocumentoOperativo, RigaDocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import { footerAzienda, type AziendaDocumento, type DocumentoOperativo, type RigaDocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import {
+  disegnaPiedeJsPdf, fontPiedeBase64, limiteContenutoJsPdf, personalizzazioneDocumento, puntiInMm as mm,
+} from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
+import {
+  accentoDocumento, colore, pagina, rgb255, riquadro as stileRiquadro, sezione as stileSezione, tabella as stileTabella, testata as stileTestata,
+} from "../../../supabase/functions/_shared/stileDocumenti";
+
+type Rgb = [number, number, number];
 import { totaliQuadro, type FontePrezzo, type MancanzaCosto } from "@/lib/campo/prezzoVoceRapportino";
 
 export interface PersonaQuadro {
@@ -37,8 +45,12 @@ export interface InfoRapportino {
 
 const UNITA: Record<string, string> = { ora: "h", h: "h", giornata: "giornata", uomo_giorno: "giornata" };
 const dataIt = (iso: string): string => { const [a, m, g] = iso.slice(0, 10).split("-"); return g && m && a ? `${g}/${m}/${a}` : iso; };
-const euro = (n: number | null | undefined): string =>
-  n == null ? "—" : new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(n));
+/** 1.235,19 € anche sotto i diecimila (l'italiano di Intl non raggruppa le quattro cifre). */
+const euro = (n: number | null | undefined): string => {
+  if (n == null) return "—";
+  const [intero, decimali] = Math.abs(Number(n)).toFixed(2).split(".");
+  return `${Number(n) < 0 ? "-" : ""}${intero.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${decimali} €`;
+};
 const num = (n: number): string => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 
 /** «Rapporto lavori in economia» di un solo giorno, ai prezzi di vendita: per il committente. */
@@ -74,7 +86,7 @@ export function documentoPerCommittente(q: QuadroDocumento, info: InfoRapportino
   }));
   return {
     tipo: "economia",
-    numero: `RAP-${(info.commessa ?? "").replace(/\s+/g, "")}-${info.data.slice(0, 10)}`,
+    numero: `RAP-${info.data.slice(0, 10).replace(/-/g, "")}`,
     data: info.data.slice(0, 10),
     periodo: dataIt(info.data),
     destinatario,
@@ -122,94 +134,225 @@ export function righeInterne(q: QuadroDocumento): RigaInterna[] {
   return righe;
 }
 
-/** PDF interno: costi sostenuti, o costi con ricavo e margine. */
-export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: InfoRapportino, azienda: { nome: string; accento?: string }): jsPDF {
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  const W = 210, M = 14, inchiostro: [number, number, number] = [31, 41, 51], tenue: [number, number, number] = [107, 114, 128];
-  const accento = /^#[0-9a-f]{6}$/i.test(azienda.accento ?? "") ? azienda.accento! : "#1E3A5F";
-  const acc: [number, number, number] = [parseInt(accento.slice(1, 3), 16), parseInt(accento.slice(3, 5), 16), parseInt(accento.slice(5, 7), 16)];
-  const tot = totaliQuadro({
-    persone: q.persone, mezzi: q.mezzi, voci: q.voci, personaleAggregato: q.personale_aggregato?.costo ?? null, costoDaCompletare: q.costo_da_completare,
-  });
+/** PDF interno: costi sostenuti, o costi con ricavo e margine. Stesso stile dei documenti operativi. */
+export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: InfoRapportino, a: AziendaDocumento, logo?: string): jsPDF {
+  const veste = personalizzazioneDocumento(a.id);
+  const pdf = new jsPDF({ unit: "mm", format: "a4", compress: Boolean(logo) });
   const conMargine = variante === "margine";
-  let y = 16;
-  pdf.setFont("helvetica", "bold").setFontSize(12).setTextColor(...inchiostro).text(azienda.nome, M, y);
-  pdf.setFontSize(13).text(conMargine ? "Rapportino · costi e margine" : "Rapportino · costi sostenuti", W - M, y, { align: "right" });
-  y += 5;
-  pdf.setFont("helvetica", "normal").setFontSize(8).setTextColor(...tenue).text("DOCUMENTO INTERNO — non inviare al cliente", W - M, y, { align: "right" });
-  y += 3;
-  pdf.setDrawColor(...acc).setLineWidth(0.5).line(M, y, W - M, y);
-  y += 7;
-  const campo = (etichetta: string, valore: string | null | undefined, x: number): void => {
-    pdf.setFontSize(7).setTextColor(...tenue).text(etichetta.toUpperCase(), x, y);
-    pdf.setFontSize(9.5).setTextColor(...inchiostro).text(pdf.splitTextToSize(valore || "—", 58)[0] ?? "—", x, y + 4.5);
+  const titolo = conMargine ? "Rapportino · costi e margine" : "Rapportino · costi sostenuti";
+  pdf.setProperties({ title: `${titolo} ${info.commessa ?? ""} ${info.data}`, author: a.business_name || a.name, subject: titolo });
+  const left = mm(pagina.margineLaterale), width = 210 - left * 2, bottom = limiteContenutoJsPdf(veste, width, 268);
+  const INCHIOSTRO = rgb255(colore.inchiostro), TENUE = rgb255(colore.testoTenue), LINEA = rgb255(colore.linea);
+  const FONDO = rgb255(colore.fondoTenue), FONDO_INT = rgb255(colore.fondoIntestazione), AVVISO = rgb255(colore.avviso);
+  const POSITIVO = rgb255(colore.positivo), NEGATIVO: Rgb = [185, 28, 28];
+  const ACCENTO = rgb255(accentoDocumento({ coloreVeste: veste.piedeColore, coloreAzienda: a.brand_primary_color }));
+  const safe = (v: string) => v.replace(/\u00a0|\u202f/g, " ").replace(/[–—]/g, "-").replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+  const font = (size: number, bold = false, tinta: Rgb = INCHIOSTRO) => { pdf.setFont("helvetica", bold ? "bold" : "normal"); pdf.setFontSize(size); pdf.setTextColor(...tinta); };
+  const passo = (size: number, interlinea: number = pagina.interlinea) => mm(size * interlinea);
+  const filetto = (tinta: Rgb, spessore: number, x1: number, y1: number, x2: number, y2: number) => { pdf.setDrawColor(...tinta); pdf.setLineWidth(mm(spessore)); pdf.line(x1, y1, x2, y2); };
+  const e = (n: number | null | undefined) => (n == null ? "—" : safe(euro(n)));
+  const tot = totaliQuadro({ persone: q.persone, mezzi: q.mezzi, voci: q.voci, personaleAggregato: q.personale_aggregato?.costo ?? null, costoDaCompletare: q.costo_da_completare });
+  let y = mm(pagina.margineAlto);
+
+  const testata = () => {
+    const top = mm(pagina.margineAlto);
+    let hSx = 0, wSx = 0, img: { tipo: string; w: number; h: number } | null = null, ragione: string[] = [];
+    const passoRagione = passo(stileTestata.ragioneSocialeCorpo, 1.2);
+    // Il titolo ha la sua colonna a destra: il logo si ferma prima, anche se è largo (Vulcano: logo e certificazioni).
+    font(stileTestata.titoloCorpo, true);
+    const spazioTitolo = Math.max(pdf.getTextWidth(safe(titolo)), 62) + 8;
+    if (logo) {
+      const p = pdf.getImageProperties(logo);
+      const maxH = mm(veste.logoAltezza ?? stileTestata.logoAltezza);
+      const maxW = Math.min(mm(veste.logoLarghezzaMax ?? stileTestata.logoLarghezzaMax), width - spazioTitolo);
+      const r = p.width / p.height;
+      wSx = Math.min(maxW, maxH * r); hSx = wSx / r; img = { tipo: p.fileType, w: wSx, h: hSx };
+    } else {
+      font(stileTestata.ragioneSocialeCorpo, true);
+      ragione = (pdf.splitTextToSize(safe(a.business_name || a.name), width * 0.5) as string[]).slice(0, 2);
+      wSx = Math.max(...ragione.map((t) => pdf.getTextWidth(t))); hSx = ragione.length * passoRagione;
+    }
+    const passoTitolo = passo(stileTestata.titoloCorpo, 1.2);
+    const hDx = passoTitolo + passo(stileTestata.sottotitoloCorpo, 1.3);
+    const fondo = top + Math.max(hSx, hDx);
+    if (img) pdf.addImage(logo!, img.tipo, left, fondo - img.h, img.w, img.h);
+    else { font(stileTestata.ragioneSocialeCorpo, true); ragione.forEach((t, i) => pdf.text(t, left, fondo - hSx + passoRagione * (i + 0.78))); }
+    font(stileTestata.titoloCorpo, true);
+    pdf.text(safe(titolo), left + width, fondo - hDx + passoTitolo * 0.78, { align: "right" });
+    font(stileTestata.sottotitoloCorpo, false, TENUE);
+    pdf.text(safe([info.commessa, dataIt(info.data)].filter(Boolean).join(" · ")), left + width, fondo - 0.8, { align: "right" });
+    const yF = fondo + mm(stileTestata.filettoDistanza);
+    filetto(ACCENTO, stileTestata.filettoSpessore, left, yF, left + width, yF);
+    // Sotto il filetto, una fascia: il documento non si manda al cliente.
+    pdf.setFillColor(254, 243, 199);
+    pdf.rect(left, yF + 2, width, 5.2, "F");
+    font(7.5, true, AVVISO);
+    pdf.text("DOCUMENTO INTERNO · CONTIENE COSTI E MARGINI · NON INVIARE AL CLIENTE", left + width / 2, yF + 5.5, { align: "center", charSpace: mm(0.3) });
+    y = yF + 7.2 + mm(stileTestata.spazioDopo) * 0.6;
   };
-  campo("Giorno", dataIt(info.data), M); campo("Commessa", [info.commessa, info.commessaDescrizione].filter(Boolean).join(" · "), M + 32); campo("Cliente", info.cliente, M + 112);
-  y += 11;
-  if (info.descrizione?.trim()) {
-    pdf.setFontSize(7).setTextColor(...tenue).text("COSA SI È FATTO", M, y); y += 4.5;
-    const testo = pdf.splitTextToSize(info.descrizione.trim(), W - 2 * M) as string[];
-    pdf.setFontSize(9.5).setTextColor(...inchiostro).text(testo.slice(0, 6), M, y); y += testo.slice(0, 6).length * 4.3 + 3;
+  const riquadro = (x: number, yy: number, w: number, h: number) => {
+    pdf.setFillColor(...FONDO); pdf.setDrawColor(...LINEA); pdf.setLineWidth(mm(stileRiquadro.bordo));
+    pdf.roundedRect(x, yy, w, h, mm(stileRiquadro.raggio), mm(stileRiquadro.raggio), "FD");
+  };
+  const etichetta = (t: string, x: number, base: number, align: "left" | "right" = "left") => {
+    font(stileRiquadro.etichettaCorpo, false, TENUE); pdf.text(safe(t).toUpperCase(), x, base, { align, charSpace: mm(0.5) });
+  };
+  const sezione = (t: string) => {
+    y += mm(stileSezione.spazioPrima);
+    font(stileSezione.corpo, true, ACCENTO);
+    pdf.text(safe(t).toUpperCase(), left, y, { charSpace: mm(stileSezione.spaziatura) });
+    filetto(LINEA, stileSezione.filetto, left, y + 1.6, left + width, y + 1.6);
+    y += 1.6 + mm(stileSezione.spazioDopo);
+  };
+  testata();
+
+  // Riquadri: giorno, commessa, cliente.
+  const pad = mm(stileRiquadro.padding), gap = 4, h1 = 15;
+  const colonne3 = [width * 0.2, width * 0.42, width * 0.38 - 2 * gap];
+  let x = left;
+  ([["Giorno", dataIt(info.data)], ["Commessa", [info.commessa, info.commessaDescrizione].filter(Boolean).join(" · ")], ["Cliente", info.cliente ?? "—"]] as const)
+    .forEach(([et, val], i) => {
+      riquadro(x, y, colonne3[i], h1);
+      etichetta(et, x + pad, y + pad + 1.2);
+      font(stileRiquadro.valoreCorpo);
+      pdf.text((pdf.splitTextToSize(safe(val || "—"), colonne3[i] - 2 * pad) as string[])[0] ?? "—", x + pad, y + h1 - pad + 0.5);
+      x += colonne3[i] + gap;
+    });
+  y += h1 + 3;
+
+  // Numeri: costo, ricavo, margine.
+  const numeri: Array<[string, string, Rgb, string]> = conMargine
+    ? [["Costo sostenuto", e(tot.costo), tot.completo ? INCHIOSTRO : AVVISO, tot.completo ? "" : "parziale"],
+       ["Ricavo", e(tot.ricavo), tot.prezziDaDefinire ? AVVISO : INCHIOSTRO, tot.prezziDaDefinire ? "parziale" : ""],
+       ["Margine", tot.margine == null ? "incompleto" : e(tot.margine), tot.margine == null ? AVVISO : tot.margine < 0 ? NEGATIVO : POSITIVO,
+        tot.marginePct != null ? `${tot.marginePct.toLocaleString("it-IT")}% del ricavo` : ""]]
+    : [["Ore", `${num(q.persone.reduce((s, p) => s + Number(p.ore), 0))} h`, INCHIOSTRO, "persone e ditte"],
+       ["Costo sostenuto", e(tot.costo), tot.completo ? INCHIOSTRO : AVVISO, tot.completo ? "completo" : "parziale: costi da completare"]];
+  const wN = (width - gap * (numeri.length - 1)) / numeri.length, h2 = 17;
+  x = left;
+  for (const [et, val, tinta, sotto] of numeri) {
+    riquadro(x, y, wN, h2);
+    etichetta(et, x + pad, y + pad + 1.2);
+    font(stileRiquadro.numeroCorpo, true, tinta); pdf.text(safe(val), x + pad, y + pad + 7.5);
+    if (sotto) { font(7.5, false, TENUE); pdf.text(safe(sotto), x + pad, y + h2 - 2); }
+    x += wN + gap;
   }
-  // Tabella
-  const colonne = conMargine
-    ? [{ t: "Voce", x: M, w: 64 }, { t: "Dettaglio", x: M + 64, w: 52 }, { t: "Costo", x: M + 116, w: 22 }, { t: "Ricavo", x: M + 138, w: 22 }, { t: "Margine", x: M + 160, w: 22 }]
-    : [{ t: "Voce", x: M, w: 80 }, { t: "Dettaglio", x: M + 80, w: 72 }, { t: "Costo", x: M + 152, w: 30 }];
-  const intestazione = (): void => {
-    pdf.setFillColor(238, 241, 245).rect(M, y - 4, W - 2 * M, 6.5, "F");
-    pdf.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(...tenue);
-    colonne.forEach((c, i) => pdf.text(c.t.toUpperCase(), i >= 2 ? c.x + c.w - 1 : c.x + 1, y, { align: i >= 2 ? "right" : "left" }));
-    pdf.setFont("helvetica", "normal"); y += 6;
+  y += h2 + 2;
+
+  if (info.descrizione?.trim()) {
+    sezione("Cosa si è fatto");
+    font(pagina.corpo);
+    const righe = (pdf.splitTextToSize(safe(info.descrizione.trim()), width) as string[]).slice(0, 8);
+    righe.forEach((t) => { pdf.text(t, left, y + passo(pagina.corpo) * 0.72); y += passo(pagina.corpo); });
+  }
+
+  // Tabella.
+  sezione("Dettaglio");
+  const col = conMargine
+    ? [{ t: "Voce", x: left, w: width * 0.32 }, { t: "Dettaglio", x: left + width * 0.32, w: width * 0.3 },
+       { t: "Costo", x: left + width * 0.62, w: width * 0.13 }, { t: "Ricavo", x: left + width * 0.75, w: width * 0.125 }, { t: "Margine", x: left + width * 0.875, w: width * 0.125 }]
+    : [{ t: "Voce", x: left, w: width * 0.4 }, { t: "Dettaglio", x: left + width * 0.4, w: width * 0.42 }, { t: "Costo", x: left + width * 0.82, w: width * 0.18 }];
+  const hRiga = mm(stileTabella.altezzaRigaMin);
+  const intestazione = () => {
+    pdf.setFillColor(...FONDO_INT); pdf.rect(left, y, width, hRiga * 0.85, "F");
+    font(stileTabella.intestazioneCorpo, true, TENUE);
+    col.forEach((c, i) => pdf.text(c.t.toUpperCase(), i >= 2 ? c.x + c.w - 1.5 : c.x + 1.5, y + hRiga * 0.55, { align: i >= 2 ? "right" : "left", charSpace: mm(0.3) }));
+    y += hRiga * 0.85;
   };
   intestazione();
   let gruppo = "";
   for (const r of righeInterne(q)) {
-    if (y > 270) { pdf.addPage(); y = 18; intestazione(); }
+    if (y + hRiga * 2 > bottom) { pdf.addPage(); testata(); intestazione(); }
     if (r.gruppo !== gruppo) {
       gruppo = r.gruppo;
-      pdf.setFont("helvetica", "bold").setFontSize(8).setTextColor(...acc).text(gruppo.toUpperCase(), M + 1, y + 1); pdf.setFont("helvetica", "normal"); y += 5.5;
+      font(stileTabella.intestazioneCorpo, true, ACCENTO);
+      pdf.text(safe(gruppo).toUpperCase(), left + 1.5, y + hRiga * 0.62, { charSpace: mm(0.4) });
+      y += hRiga * 0.8;
     }
-    pdf.setFontSize(9).setTextColor(...inchiostro).text(pdf.splitTextToSize(r.voce, colonne[0].w - 2)[0], colonne[0].x + 1, y);
+    const base = y + hRiga * 0.62;
+    font(stileTabella.corpo);
+    pdf.text((pdf.splitTextToSize(safe(r.voce), col[0].w - 3) as string[])[0], col[0].x + 1.5, base);
     const notaNelDettaglio = r.nota && r.costo != null ? ` · ${r.nota}` : "";
-    pdf.setFontSize(8).setTextColor(...tenue).text(pdf.splitTextToSize(r.dettaglio + notaNelDettaglio, colonne[1].w - 2)[0], colonne[1].x + 1, y);
-    pdf.setFontSize(9).setTextColor(...inchiostro);
-    const destra = (c: { x: number; w: number }, v: string): void => { pdf.text(v, c.x + c.w - 1, y, { align: "right" }); };
-    destra(colonne[2], r.costo == null ? (r.nota ?? "—") : euro(r.costo));
+    font(stileTabella.corpo - 1, false, TENUE);
+    pdf.text((pdf.splitTextToSize(safe(r.dettaglio + notaNelDettaglio), col[1].w - 3) as string[])[0], col[1].x + 1.5, base);
+    const destra = (c: { x: number; w: number }, v: string, tinta: Rgb = INCHIOSTRO, bold = false) => { font(stileTabella.corpo, bold, tinta); pdf.text(safe(v), c.x + c.w - 1.5, base, { align: "right" }); };
+    destra(col[2], r.costo == null ? (r.nota ?? "—") : e(r.costo), r.costo == null && r.nota === "da completare" ? AVVISO : r.costo == null ? TENUE : INCHIOSTRO);
     if (conMargine) {
-      destra(colonne[3], r.ricavo == null ? "—" : euro(r.ricavo));
+      destra(col[3], r.ricavo == null ? (r.nota === "prezzo da definire" ? "da definire" : "—") : e(r.ricavo), r.ricavo == null ? TENUE : INCHIOSTRO);
       const m = r.costo != null && r.ricavo != null ? r.ricavo - r.costo : null;
-      if (m != null && m < 0) pdf.setTextColor(185, 28, 28);
-      destra(colonne[4], m == null ? "—" : euro(m));
-      pdf.setTextColor(...inchiostro);
+      destra(col[4], m == null ? "—" : e(m), m == null ? TENUE : m < 0 ? NEGATIVO : POSITIVO, m != null);
     }
-    pdf.setDrawColor(227, 230, 235).setLineWidth(0.2).line(M, y + 2.2, W - M, y + 2.2);
-    y += 6.2;
+    filetto(LINEA, stileTabella.filetto, left, y + hRiga, left + width, y + hRiga);
+    y += hRiga;
   }
-  // Totali
-  y += 2;
-  pdf.setDrawColor(...acc).setLineWidth(0.4).line(M, y - 3, W - M, y - 3);
-  pdf.setFont("helvetica", "bold").setFontSize(9.5).setTextColor(...inchiostro);
-  pdf.text(tot.completo ? "Totale" : "Totale (costo parziale)", M + 1, y + 1);
+  // Totale.
+  if (y + hRiga * 1.4 > bottom) { pdf.addPage(); testata(); }
+  filetto(ACCENTO, stileTabella.filettoTotale, left, y + 0.6, left + width, y + 0.6);
+  const baseT = y + hRiga * 0.75;
+  font(stileTabella.corpo, true);
+  pdf.text(tot.completo ? "Totale" : "Totale (costo parziale)", left + 1.5, baseT);
+  pdf.text(e(tot.costo), col[2].x + col[2].w - 1.5, baseT, { align: "right" });
   if (conMargine) {
-    pdf.text(euro(tot.costo), colonne[2].x + colonne[2].w - 1, y + 1, { align: "right" });
-    pdf.text(euro(tot.ricavo), colonne[3].x + colonne[3].w - 1, y + 1, { align: "right" });
-    pdf.text(tot.margine == null ? "incompleto" : euro(tot.margine), colonne[4].x + colonne[4].w - 1, y + 1, { align: "right" });
-    if (tot.marginePct != null) { y += 5; pdf.setFont("helvetica", "normal").setFontSize(8.5).text(`Margine sul ricavo: ${tot.marginePct.toLocaleString("it-IT")}%`, W - M - 1, y + 1, { align: "right" }); }
-  } else {
-    pdf.text(euro(tot.costo), colonne[2].x + colonne[2].w - 1, y + 1, { align: "right" });
+    pdf.text(e(tot.ricavo), col[3].x + col[3].w - 1.5, baseT, { align: "right" });
+    font(stileTabella.corpo, true, tot.margine == null ? AVVISO : tot.margine < 0 ? NEGATIVO : POSITIVO);
+    pdf.text(tot.margine == null ? "incompleto" : e(tot.margine), col[4].x + col[4].w - 1.5, baseT, { align: "right" });
   }
-  pdf.setFont("helvetica", "normal");
-  y += 8;
+  y += hRiga * 1.3;
+
+  // Avvisi.
   const avvisi: string[] = [];
   if (!tot.completo) avvisi.push(`Costo da completare: ${(q.costo_da_completare ?? []).map((m) => `${m.nome} (${m.motivo})`).join(", ") || `${tot.mancano} voci`}. Il totale è parziale${conMargine ? " e il margine non si calcola" : ""}.`);
-  if (conMargine && tot.prezziDaDefinire) avvisi.push(`${tot.prezziDaDefinire} prezzi da definire: il ricavo è parziale.`);
-  avvisi.push(q.registrato ? "Costi registrati all'approvazione del rapportino." : "Costi stimati: il rapportino non è ancora approvato.");
-  pdf.setFontSize(8).setTextColor(...tenue);
-  for (const a of avvisi) { const t = pdf.splitTextToSize(a, W - 2 * M) as string[]; pdf.text(t, M, y); y += t.length * 3.8 + 1; }
+  if (conMargine && tot.prezziDaDefinire) avvisi.push(`${tot.prezziDaDefinire} ${tot.prezziDaDefinire === 1 ? "prezzo" : "prezzi"} da definire: il ricavo è parziale.`);
+  avvisi.push(q.registrato ? "Costi e prezzi fissati all'approvazione del rapportino: un listino cambiato dopo non li tocca." : "Costi stimati: il rapportino non è ancora approvato.");
+  font(pagina.nota, false, TENUE);
+  for (const t of avvisi) {
+    const righe = pdf.splitTextToSize(safe(t), width) as string[];
+    if (y + righe.length * passo(pagina.nota) > bottom) { pdf.addPage(); testata(); }
+    pdf.text(righe, left, y + passo(pagina.nota) * 0.72); y += righe.length * passo(pagina.nota) + 1;
+  }
+
+  // Piè: i dati societari (o il piè proprio dell'azienda), come negli altri documenti.
+  const foot = a.righeSocietarie?.length ? a.righeSocietarie : footerAzienda(a);
+  if (a.fontPiede) { pdf.addFileToVFS("EBGaramond-Regular.ttf", a.fontPiede); pdf.addFont("EBGaramond-Regular.ttf", "EBGaramond", "normal"); }
   const pagine = pdf.getNumberOfPages();
-  for (let i = 1; i <= pagine; i++) {
-    pdf.setPage(i);
-    pdf.setFontSize(7).setTextColor(...tenue).text(`${azienda.nome} · documento interno · pagina ${i} di ${pagine}`, W / 2, 290, { align: "center" });
+  for (let n = 1; n <= pagine; n++) {
+    pdf.setPage(n);
+    const numero = `Documento interno · Pag. ${n} / ${pagine}`;
+    if (veste.piedeRighe) {
+      disegnaPiedeJsPdf(pdf, veste, { font: a.fontPiede ? "EBGaramond" : "helvetica", pulisci: a.fontPiede ? undefined : safe, larghezzaUtile: width, pagina: numero });
+      continue;
+    }
+    const basePagina = 290, passoPiede = passo(7, 1.35), ultima = basePagina - passoPiede - 0.6;
+    foot.filter(Boolean).forEach((line, i, arr) => {
+      font(7, false, TENUE);
+      const t = safe(line), tw = pdf.getTextWidth(t);
+      if (tw > width) pdf.setFontSize((7 * width) / tw);
+      pdf.text(t, 105, ultima - (arr.length - 1 - i) * passoPiede, { align: "center" });
+    });
+    font(7, false, TENUE); pdf.text(numero, 105, basePagina, { align: "center" });
   }
   return pdf;
+}
+
+/** Carica logo e dati societari dell'azienda e crea il PDF interno, come `generaPdfOperativo`. */
+export async function generaPdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: InfoRapportino, a: AziendaDocumento): Promise<Blob> {
+  let logo: string | undefined;
+  if (a.logo_url) {
+    try {
+      const risposta = await fetch(a.logo_url, { signal: AbortSignal.timeout(15000) });
+      if (risposta.ok) {
+        const immagine = await createImageBitmap(await risposta.blob());
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = immagine.width; canvas.height = immagine.height;
+          canvas.getContext("2d")?.drawImage(immagine, 0, 0);
+          logo = canvas.toDataURL("image/png");
+        } finally { immagine.close(); }
+      }
+    } catch { /* Senza logo si scrive la ragione sociale: il documento esce lo stesso. */ }
+  }
+  const [{ supabase }, societari] = await Promise.all([import("@/integrations/supabase/client"), import("../../../supabase/functions/_shared/datiSocietari")]);
+  const righeSocietarie = societari.righeSocietarie(await societari.caricaDatiSocietari(supabase, a.id));
+  const fontPiede = personalizzazioneDocumento(a.id).piedeFont ? await fontPiedeBase64() : null;
+  return pdfInterno(variante, q, info, { ...a, righeSocietarie, fontPiede }, logo).output("blob");
 }

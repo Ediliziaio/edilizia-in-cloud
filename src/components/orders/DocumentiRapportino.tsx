@@ -13,7 +13,7 @@ import { DocumentoInvioDialog } from "@/components/documentiOperativi/DocumentoI
 import { leggiDestinatarioRapporto } from "@/lib/documentiOperativi/destinatarioRapporto";
 import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
 import {
-  documentoPerCommittente, pdfInterno, type InfoRapportino, type QuadroDocumento, type VarianteInterna,
+  documentoPerCommittente, generaPdfInterno, type InfoRapportino, type QuadroDocumento, type VarianteInterna,
 } from "@/lib/campo/rapportinoDocumenti";
 
 async function leggiInfo(rapportinoId: string, companyId: string): Promise<InfoRapportino & { orderId: string }> {
@@ -42,9 +42,9 @@ export function DocumentiRapportino({ rapportinoId, quadro, vedeImporti, vedeMar
     setInCorso(variante);
     try {
       const info = await leggiInfo(rapportinoId, companyId);
-      const accento = effectiveCompany?.brand_primary_color ?? undefined;
-      const pdf = pdfInterno(variante, quadro, info, { nome: effectiveCompany?.name ?? "", accento });
-      const url = URL.createObjectURL(pdf.output("blob"));
+      // Logo, colore e dati societari dell'azienda, come negli altri documenti.
+      const blob = await generaPdfInterno(variante, quadro, info, effectiveCompany!);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `Rapportino ${info.commessa ?? ""} ${info.data} - ${variante === "costi" ? "costi" : "costi e margine"}.pdf`.replace(/[\\/:*?"<>|]/g, "-");
