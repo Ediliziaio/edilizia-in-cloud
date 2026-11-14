@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import type { ContractExtract } from "@/lib/orders/contractExtract";
 import {
-  pianoContrattoSuCommessa, rateDaSalvare, type CommessaPerContratto, type PianoContrattoSuCommessa, type RataEsistente,
+  descrizioneVoceContratto, pianoContrattoSuCommessa, rateDaSalvare, type CommessaPerContratto, type PianoContrattoSuCommessa, type RataEsistente,
 } from "@/lib/orders/contrattoSuCommessa";
 import { percorsoDocumento } from "@/lib/commesse/documentiCommessa";
 import { riduciFile } from "@/lib/commesse/riduciFoto";
@@ -113,11 +113,16 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         if (rate) fatti.push(`${piano.rateNuove?.length ?? 0} rate`);
       }
       if (scelte.voci && piano.voci.length > 0) {
-        const { error } = await supabase.from("order_items").insert(piano.voci.map((v, i) => ({
-          order_id: orderId, name: v.name, quantity: v.quantity, unit_price: v.unit_price,
-          discount_percent: v.discount_percent, vat_rate: v.vat_rate, status: "da_ordinare",
-          position: lettura.vociEsistenti + i,
-        })) as never);
+        // Come le altre pagine: la funzione controlla permesso e visibilità della commessa (un utente d'ufficio senza
+        // i costi non può scrivere order_items direttamente). Il prezzo di vendita non sta sulla voce, che è un
+        // acquisto: quello del contratto resta scritto nella descrizione.
+        const { error } = await supabase.rpc("commessa_aggiungi_voci", {
+          p_commessa: orderId,
+          p_voci: piano.voci.map((v) => ({
+            name: v.name, quantity: v.quantity, vat_rate: v.vat_rate, status: "da_ordinare",
+            description: descrizioneVoceContratto(v),
+          })),
+        } as never);
         if (error) throw new Error(`Importi e rate salvati, ma le voci no: ${error.message}`);
         fatti.push(`${piano.voci.length} voci`);
       }

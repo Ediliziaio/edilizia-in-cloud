@@ -148,6 +148,14 @@ export function pianoContrattoSuCommessa(
   };
 }
 
+/** La voce in commessa è un acquisto, senza prezzo di vendita: quello del contratto resta nella descrizione. */
+export function descrizioneVoceContratto(v: Pick<VoceDaContratto, "quantity" | "unit_price" | "discount_percent">): string | null {
+  if (!(v.unit_price > 0)) return null;
+  const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sconto = v.discount_percent > 0 ? `, sconto ${String(v.discount_percent).replace(".", ",")}%` : "";
+  return `Dal contratto: ${String(v.quantity).replace(".", ",")} × ${euro(v.unit_price)} €${sconto}`;
+}
+
 /** Le rate per `commessa_salva`: le tenute con il loro id e i loro dati, poi le nuove. */
 export function rateDaSalvare(piano: Pick<PianoContrattoSuCommessa, "rateNuove" | "rateTenute">): Record<string, unknown>[] | null {
   if (!piano.rateNuove) return null;

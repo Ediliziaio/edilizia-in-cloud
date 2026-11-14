@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseContractExtract } from "@/lib/orders/contractExtract";
 import {
-  pianoAlNettoDelleTenute, pianoContrattoSuCommessa, rataBloccata, rateDaSalvare, type CommessaPerContratto, type RataEsistente,
+  descrizioneVoceContratto, pianoAlNettoDelleTenute, pianoContrattoSuCommessa, rataBloccata, rateDaSalvare, type CommessaPerContratto, type RataEsistente,
 } from "@/lib/orders/contrattoSuCommessa";
 
 const contratto = (extra: Record<string, unknown> = {}) => parseContractExtract({
@@ -116,5 +116,13 @@ describe("pianoContrattoSuCommessa", () => {
     expect(q.campi.riferimento_committente).toBeUndefined();
     const r = pianoContrattoSuCommessa(ex, commessa, []);
     expect(r.campi.tetto_importo).toBeUndefined();
+  });
+});
+
+describe("descrizioneVoceContratto", () => {
+  it("il prezzo del contratto resta nella descrizione della voce", () => {
+    expect(descrizioneVoceContratto({ quantity: 40, unit_price: 200, discount_percent: 0 })).toBe("Dal contratto: 40 × 200,00 €");
+    expect(descrizioneVoceContratto({ quantity: 1.5, unit_price: 10, discount_percent: 15 })).toBe("Dal contratto: 1,5 × 10,00 €, sconto 15%");
+    expect(descrizioneVoceContratto({ quantity: 1, unit_price: 0, discount_percent: 0 })).toBeNull();
   });
 });

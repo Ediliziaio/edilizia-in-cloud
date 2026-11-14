@@ -5,7 +5,8 @@
  * firma online o copia firmata — e all'approvazione nasce la fase nelle Lavorazioni.
  *
  * Quando il lavoro extra è salvato, il preventivo diventa «convertito» e ricorda la variante (quotes.variante_id):
- * non si usa una seconda volta, né per un'altra variante né per una commessa.
+ * non si usa una seconda volta, né per un'altra variante né per una commessa. Dal 14/11/2026 lo lega la funzione
+ * `preventivo_diventa_lavoro_extra`, che lo rifiuta se nel frattempo è stato usato.
  */
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,14 +62,11 @@ export function LavoroExtraDaPreventivo({ quoteId, orderId, companyId, context, 
     try {
       const { data: variante } = await supabase.from("ordini_variazione").select("id").eq("id", idVariante).eq("order_id", orderId).maybeSingle();
       if (variante) {
-        const { data: segnato, error } = await supabase.from("quotes")
-          .update({ status: "convertita", variante_id: idVariante } as never)
-          .eq("id", quoteId).eq("company_id", companyId).eq("status", "accettata").is("variante_id", null)
-          .select("id");
-        if (error) throw error;
-        // Nessuna riga: nel frattempo il preventivo è stato usato da qualcun altro. Il lavoro extra resta in bozza
-        // e va guardato, non nascosto dietro un «creato».
-        if (!segnato?.length) throw new Error("Nel frattempo il preventivo è stato usato altrove: controlla il lavoro extra appena salvato prima di mandarlo.");
+        // Lo lega il database (20290321100000), col permesso sulle commesse e sotto lock: l'UPDATE diretto su quotes,
+        // per chi non ha il permesso sui preventivi, toccava 0 righe in silenzio e il preventivo restava riusabile.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any).rpc("preventivo_diventa_lavoro_extra", { p_quote: quoteId, p_variante: idVariante });
+        if (error) throw new Error(error.message ?? "Collegamento non riuscito.");
         toast.success("Lavoro extra creato dal preventivo", { description: "Mandalo da firmare o carica la copia firmata: all'approvazione diventa una fase." });
         queryClient.invalidateQueries({ queryKey: ["preventivi-committente"] });
         queryClient.invalidateQueries({ queryKey: ["preventivi-cliente"] });
