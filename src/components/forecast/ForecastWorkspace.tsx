@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { ForecastCashChart } from "./ForecastCashChart";
 import {
   ArrowRight,
@@ -305,6 +306,7 @@ export function ForecastWorkspace({
   onRefresh: () => void;
   refreshing?: boolean;
 }) {
+  const dentroTesoreria = useLocation().pathname.includes("/tesoreria");
   const [params, setParams] = useSearchParams();
   const f = useMemo(
     () => readFilters(params, data.companyId),
@@ -709,7 +711,9 @@ export function ForecastWorkspace({
     <div className="space-y-4 pb-8" data-testid="forecast-workspace">
       <header className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-lg font-bold leading-6">Previsionale di cassa</h1>
+          {/* Dentro Tesoreria il titolo c'è già nella sua testata: due titoli
+              uno sotto l'altro dicevano la stessa cosa. */}
+          {!dentroTesoreria && <h1 className="text-lg font-bold leading-6">Previsionale di cassa</h1>}
           <p
             className="mt-0.5 text-xs text-muted-foreground"
             role="status"
@@ -958,8 +962,8 @@ export function ForecastWorkspace({
             data.opening.cents === null ||
             projection.undated.length ||
             projection.possibleDuplicates.length
-            ? "border-amber-200 bg-amber-50/50"
-            : "border-blue-200 bg-blue-50/30",
+            ? "border-amber-200 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10"
+            : "border-blue-200 bg-blue-50/30 dark:border-blue-500/30 dark:bg-blue-500/10",
         )}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1104,43 +1108,47 @@ export function ForecastWorkspace({
         {/* ── Panoramica ── */}
         <TabsContent value="panoramica" className="mt-4 space-y-4">
           {issues}
-          <div
-            className={cn(
-              section,
-              "grid grid-cols-2 lg:grid-cols-4 lg:divide-x [&>*:nth-child(-n+2)]:border-b lg:[&>*:nth-child(-n+2)]:border-b-0",
-            )}
-          >
-            <Metric
-              label="Disponibilità oggi"
-              value={money(data.opening.cents)}
-              detail={
+          {/* 14/11/2026: i quattro numeri come nel Cruscotto, col colore dello
+              stato (rosso se la cassa scende sotto la soglia). */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <RiquadroNumero
+              etichetta="Disponibilità oggi"
+              valore={money(data.opening.cents)}
+              periodo={
                 data.opening.source === "banca"
                   ? `Banca${data.opening.updatedAt ? ` · al ${shortDate(data.opening.updatedAt)}` : ""}`
                   : data.opening.source === "prima-nota"
                     ? "Prima Nota · saldo fino a oggi"
                     : "Collega un conto o completa la Prima Nota"
               }
+              tono={data.opening.cents == null ? "neutro" : data.opening.cents < 0 ? "male" : "neutro"}
             />
-            <Metric
-              label="Punto più basso"
-              value={money(projection.minimum)}
-              detail={
+            <RiquadroNumero
+              etichetta="Punto più basso"
+              valore={money(projection.minimum)}
+              periodo={
                 projection.minimumDate
                   ? `Il ${shortDate(projection.minimumDate)} · nei ${f.horizon} giorni`
                   : "Serve un saldo di partenza"
               }
-              danger={!!projection.need}
+              tono={projection.minimum == null ? "neutro" : projection.need ? "male" : "buono"}
+              variazione={
+                data.opening.cents && projection.minimum != null
+                  ? { pct: ((projection.minimum - data.opening.cents) / Math.abs(data.opening.cents)) * 100, nota: "Rispetto alla disponibilità di oggi" }
+                  : undefined
+              }
             />
-            <Metric
-              label="Ti mancano"
-              value={money(projection.need)}
-              detail={`per restare sopra ${money(f.threshold)}`}
-              danger={!!projection.need}
+            <RiquadroNumero
+              etichetta="Ti mancano"
+              valore={money(projection.need)}
+              periodo={`per restare sopra ${money(f.threshold)}`}
+              tono={projection.need ? "male" : "buono"}
             />
-            <Metric
-              label="Incassi scaduti da sollecitare"
-              value={money(sum(overdueIncome))}
-              detail={`${overdueIncome.length} ${overdueIncome.length === 1 ? "incasso" : "incassi"} oltre la scadenza`}
+            <RiquadroNumero
+              etichetta="Incassi scaduti da sollecitare"
+              valore={money(sum(overdueIncome))}
+              periodo={`${overdueIncome.length} ${overdueIncome.length === 1 ? "incasso" : "incassi"} oltre la scadenza`}
+              tono={overdueIncome.length > 0 ? "attenzione" : "neutro"}
             />
           </div>
           <div

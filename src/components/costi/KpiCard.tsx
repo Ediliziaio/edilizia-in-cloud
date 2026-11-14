@@ -8,6 +8,7 @@
  */
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PillolaVariazione } from "@/components/charts/grafici/comune";
 
 export function KpiCard({
   label,
@@ -17,6 +18,7 @@ export function KpiCard({
   accent,
   onClick,
   active = false,
+  variazione,
 }: {
   label: string;
   value: string;
@@ -25,6 +27,8 @@ export function KpiCard({
   accent: string;
   onClick?: () => void;
   active?: boolean;
+  /** Pillola della variazione accanto al numero (es. sull'anno prima). */
+  variazione?: { pct: number | null; piuEMeglio?: boolean; neutra?: boolean; nota?: string };
 }) {
   const inner = (
     <>
@@ -33,14 +37,20 @@ export function KpiCard({
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </span>
-        <Icon className="h-4 w-4 text-slate-500" />
+        <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <div className="mt-2 text-xl font-semibold text-slate-900">{value}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">{value}</span>
+        {variazione && (
+          <PillolaVariazione pct={variazione.pct} piuEMeglio={variazione.piuEMeglio} neutra={variazione.neutra} titolo={variazione.nota} />
+        )}
+      </div>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </>
   );
 
-  const baseClass = "relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 shadow-sm";
+  // 14/11/2026: colori del tema (anche scuro) ed entrata dal basso.
+  const baseClass = "relative overflow-hidden rounded-xl border bg-gradient-to-br from-card to-muted/40 p-3 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500 motion-safe:fill-mode-both";
 
   if (onClick) {
     return (
@@ -49,7 +59,7 @@ export function KpiCard({
         onClick={onClick}
         className={cn(
           baseClass,
-          "text-left transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
+          "text-left transition-all hover:border-primary/30 hover:shadow-md motion-safe:hover:-translate-y-0.5",
           active && "ring-2 ring-orange-400",
         )}
       >
@@ -73,6 +83,7 @@ export function NavyStatCard({
   tone = "text-blue-100",
   onClick,
   active = false,
+  variazione,
 }: {
   label: string;
   value: React.ReactNode;
@@ -82,6 +93,8 @@ export function NavyStatCard({
   tone?: string;
   onClick?: () => void;
   active?: boolean;
+  /** Pillola della variazione accanto al numero (es. sull'anno prima). */
+  variazione?: { pct: number | null; piuEMeglio?: boolean; neutra?: boolean; nota?: string };
 }) {
   const inner = (
     <div className="flex items-center gap-2 sm:gap-3">

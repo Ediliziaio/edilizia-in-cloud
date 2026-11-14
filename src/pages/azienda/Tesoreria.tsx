@@ -180,7 +180,7 @@ export default function Tesoreria() {
   if (hasConnections === null || manualLoading || distyraFinalizing) {
     return (
       <div className="space-y-6">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="rounded-2xl border border-border bg-card px-4 py-5 shadow-sm sm:px-6">
           <div className="flex items-start gap-3">
             <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
             <div className="space-y-2">
@@ -202,14 +202,14 @@ export default function Tesoreria() {
   if (!hasConnections && !hasManualAccounts) {
     return (
       <div className="space-y-6 max-sm:space-y-3">
-        <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+        <div className="testata-pagina rounded-2xl border border-border bg-gradient-to-br from-card via-card to-orange-50/40 px-4 dark:to-orange-500/5 py-5 shadow-sm sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Tesoreria</h1>
-              <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">Gestisci conti bancari e monitora il cash flow in tempo reale.</p>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Tesoreria</h1>
+              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">Gestisci conti bancari e monitora il cash flow in tempo reale.</p>
             </div>
           </div>
         </div>
@@ -239,9 +239,9 @@ export default function Tesoreria() {
         {/* Alternativa senza banca: conti/casse manuali con import CSV/Excel o AI.
             Appena l'utente ne crea uno, hasManualAccounts diventa true e si apre
             la tesoreria completa a tab (saldi, previsionali, controllo di gestione). */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 max-sm:p-3">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6 max-sm:p-3">
           <div className="mb-3 max-sm:hidden">
-            <h2 className="text-base font-semibold text-slate-900">Non usi l'Open Banking? Gestisci a mano</h2>
+            <h2 className="text-base font-semibold text-foreground">Non usi l'Open Banking? Gestisci a mano</h2>
             <p className="text-sm text-muted-foreground">
               Crea un conto o una cassa manuale e carica i movimenti a mano, oppure importa l'estratto conto da CSV/Excel o da una foto/PDF letta dall'AI. Alimenta comunque tesoreria, previsionali e controllo di gestione.
             </p>
@@ -266,15 +266,15 @@ export default function Tesoreria() {
 
   return (
     <div className="space-y-6 max-sm:space-y-3">
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
+      <div className="testata-pagina rounded-2xl border border-border bg-gradient-to-br from-card via-card to-orange-50/40 px-4 dark:to-orange-500/5 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               <Landmark className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Tesoreria</h1>
-              <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Tesoreria</h1>
+              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
                 Gestisci conti bancari e monitora il cash flow in tempo reale.
               </p>
             </div>
@@ -298,7 +298,7 @@ export default function Tesoreria() {
         {/* Mobile: quattro linguette affiancate, compreso l'accesso alle banche. */}
         {/* Da 640: icone delle linguette solo da 1536 (senza, a 1280 ci stanno
             tutte e otto su una riga). */}
-        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-4 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
+        <TabsList className="flex h-auto w-full flex-nowrap overflow-x-auto scrollbar-hide justify-start gap-1 rounded-2xl border border-border bg-card p-2 shadow-sm sm:flex-wrap sm:overflow-visible [&>button]:shrink-0 sm:max-2xl:[&_[role=tab]>svg]:hidden max-sm:grid max-sm:grid-cols-4 max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none max-sm:[&_svg]:hidden">
           <TabsTrigger value="overview" className="tap-compact gap-2 max-sm:h-8 max-sm:text-xs">
             <LayoutDashboard className="h-4 w-4" /> <span>Panoramica</span>
           </TabsTrigger>
@@ -352,7 +352,7 @@ export default function Tesoreria() {
           <div className="space-y-4 max-sm:space-y-3">
             <BankConnectionsCard onChanged={handleConnectionChanged} handleReturn={false} redirectPath="/azienda/tesoreria" />
             {hasConnections && <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />}
-            {hasConnections && <div className="border-t border-slate-100 max-sm:hidden" />}
+            {hasConnections && <div className="border-t border-border/60 max-sm:hidden" />}
             <ManualTreasuryPanel />
           </div>
         </TabsContent>

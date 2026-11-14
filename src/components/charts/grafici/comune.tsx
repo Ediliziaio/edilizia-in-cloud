@@ -136,7 +136,7 @@ export function Comparsa({
 
 /** Pillola della variazione: verde se va nel verso buono, rossa se no. */
 export function PillolaVariazione({
-  pct, piuEMeglio = true, titolo, className, suScuro, unita = "%",
+  pct, piuEMeglio = true, titolo, className, suScuro, unita = "%", neutra,
 }: {
   pct: number | null;
   piuEMeglio?: boolean;
@@ -146,9 +146,11 @@ export function PillolaVariazione({
   suScuro?: boolean;
   /** «%» (variazione relativa, predefinito) o « pt» (differenza fra due percentuali). */
   unita?: string;
+  /** Senza giudizio (grigia): per numeri dove salire non è né bene né male, come la spesa. */
+  neutra?: boolean;
 }) {
   if (pct == null || !Number.isFinite(pct)) return null;
-  const buona = Math.abs(pct) < 0.05 ? null : (pct > 0) === piuEMeglio;
+  const buona = neutra || Math.abs(pct) < 0.05 ? null : (pct > 0) === piuEMeglio;
   const testo = `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${new Intl.NumberFormat("it-IT", { maximumFractionDigits: Math.abs(pct) >= 100 ? 0 : 1 }).format(Math.abs(pct))}${unita}`;
   return (
     <span

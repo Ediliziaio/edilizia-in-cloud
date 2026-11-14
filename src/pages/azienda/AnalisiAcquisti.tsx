@@ -10,9 +10,11 @@
  */
 
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, Bar, CartesianGrid, Cell, ComposedChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { COLORI_GRAFICO, Comparsa, PillolaVariazione, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { useProcurementAnalysis } from "@/hooks/useProcurementAnalysis";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -169,6 +171,12 @@ function SceltaConRicerca({
   );
 }
 
+/** La variazione in percento (null se l'anno prima era zero). La spesa che sale non è né bene né male: pillola grigia. */
+function pctVar(ora: number, prima: number): number | null {
+  const v = variazione(ora, prima);
+  return v == null ? null : v * 100;
+}
+
 function nomeCommessa(codice: string | null, cliente: string | null): string {
   return [codice, cliente].filter(Boolean).join(" · ") || "Commessa senza codice";
 }
@@ -181,15 +189,22 @@ function linkFornitore(supplierId: string | null): string | null {
 
 function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
   const [serie, setSerie] = useState<"ordinato" | "fatturato">("ordinato");
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
   const righe = dati.mesi.map((m) => {
     const [a, mm] = m.mese.split("-").map(Number);
+    const data = new Date(a, mm - 1, 1);
     return {
-      etichetta: new Date(a, mm - 1, 1).toLocaleDateString("it-IT", { month: "short", year: "2-digit" }),
+      etichetta: data.toLocaleDateString("it-IT", { month: "short", year: "2-digit" }),
+      lungo: data.toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
       questo: serie === "ordinato" ? m.ordinato : m.fatturato,
       prima: serie === "ordinato" ? m.ordinatoAnnoPrima : m.fatturatoAnnoPrima,
     };
   });
   const vuoto = righe.every((r) => r.questo === 0 && r.prima === 0);
+  const totale = righe.reduce((s, r) => s + r.questo, 0);
+  const totalePrima = righe.reduce((s, r) => s + r.prima, 0);
+  const caro = righe.reduce((x, r) => (r.questo > x.questo ? r : x), righe[0] ?? { questo: 0, lungo: "", etichetta: "", prima: 0 });
   return (
     <Sezione
       titolo="Spesa mese per mese (senza IVA)"
@@ -212,29 +227,178 @@ function GraficoMesi({ dati }: { dati: AnalisiAcquistiDati }) {
         <Vuoto titolo="Nessuna spesa nel periodo" guida="Il grafico si riempie con gli ordini d'acquisto e le fatture ricevute." />
       ) : (
         <>
+          <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+            <StatGrafico etichetta="Mese più caro" valore={formatCurrencyCompact(caro.questo)} nota={caro.lungo} />
+            <StatGrafico etichetta="Totale" valore={formatCurrencyCompact(totale)} nota={serie === "ordinato" ? "ordinato nel periodo" : "fatturato nel periodo"} />
+            <StatGrafico
+              etichetta="Anno prima"
+              valore={
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  {formatCurrencyCompact(totalePrima)}
+                  <PillolaVariazione pct={pctVar(totale, totalePrima)} neutra titolo="Questo periodo rispetto all'anno prima" />
+                </span>
+              }
+              nota="stessi mesi"
+            />
+          </div>
           <div className="h-56 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={righe} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={2}>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="etichetta" tickLine={false} axisLine={false} fontSize={11} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tickLine={false} axisLine={false} fontSize={11} width={56} stroke="hsl(var(--muted-foreground))" tickFormatter={(v: number) => formatCurrencyCompact(v)} />
+              <ComposedChart data={righe} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="28%">
+                {defsGrafico(id, { questo: COLORI_GRAFICO.blu, prima: COLORI_GRAFICO.viola })}
+                <CartesianGrid vertical={false} fill={`url(#${id}-punti)`} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+                <XAxis dataKey="etichetta" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={6} />
+                <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={60} tickFormatter={euroAsse} />
                 <Tooltip
-                  cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-                  contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number, nome: string) => [formatCurrency(v), nome === "questo" ? "Periodo scelto" : "Anno prima"]}
+                  cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+                  content={(p) => (
+                    <TooltipScheda
+                      active={p.active}
+                      payload={p.payload as never}
+                      label={(p.payload?.[0]?.payload as { lungo?: string } | undefined)?.lungo ?? p.label}
+                    />
+                  )}
                 />
-                <Bar dataKey="prima" fill="hsl(var(--chart-1))" fillOpacity={0.25} radius={[4, 4, 0, 0]} maxBarSize={18} />
-                <Bar dataKey="questo" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} maxBarSize={18} />
-              </BarChart>
+                {/* L'anno prima è lo sfondo (area), quest'anno sono le barre davanti. */}
+                <Area
+                  type="monotone"
+                  dataKey="prima"
+                  name="Stesso mese, anno prima"
+                  stroke={COLORI_GRAFICO.viola}
+                  strokeOpacity={0.6}
+                  strokeDasharray="4 4"
+                  fill={`url(#${id}-sfuma-prima)`}
+                  isAnimationActive={!fermo}
+                  animationDuration={900}
+                  dot={false}
+                />
+                <Bar
+                  dataKey="questo"
+                  name="Periodo scelto"
+                  fill={`url(#${id}-barra-questo)`}
+                  radius={[5, 5, 2, 2]}
+                  maxBarSize={22}
+                  isAnimationActive={!fermo}
+                  animationDuration={800}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
           <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: "hsl(var(--chart-1))" }} /> Periodo scelto</span>
-            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm opacity-25" style={{ background: "hsl(var(--chart-1))" }} /> Stesso mese, anno prima</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm" style={{ background: COLORI_GRAFICO.blu }} /> Periodo scelto</span>
+            <span className="flex items-center gap-1.5"><span className="h-0.5 w-3 rounded" style={{ background: COLORI_GRAFICO.viola }} /> Stesso mese, anno prima</span>
           </div>
         </>
       )}
     </Sezione>
+  );
+}
+
+// Otto colori distinti: sette categorie più «Altre» (grigio, sempre l'ultima).
+const COLORI_CATEGORIE = [
+  COLORI_GRAFICO.blu, COLORI_GRAFICO.arancio, COLORI_GRAFICO.verde, COLORI_GRAFICO.viola,
+  COLORI_GRAFICO.rosso, "hsl(190 80% 42%)", "hsl(330 75% 55%)", "hsl(var(--muted-foreground))",
+];
+
+/**
+ * Dove va la spesa: ciambella per categoria del fornitore e, accanto, le
+ * stesse categorie in barre con l'importo (fanno da legenda). I fornitori
+ * stanno già nella tabella qui sotto. Solo da scrivania.
+ */
+function DoveVaLaSpesa({ dati }: { dati: AnalisiAcquistiDati }) {
+  const fermo = usePreferisceMenoMovimento();
+  const cat = dati.categorie.slice(0, 7).map((c) => ({ nome: c.categoria, valore: c.ordinato }));
+  const resto = dati.categorie.slice(7).reduce((s, c) => s + c.ordinato, 0);
+  if (resto > 0) cat.push({ nome: "Altre categorie", valore: resto });
+  const tot = cat.reduce((s, c) => s + c.valore, 0);
+  if (cat.length < 2 || tot <= 0) return null;
+  const max = Math.max(...cat.map((c) => c.valore));
+  const colore = (i: number) => COLORI_CATEGORIE[i % COLORI_CATEGORIE.length];
+  return (
+    <Sezione titolo="Dove va la spesa: ordinato per categoria del fornitore">
+      <div className="grid gap-5 md:grid-cols-[200px_minmax(0,1fr)] md:items-center">
+        <div className="relative h-[180px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={cat} dataKey="valore" nameKey="nome" innerRadius={56} outerRadius={84} paddingAngle={2} stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={!fermo} animationDuration={800}>
+                {cat.map((c, i) => <Cell key={c.nome} fill={colore(i)} />)}
+              </Pie>
+              <Tooltip content={(p) => <TooltipScheda active={p.active} payload={(p.payload ?? []).map((x) => ({ ...x, color: (x.payload as { fill?: string } | undefined)?.fill })) as never} label="Categoria" />} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Ordinato</span>
+            <span className="text-sm font-bold tabular-nums">{formatCurrencyCompact(tot)}</span>
+          </div>
+        </div>
+        <ol className="grid gap-x-6 gap-y-2 lg:grid-cols-2">
+          {cat.map((c, i) => (
+            <li key={c.nome} className="text-xs">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colore(i) }} />
+                  <span className="truncate font-medium">{c.nome}</span>
+                </span>
+                <span className="shrink-0 tabular-nums">
+                  <strong>{formatCurrencyCompact(c.valore)}</strong>
+                  <span className="ml-1.5 text-muted-foreground">{Math.round((c.valore / tot) * 100)}%</span>
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="cg-barra-cresce h-full rounded-full" style={{ width: `${Math.max(2, (c.valore / max) * 100)}%`, background: colore(i), animationDelay: `${250 + i * 70}ms` }} />
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </Sezione>
+  );
+}
+
+/** Riquadro scuro: quanto c'è da pagare, scaduto e nei prossimi 30 giorni. */
+function DaPagare({ scaduto, scadutoN, prossimi, prossimiN, onApri, fornitori }: { scaduto: number; scadutoN: number; prossimi: number; prossimiN: number; onApri: () => void; fornitori: FornitoreAnalisi[] }) {
+  const tot = scaduto + prossimi;
+  // Chi aspetta di più: i fornitori con lo scaduto più alto.
+  const chiAspetta = fornitori.filter((f) => f.scaduto > 0).sort((a, b) => b.scaduto - a.scaduto).slice(0, 4);
+  return (
+    <div className="flex flex-col rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Da pagare entro 30 giorni</p>
+        <button type="button" onClick={onApri} className="text-[11px] font-medium text-sky-300 underline-offset-2 hover:underline">Scadenze →</button>
+      </div>
+      <p className="mt-2 text-3xl font-bold tabular-nums tracking-tight">{formatCurrencyCompact(tot)}</p>
+      <p className="text-xs text-slate-400">IVA compresa, dallo scadenzario</p>
+      {tot > 0 && (
+        <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/10" aria-hidden>
+          <div className="cg-barra-cresce bg-gradient-to-r from-red-500 to-rose-400" style={{ width: `${(scaduto / tot) * 100}%` }} />
+          <div className="cg-barra-cresce bg-gradient-to-r from-amber-400 to-yellow-300" style={{ width: `${(prossimi / tot) * 100}%`, animationDelay: "350ms" }} />
+        </div>
+      )}
+      <dl className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+        <div>
+          <dt className="flex items-center gap-1.5 text-slate-400"><span className="h-2 w-2 rounded-full bg-red-500" />Scaduto</dt>
+          <dd className="font-semibold tabular-nums">{formatCurrency(scaduto)}</dd>
+          <dd className="text-slate-400">{scadutoN} rate</dd>
+        </div>
+        <div>
+          <dt className="flex items-center gap-1.5 text-slate-400"><span className="h-2 w-2 rounded-full bg-amber-400" />Prossimi 30 giorni</dt>
+          <dd className="font-semibold tabular-nums">{formatCurrency(prossimi)}</dd>
+          <dd className="text-slate-400">{prossimiN} rate</dd>
+        </div>
+      </dl>
+      {chiAspetta.length > 0 && (
+        <div className="mt-3 border-t border-white/10 pt-3">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Chi aspetta di più</p>
+          <ul className="space-y-1.5 text-xs">
+            {chiAspetta.map((f) => (
+              <li key={f.chiave} className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate text-slate-200">{f.nome}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-rose-300">{formatCurrencyCompact(f.scaduto)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -549,8 +713,22 @@ export default function AnalisiAcquisti() {
                 Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[92px] rounded-xl" />)
               ) : (
                 <>
-                  <KpiCard label="Ordinato" value={eur0(t.ordinato)} sub={formatVariazione(variazione(t.ordinato, t.annoPrima.ordinato)) ?? `${t.numeroOrdini} ordini`} icon={ShoppingCart} accent="bg-orange-500" />
-                  <KpiCard label="Fatturato" value={eur0(t.fatturato)} sub={formatVariazione(variazione(t.fatturato, t.annoPrima.fatturato)) ?? `${t.numeroFatture} fatture`} icon={Receipt} accent="bg-blue-500" />
+                  <KpiCard
+                    label="Ordinato"
+                    value={eur0(t.ordinato)}
+                    sub={formatVariazione(variazione(t.ordinato, t.annoPrima.ordinato)) ?? `${t.numeroOrdini} ordini`}
+                    icon={ShoppingCart}
+                    accent="bg-orange-500"
+                    variazione={{ pct: pctVar(t.ordinato, t.annoPrima.ordinato), neutra: true, nota: "Rispetto allo stesso periodo dell'anno prima" }}
+                  />
+                  <KpiCard
+                    label="Fatturato"
+                    value={eur0(t.fatturato)}
+                    sub={formatVariazione(variazione(t.fatturato, t.annoPrima.fatturato)) ?? `${t.numeroFatture} fatture`}
+                    icon={Receipt}
+                    accent="bg-blue-500"
+                    variazione={{ pct: pctVar(t.fatturato, t.annoPrima.fatturato), neutra: true, nota: "Rispetto allo stesso periodo dell'anno prima" }}
+                  />
                   <KpiCard
                     label="Scaduto"
                     value={eur0(t.scaduto)}
@@ -590,7 +768,17 @@ export default function AnalisiAcquisti() {
             </p>
           )}
 
-          {caricaAnalisi((d) => <GraficoMesi dati={d} />, "h-72")}
+          {/* Spesa mese per mese grande, accanto il riquadro scuro di quanto c'è da pagare. */}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <Comparsa indice={0} className="min-w-0">{caricaAnalisi((d) => <GraficoMesi dati={d} />, "h-72")}</Comparsa>
+            {t && (
+              <Comparsa indice={1}>
+                <DaPagare scaduto={t.scaduto} scadutoN={t.scadutoConteggio} prossimi={t.inScadenza30} prossimiN={t.inScadenza30Conteggio} onApri={() => imposta({ scheda: "scadenze" })} fornitori={dati?.fornitori ?? []} />
+              </Comparsa>
+            )}
+          </div>
+
+          {!isMobile && dati && <Comparsa indice={2}><DoveVaLaSpesa dati={dati} /></Comparsa>}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Sezione titolo="Primi 5 fornitori" destra={<Button variant="link" size="sm" className="h-auto p-0" onClick={() => imposta({ scheda: "fornitori" })}>Tutti</Button>}>

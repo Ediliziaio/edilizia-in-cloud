@@ -111,6 +111,16 @@ Dentro Tesoreria la pagina ha **due titoli**: la testata di Tesoreria più l'`<h
 - **KpiCard:** pillola della variazione nello stile comune, comparsa a cascata.
 - **Telefono:** i quattro numeri e i primi 5 fornitori in lista, senza grafici.
 
+### Cosa è cambiato rispetto al piano (lotto 1, fatto)
+
+- **Previsionale, riquadro scuro «Copertura»:** non fatto. Il riquadro del rischio, che c'è già, dice la data del minimo, i giorni sotto la soglia e il rientro: un secondo riquadro avrebbe ripetuto le stesse cose.
+- **Previsionale, tendenza in «Disponibilità oggi»:** non fatta. Al suo posto la riga sopra il grafico dice «più alto / più basso / rispetto a oggi». Il «Punto più basso» ha la pillola rispetto alla disponibilità di oggi.
+- **Previsionale sul telefono:** il grafico della cassa resta com'era, perché è il contenuto della pagina ed era già fatto per il telefono. I quattro riquadri vanno due per riga.
+- **Analisi acquisti, «Dove va la spesa»:** ciambella dell'ordinato per categoria, e accanto le stesse categorie in barre con l'importo e la quota (fanno da legenda). I primi fornitori in barre no, perché sono già nella tabella subito sotto.
+- **Analisi acquisti, riquadro scuro «Da pagare entro 30 giorni»:** scaduto e prossimi 30 giorni in una barra divisa, più «Chi aspetta di più» (i fornitori con lo scaduto più alto).
+- **Analisi acquisti, variazione della spesa sull'anno prima:** pillola grigia, perché una spesa che sale non è né un bene né un male.
+- **KpiCard (usata in undici pagine):** passa ai colori del tema e ha la pillola della variazione.
+
 ## Lotto 2: costi e contabilità (2 pagine)
 
 ### `/azienda/costi`

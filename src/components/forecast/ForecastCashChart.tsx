@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calendarDate } from "@/lib/finance/forecastLedger";
 import { cashChartScale } from "@/lib/finance/forecastChart";
+import { PillolaVariazione, StatGrafico, defsGrafico } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 
 export interface CashChartPoint {
   start: string;
@@ -42,7 +44,8 @@ const compact = (cents: number) =>
     maximumFractionDigits: 1,
   }).format(cents / 100);
 const blue = "hsl(var(--primary))";
-const orange = "#f97316";
+// L'arancio delle uscite e della soglia è quello del tema (--chart-3).
+const orange = "hsl(var(--chart-3))";
 
 export function CashChartTooltip({
   active,
@@ -137,6 +140,15 @@ export function ForecastCashChart({
   const [compare, setCompare] = useState(false);
   const comparison = compare && hasEstimates;
   const id = useId().replace(/:/g, "");
+  const fermo = usePreferisceMenoMovimento();
+  // Punto più alto e più basso del grafico, per la riga sopra e i due pallini.
+  const estremi = useMemo(() => {
+    const conSaldo = rows.filter((r) => r.balance !== null);
+    if (conSaldo.length === 0) return null;
+    const alto = conSaldo.reduce((a, b) => ((b.balance ?? 0) > (a.balance ?? 0) ? b : a));
+    const basso = conSaldo.reduce((a, b) => ((b.balance ?? 0) < (a.balance ?? 0) ? b : a));
+    return { alto, basso };
+  }, [rows]);
   const scale = useMemo(
     () =>
       cashChartScale([
@@ -262,8 +274,34 @@ export function ForecastCashChart({
         </div>
       ) : (
         <>
+          {estremi && (
+            <div className="mx-5 mt-4 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2 sm:mx-6">
+              <StatGrafico etichetta="Più alto" valore={money(estremi.alto.balance)} nota={dateLabel(estremi.alto.start)} />
+              <StatGrafico
+                etichetta="Più basso"
+                valore={money(estremi.basso.balance)}
+                nota={dateLabel(estremi.basso.start)}
+                tono={(estremi.basso.balance ?? 0) < threshold ? "cattivo" : "neutro"}
+              />
+              {/* Il saldo a fine periodo è già scritto grande qui sopra: qui la
+                  differenza da oggi, che dice se la cassa cresce o cala. */}
+              <StatGrafico
+                etichetta="Rispetto a oggi"
+                valore={
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {opening !== null && closing !== null ? `${closing - opening > 0 ? "+" : ""}${money(closing - opening)}` : "—"}
+                    {opening !== null && opening !== 0 && closing !== null && (
+                      <PillolaVariazione pct={((closing - opening) / Math.abs(opening)) * 100} titolo="Saldo a fine periodo rispetto alla disponibilità di oggi" />
+                    )}
+                  </span>
+                }
+                nota="a fine periodo"
+                tono={opening !== null && closing !== null ? (closing >= opening ? "buono" : "cattivo") : "neutro"}
+              />
+            </div>
+          )}
           <div
-            className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-5 text-[11px] text-muted-foreground sm:px-6"
+            className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 px-5 text-[11px] text-muted-foreground sm:px-6"
             aria-label="Legenda del grafico"
           >
             <span className="inline-flex items-center gap-2">
@@ -292,17 +330,20 @@ export function ForecastCashChart({
                 syncId={id}
                 onClick={selectPoint}
               >
+                {defsGrafico(id, { entrate: blue, uscite: orange })}
                 <defs>
                   <linearGradient id={`${id}-cash`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={blue} stopOpacity={0.16} />
-                    <stop offset="100%" stopColor={blue} stopOpacity={0.015} />
+                    <stop offset="0%" stopColor={blue} stopOpacity={0.3} />
+                    <stop offset="70%" stopColor={blue} stopOpacity={0.06} />
+                    <stop offset="100%" stopColor={blue} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
                   vertical={false}
+                  fill={`url(#${id}-punti)`}
                   stroke="hsl(var(--border))"
-                  strokeOpacity={0.55}
-                  strokeDasharray="3 5"
+                  strokeOpacity={0.7}
+                  strokeDasharray="4 6"
                 />
                 <XAxis
                   dataKey="label"
@@ -343,13 +384,15 @@ export function ForecastCashChart({
                   stroke={blue}
                   strokeWidth={2.5}
                   fill={`url(#${id}-cash)`}
+                  filter={`url(#${id}-ombra)`}
                   dot={false}
                   activeDot={{
                     r: 5,
                     stroke: "hsl(var(--card))",
                     strokeWidth: 3,
                   }}
-                  isAnimationActive={false}
+                  isAnimationActive={!fermo}
+                  animationDuration={900}
                 />
                 {comparison && (
                   <Line
@@ -361,6 +404,16 @@ export function ForecastCashChart({
                     strokeOpacity={0.65}
                     dot={false}
                     isAnimationActive={false}
+                  />
+                )}
+                {estremi && estremi.alto.balance !== null && estremi.alto !== estremi.basso && (
+                  <ReferenceDot
+                    x={estremi.alto.label}
+                    y={estremi.alto.balance}
+                    r={4.5}
+                    fill="hsl(var(--card))"
+                    stroke={blue}
+                    strokeWidth={2.5}
                   />
                 )}
                 {granularity === "giorni" &&
@@ -489,19 +542,19 @@ export function ForecastCashChart({
                     <Bar
                       dataKey="income"
                       stackId="flows"
-                      fill={blue}
-                      fillOpacity={0.65}
-                      radius={[2, 2, 0, 0]}
-                      isAnimationActive={false}
+                      fill={`url(#${id}-barra-entrate)`}
+                      radius={[3, 3, 0, 0]}
+                      isAnimationActive={!fermo}
+                      animationDuration={600}
                       cursor="pointer"
                     />
                     <Bar
                       dataKey="expense"
                       stackId="flows"
-                      fill={orange}
-                      fillOpacity={0.7}
-                      radius={[0, 0, 2, 2]}
-                      isAnimationActive={false}
+                      fill={`url(#${id}-barra-uscite)`}
+                      radius={[0, 0, 3, 3]}
+                      isAnimationActive={!fermo}
+                      animationDuration={600}
                       cursor="pointer"
                     />
                   </ComposedChart>
