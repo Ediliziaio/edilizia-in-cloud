@@ -1127,6 +1127,14 @@ export function ForecastWorkspace({
                     : "Collega un conto o completa la Prima Nota"
               }
               tono={data.opening.cents == null ? "neutro" : data.opening.cents < 0 ? "male" : "neutro"}
+              // 14/11/2026: il disponibile della banca può comprendere il fido; la Tesoreria
+              // somma il saldo contabile. Se i due differiscono, si dice quanto.
+              contesto={
+                data.opening.source === "banca" && data.opening.contabileCents != null && data.opening.cents != null
+                  && Math.abs(data.opening.contabileCents - data.opening.cents) >= 100
+                  ? `Saldo contabile ${money(data.opening.contabileCents)} · il disponibile comprende fidi e somme bloccate`
+                  : undefined
+              }
               // Dove va la cassa da oggi: il saldo a fine di ogni settimana dell'orizzonte.
               tendenza={data.opening.cents == null ? undefined : [data.opening.cents, ...weeks.map((w) => w.balance).filter((b): b is number => b != null)]}
               etichettaTendenza="Saldo previsto a fine di ogni settimana, da oggi"

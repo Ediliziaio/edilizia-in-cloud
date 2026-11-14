@@ -571,6 +571,8 @@ export interface OpeningBalance {
   updatedAt: string | null;
   /** Conti attivi senza data di aggiornamento: non si sa quanto è vecchio il loro saldo. */
   undatedAccounts?: number;
+  /** Somma dei saldi contabili (quella della Tesoreria): il disponibile può comprendere il fido. */
+  contabileCents?: number | null;
   warning?: string;
 }
 export function resolveOpeningBalance(
@@ -611,6 +613,9 @@ export function resolveOpeningBalance(
       source: "banca",
       updatedAt: refreshed[0] ?? null,
       undatedAccounts: banks.length - refreshed.length,
+      contabileCents: banks.some((b) => b.current_balance == null)
+        ? null
+        : banks.reduce((sum, b) => sum + toCents(b.current_balance), 0),
     };
   }
   if (notes.length)

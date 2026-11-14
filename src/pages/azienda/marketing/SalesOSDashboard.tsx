@@ -11,7 +11,9 @@ import {
   useQuoteRevenue,
   salesOSKeys,
 } from "@/hooks/useSalesOS";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { format, startOfMonth } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
 import { usePipelines } from "@/hooks/useOpportunitiesData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +57,6 @@ import {
   Gauge,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { formatCurrencyCompact } from "@/lib/formatters";
 import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, testoLegenda } from "@/components/charts/grafici/comune";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
@@ -67,7 +68,7 @@ import { LeadScoringConfigForm } from "@/components/marketing/LeadScoringConfigF
 import { Settings2 } from "lucide-react";
 import { getPeriodRange, PERIOD_OPTIONS, type SalesOSPeriod } from "@/lib/salesOSPeriod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, MousePointerClick } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { RigaMobile } from "@/components/mobile/FiltriMobile";
 
@@ -782,6 +783,24 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
 function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipelineId?: string }) {
   const { data: forecast, isLoading, isError, error } = useSalesForecast(companyId, 3, pipelineId);
   const fermo = usePreferisceMenoMovimento();
+  const navigate = useNavigate();
+  // 14/11/2026: le trattative con la chiusura già passata contano nel mese in corso
+  // (Demo 2: 20 per 206.923 €). Si dice quante sono, perché gonfiano il mese.
+  const { data: scadute } = useQuery({
+    queryKey: [...salesOSKeys.all, "forecast-chiusura-passata", companyId, pipelineId ?? "tutte"],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const inizioMese = format(startOfMonth(new Date()), "yyyy-MM-dd");
+      let q = supabase.from("marketing_opportunities").select("value")
+        .eq("company_id", companyId).eq("status", "open").is("deleted_at", null)
+        .lt("expected_close_date", inizioMese).limit(5000);
+      if (pipelineId) q = q.eq("pipeline_id", pipelineId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return { n: (data ?? []).length, valore: (data ?? []).reduce((t, r) => t + Number(r.value ?? 0), 0) };
+    },
+  });
 
   if (isLoading || isError || !forecast || forecast.length === 0) {
     return (
@@ -817,6 +836,15 @@ function SalesForecastChart({ companyId, pipelineId }: { companyId: string; pipe
         <StatGrafico etichetta="Atteso 3 mesi" valore={fmt(chartData.reduce((a, r) => a + r.Atteso, 0))} nota="se chiudessero tutte" />
         <StatGrafico etichetta="Opportunità" valore={String(chartData.reduce((a, r) => a + r["N° opp"], 0))} nota="con data di chiusura" />
       </div>
+      {!!scadute?.n && (
+        <button
+          type="button"
+          onClick={() => navigate("/azienda/marketing/opportunita?status=open")}
+          className="w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-left text-xs text-amber-900 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+        >
+          {scadute.n} {scadute.n === 1 ? "trattativa ha" : "trattative hanno"} la chiusura già passata ({fmt(scadute.valore)}): contano in questo mese · aggiorna la data
+        </button>
+      )}
       <ResponsiveContainer width="100%" height={210}>
         <ComposedChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
           {defsGrafico("salesos-forecast", { pesato: COLORI_GRAFICO.verde })}
@@ -1448,9 +1476,6 @@ export default function SalesOSDashboard() {
                   <TrendingUp className="h-4 w-4 text-green-500" />
                   Forecast: questo mese e i due successivi
                 </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Le trattative aperte con la data di chiusura già passata contano nel mese in corso.
-                </p>
               </CardHeader>
               <CardContent>
                 <SalesForecastChart companyId={companyId} pipelineId={pipelineId} />

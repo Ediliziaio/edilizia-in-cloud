@@ -33,7 +33,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
     </Card>
   );
 
-  const forecast = cashFlowForecast ?? { incoming30: 0, incoming60: 0, incoming90: 0, monthRevenue: 0, quarterRevenue: 0, ytdRevenue: 0 };
+  const forecast = cashFlowForecast ?? { incoming30: 0, incoming60: 0, incoming90: 0, daPianificare: 0, daPianificareRate: 0, monthRevenue: 0, quarterRevenue: 0, ytdRevenue: 0 };
   const maxIncoming = Math.max(forecast.incoming90, 1);
 
   return (
@@ -50,7 +50,7 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
       <CardContent className="p-3 pt-0 space-y-3">
         {/* Forecast bars */}
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Rate di pagamento programmate, cumulate: «entro 60» comprende «entro 30»</p>
+          <p className="text-xs text-muted-foreground">Cumulati</p>
           {forecast.incoming90 > 0 ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
@@ -78,6 +78,18 @@ export function CashFlowForecast({ cashFlowForecast, isLoading }: Props) {
             </p>
           )}
         </div>
+        {forecast.daPianificare > 0 && (
+          <button
+            type="button"
+            onClick={() => navigate("/azienda/ordini")}
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-xs hover:bg-muted/50"
+          >
+            <span className="text-muted-foreground">
+              Da pianificare: {forecast.daPianificareRate} {forecast.daPianificareRate === 1 ? "rata" : "rate"} senza data
+            </span>
+            <span className="font-semibold tabular-nums text-foreground">{fmtEur(forecast.daPianificare)}</span>
+          </button>
+        )}
       </CardContent>
     </Card>
   );

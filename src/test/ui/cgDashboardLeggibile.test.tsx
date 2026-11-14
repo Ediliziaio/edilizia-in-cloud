@@ -61,7 +61,7 @@ describe("Dashboard del controllo di gestione", () => {
     render(<MemoryRouter><TabDashboard anno={2026} /></MemoryRouter>);
     // 4.655.616,76 contro 4.000.000 → +16,4%, verde.
     const pillola = screen.getByText(/\+16,4%/);
-    expect(pillola).toHaveAttribute("title", expect.stringMatching(/^Rispetto a gennaio–\w+ 2025$/));
+    expect(pillola).toHaveAttribute("title", expect.stringMatching(/^Rispetto al 1° gennaio–\d+ \w+ 2025$/));
     expect(pillola.className).toContain("emerald");
     // EBITDA 530.795 contro 400.000 sarebbe +32,7%: per l'anno in corso non si mostra.
     expect(screen.queryByText(/32,7%/)).not.toBeInTheDocument();

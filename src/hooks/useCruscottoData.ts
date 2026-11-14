@@ -120,6 +120,9 @@ export interface CashFlowForecastData {
   incoming30: number;
   incoming60: number;
   incoming90: number;
+  /** Credito senza data (la parte non pianificata delle commesse): non entra né negli attesi né nello scaduto. */
+  daPianificare: number;
+  daPianificareRate: number;
   monthRevenue: number;
   quarterRevenue: number;
   ytdRevenue: number;
@@ -554,8 +557,11 @@ export function useCruscottoData() {
       const in60 = format(addDays(now, 60), "yyyy-MM-dd");
       const in90 = format(addDays(now, 90), "yyyy-MM-dd");
 
-      const all = (await leggiRate()).filter((i): i is InstallmentRow & { expected_date: string } =>
+      const tutte = await leggiRate();
+      const all = tutte.filter((i): i is InstallmentRow & { expected_date: string } =>
         !!i.expected_date && i.expected_date >= todayStr && i.expected_date <= in90);
+      // 14/11/2026: il credito senza data non si vedeva da nessuna parte (Demo 2: 5,2M €).
+      const senzaData = tutte.filter((i) => !i.expected_date && !i.finanziamento && i.amount > 0);
       const incoming30 = all.filter(i => i.expected_date <= in30).reduce((s, i) => s + i.amount, 0);
       const incoming60 = all.filter(i => i.expected_date <= in60).reduce((s, i) => s + i.amount, 0);
       const incoming90 = all.reduce((s, i) => s + i.amount, 0);
@@ -590,6 +596,8 @@ export function useCruscottoData() {
         incoming30,
         incoming60,
         incoming90,
+        daPianificare: senzaData.reduce((s, i) => s + i.amount, 0),
+        daPianificareRate: senzaData.length,
         ytdRevenue: venduto(yearStart),
         monthRevenue: venduto(monthStart),
         quarterRevenue: venduto(quarterStart),

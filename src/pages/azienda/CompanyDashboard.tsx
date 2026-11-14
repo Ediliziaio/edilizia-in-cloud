@@ -46,7 +46,6 @@ import { DashboardQuickActions } from "@/components/dashboard/DashboardQuickActi
 import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import {
-  GIORNI_AGENDA,
   useRegiaOperativa,
   type CommessaDaSeguire,
 } from "@/hooks/useRegiaOperativa";
@@ -265,9 +264,7 @@ function RegiaOperativa() {
 
       <section aria-label="Riepilogo operativo">
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            Lavori, consegne e appuntamenti nei prossimi 7 giorni
-          </p>
+          <span />
           {(permissions.isAdmin || permissions.canViewCruscotto) && (
             <Link
               to="/azienda/cruscotto/aziendale"
@@ -333,9 +330,6 @@ function RegiaOperativa() {
               <CardTitle className="text-base font-semibold">
                 Agenda dei prossimi giorni
               </CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Prossimi {GIORNI_AGENDA} giorni · lavori, consegne e incontri
-              </p>
             </div>
             <Link
               to="/azienda/calendario"

@@ -104,6 +104,8 @@ const ACTION_PRIORITY_STYLES: Record<ActionPriority, string> = {
   bassa: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
 };
 
+const AZIONI_GIA_NEGLI_AVVISI = new Set(["cassa-negativa", "commesse-in-perdita", "budget-ricavi"]);
+
 export function TabDashboard({ anno }: Props) {
   const isMobile = useIsMobile();
   const ce  = useCEriclassificato(anno, 1, 12);
@@ -121,6 +123,14 @@ export function TabDashboard({ anno }: Props) {
   const annoChiuso = anno < new Date().getFullYear();
   const meseConfronto = annoChiuso ? 12 : new Date().getMonth() + 1;
   const cePrec = useCEriclassificato(anno - 1, 1, meseConfronto);
+  // 14/11/2026: il mese in corso è a metà. Prima si confrontava gennaio–14 novembre con
+  // gennaio–30 novembre dell'anno prima; ora il mese dell'anno prima conta per la quota
+  // di giorni passati (mesi interi letti a parte).
+  const cePrecMesiInteri = useCEriclassificato(anno - 1, 1, Math.max(1, meseConfronto - 1));
+  const oggiData = new Date();
+  const quotaMese = annoChiuso
+    ? 1
+    : oggiData.getDate() / new Date(oggiData.getFullYear(), oggiData.getMonth() + 1, 0).getDate();
   const mensile = useCEMensile(anno, !isMobile);
   const [cfoQuestion, setCfoQuestion] = useState<string>(CFO_QUICK_PROMPTS[0]);
   const [cfoAnswer, setCfoAnswer] = useState<CfoAnswer | null>(null);
@@ -143,12 +153,18 @@ export function TabDashboard({ anno }: Props) {
   const ebitda = findCe("E");
   const ebit   = findCe("F");
   const utile  = findCe("L");
-  const valorePrec = (codice: string) => cePrec.data?.voci.find((v) => v.codice === codice)?.valore;
+  const valorePrec = (codice: string) => {
+    const finoAlMese = cePrec.data?.voci.find((v) => v.codice === codice)?.valore;
+    if (finoAlMese == null || quotaMese >= 1) return finoAlMese;
+    const mesiInteri = meseConfronto > 1 ? cePrecMesiInteri.data?.voci.find((v) => v.codice === codice)?.valore : 0;
+    if (mesiInteri == null) return undefined;
+    return mesiInteri + (finoAlMese - mesiInteri) * quotaMese;
+  };
   const varPct = (attuale: number, prec: number | undefined) =>
     !ce.data || prec == null || prec === 0 ? null : ((attuale - prec) / Math.abs(prec)) * 100;
   const notaConfronto = annoChiuso
     ? `Rispetto al ${anno - 1}`
-    : `Rispetto a gennaio–${MESI_INTERI[meseConfronto - 1]} ${anno - 1}`;
+    : `Rispetto al 1° gennaio–${oggiData.getDate()} ${MESI_INTERI[meseConfronto - 1]} ${anno - 1}`;
 
   const obiettivo = useMemo<Obiettivo | null>(() => {
     if (bdg.data?.haBudget && bdg.data.ricavi.budget > 0) {
@@ -481,7 +497,9 @@ export function TabDashboard({ anno }: Props) {
     <div className="space-y-3 sm:flex sm:flex-col sm:gap-3 sm:space-y-0">
       <div className="sm:order-5">
         <DashboardActionCenter
-          actions={recommendedActions}
+          // 14/11/2026: cassa sotto zero, commesse in perdita e budget stanno già negli
+          // avvisi, con il loro link: qui non si ripetono (l'assistente li riceve lo stesso).
+          actions={recommendedActions.filter((a) => !AZIONI_GIA_NEGLI_AVVISI.has(a.id))}
           cfoQuestion={cfoQuestion}
           cfoAnswer={cfoAnswer}
           onQuestionChange={setCfoQuestion}
@@ -939,6 +957,9 @@ function DashboardActionCenter({
           </div>
         </CardHeader>
         <CardContent className="space-y-3 max-sm:space-y-2 max-sm:p-3 max-sm:pt-0">
+          {actions.length === 0 && (
+            <p className="text-sm text-muted-foreground">Le priorità sono in «Alert e segnalazioni».</p>
+          )}
           {actions.map((action, index) => (
             <RecommendedActionRow
               key={action.id}

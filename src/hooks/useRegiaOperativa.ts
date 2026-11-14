@@ -156,7 +156,9 @@ export function useRegiaOperativa() {
     error: agenda.error || lavori.error || ticket.error || merceInRitardo.error,
     agenda: eventi,
     numeri: {
-      lavori: nellaSettimana.filter((e) => e.tipo === "lavoro").length,
+      // 14/11/2026: una commessa conta una volta (prima «lavori in corso» e «posa» della
+      // stessa commessa facevano due: Demo 2 diceva 18 su 17 commesse).
+      lavori: new Set(nellaSettimana.filter((e) => e.tipo === "lavoro").map((e) => e.orderId ?? e.id)).size,
       merce: nellaSettimana.filter((e) => e.tipo === "merce").length,
       appuntamenti: nellaSettimana.filter((e) => e.tipo === "appuntamento").length,
       ticket: ticket.data ?? 0,
