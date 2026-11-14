@@ -1164,7 +1164,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       });
 
       if (error) throw error;
-      const result = data as unknown as { id: string; success: boolean };
+      const result = data as unknown as { id: string; success: boolean; originaleInCommessa?: StoredContractFile | null };
       if (!result || !result.id) {
         throw new Error("Risposta inattesa dalla funzione atomica");
       }
@@ -1214,6 +1214,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (contractSource && contrattoImportato && !selectedQuoteId) {
         try {
           originaleInCommessa = await collegaOriginaleAi(supabase, result.id, effectiveCompany!.id, user!.id, contractSource);
+          // Viaggia con l'esito fino a onSuccess: la copia in coda dello stesso file non si carica una seconda volta.
+          result.originaleInCommessa = originaleInCommessa;
         } catch (e) {
           toast.warning("Commessa creata, ma l'originale del contratto non è nei documenti", { description: e instanceof Error ? e.message : String(e), duration: 12000 });
         }
@@ -1317,11 +1319,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             description: "La commessa è stata creata. Verifica le fasi nel Cantiere prima di aggiungerle di nuovo.",
             duration: 15000,
           });
-          return { ...result, fasiDaVerificare: true, originaleInCommessa };
+          return { ...result, fasiDaVerificare: true };
         }
       }
 
-      return { ...result, originaleInCommessa };
+      return result;
     },
     onSuccess: async (order) => {
       if (invoiceId && effectiveCompany?.id) {
@@ -1389,7 +1391,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // Upload pending files
       if (pendingFiles.length > 0) {
         let uploaded = 0;
-        const originaleInCommessa = "originaleInCommessa" in order ? order.originaleInCommessa : null;
+        const originaleInCommessa = order.originaleInCommessa ?? null;
         for (const pf of pendingFiles) {
           // L'originale del contratto è già entrato nei documenti con collegaOriginaleAi.
           if (originaleInCommessa && pf.file.name === originaleInCommessa.name && (originaleInCommessa.size == null || pf.file.size === originaleInCommessa.size)) { uploaded++; continue; }
