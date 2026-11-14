@@ -646,14 +646,19 @@ export function mapDbRowToPermissions(row: Record<string, unknown> | null | unde
   // Il trigger in DB spegne già le colonne; qui anche i permessi derivati
   // (es. Scontistica da Listino, corsi da Portale) e le righe lette prima
   // della migrazione, così nessun bottone di scrittura resta acceso.
-  if (solaLettura) {
-    for (const key of Object.keys(mapped) as (keyof Permissions)[]) {
-      if (/^can(Edit|Manage|Approve|Delete|Create)[A-Z]/.test(key)) {
-        (mapped as unknown as Record<string, boolean>)[key] = false;
-      }
-    }
+  return solaLettura ? senzaScritture(mapped) : mapped;
+}
+
+/** Ruoli che leggono staff_permissions ma che il database non lascia scrivere come ufficio. */
+export const SOLO_LETTURA_PER_RUOLO = ["employee", "subcontractor"];
+
+/** Spegne ogni permesso di scrittura (canEdit*, canManage*, canApprove*, canDelete*, canCreate*). */
+export function senzaScritture(permessi: Permissions): Permissions {
+  const copia = { ...permessi } as unknown as Record<string, unknown>;
+  for (const key of Object.keys(copia)) {
+    if (/^can(Edit|Manage|Approve|Delete|Create)[A-Z]/.test(key)) copia[key] = false;
   }
-  return mapped;
+  return copia as unknown as Permissions;
 }
 
 export function usePermissions(): Permissions {
@@ -859,7 +864,8 @@ function usePermessiGrezzi(): Permissions {
       if (viewAsLoadError) return { ...NO_PERMISSIONS, loadError: viewAsLoadError };
       // viewAsPermsRow può essere null se l'utente non ha una riga in staff_permissions:
       // in quel caso ricadiamo su NO_PERMISSIONS (fail-safe) ma non blocchiamo l'UI.
-      return mapDbRowToPermissions(viewAsPermsRow);
+      const vistaCome = mapDbRowToPermissions(viewAsPermsRow);
+      return SOLO_LETTURA_PER_RUOLO.includes(viewAsRole || "") ? senzaScritture(vistaCome) : vistaCome;
     }
     // Ruolo senza mapping DB (es. employee/subcontractor non ha staff_permissions):
     // ricadiamo su permessi di sola lettura minimi.
@@ -929,7 +935,12 @@ function usePermessiGrezzi(): Permissions {
       return { ...NO_PERMISSIONS, loadError: permissionsLoadError };
     }
 
-    return mapDbRowToPermissions(permissions);
+    const mappati = mapDbRowToPermissions(permissions);
+    // Dipendenti e subappaltatori (14/11/2026): nel database i permessi d'ufficio passano da
+    // has_permission / has_permission_for_company, che li danno solo a staff, amministratori e
+    // team di piattaforma. Un «Modifica commesse» rimasto nella loro riga di staff_permissions
+    // accendeva pulsanti che il database poi rifiutava: qui si spengono, come per la sola lettura.
+    return SOLO_LETTURA_PER_RUOLO.includes(currentAccessRole || "") ? senzaScritture(mappati) : mappati;
   }
 
   // Safety net: user authenticated but role unresolved. Do not return

@@ -578,8 +578,13 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
           if (error) throw error;
           // La RPC non conosce l'origine del costo: la si scrive dopo, sulla riga che ha creato.
           if (a.origine_costo && assegnazione) {
-            const { error: origineError } = await db.from("order_external_teams").update(a.origine_costo).eq("id", assegnazione);
-            if (origineError) toast.warning("Ditta assegnata, ma non ho salvato da dove viene il costo previsto.");
+            const { data: righeOrigine, error: origineError } = await db.from("order_external_teams")
+              .update(a.origine_costo).eq("id", assegnazione).select("id");
+            if (origineError || !righeOrigine?.length) {
+              toast.warning("Ditta assegnata, ma non ho salvato da dove viene il costo previsto.", {
+                description: origineError ? messaggioErrore(origineError) : MESSAGGIO_PERMESSI,
+              });
+            }
           }
           void qc.invalidateQueries({ queryKey: ['assignment-companies', companyId] });
           void invalidaSquadreCollegate(qc);

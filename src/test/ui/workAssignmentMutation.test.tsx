@@ -73,6 +73,16 @@ describe("Collegamento assegnazione e app Campo (API simulate)", () => {
     expect(mocks.rpc).toHaveBeenCalledWith('commessa_assegna_subappaltatore',{p_order_id:'order',p_subappaltatore_id:'sub',p_phase_id:'phase',p_cost_preventivo:100,p_cost_consuntivo:0,p_notes:null});
     expect(mocks.from).not.toHaveBeenCalled();expect(mocks.invalidate).toHaveBeenCalledWith({queryKey:['assignment-companies','company']});
   });
+  it("l'origine del costo che il database non scrive lo dice col messaggio dei permessi (14/11/2026)", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: "assignment", error: null });
+    const q = { update: vi.fn(), eq: vi.fn(), select: vi.fn().mockResolvedValue({ data: [] as unknown[], error: null as null }) };
+    q.update.mockReturnValue(q); q.eq.mockReturnValue(q); mocks.from.mockReturnValue(q);
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await result.current.addAssignment.mutateAsync({ ...payload, executor_type: "esterno", employee_id: null, external_team_id: null, subappaltatore_id: "sub",
+      origine_costo: { costo_origine: "listino" } } as unknown as AddAssignmentPayload);
+    expect(q.select).toHaveBeenCalledWith("id");
+    expect(mocks.warning).toHaveBeenCalledWith(expect.stringMatching(/Ditta assegnata/), expect.objectContaining({ description: expect.stringMatching(/permess/i) }));
+  });
   it('un errore del collegamento atomico non tenta un inserimento legacy né segnala successo',async()=>{
     mocks.rpc.mockResolvedValueOnce({data:null,error:new Error('Collegamento non riuscito')});const {result}=renderHook(()=>useOrderWorkPhases('order'));
     await expect(result.current.addAssignment.mutateAsync({...payload,executor_type:'esterno',employee_id:null,external_team_id:null,subappaltatore_id:'sub'})).rejects.toThrow('Collegamento non riuscito');
