@@ -27,7 +27,7 @@ import {
 } from "../../../../supabase/functions/_shared/blocchiPreventivo";
 import { conOrigine, fotoPerIlPdf } from "@/lib/pdf/fotoBlocchi";
 import { leggiEsigenze } from "@/lib/preventivatore/esigenze";
-import { descrizioneBreve, testoDelListino } from "@/lib/moduli/testoProdotto";
+import { descrizioneBreve, testoDelListino, testoScritto } from "@/lib/moduli/testoProdotto";
 import { rateDelPreventivo, sceltaFinanziariaDelPreventivo } from "@/lib/preventivi/finanziamentoLite";
 import { leggiPianoPagamento, pianoCompleto, quandoSiPaga, rateConImporti, terminePiano } from "@/lib/preventivi/pianoPagamento";
 import { fasiDaStampare, leggiCronoprogramma } from "@/lib/preventivi/cronoprogramma";
@@ -76,7 +76,7 @@ import type {
 type Grezzo = Record<string, unknown>;
 
 const stringa = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-/** Ambiente e materiale davanti al dettaglio del listino, su un'unica riga di testo (così l'altezza della riga del PDF resta quella misurata). */
+/** Ambiente e materiale davanti al dettaglio (l'altezza della riga del PDF la misura `altezzaTesto`, che conta anche gli a capo). */
 const conEtichetta = (etichetta: string, base: string | null | undefined): string | null =>
   etichetta ? (base ? `${etichetta} — ${base}` : etichetta) : (base ?? null);
 const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -148,6 +148,11 @@ export interface VoceComune {
   /** Prodotto scelto dal listino prodotti: la sua foto (già incorporata nel PDF) e la sua descrizione. */
   immagine_url?: string | null;
   descrizione_estesa?: string | null;
+  /**
+   * La descrizione l'ha scritta chi fa il preventivo (14/11/2026, preventivo classico): esce intera e con
+   * gli a capo. Senza, è la scheda del listino e si accorcia a una frase (`descrizioneBreve`).
+   */
+  descrizione_scritta?: boolean | null;
   /** Dove si lavora e che materiale: vanno al cliente, sotto il nome della voce. La nota interna NON è qui: non esce mai. */
   ambiente?: string | null;
   marca?: string | null;
@@ -477,9 +482,11 @@ export function costruisciDatiEdile(input: {
         // schede prodotto mantengono invece la sintesi già prevista.
         dettaglio: conEtichetta(
           [stringa(v.ambiente), [stringa(v.marca), stringa(v.modello)].filter(Boolean).join(" ") || null].filter(Boolean).join(" · "),
-          /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
-            ? testoDelListino(v.descrizione_estesa)
-            : descrizioneBreve(v.descrizione_estesa),
+          v.descrizione_scritta === true
+            ? testoScritto(v.descrizione_estesa)
+            : /^Stima (?:AI )?indicativa, non prezzario verificato\./.test(v.fonte ?? "")
+              ? testoDelListino(v.descrizione_estesa)
+              : descrizioneBreve(v.descrizione_estesa),
         ),
         // Riga venduta senza costo: margine non noto, il PDF stampa «—» (05/10/2026).
         margineEur: importo > 0 && costo <= 0 ? null : importo - costo,

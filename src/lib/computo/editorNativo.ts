@@ -39,6 +39,9 @@ export const bozzaComputoSchema = z.object({
   numero: z.string().max(80).default(""), indirizzo: z.string().max(300).default(""),
   // Il cliente come negli altri preventivi (29/10/2026): il contatto del CRM, i recapiti, il cointestatario e
   // l'indirizzo dei lavori in quattro campi. `indirizzo` resta il testo che va nel PDF, ricomposto dai quattro.
+  // `clienteAnagraficaId` (14/11/2026): il cliente o committente dell'anagrafica (profiles), quando la scelta
+  // non è un contatto del CRM. Sta nella bozza: riaprendo il computo il collegamento c'è ancora.
+  clienteAnagraficaId: z.string().max(80).default(""),
   clienteId: z.string().max(80).default(""), clienteEmail: z.string().max(200).default(""), clienteTelefono: z.string().max(60).default(""),
   // Privato o azienda (30/10/2026): un privato ha il codice fiscale, un'azienda partita IVA, PEC e codice destinatario.
   clienteTipo: z.enum(["privato", "azienda", "pa"]).default("privato"),

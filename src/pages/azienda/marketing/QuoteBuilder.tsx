@@ -1,4 +1,7 @@
 import { QuoteDescriptionFields } from "@/components/quotes/QuoteDescriptionFields";
+import { SelezionaCliente } from "@/components/preventivatore/SelezionaCliente";
+import { TestoCheCresce } from "@/components/ui/testo-che-cresce";
+import { tipoDaScelta, type ClienteScelto } from "@/lib/preventivatore/selezionaCliente";
 import { avvisiDatiFiscali, type TipoCliente } from "@/lib/preventivatore/datiFiscaliCliente";
 import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 import { QuoteCustomFieldsPanel } from "@/components/shared/QuoteCustomFieldsPanel";
@@ -262,107 +265,6 @@ import type { ContactOption } from "./QuoteBuilder/types";
 
 const CONTACT_SELECT =
   "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, fiscal_code, vat_number";
-
-function ContactCombobox({
-  contacts,
-  companyId,
-  value,
-  onChange,
-}: {
-  contacts: ContactOption[];
-  companyId: string | null | undefined;
-  value: string | null;
-  onChange: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [ricerca, setRicerca] = useState("");
-  const [ricercaDebounced, setRicercaDebounced] = useState("");
-  useEffect(() => {
-    const t = window.setTimeout(() => setRicercaDebounced(ricerca.trim()), 250);
-    return () => window.clearTimeout(t);
-  }, [ricerca]);
-
-  // Prima caricava TUTTI i contatti dell'azienda e li filtrava «fuzzy» nel
-  // browser: scrivendo «Nicola» uscivano anche Silvia e Sara, e su un CRM
-  // grande la lista pesava. Ora cerca sul server per nome, azienda, email.
-  const { data: risultati = [], isFetching: cercando } = useQuery({
-    queryKey: ["marketing-contacts-cerca", companyId, ricercaDebounced],
-    enabled: !!companyId && ricercaDebounced.length >= 2,
-    queryFn: async () => {
-      let query = supabase
-        .from("marketing_contacts")
-        .select(CONTACT_SELECT)
-        .eq("company_id", companyId!)
-        .is("deleted_at", null);
-      for (const filtro of filtriRicercaContatti(ricercaDebounced)) query = query.or(filtro);
-      const { data, error } = await query.order("last_name").limit(30);
-      if (error) throw error;
-      return (data ?? []) as ContactOption[];
-    },
-  });
-
-  // Il contatto scelto potrebbe non essere nella lista corta (es. in modifica):
-  // lo si carica a parte per mostrarne il nome.
-  const inLista = [...contacts, ...risultati].find((c) => c.id === value);
-  const { data: scelto } = useQuery({
-    queryKey: ["marketing-contact-scelto", value],
-    enabled: !!value && !inLista,
-    queryFn: async () => {
-      const { data } = await supabase.from("marketing_contacts").select(CONTACT_SELECT).eq("id", value!).maybeSingle();
-      return (data as ContactOption | null) ?? null;
-    },
-  });
-  const selected = inLista ?? scelto ?? undefined;
-  const lista = ricercaDebounced.length >= 2 ? risultati : contacts;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-label="Seleziona contatto esistente"
-          aria-expanded={open}
-          className="w-full justify-between font-normal"
-        >
-          {selected
-            ? `${selected.first_name} ${selected.last_name}${selected.company_name ? ` (${selected.company_name})` : ""}`
-            : "Cerca contatto..."}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput placeholder="Cerca per nome, azienda, email..." value={ricerca} onValueChange={setRicerca} />
-          <CommandList>
-            <CommandEmpty>
-              {cercando ? "Cerco…" : ricercaDebounced.length >= 2 ? "Nessun contatto trovato" : "Scrivi almeno due lettere per cercare"}
-            </CommandEmpty>
-            <CommandGroup>
-              {lista.map((c) => (
-                <CommandItem
-                  key={c.id}
-                  value={c.id}
-                  onSelect={() => { onChange(c.id); setOpen(false); }}
-                >
-                  <Check className={`mr-2 h-4 w-4 ${value === c.id ? "opacity-100" : "opacity-0"}`} />
-                  <div>
-                    <div className="font-medium text-sm">
-                      {c.first_name} {c.last_name}
-                    </div>
-                    {c.company_name && (
-                      <div className="text-xs text-muted-foreground">{c.company_name}</div>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRODUCTSEARCHDIALOG (~316 righe) estratto in:
@@ -1036,7 +938,12 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
   const clienteDelPreventivo = isEdit
     ? ((existingQuote as { customer_id?: string | null } | undefined)?.customer_id ?? null)
     : (clienteDaUrl?.id ?? null);
-  const { data: listinoCommittente } = useListinoCommittente(clienteDelPreventivo, companyId);
+  // Il cliente o committente dell'anagrafica collegato (14/11/2026): prima si leggeva soltanto e nessun
+  // salvataggio scriveva `customer_id`. Ora si sceglie dal popup «Seleziona cliente» (anche per partita IVA),
+  // si salva e riaprendo si ritrova. `undefined` = nessuna scelta in questa pagina: vale quello salvato.
+  const [customerIdScelto, setCustomerIdScelto] = useState<string | null | undefined>(undefined);
+  const customerId = customerIdScelto !== undefined ? customerIdScelto : clienteDelPreventivo;
+  const { data: listinoCommittente } = useListinoCommittente(customerId, companyId);
   const vociDalContratto = listinoCommittente?.tariffe ?? [];
 
   // Auto-select contact from URL param
@@ -1094,6 +1001,27 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         setClientAddress(addressParts.join(", "));
       }
     }
+  };
+
+  // «Seleziona cliente» (14/11/2026): un contatto del CRM si collega come prima (`contact_id`); un cliente o
+  // committente dell'anagrafica si collega con `customer_id` e ne copia i dati. Una scelta toglie l'altra.
+  const handleClienteScelto = (scelto: ClienteScelto) => {
+    if (scelto.origine === "contatto") {
+      setCustomerIdScelto(null);
+      void handleContactSelect(scelto.id);
+      return;
+    }
+    setContactId(null);
+    setCustomerIdScelto(scelto.id);
+    setClientName([scelto.nome, scelto.cognome].filter(Boolean).join(" "));
+    setClientEmail(scelto.email ?? "");
+    setClientPhone(scelto.telefono ?? "");
+    setClientCompany(scelto.ragioneSociale ?? "");
+    setClientFiscalCode(scelto.codiceFiscale ?? "");
+    setClientVatNumber(scelto.partitaIva ?? "");
+    setTipoClienteScelto(tipoDaScelta(scelto));
+    const indirizzo = [scelto.indirizzo, scelto.cap, scelto.citta, scelto.provincia].filter(Boolean).join(", ");
+    if (indirizzo) setClientAddress(indirizzo);
   };
 
   const clienteDaUrlApplicatoRef = useRef(false);
@@ -2035,6 +1963,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
       // o accettato tornava bozza.
       ...(isEdit && existingQuote?.status && existingQuote.status !== "bozza" ? {} : { status }),
       contact_id: contactId,
+      customer_id: customerId,
       ...(isEdit ? {} : { opportunity_id: urlOpportunityId }),
       client_name: clientName || null,
       client_email: clientEmail || null,
@@ -2602,18 +2531,15 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
             {/* Blocco 1: Selezione rapida da contatto — telefono: senza riquadro
                 e senza la riga di spiegazione, è il primo campo e basta. */}
             <div className="rounded-lg border bg-muted/30 p-3 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-              {/* Telefono: il campo dice già «Cerca contatto…». */}
-              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider max-sm:sr-only">Seleziona contatto esistente</Label>
-              <div className="mt-1.5">
-                <ContactCombobox companyId={companyId}
-                  contacts={contacts}
-                  value={contactId}
-                  onChange={handleContactSelect}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1.5 max-sm:hidden">
-                Seleziona un contatto CRM per compilare automaticamente i campi sotto.
-              </p>
+              <SelezionaCliente
+                collegatoId={contactId ?? customerId}
+                collegatoOrigine={contactId ? "contatto" : "cliente"}
+                collegatoNome={(contactId || customerId) ? (clientCompany || clientName || null) : null}
+                etichetta="Cerca contatto o cliente"
+                onScegli={handleClienteScelto}
+                onScollega={() => { setContactId(null); setCustomerIdScelto(null); }}
+                className="border-0 bg-transparent p-0"
+              />
             </div>
 
             {/* Blocco 2: Anagrafica cliente */}
@@ -3249,6 +3175,20 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                     placeholder="Nome prodotto/servizio"
                                     className={isSconto ? "text-red-600" : ""}
                                   />
+                                  {/* La descrizione si scrive qui, per ogni riga (14/11/2026): prima si vedeva solo
+                                      la prima riga, in corsivo, e non si poteva modificare. Si allarga col testo e
+                                      gli a capo vanno nel PDF come scritti. */}
+                                  {!isSconto && (
+                                    <TestoCheCresce
+                                      aria-label={`Descrizione: ${item.name || "riga"}`}
+                                      value={item.description ?? ""}
+                                      onChange={(e) => updateItem(idx, "description", e.target.value)}
+                                      placeholder="Descrizione per il cliente (facoltativa): gli a capo restano nel PDF"
+                                      minRighe={1}
+                                      maxLength={20000}
+                                      className="mt-1.5 text-sm"
+                                    />
+                                  )}
                                 </div>
                                 <div className="col-span-6 2xl:col-span-3 max-sm:col-span-3">
                                   <Label className="text-xs"><span className="max-sm:hidden">Quantità</span><span className="sm:hidden">Q.tà</span></Label>
@@ -3380,7 +3320,7 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                 </div>
                               </div>
                               {/* MP-preventivi-v2: dettagli riga (misure + assi + descrizione) */}
-                              {!isSconto && !isNota && (item.misura_x || item.misura_y || item.description || (item.axis_selections && Object.keys(item.axis_selections).length > 0)) && (
+                              {!isSconto && !isNota && (item.misura_x || item.misura_y || (item.axis_selections && Object.keys(item.axis_selections).length > 0)) && (
                                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                   {(item.misura_x || item.misura_y) && (
                                     <div className="flex items-center gap-1.5">
@@ -3414,11 +3354,6 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
                                         );
                                       })}
                                     </div>
-                                  )}
-                                  {item.description && (
-                                    <span className="italic line-clamp-1 flex-1 min-w-[120px]">
-                                      {item.description}
-                                    </span>
                                   )}
                                 </div>
                               )}

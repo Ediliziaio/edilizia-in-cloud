@@ -13,6 +13,21 @@ export function testoDelListino(v: unknown): string | null {
 }
 
 /**
+ * Una descrizione scritta da chi fa il preventivo (14/11/2026): va nel PDF intera, con gli a capo come
+ * sono stati scritti. Si tolgono solo gli spazi in fondo alle righe e le righe vuote in più di una.
+ * La versione corta (`descrizioneBreve`) resta per le schede del listino, che possono essere pagine intere.
+ */
+export function testoScritto(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return t.length > 0 ? t : null;
+}
+
+/**
  * La descrizione del prodotto come sta nel PDF: una sola frase corta. Quelle del
  * listino possono essere lunghe come una scheda tecnica; qui si taglia a una parola
  * intera, con i puntini.

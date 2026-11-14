@@ -6,6 +6,7 @@
 // tabella e condizioni: il resto vive nei moduli verticali). Il renderer è un bundle di _shared, e il job
 // di deploy guarda solo i file cambiati: questo commento serve a far ripubblicare anche questa funzione.
 // 31/10/2026: il renderer comune stampa il cronoprogramma del preventivo classico (quotes.cronoprogramma). Questo commento fa ripubblicare la funzione: la CI guarda solo i file sotto la sua cartella.
+// 14/11/2026: la descrizione di ogni riga esce intera e con gli a capo (prima tagliata a 220 caratteri, su una riga). Ripubblica la funzione.
 // @ts-ignore bundle generato da scripts/preventivi-render/build.mjs
 import { renderGenericoConClausole } from "../_shared/preventivoRenderer.mjs";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";

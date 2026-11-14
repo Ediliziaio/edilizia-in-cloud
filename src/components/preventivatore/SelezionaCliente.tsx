@@ -39,17 +39,24 @@ interface Props {
   className?: string;
   /** Testo del bottone quando non c'è niente di collegato. */
   etichetta?: string;
+  /**
+   * Chi è collegato, quando non è un contatto del CRM (14/11/2026): il preventivo classico e il computo
+   * si collegano anche a un cliente o committente dell'anagrafica. Con il nome, il riquadro lo dice.
+   */
+  collegatoOrigine?: OrigineScelta;
+  collegatoNome?: string | null;
 }
 
-export function SelezionaCliente({ collegatoId, onScegli, onScollega, className, etichetta = "Seleziona cliente" }: Props) {
+export function SelezionaCliente({ collegatoId, onScegli, onScollega, className, etichetta = "Seleziona cliente", collegatoOrigine = "contatto", collegatoNome }: Props) {
   const [aperto, setAperto] = useState(false);
+  const titoloCollegato = collegatoOrigine === "cliente" ? "Cliente dell'anagrafica collegato" : "Contatto CRM collegato";
   return (
     <div className={cn("rounded-md border border-slate-200 bg-white px-3 py-2.5 max-sm:border-0 max-sm:bg-transparent max-sm:p-0", className)}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 max-sm:hidden">
-          <p className="text-xs font-semibold text-slate-900">{collegatoId ? "Contatto CRM collegato" : "Da chi prendo i dati"}</p>
+          <p className="text-xs font-semibold text-slate-900">{collegatoId ? titoloCollegato : "Da chi prendo i dati"}</p>
           <p className="truncate text-[11px] text-slate-500">
-            {collegatoId ? "Anagrafica e recapiti presi dal contatto." : "Un contatto del CRM o un cliente: anagrafica, recapiti e dati fiscali si compilano da soli."}
+            {collegatoId ? (collegatoNome ? collegatoNome : "Anagrafica e recapiti presi dal contatto.") : "Un contatto del CRM o un cliente: anagrafica, recapiti e dati fiscali si compilano da soli."}
           </p>
         </div>
         <div className="flex shrink-0 gap-2 max-sm:w-full">
@@ -64,15 +71,15 @@ export function SelezionaCliente({ collegatoId, onScegli, onScollega, className,
       </div>
       {/* Montato solo da aperto: a popup chiuso nessuna lettura di permessi o dati. */}
       {aperto && (
-        <SelezionaClienteDialog aperto={aperto} onAperto={setAperto} collegatoId={collegatoId}
+        <SelezionaClienteDialog aperto={aperto} onAperto={setAperto} collegatoId={collegatoId} collegatoOrigine={collegatoOrigine}
           onScegli={(s) => { onScegli(s); setAperto(false); }} />
       )}
     </div>
   );
 }
 
-export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli }: {
-  aperto: boolean; onAperto: (v: boolean) => void; collegatoId?: string | null; onScegli: (s: ClienteScelto) => void;
+export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, collegatoOrigine = "contatto", onScegli }: {
+  aperto: boolean; onAperto: (v: boolean) => void; collegatoId?: string | null; collegatoOrigine?: OrigineScelta; onScegli: (s: ClienteScelto) => void;
 }) {
   const permessi = usePermissions();
   const fonti = fontiVisibili(permessi);
@@ -96,7 +103,8 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli
       let q = supabase.from("marketing_contacts")
         .select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")
         .eq("company_id", companyId!).is("deleted_at", null).limit(QUANTI);
-      for (const filtro of filtriRicercaContatti(ricerca)) q = q.or(filtro);
+      // Anche per partita IVA (14/11/2026): «IT01234567890» o le sole cifre.
+      for (const filtro of filtriRicercaContatti(ricerca, { partitaIva: true })) q = q.or(filtro);
       const { data, error } = await q.order(ricerca ? "first_name" : "updated_at", { ascending: !!ricerca, nullsFirst: false });
       if (error) throw error;
       return ((data ?? []) as RigaContattoCrm[]).map(daContatto);
@@ -151,7 +159,7 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli
               <div className="relative min-w-[12rem] flex-1">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
                 <Input autoFocus value={cerca} onChange={(e) => setCerca(e.target.value)} className="h-9 pl-8"
-                  placeholder="Nome, azienda, telefono, email, città…" aria-label="Cerca" />
+                  placeholder="Nome, azienda, partita IVA, telefono, email…" aria-label="Cerca" />
               </div>
             </div>
             {fonte === "cliente" && fonti.soloMieiClienti && (
@@ -173,7 +181,7 @@ export function SelezionaClienteDialog({ aperto, onAperto, collegatoId, onScegli
                   </div>
                   <ul className="divide-y">
                     {righe.map((r) => {
-                      const collegato = r.origine === "contatto" && r.id === collegatoId;
+                      const collegato = r.origine === collegatoOrigine && r.id === collegatoId;
                       const sottotitolo = sottotitoloDaMostrare(r);
                       const citta = [r.citta, r.provincia ? `(${r.provincia})` : null].filter(Boolean).join(" ");
                       return (

@@ -58,8 +58,24 @@ export function filtriRicercaParole(testo: string, campi: readonly string[]): st
   return paroleRicerca(testo).map((parola) => campi.map((campo) => `${campo}.ilike.%${parola}%`).join(","));
 }
 
-export function filtriRicercaContatti(testo: string): string[] {
+/**
+ * La partita IVA scritta nella ricerca: «IT01234567890», «IT 0123 456 7890» → «01234567890».
+ * Null se il testo non è un numero (con o senza «IT» davanti).
+ */
+export function cifrePartitaIva(testo: string): string | null {
+  const compatto = testo.trim().replace(/[\s.\-/]/g, "");
+  const m = /^(?:IT)?(\d{6,})$/i.exec(compatto);
+  return m ? m[1] : null;
+}
+
+/**
+ * `partitaIva`: cerca anche in `vat_number` (14/11/2026, preventivo e computo). Solo per le tabelle che
+ * hanno la colonna: marketing_contacts sì; chi passa altre tabelle lascia l'opzione spenta.
+ */
+export function filtriRicercaContatti(testo: string, opzioni: { partitaIva?: boolean } = {}): string[] {
+  const piva = opzioni.partitaIva ? cifrePartitaIva(testo) : null;
+  if (piva) return [`phone.imatch.${espressioneCifre(piva)},fiscal_code.ilike.%${piva}%,vat_number.ilike.%${piva}%`];
   const numero = cifreTelefono(testo);
   if (numero) return [`phone.imatch.${espressioneCifre(numero)},fiscal_code.ilike.%${numero}%`];
-  return filtriRicercaParole(testo, CAMPI);
+  return filtriRicercaParole(testo, opzioni.partitaIva ? [...CAMPI, "vat_number"] : CAMPI);
 }

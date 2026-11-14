@@ -5,7 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { TestoCheCresce } from "@/components/ui/testo-che-cresce";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { QuotePageHeader, QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
@@ -587,7 +587,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
               }}><Copy className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" aria-label="Elimina voce" title="Elimina voce" onClick={() => { cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) }); setScelta(""); }}><Trash2 className="h-4 w-4" /></Button>
             </div></div>
-            <div className="space-y-1"><Label htmlFor="voce-descrizione">Descrizione della lavorazione</Label><Textarea id="voce-descrizione" rows={4} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
+            <div className="space-y-1"><Label htmlFor="voce-descrizione">Descrizione della lavorazione</Label><TestoCheCresce id="voce-descrizione" minRighe={4} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([['Codice tariffa', 'tariffa'], ['Unità di misura', 'unita'], ['Quantità', 'quantita'], ['Prezzo unitario', 'prezzo']] as const).map(([label, key]) =>
               <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label>{key === "unita"
                 ? <ComputoUnitaSelect key={v.id} value={v.unita} onChange={unita => modificaVoce({ unita, corpo: unita === "corpo" || unita === "a corpo" })} />
@@ -607,8 +607,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
               <div className="grid gap-3 sm:grid-cols-3">{([['Capitolo', 'capitolo'], ['Categoria', 'categoria'], ['Sottocategoria', 'sottocategoria']] as const).map(([label, key]) =>
                 <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label><Input id={`voce-${key}`} maxLength={300} value={v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} /></div>)}</div>
               <div className="space-y-1"><Label htmlFor="voce-fonte">Fonte del prezzo</Label><Input id="voce-fonte" maxLength={500} value={v.fonte ?? ""} onChange={e => modificaVoce({ fonte: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="voce-note-misure">Misure di riferimento originali (non usate nel calcolo)</Label><Textarea id="voce-note-misure" rows={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="voce-comune">Descrizione comune del gruppo</Label><Textarea id="voce-comune" rows={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-note-misure">Misure di riferimento originali (non usate nel calcolo)</Label><TestoCheCresce id="voce-note-misure" minRighe={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-comune">Descrizione comune del gruppo</Label><TestoCheCresce id="voce-comune" minRighe={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
               <div>{([['Opzionale (fuori dal totale)', 'opzionale'], ['Da quantificare più avanti', 'daQuantificare'], ['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
                 <ComputoOpzione key={key} label={label} checked={v[key]} onChange={value => modificaVoce({ [key]: value })} />)}</div>
             </div></details>

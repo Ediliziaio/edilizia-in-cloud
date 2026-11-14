@@ -7,18 +7,13 @@
  * Prima del 29/10/2026 erano otto caselle in colonna, senza CRM e con
  * l'indirizzo in una riga sola: il PDF non sapeva a chi intestare la firma.
  */
-import { useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Building2, Check, FileBadge, Mail, Phone, User, Users, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { filtriRicercaContatti } from "@/lib/ricerca/ricercaContatti";
-import { Button } from "@/components/ui/button";
+import { type ReactNode } from "react";
+import { Building2, FileBadge, Mail, Phone, User } from "lucide-react";
+import { SelezionaCliente } from "@/components/preventivatore/SelezionaCliente";
+import { tipoDaScelta, type ClienteScelto } from "@/lib/preventivatore/selezionaCliente";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Cointestatario } from "@/components/preventivatore/Cointestatario";
 import { IndirizzoDeiLavori } from "@/components/preventivatore/IndirizzoDeiLavori";
 import { useIndirizzoLavoriEdile } from "@/lib/preventivatore/useIndirizzoLavoriEdile";
@@ -27,13 +22,6 @@ import { datiFiscaliBozza, type BozzaComputo } from "@/lib/computo/editorNativo"
 import { avvisiDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 import { SceltaTipoCliente } from "@/components/preventivatore/DatiFiscaliCliente";
 
-interface Contatto {
-  id: string; first_name: string | null; last_name: string | null; email: string | null; phone: string | null;
-  address: string | null; city: string | null; province: string | null; postal_code: string | null;
-  company_name: string | null; fiscal_code: string | null; vat_number: string | null;
-}
-
-const nomeContatto = (c: Contatto) => `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Senza nome";
 const CANTIERE = ["cantiere_indirizzo", "cantiere_citta", "cantiere_cap", "cantiere_provincia"] as const;
 
 /** L'indirizzo dei lavori come riga del PDF, dai quattro campi. */
@@ -52,36 +40,26 @@ export function cantiereDellaBozza(b: BozzaComputo) {
 }
 
 export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; onChange: (patch: Partial<BozzaComputo>) => void }) {
-  const companyId = useEffectiveCompanyId();
-  const [aperto, setAperto] = useState(false);
-  const [cerca, setCerca] = useState("");
   const cantiere = cantiereDellaBozza(bozza);
   // Le scritture dello stesso giro (la spunta copia quattro campi) le somma l'editor; il testo per il PDF lo ricompone lui.
   const scriviCantiere = (chiave: (typeof CANTIERE)[number], valore: string | null) => onChange({ [chiave]: valore ?? "" });
   const indirizzo = useIndirizzoLavoriEdile(cantiere, scriviCantiere, { contattoId: bozza.clienteId || null, nuovo: false });
 
-  const { data: contatti = [] } = useQuery({
-    queryKey: ["computo-contatto-cliente", companyId, cerca],
-    enabled: !!companyId && aperto,
-    queryFn: async (): Promise<Contatto[]> => {
-      let q = supabase.from("marketing_contacts")
-        .select("id, first_name, last_name, email, phone, address, city, province, postal_code, company_name, fiscal_code, vat_number")
-        .eq("company_id", companyId!).is("deleted_at", null).limit(20);
-      for (const filtro of filtriRicercaContatti(cerca)) q = q.or(filtro);
-      const { data, error } = await q.order("first_name");
-      if (error) throw error;
-      return (data ?? []) as Contatto[];
-    },
-  });
-
-  const scegli = (c: Contatto) => {
+  // Contatto del CRM o cliente/committente dell'anagrafica, anche per partita IVA (14/11/2026): lo stesso
+  // popup dei preventivatori. Il contatto si collega con `clienteId`, il cliente con `clienteAnagraficaId`.
+  const scegli = (c: ClienteScelto) => {
     // Un contatto con ragione sociale o partita IVA è un'azienda: il preventivo si intesta a lei, con i suoi dati fiscali.
-    const azienda = !!(c.company_name?.trim() || c.vat_number?.trim());
-    onChange({ clienteId: c.id, committente: (azienda && c.company_name?.trim() ? c.company_name.trim() : nomeContatto(c)).slice(0, 160),
-      clienteEmail: c.email ?? "", clienteTelefono: c.phone ?? "", clienteTipo: azienda ? "azienda" : "privato",
-      clienteCodiceFiscale: (c.fiscal_code ?? "").slice(0, 20), clientePartitaIva: (c.vat_number ?? "").slice(0, 20) });
-    indirizzo.dalContatto(c.id, { indirizzo: c.address, citta: c.city, cap: c.postal_code, provincia: c.province });
-    setAperto(false);
+    const azienda = tipoDaScelta(c) === "azienda";
+    const persona = [c.nome, c.cognome].filter(Boolean).join(" ") || c.email || "Senza nome";
+    onChange({
+      clienteId: c.origine === "contatto" ? c.id : "", clienteAnagraficaId: c.origine === "cliente" ? c.id : "",
+      committente: (azienda && c.ragioneSociale ? c.ragioneSociale : persona).slice(0, 160),
+      clienteEmail: c.email ?? "", clienteTelefono: c.telefono ?? "", clienteTipo: azienda ? "azienda" : "privato",
+      clienteCodiceFiscale: (c.codiceFiscale ?? "").slice(0, 20), clientePartitaIva: (c.partitaIva ?? "").slice(0, 20),
+    });
+    const sede = { indirizzo: c.indirizzo, citta: c.citta, cap: c.cap, provincia: c.provincia };
+    // L'indirizzo del contatto o del cliente va nei lavori, se i lavori lo seguivano.
+    indirizzo.dalContatto(c.id, sede);
   };
   const tipo = bozza.clienteTipo ?? "privato";
   const avvisi = avvisiDatiFiscali(datiFiscaliBozza(bozza));
@@ -99,26 +77,15 @@ export default function ComputoDati({ bozza, onChange }: { bozza: BozzaComputo; 
     <section aria-label="Cliente" className="space-y-3 rounded-xl border bg-white p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold"><User className="h-4 w-4 text-slate-500" />Cliente</h2>
-        {bozza.clienteId
-          ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 py-1 pl-2.5 pr-1 text-xs text-emerald-900">
-              <Check className="h-3.5 w-3.5" />Collegato al CRM
-              <button type="button" aria-label="Scollega il contatto del CRM" className="rounded-full p-0.5 hover:bg-emerald-100" onClick={() => onChange({ clienteId: "" })}><X className="h-3 w-3" /></button>
-            </span>
-          : <Popover open={aperto} onOpenChange={setAperto}>
-              <PopoverTrigger asChild><Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs"><Users className="h-3.5 w-3.5" />Scegli dai contatti del CRM</Button></PopoverTrigger>
-              <PopoverContent className="w-80 p-0" align="end">
-                <Command shouldFilter={false}>
-                  <CommandInput placeholder="Cerca per nome, email o telefono…" value={cerca} onValueChange={setCerca} />
-                  <CommandList><CommandEmpty>Nessun contatto trovato</CommandEmpty><CommandGroup>
-                    {contatti.map(c => <CommandItem key={c.id} value={c.id} onSelect={() => scegli(c)}>
-                      <div className="min-w-0"><p className="truncate text-sm">{c.company_name?.trim() || nomeContatto(c)}</p>
-                        <p className="truncate text-[11px] text-muted-foreground">{[c.email, c.phone, c.city].filter(Boolean).join(" · ")}</p></div>
-                    </CommandItem>)}
-                  </CommandGroup></CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>}
       </div>
+      <SelezionaCliente
+        collegatoId={bozza.clienteId || bozza.clienteAnagraficaId || null}
+        collegatoOrigine={bozza.clienteId ? "contatto" : "cliente"}
+        collegatoNome={bozza.clienteId || bozza.clienteAnagraficaId ? bozza.committente || null : null}
+        etichetta="Cerca contatto o cliente"
+        onScegli={scegli}
+        onScollega={() => onChange({ clienteId: "", clienteAnagraficaId: "" })}
+      />
       <SceltaTipoCliente valore={tipo} onChange={t => onChange({ clienteTipo: t })} />
       {/* Tutte le etichette con l'icona e la stessa altezza: prima «Committente» stava più in basso di «Email» e «Telefono». */}
       <div className="grid items-start gap-3 sm:grid-cols-3">

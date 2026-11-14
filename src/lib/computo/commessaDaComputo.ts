@@ -136,6 +136,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
   if (!deciso) {
     const patch: Record<string, unknown> = { ...prezzoConcordato, payment_phases: fasiDaRate(d.rate) };
     if (d.bozza.clienteId) patch.contact_id = d.bozza.clienteId;
+    if (d.bozza.clienteAnagraficaId) patch.customer_id = d.bozza.clienteAnagraficaId;
     if (d.bozza.indirizzo.trim()) patch.client_address = d.bozza.indirizzo.trim();
     // I dati fiscali del cliente passano alla commessa e poi alla fattura (30/10/2026).
     const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase(), piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
