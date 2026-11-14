@@ -92,6 +92,28 @@ Proposta (lotto E):
   dal budget per gruppo, non dallo speso che è già nella linea.
 - Non copiati Card/Button/Badge/Avatar dei pacchetti incollati: `components/ui` ha già i suoi.
 
+## Lotto E — fatto il 14/11
+
+- Nel cestino (con set_order_trashed, ripristinabili): O-0078, O-0079, O-0080 (+ figlie O-0081/0082),
+  O-0088, O-0089, O-0090, O-0094, O-0095. Restano O-0063 e O-0083: hanno costi, la regola del
+  cestino li tiene nello storico. Resta O-0096 (modello di URBAN VISION).
+- O-0071 «Aurora — appalto e SAL», ora la catena completa: lotti O-0100 (strutture) e O-0101
+  (impianti); fasi su generale e lotti; 6 rapportini approvati (Marco Ricci, Luca Ferrari) con
+  costo ore calcolato; ODA-2026-0041 Calcestruzzi Campania → DDT → costo con fattura FT 2214;
+  DDT senza ordine (Acciaio & Profilati) col suo costo; subappalto O-0101/S01 Elettrica Futura
+  38.000 + 1.200, SAL 1 15.000 (ritenuta 750); costi comuni: sicurezza 6.000 divisa 50/50,
+  direzione lavori 8.000 sulla generale.
+- O-0031 «Residenza Via Roma»: 6 fasi del cantiere dal piano (mar 2027 → mag 2028).
+
+Emerso costruendo la demo (da fare):
+- Il SAL di un subappaltatore non diventa costo finché non arriva la fattura: nel margine dei
+  lotti 15.000 € di lavori eseguiti dal subappaltatore non ci sono.
+- L'avanzamento della generale (100 %) viene dalla sua sola fase «Allestimento cantiere».
+- Il riepilogo mostra il lotto 2 al 60 % (misure del contratto) mentre le sue fasi dicono 15 %.
+- Un mezzo senza costo orario dà un costo vuoto (Demolitore Hilti): nessun avviso.
+- I rapportini scritti dall'ufficio hanno come autore l'ufficio: per averli a nome degli operai
+  servono le assegnazioni al cantiere.
+
 ## Ordine dei lotti
 
 - **B** — Cantiere «Tutta l'operazione»: elenchi unici di rapportini, ODA, DDT, fatture
@@ -101,4 +123,4 @@ Proposta (lotto E):
 - **Design** — testata per fase, un avviso solo, barre al posto della ciambella, «Ricavi
   stimati».
 - **D** — I 18 selettori fatti a mano sui due condivisi.
-- **E** — Demo Azienda 1.
+- **E** — Demo Azienda 1. **FATTO** (sopra).
