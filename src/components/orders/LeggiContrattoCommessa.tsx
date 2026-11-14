@@ -204,7 +204,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
                 <span className="min-w-0 flex-1">
                   <span className="font-medium">Aggiungi {p.voci.length} voci del contratto</span>
                   <span className="block text-muted-foreground">
-                    {lettura.vociEsistenti > 0 ? `La commessa ha già ${lettura.vociEsistenti} voci: queste si aggiungono, nessuna viene tolta.` : "La commessa non ha voci."}
+                    {/* Il conteggio non è affidabile per tutti (chi non vede i margini non legge le righe): niente «non ha voci». */}
+                    {lettura.vociEsistenti > 0 ? `La commessa ha già ${lettura.vociEsistenti} voci: queste si aggiungono, nessuna viene tolta.` : "Si aggiungono a quelle della commessa: nessuna viene tolta."}
                   </span>
                   {p.voci.length > 0 && (
                     <ul className="mt-1 max-h-32 overflow-y-auto rounded border text-xs">
