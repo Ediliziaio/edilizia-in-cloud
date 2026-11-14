@@ -613,7 +613,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 fornitori={dati.data?.catalogo.fornitori ?? new Map()}
                 mostraPrezzi={mostraPrezzi}
                 onScegliArticolo={(chiave, sc) => setSceltaArticolo((a) => ({ ...a, [chiave]: sc }))}
-                onAggiungiAlCatalogo={permessi.canEditOrders ? aggiungiAlCatalogo : undefined}
+                // Il catalogo lo scrive solo chi ha il permesso del listino (RLS at_scrittura: can_edit_settings_pricing).
+                onAggiungiAlCatalogo={permessi.canEditSettingsPricing ? aggiungiAlCatalogo : undefined}
                 avvisiCosto={mostraPrezzi ? avvisiCosto : undefined}
               />
 

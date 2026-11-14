@@ -12,7 +12,8 @@ let vociLette: unknown[] = [];
 const salva = vi.hoisted(() => ({ mutate: vi.fn() }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" }, user: { id: "u1" } }) }));
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: true, canViewOrderAmounts: true }) }));
+const permessi = vi.hoisted(() => ({ listino: true }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditOrders: true, canViewOrderAmounts: true, canEditSettingsPricing: permessi.listino }) }));
 vi.mock("@/hooks/useComputoCommessa", () => ({
   computoInLettura: (c: ComputoCommessa | null) => !!c && ["uploading", "extracting_text", "analyzing_ai", "validating"].includes(c.extraction_status),
   computoLetto: (c: ComputoCommessa | null) => !!c && ["review", "completed"].includes(c.extraction_status),
@@ -67,7 +68,7 @@ const apri = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; tabelle.inseriti = []; salva.mutate.mockReset(); });
+beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; tabelle.inseriti = []; permessi.listino = true; salva.mutate.mockReset(); });
 
 describe("Genera dal computo", () => {
   it("senza computo apre la finestra di «Importa voci»: trascinamento, scelta e gli stessi formati", async () => {
@@ -215,5 +216,18 @@ describe("Genera dal computo", () => {
     expect(tabelle.inseriti[0]).toMatchObject({ company_id: "c1", name: "Adesivo cementizio per piastrelle sacco 25 kg", unit_of_measure: "sacco", description: "Classe C2" });
     expect(await within(riga()).findByText("Adesivo cementizio per piastrelle sacco 25 kg")).toBeInTheDocument();
     expect(screen.getByLabelText("Ricorda per i prossimi computi").closest("label")).toHaveTextContent("«Adesivo cementizio per piastrelle» → Adesivo cementizio per piastrelle sacco 25 kg");
+  });
+
+  it("senza il permesso del listino «Aggiungi al catalogo» non c'è (il database lo rifiuterebbe)", async () => {
+    // Prova su Demo Azienda 2, 14/11/2026: «Non hai i permessi per questa operazione».
+    permessi.listino = false;
+    computi = [computo({})];
+    vociLette = [{ id: "v1", descrizione_breve: "Pavimento in gres porcellanato 60x60", unita_misura: "mq", quantita: 45, super_categoria: "Pavimenti" }];
+    apri();
+    expect(await screen.findByText("Adesivo cementizio per piastrelle")).toBeInTheDocument();
+    const riga = screen.getByText("Adesivo cementizio per piastrelle").closest("tr")!;
+    fireEvent.click(within(riga).getByRole("button", { name: /Scegli l'articolo di Adesivo cementizio per piastrelle/ }));
+    expect(screen.getByRole("button", { name: /Nessun articolo/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /al catalogo/ })).not.toBeInTheDocument();
   });
 });
