@@ -22,9 +22,14 @@
  * Uso:
  *   node scripts/typecheck-ratchet.mjs             verifica (quello che fa la CI)
  *   node scripts/typecheck-ratchet.mjs --update    riscrive la fotografia
+ *
+ * Turno fra sessioni (14/11/2026): tsc prende fino a 12 GB, e più sessioni sulla
+ * stessa macchina lo lanciavano insieme. Fuori dalla CI lo script aspetta il suo
+ * turno sulla cartella /tmp/eic-controllo.lock (la stessa che si prendeva a mano
+ * con `mkdir`), la libera alla fine e toglie quella lasciata da un processo morto.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createRequire } from "node:module";
@@ -33,6 +38,55 @@ const RADICE = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BASELINE = join(RADICE, "typecheck-baseline.json");
 const AGGIORNA = process.argv.includes("--update");
 const COMPILATORE = createRequire(import.meta.url).resolve("typescript/lib/tsc.js");
+
+const LUCCHETTO = "/tmp/eic-controllo.lock";
+const LUCCHETTO_PID = join(LUCCHETTO, "pid");
+const ATTESA_MASSIMA_MS = 45 * 60 * 1000;
+const LUCCHETTO_VECCHIO_MS = 60 * 60 * 1000;
+
+function vivo(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return e?.code === "EPERM"; }
+}
+
+/** Il lucchetto è di nessuno: il suo processo è morto, o (preso a mano, senza pid) è lì da più di un'ora. */
+function lucchettoAbbandonato() {
+  try {
+    const pid = Number(readFileSync(LUCCHETTO_PID, "utf8").trim());
+    if (Number.isInteger(pid) && pid > 0) return !vivo(pid);
+  } catch { /* preso a mano con mkdir: niente pid */ }
+  try { return Date.now() - statSync(LUCCHETTO).mtimeMs > LUCCHETTO_VECCHIO_MS; } catch { return false; }
+}
+
+/** Aspetta il turno; restituisce la funzione che lo libera. In CI non serve: ogni job ha la sua macchina. */
+function prendiTurno() {
+  if (process.env.CI || process.env.TYPECHECK_SENZA_TURNO) return () => {};
+  const inizio = Date.now();
+  let avvisato = false;
+  for (;;) {
+    try {
+      mkdirSync(LUCCHETTO);
+      writeFileSync(LUCCHETTO_PID, String(process.pid));
+      break;
+    } catch (e) {
+      if (e?.code !== "EEXIST") throw e;
+      if (lucchettoAbbandonato()) { rmSync(LUCCHETTO, { recursive: true, force: true }); continue; }
+      if (Date.now() - inizio > ATTESA_MASSIMA_MS) throw new Error(`Turno del typecheck non arrivato in 45 minuti: ${LUCCHETTO} è occupato.`);
+      if (!avvisato) { console.error(`Typecheck: aspetto il turno (${LUCCHETTO} occupato da un'altra sessione)…`); avvisato = true; }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5000);
+    }
+  }
+  let liberato = false;
+  const libera = () => {
+    if (liberato) return;
+    liberato = true;
+    try {
+      if (readFileSync(LUCCHETTO_PID, "utf8").trim() === String(process.pid)) rmSync(LUCCHETTO, { recursive: true, force: true });
+    } catch { /* già tolto */ }
+  };
+  process.on("exit", libera);
+  for (const segnale of ["SIGINT", "SIGTERM", "SIGHUP"]) process.on(segnale, () => { libera(); process.exit(130); });
+  return libera;
+}
 
 /** Esegue tsc e restituisce le righe di errore. tsc esce con 2 se ne trova.
  *  TYPECHECK_OUTPUT_FILE riusa l'output di una corsa gia' fatta: serve a
@@ -76,7 +130,10 @@ function contaPerFile(output) {
   return conta;
 }
 
-const output = eseguiTsc();
+// Il turno si prende solo se tsc gira davvero (non con TYPECHECK_OUTPUT_FILE).
+const libera = process.env.TYPECHECK_OUTPUT_FILE ? () => {} : prendiTurno();
+let output;
+try { output = eseguiTsc(); } finally { libera(); }
 // Persist diagnostics only after the compiler completed; failed/OOM runs above
 // must never produce a reusable artifact or a misleading zero-error baseline.
 if (process.env.TYPECHECK_DIAGNOSTICS_FILE) {

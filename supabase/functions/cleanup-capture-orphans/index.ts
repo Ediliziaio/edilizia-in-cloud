@@ -12,6 +12,11 @@
  *      AND updated_at < now() - 7 days AND image_storage_paths IS NOT NULL
  *   2. Per ogni run: rimuovi file da storage (batch remove)
  *   3. Cancella i runs dalla tabella
+ *
+ * Poi (14/11/2026) gli originali dei contratti letti con l'AI e mai entrati in una
+ * commessa: documenti-smart/<azienda>/ai-contratti/, più vecchi di 30 giorni e non
+ * citati da un'ipotesi del simulatore. L'elenco lo decide originali_ai_da_pulire().
+ * Gira anche quando non ci sono run orfani.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -19,6 +24,7 @@ import { cronSecretValido } from "../_shared/cronAuth.ts";
 
 const ORPHAN_DAYS = 7;
 const BATCH_SIZE = 50;
+const ORIGINALI_AI_GIORNI = 30;
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -62,67 +68,84 @@ Deno.serve(async (req) => {
       .limit(BATCH_SIZE);
 
     if (fetchErr) throw new Error(`fetch_runs: ${fetchErr.message}`);
-    if (!orphanRuns || orphanRuns.length === 0) {
-      return new Response(
-        JSON.stringify({ ok: true, runs_deleted: 0, files_deleted: 0, message: "no orphans" }),
-        { headers: { ...cors, "Content-Type": "application/json" } },
-      );
-    }
+    // Senza run orfani si passa comunque agli originali dei contratti (sotto).
+    if (orphanRuns && orphanRuns.length > 0) {
 
-    // 2. Raccoglie tutti i path storage da eliminare
-    const allPaths: string[] = [];
-    for (const run of orphanRuns) {
-      if (Array.isArray(run.image_storage_paths)) {
-        allPaths.push(...run.image_storage_paths.filter(Boolean));
-      }
-      if (Array.isArray(run.sketch_storage_paths)) {
-        allPaths.push(...run.sketch_storage_paths.filter(Boolean));
-      }
-      if (run.audio_storage_path) {
-        allPaths.push(run.audio_storage_path);
-      }
-    }
-
-    // 3. Elimina file storage (in batch da 100 — limit API)
-    if (allPaths.length > 0) {
-      for (let i = 0; i < allPaths.length; i += 100) {
-        const batch = allPaths.slice(i, i + 100);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: removeErr } = await (supabase as any).storage
-          .from("documenti-smart")
-          .remove(batch);
-        if (removeErr) {
-          errors.push(`storage_remove batch ${i}: ${removeErr.message}`);
-        } else {
-          filesDeleted += batch.length;
+      // 2. Raccoglie tutti i path storage da eliminare
+      const allPaths: string[] = [];
+      for (const run of orphanRuns) {
+        if (Array.isArray(run.image_storage_paths)) {
+          allPaths.push(...run.image_storage_paths.filter(Boolean));
+        }
+        if (Array.isArray(run.sketch_storage_paths)) {
+          allPaths.push(...run.sketch_storage_paths.filter(Boolean));
+        }
+        if (run.audio_storage_path) {
+          allPaths.push(run.audio_storage_path);
         }
       }
-    }
 
-    // 4. Elimina runs dalla tabella
-    const runIds = orphanRuns.map((r: { id: string }) => r.id);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: deleteErr } = await (supabase as any)
-      .from("preventivo_da_foto_runs")
-      .delete()
-      .in("id", runIds);
+      // 3. Elimina file storage (in batch da 100 — limit API)
+      if (allPaths.length > 0) {
+        for (let i = 0; i < allPaths.length; i += 100) {
+          const batch = allPaths.slice(i, i + 100);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: removeErr } = await (supabase as any).storage
+            .from("documenti-smart")
+            .remove(batch);
+          if (removeErr) {
+            errors.push(`storage_remove batch ${i}: ${removeErr.message}`);
+          } else {
+            filesDeleted += batch.length;
+          }
+        }
+      }
 
-    if (deleteErr) {
-      errors.push(`delete_runs: ${deleteErr.message}`);
-    } else {
-      runsDeleted = runIds.length;
+      // 4. Elimina runs dalla tabella
+      const runIds = orphanRuns.map((r: { id: string }) => r.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: deleteErr } = await (supabase as any)
+        .from("preventivo_da_foto_runs")
+        .delete()
+        .in("id", runIds);
+
+      if (deleteErr) {
+        errors.push(`delete_runs: ${deleteErr.message}`);
+      } else {
+        runsDeleted = runIds.length;
+      }
     }
   } catch (e: any) {
     errors.push(`fatal: ${e.message}`);
   }
 
-  console.log(`[cleanup-capture-orphans] runs=${runsDeleted} files=${filesDeleted} errors=${errors.length}`);
+  // Originali dei contratti letti con l'AI e mai entrati in una commessa.
+  let originaliAiDeleted = 0;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: originali, error: errOriginali } = await (supabase as any)
+      .rpc("originali_ai_da_pulire", { p_giorni: ORIGINALI_AI_GIORNI, p_limite: 200 });
+    if (errOriginali) throw new Error(`originali_ai_da_pulire: ${errOriginali.message}`);
+    const percorsi = ((originali ?? []) as unknown[]).filter((p): p is string => typeof p === "string" && p.includes("/ai-contratti/"));
+    for (let i = 0; i < percorsi.length; i += 100) {
+      const batch = percorsi.slice(i, i + 100);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: removeErr } = await (supabase as any).storage.from("documenti-smart").remove(batch);
+      if (removeErr) errors.push(`originali_ai batch ${i}: ${removeErr.message}`);
+      else originaliAiDeleted += batch.length;
+    }
+  } catch (e: any) {
+    errors.push(`originali_ai: ${e.message}`);
+  }
+
+  console.log(`[cleanup-capture-orphans] runs=${runsDeleted} files=${filesDeleted} originali_ai=${originaliAiDeleted} errors=${errors.length}`);
 
   return new Response(
     JSON.stringify({
       ok: errors.length === 0,
       runs_deleted: runsDeleted,
       files_deleted: filesDeleted,
+      originali_ai_deleted: originaliAiDeleted,
       errors,
       cutoff,
     }),
