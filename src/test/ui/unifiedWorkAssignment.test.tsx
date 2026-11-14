@@ -16,7 +16,7 @@ const m = vi.hoisted(() => ({
   tariffe:[] as unknown[], varianti:[] as unknown[], tariffLoading:false, variantLoading:false, variantError:false,
 }));
 vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data:[{id:'supplier',label:'Edil Alfa',kind:'esterna'},{id:'conIva',label:'Ditta con IVA',kind:'esterna',vat_rate:22},{id:'subappaltatore:sub',label:'Solo anagrafica subappaltatore',kind:'esterna',subappaltatoreId:'sub'}],isError:m.companiesError,isLoading:m.companiesLoading,isFetching:false,refetch:m.refetch})}));
-vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders: m.editOrders, canEditOperai: m.editCrew, solaLettura: m.readOnly, canViewCosts: m.costs, canViewMargins:m.costs})}));
+vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders: m.editOrders, canEditOperai: m.editCrew, solaLettura: m.readOnly, canViewCosts: m.costs, canViewMargins:m.costs, canViewEmployees: m.costs, canViewPersone: m.costs})}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany: {id: "company"}})}));
 vi.mock("@/hooks/useVociPrevisteFasi", () => ({useVociPrevisteFasi: () => ({data: m.voci, isLoading: false})}));
 vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: m.costs, data: {amount: m.rate}, isError: m.rateError, isLoading: m.rateLoading, refetch: m.refetch})}));
@@ -258,4 +258,14 @@ it('il previsto riscritto a mano si salva come scritto a mano',()=>{
   vociDemolizione();draw({phaseId:'p1'});fireEvent.click(screen.getByRole('button',{name:'Ditta'}));select('Edil Alfa');
   fireEvent.change(screen.getByLabelText('Costo previsto €'),{target:{value:'400'}});confirm();
   expect(m.add).toHaveBeenCalledWith(expect.objectContaining({cost_preventivo:400,origine_costo:expect.objectContaining({costo_origine:'manuale'})}),expect.any(Object));
+});
+it("chi ha solo «Modifica commesse» assegna la persona: niente Ditta, niente note, e il perché si legge (14/11/2026)", () => {
+  m.costs = false; draw();
+  expect(screen.getByRole("button", {name: "Persona"})).toBeInTheDocument();
+  expect(screen.queryByRole("button", {name: "Ditta"})).not.toBeInTheDocument();
+  expect(screen.getByText(/Le ditte su una fase le assegna chi ha anche il permesso «Costi»/)).toBeInTheDocument();
+  expect(screen.queryByText("Note (facoltativo)")).not.toBeInTheDocument();
+  expect(screen.getByText(/Note e costo previsto della persona li scrive chi ha il permesso «Costi e Personale»/)).toBeInTheDocument();
+  select("Luca Bianchi"); confirm();
+  expect(m.add).toHaveBeenCalledWith(expect.objectContaining({executor_type: "interno", employee_id: "worker", notes: null, cost_preventivo: 0}), expect.anything());
 });

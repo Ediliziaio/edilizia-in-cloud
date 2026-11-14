@@ -61,7 +61,8 @@ export function OrdineArticoli({
             onAttachmentsRefresh={onAttachmentsRefresh}
             onItemUpdate={onItemUpdate}
             fallbackCompanyId={companyId}
-            onAddLabor={(labor) => addLaborMutation.mutate(labor)}
+            // La posa va tra le ditte della commessa: il database la accetta solo con «Costi».
+            onAddLabor={canViewCosts ? (labor) => addLaborMutation.mutate(labor) : undefined}
             // Qui una riga salvata non si toglie (il cestino non faceva niente):
             // si elimina da «Modifica commessa».
             allowDelete={false}
@@ -84,10 +85,10 @@ export function OrdineArticoli({
  */
 export function useAggiungiPosaManodopera(orderId: string) {
   const queryClient = useQueryClient();
-  const { canEditOrders } = usePermissions();
+  const { canEditOrders, canViewCosts } = usePermissions();
   return useMutation({
     mutationFn: async (labor: { external_team_id: string; total_cost: number; notes: string }) => {
-      if (!canEditOrders) throw new Error("Permessi insufficienti");
+      if (!canEditOrders || !canViewCosts) throw new Error("La posa tra le ditte della commessa la aggiunge chi ha i permessi «Modifica commesse» e «Costi». Chiedi al titolare dell'azienda di darti l'accesso.");
       const { error } = await supabase.from("order_external_teams").insert({
         order_id: orderId,
         external_team_id: labor.external_team_id,

@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { DocumentoFiscale, RigaDocumento, RiepilogoIVA, StatoDocumento, TipoDocumento } from "@/types/fatturazione";
 import type { EditorState } from "./editor/useEditorState";
+import { usePermissions } from "@/hooks/usePermissions";
 
 /**
  * Il dettaglio di una fattura emessa con un altro programma e importata. Stessa
@@ -89,6 +90,7 @@ export default function DettaglioFatturaImportata() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
   const companyId = effectiveCompany?.id;
   const { data: azienda } = useAnagraficaAzienda();
   const [incasso, setIncasso] = useState<DocumentoFiscale | null>(null);
@@ -314,7 +316,7 @@ export default function DettaglioFatturaImportata() {
           <CardContent className="pt-4 max-sm:p-3">
             <AllegatiFattura companyId={companyId} madre={{ invoiceId: f.id }} />
             <div className="mt-4 border-t pt-4">
-              <NoteInterneFattura tabella="invoices" id={f.id} companyId={companyId} valore={f.note_interne} puoModificare chiaviDaAggiornare={["emessa-importata-dettaglio"]} />
+              <NoteInterneFattura tabella="invoices" id={f.id} companyId={companyId} valore={f.note_interne} puoModificare={!!permessi.canManagePayments && !permessi.solaLettura} chiaviDaAggiornare={["emessa-importata-dettaglio"]} />
             </div>
           </CardContent>
         </Card>

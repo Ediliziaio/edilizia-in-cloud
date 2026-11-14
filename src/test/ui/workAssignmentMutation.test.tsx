@@ -103,14 +103,35 @@ describe("Collegamento assegnazione e app Campo (API simulate)", () => {
   it("una persona messa su una fase: il browser salva solo il lavoro, l'accesso all'app lo dà il database", async () => {
     const labor = builder(null); const altro = builder(null);
     mocks.from.mockImplementation((table: string) => table === "order_employees" ? labor : altro);
+    mocks.rpc.mockResolvedValueOnce({ data: "riga", error: null });
     const { result } = renderHook(() => useOrderWorkPhases("order"));
     await result.current.addAssignment.mutateAsync(payload);
-    expect(labor.insert).toHaveBeenCalledTimes(1);
+    // Dalla funzione del server, che controlla «Modifica commesse» e calcola tariffa e previsto (14/11/2026).
+    expect(mocks.rpc).toHaveBeenCalledWith("commessa_assegna_persona", { p_order_id: "order", p_employee_id: "employee", p_user_id: null, p_phase_id: "phase", p_planned_hours: null });
+    expect(labor.insert).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalledWith("order_campo_assignments");
     expect(mocks.invalidate).toHaveBeenCalledWith({ queryKey: ["order-campo-assignments", "order"] });
     expect(mocks.invalidate).toHaveBeenCalledWith({ queryKey: ["campo-lavori-assegnati"] });
   });
+  it("chi non ha «Modifica commesse» legge il permesso che manca, non un errore generico (14/11/2026)", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "Assegnare le persone alla commessa lo fa chi ha il permesso «Modifica commesse». Chiedi al titolare dell'azienda di darti l'accesso." } });
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await expect(result.current.addAssignment.mutateAsync(payload)).rejects.toThrow(/«Modifica commesse»/);
+    expect(mocks.error).toHaveBeenCalledWith(expect.stringMatching(/«Modifica commesse»/));
+  });
+  it("la nota rifiutata per «Costi e Personale» non annulla l'assegnazione e lo dice", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: "riga", error: null });
+    const q = { update: vi.fn(), eq: vi.fn(), select: vi.fn().mockResolvedValue({ data: null, error: { message: "Il dato «note» lo cambia solo chi ha il permesso «Costi e Personale»." } }) };
+    q.update.mockReturnValue(q); q.eq.mockReturnValue(q);
+    mocks.from.mockReturnValue(q);
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await result.current.addAssignment.mutateAsync({ ...payload, notes: "porta il trapano" });
+    expect(q.update).toHaveBeenCalledWith({ notes: "porta il trapano" });
+    expect(q.eq).toHaveBeenCalledWith("id", "riga");
+    expect(mocks.warning).toHaveBeenCalledWith("Persona assegnata, ma la nota non è stata salvata", { description: expect.stringMatching(/«Costi e Personale»/) });
+  });
   it("avvisa in parole semplici se la persona non ha l'app", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: "riga", error: null });
     const labor = builder(null);
     mocks.from.mockReturnValue(labor);
     mocks.employees = [{ id: "employee", label: "Mario Rossi", campoUserId: null }];
@@ -120,9 +141,9 @@ describe("Collegamento assegnazione e app Campo (API simulate)", () => {
     mocks.employees = undefined;
   });
   it("non tenta di creare accessi se la riga di manodopera non viene salvata", async () => {
-    const labor = builder(null, { error: new Error("errore primario") }); mocks.from.mockReturnValue(labor);
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "errore primario" } });
     const { result } = renderHook(() => useOrderWorkPhases("order"));
-    await expect(result.current.addAssignment.mutateAsync(payload)).rejects.toThrow("errore primario");
-    expect(mocks.from).toHaveBeenCalledTimes(1); expect(mocks.invalidate).not.toHaveBeenCalled();
+    await expect(result.current.addAssignment.mutateAsync({ ...payload, notes: "nota" })).rejects.toThrow("errore primario");
+    expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.invalidate).not.toHaveBeenCalled();
   });
 });

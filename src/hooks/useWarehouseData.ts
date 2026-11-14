@@ -11,6 +11,10 @@ import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 import { useWarehouses } from "@/hooks/useWarehouses";
 
+/** Gli articoli delle commesse li modifica chi ha «Modifica commesse» (regola del database su
+ * order_items). Prima il magazzino diceva «Stato aggiornato» anche quando non scriveva niente. */
+const ARTICOLI_NEGATI = "Gli articoli delle commesse li aggiorna chi ha il permesso «Modifica commesse». Chiedi al titolare dell'azienda di darti l'accesso.";
+
 export type ViewMode = "list" | "purchase_list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt" | "uscite" | "valuation" | "scadenze" | "movements";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
@@ -524,11 +528,13 @@ export function useWarehouseData() {
   // Mutations
   const updateItemStatusMutation = useMutation({
     mutationFn: async ({ itemId, status }: { itemId: string; status: OrderItemStatus }) => {
-      const { error } = await supabase
+      const { data: righe, error } = await supabase
         .from("order_items")
         .update({ status, updated_at: new Date().toISOString() })
-        .eq("id", itemId);
+        .eq("id", itemId)
+        .select("id");
       if (error) throw error;
+      if (!righe?.length) throw new Error(ARTICOLI_NEGATI);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
@@ -536,18 +542,20 @@ export function useWarehouseData() {
       queryClient.invalidateQueries({ queryKey: ["warehouse-purchase-items"] });
       toast.success("Stato aggiornato", { description: "Lo stato dell'articolo è stato aggiornato." });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile aggiornare lo stato dell'articolo." });
+    onError: (e: unknown) => {
+      toast.error("Errore", { description: (e as { message?: string } | null)?.message || "Impossibile aggiornare lo stato dell'articolo." });
     },
   });
 
   const batchUpdateMutation = useMutation({
     mutationFn: async ({ itemIds, status }: { itemIds: string[]; status: OrderItemStatus }) => {
-      const { error } = await supabase
+      const { data: righe, error } = await supabase
         .from("order_items")
         .update({ status, updated_at: new Date().toISOString() })
-        .in("id", itemIds);
+        .in("id", itemIds)
+        .select("id");
       if (error) throw error;
+      if ((righe?.length ?? 0) < itemIds.length) throw new Error(righe?.length ? `Aggiornati ${righe.length} articoli su ${itemIds.length}. ${ARTICOLI_NEGATI}` : ARTICOLI_NEGATI);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
@@ -555,43 +563,47 @@ export function useWarehouseData() {
       queryClient.invalidateQueries({ queryKey: ["warehouse-purchase-items"] });
       toast.success("Articoli aggiornati", { description: `${variables.itemIds.length} articoli sono stati aggiornati.` });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile aggiornare gli articoli." });
+    onError: (e: unknown) => {
+      toast.error("Errore", { description: (e as { message?: string } | null)?.message || "Impossibile aggiornare gli articoli." });
     },
   });
 
   const updateItemNotesMutation = useMutation({
     mutationFn: async ({ itemId, notes }: { itemId: string; notes: string | null }) => {
-      const { error } = await supabase
+      const { data: righe, error } = await supabase
         .from("order_items")
         .update({ notes, updated_at: new Date().toISOString() })
-        .eq("id", itemId);
+        .eq("id", itemId)
+        .select("id");
       if (error) throw error;
+      if (!righe?.length) throw new Error(ARTICOLI_NEGATI);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       toast.success("Nota aggiornata");
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile aggiornare la nota." });
+    onError: (e: unknown) => {
+      toast.error("Errore", { description: (e as { message?: string } | null)?.message || "Impossibile aggiornare la nota." });
     },
   });
 
   const batchUpdateSectionMutation = useMutation({
     mutationFn: async ({ itemIds, sectionId }: { itemIds: string[]; sectionId: string | null }) => {
-      const { error } = await supabase
+      const { data: righe, error } = await supabase
         .from("order_items")
         .update({ section_id: sectionId, updated_at: new Date().toISOString() })
-        .in("id", itemIds);
+        .in("id", itemIds)
+        .select("id");
       if (error) throw error;
+      if ((righe?.length ?? 0) < itemIds.length) throw new Error(righe?.length ? `Aggiornati ${righe.length} articoli su ${itemIds.length}. ${ARTICOLI_NEGATI}` : ARTICOLI_NEGATI);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.itemsAll });
       const count = variables.itemIds.length;
       toast.success("Articoli spostati", { description: `${count} articol${count === 1 ? "o" : "i"} spostat${count === 1 ? "o" : "i"} nella zona.` });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile spostare gli articoli." });
+    onError: (e: unknown) => {
+      toast.error("Errore", { description: (e as { message?: string } | null)?.message || "Impossibile spostare gli articoli." });
     },
   });
 

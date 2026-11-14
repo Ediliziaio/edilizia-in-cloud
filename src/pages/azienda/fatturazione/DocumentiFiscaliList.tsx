@@ -657,7 +657,8 @@ function DocumentiFiscaliListInner() {
                 <span className="hidden sm:inline">Report fiscali</span>
               </Link>
             </Button>
-            {!isCommercialistaMode && effectiveCompany?.id && (
+            {/* Abbinare scrive su fatture e rate: lo fa chi ha «Pagamenti» (regola del database). */}
+            {!isCommercialistaMode && effectiveCompany?.id && permissions.canManagePayments && !permissions.solaLettura && (
               <Button variant="outline" size="sm" className="gap-1.5 max-sm:hidden" onClick={() => setAbbinaAperto(true)}>
                 <Link2 className="h-4 w-4" />
                 <span className="hidden sm:inline">Abbina alle commesse</span>

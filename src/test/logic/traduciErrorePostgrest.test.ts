@@ -76,7 +76,7 @@ describe("traduciErrorePostgrest", () => {
 
 describe("rifiuti per permessi con una frase generica (14/11/2026)", () => {
   it("«Operazione non consentita» e «Accesso negato» col codice 42501 diventano il messaggio dei permessi", () => {
-    for (const message of ["Operazione non consentita", "Accesso negato", "Accesso negato."]) {
+    for (const message of ["Operazione non consentita", "Accesso negato", "Accesso negato.", "Assegnazione non consentita", "Campo economico non modificabile", "Scrittura non consentita"]) {
       const t = traduciErrorePostgrest({ message, code: "42501" });
       expect(t?.message, message).toMatch(/^Non hai i permessi per questa operazione/);
       expect(t?.details, message).toContain(message);

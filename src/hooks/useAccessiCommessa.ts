@@ -98,12 +98,14 @@ export function useTogliAccessoAMano(orderId: string) {
         .select("id")
         .maybeSingle();
       if (error) throw error;
-      if (!data) throw new Error("non tolto");
+      // Nessuna riga tolta: gli accessi al cantiere li toglie solo l'ufficio (amministratori e
+      // personale d'ufficio), non gli altri ruoli. Prima diceva «riprova tra qualche secondo».
+      if (!data) throw new Error("Gli accessi al cantiere li toglie l'amministratore o il personale d'ufficio. Chiedi al titolare dell'azienda.");
     },
     onSuccess: () => {
       toast.success("Non vede più il cantiere nell'app");
       refreshWorkQueries(qc, orderId);
     },
-    onError: () => toast.error("Non sono riuscito a toglierlo. Riprova tra qualche secondo."),
+    onError: (e: unknown) => toast.error((e as { message?: string } | null)?.message || "Non sono riuscito a toglierlo. Riprova tra qualche secondo."),
   });
 }

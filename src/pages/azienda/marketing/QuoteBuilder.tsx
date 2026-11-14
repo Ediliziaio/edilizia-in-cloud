@@ -2208,8 +2208,10 @@ export default function QuoteBuilder({ localEditor }: { localEditor?: { initial:
         } catch (eRighe) {
           // Compensazione: la testata appena nata senza le sue righe sarebbe
           // un mezzo preventivo coi totali sbagliati — meglio nessuno.
-          const { error: cleanupError } = await supabase.from("quotes").delete().eq("id", quoteId!).eq("company_id", companyId);
-          if (cleanupError) {
+          // Nel cestino, non cancellata: la cancellazione la concede il database solo agli
+          // amministratori, e per gli altri falliva in silenzio lasciando la testata senza righe.
+          const { data: tolta, error: cleanupError } = await supabase.from("quotes").update({ deleted_at: new Date().toISOString() }).eq("id", quoteId!).eq("company_id", companyId).select("id");
+          if (cleanupError || !tolta?.length) {
             setPendingEditNavId(quoteId!);
             throw new Error("Salvataggio parziale: il preventivo è stato creato, ma le righe non sono state salvate. Aprilo dalla lista prima di riprovare.", { cause: eRighe });
           }

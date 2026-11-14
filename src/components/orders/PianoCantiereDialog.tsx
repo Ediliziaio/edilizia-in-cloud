@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useIsCompanyAdmin } from "@/hooks/useIsCompanyAdmin";
+import { usePermissions } from "@/hooks/usePermissions";
 import { formatCurrency } from "@/lib/formatters";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
 import { chiaveLavorazione, FONTE_A_PAROLE } from "../../../shared/piano-cantiere/calcolo.ts";
@@ -31,8 +31,9 @@ export function PianoCantiereDialog({ orderId, puoModificare, open, onOpenChange
   const qc = useQueryClient();
   const [opzioni, setOpzioni] = useState<OpzioniPiano>({});
   const chiave = ["piano-cantiere", orderId, opzioni];
-  // Assegnare scrive su order_employees, che accetta solo gli amministratori.
-  const puoAssegnare = useIsCompanyAdmin();
+  // Assegnare passa da commessa_assegna_persona: chi ha «Modifica commesse» (14/11/2026).
+  const { canEditOrders, solaLettura } = usePermissions();
+  const puoAssegnare = !!canEditOrders && !solaLettura;
   const { data: e, isLoading, isFetching, error } = useQuery({
     queryKey: chiave, enabled: open, staleTime: 60_000, placeholderData: keepPreviousData, queryFn: () => costruisciPiano(db, orderId, opzioni),
   });

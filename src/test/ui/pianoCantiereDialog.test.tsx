@@ -30,7 +30,8 @@ vi.mock("@/integrations/supabase/client", () => ({
     }),
   },
 }));
-vi.mock("@/hooks/useIsCompanyAdmin", () => ({ useIsCompanyAdmin: () => true }));
+const permessi = vi.hoisted(() => ({ canEditOrders: true, solaLettura: false }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permessi }));
 vi.mock("@/lib/orders/refreshWorkQueries", () => ({ refreshWorkQueries: vi.fn() }));
 import { PianoCantiereDialog } from "@/components/orders/PianoCantiereDialog";
 
@@ -62,5 +63,15 @@ describe("Calcola come finire", () => {
     await screen.findByText("Margine al massimo");
     expect(screen.queryByRole("button", { name: /Assegna/ })).toBeNull();
     expect(screen.queryByText(/Correggi le ore/)).toBeNull();
+  });
+  it("assegna anche chi non è amministratore ma ha «Modifica commesse»; senza, il pulsante non c'è (14/11/2026)", async () => {
+    permessi.canEditOrders = false;
+    const { unmount } = apri();
+    await screen.findByText("Margine al massimo");
+    expect(screen.queryByRole("button", { name: /Assegna questa persona/ })).toBeNull();
+    unmount();
+    permessi.canEditOrders = true;
+    apri();
+    expect(await screen.findByRole("button", { name: /Assegna questa persona/ })).toBeTruthy();
   });
 });

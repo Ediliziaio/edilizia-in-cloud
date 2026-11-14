@@ -62,8 +62,14 @@ interface Props {
 }
 
 export function WorkAssignmentRow({ assignment: a, employees, externalTeams, phases, onUpdate, onDelete, compact = false, previstoVoci = 0 }: Props) {
-  const { canEditOrders, canViewCosts, canManagePayments } = usePermissions();
+  const { canEditOrders, canViewCosts, canManagePayments, canManagePurchasing, canViewEmployees, canViewPersone } = usePermissions();
   const internal = a.executor_type === "interno";
+  // Note, costi e pagamento della persona sono di «Costi e Personale», come nel database
+  // (14/11/2026): chi ha solo «Modifica commesse» sposta la persona di fase o la toglie.
+  const vedePersonale = (!!canViewCosts || !!canManagePurchasing) && (!!canViewEmployees || !!canViewPersone);
+  const puoDatiEconomici = internal ? vedePersonale : !!canViewCosts;
+  // La ditta su una fase si modifica solo con «Costi» (regola di order_external_teams).
+  const puoGestire = !!canEditOrders && (internal || !!canViewCosts);
   const name = assignmentName(a, employees, externalTeams);
   // Chi è al lavoro vede la commessa nell'app nei giorni della fase: qui si
   // vede subito chi l'app non ce l'ha.
@@ -82,7 +88,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
     setOpen(true);
   };
   const save = async () => {
-    if (!canEditOrders || busy) return;
+    if (!puoGestire || busy) return;
     const budget = parseAssignmentAmount(draft.budget);
     const cost = parseAssignmentAmount(draft.cost);
     const hours = parseAssignmentAmount(draft.hours, 6);
@@ -95,19 +101,20 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
     const patch: AssignmentPatch = {};
     const base = initial.current;
     if ((draft.phase || null) !== base.phase_id) patch.phase_id = draft.phase || null;
-    if ((draft.notes.trim() || null) !== base.notes) patch.notes = draft.notes.trim() || null;
+    if (puoDatiEconomici && (draft.notes.trim() || null) !== base.notes) patch.notes = draft.notes.trim() || null;
     const newHours = draft.hours.trim() ? hours : null;
     if (internal && newHours !== base.hours) patch.hours = newHours;
-    if (canViewCosts && budget !== base.cost_preventivo) patch.cost_preventivo = budget!;
-    if (canViewCosts && cost !== base.cost_consuntivo) patch.cost_consuntivo = cost!;
-    if (canViewCosts && canManagePayments && draft.paid !== base.is_paid) {
+    if (puoDatiEconomici && canViewCosts && budget !== base.cost_preventivo) patch.cost_preventivo = budget!;
+    if (puoDatiEconomici && canViewCosts && cost !== base.cost_consuntivo) patch.cost_consuntivo = cost!;
+    if (puoDatiEconomici && canViewCosts && canManagePayments && draft.paid !== base.is_paid) {
       patch.is_paid = draft.paid;
       patch.paid_date = draft.paid ? new Date().toISOString().slice(0, 10) : null;
     }
     if (!Object.keys(patch).length) { setOpen(false); return; }
     setBusy(true);
     try { await onUpdate(patch); setOpen(false); }
-    catch { setError("Salvataggio non riuscito. I dati inseriti sono conservati: riprova."); }
+    // Il motivo vero (anche il permesso che manca) al posto di un «riprova» che non aiuta.
+    catch (e) { setError(`${e instanceof Error && e.message ? e.message : "Salvataggio non riuscito."} I dati inseriti sono conservati.`); }
     finally { setBusy(false); }
   };
 
@@ -125,7 +132,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
     if (busy) return;
     setBusy(true);
     try { await onUpdate({ cost_preventivo: previstoVociSalvato, costo_origine: "preventivo" }); }
-    catch { toast.error("Costo previsto non salvato. Riprova."); }
+    catch (e) { toast.error(e instanceof Error && e.message ? e.message : "Costo previsto non salvato. Riprova."); }
     finally { setBusy(false); }
   };
   // Una riga dell'elenco (ElencoAssegnazioni): chi è, che cosa fa, i due costi
@@ -183,7 +190,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
         <span className="sr-only">Costo consuntivo </span>{eur.format(a.cost_consuntivo)}
       </span>
     </>}
-    {canEditOrders && <Button size="icon" variant="ghost" onClick={startEditing} aria-label={`Gestisci ${name}`} title="Gestisci" className="tap-compact h-8 w-8 shrink-0 text-muted-foreground">
+    {puoGestire && <Button size="icon" variant="ghost" onClick={startEditing} aria-label={`Gestisci ${name}`} title="Gestisci" className="tap-compact h-8 w-8 shrink-0 text-muted-foreground">
       <Pencil className="h-4 w-4" />
     </Button>}
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}>
@@ -194,14 +201,14 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
             <OfficeSelect label="Lavorazione assegnata" value={draft.phase} onValueChange={v => setDraft({ ...draft, phase: v })} disabled={busy}
               options={[{ value: "", label: "Intera commessa · senza fase" }, ...phases.map(p => ({ value: p.id, label: p.name }))]} />
           </label>
-          <div className="space-y-1.5"><Label htmlFor={`notes-${a.id}`}>Attività e accordi</Label>
+          {puoDatiEconomici ? <div className="space-y-1.5"><Label htmlFor={`notes-${a.id}`}>Attività e accordi</Label>
             <Textarea id={`notes-${a.id}`} value={draft.notes} disabled={busy} rows={3} onChange={e => setDraft({ ...draft, notes: e.target.value })} />
-          </div>
+          </div> : <p className="text-xs text-muted-foreground">Note e costi della persona li scrive chi ha il permesso «Costi e Personale».</p>}
           {internal && <div className="space-y-1.5"><Label htmlFor={`hours-${a.id}`}>Ore registrate</Label>
             <Input id={`hours-${a.id}`} type="text" inputMode="decimal" autoComplete="off" value={draft.hours} disabled={busy} onChange={e => setDraft({ ...draft, hours: e.target.value })} />
             <p className="text-xs text-muted-foreground">Rettifica manuale del totale. Non ricalcola automaticamente il costo e non sostituisce i rapportini.</p>
           </div>}
-          {canViewCosts && <details className="rounded-lg border p-3">
+          {canViewCosts && puoDatiEconomici && <details className="rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-medium">Costi e registrazione pagamento</summary>
             <div className="mt-3 space-y-3">
               <p className="text-xs text-muted-foreground">{internal ? "Il costo imputato alla commessa è distinto dal pagamento dello stipendio." : "Il costo dell'affidamento è distinto dalle ore lavorate e dall'approvazione dei rapportini."}</p>
@@ -220,7 +227,7 @@ export function WorkAssignmentRow({ assignment: a, employees, externalTeams, pha
             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Rimuovere questa assegnazione?</AlertDialogTitle>
               <AlertDialogDescription>Verrà eliminata la riga di manodopera di {name}, inclusi i costi registrati su questa riga. L'accesso all'app Campo si gestisce separatamente. Per cambiare lavorazione usa invece il campo Lavorazione.</AlertDialogDescription>
             </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Annulla</AlertDialogCancel><AlertDialogAction onClick={async () => {
-              setBusy(true); try { await onDelete(); setOpen(false); } catch { toast.error("Assegnazione non rimossa. Riprova."); } finally { setBusy(false); }
+              setBusy(true); try { await onDelete(); setOpen(false); } catch (e) { setError(e instanceof Error && e.message ? e.message : "Assegnazione non rimossa. Riprova."); } finally { setBusy(false); }
             }}>Rimuovi assegnazione</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
           <div className="flex justify-end gap-2"><Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>Annulla</Button><Button disabled={busy} onClick={save}>{busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}Salva modifiche</Button></div>

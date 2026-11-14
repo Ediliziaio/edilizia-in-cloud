@@ -40,6 +40,7 @@ import {
 import CarichiDaRegistrareCard from "./CarichiDaRegistrareCard";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WhatsAppOperationsReview } from "@/components/whatsapp/WhatsAppOperationsReview";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type OrderMini = { order_code?: string | null; description?: string | null };
 
@@ -154,7 +155,10 @@ function intentLabel(intent: WhatsAppOperationalIntent) {
 export default function OperationalControlPage() {
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const { canEditOrders } = usePermissions();
+  // Approvare un rapportino: come in commessa (useDecisioneRapportino) e nel database.
+  const puoApprovare = !!canEditOrders && (role === "company_admin" || role === "company_staff" || role === "super_admin");
   const queryClient = useQueryClient();
   const numbersQuery = useWhatsAppNumbersByPurpose();
   const operativoNumbers = numbersQuery.byPurpose.bot_operativo ?? [];
@@ -541,9 +545,9 @@ export default function OperationalControlPage() {
                       {report.descrizione_lavori || "Rapportino senza descrizione"}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => approveReport.mutate(report.id)} disabled={approveReport.isPending}>
+                  {puoApprovare ? <Button size="sm" onClick={() => approveReport.mutate(report.id)} disabled={approveReport.isPending}>
                     Approva
-                  </Button>
+                  </Button> : <span className="text-xs text-muted-foreground">Lo approva chi ha «Modifica commesse»</span>}
                 </div>
               </div>
             ))}

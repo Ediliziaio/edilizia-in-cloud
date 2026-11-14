@@ -86,8 +86,13 @@ export function AddAssignmentDialog({
   onAperto,
   onAdd,
 }: AddAssignmentDialogProps) {
-  const { canViewCosts, canViewMargins, canEditOrders, canEditOperai, canViewPersone, solaLettura } = usePermissions();
+  const { canViewCosts, canViewMargins, canEditOrders, canEditOperai, canViewPersone, canViewEmployees, canManagePurchasing, solaLettura } = usePermissions();
   const puoPersona = !!canEditOrders && !solaLettura;
+  // La ditta su una fase la scrive chi ha anche «Costi» (regola del database su
+  // order_external_teams): senza, il pulsante si vedeva e il salvataggio veniva rifiutato.
+  const puoDitta = puoPersona && !!canViewCosts;
+  // Note e costo previsto della persona: «Costi e Personale», come nel database.
+  const vedePersonale = (!!canViewCosts || !!canManagePurchasing) && (!!canViewEmployees || !!canViewPersone);
   const puoSquadra = (!!canEditOrders || !!canEditOperai) && !solaLettura;
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -350,7 +355,7 @@ export function AddAssignmentDialog({
       hours: null,
       is_paid: false,
       paid_date: null,
-      notes: notes.trim() === "" ? null : notes.trim(),
+      notes: notes.trim() === "" || (tipo === "interno" && !vedePersonale) ? null : notes.trim(),
       ...(tipo === "esterno" && canViewCosts && budget > 0 ? { origine_costo: origineDelCosto(budget) } : {}),
     };
     submittingRef.current = true; setSubmitting(true);
@@ -398,13 +403,14 @@ export function AddAssignmentDialog({
               {([
                 {type: "interno", label: "Persona", icon: User, allowed: puoPersona},
                 {type: "squadra", label: "Squadra interna", icon: UsersRound, allowed: puoSquadra},
-                {type: "esterno", label: "Ditta", icon: Users, allowed: puoPersona},
+                {type: "esterno", label: "Ditta", icon: Users, allowed: puoDitta},
               ] as const).filter(choice => choice.allowed).map(choice => <Button
                 key={choice.type} type="button" variant={tipo === choice.type ? "default" : "outline"} aria-pressed={tipo === choice.type}
                 onClick={() => { if (tipo === choice.type) return; setTipo(choice.type); setExecutorId(""); setTariffaId(""); setVarianteId(""); setPrev("0"); setCons("0"); setPlannedHours(""); setNotes(""); setCapo(false); }}
                 className="h-auto min-h-11 whitespace-normal px-2 py-2 text-xs sm:text-sm"
               ><choice.icon className="mr-1 h-4 w-4 shrink-0" />{choice.label}</Button>)}
             </div>
+            {puoPersona && !puoDitta && <p className="text-xs text-muted-foreground">Le ditte su una fase le assegna chi ha anche il permesso «Costi».</p>}
           </div>
 
           {/* Executor picker */}
@@ -503,7 +509,7 @@ export function AddAssignmentDialog({
             {canViewCosts && executorId && (rate.isLoading ? <p role="status">Caricamento costo orario…</p> : rate.isError ? <p role="alert">Costo orario non disponibile. <Button size="sm" variant="outline" onClick={() => void rate.refetch()}>Riprova costo orario</Button></p> : rate.allowed ? <p className="text-xs">Costo orario attuale: <strong>{currentRate == null ? "da impostare" : `${eur.format(currentRate)} / h`}</strong>{currentRate == null ? ". Le ore senza tariffa richiedono verifica." : ". Vale per i prossimi rapportini; lo storico non viene ricalcolato."}</p> : <p className="text-xs text-muted-foreground">La tariffa personale è riservata al tuo ruolo.</p>)}
             {canViewPersone && <a href="/azienda/personale?tab=profili" className="text-xs underline">Gestisci costi in Personale e HR</a>}
           </div>}
-          {tipo === "interno" && canViewCosts && <details className="rounded-lg border p-3">
+          {tipo === "interno" && canViewCosts && vedePersonale && <details className="rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-medium">Prevedi le ore (facoltativo)</summary>
             <div className="mt-3 space-y-2"><Label htmlFor="assign-planned-hours">Ore previste</Label><Input id="assign-planned-hours" type="text" inputMode="decimal" autoComplete="off" value={plannedHours} disabled={currentRate == null} onChange={e => setPlannedHours(e.target.value)} placeholder="Es. 16 oppure 1,5" />
               <p className="text-xs text-muted-foreground">{currentRate == null ? "Imposta prima il costo orario. Puoi comunque assegnare senza budget." : `Budget previsto: ${plannedCost == null ? "—" : eur.format(plannedCost)}. Non aggiunge ore al consuntivo.`}</p>
@@ -682,7 +688,8 @@ export function AddAssignmentDialog({
           </section>}
 
           {/* Notes */}
-          {tipo !== "squadra" && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Note (facoltativo)</summary><div className="mt-3 space-y-1.5">
+          {tipo === "interno" && !vedePersonale && <p className="text-xs text-muted-foreground">Note e costo previsto della persona li scrive chi ha il permesso «Costi e Personale».</p>}
+          {(tipo === "esterno" || (tipo === "interno" && vedePersonale)) && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Note (facoltativo)</summary><div className="mt-3 space-y-1.5">
             <Label htmlFor="assign-notes">Note (facoltativo)</Label>
             <Textarea
               id="assign-notes"
@@ -699,7 +706,7 @@ export function AddAssignmentDialog({
           <Button variant="outline" disabled={submitting} onClick={() => { reset(); setOpen(false); }}>
             Annulla
           </Button>
-          <Button aria-label="Conferma assegnazione" onClick={handleSubmit} disabled={submitting || contextChanged || companiesUnavailable || listinoIncompleto || !!selectedCompany?.unavailableReason || !executorId || (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : !puoPersona)}>
+          <Button aria-label="Conferma assegnazione" onClick={handleSubmit} disabled={submitting || contextChanged || companiesUnavailable || listinoIncompleto || !!selectedCompany?.unavailableReason || !executorId || (tipo === "squadra" ? !puoSquadra || squadreQuery.isLoading || squadreQuery.isError || squadreAssegnate.isLoading || squadreAssegnate.isError : tipo === "esterno" ? !puoDitta : !puoPersona)}>
             {submitting ? (
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
             ) : (

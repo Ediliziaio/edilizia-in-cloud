@@ -7,6 +7,7 @@ import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { assignOfficeEmployee } from "@/lib/orders/assignOfficeEmployee";
 import type { FaseModello } from "@/lib/orders/modelliFasi";
 import { issuedPurchaseOrderNumber } from "@/lib/orders/materialProcurement";
 import { giornoLocale } from "@/lib/orders/cronoprogramma";
@@ -544,19 +545,19 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         if ((a.hours ?? 0) !== 0 || a.cost_consuntivo !== 0) {
           throw new Error("L'assegnazione non registra ore o spese: usa i rapportini per il consuntivo del dipendente.");
         }
-        const { error } = await db.from("order_employees").insert({
-          order_id: orderId,
-          employee_id: a.employee_id,
-          phase_id: a.phase_id,
-          total_cost: a.cost_consuntivo,
-          cost_preventivo: a.cost_preventivo,
-          planned_hours: a.planned_hours ?? null,
-          planned_hourly_rate: a.planned_hourly_rate ?? null,
-          hours_worked: a.hours ?? 0,
-          hourly_rate: 0,
-          notes: a.notes,
-        });
-        if (error) throw error;
+        if (!orderId || !a.employee_id) throw new Error("Scegli la persona da assegnare.");
+        // Chi ha «Modifica commesse» assegna le persone (14/11/2026): la funzione del server
+        // controlla il permesso e calcola tariffa e costo previsto dalle ore. Prima il browser
+        // scriveva la riga a mano, e a chi non era amministratore arrivava un rifiuto generico.
+        const rigaId = await assignOfficeEmployee(orderId, { employeeId: a.employee_id }, a.phase_id, a.planned_hours ?? null);
+        // Le note sulla persona sono un dato di «Costi e Personale»: senza, il database rifiuta
+        // col nome del permesso. L'assegnazione resta fatta, e lo si dice.
+        if (a.notes) {
+          const { data: righe, error } = await db.from("order_employees").update({ notes: a.notes }).eq("id", rigaId).select("id");
+          if (error || !righe?.length) {
+            toast.warning("Persona assegnata, ma la nota non è stata salvata", { description: error ? messaggioErrore(error) : MESSAGGIO_PERMESSI });
+          }
+        }
 
         // Chi è messo su una fase trova la commessa nell'app da solo, nei
         // giorni della fase: lo fa il database (commessa_allinea_accessi).

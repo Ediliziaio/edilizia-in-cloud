@@ -5,7 +5,7 @@ import { assignment } from "../fixtures/workPlanning";
 import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
 setupRadixMenus();
 
-const permissions = vi.hoisted(() => ({ canEditOrders: true, canViewCosts: true, canManagePayments: true }));
+const permissions = vi.hoisted(() => ({ canEditOrders: true, canViewCosts: true, canManagePayments: true, canViewEmployees: true, canViewPersone: true, canManagePurchasing: false }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permissions }));
 const update = vi.fn();
 const remove = vi.fn();
@@ -14,7 +14,7 @@ const props = () => ({ assignment: assignment(), employees: [{ id: "e1", label: 
 const edit = () => fireEvent.click(screen.getByRole("button", { name: "Gestisci Mario Rossi" }));
 const save = () => fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
 afterEach(cleanup);
-beforeEach(() => { vi.clearAllMocks(); Object.assign(permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true }); update.mockResolvedValue(undefined); remove.mockResolvedValue(undefined); });
+beforeEach(() => { vi.clearAllMocks(); Object.assign(permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true, canViewEmployees: true, canViewPersone: true, canManagePurchasing: false }); update.mockResolvedValue(undefined); remove.mockResolvedValue(undefined); });
 
 describe("Assegnazione manodopera", () => {
   it("ditta senza costo previsto: propone in un clic quanto valgono le voci della lavorazione", async () => {
@@ -76,12 +76,30 @@ describe("Assegnazione manodopera", () => {
     permissions.canEditOrders = false; render(<WorkAssignmentRow {...props()} />);
     expect(screen.queryByRole("button", { name: /Gestisci/ })).not.toBeInTheDocument();
   });
-  it("permette note senza mostrare o inviare costi riservati", async () => {
+  it("senza «Costi e Personale» sposta la persona di fase, ma note e costi non si vedono e non partono (14/11/2026)", async () => {
     permissions.canViewCosts = false; render(<WorkAssignmentRow {...props()} />); edit();
     expect(screen.queryByText("Costi e registrazione pagamento")).not.toBeInTheDocument();
     expect(screen.queryByText("Budget")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Attività e accordi")).not.toBeInTheDocument();
+    expect(screen.getByText(/li scrive chi ha il permesso «Costi e Personale»/)).toBeInTheDocument();
+    await scegliNelMenu("Lavorazione assegnata", "Opere murarie"); save();
+    await waitFor(() => expect(update).toHaveBeenCalledWith({ phase_id: "p1" }));
+  });
+  it("con le note di «Costi e Personale» la nota si salva", async () => {
+    render(<WorkAssignmentRow {...props()} />); edit();
     fireEvent.change(screen.getByLabelText("Attività e accordi"), { target: { value: "Nota operativa" } }); save();
     await waitFor(() => expect(update).toHaveBeenCalledWith({ notes: "Nota operativa" }));
+  });
+  it("un rifiuto del database si legge col suo motivo, non come «riprova» (14/11/2026)", async () => {
+    update.mockRejectedValueOnce(new Error("Il dato «note» lo cambia solo chi ha il permesso «Costi e Personale»."));
+    render(<WorkAssignmentRow {...props()} />); edit();
+    fireEvent.change(screen.getByLabelText("Attività e accordi"), { target: { value: "Nota" } }); save();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/«Costi e Personale»/);
+  });
+  it("la ditta su una fase non si gestisce senza «Costi»: il database la rifiuterebbe", () => {
+    permissions.canViewCosts = false;
+    render(<WorkAssignmentRow {...props()} assignment={assignment({ executor_type: "esterno", source: "team", employee_id: null as null, external_team_id: "s1" })} />);
+    expect(screen.queryByRole("button", { name: "Gestisci Edil Alfa" })).not.toBeInTheDocument();
   });
   it("non abilita il pagamento senza permesso", () => {
     permissions.canManagePayments = false; render(<WorkAssignmentRow {...props()} />); edit();

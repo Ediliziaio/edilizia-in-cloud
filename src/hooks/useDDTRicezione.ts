@@ -26,6 +26,7 @@ import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { riceviResiduoOda } from "@/lib/orders/riceviResiduoOda";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { readAllOrderRows } from "@/lib/orders/listScope";
+import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
 
 // `ddt_righe` e le colonne nuove di `ddt_ricezione` (order_id, supplier_id,
 // destinazione, ai_*) sono del 29/10/2026 e in `types.ts` non ci sono: su questo
@@ -407,11 +408,14 @@ export function useDDTRigheMutations(ddtId: string | null | undefined) {
 
   const aggiornaRiga = useMutation({
     mutationFn: async (params: { id: string; updates: Partial<DDTRigaNuova> }) => {
-      const { error } = await db
+      const { data: scritte, error } = await db
         .from("ddt_righe")
         .update(params.updates as never)
-        .eq("id", params.id);
+        .eq("id", params.id)
+        .select("id");
       if (error) throw error;
+      // Senza riga scritta la regola non l'ha concesso: prima sembrava salvato.
+      if (!scritte?.length) throw new Error(MESSAGGIO_PERMESSI);
     },
     onSuccess: invalida,
     onError: (err: Error) => toast.error(err.message || "Errore modifica riga"),
@@ -419,8 +423,9 @@ export function useDDTRigheMutations(ddtId: string | null | undefined) {
 
   const eliminaRiga = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await db.from("ddt_righe").delete().eq("id", id);
+      const { data: tolte, error } = await db.from("ddt_righe").delete().eq("id", id).select("id");
       if (error) throw error;
+      if (!tolte?.length) throw new Error(MESSAGGIO_PERMESSI);
     },
     onSuccess: () => {
       toast.success("Riga eliminata");

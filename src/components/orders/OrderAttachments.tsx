@@ -62,6 +62,7 @@ import { useCartelleDocumenti } from "@/hooks/useCartelleDocumenti";
 import { DocumentFoldersNavigation } from "./DocumentFoldersNavigation";
 import { usePermissions } from "@/hooks/usePermissions";
 import { BUCKET_DOCUMENTI_CLIENTE, ETICHETTA_DOCUMENTO_CLIENTE } from "@/lib/clienti/documentiCliente";
+import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
 import {
   ACCEPT_INPUT,
   cartellaDocumentiCliente,
@@ -267,12 +268,15 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
   const deleteAttachmentMutation = useMutation({
     mutationFn: async (attachment: OrderAttachment) => {
       if(attachment.file_url.startsWith("order-variation-documents/")) throw new Error("Originale conservato: annulla la proposta senza eliminare i documenti.");
-      const { error } = await supabase
+      const { data: tolte, error } = await supabase
         .from("order_attachments")
         .delete()
-        .eq("id", attachment.id);
+        .eq("id", attachment.id)
+        .select("id");
       if (error) throw error;
-      // Il file si toglie dopo la riga: se la riga resta, il file deve restare.
+      // Il file si toglie dopo la riga: se la riga resta, il file deve restare. Una riga che la
+      // regola non lascia togliere non dà errore: prima si cancellava il file e la riga restava.
+      if (!tolte?.length) throw new Error(MESSAGGIO_PERMESSI);
       if (attachment.file_url) {
         const daTogliere = [toStoragePath(attachment.file_url), ...(attachment.thumb_path ? [attachment.thumb_path] : [])];
         await supabase.storage.from("order-attachments").remove(daTogliere);
@@ -282,7 +286,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
       invalida();
       toast.success("Documento eliminato");
     },
-    onError: () => toast.error("Documento non eliminato"),
+    onError: (e: unknown) => toast.error("Documento non eliminato", { description: (e as { message?: string } | null)?.message }),
   });
 
   const apriCaricamento = (files: File[], cartellaId: string | null) => {

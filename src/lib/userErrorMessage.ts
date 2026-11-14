@@ -217,6 +217,10 @@ const RIFIUTI_GENERICI: readonly RegExp[] = [
   /^operazione non consentita\.?$/i,
   /^accesso negato\.?$/i,
   /^non autorizzato\.?$/i,
+  // Rifiuti dei dati protetti e delle assegnazioni prima della migrazione 20290317151100.
+  /^assegnazione non consentita\.?$/i,
+  /^campo economico non modificabile\.?$/i,
+  /^scrittura non consentita\.?$/i,
 ];
 
 export function traduciErrorePostgrest(body: unknown): Record<string, unknown> | null {

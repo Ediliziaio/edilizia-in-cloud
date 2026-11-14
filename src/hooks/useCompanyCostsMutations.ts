@@ -9,6 +9,9 @@ import { calculateNetFromGross } from "@/lib/vatUtils";
 import { queryKeys } from "@/lib/queryKeys";
 import { logger } from "@/utils/logger";
 
+const PAGAMENTO_ARTICOLO_NEGATO = "Il pagamento di un articolo della commessa lo segna chi ha il permesso «Modifica commesse». Chiedi al titolare dell'azienda di darti l'accesso.";
+const PAGAMENTO_DITTA_NEGATO = "Il pagamento di una ditta della commessa lo segna chi ha i permessi «Modifica commesse» e «Costi». Chiedi al titolare dell'azienda di darti l'accesso.";
+
 export interface CostFormData {
   name: string;
   cost_type: string;
@@ -446,8 +449,10 @@ export function useCompanyCostsMutations({
       if (paymentType === "deposit") updateData = { deposit_paid: true, deposit_paid_date: date };
       else if (paymentType === "balance") updateData = { balance_paid: true, balance_paid_date: date };
       else updateData = { is_paid: true, paid_date: date };
-      const { error } = await supabase.from("order_items").update(updateData).eq("id", id);
+      const { data: righe, error } = await supabase.from("order_items").update(updateData).eq("id", id).select("id");
       if (error) throw error;
+      // Nessuna riga scritta: la regola del database non lo concede. Prima diceva «segnato come pagato».
+      if (!righe?.length) throw new Error(PAGAMENTO_ARTICOLO_NEGATO);
     },
     onSuccess: () => {
       invalidateOrderItems();
@@ -456,7 +461,7 @@ export function useCompanyCostsMutations({
     },
     onError: (error) => {
       logger.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+      toast({ title: "Errore nel salvataggio del pagamento", description: (error as { message?: string } | null)?.message, variant: "destructive" });
     },
   });
 
@@ -466,8 +471,10 @@ export function useCompanyCostsMutations({
       if (paymentType === "deposit") updateData = { deposit_paid: false, deposit_paid_date: null };
       else if (paymentType === "balance") updateData = { balance_paid: false, balance_paid_date: null };
       else updateData = { is_paid: false, paid_date: null };
-      const { error } = await supabase.from("order_items").update(updateData).eq("id", id);
+      const { data: righe, error } = await supabase.from("order_items").update(updateData).eq("id", id).select("id");
       if (error) throw error;
+      // Nessuna riga scritta: la regola del database non lo concede. Prima diceva «segnato come pagato».
+      if (!righe?.length) throw new Error(PAGAMENTO_ARTICOLO_NEGATO);
     },
     onSuccess: () => {
       invalidateOrderItems();
@@ -475,14 +482,16 @@ export function useCompanyCostsMutations({
     },
     onError: (error) => {
       logger.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+      toast({ title: "Errore nel salvataggio del pagamento", description: (error as { message?: string } | null)?.message, variant: "destructive" });
     },
   });
 
   const markExtTeamPaidMutation = useMutation({
     mutationFn: async ({ id, date }: { id: string; date: string }) => {
-      const { error } = await supabase.from("order_external_teams").update({ is_paid: true, paid_date: date } as any).eq("id", id);
+      const { data: righe, error } = await supabase.from("order_external_teams").update({ is_paid: true, paid_date: date } as any).eq("id", id).select("id");
       if (error) throw error;
+      // Nessuna riga scritta: la regola del database non lo concede. Prima diceva «segnato come pagato».
+      if (!righe?.length) throw new Error(PAGAMENTO_DITTA_NEGATO);
     },
     onSuccess: () => {
       invalidateExtTeams();
@@ -491,14 +500,16 @@ export function useCompanyCostsMutations({
     },
     onError: (error) => {
       logger.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+      toast({ title: "Errore nel salvataggio del pagamento", description: (error as { message?: string } | null)?.message, variant: "destructive" });
     },
   });
 
   const markExtTeamUnpaidMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("order_external_teams").update({ is_paid: false, paid_date: null } as any).eq("id", id);
+      const { data: righe, error } = await supabase.from("order_external_teams").update({ is_paid: false, paid_date: null } as any).eq("id", id).select("id");
       if (error) throw error;
+      // Nessuna riga scritta: la regola del database non lo concede. Prima diceva «segnato come pagato».
+      if (!righe?.length) throw new Error(PAGAMENTO_DITTA_NEGATO);
     },
     onSuccess: () => {
       invalidateExtTeams();
@@ -506,7 +517,7 @@ export function useCompanyCostsMutations({
     },
     onError: (error) => {
       logger.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+      toast({ title: "Errore nel salvataggio del pagamento", description: (error as { message?: string } | null)?.message, variant: "destructive" });
     },
   });
 
@@ -522,7 +533,7 @@ export function useCompanyCostsMutations({
     },
     onError: (error) => {
       logger.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+      toast({ title: "Errore nel salvataggio del pagamento", description: (error as { message?: string } | null)?.message, variant: "destructive" });
     },
   });
 
@@ -537,7 +548,7 @@ export function useCompanyCostsMutations({
     },
     onError: (error) => {
       logger.error("Payment error:", error);
-      toast({ title: "Errore nel salvataggio del pagamento", variant: "destructive" });
+      toast({ title: "Errore nel salvataggio del pagamento", description: (error as { message?: string } | null)?.message, variant: "destructive" });
     },
   });
 

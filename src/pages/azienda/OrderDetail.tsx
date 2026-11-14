@@ -115,6 +115,7 @@ import { OrderProcurementTools, useAggiungiPosaManodopera } from "@/components/o
 import { OrderAttachments } from "@/components/orders/OrderAttachments";
 import { QuadroPagamentiCommessa, UsciteCommessa } from "@/components/orders/QuadroPagamentiCommessa";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
+import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
 import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
@@ -395,6 +396,7 @@ function OrderDetailInner() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
   const permissions = usePermissions();
+  const puoScrivereRate = (!!permissions.canEditOrders || !!permissions.canManagePayments) && !permissions.solaLettura;
   // Dalla scheda committente: un preventivo accettato da trasformare in lavoro extra su questa commessa.
   const [parametriUrl, setParametriUrl] = useSearchParams();
   const lavoroExtraDa = parametriUrl.get("lavoro_extra_da");
@@ -826,11 +828,13 @@ function OrderDetailInner() {
 
       if (installment.id) {
         // Installment already in DB — update directly (trigger syncs legacy cols)
-        const { error } = await supabase
+        const { data: righe, error } = await supabase
           .from("order_installments")
           .update({ is_paid: paid, paid_date: paid ? today : null })
-          .eq("id", installment.id);
+          .eq("id", installment.id)
+          .select("id");
         if (error) throw error;
+        if (!righe?.length) throw new Error(MESSAGGIO_PERMESSI);
       } else {
         // @deprecated Legacy path: order has no installments in DB yet.
         // Auto-migrate all legacy installments to order_installments table,
@@ -932,11 +936,14 @@ function OrderDetailInner() {
       // en-CA = YYYY-MM-DD locale (mai toISOString: bug UTC serale)
       const value = date ? date.toLocaleDateString('en-CA') : null;
       const patch: Pick<TablesUpdate<"order_installments">, 'paid_date' | 'expected_date'> = { [field]: value };
-      const { error } = await supabase
+      const { data: righe, error } = await supabase
         .from("order_installments")
         .update(patch)
-        .eq("id", installment.id);
+        .eq("id", installment.id)
+        .select("id");
       if (error) throw error;
+      // Nessuna riga scritta = la regola non l'ha concessa: lo si dice, niente «aggiornata».
+      if (!righe?.length) throw new Error(MESSAGGIO_PERMESSI);
     },
     onSuccess: (_, { field }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
@@ -2067,10 +2074,12 @@ function OrderDetailInner() {
               financingCost={order.financing_cost ?? undefined}
                     collectedAmount={collectedAmount}
                     varianti={variantiDatate}
-                    onInstallmentPaidToggle={handleInstallmentPaidToggle}
-                    onInstallmentDateChange={handleInstallmentDateChange}
+                    // Rate: le scrive chi ha «Modifica commesse» o «Pagamenti» (regola del database,
+                    // 14/11/2026). Chi vede solo gli importi legge lo stato, senza interruttori.
+                    onInstallmentPaidToggle={puoScrivereRate ? handleInstallmentPaidToggle : undefined}
+                    onInstallmentDateChange={puoScrivereRate ? handleInstallmentDateChange : undefined}
                     orderCode={order.order_code}
-                    conPrimaNota={permissions.canViewPrimaNota}
+                    conPrimaNota={permissions.canViewPrimaNota && puoScrivereRate}
                     clienteNome={order.customer ? nomeClienteProfilo(order.customer) : null}
                     customerId={order.customer_id}
                     pivaImpresa={effectiveCompany?.vat_number ?? null}

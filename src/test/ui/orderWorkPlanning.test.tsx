@@ -10,7 +10,7 @@ import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
 setupRadixMenus();
 
 const state = vi.hoisted(() => ({
-  permissions: { canEditOrders: true, canViewCosts: true, canManagePayments: true },
+  permissions: { canEditOrders: true, canViewCosts: true, canManagePayments: true, canViewEmployees: true, canViewPersone: true },
   phases: [] as WorkPhase[], unassigned: [] as PhaseAssignment[], loading: false, error: false,
   mobile: false,
   crews: [] as SquadraInCommessa[],
@@ -100,7 +100,7 @@ beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.clearAllMocks(); state.phases = [phase(), phase({ id: "p2", name: "Collaudo", status: "completata", assignments: [] })];
   state.unassigned = []; state.crews = []; state.materials = new Map(); state.loading = false; state.error = false; state.mobile = false; state.sottofasiPerFase = new Map();
-  Object.assign(state.permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true });
+  Object.assign(state.permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true, canViewEmployees: true, canViewPersone: true });
   state.update.mockResolvedValue(undefined); state.remove.mockResolvedValue(undefined);
 });
 afterEach(cleanup);
