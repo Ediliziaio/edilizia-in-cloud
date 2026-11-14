@@ -271,3 +271,41 @@ si aggiorna qui la tabella del lotto 0 con il commit.
 - **Report Calls:** anelli su tasso di contatto, show-up e lead lavorati, con le stesse soglie dei colori delle schede. L'anello è ora un pezzo comune (`AnelloPercentuale`) e lo usa anche la dashboard Call center.
 - **Previsionale:** «Disponibilità oggi» ha la tendenza del saldo a fine di ogni settimana dell'orizzonte.
 - **Resta escluso:** il riquadro scuro «Copertura» del Previsionale, perché ripeterebbe il riquadro del rischio che c'è già.
+
+## Lotto 5: Cruscotto veloce e ciambelle (14/11/2026, fatto)
+
+Richiesta del titolare: il Cruscotto «fa fatica a caricare» («Non riesco a
+caricare i numeri», «Errore nel caricamento dei dati»), pochi dati ma
+strategici, e grafici a torta dove servono.
+
+- **Perché il Cruscotto andava in errore:** tre letture superavano gli 8 s del
+  database. `v_ordine_marginalita` ricalcola l'economia di TUTTE le commesse a
+  ogni lettura (3 s su Demo 2, anche con un filtro per id), e
+  `order_installments` dal browser passa per `order_installments_visibili`, che
+  calcola i diritti rata per rata su tutto il database.
+- **Cosa è cambiato:** `cruscotto_indicatori` non legge più la vista (3,3 s →
+  0,4 s, stessi numeri); il saldo, i margini, la scheda «Commesse e margini» e
+  «Come stiamo andando» leggono gli id da `orders` e chiamano
+  `economia_commesse(ids)` (`src/lib/economiaCommesse.ts`, a blocchi di 100);
+  due funzioni nuove, solo per il Cruscotto: `cruscotto_rate_pagate_senza_data`
+  e `cruscotto_date_rate` (12 ms, solo date, niente importi). Verificato dal
+  vivo: 29 letture, nessuna sopra 1,5 s, nessun errore.
+- **Pochi dati ma strategici:** la pagina ha già 4 numeri in cima, un grafico,
+  5 indicatori e 2 schede. Non si toglie altro: il problema era il caricamento.
+- **Ciambella comune** (`components/charts/grafici/Ciambella.tsx`): totale al
+  centro, legenda in euro e percentuale, «Altro» oltre le sei fette, clic sulla
+  fetta. Usata in: scaduto per età e commesse per fascia di margine
+  (Cruscotto), «Dove vanno i soldi» (Costi, Panoramica, clic = dettaglio della
+  voce), spese per categoria (Spese fisse e variabili, al posto della torta con
+  le etichette che si accavallavano), costo stimato per commessa (Personale),
+  uscite per categoria (Previsionale, clic = filtro), salute delle trattative
+  (Sales OS).
+- **Sales OS:** pipeline per fase e previsione nello stile degli altri grafici
+  (fondo a puntini, barre sfumate, area sotto la linea, tooltip a scheda, numeri
+  in testa). Velocity e ricavo firmato non si ripetono più nel pannello
+  «Comando commerciale» da computer: stanno nei due riquadri in cima (il
+  telefono, che non li ha, li vede ancora lì).
+- **Resta fuori:** Pianificazione dei costi ha già il riquadro del budget
+  (lotto 4) e un grafico per mese: una ciambella ripeterebbe «spese per
+  categoria». Il P&L per sede non ha ciambella: la torta era stata tolta l'08/11
+  perché ripeteva la colonna «Inc. Ricavi».
