@@ -1,37 +1,33 @@
 /**
- * «Da computo o preventivo» in «Aggiungi fasi» (14/11/2026).
+ * «Importa le fasi» della commessa (14/11/2026).
  *
  * Il computo diventa le fasi della commessa: un capitolo, una fase; una riga, una sottofase con
- * quantità, unità e importo, pronte per i SAL. Le righe vengono da un file (Excel, PriMus,
- * XPWE, CSV, Word, PDF), da un computo del gestionale o da un preventivo. Prima di scrivere si
- * vede l'anteprima: le fasi già presenti si saltano, le altre si possono togliere.
+ * quantità, unità e importo, pronte per i SAL. I file li legge la finestra «Importa voci»; qui
+ * c'è l'altra strada, i documenti già nel gestionale: computi e preventivi in un elenco solo
+ * (per il titolare sono la stessa cosa), con la ricerca. Scelto un documento, le sue voci
+ * finiscono nella stessa schermata di scelta dei file, voce per voce e per capitolo.
  */
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileUp, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Calculator, ChevronRight, FileText, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/formatters";
 import { userErrorMessage } from "@/lib/userErrorMessage";
-import { ACCEPT_IMPORTA_VOCI } from "@/lib/computo/importaVoci";
+import { conAvvisi, type VoceImportata } from "@/lib/computo/importaVoci";
 import {
-  fasiDaRighe, fasiPerIlDatabase, righeDaPreventivo, righeDaVociComputo, MAX_FASI_IMPORT,
-  type FaseDaImportare, type RigaPreventivo,
+  filtraDocumenti, vociDaPreventivo, type DocumentoGestionale, type RigaPreventivo, type fasiPerIlDatabase,
 } from "@/lib/orders/fasiDaComputo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-type Fonte = "file" | "computo" | "preventivo";
 
 export interface EsitoImportFasi { aggiunte: number; saltate: number; voci: number; con_importi: boolean }
 
 /** Scrive le fasi scelte nella commessa (RPC commessa_importa_fasi) e dice com'è andata. */
 export async function importaFasiNelDatabase(orderId: string, fasi: ReturnType<typeof fasiPerIlDatabase>, origine: "computo" | "preventivo", codice: string | null): Promise<EsitoImportFasi> {
-  if (!fasi.length) throw new Error("Nessuna fase nuova da importare: quelle del file ci sono già.");
+  if (!fasi.length) throw new Error("Nessuna fase nuova da importare: quelle scelte ci sono già.");
   const { data, error } = await db.rpc("commessa_importa_fasi", { p_order_id: orderId, p_fasi: fasi, p_origine: origine, p_codice: codice });
   if (error) {
     if (error.code === "PGRST202" || error.code === "42883") throw new Error("L'import nelle fasi non è ancora attivo: serve un aggiornamento del database.");
@@ -49,174 +45,131 @@ export function avvisaEsitoImport(r: EsitoImportFasi) {
   });
 }
 
-export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti, mostraImporti, onFatto, soloGestionale = false }: {
-  orderId: string;
+export interface FonteGestionale { nome: string; tipo: "computo" | "preventivo" }
+
+const STATI: Record<string, string> = {
+  draft: "Bozza", bozza: "Bozza", sent: "Inviato", inviato: "Inviato", viewed: "Visto", accepted: "Accettato",
+  accettato: "Accettato", signed: "Firmato", firmato: "Firmato", rejected: "Rifiutato", refused: "Rifiutato", expired: "Scaduto",
+};
+const dataBreve = (d: string | null) => (d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "");
+
+/** Le voci di un documento del gestionale, già pronte per la schermata di scelta. */
+async function vociDelDocumento(companyId: string, d: DocumentoGestionale): Promise<VoceImportata[]> {
+  if (d.tipo === "computo") {
+    const c = await (await import("@/lib/computo/cloudComputo")).leggiComputoCloud(companyId, d.id);
+    if (!c) throw new Error("Questo computo non si trova più.");
+    return c.bozza.voci.filter((v) => v.descrizione.trim()).map((v) => conAvvisi(v, d.titolo));
+  }
+  const { data, error } = await db.from("quote_items")
+    .select("name, description, quantity, unit_of_measure, unit_price, line_total, is_optional, custom_field_values")
+    .eq("quote_id", d.id).order("sort_order");
+  if (error) throw error;
+  return vociDaPreventivo((data ?? []) as RigaPreventivo[], d.titolo);
+}
+
+export function DocumentiDelGestionale({ companyId, mostraImporti, onScelto }: {
   companyId: string;
-  userId: string;
-  fasiEsistenti: readonly string[];
-  /** «Venduto e importi»: senza, si importano fasi e quantità ma non gli importi. */
+  /** «Venduto e importi»: senza, i totali dei documenti non si vedono. */
   mostraImporti: boolean;
-  onFatto: () => void;
-  /** Dentro «Importa le fasi» il file lo legge la finestra delle voci: qui solo computo e preventivo del gestionale. */
-  soloGestionale?: boolean;
+  onScelto: (voci: VoceImportata[], fonte: FonteGestionale) => void;
 }) {
-  const [fonte, setFonte] = useState<Fonte>(soloGestionale ? "computo" : "file");
-  const [fasi, setFasi] = useState<FaseDaImportare[] | null>(null);
-  const [scelte, setScelte] = useState<Set<string>>(new Set());
-  const [codice, setCodice] = useState<string>("");
-  const [lettura, setLettura] = useState<string | null>(null);
-  const [errore, setErrore] = useState<string | null>(null);
-  const [trascina, setTrascina] = useState(false);
+  const [testo, setTesto] = useState("");
+  const [tipo, setTipo] = useState<"tutti" | DocumentoGestionale["tipo"]>("tutti");
+  const [apro, setApro] = useState<string | null>(null);
 
-  const mostra = (nuove: FaseDaImportare[], da: string) => {
-    setErrore(null);
-    if (!nuove.length) { setFasi(null); setErrore("Non ho trovato righe da importare."); return; }
-    setFasi(nuove);
-    setScelte(new Set(nuove.filter((f) => !f.presente).map((f) => f.nome)));
-    setCodice(da);
-  };
-
-  const computi = useQuery({
-    queryKey: ["importa-fasi", "computi", companyId],
-    enabled: fonte === "computo",
-    queryFn: async () => (await import("@/lib/computo/cloudComputo")).elencaComputiCloud(companyId),
-  });
-  const preventivi = useQuery({
-    queryKey: ["importa-fasi", "preventivi", companyId],
-    enabled: fonte === "preventivo",
-    queryFn: async () => {
-      const { data, error } = await db.from("quotes").select("id, quote_number, title, client_name, status")
-        .eq("company_id", companyId).is("deleted_at", null).order("updated_at", { ascending: false }).limit(300);
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; quote_number: string; title: string | null; client_name: string | null; status: string }>;
+  const documenti = useQuery({
+    queryKey: ["importa-fasi", "documenti", companyId],
+    queryFn: async (): Promise<DocumentoGestionale[]> => {
+      const [computi, preventivi] = await Promise.all([
+        (await import("@/lib/computo/cloudComputo")).elencaComputiCloud(companyId).catch(() => []),
+        db.from("quotes").select("id, quote_number, title, client_name, status, total, updated_at")
+          .eq("company_id", companyId).is("deleted_at", null).order("updated_at", { ascending: false }).limit(300),
+      ]);
+      if (preventivi.error) throw preventivi.error;
+      return [
+        // Un computo senza voci non ha niente da importare: non si propone.
+        ...computi.filter((c) => c.numeroVoci > 0).map((c): DocumentoGestionale => ({
+          id: c.id, tipo: "computo", titolo: c.titolo || "Computo senza titolo", cliente: c.committente, numero: null, stato: null,
+          voci: c.numeroVoci, totale: c.totale, aggiornato: c.updatedAt,
+        })),
+        ...((preventivi.data ?? []) as Array<{ id: string; quote_number: string | null; title: string | null; client_name: string | null; status: string | null; total: number | null; updated_at: string | null }>)
+          .map((q): DocumentoGestionale => ({
+            id: q.id, tipo: "preventivo", titolo: q.title?.trim() || `Preventivo ${q.quote_number ?? ""}`.trim(), cliente: q.client_name ?? "",
+            numero: q.quote_number, stato: q.status, voci: null, totale: q.total == null ? null : Number(q.total), aggiornato: q.updated_at,
+          })),
+      ];
     },
   });
 
-  const leggiFile = async (file: File) => {
-    setErrore(null); setFasi(null); setLettura("Apro il file…");
+  const tutti = documenti.data ?? [];
+  const mostrati = useMemo(() => filtraDocumenti(tutti, testo, tipo), [tutti, testo, tipo]);
+  const conta = (t: DocumentoGestionale["tipo"]) => tutti.filter((d) => d.tipo === t).length;
+
+  const scegli = async (d: DocumentoGestionale) => {
+    setApro(d.id);
     try {
-      const { leggiVociDaFile } = await import("@/lib/computo/leggiVoci");
-      const letto = await leggiVociDaFile(file, {
-        onAvanzamento: (a) => setLettura(a.dettaglio ?? (a.fase === "leggo" ? "Leggo le righe…" : a.fase === "riconosco" ? "Riconosco le voci…" : "Apro il file…")),
-        server: async (f, onStato) => (await import("@/lib/computo/estrazioneServer")).estraiSulServer(f, { companyId, userId, onStato }),
-      });
-      mostra(fasiDaRighe(righeDaVociComputo(letto.voci), fasiEsistenti), file.name);
+      const voci = await vociDelDocumento(companyId, d);
+      if (!voci.length) { toast.error("Nessuna voce da importare", { description: `«${d.titolo}» non ha righe con una descrizione.` }); return; }
+      onScelto(voci, { nome: d.numero ? `Preventivo ${d.numero}` : d.titolo, tipo: d.tipo });
     } catch (e) {
-      setErrore(e instanceof Error ? e.message : String(e));
-    } finally { setLettura(null); }
+      toast.error("Documento non aperto", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") });
+    } finally { setApro(null); }
   };
 
-  const leggiComputo = async (id: string) => {
-    setErrore(null); setFasi(null); setLettura("Apro il computo…");
-    try {
-      const c = await (await import("@/lib/computo/cloudComputo")).leggiComputoCloud(companyId, id);
-      if (!c) throw new Error("Questo computo non si trova più.");
-      mostra(fasiDaRighe(righeDaVociComputo(c.bozza.voci), fasiEsistenti), c.bozza.titolo || "Computo");
-    } catch (e) { setErrore(e instanceof Error ? e.message : String(e)); } finally { setLettura(null); }
-  };
-
-  const leggiPreventivo = async (id: string) => {
-    setErrore(null); setFasi(null); setLettura("Apro il preventivo…");
-    try {
-      const p = preventivi.data?.find((q) => q.id === id);
-      const { data, error } = await db.from("quote_items")
-        .select("name, description, quantity, unit_of_measure, line_total, is_optional, custom_field_values")
-        .eq("quote_id", id).order("sort_order");
-      if (error) throw error;
-      const titolo = p?.title?.trim() || `Preventivo ${p?.quote_number ?? ""}`.trim();
-      mostra(fasiDaRighe(righeDaPreventivo((data ?? []) as RigaPreventivo[], titolo), fasiEsistenti), p ? `Preventivo ${p.quote_number}` : "Preventivo");
-    } catch (e) { setErrore(userErrorMessage(e, "Non riesco ad aprire il preventivo.")); } finally { setLettura(null); }
-  };
-
-  const importa = useMutation({
-    mutationFn: async () => importaFasiNelDatabase(orderId, fasiPerIlDatabase(fasi ?? [], scelte), fonte === "preventivo" ? "preventivo" : "computo", codice || null),
-    onSuccess: (r) => { avvisaEsitoImport(r); onFatto(); },
-    onError: (e) => toast.error("Fasi non importate", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") }),
-  });
-
-  const scelteValide = (fasi ?? []).filter((f) => !f.presente && scelte.has(f.nome)).length;
   return (
-    <div className="space-y-3">
-      {soloGestionale && <p className="text-sm font-medium">Oppure dal gestionale</p>}
-      <div className={`grid gap-2 ${soloGestionale ? "grid-cols-2" : "grid-cols-3"}`} aria-label="Da dove importare">
-        {([["file", "Da un file"], ["computo", "Da un computo"], ["preventivo", "Da un preventivo"]] as const).filter(([k]) => !soloGestionale || k !== "file").map(([k, l]) => (
-          <Button key={k} type="button" size="sm" variant={fonte === k ? "default" : "outline"} aria-pressed={fonte === k}
-            onClick={() => { setFonte(k); setFasi(null); setErrore(null); }}>{l}</Button>
-        ))}
+    <section className="space-y-2" aria-label="Documenti del gestionale">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium">Oppure da un computo o preventivo del gestionale</p>
+        {!!tutti.length && <span className="text-xs text-muted-foreground tabular-nums">{tutti.length} documenti</span>}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[12rem] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input value={testo} onChange={(e) => setTesto(e.target.value)} placeholder="Cerca per titolo, cliente o numero"
+            aria-label="Cerca un computo o un preventivo" className="h-9 pl-8" />
+        </div>
+        <div className="flex gap-1" role="group" aria-label="Tipo di documento">
+          {([["tutti", `Tutti`], ["computo", `Computi ${conta("computo")}`], ["preventivo", `Preventivi ${conta("preventivo")}`]] as const).map(([k, l]) => (
+            <button key={k} type="button" aria-pressed={tipo === k} onClick={() => setTipo(k)}
+              className={`h-9 rounded-md border px-2.5 text-xs font-medium transition-colors ${tipo === k ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}>
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {fonte === "file" && (
-        <div
-          className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${trascina ? "border-primary bg-primary/5" : "border-muted-foreground/30"}`}
-          onDragOver={(e) => { e.preventDefault(); setTrascina(true); }}
-          onDragLeave={() => setTrascina(false)}
-          onDrop={(e) => { e.preventDefault(); setTrascina(false); const f = e.dataTransfer.files?.[0]; if (f) void leggiFile(f); }}
-        >
-          <FileUp className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden />
-          <p className="mt-2 text-sm">Trascina qui il computo o il preventivo</p>
-          <p className="text-xs text-muted-foreground">PDF, Excel, PriMus (XPWE), CSV o Word. Il file originale non viene modificato.</p>
-          <label className="mt-3 inline-flex cursor-pointer items-center rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted/50">
-            Scegli il file
-            <input type="file" className="sr-only" accept={ACCEPT_IMPORTA_VOCI} aria-label="Computo o preventivo: PDF, Excel, PriMus, CSV o Word"
-              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void leggiFile(f); }} />
-          </label>
-        </div>
-      )}
-      {fonte === "computo" && (
-        <div className="space-y-1">
-          <Label>Computo del gestionale</Label>
-          <Select onValueChange={(v) => void leggiComputo(v)}>
-            <SelectTrigger aria-label="Computo da importare"><SelectValue placeholder={computi.isLoading ? "Carico…" : computi.data?.length ? "Scegli un computo" : "Nessun computo salvato: usa «Da un file»"} /></SelectTrigger>
-            <SelectContent>
-              {(computi.data ?? []).map((c) => (
-                <SelectItem key={c.id} value={c.id}>{[c.titolo || "Computo", c.committente, `${c.numeroVoci} voci`].filter(Boolean).join(" · ")}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      {fonte === "preventivo" && (
-        <div className="space-y-1">
-          <Label>Preventivo</Label>
-          <Select onValueChange={(v) => void leggiPreventivo(v)}>
-            <SelectTrigger aria-label="Preventivo da importare"><SelectValue placeholder={preventivi.isLoading ? "Carico…" : preventivi.data?.length ? "Scegli un preventivo" : "Nessun preventivo nel gestionale"} /></SelectTrigger>
-            <SelectContent>
-              {(preventivi.data ?? []).map((q) => (
-                <SelectItem key={q.id} value={q.id}>{[q.quote_number, q.title, q.client_name].filter(Boolean).join(" · ")}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {lettura && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" aria-hidden />{lettura}</p>}
-      {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
-
-      {fasi && (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Ogni capitolo diventa una fase, ogni riga una sottofase con quantità e unità, pronte per i SAL.
-            {fasi.length > MAX_FASI_IMPORT && ` Al massimo ${MAX_FASI_IMPORT} fasi per volta.`}
-          </p>
-          <ul aria-label="Fasi da importare" className="max-h-72 divide-y overflow-y-auto rounded-md border">
-            {fasi.map((f) => (
-              <li key={f.nome} className="flex items-center gap-2 p-2 text-sm">
-                <Checkbox aria-label={`Importa ${f.nome}`} disabled={f.presente} checked={!f.presente && scelte.has(f.nome)}
-                  onCheckedChange={(v) => setScelte((s) => { const n = new Set(s); if (v === true) n.add(f.nome); else n.delete(f.nome); return n; })} />
-                <span className="min-w-0 flex-1 truncate font-medium">{f.nome}</span>
-                <span className="text-xs text-muted-foreground">{f.voci.length} {f.voci.length === 1 ? "riga" : "righe"}</span>
-                {mostraImporti && <span className="text-xs tabular-nums">{formatCurrency(f.importo)}</span>}
-                {f.presente && <span className="text-xs text-amber-700">già presente</span>}
-              </li>
-            ))}
-          </ul>
-          {!mostraImporti && <p className="text-xs text-muted-foreground">Gli importi non si importano: servono «Venduto e importi».</p>}
-          <Button type="button" className="w-full" disabled={!scelteValide || importa.isPending} onClick={() => importa.mutate()}>
-            {importa.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Importa {scelteValide} {scelteValide === 1 ? "fase" : "fasi"}
-          </Button>
-        </div>
-      )}
-    </div>
+      <ul aria-label="Computi e preventivi" className="max-h-64 divide-y overflow-y-auto rounded-lg border bg-card">
+        {documenti.isLoading && <li className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden />Carico computi e preventivi…</li>}
+        {documenti.isError && <li role="alert" className="p-3 text-sm text-destructive">{userErrorMessage(documenti.error, "Non riesco a leggere computi e preventivi.")}</li>}
+        {!documenti.isLoading && !documenti.isError && !mostrati.length && (
+          <li className="p-3 text-sm text-muted-foreground">{tutti.length ? "Nessun documento con questa ricerca." : "Nel gestionale non ci sono ancora computi o preventivi: importa un file qui sopra."}</li>
+        )}
+        {mostrati.map((d) => {
+          const Icona = d.tipo === "computo" ? Calculator : FileText;
+          const dettagli = [d.cliente, d.numero && `n. ${d.numero}`, d.stato && (STATI[d.stato] ?? d.stato), d.voci != null && `${d.voci} voci`, dataBreve(d.aggiornato)].filter(Boolean);
+          return (
+            <li key={`${d.tipo}-${d.id}`}>
+              <button type="button" disabled={!!apro} onClick={() => void scegli(d)} aria-label={`Importa da ${d.tipo} ${d.titolo}`}
+                className="group flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-primary/5 focus-visible:bg-primary/5 focus-visible:outline-none disabled:opacity-60">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${d.tipo === "computo" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}>
+                  <Icona className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium">{d.titolo}</span>
+                    <span className="shrink-0 rounded-full border px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">{d.tipo}</span>
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">{dettagli.join(" · ")}</span>
+                </span>
+                {mostraImporti && d.totale != null && <span className="shrink-0 text-sm tabular-nums">{formatCurrency(d.totale)}</span>}
+                {apro === d.id
+                  ? <Loader2 className="h-4 w-4 shrink-0 text-primary motion-safe:animate-spin" aria-label="Apro il documento" />
+                  : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" aria-hidden />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

@@ -58,7 +58,7 @@ import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
 import { SilvioAiuto } from "@/components/silvio/SilvioAiuto";
 import { controlliFasi, type AzioneSilvio } from "@/lib/orders/silvioControlli";
-import { ImportaFasiDaComputo, avvisaEsitoImport, importaFasiNelDatabase } from "@/components/orders/ImportaFasiDaComputo";
+import { DocumentiDelGestionale, avvisaEsitoImport, importaFasiNelDatabase } from "@/components/orders/ImportaFasiDaComputo";
 import { ImportaVociDialog } from "@/components/computo/ImportaVociDialog";
 import { fasiDaRighe, fasiPerIlDatabase, righeDaVociComputo } from "@/lib/orders/fasiDaComputo";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
@@ -482,21 +482,19 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 vociPresenti={0}
                 titolo="Importa le fasi"
                 descrizione="Un computo o un preventivo che hai già: ogni capitolo diventa una fase, ogni voce una lavorazione con quantità e importo, pronte per i SAL. Le rivedi prima di importarle; le fasi già presenti si saltano."
+                notaDestinazione="Ogni capitolo diventa una fase, ogni voce una lavorazione. Le fasi che ci sono già si saltano."
                 etichettaConferma={(n) => `Importa ${n} ${n === 1 ? "voce" : "voci"} nelle fasi`}
-                onAggiungi={(voci, esito) => {
+                onAggiungi={(voci, esito, _letti, fonte) => {
                   const fasi = fasiDaRighe(righeDaVociComputo(voci), phases.map((p) => p.name));
                   const daMandare = fasiPerIlDatabase(fasi, new Set(fasi.map((f) => f.nome)));
-                  importaFasiNelDatabase(orderId, daMandare, "computo", esito?.intestazione?.titolo ?? voci[0]?.origine ?? null)
+                  importaFasiNelDatabase(orderId, daMandare, fonte?.tipo === "preventivo" ? "preventivo" : "computo",
+                    fonte?.nome ?? esito?.intestazione?.titolo ?? voci[0]?.origine ?? null)
                     .then((r) => { avvisaEsitoImport(r); void refetch(); })
                     .catch((e: unknown) => toast.error("Fasi non importate", { description: userErrorMessage(e, e instanceof Error ? e.message : "Riprova.") }));
                 }}
-                altreFonti={
-                  <ImportaFasiDaComputo soloGestionale
-                    orderId={orderId} companyId={effectiveCompany.id} userId={user.id}
-                    fasiEsistenti={phases.map((p) => p.name)} mostraImporti={canViewOrderAmounts}
-                    onFatto={() => { void refetch(); setImportaAperto(false); }}
-                  />
-                }
+                altreFonti={(carica) => (
+                  <DocumentiDelGestionale companyId={effectiveCompany.id} mostraImporti={canViewOrderAmounts} onScelto={carica} />
+                )}
               />
             )}
             {showTeam && (canEditOrders || puoSquadre) && <>

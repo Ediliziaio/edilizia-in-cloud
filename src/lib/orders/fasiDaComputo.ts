@@ -6,7 +6,8 @@
  * o da un preventivo; qui si raggruppano e si dice quali fasi la commessa ha già. Le scrive la
  * funzione del database `commessa_importa_fasi`, che salta da sola le fasi già presenti.
  */
-import { calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
+import { calcolaVoce, voceVuota, type VoceEditor } from "@/lib/computo/editorNativo";
+import { conAvvisi, type VoceImportata } from "@/lib/computo/importaVoci";
 
 export interface RigaDaImportare {
   capitolo: string;
@@ -54,6 +55,7 @@ export interface RigaPreventivo {
   quantity: number | null;
   unit_of_measure: string | null;
   line_total: number | null;
+  unit_price?: number | null;
   is_optional?: boolean | null;
   custom_field_values?: unknown;
 }
@@ -101,4 +103,52 @@ export function fasiPerIlDatabase(fasi: readonly FaseDaImportare[], scelte: Read
     .filter((f) => !f.presente && scelte.has(f.nome))
     .slice(0, MAX_FASI_IMPORT)
     .map((f) => ({ nome: f.nome, voci: f.voci }));
+}
+
+/** Un numero come lo scrive l'editor del computo: virgola italiana, niente zeri inutili. */
+const testoNumero = (n: number) => (Math.round(n * 10000) / 10000).toString().replace(".", ",");
+
+/**
+ * Le righe di un preventivo come voci da rivedere (14/11/2026): così un preventivo del gestionale
+ * passa dalla stessa schermata di scelta di un file, voce per voce e per capitolo. Le righe
+ * opzionali restano fuori; il prezzo è quello unitario, o il totale diviso per la quantità.
+ */
+export function vociDaPreventivo(righe: readonly RigaPreventivo[], titolo: string): VoceImportata[] {
+  const fuori: VoceImportata[] = [];
+  for (const r of righe) {
+    if (r.is_optional) continue;
+    const descrizione = [r.name, r.description].map((t) => (t || "").trim()).filter(Boolean)
+      .filter((t, i, a) => a.indexOf(t) === i).join("\n");
+    if (!descrizione) continue;
+    const cf = r.custom_field_values as { computo?: { capitolo?: unknown } } | null | undefined;
+    const capitolo = typeof cf?.computo?.capitolo === "string" && cf.computo.capitolo.trim() ? cf.computo.capitolo.trim() : titolo;
+    const quantita = Math.max(0, Number(r.quantity) || 0) || 1;
+    const totale = Math.max(0, Number(r.line_total) || 0);
+    const unitario = r.unit_price != null && Number(r.unit_price) > 0 ? Number(r.unit_price) : totale / quantita;
+    const v = { ...voceVuota(), capitolo, descrizione, unita: (r.unit_of_measure || "").trim(), quantita: testoNumero(quantita), prezzo: testoNumero(unitario) };
+    fuori.push(conAvvisi(v, titolo));
+  }
+  return fuori;
+}
+
+/** Un documento del gestionale da cui importare: computo o preventivo, in un elenco solo. */
+export interface DocumentoGestionale {
+  id: string;
+  tipo: "computo" | "preventivo";
+  titolo: string;
+  cliente: string;
+  numero: string | null;
+  stato: string | null;
+  voci: number | null;
+  totale: number | null;
+  aggiornato: string | null;
+}
+
+/** Cerca in titolo, cliente e numero; i più recenti prima. */
+export function filtraDocumenti(docs: readonly DocumentoGestionale[], testo: string, tipo: "tutti" | DocumentoGestionale["tipo"]): DocumentoGestionale[] {
+  const parole = testo.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return docs
+    .filter((d) => tipo === "tutti" || d.tipo === tipo)
+    .filter((d) => { const t = `${d.titolo} ${d.cliente} ${d.numero ?? ""}`.toLowerCase(); return parole.every((p) => t.includes(p)); })
+    .sort((a, b) => (b.aggiornato ?? "").localeCompare(a.aggiornato ?? ""));
 }

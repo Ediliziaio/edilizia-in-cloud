@@ -39,7 +39,7 @@ export interface ImportaVociDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Le voci rivedute; `esito` c'è solo se è stato letto un file, per riempire l'intestazione vuota. */
-  onAggiungi: (voci: VoceImportata[], esito: EsitoImportComputo | null, letti: FileLetto[]) => void;
+  onAggiungi: (voci: VoceImportata[], esito: EsitoImportComputo | null, letti: FileLetto[], fonte?: FonteVoci) => void;
   /** Le voci già nel documento: restano intatte, lo si dice. */
   vociPresenti: number;
   /** Scansioni, foto e PDF qualsiasi si leggono sul server con l'AI: dove non è attiva si rifiutano con un motivo. */
@@ -51,12 +51,20 @@ export interface ImportaVociDialogProps {
   descrizione?: string;
   /** Il testo del pulsante di conferma, col numero delle voci: «Importa 12 voci nelle fasi». */
   etichettaConferma?: (n: number) => string;
-  /** Sotto il riquadro dei file, al primo passo: altre fonti (computo o preventivo del gestionale). */
-  altreFonti?: React.ReactNode;
+  /** Al posto di «Le voci si aggiungono al documento.»: dove finiscono le voci in quest'uso. */
+  notaDestinazione?: string;
+  /**
+   * Sotto il riquadro dei file, al primo passo: altre fonti (computo o preventivo del gestionale).
+   * Come funzione riceve `carica`: le voci di quella fonte passano dalla stessa schermata di scelta.
+   */
+  altreFonti?: React.ReactNode | ((carica: (voci: VoceImportata[], fonte: FonteVoci) => void) => React.ReactNode);
 }
 
 /** I file letti, per chi deve conservarli (14/11/2026: il computo della commessa da «Genera dal computo»). */
 export interface FileLetto { file: File; formato: string; via: "browser" | "server" }
+
+/** Una fonte che non è un file (14/11/2026: un computo o un preventivo del gestionale). */
+export interface FonteVoci { nome: string; tipo: string }
 
 const FORMATI = ["PriMus (XPWE)", "PDF", "Excel", "CSV", "Word", "Foto"];
 const RIGHE_VISIBILI = 300;
@@ -147,7 +155,7 @@ function Campo({ etichetta, valore, onCambia, classe = "", numero = false, disab
     className={`h-8 w-full rounded-md border border-input bg-background px-2 text-xs disabled:bg-muted disabled:text-muted-foreground ${numero ? "text-right tabular-nums" : ""} ${classe}`} />;
 }
 
-export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000, titolo, descrizione, etichettaConferma, altreFonti }: ImportaVociDialogProps) {
+export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti, consentiAi, massimoVoci = 5000, titolo, descrizione, etichettaConferma, notaDestinazione, altreFonti }: ImportaVociDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const [lavori, setLavori] = useState<Lavoro[]>([]);
   const [voci, setVoci] = useState<VoceImportata[]>([]);
@@ -156,13 +164,14 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   const [tutte, setTutte] = useState(false);
   /** Le voci tolte dalla selezione: restano in elenco, non si importano. */
   const [escluse, setEscluse] = useState<Set<string>>(new Set());
+  const [fonte, setFonte] = useState<FonteVoci | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const corsa = useRef<AbortController | null>(null);
 
   const azzera = () => {
     corsa.current?.abort();
     corsa.current = null;
-    setLavori([]); setVoci([]); setPasso("scegli"); setSoloIncerte(false); setTutte(false); setEscluse(new Set());
+    setLavori([]); setVoci([]); setPasso("scegli"); setSoloIncerte(false); setTutte(false); setEscluse(new Set()); setFonte(null);
   };
   const chiudi = () => { azzera(); onOpenChange(false); };
   useEffect(() => () => corsa.current?.abort(), []);
@@ -248,8 +257,12 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   const conferma = () => {
     if (!selezionate.length || troppe) return;
     const unico = lavoriLetti.length === 1 ? lavoriLetti[0].letto!.esito : null;
-    onAggiungi(selezionate, unico, lavoriLetti.map(l => ({ file: l.file, formato: l.formato, via: l.letto!.via })));
+    onAggiungi(selezionate, unico, lavoriLetti.map(l => ({ file: l.file, formato: l.formato, via: l.letto!.via })), fonte ?? undefined);
     chiudi();
+  };
+
+  const caricaDaFonte = (lette: VoceImportata[], f: FonteVoci) => {
+    setLavori([]); setVoci(lette); setEscluse(new Set()); setFonte(f); setPasso("anteprima");
   };
 
   const inLettura = lavori.some(l => l.stato === "lettura" || l.stato === "attesa");
@@ -294,7 +307,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
           {consentiAi ? " Scansioni, foto e altri PDF li legge l'AI: controlla le voci segnalate." : " Scansioni e foto richiedono l'AI, che qui non è attiva."}
         </p>
       </div>}
-      {passo === "scegli" && altreFonti}
+      {passo === "scegli" && (typeof altreFonti === "function" ? altreFonti(caricaDaFonte) : altreFonti)}
 
       {passo === "lettura" && <div className="space-y-3">
         <ul className="space-y-2">{lavori.map(l => <SchedaFile key={l.chiave} lavoro={l} />)}</ul>
@@ -317,6 +330,11 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
               {e.descrizioniTroncate > 0 && <span className="text-amber-800">{e.descrizioniTroncate} descrizioni accorciate da PriMus nel PDF: il testo intero è nel file XPWE</span>}
             </p>;
           })}
+          {fonte && <p className="flex flex-wrap items-center gap-x-2">
+            <span className="font-medium">{fonte.nome}</span>
+            <span className="text-muted-foreground">{voci.length} voci · {fonte.tipo} del gestionale</span>
+            <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setVoci([]); setFonte(null); setPasso("scegli"); }}>Scegli un altro documento</Button>
+          </p>}
           {errori.map(l => <p key={l.chiave} role="alert" className="text-amber-800"><strong>{l.file.name}</strong> non letto: {l.errore}</p>)}
         </div>
 
@@ -332,7 +350,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
             <AlertTriangle className="mr-1 h-3.5 w-3.5" />Da controllare ({incerte})
           </Button>}
           <span className="ml-auto text-xs text-muted-foreground">
-            {vociPresenti ? `Le ${vociPresenti} voci che ci sono già restano come sono: queste si aggiungono in fondo.` : "Le voci si aggiungono al documento."}
+            {vociPresenti ? `Le ${vociPresenti} voci che ci sono già restano come sono: queste si aggiungono in fondo.` : (notaDestinazione ?? "Le voci si aggiungono al documento.")}
           </span>
         </div>
 
