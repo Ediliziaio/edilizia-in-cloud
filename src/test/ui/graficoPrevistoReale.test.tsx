@@ -7,17 +7,17 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 const voce = (tipo: "costo" | "ricavo", importo: number, mese: string, nota: string | null = null) => ({
   id: `${tipo}${mese}${importo}`, tipo, categoria: tipo === "costo" ? "terreno" : "vendite", descrizione: "x", importo, mese, durataMesi: 1,
-  figliaId: null, categorieCosto: [], aFinire: null, nota, ordine: 1, origineId: null,
+  figliaId: null as string | null, categorieCosto: [] as string[], aFinire: null as number | null, nota, ordine: 1, origineId: null as string | null,
 });
 const reale = (tipo: "costo" | "ricavo", importo: number, data: string) => ({
-  id: `r${tipo}${data}`, fonte: "x", rifId: null, orderId: "g", data, tipo, chiave: "terreno", categoria: null, descrizione: "x", importo, voceId: null,
+  id: `r${tipo}${data}`, fonte: "x", rifId: null as string | null, orderId: "g", data, tipo, chiave: "terreno", categoria: null as string | null, descrizione: "x", importo, voceId: null as string | null,
 });
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useGeneralePianoNumeri: () => ({
     isLoading: false,
     isError: false,
     voci: [voce("costo", 300, "2026-10"), voce("costo", 600, "2026-12"), voce("ricavo", 1000, "2027-01"), voce("costo", 0, "2027-01", "[EIC:DA_STIMARE]")],
-    reale: { oggi: "2026-11-14", permessi: { costi: true, importi: true }, righe: [reale("costo", 350, "2026-11-02"), reale("ricavo", 80, "2026-11-20")], incassi: [], categorie: [] },
+    reale: { oggi: "2026-11-14", permessi: { costi: true, importi: true }, righe: [reale("costo", 350, "2026-11-02"), reale("ricavo", 80, "2026-11-20")], incassi: [] as unknown[], categorie: [] as unknown[] },
   }),
 }));
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
