@@ -37,7 +37,7 @@ function intervallo(da: Date, a: Date): string {
   return `${format(da, "d MMM", { locale: it })} – ${format(a, "d MMM", { locale: it })}`;
 }
 
-const btn = "h-8 gap-1.5 rounded-lg border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 shadow-none hover:bg-slate-50";
+const btn = "h-8 gap-1.5 rounded-lg border-border bg-card px-2.5 text-xs font-medium text-muted-foreground shadow-none hover:bg-muted/50";
 
 export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
   const { effectiveCompany } = useAuth();
@@ -114,23 +114,23 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
       <Popover open={periodoAperto} onOpenChange={setPeriodoAperto}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className={btn}>
-            <CalendarDays className="h-3.5 w-3.5 text-slate-500" />
-            <span className="font-semibold text-slate-900">{periodo.nome}</span>
-            <span className="text-slate-500 max-sm:hidden">· {periodo.date}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="font-semibold text-foreground">{periodo.nome}</span>
+            <span className="text-muted-foreground max-sm:hidden">· {periodo.date}</span>
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/80" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <div className="flex max-sm:flex-col">
-            <div className="flex flex-col gap-0.5 border-r border-slate-100 p-2 sm:w-44 max-sm:border-b max-sm:border-r-0">
+            <div className="flex flex-col gap-0.5 border-r border-border/60 p-2 sm:w-44 max-sm:border-b max-sm:border-r-0">
               {DATE_PRESETS.map(p => (
                 <button
                   key={p.value}
                   type="button"
                   onClick={() => { onUpdate({ datePreset: p.value }); setPeriodoAperto(false); }}
                   className={cn(
-                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-slate-100",
-                    filters.datePreset === p.value && "bg-slate-100 font-semibold text-slate-900",
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-muted",
+                    filters.datePreset === p.value && "bg-muted font-semibold text-foreground",
                   )}
                 >
                   {p.label}
@@ -150,7 +150,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
               />
             </div>
           </div>
-          <div className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">
+          <div className="border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
             {periodo.date} · confronto con {periodo.confronto}
           </div>
         </PopoverContent>
@@ -200,7 +200,7 @@ export function DashboardFilters({ filters, onUpdate, hideUserFilter }: Props) {
               key={p.id ?? "tutte"}
               type="button"
               onClick={() => onUpdate({ pipelineId: p.id })}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-slate-100"
+              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
             >
               <span className="truncate">{p.name}</span>
               {filters.pipelineId === p.id && <Check className="h-3.5 w-3.5 shrink-0" />}
@@ -220,7 +220,7 @@ function FiltroMenu({ etichetta, attivo, onAzzera, className, children }: {
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={cn(btn, attivo && "border-slate-900 bg-slate-900 text-white hover:bg-slate-800 hover:text-white", className)}>
           <span className="max-w-[150px] truncate">{etichetta}</span>
-          <ChevronDown className={cn("h-3.5 w-3.5", attivo ? "text-white/70" : "text-slate-400")} />
+          <ChevronDown className={cn("h-3.5 w-3.5", attivo ? "text-white/70" : "text-muted-foreground/80")} />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-60 p-0" align="start">
@@ -228,7 +228,7 @@ function FiltroMenu({ etichetta, attivo, onAzzera, className, children }: {
           <div className="space-y-0.5 p-2">{children}</div>
         </ScrollArea>
         {attivo && (
-          <div className="border-t border-slate-100 p-1.5">
+          <div className="border-t border-border/60 p-1.5">
             <Button variant="ghost" size="sm" className="h-7 w-full text-xs" onClick={onAzzera}>Mostra tutti</Button>
           </div>
         )}
@@ -239,7 +239,7 @@ function FiltroMenu({ etichetta, attivo, onAzzera, className, children }: {
 
 function Voce({ checked, onToggle, children }: { checked: boolean; onToggle: () => void; children: ReactNode }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-100">
+    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
       <Checkbox checked={checked} onCheckedChange={onToggle} />
       <span className="truncate">{children}</span>
     </label>

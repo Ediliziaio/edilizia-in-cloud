@@ -136,12 +136,14 @@ export function Comparsa({
 
 /** Pillola della variazione: verde se va nel verso buono, rossa se no. */
 export function PillolaVariazione({
-  pct, piuEMeglio = true, titolo, className,
+  pct, piuEMeglio = true, titolo, className, suScuro,
 }: {
   pct: number | null;
   piuEMeglio?: boolean;
   titolo?: string;
   className?: string;
+  /** Su un fondo scuro fisso (pannelli blu notte): colori chiari. */
+  suScuro?: boolean;
 }) {
   if (pct == null || !Number.isFinite(pct)) return null;
   const buona = Math.abs(pct) < 0.05 ? null : (pct > 0) === piuEMeglio;
@@ -151,9 +153,12 @@ export function PillolaVariazione({
       title={titolo}
       className={cn(
         "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none",
-        buona === true && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-        buona === false && "bg-rose-500/10 text-rose-700 dark:text-rose-400",
-        buona === null && "bg-muted text-muted-foreground",
+        !suScuro && buona === true && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+        !suScuro && buona === false && "bg-rose-500/10 text-rose-700 dark:text-rose-400",
+        !suScuro && buona === null && "bg-muted text-muted-foreground",
+        suScuro && buona === true && "bg-emerald-400/15 text-emerald-300",
+        suScuro && buona === false && "bg-rose-400/15 text-rose-300",
+        suScuro && buona === null && "bg-white/10 text-white/70",
         className,
       )}
     >

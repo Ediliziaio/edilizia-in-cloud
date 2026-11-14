@@ -53,9 +53,9 @@ export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Pro
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {sintesi.map((s) => (
-          <div key={s.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</div>
-            <div className="truncate text-lg font-bold tabular-nums text-slate-900">{s.valore}</div>
+          <div key={s.label} className="rounded-xl border border-border bg-card px-3 py-2">
+            <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</div>
+            <div className="truncate text-lg font-bold tabular-nums text-foreground">{s.valore}</div>
             {s.nota && <div className="truncate text-[11px] text-muted-foreground">{s.nota}</div>}
           </div>
         ))}
@@ -74,10 +74,10 @@ export const TabFonti = memo(function TabFonti({ filters, assignedUserIds }: Pro
           ) : isMobile ? (
             <div className="space-y-1.5">
               {fonti.map((f) => (
-                <div key={f.fonte} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                <div key={f.fonte} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                   <span className="truncate font-medium">{f.fonte}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {fmt(f.arrivati)} lead · <b className="text-slate-900">{fmt(f.vinti)}</b> vendite · {pctTxt(pct(f.vinti, f.arrivati))}
+                    {fmt(f.arrivati)} lead · <b className="text-foreground">{fmt(f.vinti)}</b> vendite · {pctTxt(pct(f.vinti, f.arrivati))}
                   </span>
                 </div>
               ))}

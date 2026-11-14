@@ -64,7 +64,7 @@ function Riquadro({ icona: Icona, tono, titolo, totale, sotto, vuoto, tutti, chi
         {totale === 0 ? (
           <p className="py-4 text-center text-xs text-muted-foreground">{vuoto}</p>
         ) : (
-          <div className="divide-y divide-slate-100">{children}</div>
+          <div className="divide-y divide-border/60">{children}</div>
         )}
         {tutti && totale > 0 && (
           <Button variant="ghost" size="sm" className="mt-auto h-8 justify-between px-2 text-xs" onClick={tutti}>
@@ -78,13 +78,13 @@ function Riquadro({ icona: Icona, tono, titolo, totale, sotto, vuoto, tutti, chi
 
 function Voce({ titolo, dettaglio, destra, onClick }: { titolo: string; dettaglio: string; destra?: string; onClick?: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-2 py-2 text-left hover:bg-slate-50">
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-2 py-2 text-left hover:bg-muted/50">
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-slate-800">{titolo}</span>
+        <span className="block truncate text-sm font-medium text-foreground">{titolo}</span>
         <span className="block truncate text-xs text-muted-foreground">{dettaglio}</span>
       </span>
-      {destra && <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">{destra}</span>}
-      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+      {destra && <span className="shrink-0 text-xs font-semibold tabular-nums text-muted-foreground">{destra}</span>}
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
     </button>
   );
 }

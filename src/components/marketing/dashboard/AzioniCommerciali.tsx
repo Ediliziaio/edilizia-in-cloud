@@ -132,7 +132,7 @@ const severityStyles = {
     bg: "bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50",
     border: "border-red-200 dark:border-red-800",
     icon: "text-red-600 dark:text-red-400",
-    badge: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+    badge: "bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-900 dark:text-red-300",
   },
   warning: {
     bg: "bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50",
@@ -155,7 +155,7 @@ export function AzioniCommerciali(props: Props) {
 
   if (topActions.length === 0) {
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-white to-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:from-slate-950 dark:to-emerald-950/20">
+      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-card to-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:from-slate-950 dark:to-emerald-950/20">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -170,18 +170,18 @@ export function AzioniCommerciali(props: Props) {
   }
 
   return (
-    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm max-sm:space-y-2 max-sm:p-3">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm max-sm:space-y-2 max-sm:p-3">
       <div className="flex items-start gap-3">
         {/* Telefono: il titolo basta; righe senza la spiegazione sotto. */}
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-700 max-sm:hidden">
           <Zap className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500 max-sm:hidden">Priorità operative</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground max-sm:hidden">Priorità operative</p>
           <h3 className="text-sm font-bold text-foreground">Cosa muovere ora</h3>
         </div>
         {allActions.length > 3 && (
-          <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+          <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
             +{allActions.length - 3} altr{allActions.length - 3 === 1 ? "a" : "e"}
           </span>
         )}

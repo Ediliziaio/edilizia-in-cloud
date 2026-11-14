@@ -36,10 +36,10 @@ export const TabTrend = memo(function TabTrend({ data, isLoading }: Props) {
           {voci.map((v) => {
             const d = v.prima == null ? null : calcDelta(Number(v.ora), Number(v.prima));
             return (
-              <div key={v.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{v.label}</div>
+              <div key={v.label} className="rounded-xl border border-border bg-card px-3 py-2">
+                <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{v.label}</div>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-lg font-bold tabular-nums text-slate-900">{v.f(Number(v.ora))}</span>
+                  <span className="text-lg font-bold tabular-nums text-foreground">{v.f(Number(v.ora))}</span>
                   {d && d.direction !== "flat" && Number(v.prima) > 0 && (
                     <span className={cn("inline-flex items-center text-[11px] font-semibold", d.direction === "up" ? "text-emerald-600" : "text-red-600")}>
                       {d.direction === "up" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}{d.value}%

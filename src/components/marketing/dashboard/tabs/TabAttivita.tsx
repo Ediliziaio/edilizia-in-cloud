@@ -70,10 +70,10 @@ const show = (e: number, n: number) => pct(e, e + n);
 
 function Cifra({ label, valore, nota, tono, soloComputer }: { label: string; valore: string; nota?: string; tono?: "rosso" | "giallo"; soloComputer?: boolean }) {
   return (
-    <div className={cn("rounded-xl border border-slate-200 bg-white px-3 py-2", soloComputer && "max-sm:hidden",
+    <div className={cn("rounded-xl border border-border bg-card px-3 py-2", soloComputer && "max-sm:hidden",
       tono === "rosso" && "border-red-200 bg-red-50/60", tono === "giallo" && "border-amber-200 bg-amber-50/60")}>
-      <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
-      <div className="text-lg font-bold tabular-nums text-slate-900">{valore}</div>
+      <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-lg font-bold tabular-nums text-foreground">{valore}</div>
       {nota && <div className="truncate text-[11px] text-muted-foreground">{nota}</div>}
     </div>
   );
@@ -139,7 +139,7 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
           ) : isMobile ? (
             <div className="space-y-1.5">
               {data.persone.slice(0, 5).map((p) => (
-                <div key={p.user_id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                <div key={p.user_id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                   <span className="truncate font-medium">{p.name}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
                     {fmt(p.contatti)} contatti · {fmt(p.chiamate)} chiamate · {fmt(p.appuntamenti)} app.
@@ -210,7 +210,7 @@ export const TabAttivita = memo(function TabAttivita({ filters, assignedUserIds 
             {isMobile ? (
               <div className="space-y-1.5">
                 {data.calendari.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                  <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                     <span className="truncate font-medium">{c.name}</span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">
                       {fmt(c.in_agenda)} app. · show {show(c.effettuati, c.no_show)} · {pct(c.con_vendita, c.in_agenda)} vendita

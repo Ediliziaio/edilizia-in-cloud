@@ -48,15 +48,15 @@ function getConversioniColor(showRate: number, closeRate: number): SemaforoColor
 
 const colorMap = {
   green: {
-    bg: "bg-gradient-to-br from-white to-emerald-50/80 dark:from-slate-950 dark:to-emerald-950/30",
+    bg: "bg-gradient-to-br from-card to-emerald-50/80 dark:from-slate-950 dark:to-emerald-950/30",
     border: "border-emerald-200 dark:border-emerald-800",
     dot: "bg-emerald-500",
-    iconBg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300",
-    text: "text-emerald-700 dark:text-emerald-400",
+    iconBg: "bg-emerald-100 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/60 dark:text-emerald-300",
+    text: "text-emerald-700 dark:text-emerald-400 dark:text-emerald-400",
     label: "text-emerald-600 dark:text-emerald-500",
   },
   yellow: {
-    bg: "bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-950 dark:to-amber-950/30",
+    bg: "bg-gradient-to-br from-card to-amber-50/90 dark:from-slate-950 dark:to-amber-950/30",
     border: "border-amber-200 dark:border-amber-800",
     dot: "bg-amber-500",
     iconBg: "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300",
@@ -64,11 +64,11 @@ const colorMap = {
     label: "text-amber-600 dark:text-amber-500",
   },
   red: {
-    bg: "bg-gradient-to-br from-white to-red-50/90 dark:from-slate-950 dark:to-red-950/30",
+    bg: "bg-gradient-to-br from-card to-red-50/90 dark:from-slate-950 dark:to-red-950/30",
     border: "border-red-200 dark:border-red-800",
     dot: "bg-red-500",
-    iconBg: "bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300",
-    text: "text-red-700 dark:text-red-400",
+    iconBg: "bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-900/60 dark:text-red-300",
+    text: "text-red-700 dark:text-red-400 dark:text-red-400",
     label: "text-red-600 dark:text-red-500",
   },
 };
@@ -125,7 +125,7 @@ export function SemaforoMarketing(props: Props) {
                   <span className={`h-2.5 w-2.5 rounded-full ${c.dot} ${item.color === "red" ? "animate-pulse" : ""}`} />
                 </div>
                 <p className={`mt-2 truncate text-xl font-bold max-sm:mt-0.5 max-sm:text-[15px] ${c.text}`}>{item.value}</p>
-                <p className="mt-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400 max-sm:hidden">{item.detail}</p>
+                <p className="mt-1 truncate text-xs font-medium text-muted-foreground dark:text-muted-foreground/80 max-sm:hidden">{item.detail}</p>
               </div>
             </div>
           </div>

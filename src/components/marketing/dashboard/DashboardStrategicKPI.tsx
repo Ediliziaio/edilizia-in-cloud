@@ -40,7 +40,7 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
     return (
       <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {STRATEGIC_CARDS.map(c => (
-          <Card key={c.key} className="rounded-2xl border-slate-200 p-3 sm:p-5 shadow-sm">
+          <Card key={c.key} className="rounded-2xl border-border p-3 sm:p-5 shadow-sm">
             <Skeleton className="h-4 w-24 mb-3" />
             <Skeleton className="h-10 w-20 mb-2" />
             <Skeleton className="h-2 w-full" />
@@ -67,14 +67,14 @@ export const DashboardStrategicKPI = memo(function DashboardStrategicKPI({ kpi, 
             <Tooltip key={c.key}>
               <TooltipTrigger asChild>
                 {/* Telefono: nome, cifra e variazione; via icona e barra dell'obiettivo. */}
-                <Card className={cn("cursor-default overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:rounded-xl max-sm:px-3 max-sm:py-2", c.borderClass)}>
+                <Card className={cn("cursor-default overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-muted/40 p-3 sm:p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md max-sm:rounded-xl max-sm:px-3 max-sm:py-2", c.borderClass)}>
                   <div className="mb-2 flex items-start justify-between gap-2 max-sm:mb-0.5">
-                    <span className="truncate text-[10px] font-bold uppercase tracking-wider sm:tracking-[0.16em] text-slate-500">{c.label}</span>
-                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-200 max-sm:hidden">
+                    <span className="truncate text-[10px] font-bold uppercase tracking-wider sm:tracking-[0.16em] text-muted-foreground">{c.label}</span>
+                    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-card shadow-sm ring-1 ring-border max-sm:hidden">
                       <Icon className={cn("h-4 w-4", c.accentClass)} />
                     </span>
                   </div>
-                  <div className="mb-1 truncate text-xl sm:text-2xl font-black tracking-tight text-slate-950 max-sm:mb-0 max-sm:text-base">{formatValue(value, c.format)}</div>
+                  <div className="mb-1 truncate text-xl sm:text-2xl font-black tracking-tight text-foreground max-sm:mb-0 max-sm:text-base">{formatValue(value, c.format)}</div>
                   {delta ? (
                   <div className={cn("mb-2 flex items-center gap-1 text-xs font-semibold max-sm:mb-0 max-sm:text-[11px]",
                     delta.direction === "up" && "text-emerald-600 dark:text-emerald-400",

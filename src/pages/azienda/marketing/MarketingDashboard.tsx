@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,6 +11,8 @@ import {
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
 import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
+import { Comparsa, PillolaVariazione, StatGrafico, TESTO_ASSE, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -76,7 +78,7 @@ function SedeFilterBarMarketing() {
   // Grafico "Analytics per Sede" (recharts): vetrina desktop → non su mobile.
   if (isMobile || sedi.length === 0) return null;
   return (
-    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <span className="text-sm font-semibold text-eic-navy">Analytics per Sede</span>
         <SedeFilterBar />
@@ -169,6 +171,14 @@ export default function MarketingDashboard() {
     if (!marketingTrend.length) return 0;
     return marketingTrend.reduce((s, m) => s + safeNumber(m.lead), 0) / marketingTrend.length;
   }, [marketingTrend]);
+
+  const idMkt = idSvg(useId());
+  const mktFermo = usePreferisceMenoMovimento();
+  // Totali dei 12 mesi per la riga sopra il grafico.
+  const totaliMkt = useMemo(() => marketingTrend.reduce(
+    (t, m) => ({ lead: t.lead + safeNumber(m.lead), appuntamenti: t.appuntamenti + safeNumber(m.appuntamenti), contratti: t.contratti + safeNumber(m.contratti) }),
+    { lead: 0, appuntamenti: 0, contratti: 0 },
+  ), [marketingTrend]);
 
   const trendIsEmpty = useMemo(
     () =>
@@ -287,6 +297,7 @@ export default function MarketingDashboard() {
         value: leadsNew.toLocaleString("it-IT"),
         hint: `periodo precedente ${leadsPrev.toLocaleString("it-IT")}`,
         icon: UserPlus,
+        variazione: leadsPrev > 0 ? ((leadsNew - leadsPrev) / leadsPrev) * 100 : null,
         tone: leadsNew >= leadsPrev ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
       },
       {
@@ -294,6 +305,7 @@ export default function MarketingDashboard() {
         value: eur(pipelineValue),
         hint: pipelineValue > 0 ? `${openOpps.toLocaleString("it-IT")} opportunità aperte oggi` : "nessuna opportunità attiva",
         icon: TrendingUp,
+        variazione: null as number | null,
         tone: pipelineValue > 0 ? "blue" as ExecutiveTone : "orange" as ExecutiveTone,
       },
       {
@@ -305,6 +317,8 @@ export default function MarketingDashboard() {
           ? `${appointmentsPending.toLocaleString("it-IT")} appuntamenti da esitare`
           : `periodo precedente ${pct(showRatePrev)}`,
         icon: CalendarCheck,
+        // con appuntamenti da esitare il confronto non dice niente
+        variazione: appointmentsPending === 0 && showRatePrev > 0 ? ((showRate - showRatePrev) / showRatePrev) * 100 : null,
         tone: appointmentsPending > 0 ? "orange" as ExecutiveTone : showRate >= 60 ? "green" as ExecutiveTone : showRate >= 40 ? "orange" as ExecutiveTone : "red" as ExecutiveTone,
       },
       {
@@ -312,6 +326,7 @@ export default function MarketingDashboard() {
         value: `${contractsWon} · ${eur(revenue)}`,
         hint: `chiusura ${pct(closeRate)} · prec. ${eur(revenuePrev)}`,
         icon: Trophy,
+        variazione: revenuePrev > 0 ? ((revenue - revenuePrev) / revenuePrev) * 100 : null,
         tone: revenue >= revenuePrev && contractsWon > 0 ? "green" as ExecutiveTone : "orange" as ExecutiveTone,
       },
     ];
@@ -321,7 +336,7 @@ export default function MarketingDashboard() {
 
   if (!effectiveCompany?.id) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card px-6 py-16 text-center">
         <LayoutDashboard className="h-12 w-12 text-muted-foreground/40 mb-4" />
         <h2 className="text-lg font-semibold text-muted-foreground">Nessuna azienda selezionata</h2>
         <p className="text-sm text-muted-foreground/70 mt-1">Seleziona un'azienda per visualizzare la dashboard</p>
@@ -372,12 +387,12 @@ export default function MarketingDashboard() {
           <>
             {/* Aggiorna come icona; obiettivi, sezioni ed esportazione in «Altro»:
                 prima erano quattro bottoni uguali accanto ai filtri */}
-            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-slate-200 shadow-none" onClick={aggiornaTutto} disabled={isLoading} aria-label="Aggiorna" title="Aggiorna">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" onClick={aggiornaTutto} disabled={isLoading} aria-label="Aggiorna" title="Aggiorna">
               <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-slate-200 shadow-none" aria-label="Altro" title="Altro">
+                <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg border-border shadow-none" aria-label="Altro" title="Altro">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -413,7 +428,7 @@ export default function MarketingDashboard() {
 
       {/* P3.4 — skeleton placeholder durante il primo caricamento */}
       {isLoading && !data?.kpi && (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
             <div className="bg-eic-navy-deep p-5 text-white sm:p-6">
               <div className="flex items-center gap-3">
@@ -426,8 +441,8 @@ export default function MarketingDashboard() {
                 ))}
               </div>
             </div>
-            <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
-              <div className="h-[260px] animate-pulse rounded-xl border border-slate-100 bg-slate-100" />
+            <aside className="border-t border-border bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
+              <div className="h-[260px] animate-pulse rounded-xl border border-border/60 bg-muted" />
             </aside>
           </div>
         </section>
@@ -435,10 +450,10 @@ export default function MarketingDashboard() {
 
       {/* Empty state quando non c'è errore, non sta caricando, ma non c'è alcun dato */}
       {!isLoading && !error && !data?.kpi && (
-        <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-          <LayoutDashboard className="mx-auto h-10 w-10 text-slate-300" />
-          <h3 className="mt-3 text-base font-semibold text-slate-700">Nessun dato commerciale ancora</h3>
-          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+        <section className="rounded-2xl border border-dashed border-border bg-card p-8 text-center shadow-sm">
+          <LayoutDashboard className="mx-auto h-10 w-10 text-muted-foreground/50" />
+          <h3 className="mt-3 text-base font-semibold text-muted-foreground">Nessun dato commerciale ancora</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
             Inizia caricando contatti o creando opportunità: i KPI compariranno automaticamente.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -454,7 +469,7 @@ export default function MarketingDashboard() {
 
       {/* Executive Summary commerciale (stessa struttura del Cruscotto) */}
       {data?.kpi && (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
             {/* Telefono: titolo, bottone e quattro numeri 2×2; via icona, occhiello e spiegazione. */}
             <div className="bg-eic-navy-deep p-5 text-white sm:p-6 max-sm:p-4">
@@ -472,7 +487,7 @@ export default function MarketingDashboard() {
                 <Button
                   asChild
                   size="sm"
-                  className="w-fit shrink-0 bg-white text-orange-600 shadow-sm hover:bg-orange-50"
+                  className="w-fit shrink-0 bg-card text-orange-600 shadow-sm hover:bg-orange-50"
                 >
                   <Link to={executiveState.route}>
                     {executiveState.cta}
@@ -482,10 +497,10 @@ export default function MarketingDashboard() {
               </div>
 
               <div className="mt-6 grid gap-3 sm:grid-cols-2 max-sm:mt-3 max-sm:grid-cols-2 max-sm:gap-2">
-                {executiveKpis.map((item) => {
+                {executiveKpis.map((item, i) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.label} className="rounded-xl border border-white/12 bg-white/9 p-4 max-sm:px-3 max-sm:py-2">
+                    <Comparsa key={item.label} indice={i} className="rounded-xl border border-white/12 bg-white/9 p-4 transition-colors hover:bg-white/[0.13] max-sm:px-3 max-sm:py-2">
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
@@ -501,10 +516,13 @@ export default function MarketingDashboard() {
                         <span className="min-w-0">
                           <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-blue-100 max-sm:font-medium max-sm:normal-case max-sm:tracking-normal">{item.label}</span>
                           <span className="block truncate text-xl font-bold text-white max-sm:text-base">{item.value}</span>
-                          <span className="mt-0.5 block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
+                          <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                            <PillolaVariazione pct={item.variazione} suScuro titolo="Rispetto al periodo precedente" className="shrink-0" />
+                            <span className="block truncate text-xs text-blue-50/70 max-sm:hidden">{item.hint}</span>
+                          </span>
                         </span>
                       </div>
-                    </div>
+                    </Comparsa>
                   );
                 })}
               </div>
@@ -514,12 +532,12 @@ export default function MarketingDashboard() {
                 pesante e illeggibile su telefono. I numeri chiave sono già
                 nelle KPI del riquadro sopra → su mobile nascondiamo il grafico. */}
             {!isMobile && (
-            <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
+            <aside className="border-t bg-gradient-to-br from-card to-orange-50/50 p-5 dark:to-orange-500/5 xl:border-l xl:border-t-0">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase text-slate-500">Andamento 12 mesi</p>
-                  <h3 className="mt-1 text-base font-semibold text-slate-950">Lead, appuntamenti e contratti</h3>
-                  <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Andamento 12 mesi</p>
+                  <h3 className="mt-1 text-base font-semibold text-foreground">Lead, appuntamenti e contratti</h3>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground/80">Storico fisso · indipendente dai filtri periodo</p>
                 </div>
                 {/* Legenda interattiva: click per nascondere/mostrare la serie */}
                 <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -527,7 +545,7 @@ export default function MarketingDashboard() {
                     type="button"
                     onClick={() => toggleSeries("lead")}
                     aria-pressed={!hiddenSeries.has("lead")}
-                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("lead") && "opacity-40 line-through")}
+                    className={cn("inline-flex items-center gap-1 text-muted-foreground transition-opacity hover:opacity-80", hiddenSeries.has("lead") && "opacity-40 line-through")}
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} /> Lead
                   </button>
@@ -535,7 +553,7 @@ export default function MarketingDashboard() {
                     type="button"
                     onClick={() => toggleSeries("appuntamenti")}
                     aria-pressed={!hiddenSeries.has("appuntamenti")}
-                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("appuntamenti") && "opacity-40 line-through")}
+                    className={cn("inline-flex items-center gap-1 text-muted-foreground transition-opacity hover:opacity-80", hiddenSeries.has("appuntamenti") && "opacity-40 line-through")}
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> Appuntamenti
                   </button>
@@ -543,24 +561,31 @@ export default function MarketingDashboard() {
                     type="button"
                     onClick={() => toggleSeries("contratti")}
                     aria-pressed={!hiddenSeries.has("contratti")}
-                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("contratti") && "opacity-40 line-through")}
+                    className={cn("inline-flex items-center gap-1 text-muted-foreground transition-opacity hover:opacity-80", hiddenSeries.has("contratti") && "opacity-40 line-through")}
                   >
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} /> Contratti
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+              {!trendIsEmpty && (
+                <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-card/70 px-3 py-2">
+                  <StatGrafico etichetta="Lead 12 mesi" valore={totaliMkt.lead.toLocaleString("it-IT")} nota={`media ${Math.round(avgLead).toLocaleString("it-IT")} al mese`} />
+                  <StatGrafico etichetta="Appuntamenti" valore={totaliMkt.appuntamenti.toLocaleString("it-IT")} nota="12 mesi" />
+                  <StatGrafico etichetta="Contratti" valore={totaliMkt.contratti.toLocaleString("it-IT")} nota="12 mesi" tono={totaliMkt.contratti > 0 ? "buono" : "neutro"} />
+                </div>
+              )}
+              <div className="mt-3 h-[260px] rounded-xl border bg-card p-3 shadow-sm">
                 {trendIsEmpty ? (
                   <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-                    <p className="text-sm font-medium text-slate-500">Ancora nessun dato negli ultimi 12 mesi</p>
-                    <p className="text-xs text-slate-400">Aggiungi il primo lead o collega una fonte per vedere l'andamento.</p>
+                    <p className="text-sm font-medium text-muted-foreground">Ancora nessun dato negli ultimi 12 mesi</p>
+                    <p className="text-xs text-muted-foreground/80">Aggiungi il primo lead o collega una fonte per vedere l'andamento.</p>
                   </div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart
                     data={marketingTrend}
-                    margin={{ top: 8, right: 4, left: -10, bottom: 0 }}
+                    margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
                     className="cursor-pointer"
                     onClick={(state) => {
                       // Drill-down: click sul mese -> contatti creati nel periodo
@@ -570,6 +595,7 @@ export default function MarketingDashboard() {
                       navigate(`/azienda/marketing/contatti?mese=${key}`);
                     }}
                   >
+                    {defsGrafico(idMkt, {})}
                     <defs>
                       <linearGradient id="mktLeadGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
@@ -584,25 +610,26 @@ export default function MarketingDashboard() {
                         <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
-                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" tickMargin={8} />
-                    <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" allowDecimals={false} tickMargin={6} />
+                    <CartesianGrid fill={`url(#${idMkt}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
+                    <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} allowDecimals={false} tickMargin={6} width={32} />
                     <RechartsTooltip
-                      cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                      cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
                       content={<TrendTooltip data={marketingTrend} xKey="mese" series={trendTooltipSeries} />}
                     />
                     {/* Benchmark onesto: media lead degli ultimi 12 mesi */}
                     {avgLead > 0 && !hiddenSeries.has("lead") && (
                       <ReferenceLine
                         y={avgLead}
-                        stroke="#94a3b8"
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeOpacity={0.6}
                         strokeDasharray="6 4"
                         strokeWidth={1}
-                        label={{ value: "media", position: "insideTopRight", fontSize: 10, fill: "#94a3b8" }}
+                        label={{ value: "media", position: "insideTopRight", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                       />
                     )}
-                    <Bar dataKey="lead" hide={hiddenSeries.has("lead")} fill="url(#mktLeadGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="appuntamenti" hide={hiddenSeries.has("appuntamenti")} fill="url(#mktApptGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="lead" hide={hiddenSeries.has("lead")} fill="url(#mktLeadGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} isAnimationActive={!mktFermo} animationDuration={700} />
+                    <Bar dataKey="appuntamenti" hide={hiddenSeries.has("appuntamenti")} fill="url(#mktApptGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} isAnimationActive={!mktFermo} animationDuration={700} animationBegin={120} />
                     {/* Area sfumata sotto la linea contratti (stesso dataKey, solo fill) */}
                     <Area
                       type="monotone"
@@ -613,6 +640,7 @@ export default function MarketingDashboard() {
                       fill="url(#mktContrattiArea)"
                       legendType="none"
                       tooltipType="none"
+                      isAnimationActive={!mktFermo}
                     />
                     <Line
                       type="monotone"
@@ -620,15 +648,19 @@ export default function MarketingDashboard() {
                       hide={hiddenSeries.has("contratti")}
                       stroke="hsl(var(--chart-2))"
                       strokeWidth={2.5}
-                      dot={{ r: 4, fill: "#ffffff", stroke: "hsl(var(--chart-2))", strokeWidth: 2 }}
-                      activeDot={{ r: 5, fill: "hsl(var(--chart-2))", stroke: "#ffffff", strokeWidth: 2 }}
+                      filter={`url(#${idMkt}-ombra)`}
+                      isAnimationActive={!mktFermo}
+                      animationDuration={900}
+                      animationBegin={250}
+                      dot={{ r: 4, fill: "hsl(var(--background))", stroke: "hsl(var(--chart-2))", strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: "hsl(var(--chart-2))", stroke: "hsl(var(--background))", strokeWidth: 2 }}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
                 )}
               </div>
               {!trendIsEmpty && (
-                <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per vedere i lead del periodo</p>
+                <p className="mt-2 text-right text-[10px] text-muted-foreground/80">Clicca su un mese per vedere i lead del periodo</p>
               )}
             </aside>
             )}
@@ -638,18 +670,18 @@ export default function MarketingDashboard() {
 
       {/* Aree di controllo — stesso wrapper del Cruscotto */}
       {data?.kpi && (
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <section className="rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
           {/* Telefono: niente intestazione di sezione, parlano i tre tasselli. */}
           <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between max-sm:hidden">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Aree di controllo</p>
-              <h2 className="text-lg font-semibold text-slate-950">Approfondisci solo quello che ti serve ora</h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aree di controllo</p>
+              <h2 className="text-lg font-semibold text-foreground">Approfondisci solo quello che ti serve ora</h2>
             </div>
-            <p className="text-sm text-slate-500">Lo stato commerciale resta sopra. Qui sotto trovi i dettagli per area.</p>
+            <p className="text-sm text-muted-foreground">Lo stato commerciale resta sopra. Qui sotto trovi i dettagli per area.</p>
           </div>
 
           {/* Telefono: lead, pipeline e conversioni sono già nei quattro numeri in cima. */}
-          <div className="border-b border-slate-200 pb-3 mb-3 max-sm:hidden">
+          <div className="border-b border-border pb-3 mb-3 max-sm:hidden">
             <SemaforoMarketing
               leadsTotal={data.kpi.leads_total}
               leadsNew={data.kpi.leads_new}
@@ -700,7 +732,7 @@ export default function MarketingDashboard() {
           <Tabs value={effectiveTab} onValueChange={(v) => switchTab(v as DashboardTab)}>
             {/* Mobile: riga unica scorrevole invece della griglia a 2 col (7 tab =
                 4 file troppo alte). Da sm resta a griglia (4 → 7 colonne). */}
-            <TabsList className="flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4 lg:grid-cols-7">
+            <TabsList className="flex h-auto w-full items-center justify-start gap-1 overflow-x-auto rounded-xl bg-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4 lg:grid-cols-7">
               {schede.map((tab) => {
                 const Icon = TAB_ICONS[tab.id];
                 return (

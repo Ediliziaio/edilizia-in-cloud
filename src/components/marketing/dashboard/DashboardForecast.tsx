@@ -119,17 +119,17 @@ export const DashboardForecast = memo(function DashboardForecast({ kpi, isLoadin
 
           {/* Conversion Rates */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold" title={oltre(leadToAppt)}>{tasso(leadToAppt)}</div>
               <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → App.</div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold" title={oltre(apptToContract)}>{tasso(apptToContract)}</div>
               <div className="text-[10px] text-muted-foreground max-md:text-[11px]">App. → Contratto</div>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-center">
               <ArrowRightLeft className="h-3.5 w-3.5 mx-auto mb-1 text-muted-foreground" />
               <div className="text-lg font-bold" title={oltre(leadToContract)}>{tasso(leadToContract)}</div>
               <div className="text-[10px] text-muted-foreground max-md:text-[11px]">Lead → Contratto</div>

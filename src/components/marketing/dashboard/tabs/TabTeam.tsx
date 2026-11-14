@@ -60,9 +60,9 @@ export const TabTeam = memo(function TabTeam({ data, isLoading, filters, assigne
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {sintesi.map((s) => (
-          <div key={s.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-            <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</div>
-            <div className="text-lg font-bold tabular-nums text-slate-900">{s.valore}</div>
+          <div key={s.label} className="rounded-xl border border-border bg-card px-3 py-2">
+            <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</div>
+            <div className="text-lg font-bold tabular-nums text-foreground">{s.valore}</div>
             {s.nota && <div className="truncate text-[11px] text-muted-foreground">{s.nota}</div>}
           </div>
         ))}

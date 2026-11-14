@@ -178,9 +178,9 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
         {/* Sintesi */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
           {sintesi.map((s) => (
-            <div key={s.label} className={cn("rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2", s.soloComputer && "max-sm:hidden")}>
-              <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</div>
-              <div className="text-lg font-bold tabular-nums text-slate-900">{s.valore}</div>
+            <div key={s.label} className={cn("rounded-xl border border-border bg-muted/50/60 px-3 py-2", s.soloComputer && "max-sm:hidden")}>
+              <div className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{s.label}</div>
+              <div className="text-lg font-bold tabular-nums text-foreground">{s.valore}</div>
               {s.nota && <div className="truncate text-[11px] text-muted-foreground">{s.nota}</div>}
             </div>
           ))}
@@ -190,7 +190,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
         {/* telefono: le fasi (anche 13) e le uscite sono analisi da computer */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_260px] max-sm:hidden">
           <div className="space-y-1">
-            <div className="hidden grid-cols-[minmax(0,1fr)_56px_56px_64px_56px] gap-2 px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 sm:grid">
+            <div className="hidden grid-cols-[minmax(0,1fr)_56px_56px_64px_56px] gap-2 px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80 sm:grid">
               <span>Fase</span>
               <span className="text-right">Lead</span>
               <span className="text-right">Passano</span>
@@ -204,8 +204,8 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
               return (
                 <div key={f.stage_id} className="grid grid-cols-[minmax(0,1fr)_56px_56px] items-center gap-2 rounded-md px-1 py-1 text-xs sm:grid-cols-[minmax(0,1fr)_56px_56px_64px_56px]">
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-slate-700">{f.name}</div>
-                    <div className="mt-1 h-1.5 rounded-full bg-slate-100">
+                    <div className="truncate font-medium text-muted-foreground">{f.name}</div>
+                    <div className="mt-1 h-1.5 rounded-full bg-muted">
                       <div className="h-1.5 rounded-full bg-blue-500" style={{ width: `${Math.max(2, (f.raggiunte / massimo) * 100)}%` }} />
                     </div>
                   </div>
@@ -218,12 +218,12 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
             })}
             <div className="grid grid-cols-[minmax(0,1fr)_56px_56px] items-center gap-2 rounded-md bg-emerald-50 px-1 py-1 text-xs sm:grid-cols-[minmax(0,1fr)_56px_56px_64px_56px]">
               <div className="min-w-0">
-                <div className="font-semibold text-emerald-700">Vinti</div>
+                <div className="font-semibold text-emerald-700 dark:text-emerald-400">Vinti</div>
                 <div className="mt-1 h-1.5 rounded-full bg-emerald-100">
                   <div className="h-1.5 rounded-full bg-emerald-500" style={{ width: `${Math.max(2, (totale.vinti / massimo) * 100)}%` }} />
                 </div>
               </div>
-              <span className="text-right font-semibold tabular-nums text-emerald-700">{fmt(totale.vinti)}</span>
+              <span className="text-right font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{fmt(totale.vinti)}</span>
               <span className="text-right tabular-nums text-muted-foreground">{pctTxt(pct(totale.vinti, fasi.at(-1)?.raggiunte ?? totale.in_pipeline))}</span>
               <span className="hidden text-right tabular-nums text-muted-foreground sm:block">{giorni(totale.giorni_vendita)}</span>
               <span className="hidden sm:block" />
@@ -234,9 +234,9 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
           </div>
 
           {data.uscite.length > 0 && (
-            <div className="rounded-xl border border-slate-200 p-3">
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                <LogOut className="h-3.5 w-3.5 text-slate-400" />
+            <div className="rounded-xl border border-border p-3">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <LogOut className="h-3.5 w-3.5 text-muted-foreground/80" />
                 Dove escono
                 <span className="ml-auto font-normal text-muted-foreground">{fmt(uscitaTotale)} lead</span>
               </div>
@@ -244,10 +244,10 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
                 {data.uscite.slice(0, isMobile ? 4 : 8).map((u) => (
                   <div key={u.stage_id} className="text-xs">
                     <div className="flex justify-between gap-2">
-                      <span className="truncate text-slate-600">{u.name}</span>
+                      <span className="truncate text-muted-foreground">{u.name}</span>
                       <span className="shrink-0 tabular-nums font-semibold">{fmt(u.lead)}</span>
                     </div>
-                    <div className="mt-0.5 h-1 rounded-full bg-slate-100">
+                    <div className="mt-0.5 h-1 rounded-full bg-muted">
                       <div className={cn("h-1 rounded-full", u.tipo === "lost" ? "bg-red-400" : "bg-slate-400")} style={{ width: `${(u.lead / Math.max(uscitaTotale, 1)) * 100}%` }} />
                     </div>
                   </div>
@@ -259,14 +259,14 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
 
         {/* Per commerciale */}
         <div>
-          <h4 className="mb-2 text-sm font-semibold text-slate-800">Per commerciale</h4>
+          <h4 className="mb-2 text-sm font-semibold text-foreground">Per commerciale</h4>
           {isMobile ? (
             <div className="space-y-1.5">
               {data.commerciali.slice(0, 5).map((c) => (
-                <div key={c.user_id ?? "nessuno"} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs">
+                <div key={c.user_id ?? "nessuno"} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                   <span className={cn("truncate font-medium", !c.user_id && "text-amber-700")}>{c.name}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {fmt(c.arrivati)} lead · <b className="text-slate-900">{fmt(c.vinti)}</b> vinti · {pctTxt(pct(c.vinti, c.arrivati))}
+                    {fmt(c.arrivati)} lead · <b className="text-foreground">{fmt(c.vinti)}</b> vinti · {pctTxt(pct(c.vinti, c.arrivati))}
                   </span>
                 </div>
               ))}
@@ -322,7 +322,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
                           <TableCell className="whitespace-nowrap text-right text-sm tabular-nums">{c.valore_vinto > 0 ? fmtCur(c.valore_vinto) : "—"}</TableCell>
                         </TableRow>
                         {espanso && (
-                          <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                          <TableRow className="bg-muted/50/60 hover:bg-muted/50">
                             <TableCell colSpan={13} className="py-3">
                               <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3 lg:grid-cols-4">
                                 {fasi.map((f, i) => {
@@ -330,7 +330,7 @@ export const PercorsoLead = memo(function PercorsoLead({ filters, assignedUserId
                                   const prima = i === 0 ? c.in_pipeline : (c.fasi?.[fasi[i - 1].stage_id] ?? 0);
                                   return (
                                     <div key={f.stage_id} className="flex items-center justify-between gap-2 text-xs">
-                                      <span className="truncate text-slate-600">{f.name}</span>
+                                      <span className="truncate text-muted-foreground">{f.name}</span>
                                       <span className="shrink-0 tabular-nums">
                                         <b>{fmt(n)}</b> <span className="text-muted-foreground">{pctTxt(pct(n, prima))}</span>
                                       </span>

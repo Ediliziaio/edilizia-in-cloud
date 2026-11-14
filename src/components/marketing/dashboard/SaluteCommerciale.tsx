@@ -93,7 +93,7 @@ function getScoreConfig(score: number) {
 export function SaluteCommerciale(props: Props) {
   if (props.isLoading) {
     return (
-      <div className="flex items-center justify-center gap-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-center gap-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="h-[136px] w-[136px] rounded-full bg-muted animate-pulse" />
         <div className="space-y-2 flex-1">
           <div className="h-5 w-24 bg-muted rounded animate-pulse" />
@@ -110,7 +110,7 @@ export function SaluteCommerciale(props: Props) {
   const dashOffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 shadow-sm sm:p-5">
+    <div className="rounded-2xl border border-border bg-gradient-to-br from-card to-muted/40 p-3 shadow-sm sm:p-5">
       <div className="flex items-center gap-3 sm:gap-6 flex-wrap sm:flex-nowrap">
         {/* Gauge */}
         <div className="relative inline-flex items-center justify-center flex-shrink-0">
@@ -129,7 +129,7 @@ export function SaluteCommerciale(props: Props) {
         {/* Label */}
         <div className="flex-1 min-w-0 space-y-1.5">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Salute commerciale</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Salute commerciale</p>
             <h3 className={cn("text-lg font-bold", config.color)}>{config.label}</h3>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{config.message}</p>
@@ -152,8 +152,8 @@ function ScorePill({ label, value }: { label: string; value: string }) {
     <span className={cn(
       "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium",
       isOk
-        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-        : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+        ? "bg-emerald-50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/40 dark:text-emerald-400"
+        : "bg-red-50 text-red-700 dark:text-red-400 dark:bg-red-950/40 dark:text-red-400"
     )}>
       <span className={cn("h-1.5 w-1.5 rounded-full", isOk ? "bg-emerald-500" : "bg-red-500")} />
       {label}: {value}

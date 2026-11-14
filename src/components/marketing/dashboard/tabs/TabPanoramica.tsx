@@ -61,7 +61,7 @@ function KpiChip({
     good: "",
     neutral: "",
     warning: "text-yellow-700 dark:text-yellow-400",
-    critical: "text-red-700 dark:text-red-400 font-bold",
+    critical: "text-red-700 dark:text-red-400 dark:text-red-400 font-bold",
   }[chipStatus];
 
   return (
@@ -138,14 +138,14 @@ export const TabPanoramica = memo(function TabPanoramica({ data, isLoading, filt
             ) : passi.map((p, i) => (
               <div key={p.label} className="text-xs">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-medium text-slate-700">{p.label}</span>
+                  <span className="font-medium text-muted-foreground">{p.label}</span>
                   <span className="tabular-nums">
-                    <b className="text-sm text-slate-900">{fmt(p.n)}</b>
+                    <b className="text-sm text-foreground">{fmt(p.n)}</b>
                     {i > 0 && <span className="ml-1.5 text-muted-foreground">{pctTxt(pct(p.n, passi[0].n))}</span>}
                     {p.nota && <span className="ml-1.5 text-muted-foreground">· {p.nota}</span>}
                   </span>
                 </div>
-                <div className="mt-1 h-1.5 rounded-full bg-slate-100">
+                <div className="mt-1 h-1.5 rounded-full bg-muted">
                   <div className={i === passi.length - 1 ? "h-1.5 rounded-full bg-emerald-500" : "h-1.5 rounded-full bg-blue-500"}
                     style={{ width: `${Math.max(2, (p.n / Math.max(passi[0].n, 1)) * 100)}%` }} />
                 </div>
