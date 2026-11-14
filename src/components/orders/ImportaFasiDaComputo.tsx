@@ -151,7 +151,7 @@ export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti
         <div className="space-y-1">
           <Label>Computo del gestionale</Label>
           <Select onValueChange={(v) => void leggiComputo(v)}>
-            <SelectTrigger aria-label="Computo da importare"><SelectValue placeholder={computi.isLoading ? "Carico…" : "Scegli un computo"} /></SelectTrigger>
+            <SelectTrigger aria-label="Computo da importare"><SelectValue placeholder={computi.isLoading ? "Carico…" : computi.data?.length ? "Scegli un computo" : "Nessun computo salvato: usa «Da un file»"} /></SelectTrigger>
             <SelectContent>
               {(computi.data ?? []).map((c) => (
                 <SelectItem key={c.id} value={c.id}>{[c.titolo || "Computo", c.committente, `${c.numeroVoci} voci`].filter(Boolean).join(" · ")}</SelectItem>
@@ -164,7 +164,7 @@ export function ImportaFasiDaComputo({ orderId, companyId, userId, fasiEsistenti
         <div className="space-y-1">
           <Label>Preventivo</Label>
           <Select onValueChange={(v) => void leggiPreventivo(v)}>
-            <SelectTrigger aria-label="Preventivo da importare"><SelectValue placeholder={preventivi.isLoading ? "Carico…" : "Scegli un preventivo"} /></SelectTrigger>
+            <SelectTrigger aria-label="Preventivo da importare"><SelectValue placeholder={preventivi.isLoading ? "Carico…" : preventivi.data?.length ? "Scegli un preventivo" : "Nessun preventivo nel gestionale"} /></SelectTrigger>
             <SelectContent>
               {(preventivi.data ?? []).map((q) => (
                 <SelectItem key={q.id} value={q.id}>{[q.quote_number, q.title, q.client_name].filter(Boolean).join(" · ")}</SelectItem>
