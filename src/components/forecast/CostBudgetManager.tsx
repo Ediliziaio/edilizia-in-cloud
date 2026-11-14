@@ -138,6 +138,40 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
     }).sort((a, b) => b.Effettivo - a.Effettivo);
   }, [monthBudgets, actualByCategory]);
 
+  // Budget dell'anno del mese scelto: per ogni coppia categoria+mese con un
+  // budget, lo speso della stessa categoria nello stesso mese (si confronta
+  // solo ciò che ha un budget, così un mese senza budget non sembra uno sforamento).
+  const annoBudget = selectedMonth.slice(0, 4);
+  const budgetAnno = useMemo(() => {
+    const righe = budgets.filter((b: any) => String(b.month ?? "").startsWith(annoBudget));
+    if (righe.length === 0) return null;
+    const spesoPer = new Map<string, number>(); // chiave "yyyy-MM|categoria"
+    allCostsSorted.forEach((c: any) => {
+      if (!c.due_date || !String(c.due_date).startsWith(annoBudget)) return;
+      const ym = String(c.due_date).slice(0, 7);
+      for (const p of partiPerCategoria(c, Number(c.amount))) {
+        const k = `${ym}|${p.categoria || "Altro"}`;
+        spesoPer.set(k, (spesoPer.get(k) || 0) + p.importo);
+      }
+    });
+    const perCategoria = new Map<string, { budget: number; speso: number }>();
+    let budget = 0;
+    let speso = 0;
+    for (const b of righe as any[]) {
+      const ym = String(b.month).slice(0, 7);
+      const v = Number(b.budget_amount) || 0;
+      const sp = spesoPer.get(`${ym}|${b.category}`) || 0;
+      budget += v;
+      speso += sp;
+      const r = perCategoria.get(b.category) ?? { budget: 0, speso: 0 };
+      r.budget += v;
+      r.speso += sp;
+      perCategoria.set(b.category, r);
+    }
+    const fuori = [...perCategoria.entries()].filter(([, r]) => r.speso > r.budget).map(([cat, r]) => ({ cat, oltre: r.speso - r.budget })).sort((a, b) => b.oltre - a.oltre);
+    return { budget, speso, fuori, mesi: new Set(righe.map((b: any) => String(b.month).slice(0, 7))).size };
+  }, [budgets, allCostsSorted, annoBudget]);
+
   const handleAdd = () => {
     if (!newCategory || !newAmount || parseFloat(newAmount) <= 0) {
       toast.error("Seleziona categoria e importo");
@@ -146,8 +180,43 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
     addBudgetMutation.mutate();
   };
 
+  const pctBudget = budgetAnno && budgetAnno.budget > 0 ? (budgetAnno.speso / budgetAnno.budget) * 100 : 0;
   return (
     <div className="space-y-6">
+      {budgetAnno && budgetAnno.budget > 0 && (
+        <div className="grid gap-4 rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 dark:border-slate-700 md:grid-cols-[280px_minmax(0,1fr)]">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Budget {annoBudget}</p>
+            <div className="mt-1.5 flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums tracking-tight">{Math.round(pctBudget)}%</span>
+              <span className="text-xs text-slate-400">speso, su {budgetAnno.mesi} {budgetAnno.mesi === 1 ? "mese" : "mesi"} con budget</span>
+            </div>
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(pctBudget, 100))} aria-label={`Budget ${annoBudget}`}>
+              <div className={`cg-barra-cresce h-full rounded-full bg-gradient-to-r ${pctBudget > 100 ? "from-rose-500 to-orange-400" : pctBudget > 85 ? "from-amber-400 to-yellow-300" : "from-emerald-400 to-teal-300"}`} style={{ width: `${Math.max(2, Math.min(pctBudget, 100))}%` }} />
+            </div>
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+              <div><dt className="text-slate-400">Budget</dt><dd className="font-semibold tabular-nums">{formatCurrencyCompact(budgetAnno.budget)}</dd></div>
+              <div><dt className="text-slate-400">Speso</dt><dd className="font-semibold tabular-nums">{formatCurrencyCompact(budgetAnno.speso)}</dd></div>
+              <div><dt className="text-slate-400">{budgetAnno.speso > budgetAnno.budget ? "Oltre" : "Resta"}</dt><dd className={`font-semibold tabular-nums ${budgetAnno.speso > budgetAnno.budget ? "text-rose-300" : "text-emerald-300"}`}>{formatCurrencyCompact(Math.abs(budgetAnno.budget - budgetAnno.speso))}</dd></div>
+            </dl>
+          </div>
+          <div>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Categorie fuori budget</p>
+            {budgetAnno.fuori.length === 0 ? (
+              <p className="text-xs text-emerald-300">Nessuna: ogni categoria con un budget ci sta dentro.</p>
+            ) : (
+              <ul className="grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-2">
+                {budgetAnno.fuori.slice(0, 8).map((f) => (
+                  <li key={f.cat} className="flex items-baseline justify-between gap-2">
+                    <span className="min-w-0 truncate text-slate-200">{f.cat}</span>
+                    <span className="shrink-0 font-semibold tabular-nums text-rose-300">+{formatCurrency(f.oltre)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
       {/* Month selector + add form */}
       <Card>
         <CardHeader>

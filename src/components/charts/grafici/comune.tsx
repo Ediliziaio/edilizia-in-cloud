@@ -199,3 +199,26 @@ export function StatGrafico({
 
 /** Testo della legenda nel colore del tema (con la sfumatura restava nero). */
 export const testoLegenda = (valore: string) => <span className="text-muted-foreground">{valore}</span>;
+
+/**
+ * Anello di una percentuale che si riempie all'apertura (fermo con «riduci
+ * movimento», vedi .anello-riempie in index.css). Verde da 60, ambra da 30,
+ * rosso sotto; `soglie` per cambiarle.
+ */
+export function AnelloPercentuale({ pct, soglie = [30, 60], dimensione = 40 }: { pct: number; soglie?: [number, number]; dimensione?: number }) {
+  const r = 15;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  const colore = p >= soglie[1] ? COLORI_GRAFICO.verde : p >= soglie[0] ? COLORI_GRAFICO.arancio : COLORI_GRAFICO.rosso;
+  return (
+    <svg width={dimensione} height={dimensione} viewBox="0 0 40 40" className="shrink-0 -rotate-90" aria-hidden>
+      <circle cx="20" cy="20" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="4" />
+      <circle
+        cx="20" cy="20" r={r} fill="none" stroke={colore} strokeWidth="4" strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)}
+        className="anello-riempie"
+        style={{ ["--anello-pieno" as string]: String(c) } as CSSProperties}
+      />
+    </svg>
+  );
+}

@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { LucideIcon } from "lucide-react";
+import { AnelloPercentuale } from "@/components/charts/grafici/comune";
 
 export type ColorKey = "green" | "yellow" | "red" | "blue";
 
@@ -21,9 +22,11 @@ interface KPICardProps {
   isLoading?: boolean;
   /** Confronto con il periodo precedente: «buona» colora di verde, «cattiva» di rosso, null neutro. */
   variazione?: { testo: string; buona: boolean | null } | null;
+  /** Percentuale da disegnare in un anello accanto al numero (da tablet). */
+  anello?: { pct: number; soglie?: [number, number] } | null;
 }
 
-export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmark, isLoading, variazione }: KPICardProps) {
+export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmark, isLoading, variazione, anello }: KPICardProps) {
   const s = colorStyles[colorKey];
   // Telefono: della variazione resta la cifra («▲ +3 pt»), senza «vs periodo precedente».
   const vs = variazione ? variazione.testo.indexOf(" vs ") : -1;
@@ -49,7 +52,10 @@ export function KPICard({ title, value, subtitle, icon: Icon, colorKey, benchmar
             <Icon className="h-4 w-4" />
           </div>
         </div>
-        <p className={`text-2xl font-bold max-sm:truncate max-sm:text-base ${s.val}`}>{value}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className={`text-2xl font-bold max-sm:truncate max-sm:text-base ${s.val}`}>{value}</p>
+          {anello && <span className="hidden sm:block"><AnelloPercentuale pct={anello.pct} soglie={anello.soglie} dimensione={36} /></span>}
+        </div>
         {subtitle && <p className="text-xs text-muted-foreground mt-1 max-sm:hidden">{subtitle}</p>}
         {variazione && (
           <p className={`text-xs mt-1 font-medium max-sm:mt-0 max-sm:truncate max-sm:text-[11px] ${

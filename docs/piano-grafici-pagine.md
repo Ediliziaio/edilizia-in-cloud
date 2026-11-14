@@ -261,3 +261,13 @@ si aggiorna qui la tabella del lotto 0 con il commit.
 - **Call center, anelli per tasso di contatto e show-up:** non fatti. Le otto schede hanno già la variazione col colore; gli anelli sono nella dashboard Call center.
 - **Venditori:** al posto dei «tre più vicini e tre più lontani», ogni agente con un obiettivo ha la sua barra (fino a otto), dal più avanti al più indietro. «Mese scorso» invece di «ultimo mese», perché il mese in corso è a metà e dicembre non è ancora arrivato.
 - **Prova a video:** Demo Azienda 2 non ha chiamate, non ha obiettivi dei venditori e ha fatturato solo a maggio. Il trend dei venditori è quello vero; obiettivi e chiamate sono numeri di prova. Il pannello CRM è stato visto vuoto, per controllare il disegno e il tema scuro.
+
+## Lotto 4: le cose rimaste fuori (fatto)
+
+- **Contabilità, Bilancio:** ciambelle «Com'è fatto l'attivo» e «Com'è fatto il passivo e netto», per mastro. Nel passivo c'è anche l'utile, così il totale torna con l'attivo.
+- **Contabilità, Liquidazione IVA:** barre dell'IVA sulle vendite e sugli acquisti per periodo, con la riga «da versare nell'anno / a credito / periodi registrati». Usa le stesse anteprime della tabella, senza letture in più.
+- **Contabilità, Scritture:** quattro riquadri: scritture dell'esercizio con la tendenza mese per mese, da fatture ricevute, da fatture emesse, da guardare.
+- **Costi, Pianificazione:** riquadro scuro «Budget dell'anno». Confronta lo speso con il budget solo dove c'è un budget (categoria più mese), e mostra le categorie fuori budget.
+- **Report Calls:** anelli su tasso di contatto, show-up e lead lavorati, con le stesse soglie dei colori delle schede. L'anello è ora un pezzo comune (`AnelloPercentuale`) e lo usa anche la dashboard Call center.
+- **Previsionale:** «Disponibilità oggi» ha la tendenza del saldo a fine di ogni settimana dell'orizzonte.
+- **Resta escluso:** il riquadro scuro «Copertura» del Previsionale, perché ripeterebbe il riquadro del rischio che c'è già.

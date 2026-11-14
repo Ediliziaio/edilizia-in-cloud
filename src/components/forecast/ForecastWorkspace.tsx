@@ -1122,6 +1122,9 @@ export function ForecastWorkspace({
                     : "Collega un conto o completa la Prima Nota"
               }
               tono={data.opening.cents == null ? "neutro" : data.opening.cents < 0 ? "male" : "neutro"}
+              // Dove va la cassa da oggi: il saldo a fine di ogni settimana dell'orizzonte.
+              tendenza={data.opening.cents == null ? undefined : [data.opening.cents, ...weeks.map((w) => w.balance).filter((b): b is number => b != null)]}
+              etichettaTendenza="Saldo previsto a fine di ogni settimana, da oggi"
             />
             <RiquadroNumero
               etichetta="Punto più basso"

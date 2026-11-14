@@ -58,6 +58,7 @@ export function CallCenterKPISection({ kpi, prima, isLoading }: Props) {
       icon: Phone,
       colorKey: getContactRateColor(kpi?.tasso_contatto ?? 0),
       benchmark: "40–70%",
+      anello: { pct: kpi?.tasso_contatto ?? 0, soglie: [40, 60] as [number, number] },
       variazione: conPrima ? variazionePunti(kpi?.tasso_contatto, p?.tasso_contatto) : null,
     },
     {
@@ -85,6 +86,7 @@ export function CallCenterKPISection({ kpi, prima, isLoading }: Props) {
       icon: Users,
       colorKey: (kpi?.tasso_show_up ?? 0) >= 70 ? "green" as ColorKey : (kpi?.tasso_show_up ?? 0) >= 50 ? "yellow" as ColorKey : "red" as ColorKey,
       benchmark: ">70% ottimo",
+      anello: { pct: kpi?.tasso_show_up ?? 0, soglie: [50, 70] as [number, number] },
       variazione: conPrima && (p?.appuntamenti_fissati ?? 0) > 0 ? variazionePunti(kpi?.tasso_show_up, p?.tasso_show_up) : null,
     },
     {
@@ -94,6 +96,7 @@ export function CallCenterKPISection({ kpi, prima, isLoading }: Props) {
       icon: Target,
       colorKey: (kpi?.pct_lead_lavorati ?? 0) >= 90 ? "green" as ColorKey : (kpi?.pct_lead_lavorati ?? 0) >= 70 ? "yellow" as ColorKey : "red" as ColorKey,
       benchmark: ">90%",
+      anello: { pct: kpi?.pct_lead_lavorati ?? 0, soglie: [70, 90] as [number, number] },
       variazione: conPrima ? variazionePunti(kpi?.pct_lead_lavorati, p?.pct_lead_lavorati) : null,
     },
     {

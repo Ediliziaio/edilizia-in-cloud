@@ -27,7 +27,7 @@ import {
   type RigaCoda,
 } from "@/hooks/useCallCenterDashboard";
 import { formattaMinuti, indicatori } from "@/lib/reporting/callCenterNumeri";
-import { PillolaVariazione } from "@/components/charts/grafici/comune";
+import { AnelloPercentuale, PillolaVariazione } from "@/components/charts/grafici/comune";
 import { cn } from "@/lib/utils";
 
 const GRUPPI: { id: CategoriaCoda; titolo: string; descrizione: string }[] = [
@@ -92,28 +92,6 @@ function differenza(ora: number | null, prima: number | null, punti: boolean): n
   return prima === 0 ? null : ((ora - prima) / Math.abs(prima)) * 100;
 }
 
-/**
- * Anello della percentuale: si riempie all'apertura (ferma con «riduci
- * movimento», vedi .anello-riempie in index.css).
- */
-function Anello({ pct }: { pct: number }) {
-  const r = 15;
-  const c = 2 * Math.PI * r;
-  const p = Math.max(0, Math.min(100, pct));
-  const colore = p >= 60 ? "hsl(var(--chart-2))" : p >= 30 ? "hsl(var(--chart-3))" : "hsl(var(--chart-5))";
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0 -rotate-90" aria-hidden>
-      <circle cx="20" cy="20" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="4" />
-      <circle
-        cx="20" cy="20" r={r} fill="none" stroke={colore} strokeWidth="4" strokeLinecap="round"
-        strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)}
-        className="anello-riempie"
-        style={{ ["--anello-pieno" as string]: String(c) }}
-      />
-    </svg>
-  );
-}
-
 function Riquadro({
   etichetta, valore, nota, variazione, anello,
 }: {
@@ -141,7 +119,7 @@ function Riquadro({
         </div>
         {nota && <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{nota}</p>}
       </div>
-      {anello != null && <span className="hidden sm:block"><Anello pct={anello} /></span>}
+      {anello != null && <span className="hidden sm:block"><AnelloPercentuale pct={anello} /></span>}
     </div>
   );
 }

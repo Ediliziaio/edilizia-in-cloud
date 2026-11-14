@@ -6,7 +6,10 @@
  * stampare. Le regole stanno nel database (contabilita_*): qui si legge e si
  * chiamano le funzioni, niente scritture dirette sulle tabelle.
  */
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
+import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Download, FileInput, Lock, Plus, Printer, Trash2, Undo2 } from "lucide-react";
@@ -385,6 +388,10 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   // Il filtro vale per l'elenco delle scritture; il libro giornale resta intero.
   const visibili = filtro === "tutte" ? elenco : elenco.filter((s) => gruppoDi(s.origine) === filtro);
   const quante = (k: GruppoOrigine) => (k === "tutte" ? elenco.length : elenco.filter((s) => gruppoDi(s.origine) === k).length);
+  // Per i riquadri: ultima data registrata e quante scritture per mese (fino al mese dell'ultima).
+  const ultima = elenco.reduce<string | null>((u, s) => (!u || s.data_registrazione > u ? s.data_registrazione : u), null);
+  const fino = ultima ? Number(ultima.slice(5, 7)) : 0;
+  const perMese = Array.from({ length: fino }, (_, i) => elenco.filter((s) => Number(s.data_registrazione.slice(5, 7)) === i + 1 && s.data_registrazione.startsWith(String(anno))).length);
   const apriStampa = () => {
     const a = anagrafica.data;
     setStampa(htmlLibroGiornale({
@@ -404,6 +411,26 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           title="Libro giornale — anteprima di stampa" fileName={`libro-giornale-${anno}`} soloPdf />
       )}
       <DaGuardare esito={esercizio?.generato_esito} />
+      {/* 14/11/2026: i numeri dell'esercizio in riquadri, con le scritture mese per mese. */}
+      {!giornale && elenco.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <RiquadroNumero
+            etichetta="Scritture dell'esercizio"
+            valore={elenco.length.toLocaleString("it-IT")}
+            periodo={ultima ? `Ultima del ${new Date(`${ultima}T12:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}` : `Esercizio ${anno}`}
+            tendenza={perMese}
+            etichettaTendenza="Scritture registrate mese per mese"
+          />
+          <RiquadroNumero etichetta="Da fatture ricevute" valore={quante("ricevute").toLocaleString("it-IT")} periodo="Costi" />
+          <RiquadroNumero etichetta="Da fatture emesse" valore={quante("emesse").toLocaleString("it-IT")} periodo="Ricavi" />
+          <RiquadroNumero
+            etichetta="Da guardare"
+            valore={String((esercizio?.generato_esito?.avvisi?.length ?? 0) + (esercizio?.generato_esito?.errori?.length ?? 0))}
+            periodo="Dall'ultimo aggiornamento"
+            tono={(esercizio?.generato_esito?.errori?.length ?? 0) > 0 ? "male" : (esercizio?.generato_esito?.avvisi?.length ?? 0) > 0 ? "attenzione" : "buono"}
+          />
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
           {anno}: {g.scritture} scritture · dare {euro(g.totaleDare)} · avere {euro(g.totaleAvere)}
@@ -703,6 +730,12 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           etichettaTendenza="Utile progressivo mese per mese"
         />
       </div>
+      {!isMobile && (sezioni.attivo.totale > 0 || sezioni.passivo.totale > 0) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <ComposizioneLato titolo="Com'è fatto l'attivo" lato={sezioni.attivo} />
+          <ComposizioneLato titolo="Com'è fatto il passivo e netto" lato={sezioni.passivo} extra={sezioni.utile > 0 ? { nome: "Utile dell'esercizio", valore: sezioni.utile } : undefined} />
+        </div>
+      )}
       {!isMobile && mesi.some((m) => m.ricavi !== 0 || m.costi !== 0) && (
         <section aria-label="Ricavi e costi mese per mese" className="rounded-2xl border bg-card p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-semibold">Ricavi e costi mese per mese</h3>
@@ -762,6 +795,55 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
 }
 
 /** Un lato del bilancio: i mastri col loro totale, e sotto i conti (si aprono). In fondo il totale del lato. */
+const COLORI_MASTRI = [COLORI_GRAFICO.blu, COLORI_GRAFICO.arancio, COLORI_GRAFICO.verde, COLORI_GRAFICO.viola, COLORI_GRAFICO.rosso, "hsl(var(--muted-foreground))"];
+
+/**
+ * Com'è fatto un lato del bilancio: ciambella dei mastri (i primi cinque,
+ * gli altri insieme) con la legenda in euro e percentuale.
+ */
+function ComposizioneLato({ titolo, lato, extra }: { titolo: string; lato: LatoBilancio; extra?: { nome: string; valore: number } }) {
+  const fermo = usePreferisceMenoMovimento();
+  const positivi = lato.mastri.filter((m) => m.totale > 0).sort((a, b) => b.totale - a.totale);
+  const fette = positivi.slice(0, 5).map((m) => ({ nome: m.descrizione || m.codice || "Senza mastro", valore: m.totale }));
+  const resto = positivi.slice(5).reduce((s, m) => s + m.totale, 0);
+  if (resto > 0) fette.push({ nome: "Altri mastri", valore: resto });
+  // Il passivo si legge con l'utile, come nella tabella: così il totale torna con l'attivo.
+  if (extra && extra.valore > 0) fette.push(extra);
+  const tot = fette.reduce((s, f) => s + f.valore, 0);
+  if (fette.length === 0 || tot <= 0) return null;
+  return (
+    <div className="rounded-2xl border bg-card p-4 shadow-sm">
+      <h4 className="mb-2 text-sm font-semibold">{titolo}</h4>
+      <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
+        <div className="relative h-[150px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={fette} dataKey="valore" nameKey="nome" innerRadius={46} outerRadius={70} paddingAngle={fette.length > 1 ? 2 : 0} stroke="hsl(var(--card))" strokeWidth={2} isAnimationActive={!fermo} animationDuration={800}>
+                {fette.map((f, i) => <Cell key={f.nome} fill={COLORI_MASTRI[i % COLORI_MASTRI.length]} />)}
+              </Pie>
+              <RechartsTooltip content={(p) => <TooltipScheda active={p.active} payload={(p.payload ?? []).map((x) => ({ ...x, color: (x.payload as { fill?: string } | undefined)?.fill })) as never} label={titolo} />} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Totale</span>
+            <span className="text-xs font-bold tabular-nums">{euroAsse(tot)}</span>
+          </div>
+        </div>
+        <ul className="space-y-1.5 text-xs">
+          {fette.map((f, i) => (
+            <li key={f.nome} className="flex items-center gap-2">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COLORI_MASTRI[i % COLORI_MASTRI.length] }} />
+              <span className="min-w-0 flex-1 truncate">{f.nome}</span>
+              <span className="tabular-nums">{euro(f.valore)}</span>
+              <span className="w-9 text-right tabular-nums text-muted-foreground">{Math.round((f.valore / tot) * 100)}%</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function LatoDelBilancio({ titolo, lato, chiusura }: { titolo: string; lato: LatoBilancio; chiusura?: { etichetta: string; importo: number } }) {
   const totale = lato.totale + (chiusura?.importo ?? 0);
   return (
@@ -979,12 +1061,64 @@ interface EsitoLiquidazione {
 }
 
 /**
+ * IVA a debito (vendite) e a credito (acquisti) periodo per periodo, con la
+ * riga «da versare nell'anno / a credito / periodi registrati». Dalle stesse
+ * anteprime della tabella sotto: nessuna lettura in più.
+ */
+function GraficoIva({ periodi, esiti }: { periodi: Array<{ nome: string; dal: string }>; esiti: EsitoLiquidazione[] }) {
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
+  const dati = periodi.map((p, i) => ({ nome: p.nome, vendite: esiti[i]?.iva_vendite ?? 0, acquisti: esiti[i]?.iva_acquisti ?? 0 }));
+  if (dati.every((d) => d.vendite === 0 && d.acquisti === 0)) return null;
+  const daVersare = esiti.reduce((s, r) => s + (r.da_versare ?? 0) + (r.interessi ?? 0), 0);
+  const aCredito = esiti.length ? esiti[esiti.length - 1].a_credito ?? 0 : 0;
+  const conMovimenti = esiti.filter((r) => r.iva_vendite !== 0 || r.iva_acquisti !== 0);
+  const registrati = conMovimenti.filter((r) => r.gia_liquidato).length;
+  return (
+    <section aria-label="IVA per periodo" className="rounded-2xl border bg-card p-4 shadow-sm">
+      <div className="mb-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+        <StatGrafico etichetta="Da versare nell'anno" valore={euro(daVersare)} nota="somma dei periodi" tono={daVersare > 0 ? "cattivo" : "neutro"} />
+        <StatGrafico etichetta="A credito" valore={euro(aCredito)} nota="all'ultimo periodo" tono={aCredito > 0 ? "buono" : "neutro"} />
+        <StatGrafico etichetta="Periodi registrati" valore={`${registrati} su ${conMovimenti.length}`} nota="con movimenti IVA" tono={registrati === conMovimenti.length ? "buono" : "neutro"} />
+      </div>
+      <div className="h-[200px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={dati} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="24%">
+            {defsGrafico(id, { vendite: COLORI_GRAFICO.rosso, acquisti: COLORI_GRAFICO.verde })}
+            <CartesianGrid fill={`url(#${id}-punti)`} strokeDasharray="4 6" vertical={false} stroke="hsl(var(--border))" />
+            <XAxis dataKey="nome" tick={TESTO_ASSE} axisLine={false} tickLine={false} tickFormatter={(v: string) => v.slice(0, 3)} />
+            <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={60} tickFormatter={euroAsse} />
+            <RechartsTooltip
+              cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+              content={(p) => (
+                <TooltipScheda
+                  active={p.active}
+                  payload={(p.payload ?? []).map((x) => ({ ...x, color: x.dataKey === "vendite" ? COLORI_GRAFICO.rosso : COLORI_GRAFICO.verde })) as never}
+                  label={String(p.label ?? "")}
+                />
+              )}
+            />
+            <Bar dataKey="vendite" name="IVA sulle vendite (a debito)" fill={`url(#${id}-barra-vendite)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} />
+            <Bar dataKey="acquisti" name="IVA sugli acquisti (a credito)" fill={`url(#${id}-barra-acquisti)`} radius={[4, 4, 0, 0]} maxBarSize={18} isAnimationActive={!fermo} animationDuration={700} animationBegin={120} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="mt-2 flex flex-wrap justify-end gap-4 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.rosso }} />IVA sulle vendite</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORI_GRAFICO.verde }} />IVA sugli acquisti</span>
+      </div>
+    </section>
+  );
+}
+
+/**
  * Liquidazione IVA in contabilità: l'IVA su vendite e su acquisti del periodo si gira su
  * Erario c/IVA (contabilita_liquida_iva). L'importo si legge dalle scritture: un documento
  * non ancora registrato non c'è, quindi prima si genera dai documenti.
  */
 function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number }) {
   const qc = useQueryClient();
+  const isMobile = useIsMobile();
   const [trimestrale, setTrimestrale] = useState(false);
   const periodi = periodiIva(anno, trimestrale);
   const esiti = useQuery({
@@ -1027,6 +1161,7 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
           Gli importi sono l'IVA non ancora liquidata a fine periodo: genera prima dai documenti. Il credito di un periodo abbatte il debito dei successivi; sotto 25,82 € il debito passa al periodo dopo.
         </span>
       </div>
+      {!isMobile && esiti.data && <GraficoIva periodi={periodi} esiti={esiti.data} />}
       {esiti.isLoading || esiti.isError ? (
         <FiscalQueryState loading={esiti.isLoading} error={esiti.isError} onRetry={() => void esiti.refetch()} />
       ) : (
@@ -1058,7 +1193,7 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
                     <td className="p-2 text-right tabular-nums">{r.a_credito ? euro(r.a_credito) : ""}</td>
                     <td className="p-2 text-right">
                       {r.gia_liquidato ? (
-                        <span className="rounded bg-emerald-50 px-1.5 text-xs text-emerald-800">registrata</span>
+                        <span className="rounded bg-emerald-50 px-1.5 text-xs text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">registrata</span>
                       ) : vuoto ? null : r.sotto_minimo ? (
                         <span className="text-xs text-muted-foreground" title="Sotto 25,82 € non si versa">passa al periodo dopo</span>
                       ) : (
@@ -1103,7 +1238,7 @@ function DaGuardare({ esito }: { esito: StatoEsercizioRiga["generato_esito"] }) 
   const errori = esito?.errori ?? [];
   if (avvisi.length + errori.length === 0) return null;
   return (
-    <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    <details className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
       <summary className="cursor-pointer font-medium">
         Da guardare: {avvisi.length} {avvisi.length === 1 ? "cosa" : "cose"}{errori.length ? ` · ${errori.length} non registrati` : ""}
       </summary>
@@ -1341,7 +1476,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
             <ContiPerRuolo companyId={companyId} chiuso={chiuso}
               ruoli={[...(chiusura.data!.conto_utile_da_scegliere ? [RUOLI_UTILE] : []), ...(chiusura.data!.conto_utili_a_nuovo === false ? [RUOLI_UTILI_A_NUOVO] : [])]} />
             {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 || chiusura.data!.ammortamenti_da_registrare || chiusura.data!.tfr_da_registrare || chiusura.data!.esercizio_precedente_aperto || chiusura.data!.imposte_da_stanziare ? (
-              <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-6 pr-3 text-amber-900">
+              <ul className="list-disc rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 py-2 pl-6 pr-3 text-amber-900">
                 {chiusura.data!.esercizio_precedente_aperto ? <li>L'esercizio {chiusura.data!.esercizio_precedente_aperto} è ancora aperto: gli esercizi si chiudono in ordine, prima quello.</li> : null}
                 {(chiusura.data!.iva_non_liquidata ?? 0) !== 0 ? <li>C'è IVA non ancora liquidata: registra la liquidazione dell'ultimo periodo (la chiusura la rifiuta).</li> : null}
                 {chiusura.data!.ammortamenti_da_registrare ? <li>Ammortamenti non registrati.</li> : null}
