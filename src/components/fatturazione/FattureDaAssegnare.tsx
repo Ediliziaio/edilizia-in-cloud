@@ -28,6 +28,8 @@ interface Riga {
   cedente_ragione_sociale: string | null;
   totale_documento: number | null;
   order_match_confidenza: number | null;
+  /** «CUP …», «CIG …», «codice commessa …» se la proposta viene dalle regole; null se dall'AI. */
+  order_suggerito_motivo: string | null;
   costo: { id: string; order_id: string | null; purchase_order_id: string | null; supplier: { tipo: string | null } | null } | null;
   quote?: { purchase_order_id: string }[] | null;
   suggerito: { id: string; order_code: string | null; client_name: string | null; deleted_at: string | null } | null;
@@ -50,7 +52,7 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
       const data = await readAllPages<Riga>((from, to) => db
         .from("fatture_ricevute")
         .select(
-          "id,numero_fattura,data_fattura,cedente_ragione_sociale,totale_documento,order_match_confidenza,costo:company_costs!inner(id,order_id,purchase_order_id,supplier:suppliers(tipo)),quote:fattura_ricevuta_ordini(purchase_order_id),suggerito:orders!fatture_ricevute_order_id_suggerito_fkey(id,order_code,client_name,deleted_at)",
+          "id,numero_fattura,data_fattura,cedente_ragione_sociale,totale_documento,order_match_confidenza,order_suggerito_motivo,costo:company_costs!inner(id,order_id,purchase_order_id,supplier:suppliers(tipo)),quote:fattura_ricevuta_ordini(purchase_order_id),suggerito:orders!fatture_ricevute_order_id_suggerito_fkey(id,order_code,client_name,deleted_at)",
         )
         .eq("company_id", companyId)
         .eq("stato", "contabilizzata")
@@ -85,6 +87,20 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // Prima le regole, poi l'AI: la commessa dai codici che la fattura porta (CUP, CIG, codice commessa).
+  const daCodici = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await db.rpc("fatture_proponi_commessa_da_codici", { p_company_id: companyId });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: (n: number) => {
+      toast.success(n ? `${n} fattur${n === 1 ? "a" : "e"} con la commessa riconosciuta da CUP, CIG o codice` : "Nessuna commessa riconosciuta da CUP, CIG o codice");
+      qc.invalidateQueries({ queryKey: ["fatture-da-assegnare", companyId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const righe = q.data ?? [];
   const conProposta = useMemo(() => righe.filter((r) => r.suggerito && !r.suggerito.deleted_at), [righe]);
   if (!righe.length) return null;
@@ -114,6 +130,9 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
                   </span>
                 </span>
                 <span className="tabular-nums">{formatCurrency(Number(r.totale_documento) || 0)}</span>
+                <span className="text-xs text-muted-foreground" title={r.order_suggerito_motivo ? "Riconosciuta dai codici della fattura, senza AI" : "Proposta dall'AI"}>
+                  {r.order_suggerito_motivo ? `da ${r.order_suggerito_motivo}` : "proposta AI"}
+                </span>
                 {puoModificare && r.costo && r.suggerito && (
                   <Button
                     size="sm"
@@ -140,6 +159,11 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
         <p className="text-xs text-muted-foreground">
           {righe.length - conProposta.length} senza proposta: apri la fattura e scegli la commessa, oppure segna il fornitore
           come «Spese generali» nei tipi dei fornitori.
+          {puoModificare && (
+            <Button size="sm" variant="link" className="ml-1 h-auto p-0 text-xs" disabled={daCodici.isPending} onClick={() => daCodici.mutate()}>
+              Cerca da CUP, CIG e codici commessa
+            </Button>
+          )}
         </p>
       )}
       </>}

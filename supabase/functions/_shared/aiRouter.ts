@@ -149,6 +149,12 @@ export interface AiRouterCompleteOptions {
   turnControl?: AiTurnControl;
   /** Opaque, tenant-scoped identifier: no client names or prompt text. */
   sessionId?: string;
+  /**
+   * Perché serve l'AI (fase 5, 14/11/2026): le regole non sono bastate. Finisce nei metadati del
+   * registro (ai_call_ledger.metadata.motivo), così chi guarda i costi sa perché la chiamata c'è stata.
+   * Breve e senza dati del cliente: «commessa non riconosciuta da CUP/CIG/codice», «categoria mancante».
+   */
+  motivo?: string;
 }
 
 export interface AiRouterCompleteResult {
@@ -1441,7 +1447,7 @@ export async function aiRouterComplete(
           status: "success",
           durationMs,
           // generation_id: l'id OpenRouter della chiamata, per unire il registro all'export per generazione
-          metadata: { task: opts.taskKey, generation_id: (data as { id?: string })?.id ?? null,
+          metadata: { task: opts.taskKey, ...(opts.motivo ? { motivo: opts.motivo } : {}), generation_id: (data as { id?: string })?.id ?? null,
             original_idempotency_key: idempotencyKey,
             provider_request_key: guard?.key ?? null, cost_source: costSource,
             provider_cost_complete: hasProviderCost,
@@ -1523,7 +1529,7 @@ export async function aiRouterComplete(
             applied_markup_pct: 0,
             status: "skipped",
             duration_ms: durationMs,
-            metadata: { task: opts.taskKey, skip_reason: "skipCharge=true" },
+            metadata: { task: opts.taskKey, skip_reason: "skipCharge=true", ...(opts.motivo ? { motivo: opts.motivo } : {}) },
           });
         } catch (skipInsErr) {
           console.warn("[aiRouter] skipped ledger insert (non-blocking):", skipInsErr);

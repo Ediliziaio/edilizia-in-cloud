@@ -18,6 +18,11 @@
  * Output:
  *   { success, classified: [{fattura_id, categoria_ai, sottocategoria_ai, ...}], ai_meta }
  *
+ * Prima le regole, poi l'AI (14/11/2026): la commessa si riconosce da CUP, CIG o codice commessa
+ * (funzione SQL commessa_da_codici) senza modello. Se le regole trovano la commessa e la fattura ha
+ * già la categoria, il modello non si chiama; altrimenti si chiama col motivo, che finisce nel
+ * registro dei costi AI (ai_call_ledger.metadata.motivo).
+ *
  * Chi chiama lo controlla requireAuth qui sotto, non il gateway: fino al
  * 24/09/2026 era pubblicata con verify_jwt = true, e il gateway rifiuta i token
  * ES256 degli utenti prima del codice — il pulsante rispondeva 401 a tutti.
@@ -28,6 +33,7 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { commessaFinale, decidiClassificazione, type CommessaDaRegole } from "../_shared/regolePrimaDellAi.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -91,6 +97,27 @@ interface ClassifiedFattura {
   order_match_confidenza: number;
   ai_riassunto: string;
   error?: string;
+  /** «regole» se la commessa l'hanno data CUP/CIG/codice e il modello non è servito. */
+  fonte?: "ai" | "regole";
+  order_motivo?: string | null;
+}
+
+/** La commessa dai codici della fattura, senza AI. Un errore qui non ferma la classificazione. */
+async function commessaDaRegole(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any, fattura: AnyObj, companyId: string,
+): Promise<CommessaDaRegole | null> {
+  try {
+    const { data, error } = await supabase.rpc("commessa_da_codici", {
+      p_company_id: companyId, p_xml: fattura.xml_raw ?? null, p_righe: fattura.righe ?? null, p_escludi: fattura.id,
+    });
+    if (error) { console.warn("[ai-fattura-classify] regole non disponibili:", error.message); return null; }
+    const r = Array.isArray(data) ? data[0] : data;
+    return r?.order_id ? { order_id: String(r.order_id), motivo: String(r.motivo ?? "codice") } : null;
+  } catch (e) {
+    console.warn("[ai-fattura-classify] regole non disponibili:", e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 async function classifyOne(
@@ -98,6 +125,30 @@ async function classifyOne(
   supabase: any, fattura: AnyObj, openOrders: AnyObj[],
   companyId: string, userId: string,
 ): Promise<{ result: ClassifiedFattura; modelUsed: string; tokens: number; cost: number }> {
+  const regola = await commessaDaRegole(supabase, fattura, companyId);
+  const decisione = decidiClassificazione(regola, fattura.categoria_ai);
+  if (!decisione.chiamaAi && regola) {
+    await supabase
+      .from("fatture_ricevute")
+      .update({ order_id_suggerito: regola.order_id, order_match_confidenza: 1, order_suggerito_motivo: regola.motivo })
+      .eq("id", fattura.id);
+    return {
+      result: {
+        fattura_id: fattura.id,
+        categoria_ai: String(fattura.categoria_ai),
+        sottocategoria_ai: String(fattura.sottocategoria_ai ?? ""),
+        confidenza: Number(fattura.categoria_confidenza ?? 0),
+        order_id_match: regola.order_id,
+        order_match_confidenza: 1,
+        ai_riassunto: String(fattura.ai_riassunto ?? ""),
+        fonte: "regole",
+        order_motivo: regola.motivo,
+      },
+      modelUsed: "regole",
+      tokens: 0,
+      cost: 0,
+    };
+  }
   const payload = {
     fattura: {
       id: fattura.id,
@@ -145,6 +196,7 @@ async function classifyOne(
     // Stessa fattura ri-classificata (retry, re-upload) → cache, niente
     // seconda chiamata a pagamento (audit AI 2026-06).
     cacheTtlDays: 90,
+    motivo: decisione.motivo ?? undefined,
   });
 
   let parsed: AnyObj;
@@ -161,10 +213,12 @@ async function classifyOne(
   const confClamp = Math.max(0, Math.min(1, Number(parsed.confidenza) || 0));
   const orderConf = Math.max(0, Math.min(1, Number(parsed.order_match_confidenza) || 0));
   // Validate order_id_match exists in openOrders
-  let orderMatch: string | null = parsed.order_id_match ?? null;
-  if (orderMatch && !openOrders.some((o) => o.id === orderMatch)) {
-    orderMatch = null;
+  let orderMatchAi: string | null = parsed.order_id_match ?? null;
+  if (orderMatchAi && !openOrders.some((o) => o.id === orderMatchAi)) {
+    orderMatchAi = null;
   }
+  const commessa = commessaFinale(regola, { orderId: orderMatchAi, confidenza: orderConf });
+  const orderMatch = commessa.orderId;
 
   // Persist
   await supabase
@@ -174,7 +228,8 @@ async function classifyOne(
       sottocategoria_ai: String(parsed.sottocategoria_ai ?? "").slice(0, 100),
       categoria_confidenza: confClamp,
       order_id_suggerito: orderMatch,
-      order_match_confidenza: orderConf,
+      order_match_confidenza: commessa.confidenza,
+      order_suggerito_motivo: commessa.motivo,
       ai_riassunto: String(parsed.ai_riassunto ?? "").slice(0, 500),
       ai_classificata_at: new Date().toISOString(),
       ai_classify_model: aiResult.modelUsed,
@@ -201,8 +256,10 @@ async function classifyOne(
       sottocategoria_ai: String(parsed.sottocategoria_ai ?? ""),
       confidenza: confClamp,
       order_id_match: orderMatch,
-      order_match_confidenza: orderConf,
+      order_match_confidenza: commessa.confidenza,
       ai_riassunto: String(parsed.ai_riassunto ?? ""),
+      fonte: "ai",
+      order_motivo: commessa.motivo,
     },
     modelUsed: aiResult.modelUsed,
     tokens: aiResult.totalTokens,
@@ -266,7 +323,7 @@ Deno.serve(async (req: Request) => {
     // Fetch fatture
     const { data: fatture, error: fetchErr } = await supabaseAdmin
       .from("fatture_ricevute")
-      .select("id, cedente_ragione_sociale, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, righe, note, company_cost_id")
+      .select("id, cedente_ragione_sociale, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, righe, note, company_cost_id, xml_raw, categoria_ai, sottocategoria_ai, categoria_confidenza, ai_riassunto")
       .eq("company_id", company_id)
       .in("id", ids);
     if (fetchErr) return errorResponse(`Fetch error: ${fetchErr.message}`, 500, cors);
@@ -311,6 +368,8 @@ Deno.serve(async (req: Request) => {
       ai_meta: {
         fatture_processate: results.length,
         fatture_failed: results.filter((r) => r.error).length,
+        // Quante senza modello: commessa da CUP/CIG/codice e categoria già nota.
+        fatture_da_regole: results.filter((r) => r.fonte === "regole").length,
         model_used: lastModel,
         total_tokens: totTokens,
         total_cost_eur: totCost,

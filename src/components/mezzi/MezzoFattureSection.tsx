@@ -33,6 +33,12 @@ export function totaleConfermato(righe: ReadonlyArray<Pick<Riga, "importo" | "co
   return Math.round(righe.reduce((s, r) => s + (r.confermata ? Number(r.importo ?? 0) : 0), 0) * 100) / 100;
 }
 
+/** Le proposte nate dalla targa e non ancora guardate: quante e quanto valgono (fuori dal costo del mezzo). */
+export function totaleDaConfermare(righe: ReadonlyArray<Pick<Riga, "importo" | "confermata">>): { quante: number; importo: number } {
+  const aperte = righe.filter((r) => !r.confermata);
+  return { quante: aperte.length, importo: Math.round(aperte.reduce((s, r) => s + Number(r.importo ?? 0), 0) * 100) / 100 };
+}
+
 export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: string; puoModificare: boolean }) {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();
@@ -69,7 +75,7 @@ export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: strin
       const { error: e } = await db.from("fattura_ricevuta_mezzi").update({ confermata: true, confermata_da: u.user?.id ?? null, confermata_at: new Date().toISOString() }).in("id", ids).eq("company_id", companyId).eq("mezzo_id", mezzoId);
       if (e) throw e;
     },
-    onSuccess: aggiorna, onError: errore,
+    onSuccess: (_d, ids) => { if (ids.length > 1) toast.success(`${ids.length} fatture confermate sul mezzo`); aggiorna(); }, onError: errore,
   });
   const togli = useMutation({
     mutationFn: async (id: string) => { const { error: e } = await db.from("fattura_ricevuta_mezzi").delete().eq("id", id).eq("company_id", companyId).eq("mezzo_id", mezzoId); if (e) throw e; },
@@ -87,13 +93,17 @@ export function MezzoFattureSection({ mezzoId, puoModificare }: { mezzoId: strin
   if (isLoading) return <p className="text-sm text-muted-foreground">Carico le fatture…</p>;
   if (error) return <p className="text-sm text-destructive">Fatture non disponibili.</p>;
   const daConfermare = righe.filter((r) => !r.confermata);
+  const sospese = totaleDaConfermare(righe);
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm"><span className="font-semibold">{formatCurrency(totaleConfermato(righe))}</span> <span className="text-muted-foreground">da fatture confermate, imponibile</span></p>
+        <p className="text-sm">
+          <span className="font-semibold">{formatCurrency(totaleConfermato(righe))}</span> <span className="text-muted-foreground">da fatture confermate, imponibile</span>
+          {sospese.quante > 0 && <span className="text-amber-700 dark:text-amber-400"> · {formatCurrency(sospese.importo)} da confermare ({sospese.quante})</span>}
+        </p>
         {puoModificare && (
           <div className="flex gap-2">
-            {daConfermare.length > 0 && <Button size="sm" onClick={() => conferma.mutate(daConfermare.map((r) => r.id))}><Check className="mr-1.5 h-3.5 w-3.5" />Conferma {daConfermare.length} proposte</Button>}
+            {daConfermare.length > 0 && <Button size="sm" disabled={conferma.isPending} onClick={() => conferma.mutate(daConfermare.map((r) => r.id))}><Check className="mr-1.5 h-3.5 w-3.5" />Conferma tutte ({daConfermare.length})</Button>}
             <Button size="sm" variant="outline" disabled={cerca.isPending} onClick={() => cerca.mutate()}><Search className="mr-1.5 h-3.5 w-3.5" />Cerca la targa nelle fatture</Button>
           </div>
         )}

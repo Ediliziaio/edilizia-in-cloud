@@ -5,7 +5,7 @@
 import { inParallelo } from "@/lib/fatturazione/importMassivo";
 import { nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
 
-export type AzioneRicevute = "pagate" | "da_pagare" | "verificate" | "da_verificare" | "contabilizza" | "commessa";
+export type AzioneRicevute = "pagate" | "da_pagare" | "verificate" | "da_verificare" | "contabilizza" | "commessa" | "mezzi";
 
 export interface RicevutaInBlocco {
   id: string;
@@ -25,6 +25,8 @@ export interface RicevutaInBlocco {
   /** Già legata a un ordine d'acquisto: la commessa la decide l'ordine. */
   conOrdine: boolean;
   scadenze: (string | null)[];
+  /** Mezzi proposti dalla targa e non ancora confermati; assente = non si sa (si prova). */
+  mezziDaConfermare?: number;
 }
 
 /** Perché una fattura resta fuori; null se l'azione vale per lei. */
@@ -55,6 +57,10 @@ export function motivoEsclusione(azione: AzioneRicevute, r: RicevutaInBlocco): s
     case "commessa":
       if (rifiutata) return "rifiutata";
       if (r.conOrdine) return "legata a un ordine d'acquisto";
+      return null;
+    case "mezzi":
+      if (rifiutata) return "rifiutata";
+      if (r.mezziDaConfermare === 0) return "nessun mezzo da confermare";
       return null;
   }
 }

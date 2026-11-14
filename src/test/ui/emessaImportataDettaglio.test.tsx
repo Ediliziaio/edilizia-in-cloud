@@ -124,9 +124,25 @@ describe("Incasso dall'elenco delle fatture emesse importate", () => {
     state.invoice!.paid_amount = 122.02; state.invoice!.status = "paid"; state.rpc.mockClear();
     elenco();
     fireEvent.click(await screen.findByRole("button", { name: "Riporta da incassare la fattura FPR 10/26" }));
-    expect(state.rpc).not.toHaveBeenCalled();
+    const riportate = () => state.rpc.mock.calls.filter((c: unknown[]) => c[0] === "fattura_importata_torna_da_incassare");
+    expect(riportate()).toHaveLength(0);
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Riporta da incassare" }));
-    await waitFor(() => expect(state.rpc).toHaveBeenCalledExactlyOnceWith("fattura_importata_torna_da_incassare", { p_invoice_id: "inv-1" }));
+    await waitFor(() => expect(riportate()).toEqual([["fattura_importata_torna_da_incassare", { p_invoice_id: "inv-1" }]]));
+  });
+  it("incassata senza un incasso registrato: lo dice, e da lì si riporta da incassare (una o tutte)", async () => {
+    state.invoice!.paid_amount = 122.02; state.invoice!.status = "paid"; state.invoice!.external_provider = "xml_import";
+    state.rpc.mockImplementation((async (nome: string) => nome === "fatture_importate_senza_incasso"
+      ? { data: [{ invoice_id: "inv-1", pagato: 122.02, data_pagamento: "2026-03-31", storico: false }] as unknown, error: null as Error | null }
+      : { data: null as unknown, error: null as Error | null }) as never);
+    elenco();
+    fireEvent.click(await screen.findByRole("button", { name: "Senza incasso registrato: riporta da incassare la fattura FPR 10/26" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Riportare da incassare la fattura FPR 10/26?");
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Annulla" }));
+    expect(screen.getByRole("status")).toHaveTextContent("1 fattura risulta incassata senza un incasso registrato");
+    fireEvent.click(screen.getByRole("button", { name: "Riportale da incassare" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Riporta da incassare" }));
+    await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("fattura_importata_torna_da_incassare", { p_invoice_id: "inv-1" }));
+    state.rpc.mockImplementation((async () => ({ data: null as unknown, error: null as Error | null })) as never);
   });
   it("incassata da un gestionale collegato: niente pulsante, il dato torna da là", async () => {
     state.invoice!.paid_amount = 122.02; state.invoice!.status = "paid"; state.invoice!.external_provider = "fattureincloud";

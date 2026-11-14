@@ -7,6 +7,10 @@
  *   3. Inserisce/aggiorna `fatture_ricevute` (idempotente per numero+cedente)
  *   4. Ritorna anteprima per conferma utente
  *
+ * Lo stesso file non si legge due volte (14/11/2026): la risposta del modello si ricorda per
+ * l'impronta SHA-256 del contenuto (ai_response_cache, 365 giorni, per azienda). Due caricamenti
+ * dello stesso PDF, anche con nomi o percorsi diversi, fanno una sola lettura AI.
+ *
  * Body:
  *   {
  *     storage_path: "company_id/file.pdf" | "user_id/file.pdf",
@@ -29,6 +33,7 @@ import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { controllaDocumento, conAvvisi } from "../_shared/controlliDocumento.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { erroreAiPerUtente, letturaNonRiuscita } from "../_shared/erroriAi.ts";
+import { chiaveLetturaFile, improntaFile } from "../_shared/improntaFile.ts";
 
 const SYSTEM_PROMPT = `Estrai da fattura passiva italiana i seguenti campi in JSON.
 
@@ -126,6 +131,7 @@ serve(async (req: Request) => {
     }
 
     const mimeType = body?.mime_type || (file as Blob).type || "application/pdf";
+    const impronta = await improntaFile(buffer);
     const base64 = bytesToBase64(buffer);
     const dataUrl = `data:${mimeType};base64,${base64}`;
     const isImage = mimeType.startsWith("image/");
@@ -158,8 +164,12 @@ serve(async (req: Request) => {
       responseFormat: { type: "json_object" },
       companyId,
       userId,
-      idempotencyKey: `ocr_fattura_${companyId}_${bucket}_${storagePath}`,
+      idempotencyKey: `ocr_fattura_${companyId}_${impronta}`,
       estimatedCostEur: 0.12,
+      // Stesso contenuto = stessa lettura: la chiave è l'impronta del file, non il percorso.
+      cacheTtlDays: 365,
+      cacheKey: chiaveLetturaFile("fattura_ricevuta_ocr", impronta),
+      motivo: "lettura di un file mai letto (nessun XML)",
     });
     // Prima un JSON.parse nudo: alla prima recinzione ```json la lettura finiva in errore.
     const parsed = leggiJsonDalModello(aiResult.content);
@@ -264,6 +274,9 @@ serve(async (req: Request) => {
       duration_ms: aiResult.durationMs,
       model_used: aiResult.modelUsed,
       ledger_id: aiResult.ledgerId ?? null,
+      // Stesso file già letto: risposta dalla cache, nessuna nuova lettura AI.
+      letta_da_cache: aiResult.prechargeReason === "cache_hit",
+      impronta_file: impronta,
       created_invoice_id: createdId,
       preview_url: previewUrl,
       file_ref: { bucket, storage_path: storagePath },

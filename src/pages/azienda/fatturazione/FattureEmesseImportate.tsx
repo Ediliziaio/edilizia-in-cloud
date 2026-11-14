@@ -15,6 +15,9 @@ import { EmessaImportataDettaglio } from "@/components/fatturazione/EmessaImport
 import { RecuperaClientiImportati } from "@/components/fatturazione/RecuperaClientiImportati";
 import { SegnaPagataImportataDialog, importataPagabile } from "@/components/fatturazione/GestionaleEsterno";
 import { RiportaDaIncassareDialog } from "@/components/fatturazione/RiportaDaIncassare";
+import { BannerSenzaIncasso, useEmesseSenzaIncasso, type SenzaIncasso } from "@/components/fatturazione/EmesseSenzaIncasso";
+
+const NESSUNA = new Map<string, SenzaIncasso>();
 import type { DocumentoFiscale } from "@/types/fatturazione";
 import { importoConSegno, isNotaCredito, isDocumentoEmesso, isTipoVendita, tutteLePagine } from "@/lib/fatturazione/registroVendite";
 
@@ -35,6 +38,8 @@ export default function FattureEmesseImportate() {
   const apriDettaglio = (id: string, xml = false) => setSelezionata({ id, xml });
   const [daIncassare, setDaIncassare] = useState<DocumentoFiscale | null>(null);
   const [daRiaprire, setDaRiaprire] = useState<{ id: string; numero: string } | null>(null);
+  const [soloSenzaIncasso, setSoloSenzaIncasso] = useState(false);
+  const { data: senzaIncasso = NESSUNA } = useEmesseSenzaIncasso(companyId);
 
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ["fatture-emesse-importate", companyId, "dettagli-elenco"],
@@ -75,11 +80,11 @@ export default function FattureEmesseImportate() {
   const aperte = useMemo(() => new Map(daIncassareElenco.filter(importataPagabile).map((d) => [d.id, d])), [daIncassareElenco]);
 
   const filtrate = useMemo(() => {
-    const emesse = data.filter(f => isDocumentoEmesso(f.status) && isTipoVendita(f.document_type));
+    const emesse = data.filter(f => isDocumentoEmesso(f.status) && isTipoVendita(f.document_type) && (!soloSenzaIncasso || senzaIncasso.has(f.id)));
     const q = cerca.trim().toLowerCase();
     if (!q) return emesse;
     return emesse.filter((f) => [f.invoice_number, f.client_company_name, f.client_fiscal_code, f.client_vat_number, f.client_address, f.client_city, f.client_zip].filter(Boolean).join(" ").toLowerCase().includes(q));
-  }, [data, cerca]);
+  }, [data, cerca, soloSenzaIncasso, senzaIncasso]);
   const mesi = useMemo(() => raggruppaPerMese(filtrate), [filtrate]);
   const totale = useMemo(() => mesi.reduce((s, m) => s + m.totale, 0), [mesi]);
 
@@ -100,6 +105,8 @@ export default function FattureEmesseImportate() {
           <Input value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Numero, cliente, CF/P.IVA o indirizzo…" aria-label="Cerca fatture importate" className="h-9 pl-8" />
         </div>
       </div>
+
+      {companyId && <BannerSenzaIncasso companyId={companyId} senzaIncasso={senzaIncasso} soloQueste={soloSenzaIncasso} onSoloQueste={setSoloSenzaIncasso} />}
 
       {isLoading ? (
         <div className="space-y-2"><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /></div>
@@ -174,7 +181,17 @@ export default function FattureEmesseImportate() {
                         <TableCell className="text-right text-xs tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.tax_amount))}</TableCell>
                         <TableCell className="text-right text-xs font-medium tabular-nums">{formatCurrency(importoConSegno(f.document_type, f.total))}</TableCell>
                         <TableCell className="text-right text-xs tabular-nums">
-                          {f.status === "paid" && !isNotaCredito(f.document_type) && f.external_provider === "xml_import" ? (
+                          {senzaIncasso.has(f.id) ? (
+                            <button
+                              type="button"
+                              onClick={() => setDaRiaprire({ id: f.id, numero: f.invoice_number })}
+                              title={`Segnata ${f.status === "paid" ? "incassata" : "incassata in parte"} senza un incasso registrato: clic per riportarla da incassare`}
+                              aria-label={`Senza incasso registrato: riporta da incassare la fattura ${f.invoice_number}`}
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-300 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800 dark:hover:bg-amber-900"
+                            >
+                              {f.status === "paid" ? "Pagata" : formatCurrency(Number(f.paid_amount ?? 0))} · senza incasso
+                            </button>
+                          ) : f.status === "paid" && !isNotaCredito(f.document_type) && f.external_provider === "xml_import" ? (
                             <button
                               type="button"
                               onClick={() => setDaRiaprire({ id: f.id, numero: f.invoice_number })}

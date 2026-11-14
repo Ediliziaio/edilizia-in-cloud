@@ -134,6 +134,17 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     },
     onSuccess: aggiorna, onError: errore,
   });
+  // Tutti i mezzi proposti dalla targa su questa fattura, in un clic.
+  const confermaTutti = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { data: u } = await supabase.auth.getUser();
+      const { data: fatti, error } = await db.from("fattura_ricevuta_mezzi").update({ confermata: true, confermata_da: u.user?.id ?? null, confermata_at: new Date().toISOString() })
+        .in("id", ids).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).eq("confermata", false).select("id");
+      if (error) throw error;
+      if (!fatti?.length) throw new Error("Nessun mezzo confermato: forse li ha già confermati qualcun altro.");
+    },
+    onSuccess: aggiorna, onError: errore,
+  });
   const togliMezzo = useMutation({
     mutationFn: async (id: string) => { esigiRigaSalvata(await db.from("fattura_ricevuta_mezzi").delete().eq("id", id).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).select("id").maybeSingle()); },
     onSuccess: aggiorna, onError: errore,
@@ -172,6 +183,11 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
             {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli ${m.mezzi?.nome ?? "mezzo"}`} title="Togli" onClick={() => togliMezzo.mutate(m.id)}><X className="h-3.5 w-3.5" /></button>}
           </span>
         ))}
+        {puoModificare && (data?.mezzi ?? []).filter((m) => !m.confermata).length > 1 && (
+          <Azione disabled={confermaTutti.isPending} onClick={() => confermaTutti.mutate((data?.mezzi ?? []).filter((m) => !m.confermata).map((m) => m.id))}>
+            Conferma tutti ({(data?.mezzi ?? []).filter((m) => !m.confermata).length})
+          </Azione>
+        )}
         {isError ? <span role="alert" className="text-xs text-destructive">Collegamenti non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button></span> : !data?.mezzi.length && <span className="text-muted-foreground">Nessuno</span>}
         {puoModificare && (
           <Popover open={apriMezzo} onOpenChange={setApriMezzo}>

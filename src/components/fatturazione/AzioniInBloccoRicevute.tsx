@@ -2,9 +2,9 @@
  * La barra delle modifiche in blocco sulle fatture ricevute. Prima di partire dice su quante fatture
  * agisce e quali salta; alla fine elenca quelle non riuscite, col motivo del database.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCheck, FileCheck2, FolderKanban, Loader2, Receipt, RotateCcw, ShieldCheck, ShieldOff, X } from "lucide-react";
+import { CheckCheck, FileCheck2, FolderKanban, Loader2, Receipt, RotateCcw, ShieldCheck, ShieldOff, Truck, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
@@ -37,8 +37,19 @@ const AZIONI: Record<AzioneRicevute, { etichetta: string; titolo: string; confer
   da_verificare: { etichetta: "Da verificare", titolo: "Rimetti da verificare", conferma: "Rimetti da verificare", fatto: "di nuovo da verificare", icona: ShieldOff },
   contabilizza: { etichetta: "Contabilizza", titolo: "Contabilizza", conferma: "Contabilizza", fatto: "contabilizzate", icona: Receipt },
   commessa: { etichetta: "Commessa", titolo: "Metti su una commessa", conferma: "Metti sulla commessa", fatto: "messe sulla commessa", icona: FolderKanban },
+  mezzi: { etichetta: "Conferma mezzi", titolo: "Conferma i mezzi proposti dalla targa", conferma: "Conferma i mezzi", fatto: "con i mezzi confermati", icona: Truck },
 };
-const ORDINE: AzioneRicevute[] = ["pagate", "da_pagare", "verificate", "da_verificare", "contabilizza", "commessa"];
+const ORDINE: AzioneRicevute[] = ["pagate", "da_pagare", "verificate", "da_verificare", "contabilizza", "commessa", "mezzi"];
+
+/** I mezzi proposti dalla targa su una fattura, tutti confermati. Torna quanti. */
+const confermaMezzi = async (fatturaId: string, companyId: string): Promise<number> => {
+  const { data: u } = await supabase.auth.getUser();
+  const { data, error } = await db.from("fattura_ricevuta_mezzi")
+    .update({ confermata: true, confermata_da: u.user?.id ?? null, confermata_at: new Date().toISOString() })
+    .eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).eq("confermata", false).select("id");
+  if (error) throw error;
+  return (data ?? []).length;
+};
 
 const fatture = (n: number) => `${n} fattur${n === 1 ? "a" : "e"}`;
 
@@ -57,13 +68,14 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
   const [commessa, setCommessa] = useState<string | undefined>();
   const [fatte, setFatte] = useState<number | null>(null);
   const [fallite, setFallite] = useState<Esito<RicevutaInBlocco>["fallite"]>([]);
+  const mezziConfermati = useRef(0);
 
   const selezione = useMemo(() => (azione ? dividiPerAzione(azione, righe) : null), [azione, righe]);
   const totale = selezione?.idonee.reduce((s, r) => s + Number(r.totale ?? 0), 0) ?? 0;
   const inCorso = fatte !== null;
 
   const aggiorna = () => {
-    for (const k of ["fatture-ricevute", "fatture-ricevute-pagamento", "fattura-ricevuta-riepilogo", "commessa-fatture-fornitori", "oda-contabilita", "cashflow"]) {
+    for (const k of ["fatture-ricevute", "fatture-ricevute-pagamento", "fattura-ricevuta-riepilogo", "commessa-fatture-fornitori", "oda-contabilita", "cashflow", "fattura-collegamenti", "mezzo-fatture", "mezzo-costo-orario", "mezzi-piano-fonti"]) {
       void queryClient.invalidateQueries({ queryKey: [k] });
     }
     void queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
@@ -83,6 +95,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
       case "da_verificare": return segnaVerifica(r.id, false);
       case "contabilizza": return chiama("contabilizza_fattura_ricevuta", { p_fattura_id: r.id });
       case "commessa": return chiama("commessa_collega_fattura_ricevuta", { p_fattura_id: r.id, p_order_id: commessa });
+      case "mezzi": return confermaMezzi(r.id, companyId).then((n) => { mezziConfermati.current += n; });
     }
   };
 
@@ -109,11 +122,15 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
 
   const parti = async () => {
     if (!azione || !selezione) return;
+    mezziConfermati.current = 0;
     setFatte(0);
     const esito = await eseguiInBlocco(selezione.idonee, lavoro(azione), setFatte);
     setFatte(null);
     aggiorna();
-    if (esito.riuscite.length) {
+    if (azione === "mezzi" && esito.riuscite.length) {
+      const n = mezziConfermati.current;
+      toast.success(n ? `${n} mezz${n === 1 ? "o confermato" : "i confermati"} su ${fatture(esito.riuscite.length)}` : "Nessun mezzo da confermare sulle fatture scelte");
+    } else if (esito.riuscite.length) {
       const fatto = esito.riuscite.length === 1 ? AZIONI[azione].fatto.replace(/^segnate pagate$/, "segnata pagata").replace(/^verificate$/, "verificata").replace(/^contabilizzate$/, "contabilizzata").replace(/^messe /, "messa ") : AZIONI[azione].fatto;
       toast.success(`${fatture(esito.riuscite.length)} ${fatto}`, { action: annullamento(azione, esito.riuscite), duration: 10_000 });
     }
@@ -185,6 +202,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
               <OrderSelectCombobox filtroIniziale="all" companyId={companyId} value={commessa} placeholder="Cerca la commessa…" onChange={(id) => setCommessa(id)} />
             )}
             {azione === "contabilizza" && <p className="text-muted-foreground">Crea un costo per ogni fattura. Non si annulla in blocco.</p>}
+            {azione === "mezzi" && <p className="text-muted-foreground">Conferma i mezzi che la targa ha trovato nelle righe: il loro importo entra nel costo del mezzo. Le fatture senza proposte restano come sono.</p>}
             {inCorso && selezione && <p className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {fatte} di {selezione.idonee.length}…</p>}
             {fallite.length > 0 && (
               <div className="rounded-md border border-destructive/40 p-2.5 text-xs">

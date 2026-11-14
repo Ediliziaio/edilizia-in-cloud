@@ -22,6 +22,7 @@ import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
+import { useEmesseSenzaIncasso } from "@/components/fatturazione/EmesseSenzaIncasso";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { IncassiFatturaDialog } from "@/components/fatturazione/IncassiFattura";
@@ -464,6 +465,8 @@ function DocumentiFiscaliListInner() {
   // «Segna pagate»: un incasso per fattura (registra_incasso_atomico), solo
   // su quelle che hanno qualcosa da incassare; le altre si dicono nel dialog.
   const pagabiliSelezionate = useMemo(() => selectedDocs.filter(isDocumentoPagabile), [selectedDocs]);
+  // Emesse da XML segnate incassate senza un incasso registrato: lo si dice accanto allo stato.
+  const { data: senzaIncasso } = useEmesseSenzaIncasso(effectiveCompany?.id);
   const importateDaIncassare = useMemo(() => selectedDocs.filter(importataPagabile), [selectedDocs]);
   const [bulkIncassaOpen, setBulkIncassaOpen] = useState(false);
 
@@ -1086,7 +1089,12 @@ function DocumentiFiscaliListInner() {
                             <FaseSdiBadge doc={doc} />
                           </div>
                         ) : (
-                          <StatoBadge stato={doc.stato} />
+                          <div className="flex flex-wrap items-center gap-1">
+                            <StatoBadge stato={doc.stato} />
+                            {doc.origine === "importata" && senzaIncasso?.has(doc.id) && (
+                              <span className="whitespace-nowrap text-[10px] font-medium text-amber-700 dark:text-amber-400" title="Segnata incassata senza un incasso registrato, una scadenza incassata o un bonifico abbinato">senza incasso</span>
+                            )}
+                          </div>
                         )}
                       </TableCell>
 
