@@ -141,7 +141,7 @@ ordine. È il difetto che il 14/11 mostrava −97.046 € finti su Callimaco.
 - Documenti dell'unità obbligatori dalla prenotazione (oggi 27 mancanti su O-0003, 59 su O-0002
   per unità che nessuno vende ancora).
 
-### Lotto 5 — P2 · La Panoramica di un'operazione in costruzione
+### Lotto 5 — P2 · La Panoramica di un'operazione in costruzione — FATTO 14/11
 Oggi parla di vendite (tabella di tutte le unità, documenti di vendita) e ha due percorsi di
 avvio. Per chi costruisce, in quest'ordine:
 1. I quattro numeri (ricavi previsti, capitale impegnato, margine a finire, da incassare).
@@ -211,4 +211,11 @@ I lotti 1-4 non chiedono niente al titolare e si possono fare subito.
   stato di vendita. Margine di un'unità libera o prenotata: nessuno (prima il listino). Documenti
   di vendita di un'unità: dovuti dalla prenotazione. La vista a colonne, senza filtri, non mostra
   più le unità (paginazione al primo livello).
+- **Lotto 5.** Verificato a schermo su Via Callimaco a 1366 px. Percorso unico a 5 passi
+  (il quinto «Da dove arrivano i soldi»; «Per partire» non compare più per sviluppo e
+  compravendita col piano). Riquadro Cantiere (`RiquadroCantiereOperazione`): fasi e
+  avanzamento, uscite del mese contro il previsto del piano (5.869 € su 17.905 € a novembre),
+  ultimi costi. Unità in una riga finché sono tutte libere, senza il grafico delle vendite;
+  tornano tabella e grafico dalla prima prenotazione. Nel Cantiere le unità sono un gruppo a
+  parte sotto la generale. Documenti mancanti di Via Callimaco: 59 → 7.
 

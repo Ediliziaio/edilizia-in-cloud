@@ -10,8 +10,9 @@ import type { UnitaDalPiano } from "@/lib/orders/generali/unitaDalPiano";
  * «Completa l'operazione» in Panoramica (14/11/2026): un'operazione appena nata da un business
  * plan ha un percorso solo — unità, mesi, stime, approvazione — invece di tre avvisi sparsi.
  */
-const m = vi.hoisted(() => ({ numeri: null as unknown, telefono: false }));
+const m = vi.hoisted(() => ({ numeri: null as unknown, telefono: false, fonti: [] as unknown[] }));
 vi.mock("@/hooks/useGeneralePiano", () => ({ useGeneralePianoNumeri: () => m.numeri }));
+vi.mock("@/hooks/useGeneraleInvestitori", () => ({ useFontiGenerale: () => ({ data: m.fonti, isLoading: false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => m.telefono }));
 
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
@@ -45,22 +46,22 @@ const disegna = (r: RiepilogoGenerale, unita: UnitaDalPiano | null = dalPiano) =
     </MemoryRouter>,
   );
 
-beforeEach(() => { n = 0; m.telefono = false; });
+beforeEach(() => { n = 0; m.telefono = false; m.fonti = [{ id: "f1" }]; });
 afterEach(cleanup);
 
 describe("completa l'operazione", () => {
-  it("quattro passi nell'ordine del titolare, il primo da fare in evidenza", () => {
+  it("cinque passi nell'ordine del titolare, il primo da fare in evidenza", () => {
     m.numeri = numeri([voce({ mese: null }), voce({ mese: null }), voce({ importo: 0, mese: null, nota: DA_STIMARE })]);
     disegna(riepilogo());
     const passi = within(screen.getByRole("list")).getAllByRole("listitem");
     expect(passi.map((p) => p.querySelector("p")?.textContent?.replace(/: da fare|: fatto/, ""))).toEqual([
-      "Cosa vendi", "Quando entrano ed escono i soldi", "Le stime che mancano", "Il budget di riferimento",
+      "Cosa vendi", "Quando entrano ed escono i soldi", "Le stime che mancano", "Il budget di riferimento", "Da dove arrivano i soldi",
     ]);
     expect(passi[0]).toHaveAttribute("aria-current", "step");
     expect(screen.getByText(/7 unità, 16 posti auto/)).toBeInTheDocument();
     expect(screen.getByText(/2 voci non hanno il mese/)).toBeInTheDocument();
     expect(screen.getByText(/1 voce è ancora da stimare/)).toBeInTheDocument();
-    expect(screen.getByText("0 di 4")).toBeInTheDocument();
+    expect(screen.getByText("1 di 5")).toBeInTheDocument();
   });
 
   it("ogni azione porta dove si fa la cosa", () => {
@@ -80,7 +81,7 @@ describe("completa l'operazione", () => {
     disegna(riepilogo(3), null);
     expect(within(screen.getByRole("list")).getAllByRole("listitem")[0]).toHaveTextContent("Cosa vendi: fatto");
     expect(screen.getByText("3 unità create.")).toBeInTheDocument();
-    expect(screen.getByText("2 di 4")).toBeInTheDocument();
+    expect(screen.getByText("3 di 5")).toBeInTheDocument();
     cleanup();
     m.numeri = numeri([voce({})], "approvata");
     const { container } = disegna(riepilogo(3), null);
@@ -93,5 +94,18 @@ describe("completa l'operazione", () => {
     disegna(riepilogo());
     expect(screen.getByText(/1 voce non ha il mese/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Metti i mesi/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("da dove arrivano i soldi", () => {
+  it("senza fonti è il quinto passo, con l'azione verso Investitori", () => {
+    m.fonti = [];
+    m.numeri = numeri([voce({})], "approvata");
+    disegna(riepilogo(3), null);
+    const passi = within(screen.getByRole("list")).getAllByRole("listitem");
+    expect(passi).toHaveLength(5);
+    expect(passi[4]).toHaveTextContent("Da dove arrivano i soldi: da fare");
+    fireEvent.click(screen.getByRole("button", { name: /Indica le fonti/ }));
+    expect(screen.getByTestId("indirizzo").textContent).toContain("scheda=investitori");
   });
 });

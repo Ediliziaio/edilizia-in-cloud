@@ -189,12 +189,17 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                   <option value={g.id}>
                     Commessa generale · {g.codice ?? g.nome}
                   </option>
-                  {riepilogo.figlie.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {DEFINIZIONI_MODELLI[g.modello].figlia.una} · {f.codice} ·{" "}
-                      {f.nome}
-                    </option>
-                  ))}
+                  {/* Il cantiere si registra sulla generale; le commesse dentro stanno in un gruppo
+                      a parte, sotto (un'operazione può averne 26). */}
+                  {riepilogo.figlie.length > 0 && (
+                    <optgroup label={`${DEFINIZIONI_MODELLI[g.modello].figlia.tante} (${riepilogo.figlie.length}) — solo ciò che è di una di loro`}>
+                      {riepilogo.figlie.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.codice} · {f.nome}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
               <p className="mt-2 text-xs text-muted-foreground">

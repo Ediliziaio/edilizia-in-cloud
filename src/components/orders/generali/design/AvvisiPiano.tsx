@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowUpRight } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
+import { useFontiGenerale } from "@/hooks/useGeneraleInvestitori";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { stimaMancante } from "@/lib/orders/generali/budgetCompletezza";
@@ -22,9 +23,12 @@ export function AvvisiPiano({
   puoModificare?: boolean;
 }) {
   const n = useGeneralePianoNumeri(riepilogo);
+  // Il quinto passo: da dove arrivano i soldi (era in «Per partire», che col piano non compare più).
+  const conFonti = riepilogo.generale.modello !== "appalto" && riepilogo.permessi.margini;
+  const fonti = useFontiGenerale(riepilogo.generale.id, conFonti);
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
-  if (!riepilogo.permessi.margini || n.isLoading || n.isError) return null;
+  if (!riepilogo.permessi.margini || n.isLoading || n.isError || (conFonti && fonti.isLoading)) return null;
 
   const vai = (scheda: string, extra: Record<string, string> = {}) => {
     const p = new URLSearchParams(parametri);
@@ -47,7 +51,8 @@ export function AvvisiPiano({
     const conUnita = moduliDelModello(riepilogo.generale.modello).includes("unita");
     const unitaCreate = riepilogo.figlie.length;
     const bozzaModificabile = puoModificare && n.inVista.stato === "bozza";
-    if (senzaMese || daStimare || dalPiano || !approvato) {
+    const quanteFonti = conFonti && Array.isArray(fonti.data) ? fonti.data.length : null;
+    if (senzaMese || daStimare || dalPiano || !approvato || quanteFonti === 0) {
       if (conUnita && (dalPiano || unitaCreate > 0))
         passi.push({
           id: "unita",
@@ -85,6 +90,16 @@ export function AvvisiPiano({
           : "Una volta approvato, diventa il riferimento per gli scostamenti.",
         azione: puoModificare ? { etichetta: "Vai all'approvazione", apri: () => vai("piano") } : undefined,
       });
+      if (quanteFonti !== null)
+        passi.push({
+          id: "fonti",
+          titolo: "Da dove arrivano i soldi",
+          fatto: quanteFonti > 0,
+          testo: quanteFonti > 0
+            ? `${voci1(quanteFonti, "fonte indicata", "fonti indicate")}.`
+            : "Mezzi propri, soci, banca: per sapere se coprono il capitale che l'operazione chiede.",
+          azione: puoModificare ? { etichetta: "Indica le fonti", apri: () => vai("investitori") } : undefined,
+        });
     }
   }
 

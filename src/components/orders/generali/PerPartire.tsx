@@ -32,6 +32,10 @@ export function PerPartire({ riepilogo, nuovaFiglia }: { riepilogo: RiepilogoGen
   // Finché una lettura è in corso non si mostra niente: la lista non deve lampeggiare passi già fatti.
   if (nascosta || contratto.isLoading || versioni.isLoading || voci.isLoading || fonti.isLoading) return null;
 
+  // Con un piano, sviluppo e compravendita hanno il percorso «Completa l'operazione»
+  // (AvvisiPiano), che comprende anche le fonti: qui si ripeterebbero gli stessi passi.
+  if (!appalto && margini && (versioni.data?.length ?? 0) > 0) return null;
+
   const passi = passiPerPartire(g.modello, {
     figlie: riepilogo.figlie.length,
     contrattoCompilato: contratto.data ? valoreContratto(contratto.data.contratto, contratto.data.atti) !== null : null,

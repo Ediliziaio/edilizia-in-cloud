@@ -11,6 +11,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
+import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
 import { STATI_VENDITA, type StatoVendita } from "@/lib/orders/generali/unita";
 import "./design/commessa-generale.css";
@@ -53,6 +54,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const [collega, setCollega] = useState(false);
   const [modifica, setModifica] = useState(false);
   const [analisiUnita, setAnalisiUnita] = useState(false);
+  const [elencoUnita, setElencoUnita] = useState(false);
   const [parametri, setParametri] = useSearchParams();
   const puoModificare = !!permissions.canEditOrders && !isMobile;
 
@@ -87,13 +89,19 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const avvisi = avvisiGenerale(r, totali).filter(a => a.id !== "vuota");
   // Un'unità divisa non è più un'unità: si contano le sue parti.
   const quanteVive = r.figlie.filter((f) => !f.divisa).length;
+  // Finché nessuna unità ha un acquirente l'elenco in Panoramica è una riga: chi costruisce non
+  // deve scorrere 26 righe «Libera» per arrivare al resto. Torna tabella dalla prima prenotazione.
+  const unitaTutteLibere = immobiliare && r.figlie.length > 0 && r.figlie.every((f) => !f.statoVendita || f.statoVendita === "libera");
+  const unitaInUnaRiga = unitaTutteLibere && !elencoUnita && !analisiUnita;
   // Il cliente della generale arriva già scelto nella commessa nuova (customer_id è letto da CreateOrder).
   const nuovaFiglia = () => navigate(`/azienda/ordini/nuovo?generale=${generaleId}${r.generale.clienteId ? `&customer_id=${r.generale.clienteId}` : ""}`);
   const schede = schedeDelModello(r.generale.modello, isMobile);
   const riquadri = riquadriDelModello(r.generale.modello);
   const propsScheda = { riepilogo: r, totali, puoModificare };
   const iconeSchede = { unita: Building2, contratto: FileCheck2, piano: ChartNoAxesCombined, cantiere: HardHat, investitori: Landmark, documenti: FolderOpen };
-  const grafici = riquadri.filter(x => x.id === "contratto" || (x.id === "unita" && quanteVive > 0));
+  // Il grafico delle vendite compare dalla prima prenotazione: con tutte le unità libere ripete
+  // la riga delle unità (26 «Libere», tutto a zero) a chi sta ancora costruendo.
+  const grafici = riquadri.filter(x => x.id === "contratto" || (x.id === "unita" && quanteVive > 0 && !unitaTutteLibere));
   // La scheda aperta sta nell'indirizzo (?scheda=piano): si può mandare un link e tornare indietro.
   const richiesta = parametri.get("scheda") ?? (
     r.generale.modello === "appalto" && (SEZIONI_CONTRATTO as readonly string[]).includes(parametri.get("sezione") ?? "")
@@ -133,6 +141,9 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
       {puoModificare && r.figlie.length > 0 && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
 
+      {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
+      {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} />}
+
       {(grafici.length > 0 || r.permessi.costi && r.permessi.margini) && <div className="generale-chart-grid">
         {r.permessi.costi && r.permessi.margini && <ComposizioneCosti riepilogo={r} />}
         {grafici.map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}
@@ -143,8 +154,18 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
           <h2 id="figlie-titolo" className="flex items-center gap-2.5 text-base font-semibold"><span className="generale-section-icon">{immobiliare ? <Building2 aria-hidden="true" /> : <HardHat aria-hidden="true" />}</span>{r.figlie.length ? def.figlia.tante : "Gestione dell'operazione"}{r.figlie.length > 0 && <span className="generale-count">{quanteVive}</span>}</h2>
           {r.figlie.length > 0 && (immobiliare ? <Button size="sm" variant="ghost" aria-pressed={analisiUnita} onClick={() => setAnalisiUnita(v => !v)}>{analisiUnita ? "Torna alle vendite" : "Analisi per unità"}</Button> : <span className="text-xs text-muted-foreground">Avanzamento {Math.round(totali.avanzamento)}%</span>)}
         </header>
-        {immobiliare && r.figlie.length > 0 && <p className="border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">Costi e margine si controllano sull'intera operazione. L'analisi per unità mostra una ripartizione indicativa dei costi registrati, distinta dal margine finale del piano.</p>}
-        {r.figlie.length === 0 && dalPiano ? (
+        {immobiliare && r.figlie.length > 0 && !unitaInUnaRiga && <p className="border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">Costi e margine si controllano sull'intera operazione. L'analisi per unità mostra una ripartizione indicativa dei costi registrati, distinta dal margine finale del piano.</p>}
+        {unitaInUnaRiga ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-3 text-sm">
+            <span className="min-w-0 flex-1">
+              <span className="font-medium">{quanteVive === 1 ? "1 unità" : `${quanteVive} unità`}</span>, {quanteVive === 1 ? "libera" : "tutte libere"}
+              {r.permessi.importi && totali.assegnato !== null && <> · listino <span className="tabular-nums">{euro(totali.assegnato)}</span></>}
+              <span className="block text-xs text-muted-foreground">Nessuna è ancora prenotata: quando inizi a vendere, qui torna l'elenco con acquirenti e incassi.</span>
+            </span>
+            <Button size="sm" variant="ghost" className="h-8" onClick={() => setElencoUnita(true)}>Mostra l'elenco</Button>
+            {!isMobile && <Button size="sm" variant="outline" className="h-8" onClick={() => apriScheda("unita")}><Building2 className="mr-1.5 h-3.5 w-3.5" /> Unità e vendite</Button>}
+          </div>
+        ) : r.figlie.length === 0 && dalPiano ? (
           <div className="space-y-3 px-4 py-7 text-center">
             <div>
               <p className="text-sm">Il piano economico elenca <span className="font-medium">{dalPiano.composizione}</span>.</p>

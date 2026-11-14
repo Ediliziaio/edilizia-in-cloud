@@ -8,13 +8,16 @@ import { ArrowRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface PassoOperazione {
-  id: "unita" | "calendario" | "stime" | "approva";
+  id: "unita" | "calendario" | "stime" | "approva" | "fonti";
   titolo: string;
   /** Cosa manca, o cosa è fatto. */
   testo: string;
   fatto: boolean;
   azione?: { etichetta: string; apri: () => void };
 }
+
+// Classi scritte per intero: Tailwind non vede quelle composte.
+const COLONNE: Record<number, string> = { 3: "xl:grid-cols-3", 4: "xl:grid-cols-4", 5: "xl:grid-cols-5" };
 
 export function CompletaOperazione({ passi, telefono }: { passi: PassoOperazione[]; telefono: boolean }) {
   const fatti = passi.filter((p) => p.fatto).length;
@@ -32,7 +35,7 @@ export function CompletaOperazione({ passi, telefono }: { passi: PassoOperazione
           </span>
         </span>
       </header>
-      <ol className="grid divide-y md:grid-cols-2 md:divide-y-0 xl:grid-cols-4 xl:divide-x">
+      <ol className={cn("grid divide-y md:grid-cols-2 md:divide-y-0 xl:divide-x", COLONNE[passi.length] ?? "xl:grid-cols-4")}>
         {passi.map((p, i) => (
           <li
             key={p.id}
