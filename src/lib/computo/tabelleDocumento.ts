@@ -7,11 +7,24 @@ import type { ComputoStrutturato } from "./computoStrutturato";
  * (`computoDaGriglia`). Niente AI quando il computo è una tabella.
  */
 
-/** Il separatore lo decide la prima riga con più campi: in Italia è quasi sempre «;». */
-function separatoreCsv(testo: string): string {
-  const righe = testo.split(/\r?\n/).filter(r => r.trim()).slice(0, 20);
-  const conta = (sep: string) => Math.max(0, ...righe.map(r => r.split(sep).length - 1));
-  return [";", "\t", ","].sort((a, b) => conta(b) - conta(a))[0];
+/**
+ * Il separatore è quello che divide le righe sempre nello stesso numero di campi.
+ * Non quello che compare più volte: in Italia i decimali e le descrizioni sono
+ * pieni di virgole («…10 cm, compresi collante, tasselli;mq;180,00;62,00»), e
+ * contando la riga più carica vinceva la virgola (14/11/2026, prova nel browser:
+ * «Non sembra un computo» su un CSV a «;» qualsiasi). A pari coerenza, «;» poi tab.
+ */
+export function separatoreCsv(testo: string): string {
+  const righe = testo.replace(/^\uFEFF/, "").split(/\r?\n/).filter(r => r.trim()).slice(0, 40);
+  const coerenza = (sep: string) => {
+    const conte = righe.map(r => r.split(sep).length - 1).filter(n => n > 0);
+    if (!conte.length) return 0;
+    const frequenze = new Map<number, number>();
+    for (const n of conte) frequenze.set(n, (frequenze.get(n) ?? 0) + 1);
+    return Math.max(...frequenze.values());
+  };
+  const candidati = [";", "\t", ","];
+  return candidati.reduce((meglio, sep) => (coerenza(sep) > coerenza(meglio) ? sep : meglio), candidati[0]);
 }
 
 /** Righe di un CSV, con le virgolette e gli a capo dentro le celle. */

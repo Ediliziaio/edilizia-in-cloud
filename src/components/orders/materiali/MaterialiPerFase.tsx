@@ -397,7 +397,10 @@ function RigaMateriale({
     if (Number.isFinite(q) && q > 0 && q !== Number(m.quantity)) onQuantita(q);
   };
   const oltre = (m.ordinata ?? 0) > m.quantity && m.quantity > 0;
-  const descrizione = descrizioneVisibile(m.name, m.description);
+  // I materiali generati dal computo hanno la stessa frase in descrizione e specifiche:
+  // si scrive una volta sola (14/11/2026).
+  const descrizioneGrezza = descrizioneVisibile(m.name, m.description);
+  const descrizione = descrizioneGrezza && descrizioneGrezza !== m.specifiche?.replace(/\s+/g, " ").trim() ? descrizioneGrezza : null;
   const qta = quantitaLeggibile(m.quantity, m.unita_misura, info.unitaDaVerificare?.unitaOrdine);
   const tooltipStato = [
     info.dettaglio,

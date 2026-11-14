@@ -21,12 +21,16 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
   useRiprovaLetturaComputo: () => ({ mutate: vi.fn(), isPending: false }),
   useSalvaComputoImportato: () => ({ mutate: salva.mutate, isPending: false }),
 }));
+const tabelle = vi.hoisted(() => ({ fasi: [] as { id: string; name: string; position: number }[] }));
 vi.mock("@/integrations/supabase/client", () => {
-  const vuoto = { data: [] as unknown[], error: null as null };
-  const catena: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "neq", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
-  catena.then = (ok: (v: typeof vuoto) => unknown) => Promise.resolve(vuoto).then(ok);
-  return { supabase: { from: () => catena, functions: { invoke: vi.fn() }, rpc: vi.fn() } };
+  const da = (tabella: string) => {
+    const risposta = { data: (tabella === "order_work_phases" ? tabelle.fasi : []) as unknown[], error: null as null };
+    const catena: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "neq", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
+    catena.then = (ok: (v: typeof risposta) => unknown) => Promise.resolve(risposta).then(ok);
+    return catena;
+  };
+  return { supabase: { from: da, functions: { invoke: vi.fn() }, rpc: vi.fn() } };
 });
 
 import GeneraMaterialiDialog from "@/components/orders/materiali/GeneraMaterialiDialog";
@@ -54,7 +58,7 @@ const apri = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { computi = []; vociLette = []; salva.mutate.mockReset(); });
+beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; salva.mutate.mockReset(); });
 
 describe("Genera dal computo", () => {
   it("senza computo apre la finestra di «Importa voci»: trascinamento, scelta e gli stessi formati", async () => {
@@ -135,5 +139,21 @@ describe("Genera dal computo", () => {
     expect(screen.getByRole("button", { name: "Salva i materiali (0)" })).toBeDisabled();
     fireEvent.click(screen.getByText(/Escluse 1 voci/));
     expect(screen.getByText(/Demolizione, rimozione/)).toBeInTheDocument();
+  });
+
+  it("un computo senza capitoli («Opere edili» di riserva) va nelle fasi dei mestieri, senza creare una fase nuova", async () => {
+    // Prova su Demo Azienda 2, 14/11/2026: 30 materiali finivano in «Opere edili (nuova)».
+    tabelle.fasi = ["Intonaci e cartongessi", "Impianto idraulico", "Tinteggiature"].map((name, position) => ({ id: `f-${position}`, name, position }));
+    computi = [computo({})];
+    vociLette = [
+      { id: "v1", descrizione_breve: "Controsoffitto in cartongesso con lastra da 12,5 mm", unita_misura: "mq", quantita: 35, super_categoria: "Opere edili", capitolo_nome: "Opere edili" },
+      { id: "v2", descrizione_breve: "Fornitura e posa di vaso sospeso in ceramica", unita_misura: "cad", quantita: 2, super_categoria: "Opere edili", capitolo_nome: "Opere edili" },
+      { id: "v3", descrizione_breve: "Fornitura di sacchi di sabbia lavata", unita_misura: "cad", quantita: 10, super_categoria: "Opere edili", capitolo_nome: "Opere edili" },
+    ];
+    apri();
+    expect(await screen.findByText("Lastra in cartongesso")).toBeInTheDocument();
+    const fasi = screen.getAllByText(/ · \d+$/).map((e) => e.textContent);
+    expect(fasi).toEqual(expect.arrayContaining(["Intonaci e cartongessi · 5", "Impianto idraulico · 1", "Opere edili (nuova) · 1"]));
+    expect(fasi).toHaveLength(3);
   });
 });

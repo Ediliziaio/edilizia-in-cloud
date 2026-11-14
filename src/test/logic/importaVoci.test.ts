@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
 import { avvisiVoce, correggi, daEstrazioneServer, instrada, versoVoceLocale, type VoceImportata } from "@/lib/computo/importaVoci";
 import { leggiVociDaFile, MESSAGGIO_SENZA_SERVER, type Avanzamento } from "@/lib/computo/leggiVoci";
-import { computoDaTabelleWord, leggiComputoCsv, leggiDocumentoWord, righeCsv } from "@/lib/computo/tabelleDocumento";
+import { computoDaTabelleWord, leggiComputoCsv, leggiDocumentoWord, righeCsv, separatoreCsv } from "@/lib/computo/tabelleDocumento";
 import { voceVuota } from "@/lib/computo/editorNativo";
 import type { ComputoVoceEstratta } from "@/types/computo";
 
@@ -77,6 +77,19 @@ describe("CSV", () => {
   it("separatore «;», virgolette e virgole dentro le celle", () => {
     expect(righeCsv(CSV)[4]).toEqual(["1.2", "A.02", "Tinteggiatura, due mani", "mq", "20,00", "8,00", "160,00"]);
     expect(righeCsv("a,b\n1,2")).toEqual([["a", "b"], ["1", "2"]]);
+  });
+
+  it("a «;» anche quando una descrizione ha più virgole dei campi (14/11/2026)", () => {
+    // Prima vinceva la virgola: 6 nella riga del cappotto contro 5 punti e virgola, e il file era «Non sembra un computo».
+    const csv = [
+      "N.;Descrizione;U.M.;Quantità;Prezzo;Importo",
+      "1;Isolamento a cappotto con pannelli in EPS sp. 10 cm, compresi collante, tasselli, rete e rasatura;mq;180,00;62,00;11160,00",
+      "2;Battiscopa in legno h 8 cm;m;70,00;9,00;630,00",
+    ].join("\n");
+    expect(separatoreCsv(csv)).toBe(";");
+    expect(leggiComputoCsv(csv).voci.map(v => [v.unita_misura, v.quantita])).toEqual([["mq", 180], ["m", 70]]);
+    expect(separatoreCsv('descrizione,um,quantita\n"Intonaco, due mani",mq,10\nTinteggiatura,mq,20')).toBe(",");
+    expect(separatoreCsv("a\tb\tc\n1\t2,5\t3")).toBe("\t");
   });
 
   it("legge le voci come un foglio Excel, coi numeri all'italiana", () => {

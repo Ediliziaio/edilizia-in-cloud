@@ -220,6 +220,16 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     const faseVoce = (v: Parameters<typeof capitoloVoce>[0]) => {
       const c = capitoloVoce(v);
       const valore = mappa[c];
+      // Un capitolo senza fase che gli somigli diventerebbe una fase nuova: prima si
+      // prova la fase del mestiere della voce. Un computo senza capitoli li ha tutti in
+      // «Opere edili» (il nome di riserva dell'import): senza questo, 30 materiali
+      // finivano in una fase «Opere edili» da creare (prova su Demo Azienda 2, 14/11/2026).
+      // Vale lo stesso per la fase che l'AI indovina per un capitolo generico: decide il
+      // capitolo solo quando il suo nome somiglia a una fase o quando l'ha scelto l'utente.
+      if (scelte[c] === undefined && !sicuri.has(c)) {
+        const delMestiere = faseDaTesto(v, fasi);
+        if (delMestiere) return delMestiere;
+      }
       if (valore && valore !== SENZA) return valore;
       return scelte[c] === SENZA && c !== "Senza capitolo" ? null : faseDaTesto(v, fasi);
     };
@@ -231,7 +241,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
       conteggi: dati.data.conteggi,
       faseVoce,
     });
-  }, [dati.data, vociComputo, mappa, scelte]);
+  }, [dati.data, vociComputo, mappa, scelte, sicuri]);
   const materiali = useMemo<MaterialeCollegato[]>(
     () => (risultato && dati.data ? collegaMateriali(risultato.righe, dati.data.catalogo) : []),
     [risultato, dati.data],
