@@ -26,8 +26,10 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { BadgeGenerale, RigaAppartenenza } from "@/components/orders/generali/BadgeGerarchia";
+import { COLONNE_GERARCHIA, conGenerali, eGenerale, raggruppaPerGenerale, type RigaGerarchia } from "@/lib/orders/generali/gerarchiaScelta";
 
-export interface CommessaScelta {
+export interface CommessaScelta extends RigaGerarchia {
   id: string;
   order_code: string | null;
   description: string | null;
@@ -44,6 +46,13 @@ interface Props {
   /** Etichetta della scelta "nessuna commessa". */
   nessunaLabel?: string;
   className?: string;
+}
+
+/** Codice e nome delle generali delle figlie in elenco. */
+async function leggiGenerali(ids: string[]) {
+  const { data, error } = await supabase.from("orders").select("id, order_code, description").in("id", ids);
+  if (error) throw error;
+  return data ?? [];
 }
 
 export function CommessaCombobox({
@@ -68,7 +77,7 @@ export function CommessaCombobox({
     queryFn: async () => {
       let q = supabase
         .from("orders")
-        .select("id, order_code, description, client_name, work_address")
+        .select(`id, order_code, description, client_name, work_address, ${COLONNE_GERARCHIA}`)
         .eq("company_id", effectiveCompany!.id)
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
@@ -85,7 +94,7 @@ export function CommessaCombobox({
         );
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as CommessaScelta[];
+      return conGenerali((data ?? []) as unknown as CommessaScelta[], leggiGenerali);
     },
     enabled: !!effectiveCompany?.id && open,
     staleTime: 30_000,
@@ -98,12 +107,13 @@ export function CommessaCombobox({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, description, client_name, work_address")
+        .select(`id, order_code, description, client_name, work_address, ${COLONNE_GERARCHIA}`)
         .eq("id", value!)
         .eq("company_id", effectiveCompany!.id)
         .single();
       if (error) throw error;
-      return data as CommessaScelta;
+      const [conNome] = await conGenerali([data as unknown as CommessaScelta], leggiGenerali);
+      return conNome;
     },
     enabled: !!value && !!effectiveCompany?.id,
     staleTime: 60_000,
@@ -111,7 +121,7 @@ export function CommessaCombobox({
 
   const etichetta = value
     ? selezionata
-      ? `${selezionata.order_code ?? "Commessa"}${selezionata.description ? ` — ${selezionata.description.slice(0, 40)}` : ""}`
+      ? `${selezionata.order_code ?? "Commessa"}${selezionata.description ? ` — ${selezionata.description.slice(0, 40)}` : ""}${eGenerale(selezionata) ? " (generale)" : ""}`
       : "Commessa collegata"
     : nessunaLabel;
 
@@ -176,9 +186,10 @@ export function CommessaCombobox({
                   )}
                 />
               </CommandItem>
-              {commesse.map((c) => (
+              {raggruppaPerGenerale(commesse).map(({ riga: c, annidata }) => (
                 <CommandItem
                   key={c.id}
+                  className={cn(annidata && "pl-6")}
                   value={c.id}
                   onSelect={() => {
                     onChange(c.id);
@@ -186,16 +197,18 @@ export function CommessaCombobox({
                     setOpen(false);
                   }}
                 >
-                  <span className="font-mono text-xs mr-2">
-                    {c.order_code ?? "—"}
+                  <span className="mr-2 flex shrink-0 flex-col items-start gap-0.5">
+                    <span className="font-mono text-xs">{c.order_code ?? "—"}</span>
+                    <BadgeGenerale riga={c} />
                   </span>
                   <span className="min-w-0 text-slate-600">
                     <span className="block truncate">
-                      {c.client_name || c.description || "Commessa"}
+                      {eGenerale(c) ? c.description || c.client_name || "Commessa generale" : c.client_name || c.description || "Commessa"}
                     </span>
+                    <RigaAppartenenza riga={c} nascondi={annidata} />
                     <span className="block truncate text-xs text-slate-400">
                       {[
-                        c.description === c.client_name ? null : c.description,
+                        c.description === c.client_name || eGenerale(c) ? null : c.description,
                         c.work_address,
                       ]
                         .filter(Boolean)

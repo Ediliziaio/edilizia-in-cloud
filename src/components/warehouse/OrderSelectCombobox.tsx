@@ -25,11 +25,15 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
+import { BadgeGenerale, RigaAppartenenza } from "@/components/orders/generali/BadgeGerarchia";
+import { COLONNE_GERARCHIA, conGenerali, eGenerale, raggruppaPerGenerale, type RigaGerarchia } from "@/lib/orders/generali/gerarchiaScelta";
 
-export interface OrderOption {
+export interface OrderOption extends RigaGerarchia {
   id: string;
   order_code: string;
   customer_name: string | null;
+  /** Nome della commessa: per una generale è l'unico nome che c'è (nasce senza cliente né date). */
+  description?: string | null;
   default_warehouse_id: string | null;
   work_start_date: string | null;
   work_end_date: string | null;
@@ -51,11 +55,12 @@ interface Props {
   esclusi?: string[];
 }
 
-type Filter = "soon" | "in_corso" | "all";
+type Filter = "soon" | "in_corso" | "generali" | "all";
 
 const FILTERS: { key: Filter; label: string; description: string }[] = [
   { key: "soon", label: "Prossimi 30gg", description: "Lavori da iniziare nei prossimi 30 giorni" },
   { key: "in_corso", label: "In corso", description: "Status = in_corso" },
+  { key: "generali", label: "Grandi lavori", description: "Commesse generali con le loro commesse collegate" },
   { key: "all", label: "Tutti", description: "Tutti gli ordini recenti" },
 ];
 
@@ -117,7 +122,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         .select(`
           id, order_code, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name,last_name),
           work_start_date, work_end_date, expected_date,
-          indirizzo_lavori, work_address, status,
+          indirizzo_lavori, work_address, status, description, ${COLONNE_GERARCHIA},
           order_items ( destination_warehouse_id )
         `)
         .eq("company_id", companyId)
@@ -135,17 +140,22 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         );
       } else if (filter === "in_corso") {
         q = q.eq("status", "in_corso");
+      } else if (filter === "generali") {
+        q = q.or("workflow_kind.eq.generale,commessa_generale_id.not.is.null");
       }
 
       if (debouncedSearch) {
         const s = `%${debouncedSearch}%`;
         q = q.or(
-          `order_code.ilike.${s},client_name.ilike.${s},client_company.ilike.${s},indirizzo_lavori.ilike.${s},work_address.ilike.${s}`,
+          `order_code.ilike.${s},client_name.ilike.${s},client_company.ilike.${s},indirizzo_lavori.ilike.${s},work_address.ilike.${s},description.ilike.${s}`,
         );
       }
 
       // Tra i prossimi lavori prima il più vicino; altrimenti prima la commessa più recente, non quelle di anni fa.
-      q = q.order("work_start_date", { ascending: filter === "soon", nullsFirst: false }).limit(200);
+      q =
+        filter === "generali"
+          ? q.order("order_code", { ascending: true }).limit(200)
+          : q.order("work_start_date", { ascending: filter === "soon", nullsFirst: false }).limit(200);
 
       const { data, error } = await q;
       if (error) throw error;
@@ -161,9 +171,12 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         indirizzo_lavori: string | null;
         work_address: string | null;
         status: string | null;
+        description: string | null;
+        workflow_kind: string | null;
+        commessa_generale_id: string | null;
         order_items?: Array<{ destination_warehouse_id: string | null }> | null;
       };
-      return ((data ?? []) as unknown as RawRow[]).map((o) => ({
+      const righe: OrderOption[] = ((data ?? []) as unknown as RawRow[]).map((o) => ({
         id: o.id,
         order_code: o.order_code ?? "—",
         customer_name: o.client_company || o.client_name || [o.customer?.first_name, o.customer?.last_name].filter(Boolean).join(" ") || null,
@@ -174,7 +187,11 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         expected_date: o.expected_date,
         indirizzo_lavori: o.indirizzo_lavori || o.work_address,
         status: o.status,
+        description: o.description,
+        workflow_kind: o.workflow_kind,
+        commessa_generale_id: o.commessa_generale_id,
       }));
+      return conGenerali(righe, leggiGenerali);
     },
   });
 
@@ -198,16 +215,23 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
       if (!value || !companyId) return null;
       const { data, error } = await supabase
         .from("orders")
-        .select(`id, order_code, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name,last_name), work_start_date, work_end_date, expected_date, indirizzo_lavori, work_address, status, order_items ( destination_warehouse_id )`)
+        .select(`id, order_code, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name,last_name), work_start_date, work_end_date, expected_date, indirizzo_lavori, work_address, status, description, ${COLONNE_GERARCHIA}, order_items ( destination_warehouse_id )`)
         .eq("id", value)
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
-      type RawRow = typeof data & { order_items?: Array<{ destination_warehouse_id: string | null }> | null };
-      const r = data as RawRow;
-      return {
+      type RawRow = {
+        id: string; order_code: string | null; client_name: string | null; client_company: string | null;
+        customer?: { first_name: string | null; last_name: string | null } | null;
+        work_start_date: string | null; work_end_date: string | null; expected_date: string | null;
+        indirizzo_lavori: string | null; work_address: string | null; status: string | null;
+        description: string | null; workflow_kind: string | null; commessa_generale_id: string | null;
+        order_items?: Array<{ destination_warehouse_id: string | null }> | null;
+      };
+      const r = data as unknown as RawRow;
+      const riga: OrderOption = {
         id: r.id,
         order_code: r.order_code ?? "—",
         customer_name: r.client_company || r.client_name || [r.customer?.first_name, r.customer?.last_name].filter(Boolean).join(" ") || null,
@@ -218,7 +242,12 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         expected_date: r.expected_date,
         indirizzo_lavori: r.indirizzo_lavori || r.work_address,
         status: r.status,
+        description: r.description,
+        workflow_kind: r.workflow_kind,
+        commessa_generale_id: r.commessa_generale_id,
       };
+      const [conNome] = await conGenerali([riga], leggiGenerali);
+      return conNome;
     },
   });
   useEffect(() => {
@@ -278,9 +307,12 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         >
           {selectedOrder ? (
             <div className="flex flex-col items-start gap-0.5 truncate flex-1 min-w-0">
-              <span className="font-medium text-sm">{selectedOrder.order_code}</span>
+              <span className="flex items-center gap-1.5 font-medium text-sm">
+                {selectedOrder.order_code}
+                <BadgeGenerale riga={selectedOrder} />
+              </span>
               <span className="text-xs text-muted-foreground truncate w-full">
-                {selectedOrder.customer_name}
+                {nomeCommessa(selectedOrder)}
                 {selectedOrder.work_start_date && (
                   <> · lavori dal {fmtDate(selectedOrder.work_start_date)}</>
                 )}
@@ -337,7 +369,9 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
                   ? `Nessun ordine corrisponde a "${debouncedSearch}"`
                   : filter === "soon"
                     ? "Nessun ordine con lavori nei prossimi 30 giorni"
-                    : "Nessun ordine trovato"}
+                    : filter === "generali"
+                      ? "Nessuna commessa generale"
+                      : "Nessun ordine trovato"}
               </CommandEmpty>
             ) : (
               <>
@@ -350,7 +384,12 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
                     <OrderGroup heading="Altri" orders={groups.other} value={value} onSelect={handleSelect} />
                   </>
                 ) : (
-                  <OrderGroup orders={[...groups.today, ...groups.thisWeek, ...groups.thisMonth, ...groups.other].sort(piuRecente)} value={value} onSelect={handleSelect} />
+                  <OrderGroup
+                    orders={[...groups.today, ...groups.thisWeek, ...groups.thisMonth, ...groups.other].sort(filter === "generali" ? () => 0 : piuRecente)}
+                    raggruppa
+                    value={value}
+                    onSelect={handleSelect}
+                  />
                 )}
               </>
             )}
@@ -361,24 +400,38 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
   );
 }
 
+/** Codice e nome delle generali delle figlie in elenco. */
+async function leggiGenerali(ids: string[]) {
+  const { data, error } = await supabase.from("orders").select("id, order_code, description").in("id", ids);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Cliente e cantiere; per una generale, che nasce senza cliente, il suo nome. */
+const nomeCommessa = (o: OrderOption) =>
+  eGenerale(o) ? o.description || o.customer_name : o.customer_name || o.description;
+
 const piuRecente = (a: OrderOption, b: OrderOption) =>
   String(b.work_start_date ?? b.expected_date ?? "").localeCompare(String(a.work_start_date ?? a.expected_date ?? ""));
 
 function OrderGroup({
   heading,
   orders,
+  raggruppa,
   value,
   onSelect,
 }: {
   heading?: string;
   orders: OrderOption[];
+  /** Figlie sotto la propria generale, rientrate. */
+  raggruppa?: boolean;
   value: string | undefined;
   onSelect: (o: OrderOption) => void;
 }) {
   if (orders.length === 0) return null;
   return (
     <CommandGroup heading={heading}>
-      {orders.map((o) => {
+      {(raggruppa ? raggruppaPerGenerale(orders) : orders.map((riga) => ({ riga, annidata: false }))).map(({ riga: o, annidata }) => {
         const badge = relativeBadge(o.work_start_date, o.work_end_date, o.expected_date);
         const isSelected = value === o.id;
         return (
@@ -386,14 +439,18 @@ function OrderGroup({
             key={o.id}
             value={o.id}
             onSelect={() => onSelect(o)}
-            className="flex cursor-pointer items-center gap-2 py-1.5"
+            className={cn("flex cursor-pointer items-center gap-2 py-1.5", annidata && "pl-6")}
           >
             <Check className={cn("h-3.5 w-3.5 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium" title={o.order_code}>{o.order_code}</p>
-              <p className="truncate text-xs text-muted-foreground" title={[o.customer_name, o.indirizzo_lavori].filter(Boolean).join(" · ")}>
-                {[o.customer_name, o.indirizzo_lavori].filter(Boolean).join(" · ") || "—"}
+              <p className="flex items-center gap-1.5 truncate text-sm font-medium" title={o.order_code}>
+                {o.order_code}
+                <BadgeGenerale riga={o} />
               </p>
+              <p className="truncate text-xs text-muted-foreground" title={[nomeCommessa(o), o.indirizzo_lavori].filter(Boolean).join(" · ")}>
+                {[nomeCommessa(o), o.indirizzo_lavori].filter(Boolean).join(" · ") || "—"}
+              </p>
+              <RigaAppartenenza riga={o} nascondi={annidata} />
             </div>
             {badge && (
               <span className={cn("inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[10px] font-medium", badge.cls)}>
