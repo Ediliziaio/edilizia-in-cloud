@@ -15,7 +15,7 @@ vi.mock("@/integrations/supabase/client", () => {
       {
         get(_t, k: string) {
           if (k === "then") return (ok: (v: unknown) => void) => ok({ data: perNome ? m.generali : m.righe, error: null });
-          if (k === "maybeSingle") return async () => ({ data: null, error: null });
+          if (k === "maybeSingle") return async (): Promise<{ data: unknown; error: unknown }> => ({ data: null, error: null });
           return (...args: unknown[]) => {
             m.chiamate.push([k, args]);
             return catena(perNome || k === "in");
@@ -31,7 +31,7 @@ import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox"
 vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
 
-const riga = (id: string, order_code: string, extra: Record<string, unknown> = {}) => ({
+const riga = (id: string, order_code: string, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   id, order_code, client_name: null, client_company: null, customer: null, work_start_date: null, work_end_date: null,
   expected_date: null, indirizzo_lavori: null, work_address: null, status: null, description: null,
   workflow_kind: "commessa", commessa_generale_id: null, order_items: [], ...extra,
