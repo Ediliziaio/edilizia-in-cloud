@@ -1697,7 +1697,7 @@ export function OrderItemsList({
         <CardContent className="p-0">
           {items.length === 0 ? (
             <p className="border-t px-4 py-6 text-center text-sm text-muted-foreground">
-              Nessun materiale. {editable && "Aggiungili qui o, dopo il salvataggio, generali dal computo nel dettaglio della commessa."}
+              Nessun materiale.
             </p>
           ) : (
             <ul className="divide-y border-t">

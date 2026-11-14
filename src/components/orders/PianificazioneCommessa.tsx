@@ -62,8 +62,7 @@ export function PianificazioneCommessa({ date, onData, durata, onDurata, settima
           </Button>
         </div>
         <p className="mt-2 text-xs text-slate-600" aria-live="polite">
-          {fineCalcolata ? `Fine stimata: ${format(fineCalcolata, "d MMM yyyy", { locale: it })}. ` : "Indica inizio e durata per stimare la fine. "}
-          Festività e attese tecniche escluse.<span className="max-sm:hidden"> La data cambia solo premendo «Calcola fine».</span>
+          {fineCalcolata ? `Fine stimata: ${format(fineCalcolata, "d MMM yyyy", { locale: it })}, festività escluse.` : "Inizio e durata: «Calcola fine» stima la data."}
         </p>
       </div>
       <div className="border-t border-slate-100 pt-3">

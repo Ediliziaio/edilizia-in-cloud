@@ -97,7 +97,6 @@ import { AnteprimaFasiCommessa } from "@/components/orders/AnteprimaFasiCommessa
 import { CreateOrderActions } from "@/components/orders/CreateOrderActions";
 import { ClienteCombobox } from "@/components/orders/ClienteCombobox";
 import { aliquotaAbituale } from "@/lib/orders/nuovaCommessaProposte";
-import { CreateOrderChecklist } from "@/components/orders/CreateOrderChecklist";
 import AddressAutocomplete, { type AddressData } from "@/components/shared/AddressAutocomplete";
 import { indirizzoCantiereDaTesto, testoIndirizzoCantiere, indirizzoCantiereDaBozza, coordinateIndirizzoCantiere } from "@/lib/orders/indirizzoCantiere";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -247,12 +246,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       (item.vat_rate !== undefined && (!Number.isFinite(item.vat_rate) || item.vat_rate < 0 || item.vat_rate > 100))
   );
   const completionChecks = [
-    { label: "Cliente selezionato", done: !!customerId },
-    { label: "Descrizione lavoro", done: !!description?.trim() && description.trim().length >= 3 },
-    { label: "Importo valido", done: total > 0 && !overAllocatedPayments },
-    { label: "Stato iniziale", done: !!statusId },
-    { label: "Righe ordine coerenti", done: invalidOrderItems.length === 0 },
-    ...(contrattoImportato ? [{ label: "IVA confermata", done: !!vatRate?.trim() }, { label: "Pagamenti confermati", done: !contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) }] : []),
+    // Etichette brevi: accanto a «Crea commessa» si legge «Manca: cliente · importo».
+    { label: "cliente", done: !!customerId },
+    { label: "descrizione", done: !!description?.trim() && description.trim().length >= 3 },
+    { label: "importo", done: total > 0 && !overAllocatedPayments },
+    { label: "stato iniziale", done: !!statusId },
+    { label: "righe da correggere", done: invalidOrderItems.length === 0 },
+    ...(contrattoImportato ? [{ label: "IVA", done: !!vatRate?.trim() }, { label: "pagamenti", done: !contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) }] : []),
   ];
 
   // Payment type change handler
@@ -1605,9 +1605,25 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       <QuotePageHeader
         icon={<ClipboardList className="h-5 w-5" />}
         title="Nuova Commessa"
-        subtitle="Crea una nuova commessa per un cliente"
+        subtitle={selectedQuoteId ? "Dal preventivo: rivedi righe e misure qui sotto." : undefined}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {/* Le due partenze più usate stanno in testa, non in un riquadro con la spiegazione (14/11/2026). */}
+            <ImportFromQuotePicker
+              onSelect={handleImportQuote}
+              disabled={createOrderMutation.isPending || !!createdOrderId}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-11 gap-1.5 text-xs md:h-9"
+              onClick={() => setShowContractImport(true)}
+              disabled={createOrderMutation.isPending || !!createdOrderId}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-orange-600" />
+              Carica contratto (AI)
+            </Button>
             {/* Lotto 1.5: lo stesso lavoro con Silvio, che legge le fonti. Il modulo classico resta qui sotto. */}
             {!createdOrderId && (
               <PulsanteCreaConSilvio size="sm" className="h-11 text-xs md:h-9" apriSubito={!!fontiSilvio}
@@ -1656,39 +1672,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         </Alert>
       )}
 
-      <CreateOrderChecklist checks={completionChecks} />
-
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6 md:pb-20">
         {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile: riprova prima di salvare il contratto." : "Caricamento configurazione aziendale…"}</p>}
         {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} />}
         {pianoContratto?.organizzazione === "interventi_su_ordine" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>Puoi salvare il contratto in bozza e completare cliente, quota economica, IVA e pagamenti dopo la conferma. La bozza non genera ricavi o rate.</p><Button type="button" className="mt-3" variant="outline" disabled={createOrderMutation.isPending || !!createdOrderId} onClick={()=>createOrderMutation.mutate({contractDraft:true})}>Salva bozza del contratto da verificare</Button></div>}
         {pianoContratto?.ufficio.length ? <ContractOfficeAssignments companyId={effectiveCompany?.id} steps={pianoContratto.ufficio} value={officeAssignments} onChange={setOfficeAssignments} /> : null}
         <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">
-        {/* ── Importa da preventivo: precompila righe, prezzi e spina misure ── */}
-        <div className="flex flex-col gap-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-orange-900/40 dark:bg-orange-950/20">
-          <p className="text-sm text-muted-foreground">
-            {selectedQuoteId
-              ? "Preventivo importato: rivedi righe e misure qui sotto."
-              : "Hai un preventivo? Importalo. Oppure carica il contratto / copia commissione: l'AI compila la commessa."}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <ImportFromQuotePicker
-              onSelect={handleImportQuote}
-              disabled={createOrderMutation.isPending}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2 border-orange-300"
-              onClick={() => setShowContractImport(true)}
-              disabled={createOrderMutation.isPending}
-            >
-              <Sparkles className="h-4 w-4 text-orange-600" />
-              Carica contratto (AI)
-            </Button>
-          </div>
-        </div>
-
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
           <QuoteCard title="Dettagli Commessa" icon={<ClipboardList className="h-4 w-4" />}>
@@ -1706,9 +1695,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                       placeholder={suggestedOrderCode || "es. O-0001"}
                       maxLength={50}
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Precompilato col prossimo progressivo{suggestedOrderCode ? ` (${suggestedOrderCode})` : ""}. Modificalo o scrivi il tuo codice.
-                    </p>
                   </div>
                 )}
               />
@@ -1772,11 +1758,6 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                     setCantiereAddress(testoIndirizzoCantiere(address));
                   }}
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  {customerId
-                    ? "Precompilato dall'indirizzo cantiere del cliente (o fatturazione). Modificalo se i lavori sono altrove."
-                    : "Seleziona un cliente per precompilarlo, oppure scrivilo a mano."}
-                </p>
               </div>
 
               {/* Description */}
@@ -1937,7 +1918,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               setInstallments((prev) => ricalcolaRatePercentuali(prev, parseDecimalIT(val) * (1 + vat / 100)));
             }}
             notaIva={ivaDaAbitudine && aliquotaProposta && vatRate === String(aliquotaProposta.aliquota)
-              ? `Proposta: la usi su ${aliquotaProposta.commesse} delle ultime ${aliquotaProposta.totale} commesse. Controlla che valga anche per questa.`
+              ? `Usata in ${aliquotaProposta.commesse} delle ultime ${aliquotaProposta.totale} commesse.`
               : undefined}
             onVatRateChange={(val) => {
               ivaToccataRef.current = true;
@@ -2020,6 +2001,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           created={!!createdOrderId}
           onCancel={() => navigate("/azienda/ordini")}
           onOpenCreated={() => navigate(`/azienda/ordini/${createdOrderId}`)}
+          checks={completionChecks}
           totale={total > 0 ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(total * (1 + vat / 100)) : undefined}
         />
       </form>

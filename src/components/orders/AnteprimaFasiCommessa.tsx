@@ -77,7 +77,7 @@ export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange,
             <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">{fase.sottofasi.map((s, j) => <li key={j} className="break-words">{s.nome}</li>)}</ul>
           </details>}
         </li>)}
-      </ol> : <p className="px-3 pb-3 text-xs text-slate-500">Nessuna fase iniziale. Puoi aggiungerle ora o dal Cantiere.</p>}
+      </ol> : <p className="px-3 pb-3 text-xs text-slate-500">Nessuna fase.</p>}
       {!modifica && fasi.length > 4 && <Button type="button" variant="ghost" size="sm" className="mx-3 mb-2 h-9 text-xs text-blue-800" aria-expanded={tutte} onClick={() => setTutte(!tutte)}>{tutte ? "Mostra meno" : `Mostra tutte le ${fasi.length} fasi`}</Button>}
       {fasi.some((fase) => !fase.nome.trim()) && <p role="alert" className="px-3 pb-2 text-xs text-red-600">Assegna un nome alle fasi vuote o rimuovile prima di creare la commessa.</p>}
       {piano?.oltreFine && ultimo && <p role="status" className="px-3 pb-2 text-xs text-amber-800">Le fasi finiscono il {breve(ultimo)}, dopo la fine dei lavori: accorcia qualche fase o sposta la fine.</p>}
@@ -85,12 +85,11 @@ export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange,
         <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" disabled={fasi.length >= 60} onClick={() => onChange([...fasi, { nome: "", sottofasi: [] }])}><Plus className="mr-1 h-3.5 w-3.5" />Aggiungi fase</Button>
         {modello && personalizzate && <Button type="button" variant="ghost" size="sm" className="h-9 text-xs" onClick={onRipristina}>Ripristina modello</Button>}
       </div>}
-      <p className={cn("border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500")}>
+      {/* Una riga sola, e solo con delle fasi: senza fasi non c'è niente da spiegare (14/11/2026). */}
+      {fasi.length > 0 && (personalizzate || piano) && <p className={cn("border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500")}>
         {personalizzate ? "Modifiche solo per questa commessa. " : ""}
-        {!piano ? "Date delle singole fasi, squadra e materiali si organizzano poi nel Cantiere."
-          : primo ? "Le fasi partono una dopo l'altra sui giorni di lavoro. In «Adatta alla commessa» cambi i giorni di ogni fase; squadra e materiali si organizzano poi nel Cantiere."
-          : "Metti l'inizio dei lavori e le fasi prendono le loro date, una dopo l'altra."}
-      </p>
+        {piano && !primo ? "Con l'inizio dei lavori le fasi prendono le date, una dopo l'altra." : piano ? "Le fasi partono una dopo l'altra sui giorni di lavoro." : ""}
+      </p>}
     </div>
   );
 }

@@ -220,7 +220,7 @@ export function PendingFilesUpload({ files, onFilesChange, disabled = false }: P
             })}
           </div>
         </div>}
-        <p className="text-xs text-muted-foreground">{files.length ? `${files.length} file · ` : ""}Si salvano nelle cartelle scelte quando crei la commessa. Massimo {MAX_MB_PER_FILE} MB per file.</p>
+        <p className="text-xs text-muted-foreground">{files.length ? `${files.length} file · ` : ""}Massimo {MAX_MB_PER_FILE} MB per file.</p>
       </CardContent>
     </Card>
   );

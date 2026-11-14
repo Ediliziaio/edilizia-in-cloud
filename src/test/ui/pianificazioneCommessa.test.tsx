@@ -148,6 +148,6 @@ describe("le date delle fasi nella nuova commessa", () => {
   });
   it("senza inizio dei lavori chiede la data", () => {
     render(<ConDate inizio={null} fine={null} />);
-    expect(screen.getByText(/Metti l'inizio dei lavori/)).toBeInTheDocument();
+    expect(screen.getByText(/Con l'inizio dei lavori le fasi prendono le date/)).toBeInTheDocument();
   });
 });
