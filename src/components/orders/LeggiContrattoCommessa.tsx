@@ -140,7 +140,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
           const miniatura = await caricaMiniatura("order-attachments", percorso, ridotto);
           const { error: eDb } = await supabase.from("order_attachments").insert({
             order_id: orderId, file_name: ridotto.name, file_url: percorso, file_type: ridotto.type || "application/octet-stream",
-            file_size: ridotto.size, uploaded_by: user.id, visible_to_customer: false, thumb_path: miniatura,
+            file_size: ridotto.size, uploaded_by: user.id, visible_to_customer: false, thumb_path: miniatura, access_scope: "vendita",
           } as never);
           if (eDb) {
             await supabase.storage.from("order-attachments").remove(miniatura ? [percorso, miniatura] : [percorso]);

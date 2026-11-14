@@ -134,6 +134,8 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         const { error: eDoc } = await supabase.from("order_attachments").insert({
           order_id: orderId, file_name: originale.name, file_url: path, file_type: originale.type || "application/octet-stream",
           file_size: originale.size, uploaded_by: user.id, visible_to_customer: false,
+          // Senza, vale «riservato» (solo amministratori): il contratto è un documento di vendita, come gli importi.
+          access_scope: "vendita",
         } as never);
         if (eDoc) throw new Error(`Documenti della commessa: ${eDoc.message}`);
       }
