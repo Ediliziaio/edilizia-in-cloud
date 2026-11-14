@@ -1,7 +1,9 @@
-import { memo } from "react";
+import { memo, useId } from "react";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import { COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
 import type { FinanceData } from "@/hooks/useCruscottoData";
 import { safeNumber } from "@/lib/numberUtils";
 import { fmtCur } from "@/components/marketing/dashboard/utils";
@@ -21,10 +23,12 @@ interface Props { finance: FinanceData; isLoading: boolean; dataError?: unknown 
  * modo accanto a «I numeri che comandano».
  */
 export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoading, dataError }: Props) {
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
   const rows = [
-    { name: "Rate attese", value: safeNumber(finance.thisMonthIncome), fill: "hsl(142, 76%, 36%)" },
-    { name: "Costi aperti", value: safeNumber(finance.thisMonthOutflow), fill: "hsl(0, 84%, 60%)" },
-    { name: "Differenza", value: safeNumber(finance.cashFlowNet), fill: finance.cashFlowNet >= 0 ? "hsl(142, 76%, 36%)" : "hsl(0, 84%, 60%)" },
+    { name: "Rate attese", value: safeNumber(finance.thisMonthIncome), fill: `url(#${id}-barra-verde)` },
+    { name: "Costi aperti", value: safeNumber(finance.thisMonthOutflow), fill: `url(#${id}-barra-rosso)` },
+    { name: "Differenza", value: safeNumber(finance.cashFlowNet), fill: `url(#${id}-barra-${finance.cashFlowNet >= 0 ? "verde" : "rosso"})` },
   ];
   if (dataError) return <div role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">Dati finanziari non disponibili. Usa Riprova nell’avviso in alto per ricaricarli.</div>;
   return (
@@ -40,7 +44,7 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Metric label="Rate commesse da incassare" value={fmtCur(finance.thisMonthIncome)} />
               <Metric label="Costi da pagare" value={fmtCur(finance.thisMonthOutflow)} />
-              <Metric label="Differenza prevista" value={fmtCur(finance.cashFlowNet)} tone={finance.cashFlowNet < 0 ? "text-destructive" : "text-emerald-600"} />
+              <Metric label="Differenza prevista" value={fmtCur(finance.cashFlowNet)} tone={finance.cashFlowNet < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"} />
             </div>
             {!!finance.costsMissingVatCount && <p className="text-xs text-amber-700">{finance.costsMissingVatCount} costi aperti senza aliquota IVA: è incluso l’importo registrato, da verificare.</p>}
           </>}
@@ -52,11 +56,17 @@ export const FinanzaCashFlow = memo(function FinanzaCashFlow({ finance, isLoadin
           <CardContent className="p-3 pt-0">
             {isLoading ? <Skeleton className="h-44 w-full" /> : <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={rows} margin={{top:5,right:5,left:0,bottom:5}}>
-                  <XAxis dataKey="name" tick={{fontSize:11}} />
-                  <YAxis tickFormatter={v => fmtCur(v)} tick={{fontSize:10}} width={80} />
-                  <RechartsTooltip cursor={{fill:"rgba(15,23,42,0.04)"}} formatter={(v: number) => fmtCur(v)} contentStyle={{fontSize:12}} />
-                  <Bar dataKey="value" name="Importo" radius={[4,4,0,0]}>{rows.map(row => <Cell key={row.name} fill={row.fill}/>)}</Bar>
+                <BarChart data={rows} margin={{top:5,right:5,left:0,bottom:5}} barCategoryGap="30%">
+                  {defsGrafico(id, { verde: COLORI_GRAFICO.verde, rosso: COLORI_GRAFICO.rosso })}
+                  <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+                  <XAxis dataKey="name" tick={TESTO_ASSE} axisLine={false} tickLine={false} tickMargin={6} />
+                  <YAxis tickFormatter={v => fmtCur(v)} tick={TESTO_ASSE} axisLine={false} tickLine={false} width={80} />
+                  <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                  <RechartsTooltip
+                    cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+                    content={(p) => <TooltipScheda active={p.active} payload={(p.payload ?? []).map((x) => ({ ...x, color: (x.payload as { name?: string } | undefined)?.name === "Costi aperti" || ((x.payload as { name?: string } | undefined)?.name === "Differenza" && finance.cashFlowNet < 0) ? COLORI_GRAFICO.rosso : COLORI_GRAFICO.verde })) as never} label={p.label} formato={(v) => fmtCur(v)} />}
+                  />
+                  <Bar dataKey="value" name="Importo" radius={[6,6,2,2]} maxBarSize={64} isAnimationActive={!fermo} animationDuration={800}>{rows.map(row => <Cell key={row.name} fill={row.fill}/>)}</Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>}

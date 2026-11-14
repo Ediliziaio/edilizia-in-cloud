@@ -30,9 +30,9 @@ import {
   ChevronDown, ChevronUp, ClipboardList, Send, Shield,
   Sparkles, Target, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
-import { GraficoAndamento } from "@/components/controllo-gestione/ui/grafici/GraficoAndamento";
-import { GraficoRicaviCosti } from "@/components/controllo-gestione/ui/grafici/GraficoRicaviCosti";
-import { Comparsa, PillolaVariazione, StatGrafico } from "@/components/controllo-gestione/ui/grafici/comune";
+import { GraficoAndamento } from "@/components/charts/grafici/GraficoAndamento";
+import { GraficoRicaviCosti } from "@/components/charts/grafici/GraficoRicaviCosti";
+import { Comparsa, PillolaVariazione, StatGrafico } from "@/components/charts/grafici/comune";
 import { useIsMobile } from "@/hooks/use-mobile";
 // Nei testi il mese per intero: «la cassa di ottobre», non «di Ott».
 const MESI_INTERI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
@@ -38,6 +38,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { safeNumber } from "@/lib/numberUtils";
 import {
+  Area,
   Bar,
   CartesianGrid,
   Cell,
@@ -50,6 +51,9 @@ import {
   YAxis,
 } from "recharts";
 import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
+import { Comparsa, StatGrafico, TESTO_ASSE, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
 
 
 // I colori del grafico: due linee e la barra della cassa (verde sopra lo zero,
@@ -68,6 +72,13 @@ function periodoInParole(f: { datePreset: string; dateFrom: Date; dateTo: Date }
   if (parole[f.datePreset]) return parole[f.datePreset];
   const g = (d: Date) => d.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
   return `${g(f.dateFrom)} – ${g(f.dateTo)}`;
+}
+
+/** Variazione % contro il periodo precedente (null se prima era zero). */
+function variazioneSu(ora: number, prima: number) {
+  const a = safeNumber(ora);
+  const b = safeNumber(prima);
+  return { pct: b === 0 ? null : ((a - b) / Math.abs(b)) * 100, nota: "Rispetto al periodo precedente" };
 }
 
 function eur(value: number) {
@@ -142,6 +153,13 @@ export default function CruscottoAziendale() {
   });
 
   const navigate = useNavigate();
+  const idGrafico = idSvg(useId());
+  const grafFermo = usePreferisceMenoMovimento();
+  // Somme dei 12 mesi per la riga sopra il grafico.
+  const totali12 = useMemo(() => executiveTrend.reduce(
+    (t, m) => ({ venduto: t.venduto + safeNumber(m.venduto), incassato: t.incassato + safeNumber(m.incassato), cassa: t.cassa + safeNumber(m.cassa) }),
+    { venduto: 0, incassato: 0, cassa: 0 },
+  ), [executiveTrend]);
 
   // Lo scaduto da incassare con la regola del Previsionale (08/11/2026): stessa funzione
   // della sua pagina, quindi stesso numero. In cima, in «Da guardare oggi» e per età.
@@ -198,6 +216,7 @@ export default function CruscottoAziendale() {
       hint: `${eur(finance.revenuePrevMonth)} nel periodo precedente · IVA esclusa`,
       tone: (finance.revenueThisMonth >= finance.revenuePrevMonth ? "buono" : "attenzione") as TonoNumero,
       tendenza: ultimiSei.map((m) => m.venduto),
+      variazione: variazioneSu(finance.revenueThisMonth, finance.revenuePrevMonth),
       drilldown: "revenue" as DrilldownType,
     },
     {
@@ -210,6 +229,7 @@ export default function CruscottoAziendale() {
       hint: `${eur(finance.collectedPrevPeriod ?? 0)} nel periodo precedente · IVA inclusa`,
       tone: ((finance.collectedInPeriod ?? 0) >= (finance.collectedPrevPeriod ?? 0) ? "buono" : "attenzione") as TonoNumero,
       tendenza: ultimiSei.map((m) => m.incassato),
+      variazione: variazioneSu(finance.collectedInPeriod ?? 0, finance.collectedPrevPeriod ?? 0),
       drilldown: null as DrilldownType,
     },
   ], [finance, ultimiSei]);
@@ -323,6 +343,7 @@ export default function CruscottoAziendale() {
                   tono={isLoading ? "neutro" : item.tone}
                   contesto={item.hint}
                   tendenza={item.tendenza}
+                  variazione={isLoading ? undefined : item.variazione}
                   etichettaTendenza={`${item.etichetta} degli ultimi sei mesi`}
                   onClick={item.drilldown ? () => setDrilldown(item.drilldown) : undefined}
                 />
@@ -330,30 +351,44 @@ export default function CruscottoAziendale() {
             </div>
 
             {isMobile ? null : (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <Comparsa indice={2} className="min-w-0">
+              <div className="rounded-2xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900">Venduto, incassato e cassa</h3>
-                    <p className="mt-0.5 text-[11px] font-medium text-slate-400">Ultimi 12 mesi · non segue il filtro del periodo</p>
+                    <h3 className="text-sm font-semibold text-foreground">Venduto, incassato e cassa</h3>
+                    <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">Ultimi 12 mesi · non segue il filtro del periodo</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_VENDUTO }} /> Venduto <span className="text-slate-400">IVA escl.</span></span>
-                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_INCASSATO }} /> Incassato <span className="text-slate-400">IVA incl.</span></span>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_VENDUTO }} /> Venduto <span className="opacity-70">IVA escl.</span></span>
+                    <span className="inline-flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ backgroundColor: COLORE_INCASSATO }} /> Incassato <span className="opacity-70">IVA incl.</span></span>
                     <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: `linear-gradient(90deg, ${COLORE_CASSA_POS} 50%, ${COLORE_CASSA_NEG} 50%)` }} /> Cassa netta</span>
                   </div>
                 </div>
 
-                <div className="mt-3 h-[220px]">
+                {!trendIsEmpty && executiveTrend.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+                    <StatGrafico etichetta="Venduto 12 mesi" valore={formatEuroRiquadro(totali12.venduto)} nota="IVA esclusa" />
+                    <StatGrafico etichetta="Incassato 12 mesi" valore={formatEuroRiquadro(totali12.incassato)} nota="IVA inclusa" />
+                    <StatGrafico
+                      etichetta="Cassa netta 12 mesi"
+                      valore={`${totali12.cassa > 0 ? "+" : ""}${formatEuroRiquadro(totali12.cassa)}`}
+                      nota="entrate meno uscite"
+                      tono={totali12.cassa >= 0 ? "buono" : "cattivo"}
+                    />
+                  </div>
+                )}
+
+                <div className="mt-3 h-[230px]">
                   {trendIsEmpty ? (
                     <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
-                      <p className="text-sm font-medium text-slate-500">Ancora nessun movimento negli ultimi 12 mesi</p>
-                      <p className="text-xs text-slate-400">Registra il primo incasso o crea una commessa per vedere l'andamento.</p>
+                      <p className="text-sm font-medium text-muted-foreground">Ancora nessun movimento negli ultimi 12 mesi</p>
+                      <p className="text-xs text-muted-foreground/80">Registra il primo incasso o crea una commessa per vedere l'andamento.</p>
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart
                         data={executiveTrend}
-                        margin={{ top: 8, right: 4, left: -10, bottom: 0 }}
+                        margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
                         className="cursor-pointer"
                         onClick={(state) => {
                           // Drill-down: click sul mese -> commesse del periodo
@@ -364,39 +399,36 @@ export default function CruscottoAziendale() {
                           navigate(`/azienda/ordini?anno=${anno}&mese=${Number(mese) - 1}`);
                         }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
-                        <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" tickMargin={8} />
-                        <YAxis
-                          tickLine={false}
-                          axisLine={false}
-                          fontSize={10}
-                          stroke="#94a3b8"
-                          tickMargin={6}
-                          tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
-                        />
-                        <ReferenceLine y={0} stroke="#cbd5e1" />
+                        {defsGrafico(idGrafico, { venduto: COLORE_VENDUTO, pos: COLORE_CASSA_POS, neg: COLORE_CASSA_NEG })}
+                        <CartesianGrid fill={`url(#${idGrafico}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+                        <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
+                        <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={64} tickMargin={4} tickFormatter={euroAsse} />
+                        <ReferenceLine y={0} stroke="hsl(var(--border))" />
                         <RechartsTooltip
-                          cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                          cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
                           content={<TrendTooltip data={executiveTrend} xKey="mese" series={trendTooltipSeries} />}
                         />
                         {/* La cassa è la differenza del mese: una barra, verde sopra lo
                             zero e rossa sotto. Venduto e incassato sono due linee, così
-                            le barre non si coprono a vicenda. */}
-                        <Bar dataKey="cassa" maxBarSize={18} radius={[3, 3, 3, 3]}>
+                            le barre non si coprono a vicenda; sotto il venduto un'area
+                            sfumata. */}
+                        <Bar dataKey="cassa" maxBarSize={18} radius={[4, 4, 4, 4]} isAnimationActive={!grafFermo} animationDuration={700}>
                           {executiveTrend.map((m) => (
-                            <Cell key={m.key} fill={safeNumber(m.cassa) < 0 ? COLORE_CASSA_NEG : COLORE_CASSA_POS} fillOpacity={0.55} />
+                            <Cell key={m.key} fill={`url(#${idGrafico}-barra-${safeNumber(m.cassa) < 0 ? "neg" : "pos"})`} fillOpacity={0.75} />
                           ))}
                         </Bar>
-                        <Line type="monotone" dataKey="venduto" stroke={COLORE_VENDUTO} strokeWidth={2.25} dot={false} activeDot={{ r: 4 }} />
-                        <Line type="monotone" dataKey="incassato" stroke={COLORE_INCASSATO} strokeWidth={2.25} dot={false} activeDot={{ r: 4 }} />
+                        <Area type="monotone" dataKey="venduto" stroke="none" fill={`url(#${idGrafico}-sfuma-venduto)`} isAnimationActive={!grafFermo} animationDuration={900} activeDot={false} legendType="none" tooltipType="none" />
+                        <Line type="monotone" dataKey="venduto" stroke={COLORE_VENDUTO} strokeWidth={2.5} dot={false} filter={`url(#${idGrafico}-ombra)`} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} isAnimationActive={!grafFermo} animationDuration={900} />
+                        <Line type="monotone" dataKey="incassato" stroke={COLORE_INCASSATO} strokeWidth={2.5} dot={false} filter={`url(#${idGrafico}-ombra)`} activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))" }} isAnimationActive={!grafFermo} animationDuration={900} animationBegin={200} />
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
                 </div>
                 {!trendIsEmpty && (
-                  <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per aprire le commesse del periodo</p>
+                  <p className="mt-2 text-right text-[10px] text-muted-foreground">Clicca su un mese per aprire le commesse del periodo</p>
                 )}
               </div>
+              </Comparsa>
             )}
           </section>
         </SectionErrorBoundary>
@@ -428,9 +460,9 @@ export default function CruscottoAziendale() {
         // c'erano fatturazione, prima nota, primi clienti e una torta per sede:
         // gli stessi incassi, scaduti e crediti già scritti sopra con altri
         // nomi. Il Cruscotto Economico parla di soldi, una volta per numero.
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
+        <section className="rounded-2xl border bg-card p-3 shadow-sm print:border-slate-200 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none">
           <Tabs value={schedaVisibile} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="sticky top-0 z-10 grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:static">
+            <TabsList className="sticky top-0 z-10 grid h-auto w-full grid-cols-2 gap-1 rounded-xl bg-muted p-1 sm:static">
               <TabsTrigger value="incassi" className="rounded-lg" disabled={!showFinanza}>Incassi e cassa</TabsTrigger>
               <TabsTrigger value="commesse" className="rounded-lg">Commesse e margini</TabsTrigger>
             </TabsList>
@@ -468,7 +500,7 @@ export default function CruscottoAziendale() {
                       accanto ripeteva in percentuale la colonna «Inc. Ricavi». */}
                   {(sediData?.sedi?.length ?? 0) > 1 && sediVisibili.length > 0 && (
                     <SectionErrorBoundary sectionName="Analytics per Sede">
-                      <div className="space-y-3 rounded-lg border bg-white p-3 max-sm:hidden">
+                      <div className="space-y-3 rounded-lg border bg-card p-3 max-sm:hidden">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <h2 className="text-lg font-semibold text-eic-navy">P&amp;L per Sede</h2>
                           <SedeFilterBar />

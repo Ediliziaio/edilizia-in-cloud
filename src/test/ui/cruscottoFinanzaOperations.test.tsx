@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { FinanzaCashFlow } from "@/components/cruscotto/FinanzaCashFlow";
-vi.mock("recharts",()=>({ResponsiveContainer:({children}:{children:ReactNode})=><div>{children}</div>,BarChart:():null=>null,Bar:():null=>null,XAxis:():null=>null,YAxis:():null=>null,Tooltip:():null=>null,Cell:():null=>null}));
+vi.mock("recharts",()=>({ResponsiveContainer:({children}:{children:ReactNode})=><div>{children}</div>,BarChart:():null=>null,Bar:():null=>null,XAxis:():null=>null,YAxis:():null=>null,Tooltip:():null=>null,Cell:():null=>null,CartesianGrid:():null=>null,ReferenceLine:():null=>null}));
 afterEach(cleanup);
 const finance={revenueThisMonth:1000,revenuePrevMonth:900,marginThisMonth:20,marginPrevMonth:18,cashFlowNet:300,thisMonthIncome:600,thisMonthOutflow:300,pendingRevenue:1100,supplierDebt:800,collectedThisMonth:100,priorReceivables:500,priorPayables:500};
 const renderUI=(ui:ReactNode)=>render(<MemoryRouter>{ui}</MemoryRouter>);

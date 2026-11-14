@@ -311,28 +311,28 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
           stanno sulla stessa riga, le voci sono righe di un elenco separate da
           un filo, e la gravita' si legge dal colore del bordo sinistro invece
           che da un'etichetta ripetuta quattro volte. */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-100 px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-slate-900">Da guardare oggi</h2>
-          <p className="hidden text-xs text-slate-500 sm:block">in ordine di quanto costa non farlo</p>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border/60 px-4 py-2.5">
+          <h2 className="text-sm font-semibold text-foreground">Da guardare oggi</h2>
+          <p className="hidden text-xs text-muted-foreground sm:block">in ordine di quanto costa non farlo</p>
         </div>
 
         {caricando ? (
           <div className="p-3"><Skeleton className="h-20" /></div>
         ) : attenzioni.length === 0 ? (
-          <div className="flex items-center gap-2 px-4 py-4 text-sm text-slate-600">
+          <div className="flex items-center gap-2 px-4 py-4 text-sm text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             Niente che richieda attenzione: nessuno scaduto, nessun fornitore in scadenza.
           </div>
         ) : (
-          <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-slate-100 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-slate-100"}>
+          <ul className={comeSezione ? "grid grid-cols-1 divide-y divide-border/60 lg:grid-cols-2 lg:divide-y-0" : "divide-y divide-border/60"}>
             {/* telefono: le prime tre, quelle che costano di più non fare */}
             {attenzioni.map((v, i) => (
-              <li key={v.id} className={cn(comeSezione && "lg:border-b lg:border-slate-100 lg:odd:border-r", i >= 3 && "max-sm:hidden")}>
+              <li key={v.id} className={cn(comeSezione && "lg:border-b lg:border-border/60 lg:odd:border-r", i >= 3 && "max-sm:hidden")}>
                 <Link
                   to={v.url}
                   title={`${v.titolo} — ${v.dettaglio}`}
-                  className="group flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-slate-50"
+                  className="group flex items-center gap-3 border-l-[3px] px-4 py-2.5 transition-colors hover:bg-muted/50"
                   style={{
                     borderLeftColor:
                       v.gravita === "urgente" ? "rgb(239 68 68)"
@@ -341,10 +341,10 @@ export function ComeStiamoAndandoVista({ comeSezione = false, dati, tendenzaInca
                   }}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium leading-snug text-slate-900">{v.titolo}</p>
-                    <p className="truncate text-xs leading-4 text-slate-500">{v.dettaglio}</p>
+                    <p className="truncate text-sm font-medium leading-snug text-foreground">{v.titolo}</p>
+                    <p className="truncate text-xs leading-4 text-muted-foreground">{v.dettaglio}</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-600" />
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground" />
                 </Link>
               </li>
             ))}

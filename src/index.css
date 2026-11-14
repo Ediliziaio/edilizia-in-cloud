@@ -1027,3 +1027,16 @@ html .react-flow .react-flow__edges svg {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
 }
+
+/* La linea della tendenza nei riquadri dei numeri si disegna da sinistra
+   (pathLength=1 → dasharray 1). Con «meno movimento» è già intera. */
+@media (prefers-reduced-motion: no-preference) {
+  .tendenza-traccia {
+    stroke-dasharray: 1;
+    animation: tendenza-traccia 1s cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+  }
+}
+@keyframes tendenza-traccia {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}

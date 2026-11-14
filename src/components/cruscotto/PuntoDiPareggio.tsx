@@ -10,6 +10,9 @@ import {
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { useMarginData } from "@/hooks/useMarginData";
 import { useBreakEvenHistorical } from "@/hooks/useBreakEvenHistorical";
+import { useId } from "react";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import { COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, idSvg } from "@/components/charts/grafici/comune";
 
 const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
@@ -89,6 +92,8 @@ function StoricoAnniChart({
   }
 
   const maxBE = Math.max(...data.map(d => d.breakEvenAnnual), 1);
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
 
   const chartData = data.map(d => ({
     anno: String(d.year),
@@ -103,30 +108,32 @@ function StoricoAnniChart({
   return (
     <div className="space-y-2">
       <ResponsiveContainer width="100%" height={220}>
-        <BarChart data={chartData} margin={{ top: 24, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="anno" tick={{ fontSize: 12 }} />
+        <BarChart data={chartData} margin={{ top: 24, right: 16, left: 0, bottom: 0 }} barCategoryGap="28%">
+          {defsGrafico(id, { ok: COLORI_GRAFICO.blu, ko: COLORI_GRAFICO.rosso })}
+          <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+          <XAxis dataKey="anno" tick={TESTO_ASSE} axisLine={false} tickLine={false} tickMargin={8} />
           <YAxis
-            tick={{ fontSize: 11 }}
+            tick={TESTO_ASSE}
+            axisLine={false}
+            tickLine={false}
             tickFormatter={formatCurrencyCompact}
             width={56}
           />
           <Tooltip
-            formatter={(value: number, name: string) => [formatCurrency(value), name]}
+            cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+            content={(p) => <TooltipScheda active={p.active} payload={p.payload as never} label={p.label} />}
           />
           <ReferenceLine
             y={maxBE}
             stroke="hsl(var(--destructive))"
-            strokeDasharray="4 2"
-            label={{ value: "Break-Even", position: "right", fontSize: 10 }}
+            strokeDasharray="4 3"
+            label={{ value: "Pareggio", position: "right", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
           />
-          <Bar dataKey="Fatturato" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="Fatturato" radius={[6, 6, 2, 2]} maxBarSize={56} isAnimationActive={!fermo} animationDuration={800}>
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.reachedBreakEven
-                  ? "hsl(var(--primary))"
-                  : "hsl(var(--destructive) / 0.7)"}
+                fill={`url(#${id}-barra-${entry.reachedBreakEven ? "ok" : "ko"})`}
               />
             ))}
             <LabelList
@@ -199,7 +206,7 @@ export function PuntoDiPareggio() {
         <CardHeader className="p-4 pb-2">
           <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm font-semibold">
             <span>Punto di pareggio</span>
-            <span className="text-[11px] font-medium text-slate-400">Al mese · media degli ultimi 12 mesi</span>
+            <span className="text-[11px] font-medium text-muted-foreground/80">Al mese · media degli ultimi 12 mesi</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0">
@@ -209,27 +216,27 @@ export function PuntoDiPareggio() {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Da fatturare per coprire i costi fissi</p>
-                  <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{formatCurrency(breakEvenRevenue)}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Da fatturare per coprire i costi fissi</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">{formatCurrency(breakEvenRevenue)}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Fatturato medio</p>
-                  <p className={`mt-1 text-2xl font-bold tabular-nums ${isAboveBreakEven ? "text-emerald-700" : "text-red-700"}`}>{formatCurrency(currentMonthlyRevenue)}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Fatturato medio</p>
+                  <p className={`mt-1 text-2xl font-bold tabular-nums ${isAboveBreakEven ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>{formatCurrency(currentMonthlyRevenue)}</p>
                 </div>
               </div>
               <div>
-                <div className="relative h-3 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`Costi fissi coperti al ${coperturaPct}%`}>
+                <div className="relative h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Costi fissi coperti al ${coperturaPct}%`}>
                   <div
-                    className={`h-full rounded-full ${isAboveBreakEven ? "bg-emerald-500" : "bg-red-500"}`}
+                    className={`cg-barra-cresce h-full rounded-full bg-gradient-to-r ${isAboveBreakEven ? "from-emerald-400 to-emerald-600" : "from-red-400 to-red-600"}`}
                     style={{ width: `${Math.min(100, coperturaPct)}%` }}
                   />
                 </div>
-                <p className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-slate-600">
+                <p className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
                   <span>Costi fissi coperti al <strong className="tabular-nums">{coperturaPct}%</strong></span>
-                  <span className={isAboveBreakEven ? "text-emerald-700" : "text-red-700"}>{deltaLabel}</span>
+                  <span className={isAboveBreakEven ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}>{deltaLabel}</span>
                 </p>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {breakEvenMonthOfYear > 12
                   ? "Con questo ritmo i costi fissi dell'anno non vengono coperti."
                   : profitFromMonth

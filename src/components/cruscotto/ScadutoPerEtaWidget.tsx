@@ -26,7 +26,7 @@ export function ScadutoPerEtaWidget({ scaduto, isLoading }: { scaduto: ScadutoPe
         <CardTitle className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
           <Hourglass className="h-4 w-4 text-muted-foreground" />
           Scaduto per età
-          <span className="text-[11px] font-medium text-slate-400">a oggi</span>
+          <span className="text-[11px] font-medium text-muted-foreground/80">a oggi</span>
           <span className="basis-full text-xs font-normal text-muted-foreground sm:ml-auto sm:basis-auto">
             {formatCurrency(scaduto.totale)} · {scaduto.rate} {scaduto.rate === 1 ? "incasso" : "incassi"}
             {scaduto.ritardoMedio !== null && <> · ritardo medio {scaduto.ritardoMedio} gg</>}
@@ -34,19 +34,19 @@ export function ScadutoPerEtaWidget({ scaduto, isLoading }: { scaduto: ScadutoPe
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-muted">
           {scaduto.fasce.map((f, i) => f.importo > 0 && (
             <div key={f.etichetta} className={colori[i]} style={{ width: `${(f.importo / scaduto.totale) * 100}%` }} />
           ))}
         </div>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {scaduto.fasce.map((f, i) => (
-            <div key={f.etichetta} className={cn("rounded-lg border border-slate-200 px-3 py-2", i === 3 && f.importo > 0 && "border-red-200 bg-red-50/60")}>
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+            <div key={f.etichetta} className={cn("rounded-lg border border-border px-3 py-2", i === 3 && f.importo > 0 && "border-red-200 bg-red-50/60")}>
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                 <span className={cn("h-2 w-2 rounded-full", colori[i])} />
                 {f.etichetta}
               </div>
-              <div className="text-sm font-bold tabular-nums text-slate-900">{formatCurrency(f.importo)}</div>
+              <div className="text-sm font-bold tabular-nums text-foreground">{formatCurrency(f.importo)}</div>
               <div className="text-[11px] text-muted-foreground">{f.rate} {f.rate === 1 ? "incasso" : "incassi"}</div>
             </div>
           ))}

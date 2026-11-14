@@ -37,8 +37,8 @@ export function TrendTooltip({ active, label, payload, data, xKey, series }: Tre
   const prev = idx > 0 ? data[idx - 1] : null;
 
   return (
-    <div className="min-w-[190px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.12)]">
-      <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">{String(label)}</div>
+    <div className="min-w-[190px] rounded-xl border bg-popover/95 px-3 py-2.5 text-popover-foreground shadow-lg backdrop-blur-sm">
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{String(label)}</div>
       <div className="space-y-1.5">
         {series.map((s) => {
           const row = payload.find((p) => p.dataKey === s.key);
@@ -55,13 +55,13 @@ export function TrendTooltip({ active, label, payload, data, xKey, series }: Tre
 
           return (
             <div key={s.key} className="flex items-center justify-between gap-3 text-xs">
-              <span className="flex items-center gap-1.5 text-slate-500">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
                 {s.label}
               </span>
               <span className="flex items-center gap-1.5">
                 <span
-                  className="font-semibold tabular-nums text-slate-900"
+                  className="font-semibold tabular-nums text-foreground"
                   style={{ color: s.valueColor?.(value) }}
                 >
                   {s.formatter(value)}
@@ -70,7 +70,7 @@ export function TrendTooltip({ active, label, payload, data, xKey, series }: Tre
                   <span
                     className={cn(
                       "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-                      deltaGood ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600",
+                      deltaGood ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400",
                     )}
                   >
                     {delta >= 0 ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />}
@@ -83,7 +83,7 @@ export function TrendTooltip({ active, label, payload, data, xKey, series }: Tre
         })}
       </div>
       {prev === null && (
-        <p className="mt-1.5 text-[10px] text-slate-400">Primo mese del periodo — nessun confronto</p>
+        <p className="mt-1.5 text-[10px] text-muted-foreground">Primo mese del periodo — nessun confronto</p>
       )}
     </div>
   );

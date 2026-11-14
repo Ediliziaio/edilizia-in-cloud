@@ -5,7 +5,7 @@ import { useId, useMemo } from "react";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import {
   COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, testoLegenda, euroAsse, idSvg,
-} from "@/components/controllo-gestione/ui/grafici/comune";
+} from "@/components/charts/grafici/comune";
 import { useCEMensile, useCEMensileDettaglio } from "@/hooks/controlloGestione/useCEriclassificato";
 import { ChartSkeleton } from "@/components/controllo-gestione/skeletons/ChartSkeleton";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";

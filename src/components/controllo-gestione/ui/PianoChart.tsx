@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { formatEuroBreve } from "@/lib/controlloGestione/indiciBanca";
 import { useId } from "react";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
-import { COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, testoLegenda, idSvg } from "@/components/controllo-gestione/ui/grafici/comune";
+import { COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, testoLegenda, idSvg } from "@/components/charts/grafici/comune";
 
 interface PianoChartProps {
   periodi: PianoPeriodo[];

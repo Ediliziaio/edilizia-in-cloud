@@ -41,7 +41,7 @@ export function DashboardPageHeader({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:px-6 sm:py-5 print:border-0 print:shadow-none",
+        "rounded-2xl border border-border bg-card px-3 py-2.5 shadow-sm sm:px-6 sm:py-5 print:border-0 print:shadow-none",
         // Mobile senza titolo resta solo il bottone «Filtri»: niente riquadro
         // intorno, che spendeva una card intera per un bottone.
         compactTitle && "max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none",
@@ -58,13 +58,13 @@ export function DashboardPageHeader({
           )}
           <div className="min-w-0">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className={cn("text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl", density === "compact" && "sm:text-xl")}>
+              <h1 className={cn("text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl", density === "compact" && "sm:text-xl")}>
                 {title}
               </h1>
               {leftAccessory}
             </div>
             {subtitle && (
-              <p className="mt-0.5 hidden text-sm leading-5 text-slate-500 sm:block">
+              <p className="mt-0.5 hidden text-sm leading-5 text-muted-foreground sm:block">
                 {subtitle}
               </p>
             )}
@@ -78,7 +78,7 @@ export function DashboardPageHeader({
               type="button"
               onClick={() => setMobileControlsOpen((o) => !o)}
               aria-expanded={mobileControlsOpen}
-              className="tap-compact inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-500 sm:hidden dark:border-slate-700 dark:bg-slate-800/60"
+              className="tap-compact inline-flex items-center gap-1.5 self-start rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-muted-foreground sm:hidden dark:border-slate-700 dark:bg-slate-800/60"
             >
               <Filter className="h-3.5 w-3.5" />
               Filtri
