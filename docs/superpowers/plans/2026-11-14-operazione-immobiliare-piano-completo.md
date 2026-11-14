@@ -57,7 +57,7 @@ si registra, e che non si possono dedurre dai file:
 
 | # | Domanda | Perché conta | Cosa dicono i dati |
 |---|---|---|---|
-| D1 | Le operazioni restano in URBAN VISION o ognuna avrà una sua società (SPV)? | con le SPV fatture, IVA e banca vanno su aziende diverse, da subito | 38 fatture tutte intestate a URBAN VISION; il piano ha «costi di gestione SPV» |
+| D1 | Le operazioni restano in URBAN VISION o ognuna avrà una sua società (SPV)? | con le SPV fatture, IVA e banca vanno su aziende diverse, da subito | 38 fatture tutte intestate a URBAN VISION; il piano ha «costi di gestione SPV». **Risposta 14/11: tutte in URBAN VISION, nessuna SPV.** |
 | D2 | La costruzione la fa URBAN VISION (operai propri + subappalti per lavorazione) o un'impresa in appalto? | nel primo caso fasi e squadre; nel secondo un contratto d'appalto con SAL | Callimaco: «operai interni 90.000 €», DUEZETA in subappalto |
 | D3 | Si vende sulla carta (compromessi e acconti durante i lavori)? | servono fideiussioni (D.Lgs. 122/2005) e incassi prima del rogito | «Fideiussioni per acconti clienti 15.000 €» in tutti e tre i piani |
 | D4 | Mutuo edilizio a stati d'avanzamento? | le erogazioni della banca seguono i SAL: cassa e capitale cambiano | «Interessi su mutuo edilizio 90.000 €» in tutti e tre |
@@ -165,6 +165,11 @@ Proposta da far scegliere al titolare:
 - Con D2 = appalto: niente fasi proprie, un contratto d'appalto con SAL (modulo esistente).
 
 ### Lotto 7 — Dati di URBAN VISION (con il titolare) — PARTE FATTA 14/11, domande inviate
+
+D1 risolta il 14/11: tutte e tre in URBAN VISION. Le altre domande sono nel file Excel
+«URBAN VISION - domande per il titolare.xlsx» (fogli Domande, Date, Finanziamento, Unità, Stime,
+Fatture): quando torna compilato, si caricano da lì.
+
 - D5: inizio di Cherubini e Lotti → «Calendario» del piano.
 - D6: le 32 stime → «Completa le stime»; poi approvazione dei tre budget.
 - D4/D1: fonti in Investitori (mezzi propri, mutuo con erogazioni a SAL).
