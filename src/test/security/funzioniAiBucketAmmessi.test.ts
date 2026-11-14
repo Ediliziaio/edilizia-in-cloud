@@ -252,7 +252,10 @@ describe("l'elenco coincide con quello che l'app manda davvero", () => {
   it("import contratti di commessa: order-attachments, cartella dell'azienda", () => {
     const s = leggi("src/components/orders/ContractImportDialog.tsx");
     expect(s).toContain('const BUCKET = "order-attachments";');
-    expect(s).toContain("path = `${companyId}/ai-contratti/");
+    // Alla creazione la cartella è l'azienda (chiave di servizio, vedi sopra); a commessa creata (14/11/2026) è la
+    // commessa: fuori dall'elenco, quindi la funzione scarica coi diritti di chi chiama, e il file è registrato
+    // fra i documenti della commessa perché office_attachment_file_read lo lasci leggere.
+    expect(s).toContain("path = `${orderId ?? companyId}/ai-contratti/");
     expect(ha(BUCKET_LETTURA_GENERICA, "order-attachments", "azienda")).toBe(true);
   });
 

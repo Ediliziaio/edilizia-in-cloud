@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatCurrency } from "@/lib/formatters";
 import type { ContractExtract } from "@/lib/orders/contractExtract";
+import type { StoredContractFile } from "@/lib/orders/contractPreparation";
 import {
   descrizioneVoceContratto, pianoContrattoSuCommessa, rateDaSalvare, type CommessaPerContratto, type PianoContrattoSuCommessa, type RataEsistente,
 } from "@/lib/orders/contrattoSuCommessa";
@@ -38,6 +39,8 @@ interface Lettura {
   piano: PianoContrattoSuCommessa;
   commessa: CommessaPerContratto & { version: number | null };
   vociEsistenti: number;
+  /** Il lettore l'ha già caricato fra i documenti della commessa. */
+  giaNeiDocumenti: boolean;
 }
 
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
@@ -57,7 +60,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
   const [salvo, setSalvo] = useState(false);
 
   /** Il contratto è letto: si legge com'è la commessa adesso e si prepara l'anteprima. */
-  const preparaAnteprima = async (ex: ContractExtract, file?: File | null) => {
+  const preparaAnteprima = async (ex: ContractExtract, file?: File | null, origine?: StoredContractFile | null) => {
     setLettore(false);
     setPreparo(true);
     try {
@@ -79,9 +82,10 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         // Se la commessa ha già voci, aggiungerne altre è una scelta da fare guardando.
         voci: piano.voci.length > 0 && vociEsistenti === 0,
         rate: !!piano.rateNuove,
-        documento: !!file,
+        documento: !!file && !(origine?.path?.startsWith(`${orderId}/`)),
       });
-      setLettura({ ex, file: file ?? null, piano, commessa, vociEsistenti });
+      const giaNeiDocumenti = !!origine?.path?.startsWith(`${orderId}/`);
+      setLettura({ ex, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti });
     } catch (e) {
       toast.error("Non riesco a leggere la commessa", { description: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -126,7 +130,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         if (error) throw new Error(`Importi e rate salvati, ma le voci no: ${error.message}`);
         fatti.push(`${piano.voci.length} voci`);
       }
-      if (scelte.documento && file && user) {
+      // L'originale l'ha già messo nei documenti il lettore (serve per farlo leggere all'AI): qui niente doppione.
+      if (scelte.documento && file && user && !lettura.giaNeiDocumenti) {
         try {
           const { file: ridotto } = await riduciFile(file);
           const percorso = percorsoDocumento(orderId, ridotto.name);
@@ -166,7 +171,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
       {lettore && (
         <Suspense fallback={<p role="status">Apertura lettore…</p>}>
           <ContractImportDialog open companyId={companyId} orderId={orderId} destinazione={perCommittente ? "appaltatore" : "cliente"}
-            onOpenChange={setLettore} onApply={(ex, file) => void preparaAnteprima(ex, file)} />
+            onOpenChange={setLettore} onApply={(ex, file, origine) => void preparaAnteprima(ex, file, origine)} />
         </Suspense>
       )}
       <Dialog open={!!lettura} onOpenChange={(o) => !o && !salvo && setLettura(null)}>
@@ -238,11 +243,13 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
               </label>
 
               <label className="flex items-start gap-2">
-                <Checkbox checked={scelte.documento} disabled={!lettura.file}
+                <Checkbox checked={scelte.documento || lettura.giaNeiDocumenti} disabled={!lettura.file || lettura.giaNeiDocumenti}
                   onCheckedChange={(v) => setScelte({ ...scelte, documento: v === true })} aria-label="Salva il contratto nei documenti" />
                 <span>
                   <span className="font-medium">Salva il contratto nei documenti della commessa</span>
-                  <span className="block text-muted-foreground">{lettura.file ? lettura.file.name : "Il file non è disponibile."} Non visibile al cliente.</span>
+                  <span className="block text-muted-foreground">
+                    {lettura.giaNeiDocumenti ? `${lettura.file?.name ?? "Il contratto"} è già nei documenti, salvato alla lettura.` : lettura.file ? lettura.file.name : "Il file non è disponibile."} Non visibile al cliente.
+                  </span>
                 </span>
               </label>
             </div>

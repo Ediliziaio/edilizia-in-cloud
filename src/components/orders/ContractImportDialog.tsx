@@ -67,7 +67,7 @@ function fmtBytes(b: number): string {
 }
 
 export function ContractImportDialog({ open, onOpenChange, companyId, onApply, initialAnalysisId, destinazione = "cliente", orderId = null }: Props) {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const workflowProfilo = useContractWorkflowProfile();
   const { perContratto: modelliFasi } = useFasiDiPartenza();
   const [file, setFile] = useState<File | null>(null);
@@ -126,6 +126,18 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     // Lo stesso contenuto riusa il riferimento privato senza sovrascriverlo.
     const {error} = await supabase.storage.from(BUCKET).upload(path,originale,{upsert:false});
     if (error && !/already exists|duplicate/i.test(error.message)) throw new Error(`Upload: ${error.message}`);
+    // Commessa già creata: l'originale entra subito nei suoi documenti (non visibile al cliente). Serve anche per
+    // leggerlo: la regola office_attachment_file_read lascia leggere in order-attachments solo i file registrati.
+    if (orderId && user) {
+      const { data: gia } = await supabase.from("order_attachments").select("id").eq("order_id", orderId).eq("file_url", path).limit(1);
+      if (!gia?.length) {
+        const { error: eDoc } = await supabase.from("order_attachments").insert({
+          order_id: orderId, file_name: originale.name, file_url: path, file_type: originale.type || "application/octet-stream",
+          file_size: originale.size, uploaded_by: user.id, visible_to_customer: false,
+        } as never);
+        if (eDoc) throw new Error(`Documenti della commessa: ${eDoc.message}`);
+      }
+    }
     return {bucket:BUCKET,path,name:originale.name,mime:originale.type || "application/pdf"};
   };
 
