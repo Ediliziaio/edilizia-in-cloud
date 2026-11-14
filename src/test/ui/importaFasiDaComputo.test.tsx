@@ -15,8 +15,8 @@ vi.mock("@/lib/computo/leggiVoci", () => ({
   leggiVociDaFile: async () => ({
     formato: "xlsx", via: "browser", esito: {},
     voci: [
-      { ...voceVuota(), capitolo: "Demolizioni", descrizione: "Demolizione tramezze", unita: "mq", quantita: "120", prezzo: "20", avvisi: [], origine: "c.xlsx" },
-      { ...voceVuota(), capitolo: "Murature", descrizione: "Tramezza", unita: "mq", quantita: "80", prezzo: "40", avvisi: [], origine: "c.xlsx" },
+      { ...voceVuota(), capitolo: "Demolizioni", descrizione: "Demolizione tramezze", unita: "mq", quantita: "120", prezzo: "20", avvisi: [] as string[], origine: "c.xlsx" },
+      { ...voceVuota(), capitolo: "Murature", descrizione: "Tramezza", unita: "mq", quantita: "80", prezzo: "40", avvisi: [] as string[], origine: "c.xlsx" },
     ],
   }),
 }));
