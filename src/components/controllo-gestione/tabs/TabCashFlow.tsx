@@ -10,7 +10,7 @@
 import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Plus, Tags } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -25,6 +25,8 @@ import { euroIntero } from "@/lib/controlloGestione/formatoCG";
 import { useRendicontoCassa } from "@/hooks/controlloGestione/useRendicontoCassa";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
+import { ClassificaMovimentiDialog } from "@/components/controllo-gestione/ClassificaMovimentiDialog";
 import { cn } from "@/lib/utils";
 import {
   costruisciRendiconto,
@@ -91,6 +93,8 @@ export function TabCashFlow({ anno }: Props) {
   const [chiusi, setChiusi] = useState<Set<GruppoCassa>>(() => new Set());
   const [selezione, setSelezione] = useState<Selezione | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [classifica, setClassifica] = useState(false);
+  const permessi = usePermissions();
   const soglia = useMemo(() => sogliaSalvata(companyId), [companyId]);
 
   const r = useMemo<RendicontoCassa | null>(() => {
@@ -214,6 +218,20 @@ export function TabCashFlow({ anno }: Props) {
           <p className="text-sm text-muted-foreground">Il {anno} è chiuso: tutti i mesi sono a consuntivo.</p>
         )}
         <div className="flex flex-wrap gap-2">
+          {companyId && permessi.canViewTesoreria && (
+            <Button
+              size="sm"
+              variant={r.nonClassificati.numero ? "default" : "outline"}
+              onClick={() => setClassifica(true)}
+              title="Assegna le categorie ai movimenti di banca"
+            >
+              <Tags className="mr-2 h-4 w-4" />
+              Classifica movimenti
+              {r.nonClassificati.numero > 0 && (
+                <span className="ml-2 rounded-full bg-background/20 px-1.5 text-xs tabular-nums">{r.nonClassificati.numero}</span>
+              )}
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm">
             <Link to={linkPrevisionale}>
               <ExternalLink className="mr-2 h-4 w-4" />
@@ -232,7 +250,7 @@ export function TabCashFlow({ anno }: Props) {
         </div>
       </div>
 
-      <Avvisi r={r} />
+      <Avvisi r={r} daBanca={q.data.daBanca} bancaForseDoppi={q.data.bancaForseDoppi} onClassifica={permessi.canViewTesoreria ? () => setClassifica(true) : undefined} />
 
       {isMobile ? (
         <VistaMese r={r} onApri={apri} />
@@ -240,7 +258,21 @@ export function TabCashFlow({ anno }: Props) {
         <TabellaRendiconto r={r} chiusi={chiusi} onToggle={toggleGruppo} onApri={apri} />
       )}
 
-      <DettaglioSheet r={r} selezione={selezione} onClose={() => setSelezione(null)} />
+      <DettaglioSheet
+        r={r}
+        selezione={selezione}
+        onClose={() => setSelezione(null)}
+        onClassifica={permessi.canViewTesoreria ? () => { setSelezione(null); setClassifica(true); } : undefined}
+      />
+      {classifica && companyId && (
+        <ClassificaMovimentiDialog
+          open={classifica}
+          onOpenChange={setClassifica}
+          company={companyId}
+          anno={anno}
+          puoModificare={permessi.canReconcileBankTransactions}
+        />
+      )}
       {haPrevisione && <CashFlowManualiEditor open={editorOpen} onOpenChange={setEditorOpen} anno={anno} />}
     </div>
   );
@@ -308,7 +340,12 @@ function Riquadro({ label, value, sub, tone = "neutral" }: { label: string; valu
 
 // ── Avvisi ──────────────────────────────────────────────────────────────────
 
-function Avvisi({ r }: { r: RendicontoCassa }) {
+function Avvisi({ r, daBanca, bancaForseDoppi, onClassifica }: {
+  r: RendicontoCassa;
+  daBanca?: number;
+  bancaForseDoppi?: { numero: number; cents: number };
+  onClassifica?: () => void;
+}) {
   const righe: { chiave: string; testo: ReactNode }[] = [];
   if (r.saldo.avviso) righe.push({ chiave: "saldo", testo: r.saldo.avviso });
   else if (r.saldo.ricostruito)
@@ -334,10 +371,18 @@ function Avvisi({ r }: { r: RendicontoCassa }) {
       testo: (
         <>
           {r.nonClassificati.numero} movimenti senza categoria ({euro(r.nonClassificati.cents)}) sono nelle righe «Da classificare»: contano nel saldo e nei totali, ma non in una categoria.{" "}
-          <Link className="font-medium underline" to="/azienda/prima-nota">Dagli una categoria in Prima nota</Link>.
+          {onClassifica ? (
+            <button type="button" className="font-medium underline" onClick={onClassifica}>Classificali</button>
+          ) : (
+            <Link className="font-medium underline" to="/azienda/prima-nota">Dagli una categoria in Prima nota</Link>
+          )}.
         </>
       ),
     });
+  if (daBanca)
+    righe.push({ chiave: "banca", testo: `${daBanca} movimenti di banca non ancora registrati in prima nota sono contati nel consuntivo: sono soldi già passati dal conto.` });
+  if (bancaForseDoppi?.numero)
+    righe.push({ chiave: "banca-doppi", testo: <>{bancaForseDoppi.numero} movimenti di banca (netto {euro(bancaForseDoppi.cents)}) hanno una scrittura di prima nota con lo stesso importo, nello stesso verso e a pochi giorni, non collegata: conto solo quella. Collegale in Tesoreria per toglierle da qui.</> });
   if (r.registratiScartati)
     righe.push({ chiave: "scartati", testo: `${r.registratiScartati} movimenti di prima nota con importo o data da verificare non sono contati.` });
   if (r.registratiFuturi)
@@ -456,7 +501,9 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
                 {aperto &&
                   voci.map((v) => (
                     <Fragment key={v}>
-                      {rigaImporti(etichettaVoce(v), r.righe[v], [v], "", "bg-card pl-7")}
+                      {VOCE_PER_CHIAVE.get(v)?.daClassificare
+                        ? rigaImporti(`⚠ ${etichettaVoce(v)}`, r.righe[v], [v], "bg-amber-50/80 dark:bg-amber-950/40", "bg-amber-50 pl-7 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200")
+                        : rigaImporti(etichettaVoce(v), r.righe[v], [v], "", "bg-card pl-7")}
                     </Fragment>
                   ))}
                 {rigaImporti(g.totale, r.gruppi[g.key], vociDelGruppo(g.key), "bg-muted/30", "bg-muted font-semibold", true)}
@@ -555,7 +602,7 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
 
 // ── Pannello dei movimenti ──────────────────────────────────────────────────
 
-function DettaglioSheet({ r, selezione, onClose }: { r: RendicontoCassa; selezione: Selezione | null; onClose: () => void }) {
+function DettaglioSheet({ r, selezione, onClose, onClassifica }: { r: RendicontoCassa; selezione: Selezione | null; onClose: () => void; onClassifica?: () => void }) {
   const focusReturn = useDialogFocusReturn();
   const righe: DettaglioCella[] = selezione ? dettagliCella(r, selezione.voci, selezione.mese) : [];
   const totale = righe.reduce((s, d) => s + d.cents, 0);
@@ -568,6 +615,11 @@ function DettaglioSheet({ r, selezione, onClose }: { r: RendicontoCassa; selezio
             {righe.length} movimenti · totale <span className={cn("font-semibold tabular-nums", totale < 0 && "text-rose-700")}>{euro(totale)}</span>
           </SheetDescription>
         </SheetHeader>
+        {onClassifica && selezione?.voci.some((v) => VOCE_PER_CHIAVE.get(v)?.daClassificare) && righe.some((d) => d.bankTransactionId) && (
+          <Button size="sm" className="mt-3" onClick={onClassifica}>
+            <Tags className="mr-2 h-4 w-4" /> Classifica questi movimenti
+          </Button>
+        )}
         {righe.length === 0 ? (
           <p className="mt-6 text-sm text-muted-foreground">Nessun movimento.</p>
         ) : (

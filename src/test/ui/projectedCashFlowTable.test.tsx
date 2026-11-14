@@ -7,6 +7,10 @@ const state = vi.hoisted(() => ({ query: vi.fn(), exported: vi.fn(), mobile: fal
 vi.mock('@/hooks/controlloGestione/useRendicontoCassa', () => ({ useRendicontoCassa: () => state.query() }));
 vi.mock('@/hooks/useEffectiveCompanyId', () => ({ useEffectiveCompanyId: () => 'azienda-1' }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => state.mobile }));
+vi.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ canViewTesoreria: true, canReconcileBankTransactions: true }) }));
+vi.mock('@/components/controllo-gestione/ClassificaMovimentiDialog', () => ({
+  ClassificaMovimentiDialog: ({ open }: { open: boolean }) => (open ? <div role="dialog" aria-label="Classifica i movimenti nelle categorie" /> : null),
+}));
 vi.mock('@/components/controllo-gestione/CashFlowManualiEditor', () => ({ CashFlowManualiEditor: (): null => null }));
 vi.mock('@/components/controllo-gestione/ui/ExportButton', () => ({ ExportButton: ({ onExport }: { onExport: () => void }) => <button onClick={onExport}>Esporta</button> }));
 vi.mock('@/lib/controlloGestione/exportXlsx', () => ({ exportXlsx: state.exported }));
@@ -29,6 +33,8 @@ const dati = (): DatiRendicontoCassa => ({
   manuali: [],
   mutui: [],
   fontiNonLette: [],
+  daBanca: 0,
+  bancaForseDoppi: { numero: 0, cents: 0 },
 });
 
 beforeEach(() => {
@@ -132,5 +138,24 @@ describe('rendiconto di cassa', () => {
     expect(screen.getByRole('combobox', { name: 'Mese' })).toHaveTextContent('novembre · Previsione');
     expect(screen.getAllByText('5.000 €').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Apri il dettaglio di Da clienti (fatture e rate delle commesse) · novembre 2026: 5.000 €' })).toBeInTheDocument();
+  });
+
+  it('i movimenti senza categoria stanno in «Da classificare», dentro i totali, e il pulsante apre la classificazione', () => {
+    apri();
+    const table = screen.getByRole('table');
+    // «altro» con una spesa INPS: la spesa dice di più, quindi resta classificato.
+    expect(within(table).queryByText(/Da classificare/)).toBeNull();
+    state.query.mockReturnValue({
+      data: { ...dati(), registrati: [...dati().registrati, { id: 'c', direction: 'uscita', amount: 250, entry_date: '2026-02-03', category: 'altro', description: 'Boh' }] },
+      isLoading: false,
+      isError: false,
+    });
+    cleanup();
+    apri();
+    const t2 = screen.getByRole('table');
+    expect(within(t2).getAllByText(/Da classificare/).length).toBeGreaterThan(0);
+    expect(within(t2).getAllByText('-250 €').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: /Classifica movimenti/ }));
+    expect(screen.getByRole('dialog', { name: 'Classifica i movimenti nelle categorie' })).toBeInTheDocument();
   });
 });
