@@ -49,7 +49,7 @@ describe("import contratto dalla lettura all'applicazione",()=>{
     const onApply=apri();await leggi();
     fireEvent.click(screen.getByRole("button",{name:"Applica alla commessa"}));
     expect(onApply).toHaveBeenCalledOnce();
-    expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"order-attachments",name:"contratto.pdf"});
+    expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"documenti-smart",name:"contratto.pdf"});
     expect(onApply.mock.calls[0][2]).not.toHaveProperty("firmaConfermataIl");
     expect(mocks.invoke.mock.calls[0][1].body.user_hint).toContain("quota_azienda_eur");
   });
@@ -90,6 +90,6 @@ describe("import contratto dalla lettura all'applicazione",()=>{
     fireEvent.click(await screen.findByRole("button",{name:"Applica alla commessa"}));
     await waitFor(()=>expect(onApply).toHaveBeenCalledOnce());
     expect(mocks.upload).toHaveBeenCalledOnce();
-    expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"order-attachments",path:expect.stringMatching(/^demo\/ai-contratti\/[a-f0-9]+-file\.pdf$/)});
+    expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"documenti-smart",path:expect.stringMatching(/^demo\/ai-contratti\/[a-f0-9]+-file\.pdf$/)});
   });
 });

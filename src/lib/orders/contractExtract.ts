@@ -370,7 +370,7 @@ export function contractToInstallments(extract: ContractExtract, total: number):
   if (phases.length === 0) return [];
   const iva = deriveIvaPct(extract);
   const lordo = iva != null && total > 0 ? round2(total * (1 + iva / 100)) : null;
-  return phases.filter(p => (p.importo_eur != null && p.importo_eur > 0) || (p.percentuale != null && p.percentuale > 0 && lordo != null)).map((p, idx, dichiarate) => {
+  const rate: Installment[] = phases.filter(p => (p.importo_eur != null && p.importo_eur > 0) || (p.percentuale != null && p.percentuale > 0 && lordo != null)).map((p, idx, dichiarate) => {
     const low = p.descrizione.toLowerCase();
     const type: Installment["type"] =
       /saldo|a fine|balance/.test(low) ? "balance"
@@ -382,6 +382,17 @@ export function contractToInstallments(extract: ContractExtract, total: number):
       : 0;
     return { position: idx, label: p.descrizione, type, amount, is_paid: false, amount_from_contract: true };
   });
+  // «30% alla firma, saldo a fine lavori»: il saldo è dichiarato ma senza cifra, perché è il resto. Prima
+  // spariva e chi importava doveva scriverlo a mano. Solo se è l'ULTIMA fase, senza importo né percentuale,
+  // dopo almeno una rata con la cifra e nessun saldo già letto: altrimenti il piano resta da correggere.
+  const ultima = phases[phases.length - 1];
+  const saldoSenzaCifra = !!ultima && ultima.importo_eur == null && ultima.percentuale == null && /\bsaldo\b|a fine lavori/i.test(ultima.descrizione);
+  if (saldoSenzaCifra && lordo != null && rate.length > 0 && !rate.some(r => r.type === "balance")) {
+    const resto = round2(lordo - rate.reduce((somma, r) => somma + r.amount, 0));
+    // Il resto lo ricalcola il modulo (amount_from_contract: false), come ogni saldo finale.
+    if (resto > 0) rate.push({ position: rate.length, label: ultima.descrizione, type: "balance", amount: resto, is_paid: false, amount_from_contract: false });
+  }
+  return rate;
 }
 
 /** Una lettura parziale delle rate richiede correzione, non un saldo inventato. */

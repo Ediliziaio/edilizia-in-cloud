@@ -285,6 +285,22 @@ describe("import contratto: IVA e totale da confermare", () => {
     const ex=parseContractExtract({iva_pct:22,fasi_pagamento:[{descrizione:"Acconto",importo_eur:366},{descrizione:"Saldo",importo_eur:854}]});
     expect(contractToInstallments(ex,1000).map(r=>r.amount)).toEqual([366,854]);
   });
+  it("«saldo a fine lavori» senza cifra diventa la rata di saldo per il resto (14/11/2026)", () => {
+    const ex=parseContractExtract({iva_pct:10,fasi_pagamento:[{descrizione:"Acconto alla firma",percentuale:30},{descrizione:"Saldo a fine lavori",percentuale:null,importo_eur:null}]});
+    const rate=contractToInstallments(ex,12000);
+    expect(rate.map(r=>[r.type,r.amount,r.amount_from_contract])).toEqual([["deposit",3960,true],["balance",9240,false]]);
+    expect(contractInstallmentWarning(rate,13200)).toBeNull();
+  });
+  it("il saldo senza cifra non si inventa se non è l'ultima fase, se manca ogni cifra o se un saldo c'è già", () => {
+    const inMezzo=parseContractExtract({iva_pct:10,fasi_pagamento:[{descrizione:"Acconto",percentuale:30},{descrizione:"Saldo",percentuale:null},{descrizione:"SAL 1",percentuale:20}]});
+    expect(contractToInstallments(inMezzo,1000).map(r=>r.type)).toEqual(["deposit","deposit"]);
+    const soloSaldo=parseContractExtract({iva_pct:10,fasi_pagamento:[{descrizione:"Saldo a fine lavori",percentuale:null}]});
+    expect(contractToInstallments(soloSaldo,1000)).toEqual([]);
+    const giaLetto=parseContractExtract({iva_pct:10,fasi_pagamento:[{descrizione:"Acconto",percentuale:30},{descrizione:"Saldo",percentuale:70},{descrizione:"Saldo a fine lavori",percentuale:null}]});
+    expect(contractToInstallments(giaLetto,1000).map(r=>r.amount)).toEqual([330,770]);
+    const senzaIva=parseContractExtract({importo_totale_eur:1000,fasi_pagamento:[{descrizione:"Acconto",importo_eur:300},{descrizione:"Saldo",percentuale:null}]});
+    expect(contractToInstallments(senzaIva,1000).map(r=>r.type)).toEqual(["deposit"]);
+  });
   it("conferma lo zero IVA senza trasformarlo in aliquota mancante", () => {
     const ex=parseContractExtract({iva_pct:0,fasi_pagamento:[{descrizione:"Saldo",percentuale:100}]});
     expect(contractToInstallments(ex,1000)[0].amount).toBe(1000);

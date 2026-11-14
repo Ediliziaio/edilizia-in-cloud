@@ -103,6 +103,9 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const [firmaVerificata, setFirmaVerificata] = useState(false);
   const [dataFirma, setDataFirma] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // "bucket/path" del documento analizzato: diventa l'allegato della risposta
+  // RDO, così dal confronto si riapre l'offerta originale.
+  const [pathAnalizzato, setPathAnalizzato] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setFile(null); setBusy(false); setError(null); setExtract(null);
@@ -202,9 +205,6 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   // "nuova" = crea una RDO da questa offerta; altrimenti l'id della RDO
   // aperta a cui agganciare l'offerta come risposta del fornitore.
   const [rdoTarget, setRdoTarget] = useState<string>("nuova");
-  // "bucket/path" del documento analizzato: diventa l'allegato della risposta
-  // RDO, così dal confronto si riapre l'offerta originale.
-  const [pathAnalizzato, setPathAnalizzato] = useState<string | null>(null);
 
   // RDO aperte dell'azienda: servono solo quando il documento è un'offerta
   // fornitore (per agganciarla come risposta a una richiesta esistente).
