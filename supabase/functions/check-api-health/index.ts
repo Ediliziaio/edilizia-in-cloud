@@ -44,23 +44,41 @@ async function pingWithLatency(url: string, options?: RequestInit): Promise<{ ok
 }
 
 /** Una chiamata in lettura all'API di Cloudflare, ridotta a ciò che serve per decidere. */
-async function chiamaCloudflare(percorso: string, token: string): Promise<RispostaCloudflare & { ms: number }> {
+async function chiamaCloudflare(
+  percorso: string,
+  token: string,
+  opzioni: { timeoutMs?: number; ritenta?: boolean } = {},
+): Promise<RispostaCloudflare & { ms: number }> {
+  const timeoutMs = opzioni.timeoutMs ?? 5000;
   const inizio = Date.now();
-  try {
-    const res = await fetch(`https://api.cloudflare.com/client/v4${percorso}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
-    });
-    const corpo = await res.json().catch(() => null) as { success?: boolean; result?: { status?: string } } | null;
-    return {
-      http: res.status,
-      success: corpo?.success,
-      statoToken: typeof corpo?.result?.status === "string" ? corpo.result.status : null,
-      ms: Date.now() - inizio,
-    };
-  } catch (e) {
-    return { http: 0, erroreRete: (e as Error).message, ms: Date.now() - inizio };
+  const unTentativo = async (): Promise<RispostaCloudflare> => {
+    try {
+      const res = await fetch(`https://api.cloudflare.com/client/v4${percorso}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const corpo = await res.json().catch(() => null) as { success?: boolean; result?: { status?: string } } | null;
+      return {
+        http: res.status,
+        success: corpo?.success,
+        statoToken: typeof corpo?.result?.status === "string" ? corpo.result.status : null,
+      };
+    } catch (e) {
+      return { http: 0, erroreRete: (e as Error).message };
+    }
+  };
+
+  let esito = await unTentativo();
+  // Un secondo tentativo solo quando non ha risposto nessuno (timeout o rete):
+  // un HTTP qualsiasi è già una risposta e va preso per buona la prima volta.
+  // Il 13/11/2026 Cloudflare ha risposto in 2.691 ms invece dei soliti 250, la
+  // chiamata a Pages ha sbattuto sui 5 secondi ed è partita un'email che
+  // parlava di token scaduto. Non era il token: era il fornitore lento.
+  if (esito.http === 0 && opzioni.ritenta) {
+    await new Promise((r) => setTimeout(r, 1000));
+    esito = await unTentativo();
   }
+  return { ...esito, ms: Date.now() - inizio };
 }
 
 const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
@@ -321,8 +339,15 @@ serveConMetriche("check-api-health", async (req) => {
       const verificaAccount = !valido && cloudflareAccountId
         ? await chiamaCloudflare(`/accounts/${cloudflareAccountId}/tokens/verify`, cloudflareToken)
         : null;
+      // Pages è la chiamata più lenta delle tre e l'unica che decide l'esito:
+      // più tempo e un secondo tentativo, così un rallentamento di Cloudflare
+      // non diventa un avviso di guasto.
       const pages = cloudflareAccountId
-        ? await chiamaCloudflare(`/accounts/${cloudflareAccountId}/pages/projects/${progetto}/domains`, cloudflareToken)
+        ? await chiamaCloudflare(
+            `/accounts/${cloudflareAccountId}/pages/projects/${progetto}/domains`,
+            cloudflareToken,
+            { timeoutMs: 10000, ritenta: true },
+          )
         : null;
       const esito = esitoCloudflare({ verificaUtente, verificaAccount, pages, progetto });
       results.push({
