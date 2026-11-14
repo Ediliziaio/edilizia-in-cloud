@@ -1,5 +1,7 @@
 /**
- * Movimenti di tutta l'operazione: generale + figlie insieme (lotto B, 14/11/2026).
+ * Movimenti di tutta l'operazione: generale + figlie insieme (lotti B e C, 14/11/2026).
+ * Lotto C: anche giornale dei lavori, timbrature e giornate dei mezzi, che la generale non
+ * leggeva da nessuna parte.
  *
  * La scheda Cantiere della commessa generale mostrava rapportini, ordini, DDT e costi una
  * commessa alla volta. Qui si leggono tutti, per gli id della generale e delle sue figlie, e
@@ -61,11 +63,38 @@ export interface CostoOperazioneRiga {
   supplier_id: string | null;
 }
 
+export interface GiornaleOperazione {
+  id: string;
+  order_id: string;
+  data_lavori: string | null;
+  lavorazioni_eseguite: string | null;
+  personale_presente: number | null;
+  stato: string | null;
+}
+export interface TimbraturaOperazione {
+  id: string;
+  order_id: string;
+  tipo: string | null;
+  timestamp_evento: string | null;
+  persona: { first_name: string | null; last_name: string | null } | null;
+}
+export interface GiornataMezzoOperazione {
+  id: string;
+  order_id: string;
+  giorno: string | null;
+  usato: boolean | null;
+  contatore: number | null;
+  mezzo: { nome: string | null; targa: string | null } | null;
+}
+
 export interface MovimentiOperazione {
   rapportini: RapportinoOperazione[];
   ordini: OrdineOperazione[];
   ddt: DdtOperazione[];
   costi: CostoOperazioneRiga[] | null;
+  giornale: GiornaleOperazione[];
+  timbrature: TimbraturaOperazione[];
+  mezzi: GiornataMezzoOperazione[];
   fornitori: Record<string, string>;
   /** Tipi che hanno toccato il limite: l'elenco non è completo. */
   troncati: string[];
@@ -87,7 +116,7 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, attivo: boolean) {
     enabled: attivo && !!companyId,
     staleTime: 30_000,
     queryFn: async (): Promise<MovimentiOperazione> => {
-      const [rapportini, ordini, ddt, costi] = await Promise.all([
+      const [rapportini, ordini, ddt, costi, giornale, timbrature, mezzi] = await Promise.all([
         leggi<RapportinoOperazione>(
           "campo_rapportini",
           "id, order_id, data_lavoro, ore_lavorate, descrizione_lavori, stato, approvato, autore:profiles!campo_rapportini_user_id_fkey(first_name, last_name)",
@@ -99,6 +128,17 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, attivo: boolean) {
         r.permessi.costi
           ? leggi<CostoOperazioneRiga>("company_costs", "id, order_id, name, amount, documento_data, due_date, is_paid, paid_date, supplier_id", companyId!, ids, "documento_data")
           : Promise.resolve(null),
+        leggi<GiornaleOperazione>("giornale_lavori", "id, order_id, data_lavori, lavorazioni_eseguite, personale_presente, stato", companyId!, ids, "data_lavori"),
+        leggi<TimbraturaOperazione>(
+          "campo_timbrature",
+          "id, order_id, tipo, timestamp_evento, persona:profiles!campo_timbrature_user_id_fkey(first_name, last_name)",
+          companyId!, ids, "timestamp_evento",
+        ),
+        leggi<GiornataMezzoOperazione>(
+          "mezzi_giornate",
+          "id, order_id, giorno, usato, contatore, mezzo:mezzi!mezzi_giornate_mezzo_id_fkey(nome, targa)",
+          companyId!, ids, "giorno",
+        ),
       ]);
       const idFornitori = [...new Set([...ordini, ...ddt, ...(costi ?? [])].map((x) => x.supplier_id).filter((x): x is string => !!x))];
       const fornitori: Record<string, string> = {};
@@ -112,8 +152,11 @@ export function useMovimentiOperazione(r: RiepilogoGenerale, attivo: boolean) {
         ordini.length >= LIMITE_MOVIMENTI && "ordini",
         ddt.length >= LIMITE_MOVIMENTI && "DDT",
         (costi?.length ?? 0) >= LIMITE_MOVIMENTI && "costi",
+        giornale.length >= LIMITE_MOVIMENTI && "giornale",
+        timbrature.length >= LIMITE_MOVIMENTI && "timbrature",
+        mezzi.length >= LIMITE_MOVIMENTI && "giornate dei mezzi",
       ].filter((x): x is string => !!x);
-      return { rapportini, ordini, ddt, costi, fornitori, troncati };
+      return { rapportini, ordini, ddt, costi, giornale, timbrature, mezzi, fornitori, troncati };
     },
   });
 }

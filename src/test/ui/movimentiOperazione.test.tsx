@@ -26,6 +26,12 @@ m.dati = {
     { id: "c1", order_id: "g", name: "Acconto terreno", amount: 200000, documento_data: "2026-11-10", due_date: null, is_paid: true, paid_date: "2026-11-10", supplier_id: null },
     { id: "c2", order_id: "f1", name: "Progetto", amount: 1000, documento_data: "2026-11-02", due_date: "9999-12-31", is_paid: false, paid_date: null, supplier_id: "s1" },
   ],
+  giornale: [{ id: "gl1", order_id: "f1", data_lavori: "2026-11-11", lavorazioni_eseguite: "Getto solaio", personale_presente: 4, stato: "firmato" }],
+  timbrature: [{ id: "t1", order_id: "g", tipo: "entrata", timestamp_evento: "2026-11-11T07:30:00Z", persona: { first_name: "Mario", last_name: "Rossi" } }],
+  mezzi: [
+    { id: "m1", order_id: "g", giorno: "2026-11-11", usato: true, contatore: 1250, mezzo: { nome: "Escavatore", targa: "AB123CD" } },
+    { id: "m2", order_id: "f1", giorno: "2026-11-12", usato: false, contatore: null, mezzo: { nome: "Gru", targa: null } },
+  ],
   fornitori: { s1: "SPRING SRL" },
   troncati: [],
 };
@@ -59,8 +65,20 @@ describe("tutta l'operazione nel cantiere", () => {
     expect(screen.queryByText(/9999/)).toBeNull();
   });
 
-  it("le sezioni che si consultano una commessa alla volta lo dicono", () => {
+  it("rapportini col giornale dei lavori, squadre con timbrature e mezzi", () => {
+    const { unmount } = render(<MovimentiOperazione riepilogo={riepilogo} vista="rapportini" onApri={vi.fn()} />);
+    expect(screen.getByText("Getto solaio")).toBeInTheDocument();
+    expect(screen.getByText("1 giornata")).toBeInTheDocument();
+    unmount();
     render(<MovimentiOperazione riepilogo={riepilogo} vista="squadre" onApri={vi.fn()} />);
+    expect(screen.getByText("Mario Rossi")).toBeInTheDocument();
+    expect(screen.getByText("Escavatore · AB123CD")).toBeInTheDocument();
+    expect(screen.getByText("Fermo")).toBeInTheDocument();
+    expect(screen.getByText("1 giornata di lavoro")).toBeInTheDocument();
+  });
+
+  it("le sezioni che si consultano una commessa alla volta lo dicono", () => {
+    render(<MovimentiOperazione riepilogo={riepilogo} vista="pagamenti" onApri={vi.fn()} />);
     expect(screen.getByText(/si consulta una commessa alla volta/)).toBeInTheDocument();
   });
 });

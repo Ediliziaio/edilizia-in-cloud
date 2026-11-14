@@ -5,15 +5,16 @@
  * figlie, con la colonna «Commessa». Sola lettura: il codice della commessa porta sulla
  * commessa, dove si registra e si modifica come sempre.
  */
-import { ClipboardList, PackageCheck, ReceiptText } from "lucide-react";
+import { BookOpen, ClipboardList, Clock, PackageCheck, ReceiptText, Truck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formattaEuro, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { useMovimentiOperazione } from "@/hooks/useMovimentiOperazione";
 import { dataBreve } from "../piano/formato";
 import { cn } from "@/lib/utils";
 
-type Vista = "rapportini" | "forniture" | "fatture";
-export const VISTE_OPERAZIONE: readonly string[] = ["rapportini", "forniture", "fatture"];
+type Vista = "rapportini" | "forniture" | "squadre" | "fatture";
+export const VISTE_OPERAZIONE: readonly string[] = ["rapportini", "forniture", "squadre", "fatture"];
+const ora = (t: string | null) => (t ? new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
 /** 31/12/9999 è la convenzione per «pagamento non noto»: non è una data da mostrare. */
 const ignoto = (d: string | null) => !!d && d.startsWith("9999");
@@ -56,7 +57,7 @@ export function MovimentiOperazione({
     return (
       <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
         Questa sezione si consulta una commessa alla volta: scegli la generale o una delle commesse in «Registra e consulta su».
-        In «Tutta l'operazione» ci sono rapportini, forniture e DDT, fatture e costi.
+        In «Tutta l'operazione» ci sono rapportini e giornale, forniture e DDT, squadre (timbrature e mezzi), fatture e costi.
       </p>
     );
   }
@@ -107,6 +108,79 @@ export function MovimentiOperazione({
             ))}
           </tbody>
         </Riquadro>
+      )}
+
+      {v === "rapportini" && (
+        <Riquadro
+          icona={BookOpen}
+          titolo="Giornale dei lavori"
+          sintesi={quante(data.giornale.length, "giornata", "giornate")}
+          vuoto="Nessuna giornata nel giornale dei lavori."
+          righe={data.giornale.length}
+        >
+          <thead>
+            <tr><Th>Data</Th><Th>Commessa</Th><Th>Lavorazioni</Th><Th className="text-right">Persone</Th><Th>Stato</Th></tr>
+          </thead>
+          <tbody>
+            {data.giornale.map((x) => (
+              <tr key={x.id} className="border-t">
+                <Td className="whitespace-nowrap">{dataBreve(x.data_lavori)}</Td>
+                <Td><Commessa id={x.order_id} /></Td>
+                <Td className="max-w-[26rem] truncate" title={x.lavorazioni_eseguite ?? undefined}>{x.lavorazioni_eseguite || "—"}</Td>
+                <Td className="text-right tabular-nums">{x.personale_presente ?? "—"}</Td>
+                <Td>{parola(x.stato)}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </Riquadro>
+      )}
+
+      {v === "squadre" && (
+        <>
+          <Riquadro
+            icona={Clock}
+            titolo="Timbrature"
+            sintesi={quante(data.timbrature.length, "timbratura", "timbrature")}
+            vuoto="Nessuna timbratura sull'operazione."
+            righe={data.timbrature.length}
+          >
+            <thead>
+              <tr><Th>Quando</Th><Th>Commessa</Th><Th>Chi</Th><Th>Tipo</Th></tr>
+            </thead>
+            <tbody>
+              {data.timbrature.map((x) => (
+                <tr key={x.id} className="border-t">
+                  <Td className="whitespace-nowrap">{ora(x.timestamp_evento)}</Td>
+                  <Td><Commessa id={x.order_id} /></Td>
+                  <Td>{nomePersona(x.persona)}</Td>
+                  <Td>{parola(x.tipo)}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Riquadro>
+          <Riquadro
+            icona={Truck}
+            titolo="Mezzi in cantiere"
+            sintesi={`${quante(data.mezzi.filter((x) => x.usato !== false).length, "giornata", "giornate")} di lavoro`}
+            vuoto="Nessuna giornata dei mezzi sull'operazione."
+            righe={data.mezzi.length}
+          >
+            <thead>
+              <tr><Th>Giorno</Th><Th>Commessa</Th><Th>Mezzo</Th><Th>Usato</Th><Th className="text-right">Contatore</Th></tr>
+            </thead>
+            <tbody>
+              {data.mezzi.map((x) => (
+                <tr key={x.id} className="border-t">
+                  <Td className="whitespace-nowrap">{dataBreve(x.giorno)}</Td>
+                  <Td><Commessa id={x.order_id} /></Td>
+                  <Td>{[x.mezzo?.nome, x.mezzo?.targa].filter(Boolean).join(" · ") || "—"}</Td>
+                  <Td>{x.usato === false ? "Fermo" : "Sì"}</Td>
+                  <Td className="text-right tabular-nums">{x.contatore ?? "—"}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Riquadro>
+        </>
       )}
 
       {v === "forniture" && (
