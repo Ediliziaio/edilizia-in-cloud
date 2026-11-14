@@ -98,6 +98,8 @@ export const FONTI_REALI: Record<string, string> = {
   rimborsi_km: "Rimborsi chilometrici",
   rettifica: "Rettifica",
   fattura: "Fattura emessa",
+  documento_fiscale: "Fattura emessa",
+  rogito: "Rogito dell'unità",
 };
 
 export interface VoceDiPartenza {
