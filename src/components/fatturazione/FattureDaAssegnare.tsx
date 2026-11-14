@@ -123,16 +123,18 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
           <ul className="divide-y rounded-lg border bg-background text-sm">
             {visibili.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5">
-                <span className="min-w-0 flex-1 truncate">
-                  <span className="font-medium">{r.cedente_ragione_sociale ?? "Fornitore"}</span>
-                  <span className="ml-1.5 text-xs text-muted-foreground">
-                    {r.numero_fattura ?? ""} {r.data_fattura ? `· ${formatDateIt(r.data_fattura)}` : ""}
+                {/* Due righe: il nome può accorciarsi, il numero della fattura e il motivo no. */}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{r.cedente_ragione_sociale ?? "Fornitore"}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    <span className="whitespace-nowrap">{r.numero_fattura ?? ""}{r.data_fattura ? ` · ${formatDateIt(r.data_fattura)}` : ""}</span>
+                    {" · "}
+                    <span title={r.order_suggerito_motivo ? "Riconosciuta dai codici della fattura, senza AI" : "Proposta dall'AI"}>
+                      {r.order_suggerito_motivo ? `da ${r.order_suggerito_motivo}` : "proposta AI"}
+                    </span>
                   </span>
                 </span>
                 <span className="tabular-nums">{formatCurrency(Number(r.totale_documento) || 0)}</span>
-                <span className="text-xs text-muted-foreground" title={r.order_suggerito_motivo ? "Riconosciuta dai codici della fattura, senza AI" : "Proposta dall'AI"}>
-                  {r.order_suggerito_motivo ? `da ${r.order_suggerito_motivo}` : "proposta AI"}
-                </span>
                 {puoModificare && r.costo && r.suggerito && (
                   <Button
                     size="sm"

@@ -173,7 +173,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
           <DialogHeader>
             <DialogTitle>{azione ? AZIONI[azione].titolo : ""}</DialogTitle>
             <DialogDescription>
-              {selezione ? `${fatture(selezione.idonee.length)} · ${formatCurrency(totale)}` : ""}
+              {selezione ? (azione === "mezzi" ? fatture(selezione.idonee.length) : `${fatture(selezione.idonee.length)} · ${formatCurrency(totale)}`) : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
