@@ -82,15 +82,23 @@ lettura AI; incasso parziale e saldo; nessun costo contato due volte nella comme
 
 ## Fase 6 — Commessa del cliente privato allineata a quella del committente
 
-Richiesta del titolare (14/11): nella commessa del committente si importano preventivi e
-contratti (anche con l'AI) e ci sono strumenti che nella commessa del cliente privato mancano.
-Le due devono offrire le stesse cose dove hanno senso.
+Richiesta del titolare (14/11). Confronto fatto sul codice: quasi tutto ciò che ha il committente
+non è spento sulla commessa del privato da una condizione, ma è raggiungibile solo dalla scheda del
+committente, che il privato non ha. Al contrario, alla creazione il privato è più avanti (import da
+preventivo).
 
-1. Censimento: cosa ha la commessa del committente (import di preventivo, contratto letto con
-   l'AI, listino concordato, rendiconto, SAL) e cosa manca a quella del privato, pagina per pagina.
-2. Import del preventivo o del contratto nella commessa del privato: testata, importi, rate e
-   fasi (riusa «Da computo o preventivo» e la lettura del contratto già esistente).
-3. Stessi pulsanti e stesso ordine delle schede dove la funzione è la stessa.
+1. **Preventivi nella scheda del cliente privato**: lo stesso riquadro del committente
+   (lavoro extra da un preventivo accettato, nuova commessa, rifiuto, revisione), oggi i
+   preventivi del privato sono solo collegamenti.
+2. **«Importa da preventivo» dentro la commessa** (vista Varianti), per tutti e due i tipi:
+   preventivi accettati non ancora usati → lavoro extra con fasi e importi.
+3. **Contratto letto con l'AI anche a commessa creata**, per tutti e due i tipi: oggi solo alla
+   creazione. Applica righe, importi e rate alla commessa esistente con anteprima, salva
+   l'originale nei documenti, non tocca le rate già fatturate.
+4. **Import da preventivo alla creazione anche per il committente** (oggi solo per il privato).
+5. Restano del solo committente, di proposito: rendiconto, listino concordato e contratto
+   quadro (modello diverso, a misura).
 
 Prove: da super admin «visualizza come» un utente d'ufficio, una commessa privata e una del
-committente affiancate; import di un preventivo e di un contratto su Demo Azienda 2.
+committente affiancate; import di un preventivo e di un contratto su Demo Azienda 2; nessun
+preventivo usato due volte.
