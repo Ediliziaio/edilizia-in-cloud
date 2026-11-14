@@ -60,7 +60,7 @@ async function caricaScomposizioni(companyId: string): Promise<{ attive: Scompos
 }
 
 /** Articoli, voci dei listini in corso e materiali già comprati: per collegare i materiali proposti. */
-async function caricaCatalogo(companyId: string): Promise<{ articoli: ArticoloCatalogo[]; listini: VoceListino[]; giaUsati: MaterialeGiaUsato[] }> {
+async function caricaCatalogo(companyId: string, orderId: string): Promise<{ articoli: ArticoloCatalogo[]; listini: VoceListino[]; giaUsati: MaterialeGiaUsato[] }> {
   const oggi = new Date().toLocaleDateString("en-CA");
   const [articoli, listini, usati] = await Promise.all([
     supabase.from("article_templates").select("id, name, sku, unit_of_measure, supplier_id, prezzo_acquisto_netto, standard_cost, attivo")
@@ -69,6 +69,8 @@ async function caricaCatalogo(companyId: string): Promise<{ articoli: ArticoloCa
       .eq("company_id", companyId).limit(5000),
     supabase.from("order_items").select("name, unita_misura, article_template_id, supplier_id, orders!inner(company_id)")
       .eq("orders.company_id", companyId).eq("natura_riga", "materiale").not("article_template_id", "is", null)
+      // Le altre commesse: quelle di questa le ha generate la stessa proposta, e si ripeterebbero da sole.
+      .neq("order_id", orderId)
       .order("created_at", { ascending: false }).limit(2000),
   ]);
   // Il catalogo aiuta ma non è indispensabile: se una lettura non riesce, si propone senza collegamenti.
@@ -133,7 +135,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
         supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita")
           .eq("order_id", orderId).eq("confermato", true),
-        caricaCatalogo(companyId).catch(() => ({ articoli: [] as ArticoloCatalogo[], listini: [] as VoceListino[], giaUsati: [] as MaterialeGiaUsato[] })),
+        caricaCatalogo(companyId, orderId).catch(() => ({ articoli: [] as ArticoloCatalogo[], listini: [] as VoceListino[], giaUsati: [] as MaterialeGiaUsato[] })),
       ]);
       if (fasi.error) throw fasi.error;
       if (conteggi.error) throw conteggi.error;

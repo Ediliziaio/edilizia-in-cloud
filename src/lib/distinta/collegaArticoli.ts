@@ -111,11 +111,50 @@ function unitaCompatibili(materiale: string, articolo: string | null | undefined
   return false;
 }
 
+/**
+ * Di che cosa è fatto: le parole che nominano il materiale. Un «piatto doccia in
+ * ceramica 80x120» non è il «piatto doccia in resina 80x120» del catalogo, anche se
+ * le altre parole coincidono (prova su Demo Azienda 2, 14/11/2026). Il gres è una
+ * ceramica, l'inox un acciaio: lì non c'è conflitto.
+ */
+const MATERIE: [RegExp, string[]][] = [
+  [/^ceram/, ["ceramica"]], [/^gres$/, ["gres", "ceramica"]], [/^porcel/, ["gres", "ceramica"]], [/^cotto$/, ["cotto"]],
+  [/^resin/, ["resina"]], [/^acril/, ["acrilico"]], [/^(?:mineralmarmo|marmorres)/, ["resina"]],
+  [/^ghisa$/, ["ghisa"]], [/^acciai/, ["acciaio"]], [/^inox$/, ["acciaio"]], [/^allumin/, ["alluminio"]],
+  [/^rame$/, ["rame"]], [/^ottone$/, ["ottone"]], [/^zinc/, ["zinco"]],
+  [/^legn/, ["legno"]], [/^(?:pvc|polivin)/, ["pvc"]], [/^(?:polipro\w*|pp)$/, ["polipropilene"]], [/^polietil/, ["polietilene"]],
+  [/^multistrat/, ["multistrato"]], [/^marm(?!orres)/, ["marmo"]], [/^granit/, ["granito"]], [/^(?:vetr|cristal)/, ["vetro"]],
+  [/^laminat/, ["laminato"]], [/^parquet/, ["legno"]], [/^vinil/, ["vinile"]], [/^lamiera/, ["acciaio"]],
+];
+
+function materie(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const p of normalizzaTesto(s).split(" ")) for (const [re, m] of MATERIE) if (re.test(p)) m.forEach((x) => out.add(x));
+  return out;
+}
+
+/** Le misure scritte come «80x120» o «60 x 60», in ordine crescente: 80x120 e 120x80 sono la stessa. */
+function misure(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of normalizzaTesto(s).matchAll(/\b(\d+(?:[.,]\d+)?)\s?x\s?(\d+(?:[.,]\d+)?)\b/g)) {
+    out.add([Number(m[1].replace(",", ".")), Number(m[2].replace(",", "."))].sort((a, b) => a - b).join("x"));
+  }
+  return out;
+}
+
+const disgiunti = (a: Set<string>, b: Set<string>) => a.size > 0 && b.size > 0 && ![...a].some((x) => b.has(x));
+
+/** Materiale e articolo dicono cose diverse: fatti di altro, o di altre misure. */
+export function nomiInConflitto(materiale: string, articolo: string): boolean {
+  return disgiunti(materie(materiale), materie(articolo)) || disgiunti(misure(materiale), misure(articolo));
+}
+
 /** Quanto il nome di un articolo assomiglia al materiale: radici in comune sul totale del materiale. */
 export function somiglianzaNome(materiale: string, articolo: string): number {
   const rm = radici(materiale);
   const ra = new Set(radici(articolo));
   if (!rm.length || !ra.size) return 0;
+  if (nomiInConflitto(materiale, articolo)) return 0;
   const comuni = rm.filter((r) => ra.has(r)).length;
   if (comuni < Math.min(2, rm.length)) return 0;
   return comuni / rm.length;
@@ -164,7 +203,8 @@ export function trovaCollegamento(
   const usato = dati.giaUsati.find((m) => m.article_template_id && chiaveDescrizione(m.name) === chiave
     && normalizzaUnita(m.unita_misura) === normalizzaUnita(r.unita_misura));
   const articoloUsato = usato && dati.articoli.find((a) => a.id === usato.article_template_id);
-  if (articoloUsato) return daArticolo(articoloUsato, "gia_usato");
+  // Anche una scelta di prima va controllata: un collegamento sbagliato non si propaga.
+  if (articoloUsato && !nomiInConflitto(r.descrizione, articoloUsato.name)) return daArticolo(articoloUsato, "gia_usato");
   // 3. Le parole.
   let migliore: { c: Collegamento; p: number } | null = null;
   const testo = `${r.descrizione} ${r.specifiche ?? ""}`;

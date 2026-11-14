@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { generaDistinta, nomeMateriale, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
-import { collegaMateriali, contenutoConfezione, rigaDaSalvare } from "@/lib/distinta/collegaArticoli";
+import { collegaMateriali, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, propostaFasi } from "@/lib/distinta/fasiMateriali";
 
 const voce = (p: Partial<VoceComputo> & { id: string; descrizione_breve: string }): VoceComputo => ({ quantita: 1, unita_misura: "cad", ...p });
@@ -129,5 +129,26 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
     expect(spessoreCm("nessuno")).toBeNull();
     expect(contenutoConfezione("Idropittura secchio 14 l")).toEqual({ quantita: 14, unita: "l" });
     expect(faseDaTesto(COMPUTO[0], [{ id: "f1", name: "Demolizioni" }, { id: "f2", name: "Intonaci" }])).toBe("f2");
+  });
+
+  it("non collega un articolo fatto d'altro o di altre misure (ceramica ≠ resina, 80x120 ≠ 80x100)", () => {
+    // Prova su Demo Azienda 2, 14/11/2026: il piatto doccia in ceramica andava sul «Piatto doccia in resina 80x120».
+    const doccia = [voce({ id: "d", descrizione_breve: "Fornitura e posa in opera di piatto doccia in ceramica 80x120, compreso piletta", unita_misura: "cad", quantita: 1 })];
+    const collega = (articoli: { id: string; name: string }[]) => {
+      const r = generaDistinta({ voci: doccia, scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      return collegaMateriali(r.righe, { articoli: articoli.map((a) => ({ ...a, unit_of_measure: "pz" })), listini: [], giaUsati: [] })[0].collegamento?.id ?? null;
+    };
+    expect(collega([{ id: "resina", name: "Piatto doccia in resina 80x120" }])).toBeNull();
+    expect(collega([{ id: "piccolo", name: "Piatto doccia ceramica 80x100" }])).toBeNull();
+    expect(collega([{ id: "resina", name: "Piatto doccia in resina 80x120" }, { id: "giusto", name: "Piatto doccia ceramica 120x80 bianco" }])).toBe("giusto");
+    // Neanche se una volta qualcuno (o la proposta stessa) l'ha collegato così.
+    const r = generaDistinta({ voci: doccia, scomposizioni: [], riserva: catalogoComeScomposizioni() });
+    const giaUsati = [{ name: r.righe[0].descrizione, unita_misura: r.righe[0].unita_misura, article_template_id: "resina" }];
+    expect(collegaMateriali(r.righe, { articoli: [{ id: "resina", name: "Piatto doccia in resina 80x120", unit_of_measure: "pz" }], listini: [], giaUsati })[0].collegamento).toBeNull();
+    // Senza materia o misura scritta da una parte, nessun conflitto; il gres è una ceramica.
+    expect(nomiInConflitto("Piastrelle in gres porcellanato", "Piastrelle gres porcellanato 60x60")).toBe(false);
+    expect(nomiInConflitto("Rivestimento in ceramica", "Piastrelle gres porcellanato")).toBe(false);
+    expect(nomiInConflitto("Tubo multistrato 20 mm", "Tubo in polipropilene 20 mm")).toBe(true);
+    expect(somiglianzaNome("Lavabo in ceramica", "Lavabo ceramica sospeso")).toBeGreaterThan(0);
   });
 });

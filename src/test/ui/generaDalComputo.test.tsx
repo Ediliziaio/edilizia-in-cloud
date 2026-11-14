@@ -24,7 +24,7 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
 vi.mock("@/integrations/supabase/client", () => {
   const vuoto = { data: [] as unknown[], error: null as null };
   const catena: Record<string, unknown> = {};
-  for (const m of ["select", "eq", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
+  for (const m of ["select", "eq", "neq", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
   catena.then = (ok: (v: typeof vuoto) => unknown) => Promise.resolve(vuoto).then(ok);
   return { supabase: { from: () => catena, functions: { invoke: vi.fn() }, rpc: vi.fn() } };
 });
