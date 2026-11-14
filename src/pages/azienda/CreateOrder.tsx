@@ -1690,7 +1690,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6 md:pb-20">
         {contrattoImportato && !workflowProfilo.data && <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile: riprova prima di salvare il contratto." : "Caricamento configurazione aziendale…"}</p>}
-        {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} />}
+        {pianoContratto && <ContractPreparationCard piano={pianoContratto} confermati={{ cliente: !!customerId, importo: total > 0, iva: !!vatRate?.trim(), rate: installments.length > 0 }} nascondi={["cliente", "importo", "iva", "rate"]} />}
         {pianoContratto?.organizzazione === "interventi_su_ordine" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"><p>Puoi salvare il contratto in bozza e completare cliente, quota economica, IVA e pagamenti dopo la conferma. La bozza non genera ricavi o rate.</p><Button type="button" className="mt-3" variant="outline" disabled={createOrderMutation.isPending || !!createdOrderId} onClick={()=>createOrderMutation.mutate({contractDraft:true})}>Salva bozza del contratto da verificare</Button></div>}
         {pianoContratto?.ufficio.length ? <ContractOfficeAssignments companyId={effectiveCompany?.id} steps={pianoContratto.ufficio} value={officeAssignments} onChange={setOfficeAssignments} /> : null}
         <fieldset disabled={createOrderMutation.isPending || !!createdOrderId} className="min-w-0 space-y-6">

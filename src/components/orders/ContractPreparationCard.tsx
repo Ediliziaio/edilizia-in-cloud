@@ -3,7 +3,32 @@ import { contractConfirmations } from "@/lib/orders/contractPreparation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList } from "lucide-react";
 
-export function ContractPreparationCard({ piano, confermati = {} }: { piano: ContractPreparation; confermati?: ConfirmedValues }) {
+/** Le conferme dette in due parole, per la riga compatta. */
+const ETICHETTE: Record<string, string> = {
+  cliente: "cliente", importo: "importo", iva: "IVA", rate: "pagamenti", standard: "fasi di lavoro", date: "date dei lavori",
+};
+
+/**
+ * Un lavoro singolo (14/11/2026): la scheda alta con «Organizzazione da confermare» e «Standard selezionato
+ * automaticamente» diceva in gergo cose che il modulo mostra già (modello delle fasi, date). Resta una riga con
+ * quello che manca, più gli avvisi dell'AI sul documento. `nascondi`: conferme che la pagina mostra altrove
+ * (in «Nuova commessa» cliente, importo, IVA e pagamenti stanno nella barra «Manca:»).
+ */
+function RigaDaConfermare({ piano, confermati, nascondi }: { piano: ContractPreparation; confermati: ConfirmedValues; nascondi: readonly string[] }) {
+  const mancanti = contractConfirmations(piano, confermati).filter((x) => !nascondi.includes(x.key));
+  const brevi = mancanti.filter((x) => ETICHETTE[x.key]).map((x) => ETICHETTE[x.key]);
+  const avvisi = mancanti.filter((x) => !ETICHETTE[x.key]);
+  if (!brevi.length && !avvisi.length) return null;
+  return <section aria-label="Dati da confermare" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    {brevi.length > 0 && <p><span className="font-medium">Dal contratto, da confermare:</span> {brevi.join(" · ")}</p>}
+    {avvisi.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">{avvisi.map((x) => <li key={x.key}>{x.testo}</li>)}</ul>}
+  </section>;
+}
+
+export function ContractPreparationCard({ piano, confermati = {}, nascondi = [] }: { piano: ContractPreparation; confermati?: ConfirmedValues; nascondi?: readonly string[] }) {
+  const lavoroSingolo = piano.profilo !== "manutenzione_stradale_su_ordine" && piano.organizzazione !== "interventi_su_ordine"
+    && !piano.extract.appalto_pubblico?.presente && piano.extract.appalto_pubblico?.durata_giorni == null;
+  if (lavoroSingolo) return <RigaDaConfermare piano={piano} confermati={confermati} nascondi={nascondi} />;
   const mancanti = contractConfirmations(piano, confermati);
   return <Card className="border-orange-200" aria-label="Preparazione dal contratto">
     <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" />Proposta dal contratto</CardTitle></CardHeader>

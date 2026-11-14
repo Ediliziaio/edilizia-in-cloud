@@ -32,3 +32,22 @@ describe("conferme del contratto nel modulo", () => {
     expect(screen.getByRole("tab",{name:"IVA Inclusa"})).toBeDisabled();
   });
 });
+
+describe("lavoro singolo: una riga con quello che manca (14/11/2026)", () => {
+  const singolo = () => prepareContract(parseContractExtract({ cliente: { nome_completo: "Mario Rossi" }, descrizione_lavori: "Bagno", importo_totale_eur: 1000, iva_pct: 10 }), [], "standard");
+  it("niente «Organizzazione» né «Standard selezionato automaticamente»: solo fasi e date da confermare", () => {
+    render(<ContractPreparationCard piano={singolo()} confermati={{ cliente: true, importo: true, iva: true, rate: true }} />);
+    expect(screen.queryByText(/Organizzazione da confermare/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Standard selezionato automaticamente/)).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Dati da confermare" })).toHaveTextContent("Dal contratto, da confermare: fasi di lavoro · date dei lavori");
+  });
+  it("in «Nuova commessa» non ripete cliente, importo, IVA e pagamenti, che stanno nella barra «Manca:»", () => {
+    render(<ContractPreparationCard piano={singolo()} confermati={{}} nascondi={["cliente", "importo", "iva", "rate"]} />);
+    expect(screen.getByRole("region", { name: "Dati da confermare" })).not.toHaveTextContent(/cliente|IVA|pagamenti/);
+  });
+  it("gli avvisi dell'AI sul documento restano", () => {
+    const p = prepareContract(parseContractExtract({ cliente: { nome_completo: "Mario Rossi" }, descrizione_lavori: "Bagno", importo_totale_eur: 1000, iva_pct: 10, data_fine_lavori: "2027-01-31", warnings: ["La somma delle voci non torna con l'imponibile"] }), [], "standard");
+    render(<ContractPreparationCard piano={p} confermati={{ cliente: true, importo: true, iva: true, rate: true }} />);
+    expect(screen.getByRole("region", { name: "Dati da confermare" })).toHaveTextContent("La somma delle voci non torna");
+  });
+});
