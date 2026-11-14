@@ -23,10 +23,10 @@ si possono ripartire (millesimi, m², importo, parti uguali) senza contarli due 
 | 1 | Riepilogo della generale lento (1,4 s): calcolava tutte le commesse dell'azienda | **FATTO** 21db7cf59 — 86 ms, numeri identici su 40 figlie di Demo 1 |
 | 2 | Selettori di commessa piatti: generale e figlie mescolate, senza etichetta. Nel selettore di DDT / fatture ricevute / magazzino / mezzi la generale si trovava solo per codice e mai fra i «Prossimi 30gg» | **FATTO** a10006da5 — etichetta «Generale», figlie rientrate sotto, «in O-0003 · Via Lotti», filtro «Grandi lavori», ricerca per nome |
 | 3 | Scheda Cantiere: rapportini, ODA, DDT, fatture, costi, pagamenti si vedono una commessa alla volta (selettore «Registra e consulta su»). Manca «Tutta l'operazione» | **FATTO** 70989cf74 — «Tutta l'operazione» nel selettore: rapportini, ordini, DDT, costi di generale + figlie con la colonna Commessa (sola lettura) |
-| 4 | Mai letti dalla generale: mezzi (`mezzi_giornate`: nemmeno nel costo delle commesse singole), timbrature, giornale lavori, rate non ancora fatturate (`order_installments`) | da fare — lotto C |
-| 5 | Ricavi del piano: leggono `invoices` + unità, non le fatture del modulo fiscale (`documenti_fiscali`), che invece contano nel «fatturato» della Panoramica | da fare — lotto C |
-| 6 | Subappalti registrati sulla generale stessa esclusi dall'elenco e dalla soglia subappaltabile (contano solo le figlie) | da fare — lotto C |
-| 7 | Avanzamento: le fasi lette solo sulla generale, l'avanzamento solo dalle figlie | da fare — lotto C |
+| 4 | Mai letti dalla generale: mezzi (`mezzi_giornate`: nemmeno nel costo delle commesse singole), timbrature, giornale lavori, rate non ancora fatturate (`order_installments`) | **FATTO in parte** 7b380c449 — giornale, timbrature e giornate dei mezzi in «Tutta l'operazione». Restano: il costo dei mezzi nell'economia (lo tocca il piano rapportini/listini, altra sessione) e le rate non fatturate nel «da incassare» |
+| 5 | Ricavi del piano: leggono `invoices` + unità, non le fatture del modulo fiscale (`documenti_fiscali`), che invece contano nel «fatturato» della Panoramica | **FATTO** 309cd709e — migrazione 20290322130000 |
+| 6 | Subappalti registrati sulla generale stessa esclusi dall'elenco e dalla soglia subappaltabile (contano solo le figlie) | **FATTO** 6812c8b79 — migrazione 20290322131000; Demo 1 O-0064 (200.000 €) ora compare |
+| 7 | Avanzamento: le fasi lette solo sulla generale, l'avanzamento solo dalle figlie | **FATTO** nel riquadro Cantiere della Panoramica: fasi di generale e figlie insieme. Il «avanzamento» della testata degli appalti resta la media delle figlie |
 | 8 | 18 selettori fatti a mano (prima nota, scadenze: solo 50 commesse; costi, giornale, attività, appuntamenti: anche le commesse cancellate) | da fare — lotto D, passarli ai due selettori condivisi |
 
 Da decidere (D1): su quali movimenti la generale si può scegliere. Proposta: **sì** per costi
