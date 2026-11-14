@@ -185,8 +185,10 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
-        .select("id, commission_amount, deduction_amount, is_paid, paid_date, payment_expected_date, salesperson:salespeople!inner(first_name, last_name, company_id), order:orders!inner(id, order_code, company_id)")
-        .eq("salesperson.company_id", companyId!);
+        .select("id, commission_amount, deduction_amount, is_paid, paid_date, payment_expected_date, salesperson:salespeople!inner(first_name, last_name, company_id), order:orders!inner(id, order_code, company_id, deleted_at)")
+        .eq("salesperson.company_id", companyId!)
+        // 14/11/2026: fuori le commesse nel cestino, come nel Previsionale
+        .is("order.deleted_at", null);
       if (error) throw error;
       return (data || []) as any[];
     },
@@ -454,16 +456,40 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const monthRevenueQuery = useQuery({
     queryKey: [...queryKeys.costs.list(companyId), "fatturato-mese"],
     queryFn: async () => {
+      // 14/11/2026: stessa regola del Cruscotto (cruscotto_indicatori). Prima entravano
+      // bozze e proforma, con l'IVA, contro costi fissi senza IVA: su Demo 2 359.059 €
+      // invece di circa 21.000 €, e il pareggio sembrava coperto al 65%.
       const now = new Date();
-      const { data, error } = await (supabase as any)
-        .from("invoices")
-        .select("total")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .gte("issue_date", format(startOfMonth(now), "yyyy-MM-dd"))
-        .lte("issue_date", format(endOfMonth(now), "yyyy-MM-dd"));
-      if (error) throw error;
-      return (data || []).reduce((s: number, r: any) => s + (Number(r.total) || 0), 0);
+      const da = format(startOfMonth(now), "yyyy-MM-dd");
+      const a = format(endOfMonth(now), "yyyy-MM-dd");
+      const [app, importate] = await Promise.all([
+        (supabase as any).from("documenti_fiscali")
+          .select("tipo, stato, data_emissione, totale_documento, imponibile_totale, subtotale, iva_totale")
+          .eq("company_id", companyId!).is("deleted_at", null)
+          .in("tipo", ["fattura", "fattura_pa", "nota_credito"])
+          .gte("data_emissione", da).lte("data_emissione", a),
+        (supabase as any).from("invoices")
+          .select("document_type, status, issue_date, total, subtotal")
+          .eq("company_id", companyId!).is("deleted_at", null)
+          .gte("issue_date", da).lte("issue_date", a),
+      ]);
+      if (app.error) throw app.error;
+      if (importate.error) throw importate.error;
+      const valide = ((app.data || []) as any[]).filter((d) => !["bozza", "annullata", "rifiutata"].includes(d.stato ?? ""));
+      let totale = 0;
+      for (const d of valide) {
+        const imponibile = Number(d.imponibile_totale ?? d.subtotale ?? (Number(d.totale_documento || 0) - Number(d.iva_totale || 0))) || 0;
+        totale += d.tipo === "nota_credito" ? -imponibile : imponibile;
+      }
+      for (const i of (importate.data || []) as any[]) {
+        if (["draft", "bozza", "cancelled"].includes(i.status ?? "")) continue;
+        if (!["invoice", "credit_note"].includes(i.document_type ?? "invoice")) continue;
+        // la stessa fattura emessa dall'app e importata: si conta una volta
+        if (valide.some((d) => d.data_emissione === i.issue_date && Math.abs(Number(d.totale_documento || 0) - Number(i.total || 0)) < 0.01)) continue;
+        const imponibile = Number(i.subtotal ?? i.total) || 0;
+        totale += i.document_type === "credit_note" ? -imponibile : imponibile;
+      }
+      return totale;
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,

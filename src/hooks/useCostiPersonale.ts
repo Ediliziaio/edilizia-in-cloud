@@ -165,7 +165,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active, role_type, area, profilo_costo",
+          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active, role_type, area, profilo_costo, created_at, data_assunzione, hr_profili(data_assunzione, data_cessazione)",
         )
         .eq("company_id", companyId!)
         .eq("is_active", true)
@@ -244,7 +244,18 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       }
     }
 
-    const dipendenti: DipendenteMese[] = employees.map((emp) => {
+    // 14/11/2026: nel mese scelto contano solo i dipendenti già assunti e non ancora
+    // cessati, con le date della Panoramica (costsUtils): prima ogni dipendente attivo
+    // costava in qualunque mese, anche prima dell'assunzione.
+    const inForza = employees.filter((emp) => {
+      const e = emp as EmployeeRow & { created_at?: string | null; data_assunzione?: string | null; hr_profili?: Array<{ data_assunzione?: string | null; data_cessazione?: string | null }> | null };
+      const assunto = e.data_assunzione ?? e.hr_profili?.[0]?.data_assunzione ?? e.created_at ?? null;
+      const cessato = e.hr_profili?.[0]?.data_cessazione ?? null;
+      if (assunto && assunto.slice(0, 7) > monthKey) return false;
+      if (cessato && cessato.slice(0, 7) < monthKey) return false;
+      return true;
+    });
+    const dipendenti: DipendenteMese[] = inForza.map((emp) => {
       const lordo = Number(emp.gross_salary) || 0;
       // Oneri del mese medio: ratei di mensilità aggiuntive, contributi, Cassa Edile e TFR
       // del tipo di dipendente (src/lib/costoPersonale.ts).
@@ -318,7 +329,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
     };
 
     return { dipendenti, altriOperatori, totali };
-  }, [companyId, employees, rapportiniRaw, parametri]);
+  }, [companyId, employees, rapportiniRaw, parametri, monthKey]);
 
   return {
     dipendenti,

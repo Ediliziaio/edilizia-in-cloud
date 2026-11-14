@@ -22,7 +22,8 @@ describe("sales os dashboard contract", () => {
 
   it("keeps Sales OS decision-first instead of chart-first", () => {
     expect(source).toContain("Comando commerciale di oggi");
-    expect(source).toContain("Numeri senza ambiguità");
+    // 14/11/2026: via il titoletto «Numeri senza ambiguità» (testo in più, il titolare ne chiede meno).
+    expect(source).not.toContain("Numeri senza ambiguità");
     expect(source).toContain("Cosa fare adesso");
     expect(source).toContain("buildSalesOSCommandActions");
     expect(source).toContain("Velocity stimata");

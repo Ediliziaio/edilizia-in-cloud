@@ -111,6 +111,8 @@ export interface CostRow {
   recurrence_auto?: boolean | null;
   recurrence_end_date?: string | null;
   supplier_id?: string | null;
+  /** La squadra esterna da cui nasce la spesa: la squadra allora non si conta di nuovo. */
+  order_external_team_id?: string | null;
   supplier?: { vat_rate: Money } | null;
 }
 /** Pagamenti delle spese aperte: anche gli acconti più vecchi di un anno riducono il debito. */
@@ -1071,12 +1073,16 @@ export function buildForecastLedger(
         costId: c.id,
         description: c.name,
         counterparty: "",
+        // 14/11/2026: le spese delle squadre (subappalti) nella loro categoria, non in «altri».
         category:
-          c.category === "Personale"
+          (c.category ?? "").toLowerCase() === "personale"
             ? "personale"
-            : c.purchase_order_id
-              ? "fornitori"
-              : "altri",
+            : c.order_external_team_id ||
+                ["subappalti", "subappalto", "squadre esterne", "squadre_esterne"].includes((c.category ?? "").toLowerCase())
+              ? "squadre"
+              : c.purchase_order_id
+                ? "fornitori"
+                : "altri",
         direction: "out",
         cents: Math.max(
           0,
@@ -1476,8 +1482,13 @@ export function buildForecastLedger(
         i.balance_expected_date ?? i.deposit_expected_date,
       );
   }
+  // 14/11/2026: la squadra che ha già la sua spesa (collegata) si conta una volta, come
+  // in Costi. Su Demo 2 dieci squadre stavano sia senza data sia come spesa scaduta.
+  const squadreConSpesa = new Set(
+    s.costs.map((c) => c.order_external_team_id).filter((x): x is string => !!x),
+  );
   for (const t of s.teams)
-    if (!t.is_paid && !t.order?.deleted_at)
+    if (!t.is_paid && !t.order?.deleted_at && !squadreConSpesa.has(t.id))
       add({
         id: `squadra:${t.id}`,
         description: "Squadra esterna",

@@ -985,10 +985,6 @@ export function ForecastWorkspace({
                 ? "Previsione da verificare"
                 : "Fonti caricate · verifica le ipotesi"}
             </h2>
-            <p className="text-xs text-muted-foreground">
-              Le esclusioni non valgono zero e le stime non sono incassi
-              garantiti.
-            </p>
           </div>
           <Button
             variant="ghost"
@@ -1408,18 +1404,11 @@ export function ForecastWorkspace({
               <h2 className="font-semibold">
                 Quanto cambia se gli incassi ritardano?
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Stesso saldo iniziale, soglia, uscite e filtri. Cambiano solo le
-                date degli incassi non spostati a mano. Nessuna modifica ai
-                documenti.
-              </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 Ritardo medio reale:{" "}
                 {delay.days === null
                   ? "non disponibile"
                   : `${delay.days} giorni su ${delay.samples} incassi con data attesa`}
-                . Un incasso oltre l’orizzonte non è perso: non entra nel saldo
-                di questo periodo.
               </p>
             </div>
             <div className="overflow-x-auto">

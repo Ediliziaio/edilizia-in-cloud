@@ -488,7 +488,9 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
   // oreLavorate sono le ordinarie: gli straordinari stanno a parte (come nella saturazione).
   const oreTot = totali.oreLavorate + totali.oreStraordinario;
   const pctStraord = oreTot > 0 ? Math.round((totali.oreStraordinario / oreTot) * 100) : 0;
-  const saturazioni = dipendenti.filter((d) => d.oreContrattuali > 0).map((d) => d.saturazione);
+  // 14/11/2026: solo chi ha ore nei rapportini del mese. Con impiegati e persone senza
+  // rapportini la media su Demo 2 dava 1% (8 persone al 4,6% divise per 42).
+  const saturazioni = dipendenti.filter((d) => d.oreContrattuali > 0 && d.oreLavorate + d.oreStraordinario > 0).map((d) => d.saturazione);
   // La saturazione è un rapporto (1 = tutte le ore del contratto).
   const satMedia = saturazioni.length ? Math.round((saturazioni.reduce((a, b) => a + b, 0) / saturazioni.length) * 100) : null;
   if (oreTot <= 0 || prime.length === 0) return null;
@@ -549,7 +551,7 @@ function DoveVannoLeOre({ dipendenti, totali }: { dipendenti: DipendenteMese[]; 
         </dl>
         {satMedia != null && (
           <p className="mt-3 border-t border-white/10 pt-2 text-[11px] text-slate-300">
-            Saturazione media della squadra: <strong className="tabular-nums text-white">{satMedia}%</strong> delle ore contrattuali.
+            Saturazione media di chi ha rapportini: <strong className="tabular-nums text-white">{satMedia}%</strong> delle ore contrattuali.
           </p>
         )}
       </div>

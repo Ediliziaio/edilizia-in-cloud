@@ -48,7 +48,7 @@ export interface StalledOpportunity {
 export interface SalesVelocity {
   open_opportunities: number;
   win_rate: number | null;        // vinte ÷ (vinte + perse); vuoto se nel periodo non si è chiuso niente
-  avg_deal_size: number;
+  avg_deal_size: number | null;   // vuoto se nel periodo non c'è una vinta
   avg_cycle_days: number | null;  // vuoto se nel periodo non c'è una vinta
   sales_velocity: number | null;  // € al giorno: valore pipeline aperta × tasso di chiusura ÷ ciclo medio
 }
@@ -63,7 +63,7 @@ export interface ConversionBySource {
   win_rate: number;              // tasso di chiusura: vinte ÷ (vinte + perse)
   conversion_rate: number | null; // quante delle create nel periodo sono state vinte
   total_won_value: number;
-  avg_deal_size: number;
+  avg_deal_size: number | null;   // vuoto se nel periodo non c'è una vinta
 }
 
 export interface QuoteRevenueSummary {
@@ -225,7 +225,7 @@ export function useSalesVelocity(companyId: string | null, daysBack = 90, pipeli
       return {
         open_opportunities: Number(row.open_opportunities),
         win_rate: numeroONull(row.win_rate),
-        avg_deal_size: Number(row.avg_deal_size ?? 0),
+        avg_deal_size: numeroONull(row.avg_deal_size),
         avg_cycle_days: numeroONull(row.avg_cycle_days),
         sales_velocity: numeroONull(row.sales_velocity),
       };
@@ -283,7 +283,7 @@ export function useConversionBySource(
           win_rate: Number(row.tasso_chiusura ?? 0),
           conversion_rate: numeroONull(row.conversione),
           total_won_value: Number(row.valore_vinto ?? 0),
-          avg_deal_size: Number(row.ticket_medio ?? 0),
+          avg_deal_size: numeroONull(row.ticket_medio),
         }))
         .sort((a, b) => b.total_won_value - a.total_won_value || b.total_opportunities - a.total_opportunities);
     },

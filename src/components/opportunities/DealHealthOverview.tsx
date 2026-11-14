@@ -25,7 +25,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
       for (let da = 0; da < 20_000; da += 1000) {
         let query = supabase
           .from('marketing_opportunities')
-          .select('id, updated_at, last_activity_at, stage_changed_at, next_action, expected_close_date, probability, created_at, contact:marketing_contacts(is_decision_maker), marketing_contact_notes(count)')
+          .select('id, contact_id, updated_at, last_activity_at, stage_changed_at, next_action, expected_close_date, probability, created_at, contact:marketing_contacts(is_decision_maker), marketing_contact_notes(count)')
           .eq('company_id', companyId)
           .eq('status', 'open')
           .is('deleted_at', null);
@@ -35,7 +35,40 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
         righe.push(...(data ?? []));
         if (!data || data.length < 1000) break;
       }
-      return righe;
+      // 14/11/2026: l'ultima attività e il numero di contatti come la scheda «Ferme»
+      // (get_stalled_opportunities): le attività del contatto, non solo le note
+      // dell'opportunità (1 nota su 860 attività su Demo 2), e niente updated_at,
+      // che cambia a ogni modifica della scheda.
+      const contatti = [...new Set(righe.map((r) => r.contact_id).filter(Boolean))] as string[];
+      const attivita = new Map<string, { n: number; ultima: string | null }>();
+      for (let i = 0; i < contatti.length; i += 200) {
+        for (let da = 0; da < 50_000; da += 1000) {
+          const { data, error } = await supabase
+            .from('marketing_contact_activities')
+            .select('contact_id, created_at')
+            .eq('company_id', companyId)
+            .in('contact_id', contatti.slice(i, i + 200))
+            .order('id')
+            .range(da, da + 999);
+          if (error) throw error;
+          for (const a of data ?? []) {
+            const v = attivita.get(a.contact_id) ?? { n: 0, ultima: null };
+            v.n += 1;
+            if (!v.ultima || a.created_at > v.ultima) v.ultima = a.created_at;
+            attivita.set(a.contact_id, v);
+          }
+          if (!data || data.length < 1000) break;
+        }
+      }
+      return righe.map((r) => {
+        const a = r.contact_id ? attivita.get(r.contact_id) : undefined;
+        const date = [a?.ultima, r.last_activity_at, r.stage_changed_at, r.created_at].filter(Boolean) as string[];
+        return {
+          ...r,
+          last_activity_at: date.length ? date.reduce((x, y) => (y > x ? y : x)) : null,
+          attivita_contatto: a?.n ?? 0,
+        };
+      });
     },
     staleTime: 1000 * 60 * 5,
   });
@@ -51,7 +84,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
       const contact = Array.isArray(oppRec.contact) ? oppRec.contact[0] : oppRec.contact;
       const input = buildDealHealthInput({
         ...opp,
-        notes_count: oppRec.marketing_contact_notes?.[0]?.count ?? 0,
+        notes_count: (oppRec.marketing_contact_notes?.[0]?.count ?? 0) + (opp.attivita_contatto ?? 0),
         contact_is_decision_maker: contact?.is_decision_maker ?? null,
       });
       const health = calculateDealHealth(input);
@@ -88,7 +121,7 @@ export const DealHealthOverview = memo(function DealHealthOverview({ companyId, 
       <div>
         <p className="text-sm font-semibold text-foreground">Salute delle trattative aperte</p>
         <p className="mb-3 text-xs text-muted-foreground">
-          {total} aperte · {daSistemare > 0 ? `${daSistemare} da riprendere in mano (critiche o da recuperare)` : 'nessuna critica'}
+          {total} aperte · {daSistemare > 0 ? `${daSistemare} da riprendere` : 'nessuna critica'}
         </p>
         <Ciambella
           titolo="Salute delle trattative"

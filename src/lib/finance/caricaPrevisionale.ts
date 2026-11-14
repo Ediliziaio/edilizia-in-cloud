@@ -178,7 +178,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "company_costs",
-          "id,name,amount,vat_rate,due_date,is_paid,order_id,category,purchase_order_id,recurrence,recurrence_auto,recurrence_end_date,supplier_id,supplier:suppliers(vat_rate)",
+          "id,name,amount,vat_rate,due_date,is_paid,order_id,category,purchase_order_id,recurrence,recurrence_auto,recurrence_end_date,supplier_id,order_external_team_id,supplier:suppliers(vat_rate)",
           // Lo storico delle spese pagate serve solo per: ricorrenze (la spesa madre), ODA già
           // diventati spesa, e occorrenze vicine a oggi da non ripetere. Il resto non cambia il piano.
         ).or(

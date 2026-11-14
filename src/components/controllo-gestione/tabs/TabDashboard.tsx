@@ -226,7 +226,7 @@ export function TabDashboard({ anno }: Props) {
     if (com.data && com.data.kpi.n_in_perdita > 0) {
       out.push({
         severity: "rosso",
-        testo: `${com.data.kpi.n_in_perdita} ${com.data.kpi.n_in_perdita === 1 ? "commessa stimata" : "commesse stimate"} in perdita a fine lavori (margine atteso sotto zero, aperte e chiuse). Rivedi costi e preventivi.`,
+        testo: `${com.data.kpi.n_in_perdita} ${com.data.kpi.n_in_perdita === 1 ? "commessa stimata" : "commesse stimate"} in perdita a fine lavori (margine atteso sotto zero, aperte e chiuse).`,
         href: "/azienda/controllo-gestione/commesse",
       });
     }
@@ -886,9 +886,6 @@ function PartialDataWarning({ onRetry }: { onRetry: () => void }) {
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <p className="font-medium">Alcuni indicatori non sono aggiornati</p>
-          <p className="text-xs text-amber-800 dark:text-amber-200/80">
-            La dashboard resta utilizzabile: i dati mancanti vengono mostrati come non disponibili.
-          </p>
         </div>
       </div>
       <Button type="button" variant="outline" size="sm" className="bg-white dark:bg-background" onClick={onRetry}>

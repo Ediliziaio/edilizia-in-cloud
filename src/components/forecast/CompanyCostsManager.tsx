@@ -125,9 +125,6 @@ export function CostIntegrationPanel({
               {qualityIssues > 0 ? `${qualityIssues} da sistemare` : "Tutto in ordine"}
             </Badge>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Da dove arrivano, cosa manca, quanto è già pagato.
-          </p>
         </div>
 
       </div>
@@ -173,9 +170,6 @@ export function CostIntegrationPanel({
             <WalletCards className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="mt-2 text-lg font-semibold">{paidPct}% del totale</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Dai pagamenti registrati; il resto è ancora da pagare.
-          </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
               <Link to="/azienda/impostazioni/categorie-costi">
@@ -773,7 +767,7 @@ export default function CompanyCostsManager({
             <NavyStatCard
               label="Totale"
               value={eur0(sommaVoci(vociTipo))}
-              sub={`${vociTipo.length} voci nel periodo · senza IVA`}
+              sub={`${vociTipo.length} voci · senza IVA`}
               icon={WalletCards}
               tone="text-orange-100"
             />

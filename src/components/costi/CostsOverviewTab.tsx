@@ -67,9 +67,15 @@ function macroVoce(cost: UnifiedCost): string {
   const lower = cat.toLowerCase();
   if (lower === "personale") return "Personale";
   if (lower === "fornitori" || lower === "materiali") return "Materiali & fornitori";
-  if (lower === "squadre esterne") return "Squadre esterne";
+  // 14/11/2026: la stessa spesa scritta in modi diversi finiva in voci separate
+  // («subappalti» fuori da Squadre esterne, «affitti» e «Immobili», «assicurazioni»
+  // e «Assicurazioni»). Sinonimi noti e poi maiuscola iniziale, senza trattini bassi.
+  if (["squadre esterne", "squadre_esterne", "subappalti", "subappalto", "squadre"].includes(lower)) return "Squadre esterne";
   if (lower === "provvigioni") return "Provvigioni";
-  return cat;
+  if (["affitti", "affitto", "immobili"].includes(lower)) return "Immobili e affitti";
+  if (["veicoli", "mezzi", "noleggio_mezzi_attrezzature", "noleggio mezzi e attrezzature"].includes(lower)) return "Veicoli e mezzi";
+  const pulita = lower.replace(/_/g, " ").replace(/\s+/g, " ");
+  return pulita.charAt(0).toUpperCase() + pulita.slice(1);
 }
 
 const VOCE_COLORS = [
@@ -364,7 +370,7 @@ export function CostsOverviewTab({
             <NavyStatCard
               label="Da pagare"
               value={formatCurrency(daPagarePeriodo)}
-              sub="in scadenza nel periodo"
+              sub="nel periodo, scaduti compresi"
               icon={ReceiptText}
             />
           </div>
@@ -389,15 +395,13 @@ export function CostsOverviewTab({
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
           <span className="min-w-0 text-xs text-amber-900">
-            <strong>{senzaScadenza.count} costi senza scadenza per {formatCurrency(senzaScadenza.totale)} senza IVA</strong>{" "}
-            non compaiono in nessun totale di periodo. Clicca per vederli e dare loro una data.
+            <strong>{senzaScadenza.count} costi senza scadenza · {formatCurrency(senzaScadenza.totale)}</strong> → dai una data
           </span>
         </button>
       )}
       {oltreOrizzonte && (
         <p className="text-xs text-muted-foreground max-sm:hidden">
-          Oltre {EMPLOYEE_PROJECTION_MONTHS} mesi da oggi gli stipendi non sono proiettati: un periodo
-          così avanti mostra solo i costi già registrati.
+          Stipendi proiettati fino a {EMPLOYEE_PROJECTION_MONTHS} mesi da oggi.
         </p>
       )}
 
@@ -513,9 +517,6 @@ export function CostsOverviewTab({
                     </button>
                   );
                 })}
-                <p className="pt-1 text-[11px] text-muted-foreground max-sm:hidden">
-                  Clicca una voce per vedere i singoli costi del periodo.
-                </p>
               </div>
               </div>
             )}
@@ -614,7 +615,6 @@ export function CostsOverviewTab({
               <span className="flex items-center gap-1.5">
                 <span className="h-0.5 w-3 rounded-full" style={{ background: COLORI_GRAFICO.blu }} /> Totale
               </span>
-              <span className="ml-auto text-[11px]">Clicca un mese per navigarci</span>
             </div>
           </CardContent>
         </Card>

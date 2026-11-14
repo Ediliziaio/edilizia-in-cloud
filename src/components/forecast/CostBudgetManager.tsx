@@ -9,7 +9,7 @@ import { Plus, Trash2, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,12 +109,12 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
   // Actual costs for selected month by category
   const actualByCategory = useMemo(() => {
     const map = new Map<string, number>();
-    const monthStart = new Date(`${selectedMonth}-01`);
-    const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    // 14/11/2026: confronto sul testo «aaaa-mm». Con le date, «2026-11-30» era la
+    // mezzanotte UTC e la fine del mese quella locale: l'ultimo giorno usciva dal conto,
+    // e con lui tutti gli stipendi.
     allCostsSorted.forEach((c: any) => {
       if (!c.due_date) return;
-      const d = new Date(c.due_date);
-      if (d >= monthStart && d <= monthEnd) {
+      if (String(c.due_date).slice(0, 7) === selectedMonth) {
         // Una fattura divisa per categoria (conti per riga) si conta per parti.
         for (const p of partiPerCategoria(c, Number(c.amount))) {
           const cat = p.categoria || "Altro";
@@ -223,7 +223,6 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted, soloLettu
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5" /> Budget per Categoria
           </CardTitle>
-          <CardDescription>Imposta obiettivi di spesa mensili e confrontali con i costi effettivi</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {soloLettura ? (

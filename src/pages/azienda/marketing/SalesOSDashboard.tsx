@@ -154,10 +154,10 @@ function buildSalesOSCommandActions({
       value: String(staleCount),
       detail:
         criticalStalledCount > 0
-          ? `${criticalStalledCount} critiche: parti dal valore più alto e imposta il prossimo step.`
+          ? `${criticalStalledCount} critiche`
           : staleCount > 0
-            ? "Da richiamare prima di aumentare budget o nuovi lead."
-            : "Nessun blocco oltre soglia nelle opportunità aperte.",
+            ? "Da richiamare"
+            : "Nessuna oltre soglia",
       action: staleCount > 0 ? "Apri ferme" : "Vai alla pipeline",
       target: staleCount > 0 ? "stalled" : "pipeline",
       tone: criticalStalledCount > 0 ? "text-red-600" : "text-emerald-600",
@@ -172,7 +172,7 @@ function buildSalesOSCommandActions({
           icon: Flame,
           title: "Lead ad alta priorità",
           value: String(topLeadScore),
-          detail: `${topLeadName ?? "Lead selezionato"}: lavoralo prima dei contatti freddi.`,
+          detail: topLeadName ?? "Lead selezionato",
           action: "Apri lead",
           target: "lead",
           tone: "text-orange-600",
@@ -183,7 +183,7 @@ function buildSalesOSCommandActions({
           icon: Settings2,
           title: "Score da configurare",
           value: "N/D",
-          detail: "I migliori contatti hanno score 0: ricalcola lo scoring prima di decidere chi è caldo.",
+          detail: "I contatti hanno score 0",
           action: "Config scoring",
           target: "config",
           tone: "text-slate-600",
@@ -200,8 +200,8 @@ function buildSalesOSCommandActions({
           value: fmt(actualRevenue),
           detail:
             activeQuotesCount > 0
-              ? `${activeQuotesCount} preventivi attivi: accelera firma o motivo perdita.`
-              : "Velocity stimata presente, ma ricavo firmato assente nel periodo.",
+              ? `${activeQuotesCount} preventivi attivi`
+              : "Nessuna firma nel periodo",
           action: "Apri preventivi",
           target: "quotes",
           tone: "text-amber-700",
@@ -212,7 +212,7 @@ function buildSalesOSCommandActions({
           icon: Receipt,
           title: "Ricavo firmato",
           value: fmt(actualRevenue),
-          detail: `${signedQuotesCount} preventivi firmati nel periodo selezionato.`,
+          detail: `${signedQuotesCount} preventivi firmati`,
           action: "Preventivi",
           target: "quotes",
           tone: "text-emerald-700",
@@ -227,8 +227,8 @@ function buildSalesOSCommandActions({
     value: fmt(weightedForecast),
     detail:
       weightedForecast > 0
-        ? "Controlla data chiusura, probabilità e prossima azione sulle trattative principali."
-        : "Aggiungi valore, probabilità e data chiusura alle opportunità aperte.",
+        ? "Pesato sui prossimi 3 mesi"
+        : "Mancano valore o data di chiusura",
     action: "Lavora pipeline",
     target: "pipeline",
     tone: "text-primary",
@@ -325,15 +325,13 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId }: { c
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">
+        <div className="text-2xl font-bold" title="Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita">
           {fmt(velocity.sales_velocity)}
           <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {velocity.sales_velocity == null
-            ? "Serve almeno una vendita chiusa nel periodo per stimarla."
-            : "Valore della pipeline aperta × tasso di chiusura ÷ ciclo medio di vendita."}
-        </p>
+        {velocity.sales_velocity == null && (
+          <p className="text-xs text-muted-foreground mt-0.5">Nessuna vendita chiusa nel periodo</p>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
           <div>
             <p className="font-semibold">{velocity.open_opportunities}</p>
@@ -603,9 +601,6 @@ function SalesFocusPanel({
               <Gauge className="h-4 w-4 text-orange-600 max-sm:hidden" />
               Comando commerciale di oggi
             </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground max-sm:hidden">
-              Lettura operativa del periodo: cosa è stimato, cosa è già firmato e quale azione sblocca vendite.
-            </p>
           </div>
           <Badge variant="secondary" className="max-sm:hidden">{periodLabel}</Badge>
         </div>
@@ -615,9 +610,7 @@ function SalesFocusPanel({
           {/* Telefono: quattro numeri 2×2 senza la riga sotto né la spiegazione. */}
           <div className="rounded-lg border bg-muted/20 p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
             <div className="flex items-center justify-between gap-3 max-sm:hidden">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Numeri senza ambiguità
-              </p>
+              <span />
               {revenueGap && (
                 <Badge variant="outline" className="border-amber-300 text-amber-700">
                   Gap firme
@@ -646,20 +639,13 @@ function SalesFocusPanel({
                 </Button>
               </div>
             )}
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground max-sm:hidden">
-              {revenueGap
-                ? "La pipeline si muove, ma nel periodo non risultano firme: priorità a preventivi, follow-up e motivi di perdita."
-                : "Velocity e ricavo firmato sono separati: usa la prima per ritmo atteso, il secondo per risultato reale."}
-            </p>
           </div>
 
           <div>
             <div className="mb-3 flex items-center justify-between gap-3 max-sm:mb-1.5">
               <div>
                 <p className="text-sm font-semibold max-sm:text-[13px]">Cosa fare adesso</p>
-                <p className="text-xs text-muted-foreground max-sm:hidden">Ordine suggerito per venditore o responsabile commerciale.</p>
               </div>
-              <Badge variant="outline" className="max-sm:hidden">{commandActions.length} azioni</Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 max-sm:gap-2">
               {commandActions.map((voce) => {
@@ -787,9 +773,6 @@ function WeightedPipelineChart({ companyId, pipelineId }: { companyId: string; p
         <StatGrafico etichetta="Valore pesato" valore={fmt(stages.reduce((a, s) => a + s.weighted_value, 0))} nota="per la probabilità" />
         <StatGrafico etichetta="Opportunità" valore={String(stages.reduce((a, s) => a + s.opportunity_count, 0))} nota={`in ${stages.length} fasi`} />
       </div>
-      <p className="flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-        <MousePointerClick className="h-3 w-3" /> Clicca una colonna per aprire le opportunità
-      </p>
     </div>
   );
 }
@@ -991,7 +974,6 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
                   <Badge variant={severity.variant} className="text-xs">
                     {nextAction}
                   </Badge>
-                  <p className="text-xs text-muted-foreground">Apri e aggiorna prossimo step</p>
                 </div>
               </TableCell>
               <TableCell className="text-right">
@@ -1023,9 +1005,6 @@ function RimandoClassificaVenditori() {
           <Users className="h-5 w-5 text-primary mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-medium">Classifica venditori</p>
-            <p className="text-xs text-muted-foreground">
-              Fatturato, tasso di chiusura, appuntamenti e andamento di ogni venditore: sono in Reportistica → Venditori.
-            </p>
           </div>
         </div>
         <Button size="sm" variant="outline" className="gap-1 shrink-0" onClick={() => navigate("/azienda/marketing/reportistica?tab=venditori")}>
@@ -1075,9 +1054,6 @@ function ConversionBySourceChart({ companyId, dateFrom, dateTo, pipelineId }: { 
 
   return (
     <div className="space-y-4">
-      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-        <MousePointerClick className="h-3 w-3" /> Clicca una barra o una fonte per filtrare le opportunità
-      </p>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart
           data={chartData}
@@ -1490,7 +1466,7 @@ export default function SalesOSDashboard() {
             <CardHeader className="max-sm:px-0 max-sm:pb-1 max-sm:pt-0">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-destructive max-sm:hidden" />
-                Opportunità Ferme<span className="max-sm:hidden"> — Richiede Attenzione</span>
+                Opportunità ferme
               </CardTitle>
             </CardHeader>
             <CardContent className="max-sm:p-0">

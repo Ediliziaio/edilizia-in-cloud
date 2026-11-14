@@ -67,9 +67,6 @@ export default function CompanyCosts() {
           </div>
           <div className="min-w-0">
             <h1 className="text-xl font-bold leading-tight tracking-tight text-foreground sm:text-2xl">Costi Aziendali</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Capisci dove vanno i soldi: personale, materiali e spese, mese per mese.
-            </p>
           </div>
         </div>
       </div>
