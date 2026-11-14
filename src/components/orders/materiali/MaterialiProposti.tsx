@@ -13,12 +13,12 @@
  * «Tendine in uno Sheet»).
  */
 import { Fragment, useMemo, useState } from "react";
-import { Box, ChevronDown, Link2, Search, X } from "lucide-react";
+import { Box, ChevronDown, Link2, Plus, Search, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { ETICHETTA_FONTE_MATERIALE, normalizzaTesto, type OrigineRiga } from "@/lib/distinta/generaDistinta";
 import {
-  prezzoRiga, quantitaAcquisto,
+  articoloDaMateriale, prezzoRiga, quantitaAcquisto,
   type ArticoloCatalogo, type Collegamento, type MaterialeCollegato, type SceltaArticolo, type VoceListino,
 } from "@/lib/distinta/collegaArticoli";
 
@@ -69,10 +69,12 @@ function nomeCollegamento(c: Collegamento, fornitori: Map<string, string>): { no
 }
 
 /** Il pannello sotto la riga: abbinamenti possibili, ricerca nel catalogo, nessun articolo. */
-function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onScegli, onChiudi }: {
+function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onScegli, onChiudi, onAggiungiAlCatalogo }: {
   m: MaterialeCollegato; articoli: ArticoloCatalogo[]; listini: VoceListino[]; fornitori: Map<string, string>; mostraPrezzi: boolean;
   onScegli: (s: SceltaArticolo) => void; onChiudi: () => void;
+  onAggiungiAlCatalogo?: (m: MaterialeCollegato) => Promise<string | null>;
 }) {
+  const [aggiungo, setAggiungo] = useState(false);
   const [cerca, setCerca] = useState("");
   const trovati = useMemo(() => {
     const t = normalizzaTesto(cerca);
@@ -121,13 +123,26 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
       </label>
       {trovati.length > 0 && <ul className="max-h-48 space-y-0.5 overflow-auto" aria-label="Risultati della ricerca">{trovati.map((t) => <Voce key={`${t.tipo}:${t.id}`} {...t} />)}</ul>}
       {cerca.trim().length >= 2 && !trovati.length && <p className="text-[11px] text-slate-500">Niente nel catalogo con «{cerca.trim()}».</p>}
-      <button type="button" onClick={() => onScegli({ tipo: "nessuno" })} className="text-[11px] font-medium text-slate-600 underline-offset-2 hover:underline">Nessun articolo: lo scelgo dopo</button>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {onAggiungiAlCatalogo && (
+          <button type="button" disabled={aggiungo} className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 underline-offset-2 hover:underline disabled:opacity-60"
+            onClick={async () => {
+              setAggiungo(true);
+              const id = await onAggiungiAlCatalogo(m);
+              setAggiungo(false);
+              if (id) onScegli({ tipo: "articolo", id });
+            }}>
+            <Plus className="h-3 w-3" aria-hidden />{aggiungo ? "Aggiungo…" : `Aggiungi «${articoloDaMateriale(m).name}» al catalogo`}
+          </button>
+        )}
+        <button type="button" onClick={() => onScegli({ tipo: "nessuno" })} className="text-[11px] font-medium text-slate-600 underline-offset-2 hover:underline">Nessun articolo: lo scelgo dopo</button>
+      </div>
     </div>
   );
 }
 
 export function MaterialiProposti({
-  materiali, accesa, setAccese, perFase, nomeFase, articoli, listini, fornitori, mostraPrezzi, onScegliArticolo,
+  materiali, accesa, setAccese, perFase, nomeFase, articoli, listini, fornitori, mostraPrezzi, onScegliArticolo, onAggiungiAlCatalogo,
 }: {
   materiali: MaterialeCollegato[];
   accesa: (m: MaterialeCollegato) => boolean;
@@ -139,6 +154,8 @@ export function MaterialiProposti({
   fornitori: Map<string, string>;
   mostraPrezzi: boolean;
   onScegliArticolo: (chiave: string, s: SceltaArticolo) => void;
+  /** Crea l'articolo nel catalogo e ne restituisce l'id (null se non riesce). */
+  onAggiungiAlCatalogo?: (m: MaterialeCollegato) => Promise<string | null>;
 }) {
   const [filtro, setFiltro] = useState<FiltroMateriali>("tutti");
   const [aperta, setAperta] = useState<string | null>(null);
@@ -266,7 +283,8 @@ export function MaterialiProposti({
                         <td />
                         <td colSpan={colonne - 1} className="py-2 pr-2">
                           <SceltaArticoloRiga m={m} articoli={articoli} listini={listini} fornitori={fornitori} mostraPrezzi={mostraPrezzi}
-                            onScegli={(s) => { onScegliArticolo(m.chiave, s); setAperta(null); }} onChiudi={() => setAperta(null)} />
+                            onScegli={(s) => { onScegliArticolo(m.chiave, s); setAperta(null); }} onChiudi={() => setAperta(null)}
+                            onAggiungiAlCatalogo={onAggiungiAlCatalogo} />
                         </td>
                       </tr>
                     )}

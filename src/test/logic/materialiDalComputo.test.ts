@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { classeCalcestruzzo, generaDistinta, materialiCompresi, nomeDallaVoce, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
-import { aliasDaRicordare, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome, type MaterialeGiaUsato } from "@/lib/distinta/collegaArticoli";
+import { aliasDaRicordare, articoloDaMateriale, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome, type MaterialeGiaUsato } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
 
 const voce = (p: Partial<VoceComputo> & { id: string; descrizione_breve: string }): VoceComputo => ({ quantita: 1, unita_misura: "cad", ...p });
@@ -345,6 +345,16 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       expect(m.conversione).toMatchObject({ comune: true, quantita: 8 });
       const colla = { ...r, descrizione: "Colla Keraflex Mapei" };
       expect(candidatiArticolo(colla, CATALOGO).some((x) => x.collegamento.id === "a-colla")).toBe(true);
+    });
+
+    it("«Aggiungi al catalogo»: nome con la confezione d'uso comune, unità d'acquisto e specifica utile", () => {
+      const [m] = collegaMateriali([gres()], { articoli: [], listini: [], giaUsati: [] });
+      expect(articoloDaMateriale(m)).toEqual({ name: "Adesivo cementizio per piastrelle sacco 25 kg", unit_of_measure: "sacco", description: "Classe C2", supplier_id: null });
+      // Il nuovo articolo, la volta dopo, converte da solo da kg a sacchi.
+      const [dopo] = collegaMateriali([gres()], { articoli: [{ id: "nuovo", name: "Adesivo cementizio per piastrelle sacco 25 kg", unit_of_measure: "sacco" }], listini: [], giaUsati: [] });
+      expect(dopo.collegamento?.id).toBe("nuovo");
+      expect(dopo.conversione).toMatchObject({ quantita: 8, unita: "sacco" });
+      expect(dopo.conversione?.comune).toBeUndefined();
     });
 
     it("dice se lo stesso materiale è in magazzino, per codice o per nome", () => {

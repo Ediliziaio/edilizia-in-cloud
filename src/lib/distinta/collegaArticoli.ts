@@ -395,6 +395,24 @@ export function prezzoRiga(m: MaterialeCollegato): { unitario: number; unita: st
   return { unitario: c.prezzo, unita: q.unita, totale: Math.round(c.prezzo * q.quantita * 100) / 100 };
 }
 
+/**
+ * Il nuovo articolo del catalogo da un materiale senza collegamento (14/11/2026):
+ * nome, unità d'acquisto e fornitore. Se si compra nella confezione d'uso comune,
+ * il nome la dice («… sacco 25 kg»): così la prossima volta la conversione da kg a
+ * sacchi viene dall'articolo. La specifica va nella descrizione, se dice qualcosa.
+ */
+export function articoloDaMateriale(m: MaterialeCollegato): { name: string; unit_of_measure: string; description: string | null; supplier_id: string | null } {
+  const c = m.conversione;
+  const confezione = c?.comune ? ` ${c.unita} ${c.contenuto.toLocaleString("it-IT")} ${normalizzaUnita(m.unita_misura)}` : "";
+  const spec = m.specifiche && !/da progetto|dalla voce/i.test(m.specifiche) ? m.specifiche : null;
+  return {
+    name: `${m.descrizione}${confezione}`.slice(0, 200),
+    unit_of_measure: c?.comune ? c.unita : m.unita_misura,
+    description: spec,
+    supplier_id: m.supplier_id ?? null,
+  };
+}
+
 /** Gli abbinamenti scelti a mano da ricordare: solo quelli a un articolo (product_aliases vuole un articolo). */
 export function aliasDaRicordare(materiali: MaterialeCollegato[], scelte: Record<string, SceltaArticolo>): AliasMateriale[] {
   const out = new Map<string, AliasMateriale>();

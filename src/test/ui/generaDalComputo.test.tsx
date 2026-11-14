@@ -25,6 +25,7 @@ const tabelle = vi.hoisted(() => ({
   fasi: [] as { id: string; name: string; position: number }[],
   articoli: [] as Record<string, unknown>[],
   fornitori: [] as { id: string; name: string }[],
+  inseriti: [] as Record<string, unknown>[],
 }));
 vi.mock("@/integrations/supabase/client", () => {
   const da = (tabella: string) => {
@@ -32,6 +33,9 @@ vi.mock("@/integrations/supabase/client", () => {
     const risposta = { data: (dati[tabella] ?? []) as unknown[], error: null as null };
     const catena: Record<string, unknown> = {};
     for (const m of ["select", "eq", "neq", "gt", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
+    let inserito: Record<string, unknown> | null = null;
+    catena.insert = (r: Record<string, unknown>) => { inserito = { id: "nuovo-articolo", ...r }; tabelle.inseriti.push(inserito); return catena; };
+    catena.single = () => Promise.resolve({ data: inserito, error: null });
     catena.then = (ok: (v: typeof risposta) => unknown) => Promise.resolve(risposta).then(ok);
     return catena;
   };
@@ -63,7 +67,7 @@ const apri = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; salva.mutate.mockReset(); });
+beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; tabelle.inseriti = []; salva.mutate.mockReset(); });
 
 describe("Genera dal computo", () => {
   it("senza computo apre la finestra di «Importa voci»: trascinamento, scelta e gli stessi formati", async () => {
@@ -198,5 +202,18 @@ describe("Genera dal computo", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Senza articolo 2$/ }));
     expect(screen.queryByText("Adesivo cementizio per piastrelle")).not.toBeInTheDocument();
     expect(screen.getByText("Stucco per fughe")).toBeInTheDocument();
+  });
+
+  it("«Aggiungi al catalogo» crea l'articolo, lo collega alla riga e lo ricorda", async () => {
+    computi = [computo({})];
+    vociLette = [{ id: "v1", descrizione_breve: "Pavimento in gres porcellanato 60x60", unita_misura: "mq", quantita: 45, super_categoria: "Pavimenti" }];
+    apri();
+    expect(await screen.findByText("Adesivo cementizio per piastrelle")).toBeInTheDocument();
+    const riga = () => screen.getByText("Adesivo cementizio per piastrelle").closest("tr")!;
+    fireEvent.click(within(riga()).getByRole("button", { name: /Scegli l'articolo di Adesivo cementizio per piastrelle/ }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Aggiungi «Adesivo cementizio per piastrelle sacco 25 kg» al catalogo" })); });
+    expect(tabelle.inseriti[0]).toMatchObject({ company_id: "c1", name: "Adesivo cementizio per piastrelle sacco 25 kg", unit_of_measure: "sacco", description: "Classe C2" });
+    expect(await within(riga()).findByText("Adesivo cementizio per piastrelle sacco 25 kg")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ricorda per i prossimi computi").closest("label")).toHaveTextContent("«Adesivo cementizio per piastrelle» → Adesivo cementizio per piastrelle sacco 25 kg");
   });
 });

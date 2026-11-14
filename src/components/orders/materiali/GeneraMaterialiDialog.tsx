@@ -36,7 +36,7 @@ import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
 import { generaDistinta, type ConteggioConfermato, type Scomposizione } from "@/lib/distinta/generaDistinta";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
 import {
-  aliasDaRicordare, collegaMateriali, prezzoRiga, rigaDaSalvare,
+  aliasDaRicordare, articoloDaMateriale, collegaMateriali, prezzoRiga, rigaDaSalvare,
   type AliasMateriale, type ArticoloCatalogo, type DatiCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type SceltaArticolo, type VoceMagazzino,
 } from "@/lib/distinta/collegaArticoli";
 import { MaterialiProposti } from "./MaterialiProposti";
@@ -383,6 +383,20 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     }
   };
 
+  // «Aggiungi al catalogo» (14/11/2026): il materiale senza articolo diventa un articolo,
+  // come da «Aggiungi articolo» nella commessa; poi si collega e, con «Ricorda», si ritrova.
+  const aggiungiAlCatalogo = async (m: MaterialeCollegato): Promise<string | null> => {
+    const a = articoloDaMateriale(m);
+    const { data, error } = await supabase.from("article_templates")
+      .insert({ company_id: companyId, name: a.name, unit_of_measure: a.unit_of_measure, description: a.description, supplier_id: a.supplier_id, vat_rate: 22 })
+      .select("id, name, sku, unit_of_measure, supplier_id, prezzo_acquisto_netto, standard_cost, marca, modello").single();
+    if (error || !data) { toast.error("Articolo non aggiunto al catalogo", { description: messaggioErrore(error) }); return null; }
+    // Subito nel catalogo della finestra, senza aspettare la rilettura.
+    qc.setQueryData(["genera-materiali", orderId, companyId], (d: typeof dati.data) => d ? { ...d, catalogo: { ...d.catalogo, articoli: [...d.catalogo.articoli, data as ArticoloCatalogo] } } : d);
+    qc.invalidateQueries({ queryKey: ["article-templates"] });
+    toast.success(`«${a.name}» aggiunto al catalogo`, { description: "Il prezzo d'acquisto lo scrivi nel catalogo, o arriva dal primo ordine." });
+    return data.id;
+  };
   const [salvando, setSalvando] = useState(false);
   // Dopo «Salva i materiali», chi può comprare vede gli ordini da creare per fornitore.
   const puoComprare = !!(permessi.canEditOrders || permessi.canManagePurchasing);
@@ -596,6 +610,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 fornitori={dati.data?.catalogo.fornitori ?? new Map()}
                 mostraPrezzi={mostraPrezzi}
                 onScegliArticolo={(chiave, sc) => setSceltaArticolo((a) => ({ ...a, [chiave]: sc }))}
+                onAggiungiAlCatalogo={permessi.canEditOrders ? aggiungiAlCatalogo : undefined}
               />
 
               {risultato.avvisi.length > 0 && (
