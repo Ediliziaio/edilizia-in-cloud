@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { classeCalcestruzzo, generaDistinta, materialiCompresi, nomeDallaVoce, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
+import { avvisiCosto, costiPerVoce } from "@/lib/distinta/controlloCostiVoci";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
 import { aliasDaRicordare, articoloDaMateriale, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome, type MaterialeGiaUsato } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
@@ -428,6 +429,32 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       expect(spessoreCm("pareti ascensore, di paretine balconate di 15 cm")).toBe(15);
       expect(spessoreCm("solaio spess. cm 20+5")).toBeNull();
       expect(spessoreCm("muri in c.a. spessore cm 25, compreso calcestruzzo")).toBe(25);
+    });
+  });
+
+  describe("controllo: materiali che costano più della voce (14/11/2026)", () => {
+    // Intonaco 100 m² a 24 €/m² = 2.400 €; 84 sacchi d'intonaco a 6,80 € = 571 €: va bene.
+    // Con un sacco a 40 € (o una quantità sbagliata) i materiali superano la voce.
+    const intonaco = (prezzoSacco: number, importo: number) => {
+      const v = { ...COMPUTO[0], importo_computo: importo };
+      const r = generaDistinta({ voci: [v], scomposizioni: [], riserva: catalogoComeScomposizioni() });
+      const m = collegaMateriali(r.righe, { articoli: [{ ...ARTICOLI[0], prezzo_acquisto_netto: prezzoSacco }], listini: [], giaUsati: [] });
+      return { m, voci: [{ id: v.id, descrizione_breve: v.descrizione_breve, importo_computo: importo }] };
+    };
+
+    it("nessun avviso quando i materiali stanno dentro la voce", () => {
+      const { m, voci } = intonaco(6.8, 2400);
+      expect(costiPerVoce(m, voci)[0]).toMatchObject({ materiali: 571.2, importo: 2400, percentuale: 24 });
+      expect(avvisiCosto(m, voci).size).toBe(0);
+    });
+
+    it("avvisa le righe della voce quando i materiali costano più della voce", () => {
+      const { m, voci } = intonaco(40, 2400);
+      const avvisi = avvisiCosto(m, voci);
+      const into = m.find((x) => x.descrizione === "Intonaco premiscelato di fondo")!;
+      expect(avvisi.get(into.chiave)).toMatch(/^I materiali costano 3360\s€ contro 2400\s€ della voce \(140%\): controlla quantità e resa$/);
+      // Senza l'importo della voce nel computo non si dice niente.
+      expect(avvisiCosto(m, [{ ...voci[0], importo_computo: null }]).size).toBe(0);
     });
   });
 });

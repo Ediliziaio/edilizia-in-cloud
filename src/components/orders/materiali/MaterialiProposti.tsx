@@ -13,7 +13,7 @@
  * «Tendine in uno Sheet»).
  */
 import { Fragment, useMemo, useState } from "react";
-import { Box, ChevronDown, Link2, Plus, Search, X } from "lucide-react";
+import { AlertTriangle, Box, ChevronDown, Link2, Plus, Search, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { ETICHETTA_FONTE_MATERIALE, normalizzaTesto, type OrigineRiga } from "@/lib/distinta/generaDistinta";
@@ -27,8 +27,8 @@ export type FiltroMateriali = "tutti" | "da_controllare" | "senza_articolo" | "s
 const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 });
 const num = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 
-function filtraMateriali(m: MaterialeCollegato, f: FiltroMateriali): boolean {
-  if (f === "da_controllare") return m.affidabilita < 0.65;
+function filtraMateriali(m: MaterialeCollegato, f: FiltroMateriali, avvisi?: Map<string, string>): boolean {
+  if (f === "da_controllare") return m.affidabilita < 0.65 || !!avvisi?.has(m.chiave);
   if (f === "senza_articolo") return !m.collegamento;
   if (f === "senza_prezzo") return !prezzoRiga(m);
   if (f === "in_magazzino") return !!m.magazzino;
@@ -142,7 +142,7 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
 }
 
 export function MaterialiProposti({
-  materiali, accesa, setAccese, perFase, nomeFase, articoli, listini, fornitori, mostraPrezzi, onScegliArticolo, onAggiungiAlCatalogo,
+  materiali, accesa, setAccese, perFase, nomeFase, articoli, listini, fornitori, mostraPrezzi, onScegliArticolo, onAggiungiAlCatalogo, avvisiCosto,
 }: {
   materiali: MaterialeCollegato[];
   accesa: (m: MaterialeCollegato) => boolean;
@@ -156,12 +156,14 @@ export function MaterialiProposti({
   onScegliArticolo: (chiave: string, s: SceltaArticolo) => void;
   /** Crea l'articolo nel catalogo e ne restituisce l'id (null se non riesce). */
   onAggiungiAlCatalogo?: (m: MaterialeCollegato) => Promise<string | null>;
+  /** Materiali (chiave) le cui voci costano meno dei loro materiali: quantità o resa da controllare. */
+  avvisiCosto?: Map<string, string>;
 }) {
   const [filtro, setFiltro] = useState<FiltroMateriali>("tutti");
   const [aperta, setAperta] = useState<string | null>(null);
   const [chiuse, setChiuse] = useState<Record<string, boolean>>({});
   const conteggi = useMemo(() => Object.fromEntries((Object.keys(ETICHETTE_FILTRO) as FiltroMateriali[])
-    .map((f) => [f, materiali.filter((m) => filtraMateriali(m, f)).length])) as Record<FiltroMateriali, number>, [materiali]);
+    .map((f) => [f, materiali.filter((m) => filtraMateriali(m, f, avvisiCosto)).length])) as Record<FiltroMateriali, number>, [materiali, avvisiCosto]);
   const accesi = materiali.filter(accesa);
   const tuttiAccesi = !!materiali.length && accesi.length === materiali.length;
   const colonne = mostraPrezzi ? 7 : 5;
@@ -202,7 +204,7 @@ export function MaterialiProposti({
           </tr>
         </thead>
         {perFase.map(([fase, tutte]) => {
-          const righe = tutte.filter((m) => filtraMateriali(m, filtro));
+          const righe = tutte.filter((m) => filtraMateriali(m, filtro, avvisiCosto));
           if (!righe.length) return null;
           const chiusa = !!chiuse[fase];
           const totaleFase = tutte.filter(accesa).reduce((s, m) => s + (prezzoRiga(m)?.totale ?? 0), 0);
@@ -245,6 +247,11 @@ export function MaterialiProposti({
                         </p>
                         <p className="truncate text-[11px] text-slate-500" title={p.tutte}>{p.breve}</p>
                         {m.note.map((n) => <p key={n} className="truncate text-[11px] text-slate-500" title={n}>{n}</p>)}
+                        {avvisiCosto?.get(m.chiave) && (
+                          <p className="flex items-center gap-1 text-[11px] font-medium text-amber-800" title={avvisiCosto.get(m.chiave)}>
+                            <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden /><span className="truncate">{avvisiCosto.get(m.chiave)}</span>
+                          </p>
+                        )}
                       </td>
                       <td className="py-1.5 text-right tabular-nums">
                         <span className="font-medium text-slate-900">{num(q.quantita)} {q.unita}</span>
@@ -295,7 +302,7 @@ export function MaterialiProposti({
           );
         })}
       </table>
-      {!materiali.some((m) => filtraMateriali(m, filtro)) && <p className="py-6 text-center text-xs text-slate-500">Nessun materiale con questo filtro.</p>}
+      {!materiali.some((m) => filtraMateriali(m, filtro, avvisiCosto)) && <p className="py-6 text-center text-xs text-slate-500">Nessun materiale con questo filtro.</p>}
     </section>
   );
 }

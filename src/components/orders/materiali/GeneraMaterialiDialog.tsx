@@ -40,6 +40,7 @@ import {
   type AliasMateriale, type ArticoloCatalogo, type DatiCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type SceltaArticolo, type VoceMagazzino,
 } from "@/lib/distinta/collegaArticoli";
 import { MaterialiProposti } from "./MaterialiProposti";
+import { avvisiCosto as calcolaAvvisiCosto, type VoceConImporto } from "@/lib/distinta/controlloCostiVoci";
 import { DopoIlSalvataggio } from "./DopoIlSalvataggio";
 import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
 import { pendingMaterials, type ProcurementItem } from "@/lib/orders/materialProcurement";
@@ -320,6 +321,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   // Righe spente: le proposte dell'AI da approvare partono spente, le altre si spengono a mano.
   const [accese, setAccese] = useState<Record<string, boolean>>({});
   const accesa = (m: MaterialeCollegato) => accese[m.chiave] ?? !m.proposta_ai;
+  // Materiali che costano più della loro voce nel computo: quantità o resa da controllare.
+  const avvisiCosto = useMemo(() => calcolaAvvisiCosto(materiali, vociComputo as unknown as VoceConImporto[]), [materiali, vociComputo]);
   const daSalvare = materiali.filter(accesa);
   // Quello che le scelte di questa commessa insegnano per i prossimi computi.
   const ricordi = useMemo(
@@ -611,6 +614,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 mostraPrezzi={mostraPrezzi}
                 onScegliArticolo={(chiave, sc) => setSceltaArticolo((a) => ({ ...a, [chiave]: sc }))}
                 onAggiungiAlCatalogo={permessi.canEditOrders ? aggiungiAlCatalogo : undefined}
+                avvisiCosto={mostraPrezzi ? avvisiCosto : undefined}
               />
 
               {risultato.avvisi.length > 0 && (
