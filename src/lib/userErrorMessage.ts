@@ -112,7 +112,7 @@ export function userErrorMessage(error: unknown, fallback = "Operazione non rius
     msg.includes("not allowed") ||
     msg.includes("forbidden")
   ) {
-    return "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.";
+    return MESSAGGIO_PERMESSI;
   }
 
   // ── Vincoli DB (Postgres) ───────────────────────────────────────────────
@@ -209,10 +209,25 @@ export function sembraErrorePostgresGrezzo(message: string): boolean {
  * Restituisce null quando non c'e' niente da tradurre: messaggio gia' umano,
  * oppure un errore che nessun pattern riconosce.
  */
+/** Il messaggio di ogni rifiuto per permessi. */
+export const MESSAGGIO_PERMESSI = "Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso.";
+
+/** Frasi di rifiuto dei trigger che non dicono quale permesso manca. */
+const RIFIUTI_GENERICI: readonly RegExp[] = [
+  /^operazione non consentita\.?$/i,
+  /^accesso negato\.?$/i,
+  /^non autorizzato\.?$/i,
+];
+
 export function traduciErrorePostgrest(body: unknown): Record<string, unknown> | null {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   const b = body as { message?: unknown; code?: unknown; details?: unknown };
   if (typeof b.message !== "string" || b.message.length === 0) return null;
+  // Un rifiuto per permessi con una frase generica («Operazione non consentita», «Accesso negato»)
+  // non diceva che mancava un permesso (14/11/2026): diventa il messaggio dei permessi.
+  if (b.code === "42501" && RIFIUTI_GENERICI.some((re) => re.test(b.message as string))) {
+    return { ...b, message: MESSAGGIO_PERMESSI, details: typeof b.details === "string" && b.details ? `${b.message} · ${b.details}` : b.message };
+  }
   if (!sembraErrorePostgresGrezzo(b.message)) return null;
   const umano = userErrorMessage(
     { message: b.message, code: typeof b.code === "string" ? b.code : undefined },

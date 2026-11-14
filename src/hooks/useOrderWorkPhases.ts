@@ -3,6 +3,7 @@ import { MODELLI_STANDARD } from "@/lib/orders/modelliStandard";
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
@@ -254,6 +255,12 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const onError = (e: unknown) =>
     toast.error(messaggioErrore(e));
 
+  // Un salvataggio che il database lascia passare senza scrivere niente (la regola non vede la
+  // riga) sembrava riuscito e poi tornava indietro: ora lo si dice, col messaggio dei permessi.
+  const scritto = (righe: unknown) => {
+    if (!Array.isArray(righe) || righe.length === 0) throw new Error(MESSAGGIO_PERMESSI);
+  };
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["order_work_phases", orderId, companyId],
     enabled: !!orderId && !!companyId,
@@ -489,11 +496,13 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         : patch.status === "completata"
           ? (giaChiusa ? {} : { completata_il: new Date().toISOString(), completata_da: user?.id ?? null })
           : { completata_il: null, completata_da: null };
-      const { error } = await db
+      const { data: righe, error } = await db
         .from("order_work_phases")
         .update({ ...patch, ...chiusura, updated_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      scritto(righe);
     },
     onSuccess: invalidate,
     onError,
@@ -619,8 +628,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (patch.paid_date !== undefined) row.paid_date = patch.paid_date;
       if (patch.phase_id !== undefined) row.phase_id = patch.phase_id;
       if (patch.notes !== undefined) row.notes = patch.notes;
-      const { error } = await db.from(table).update(row).eq("id", id);
+      const { data: righe, error } = await db.from(table).update(row).eq("id", id).select("id");
       if (error) throw error;
+      scritto(righe);
     },
     onSuccess: invalidate,
     onError,
@@ -629,11 +639,12 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   // Sposta un articolo su una fase (o lo toglie con phaseId = null)
   const setMaterialPhase = useMutation({
     mutationFn: async ({ itemId, phaseId }: { itemId: string; phaseId: string | null }) => {
-      const { error } = await db.from("order_items").update({ phase_id: phaseId }).eq("id", itemId);
+      const { data: righe, error } = await db.from("order_items").update({ phase_id: phaseId }).eq("id", itemId).select("id");
       if (error) throw error;
+      scritto(righe);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] }),
-    onError: () => toast.error("Operazione non riuscita. Riprova."),
+    onError,
   });
 
   // Divide un articolo su più fasi ("100 kg usati in più fasi"): la riga

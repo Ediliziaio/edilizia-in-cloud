@@ -73,3 +73,20 @@ describe("traduciErrorePostgrest", () => {
     expect(testoTecnico(null)).toBe("");
   });
 });
+
+describe("rifiuti per permessi con una frase generica (14/11/2026)", () => {
+  it("«Operazione non consentita» e «Accesso negato» col codice 42501 diventano il messaggio dei permessi", () => {
+    for (const message of ["Operazione non consentita", "Accesso negato", "Accesso negato."]) {
+      const t = traduciErrorePostgrest({ message, code: "42501" });
+      expect(t?.message, message).toMatch(/^Non hai i permessi per questa operazione/);
+      expect(t?.details, message).toContain(message);
+    }
+  });
+  it("un rifiuto che dice già quale permesso manca resta com'è", () => {
+    expect(traduciErrorePostgrest({ message: "Il venduto della fase lo scrive solo chi ha «Importi di vendita».", code: "42501" })).toBeNull();
+  });
+  it("la stessa frase senza codice di permesso non si tocca", () => {
+    expect(traduciErrorePostgrest({ message: "Operazione non consentita", code: "P0001" })).toBeNull();
+  });
+});
+

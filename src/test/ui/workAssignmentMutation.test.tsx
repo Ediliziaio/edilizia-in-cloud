@@ -30,12 +30,21 @@ beforeEach(() => { vi.clearAllMocks(); mocks.fasi = undefined; });
 
 describe("Chiusura di una fase dall'ufficio (06/10/2026)", () => {
   const aggiorna = () => {
-    const q = { update: vi.fn(), eq: vi.fn() };
+    const q = { update: vi.fn(), eq: vi.fn(), select: vi.fn() };
     q.update.mockReturnValue(q);
-    q.eq.mockResolvedValue({ error: null as null });
+    q.eq.mockReturnValue(q);
+    q.select.mockResolvedValue({ data: [{ id: "fase" }], error: null as null });
     mocks.from.mockReturnValue(q);
     return q;
   };
+
+  it("se il database non scrive niente lo dice col messaggio dei permessi (14/11/2026)", async () => {
+    mocks.fasi = { phases: [{ id: "aperta", status: "in_corso" }], unassigned: [] as unknown[], all: [] as unknown[] };
+    const q = aggiorna();
+    q.select.mockResolvedValue({ data: [] as unknown[], error: null as null });
+    const { result } = renderHook(() => useOrderWorkPhases("order"));
+    await expect(result.current.updatePhase.mutateAsync({ id: "aperta", importo_venduto: 1000 })).rejects.toThrow(/Non hai i permessi/);
+  });
 
   it("chiudere una fase aperta ne registra il giorno; «richiudere» una già chiusa (rettifica a 100) non lo sposta", async () => {
     mocks.fasi = { phases: [{ id: "chiusa", status: "completata" }, { id: "aperta", status: "in_corso" }], unassigned: [] as unknown[], all: [] as unknown[] };
