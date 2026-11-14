@@ -133,7 +133,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
         supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita")
           .eq("order_id", orderId).eq("confermato", true),
-        caricaCatalogo(companyId).catch(() => ({ articoli: [], listini: [], giaUsati: [] })),
+        caricaCatalogo(companyId).catch(() => ({ articoli: [] as ArticoloCatalogo[], listini: [] as VoceListino[], giaUsati: [] as MaterialeGiaUsato[] })),
       ]);
       if (fasi.error) throw fasi.error;
       if (conteggi.error) throw conteggi.error;
@@ -166,9 +166,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     salvaComputo.mutate(
       { voci: vociLette, file, totaleDocumento: esito?.totaleDocumento ?? null, sostituisce: importa ? scelto : null },
       {
-        onSuccess: ({ id, riusato }) => {
+        onSuccess: ({ id, riusato, nonArchiviati }) => {
           setComputoId(id);
           setScelte({});
+          if (nonArchiviati.length) toast.info("Computo salvato con le sue voci", { description: `Il file originale (${nonArchiviati.join(", ")}) non è archiviato: si conservano PDF, Excel, PriMus e foto.` });
           if (riusato) toast.info("Questo computo è già nella commessa: uso quello", { description: "Nessun doppione: i materiali generati prima e non ordinati si aggiornano quando salvi." });
         },
         onError: (e) => toast.error("Computo non salvato", { description: e instanceof Error ? e.message : String(e) }),

@@ -11,7 +11,7 @@ import { MESSAGGIO_DCF } from "@/lib/computo/xpwe";
 import type { VoceComputo } from "@/lib/computo/alberoComputo";
 import type { ControlloTotali } from "@/lib/computo/computoStrutturato";
 import type { VoceImportata } from "@/lib/computo/importaVoci";
-import { improntaVoci, metodoLettura, rigaDaVoce, tipoFileComputo, titoloComputo, type FileOrigine } from "@/lib/computo/computoDaVoci";
+import { improntaVoci, metodoLettura, rigaDaVoce, tipoArchivio, tipoFileComputo, titoloComputo, type FileOrigine } from "@/lib/computo/computoDaVoci";
 
 export type StatoComputo = "bozza" | "verificato" | "contrattuale" | "archiviato";
 
@@ -208,7 +208,7 @@ export function useSalvaComputoImportato(orderId: string, companyId: string, use
       file: { file: File; formato: string; via: "browser" | "server" }[];
       totaleDocumento: number | null;
       sostituisce?: Pick<ComputoCommessa, "id" | "stato"> | null;
-    }): Promise<{ id: string; riusato: boolean }> => {
+    }): Promise<{ id: string; riusato: boolean; nonArchiviati: string[] }> => {
       if (!userId) throw new Error("Accesso scaduto: rientra e riprova.");
       if (!voci.length) throw new Error("Nessuna voce da salvare.");
       const impronta = improntaVoci(voci);
@@ -216,14 +216,22 @@ export function useSalvaComputoImportato(orderId: string, companyId: string, use
         .eq("order_id", orderId).eq("company_id", companyId).neq("stato", "archiviato")
         .eq("raw_extracted_json->>impronta", impronta).limit(1);
       if (errGia) throw new Error(errGia.message);
-      if (gia?.length) return { id: gia[0].id, riusato: true };
+      if (gia?.length) return { id: gia[0].id, riusato: true, nonArchiviati: [] };
 
       const origini: FileOrigine[] = file.map(f => ({ nome: f.file.name, formato: f.formato, via: f.via, dimensione: f.file.size }));
-      const percorsi: string[] = [];
+      // Il file originale si archivia se il bucket ne accetta il formato; se no, o se il
+      // caricamento non riesce, il computo si salva lo stesso: sono le voci a contare.
+      const percorsi: (string | null)[] = [];
+      const nonArchiviati: string[] = [];
       for (const f of file) {
-        const percorso = `${companyId}/${Date.now()}-${f.file.name.replace(/[^\w.-]+/g, "_")}`;
-        const { error } = await supabase.storage.from("computi").upload(percorso, f.file);
-        if (error) throw new Error(`Il file «${f.file.name}» non si è caricato: ${error.message}`);
+        const tipo = tipoArchivio(f.file.name);
+        let percorso: string | null = null;
+        if (tipo) {
+          const p = `${companyId}/${Date.now()}-${f.file.name.replace(/[^\w.-]+/g, "_")}`;
+          const { error } = await supabase.storage.from("computi").upload(p, f.file, { contentType: tipo });
+          if (!error) percorso = p;
+        }
+        if (!percorso) nonArchiviati.push(f.file.name);
         percorsi.push(percorso);
       }
       const primo = origini[0];
@@ -233,7 +241,7 @@ export function useSalvaComputoImportato(orderId: string, companyId: string, use
         company_id: companyId, uploaded_by: userId, order_id: orderId,
         titolo: titoloComputo(origini), file_name: origini.map(o => o.nome).join(", ").slice(0, 500) || "computo",
         file_type: primo ? tipoFileComputo(primo.nome) : "pdf", file_size: origini.reduce((s, o) => s + o.dimensione, 0),
-        storage_path: percorsi[0] ?? "", extraction_status: "completed", extraction_method: primo ? metodoLettura(primo) : "xlsx_parse",
+        storage_path: percorsi.find(Boolean) ?? "", extraction_status: "completed", extraction_method: primo ? metodoLettura(primo) : "xlsx_parse",
         extraction_completed_at: new Date().toISOString(), stato: "bozza",
         totale_calcolato: Math.round(totale * 100) / 100, totale_dichiarato: totaleDocumento,
         raw_extracted_json: { impronta, origine: "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })) },
@@ -263,7 +271,7 @@ export function useSalvaComputoImportato(orderId: string, companyId: string, use
       if (sostituisce && sostituisce.stato !== "bozza") {
         await supabase.from("computo_uploads").update({ stato: "archiviato" }).eq("id", sostituisce.id).eq("company_id", companyId);
       }
-      return { id: riga.id, riusato: false };
+      return { id: riga.id, riusato: false, nonArchiviati };
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["computo-commessa", orderId] });

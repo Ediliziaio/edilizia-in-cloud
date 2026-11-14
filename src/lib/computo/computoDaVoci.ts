@@ -31,6 +31,25 @@ export function tipoFileComputo(nome: string): TipoFileComputo {
   return "pdf";
 }
 
+/**
+ * Il tipo con cui il file originale va nel bucket `computi`, che accetta solo PDF,
+ * Excel, XML e foto JPG/PNG (14/11/2026: un CSV dava «mime type text/csv is not
+ * supported» e il computo non si salvava). Per gli altri formati (CSV, Word, WebP)
+ * si salvano le voci senza archiviare il file: il computo sono le voci.
+ */
+export function tipoArchivio(nome: string): string | null {
+  const ext = nome.toLowerCase().split(".").pop() ?? "";
+  const tipi: Record<string, string> = {
+    pdf: "application/pdf",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    xlsm: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    xls: "application/vnd.ms-excel",
+    xml: "application/xml", xpwe: "application/xml", pwe: "application/xml",
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+  };
+  return tipi[ext] ?? null;
+}
+
 export function metodoLettura(f: Pick<FileOrigine, "nome" | "via">): MetodoLettura {
   if (f.via === "server") return "pdf_vision";
   const t = tipoFileComputo(f.nome);
