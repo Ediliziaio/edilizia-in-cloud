@@ -1,9 +1,12 @@
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
+import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
+import {
+  COLORI_GRAFICO, TESTO_ASSE, TooltipScheda, defsGrafico, testoLegenda, euroAsse, idSvg,
+} from "@/components/controllo-gestione/ui/grafici/comune";
 import { useCEMensile, useCEMensileDettaglio } from "@/hooks/controlloGestione/useCEriclassificato";
-import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { ChartSkeleton } from "@/components/controllo-gestione/skeletons/ChartSkeleton";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
@@ -16,6 +19,8 @@ const MESI_BREVI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set
 const COSTO_CODES = ["03", "04", "05", "06", "07", "08", "09", "10", "11", "14", "15"];
 
 export function BEPChart({ anno }: BEPChartProps) {
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
   const primary = useCEMensile(anno);
   const fallback = useCEMensileDettaglio(anno);
 
@@ -71,33 +76,49 @@ export function BEPChart({ anno }: BEPChartProps) {
   return (
     <div className="h-[360px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={chartData} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-          <XAxis dataKey="mese" tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => formatCurrencyCompact(v)} />
+        <ComposedChart data={chartData} margin={{ top: 16, right: 12, bottom: 4, left: 0 }} barCategoryGap="22%">
+          {defsGrafico(id, { ricavi: COLORI_GRAFICO.blu })}
+          <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+          <XAxis dataKey="mese" tick={TESTO_ASSE} axisLine={false} tickLine={false} tickMargin={8} />
+          <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} width={64} tickFormatter={euroAsse} />
           <Tooltip
-            formatter={(value: number) => formatCurrency(value)}
-            labelClassName="text-xs"
-            contentStyle={{ borderRadius: 8, fontSize: 12 }}
+            cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+            content={(p) => <TooltipScheda active={p.active} payload={p.payload as never} label={p.label} />}
           />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="ricavi_cum" name="Ricavi cumulati" fill="hsl(210, 90%, 55%)" radius={[4, 4, 0, 0]} />
+          <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} formatter={testoLegenda} />
+          <Bar
+            dataKey="ricavi_cum"
+            name="Ricavi cumulati"
+            fill={`url(#${id}-barra-ricavi)`}
+            radius={[6, 6, 2, 2]}
+            maxBarSize={40}
+            isAnimationActive={!fermo}
+            animationDuration={800}
+          />
           <Line
             type="monotone"
             dataKey="costi_totali_cum"
             name="Costi cumulati"
-            stroke="hsl(25, 95%, 55%)"
-            strokeWidth={2}
+            stroke={COLORI_GRAFICO.arancio}
+            strokeWidth={2.5}
+            filter={`url(#${id}-ombra)`}
             dot={false}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: "hsl(var(--background))", fill: COLORI_GRAFICO.arancio }}
+            isAnimationActive={!fermo}
+            animationDuration={900}
+            animationBegin={200}
           />
           <Line
             type="monotone"
             dataKey="bep_cum"
             name="Soglia BEP"
-            stroke="hsl(142, 70%, 40%)"
+            stroke={COLORI_GRAFICO.verde}
             strokeWidth={2}
             strokeDasharray="6 4"
             dot={false}
+            isAnimationActive={!fermo}
+            animationDuration={900}
+            animationBegin={350}
           />
         </ComposedChart>
       </ResponsiveContainer>

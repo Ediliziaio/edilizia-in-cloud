@@ -1013,3 +1013,17 @@ html .react-flow .react-flow__edges svg {
   button.inline-flex.h-10.px-4:not([class*="max-md:px-"]), a.inline-flex.h-10.px-4:not([class*="max-md:px-"]) { padding-left: 0.75rem; padding-right: 0.75rem; }
   button.inline-flex.h-11.px-8:not([class*="max-md:px-"]), a.inline-flex.h-11.px-8:not([class*="max-md:px-"]) { padding-left: 1rem; padding-right: 1rem; }
 }
+
+/* Controllo di gestione: le barre di avanzamento crescono da sinistra
+   all'apertura (solo transform: niente ricalcolo del layout). Con «meno
+   movimento» nel sistema sono già piene. */
+@media (prefers-reduced-motion: no-preference) {
+  .cg-barra-cresce {
+    transform-origin: left center;
+    animation: cg-barra-cresce 900ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both;
+  }
+}
+@keyframes cg-barra-cresce {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}

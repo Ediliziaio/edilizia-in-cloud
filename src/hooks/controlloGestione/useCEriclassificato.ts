@@ -140,11 +140,12 @@ export function useBEP(anno: number) {
   });
 }
 
-export function useCEMensile(anno: number) {
+/** `attivo: false` per non leggere niente dove il grafico non si mostra (telefono). */
+export function useCEMensile(anno: number, attivo = true) {
   const companyId = useEffectiveCompanyId();
   return useQuery({
     queryKey: [...queryKeys.controlloGestione.mens(anno), "reconciled-v1", companyId],
-    enabled: !!companyId,
+    enabled: !!companyId && attivo,
     queryFn: async (): Promise<CEMensileRow[]> => {
       const { data, error } = await cgRpc<CEMensileRow[]>("cg_get_ce_mensile", { p_anno: anno });
       if (error) throw error;

@@ -1,7 +1,8 @@
 /**
  * Tab Dashboard — Stato Azienda sintetico.
  *
- * Schermata di apertura: 6 KPI macro + alert + mini-chart andamento mensile.
+ * Schermata di apertura: 6 KPI macro con la variazione, cassa prevista,
+ * obiettivo (budget o pareggio), cantieri, ricavi e costi mese per mese, alert.
  * Pensata per dare un colpo d'occhio "salute aziendale" all'imprenditore.
  */
 
@@ -12,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
-import { useCEriclassificato, useBEP } from "@/hooks/controlloGestione/useCEriclassificato";
+import { useCEriclassificato, useBEP, useCEMensile } from "@/hooks/controlloGestione/useCEriclassificato";
 import { useStatoPatrimoniale, useRating } from "@/hooks/controlloGestione/useStatoPatrimoniale";
 import { useCashFlow } from "@/hooks/controlloGestione/useCashFlow";
 import { usePFN } from "@/hooks/controlloGestione/usePFN";
@@ -24,12 +25,14 @@ import { CogestEmptyState } from "@/components/controllo-gestione/CogestEmptySta
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import {
-  Activity, AlertTriangle, ArrowDown, ArrowRight,
-  Banknote, Bot, Building, Briefcase, CheckCircle2,
+  Activity, AlertTriangle, ArrowRight,
+  Banknote, BarChart3, Bot, Building, Briefcase, CheckCircle2,
   ChevronDown, ChevronUp, ClipboardList, Send, Shield,
   Sparkles, Target, TrendingDown, TrendingUp, Wallet,
 } from "lucide-react";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
+import { GraficoAndamento } from "@/components/controllo-gestione/ui/grafici/GraficoAndamento";
+import { GraficoRicaviCosti } from "@/components/controllo-gestione/ui/grafici/GraficoRicaviCosti";
+import { Comparsa, PillolaVariazione, StatGrafico } from "@/components/controllo-gestione/ui/grafici/comune";
 import { useIsMobile } from "@/hooks/use-mobile";
 // Nei testi il mese per intero: «la cassa di ottobre», non «di Ott».
 const MESI_INTERI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
@@ -96,9 +99,9 @@ const ACTION_PRIORITY_ORDER: Record<ActionPriority, number> = {
 };
 
 const ACTION_PRIORITY_STYLES: Record<ActionPriority, string> = {
-  alta: "border-rose-200 bg-rose-50 text-rose-900",
-  media: "border-amber-200 bg-amber-50 text-amber-900",
-  bassa: "border-emerald-200 bg-emerald-50 text-emerald-900",
+  alta: "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200",
+  media: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200",
+  bassa: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
 };
 
 export function TabDashboard({ anno }: Props) {
@@ -112,6 +115,13 @@ export function TabDashboard({ anno }: Props) {
   const bep = useBEP(anno);
   const bdg = useBudgetConfronto(anno);
   const rt  = useRating(anno);
+  // Confronto con l'anno prima sullo stesso periodo: per l'anno in corso
+  // gennaio → mese di oggi, altrimenti l'anno intero. EBITDA e utile dell'anno
+  // in corso contano anche i costi programmati: lì il confronto non regge.
+  const annoChiuso = anno < new Date().getFullYear();
+  const meseConfronto = annoChiuso ? 12 : new Date().getMonth() + 1;
+  const cePrec = useCEriclassificato(anno - 1, 1, meseConfronto);
+  const mensile = useCEMensile(anno, !isMobile);
   const [cfoQuestion, setCfoQuestion] = useState<string>(CFO_QUICK_PROMPTS[0]);
   const [cfoAnswer, setCfoAnswer] = useState<CfoAnswer | null>(null);
 
@@ -133,6 +143,41 @@ export function TabDashboard({ anno }: Props) {
   const ebitda = findCe("E");
   const ebit   = findCe("F");
   const utile  = findCe("L");
+  const valorePrec = (codice: string) => cePrec.data?.voci.find((v) => v.codice === codice)?.valore;
+  const varPct = (attuale: number, prec: number | undefined) =>
+    !ce.data || prec == null || prec === 0 ? null : ((attuale - prec) / Math.abs(prec)) * 100;
+  const notaConfronto = annoChiuso
+    ? `Rispetto al ${anno - 1}`
+    : `Rispetto a gennaio–${MESI_INTERI[meseConfronto - 1]} ${anno - 1}`;
+
+  const obiettivo = useMemo<Obiettivo | null>(() => {
+    if (bdg.data?.haBudget && bdg.data.ricavi.budget > 0) {
+      return {
+        titolo: `Obiettivo ricavi ${anno}`,
+        fatto: ricavi,
+        meta: bdg.data.ricavi.budget,
+        nota: `Con il passo di oggi a fine anno: ${formatEuroRiquadro(bdg.data.ricavi.previsione)}.`,
+        href: "/azienda/controllo-gestione/budget",
+        cta: "Budget",
+      };
+    }
+    const b = bep.data;
+    if (b && b.bep_fatturato_minimo != null && b.bep_fatturato_minimo > 0) {
+      return {
+        titolo: "Fatturato per andare in pari",
+        fatto: b.ricavi_consuntivi,
+        meta: b.bep_fatturato_minimo,
+        nota: b.gia_raggiunto
+          ? `Pareggio raggiunto${b.bep_data ? ` il ${formatDate(b.bep_data)}` : ""}: da qui in poi i ricavi lasciano margine.`
+          : b.bep_data
+            ? `Pareggio previsto il ${formatDate(b.bep_data)}.`
+            : "Con il passo di oggi il pareggio non arriva entro l'anno.",
+        href: "/azienda/controllo-gestione/ce",
+        cta: "Dettaglio",
+      };
+    }
+    return null;
+  }, [bdg.data, bep.data, anno, ricavi]);
 
   // Mini chart andamento ricavi mensile YTD
   const chartData = useMemo(() => {
@@ -420,11 +465,20 @@ export function TabDashboard({ anno }: Props) {
     return <CogestEmptyState />;
   }
 
-  // Da 640 prima i numeri, poi gli avvisi e la cassa, in fondo regia e
-  // assistente: i sei KPI finivano sotto la piega, dopo due riquadri alti.
-  // Sul telefono l'ordine resta quello del codice.
+  // Da 640 prima i numeri, poi cassa e obiettivo, poi ricavi/costi e avvisi,
+  // in fondo regia e assistente. Sul telefono l'ordine resta quello del codice.
+  const datiCassa = chartData.map((p, i) => ({
+    etichetta: p.mese,
+    etichettaLunga: i === 0 ? "oggi" : p.mese.toLowerCase(),
+    valore: p.saldo,
+  }));
+  const minimoCassa = datiCassa.length > 0 ? datiCassa.reduce((a, b) => (b.valore < a.valore ? b : a)) : null;
+  const pctCassa = cf.data && cf.data.meta.saldo_apertura !== 0
+    ? ((cf.data.meta.saldo_chiusura - cf.data.meta.saldo_apertura) / Math.abs(cf.data.meta.saldo_apertura)) * 100
+    : null;
+
   return (
-    <div className="space-y-4 sm:flex sm:flex-col sm:gap-4 sm:space-y-0">
+    <div className="space-y-3 sm:flex sm:flex-col sm:gap-3 sm:space-y-0">
       <div className="sm:order-5">
         <DashboardActionCenter
           actions={recommendedActions}
@@ -453,220 +507,391 @@ export function TabDashboard({ anno }: Props) {
       )}
 
       {rt.data && rt.data.attendibile !== true && (
-        <div role="alert" className="sm:order-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div role="alert" className="sm:order-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <strong>Dati da riconciliare.</strong> Il rating è provvisorio. {(rt.data.motivi ?? []).map(formatImportiNelTesto).join(" · ")}{" "}
           <Link className="underline" to="/azienda/controllo-gestione/health">Apri controlli dei dati</Link>
         </div>
       )}
-      {/* Top: 6 KPI macro (tre per riga da 768: a due per riga erano tre righe) */}
-      <div className="grid grid-cols-2 gap-3 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
+      {/* Top: 6 KPI macro (tre per riga da 768, sei da 1280) con la variazione */}
+      <div className="grid grid-cols-2 gap-2.5 sm:order-2 md:grid-cols-3 xl:grid-cols-6">
+        <Comparsa indice={0}>
         <KPIMacro
           label="Ricavi"
           value={ce.data ? ricavi : null}
           sub={`Fatturato ${anno}, IVA esclusa`}
           spiegazione="Fatture emesse nell'anno, senza IVA."
-          icon={<TrendingUp className="h-4 w-4" />}
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
           tone="blue"
           href="/azienda/controllo-gestione/ce"
+          variazione={varPct(ricavi, valorePrec("01"))}
+          notaVariazione={notaConfronto}
         />
+        </Comparsa>
+        <Comparsa indice={1}>
         <KPIMacro
           label="EBITDA"
           value={ce.data ? ebitda : null}
           sub={ce.data && pil > 0 ? `Margine ${formatPct((ebitda / pil) * 100)}` : "—"}
           spiegazione="EBITDA (MOL): quanto resta dei ricavi dopo materiali, lavorazioni, personale e spese generali, prima di ammortamenti, interessi e tasse."
-          icon={<Activity className="h-4 w-4" />}
+          icon={<Activity className="h-3.5 w-3.5" />}
           tone={ebitda >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
+          variazione={annoChiuso ? varPct(ebitda, valorePrec("E")) : null}
+          notaVariazione={notaConfronto}
         />
+        </Comparsa>
+        <Comparsa indice={2}>
         <KPIMacro
           label="Utile previsto"
           value={ce.data ? utile : null}
           sub={ce.data && pil > 0 ? `Margine ${formatPct((utile / pil) * 100)}` : "—"}
           spiegazione="Utile dopo ammortamenti, interessi e imposte stimate. Per l'anno in corso comprende i costi già programmati."
-          icon={<Wallet className="h-4 w-4" />}
+          icon={<Wallet className="h-3.5 w-3.5" />}
           tone={utile >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/ce"
+          variazione={annoChiuso ? varPct(utile, valorePrec("L")) : null}
+          notaVariazione={notaConfronto}
         />
+        </Comparsa>
+        <Comparsa indice={3}>
         <KPIMacro
           label="Cassa fine anno prevista"
           value={cf.data ? cf.data.meta.saldo_chiusura : null}
           sub={cf.data ? `Oggi ${formatEuroRiquadro(cf.data.meta.saldo_apertura)}` : anno < new Date().getFullYear() ? "Per gli anni chiusi vedi Cash Flow" : "—"}
           spiegazione="Saldo dei conti a fine anno: saldo di oggi più incassi attesi meno pagamenti in scadenza."
-          icon={<Banknote className="h-4 w-4" />}
+          icon={<Banknote className="h-3.5 w-3.5" />}
           tone={!cf.data ? "neutral" : cf.data.meta.saldo_chiusura >= 0 ? "green" : "red"}
           href="/azienda/controllo-gestione/cash-flow"
+          variazione={pctCassa}
+          notaVariazione="rispetto al saldo di oggi"
         />
+        </Comparsa>
+        <Comparsa indice={4}>
         <KPIMacro
           label="PFN"
           value={pfn.data ? pfn.data.pfn : null}
           sub={pfn.data ? (pfn.data.pfn > 0 ? "Più debiti che liquidità" : "Più liquidità che debiti") : "—"}
           spiegazione="PFN (posizione finanziaria netta): mutui e scoperti meno soldi in banca. Sotto zero vuol dire che la liquidità copre i debiti."
-          icon={pfn.data && pfn.data.pfn > 0 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+          icon={pfn.data && pfn.data.pfn > 0 ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
           tone={!pfn.data ? "neutral" : pfn.data.pfn > 0 ? "amber" : "green"}
           href="/azienda/controllo-gestione/pfn-debiti"
         />
+        </Comparsa>
+        <Comparsa indice={5}>
         <KPIMacro
           label="Rating bancario"
           value={rt.data ? rt.data.attendibile === true ? rt.data.classe : "Provvisorio" : "—"}
           sub={rt.data ? rt.data.attendibile === true ? `Punteggio ${formatNumero(rt.data.score, 1)} · stima interna` : `Stima ${rt.data.classe}, dati da riconciliare` : "—"}
           spiegazione="Stima interna di come una banca giudica l'azienda, da AAA (ottimo) a CCC. Non è il rating ufficiale della banca."
-          icon={<Shield className="h-4 w-4" />}
+          icon={<Shield className="h-3.5 w-3.5" />}
           tone={!rt.data ? "neutral" : rt.data.attendibile !== true ? "amber"
                 : (rt.data.classe === "AAA" || rt.data.classe === "AA" || rt.data.classe === "A") ? "green"
                 : (rt.data.classe === "BBB" || rt.data.classe === "BB") ? "blue"
                 : "red"}
           href="/azienda/controllo-gestione/rating"
         />
+        </Comparsa>
       </div>
 
-      {/* Alert panel */}
-      <Card className="rounded-2xl sm:order-3">
-        <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <AlertTriangle className="h-4 w-4" /> Alert e segnalazioni
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="max-sm:p-3 max-sm:pt-0">
-          <ul className="space-y-2">
-            {alerts.map((a, i) => (
-              <li
-                key={i}
-                className={cn(
-                  "flex items-start gap-3 rounded-xl border p-3 text-sm max-sm:gap-2 max-sm:px-2.5 max-sm:py-2 max-sm:text-[13px] max-sm:leading-snug",
-                  a.severity === "rosso"  && "border-rose-200 bg-rose-50 text-rose-900",
-                  a.severity === "giallo" && "border-amber-200 bg-amber-50 text-amber-900",
-                  a.severity === "verde"  && "border-emerald-200 bg-emerald-50 text-emerald-900",
-                )}
-              >
-                <span
-                  className={cn(
-                    "mt-1 inline-block h-2 w-2 shrink-0 rounded-full",
-                    a.severity === "rosso"  && "bg-rose-500",
-                    a.severity === "giallo" && "bg-amber-500",
-                    a.severity === "verde"  && "bg-emerald-500",
-                  )}
-                />
-                <p className="flex-1">{a.testo}</p>
-                {a.href && (!isMobile || /cash-flow|commesse/.test(a.href)) && (
-                  <Link
-                    to={a.href}
-                    className="shrink-0 text-xs font-medium underline underline-offset-2"
-                  >
-                    Approfondisci →
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* Mini-chart cash flow + commesse aside */}
-      <div className="grid grid-cols-1 gap-4 sm:order-4 lg:grid-cols-3">
-        {/* Grafico cassa (recharts): vetrina da scrivania, illeggibile a 375px
-            e pesante da montare → nascosto su mobile. Restano KPI + "Cantieri
-            attivi" (operativo). */}
-        {!isMobile && (
-        <Card className="rounded-2xl lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Cassa prevista da oggi a fine {anno}</CardTitle>
+      {/* Cassa grande a sinistra, obiettivo e cantieri in colonna a destra. */}
+      <div className="grid grid-cols-1 gap-3 sm:order-3 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+        <Comparsa indice={6} className="min-w-0">
+        <Card className={CARD_CG}>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2 sm:p-4 sm:pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold sm:text-base">
+              <IconaTitolo><Banknote className="h-3.5 w-3.5" /></IconaTitolo>
+              Cassa prevista da oggi a fine {anno}
+            </CardTitle>
+            <Link to="/azienda/controllo-gestione/cash-flow" className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
+              Cash flow →
+            </Link>
           </CardHeader>
-          <CardContent>
-            <div className="h-56">
-              {cf.isLoading && !cf.data ? (
-                <div className="flex h-full items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-                  Dati cassa in aggiornamento...
-                </div>
-              ) : anno < new Date().getFullYear() ? (
-                <p className="text-sm text-muted-foreground">Per il {anno} consulta i movimenti registrati. Il previsionale parte dal mese corrente.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
-                    {/* Etichette brevi («−200 mila €»): quelle intere andavano a capo. */}
-                    <YAxis
-                      tick={{ fontSize: 11 }}
-                      width={78}
-                      tickFormatter={(v: number) =>
-                        new Intl.NumberFormat("it-IT", { notation: "compact", maximumFractionDigits: 1 }).format(v) + " €"
-                      }
-                    />
-                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.5} />
-                    <Tooltip
-                      formatter={(v: number) => formatCurrency(v)}
-                      labelFormatter={(l) => String(l)}
-                    />
-                    <Line type="linear" dataKey="saldo" name="Saldo" stroke="hsl(var(--primary))" strokeWidth={2} dot />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+          <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+            {cf.isLoading && !cf.data ? (
+              <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+                Dati cassa in aggiornamento...
+              </div>
+            ) : anno < new Date().getFullYear() ? (
+              <p className="text-sm text-muted-foreground">Per il {anno} consulta i movimenti registrati. Il previsionale parte dal mese corrente.</p>
+            ) : datiCassa.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nessun dato di cassa.</p>
+            ) : isMobile ? (
+              // Telefono: niente grafico (illeggibile a 375px e pesante da
+              // montare), i tre numeri che contano.
+              <div className="grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
+                <StatGrafico etichetta="Oggi" valore={formatEuroRiquadro(datiCassa[0].valore)} />
+                <StatGrafico
+                  etichetta="Più bassa"
+                  valore={formatEuroRiquadro(minimoCassa?.valore ?? 0)}
+                  nota={minimoCassa?.etichettaLunga}
+                  tono={(minimoCassa?.valore ?? 0) < 0 ? "cattivo" : "neutro"}
+                />
+                <StatGrafico
+                  etichetta="Fine anno"
+                  valore={formatEuroRiquadro(datiCassa[datiCassa.length - 1].valore)}
+                  tono={datiCassa[datiCassa.length - 1].valore < 0 ? "cattivo" : "neutro"}
+                />
+              </div>
+            ) : (
+              <GraficoAndamento
+                dati={datiCassa}
+                nomeSerie="Saldo"
+                lineaZero
+                notaVariazione="da oggi a fine anno"
+                altezza={230}
+              />
+            )}
           </CardContent>
         </Card>
+        </Comparsa>
+
+        <div className="grid content-start gap-3 sm:grid-cols-2 lg:grid-cols-1">
+          <Comparsa indice={7}>
+            <CardObiettivo obiettivo={obiettivo} anno={anno} caricamento={bdg.isLoading || bep.isLoading || ce.isLoading} />
+          </Comparsa>
+          {/* Mobile no: ripete i numeri della scheda Commesse, accanto. */}
+          <Comparsa indice={8} className="max-sm:hidden">
+            <CardCantieri com={com} />
+          </Comparsa>
+        </div>
+      </div>
+
+      {/* Ricavi e costi mese per mese accanto agli avvisi. */}
+      <div className="grid grid-cols-1 gap-3 sm:order-4 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px]">
+        {!isMobile && (
+          <Comparsa indice={9} className="min-w-0">
+          <Card className={CARD_CG}>
+            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-4 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <IconaTitolo><BarChart3 className="h-3.5 w-3.5" /></IconaTitolo>
+                Ricavi e costi mese per mese
+              </CardTitle>
+              <Link to="/azienda/controllo-gestione/ce" className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
+                Conto economico →
+              </Link>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {mensile.isLoading && !mensile.data ? (
+                <div className="flex h-56 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+                  Dati mensili in aggiornamento...
+                </div>
+              ) : mensile.isError ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">Dati mensili non disponibili.</p>
+              ) : (
+                <GraficoRicaviCosti righe={mensile.data ?? []} />
+              )}
+            </CardContent>
+          </Card>
+          </Comparsa>
         )}
 
-        {/* Mobile no: ripete i numeri della scheda Commesse, accanto. */}
-        <Card className="rounded-2xl max-sm:hidden">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Cantieri attivi</CardTitle>
+        <Comparsa indice={10} className={cn("min-w-0", isMobile && "lg:col-span-2")}>
+        <Card className={cn(CARD_CG, "h-full")}>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 p-3 pb-2 sm:p-4 sm:pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold sm:text-base">
+              <IconaTitolo tono="amber"><AlertTriangle className="h-3.5 w-3.5" /></IconaTitolo>
+              Alert e segnalazioni
+            </CardTitle>
+            <Badge variant="outline" className="shrink-0 tabular-nums">{alerts.filter((a) => a.severity !== "verde").length}</Badge>
           </CardHeader>
-          <CardContent>
-            {com.isLoading && !com.data ? (
-              <p className="text-sm text-muted-foreground">Dati cantieri in aggiornamento...</p>
-            ) : com.data ? (
-              <ul className="space-y-3 text-sm">
-                <li className="flex items-center gap-2">
-                  <Building className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1">Da completare</span>
-                  <Badge variant="outline">{com.data.kpi.n_in_corso}</Badge>
+          <CardContent className="p-3 pt-0 sm:p-4 sm:pt-0">
+            <ul className="space-y-2">
+              {alerts.map((a, i) => (
+                <li
+                  key={i}
+                  className={cn(
+                    "flex items-start gap-2.5 rounded-xl border p-2.5 text-[13px] leading-snug",
+                    a.severity === "rosso"  && "border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200",
+                    a.severity === "giallo" && "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200",
+                    a.severity === "verde"  && "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "mt-1 inline-block h-2 w-2 shrink-0 rounded-full",
+                      a.severity === "rosso"  && "bg-rose-500",
+                      a.severity === "giallo" && "bg-amber-500",
+                      a.severity === "verde"  && "bg-emerald-500",
+                    )}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p>{a.testo}</p>
+                    {a.href && (!isMobile || /cash-flow|commesse/.test(a.href)) && (
+                      <Link to={a.href} className="mt-0.5 inline-block text-xs font-medium underline underline-offset-2">
+                        Approfondisci →
+                      </Link>
+                    )}
+                  </div>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-muted-foreground" />
-                  <span className="flex-1">Completate</span>
-                  <Badge variant="outline">{com.data.kpi.n_completate}</Badge>
-                </li>
-                <li className="flex items-center gap-2 text-rose-700">
-                  <ArrowDown className="h-4 w-4" />
-                  <span className="flex-1">In perdita</span>
-                  <Badge variant="destructive">{com.data.kpi.n_in_perdita}</Badge>
-                </li>
-                <li className="border-t pt-2 text-xs text-muted-foreground">
-                  Margine atteso totale:{" "}
-                  <strong className="text-foreground tabular-nums">
-                    {formatCurrency(com.data.kpi.margine_atteso_totale)}
-                  </strong>
-                </li>
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nessun dato.</p>
-            )}
-            <Link
-              to="/azienda/controllo-gestione/commesse"
-              className="mt-4 block text-center text-xs font-medium text-primary underline-offset-2 hover:underline"
-            >
-              Vedi tutte le commesse →
-            </Link>
+              ))}
+            </ul>
           </CardContent>
         </Card>
+        </Comparsa>
       </div>
+    </div>
+  );
+}
+
+/** Cornice comune dei riquadri della dashboard. */
+const CARD_CG = "rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md";
+
+function IconaTitolo({ children, tono = "blue" }: { children: React.ReactNode; tono?: "blue" | "amber" | "green" }) {
+  return (
+    <span
+      className={cn(
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
+        tono === "blue" && "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        tono === "amber" && "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        tono === "green" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+interface Obiettivo {
+  titolo: string;
+  fatto: number;
+  meta: number;
+  nota: string;
+  href: string;
+  cta: string;
+}
+
+/**
+ * Riquadro scuro dell'obiettivo: il budget dei ricavi se c'è, altrimenti il
+ * fatturato che serve per andare in pari (BEP). Barra che cresce all'apertura.
+ */
+function CardObiettivo({ obiettivo, anno, caricamento }: { obiettivo: Obiettivo | null; anno: number; caricamento: boolean }) {
+  const scura = "rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 p-4 text-slate-50 shadow-sm dark:border-slate-700";
+  if (!obiettivo) {
+    return (
+      <div className={scura}>
+        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <Target className="h-3.5 w-3.5" /> Obiettivo {anno}
+        </p>
+        <p className="mt-2 text-sm text-slate-300">
+          {caricamento ? "Sto calcolando l'obiettivo…" : "Nessun budget dei ricavi e nessun punto di pareggio calcolabile."}
+        </p>
+        {!caricamento && (
+          <Link to="/azienda/controllo-gestione/budget" className="mt-3 inline-block text-xs font-medium text-sky-300 underline-offset-2 hover:underline">
+            Imposta il budget →
+          </Link>
+        )}
+      </div>
+    );
+  }
+  const pct = obiettivo.meta > 0 ? (obiettivo.fatto / obiettivo.meta) * 100 : 0;
+  const raggiunto = pct >= 100;
+  const manca = Math.max(0, obiettivo.meta - obiettivo.fatto);
+  return (
+    <div className={scura}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <Target className="h-3.5 w-3.5" /> {obiettivo.titolo}
+        </p>
+        <Link to={obiettivo.href} className="shrink-0 text-[11px] font-medium text-sky-300 underline-offset-2 hover:underline">
+          {obiettivo.cta} →
+        </Link>
+      </div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <span className="text-3xl font-bold tabular-nums tracking-tight">{formatNumero(Math.min(pct, 999), 0)}%</span>
+        <span className="text-xs text-slate-400">{raggiunto ? "raggiunto" : "fatto"}</span>
+      </div>
+      <div
+        className="mt-2 h-2 overflow-hidden rounded-full bg-white/10"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(Math.min(pct, 100))}
+        aria-label={obiettivo.titolo}
+      >
+        <div
+          className={cn(
+            "cg-barra-cresce h-full rounded-full bg-gradient-to-r",
+            raggiunto ? "from-emerald-400 to-teal-300" : "from-sky-400 to-blue-500",
+          )}
+          style={{ width: `${Math.max(2, Math.min(pct, 100))}%` }}
+        />
+      </div>
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+        <div><dt className="text-slate-400">Fatto</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.fatto)}>{formatEuroRiquadro(obiettivo.fatto)}</dd></div>
+        <div><dt className="text-slate-400">Obiettivo</dt><dd className="font-semibold tabular-nums" title={formatCurrency(obiettivo.meta)}>{formatEuroRiquadro(obiettivo.meta)}</dd></div>
+        <div><dt className="text-slate-400">Manca</dt><dd className={cn("font-semibold tabular-nums", manca === 0 && "text-emerald-300")}>{manca === 0 ? "niente" : formatEuroRiquadro(manca)}</dd></div>
+      </dl>
+      <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-slate-300">{obiettivo.nota}</p>
+    </div>
+  );
+}
+
+/** Riquadro chiaro dei cantieri: conteggi e una barra divisa per stato. */
+function CardCantieri({ com }: { com: ReturnType<typeof useMarginalitaCommesse> }) {
+  const k = com.data?.kpi;
+  const totale = k ? k.n_in_corso + k.n_completate : 0;
+  return (
+    <div className={cn(CARD_CG, "p-4")}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <IconaTitolo tono="green"><Building className="h-3.5 w-3.5" /></IconaTitolo>
+          Cantieri attivi
+        </p>
+        <Link to="/azienda/controllo-gestione/commesse" className="shrink-0 text-xs font-medium text-primary underline-offset-2 hover:underline">
+          Commesse →
+        </Link>
+      </div>
+      {com.isLoading && !com.data ? (
+        <p className="mt-3 text-sm text-muted-foreground">Dati cantieri in aggiornamento...</p>
+      ) : k ? (
+        <>
+          {totale > 0 && (
+            <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div className="cg-barra-cresce bg-blue-500" style={{ width: `${(k.n_in_corso / totale) * 100}%` }} />
+              <div className="cg-barra-cresce bg-emerald-500" style={{ width: `${(k.n_completate / totale) * 100}%` }} />
+            </div>
+          )}
+          <ul className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <li className="rounded-xl bg-blue-500/10 px-1 py-2">
+              <p className="text-lg font-bold tabular-nums leading-none text-blue-700 dark:text-blue-300">{k.n_in_corso}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">Da completare</p>
+            </li>
+            <li className="rounded-xl bg-emerald-500/10 px-1 py-2">
+              <p className="text-lg font-bold tabular-nums leading-none text-emerald-700 dark:text-emerald-300">{k.n_completate}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">Completate</p>
+            </li>
+            <li className="rounded-xl bg-rose-500/10 px-1 py-2">
+              <p className="text-lg font-bold tabular-nums leading-none text-rose-700 dark:text-rose-300">{k.n_in_perdita}</p>
+              <p className="mt-1 text-[10px] text-muted-foreground">In perdita</p>
+            </li>
+          </ul>
+          <p className="mt-3 flex items-center justify-between border-t pt-2 text-xs text-muted-foreground">
+            Margine atteso totale
+            <strong className={cn("tabular-nums", k.margine_atteso_totale < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground")}>
+              {formatCurrency(k.margine_atteso_totale)}
+            </strong>
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">Nessun dato.</p>
+      )}
     </div>
   );
 }
 
 function PartialDataWarning({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <div>
           <p className="font-medium">Alcuni indicatori non sono aggiornati</p>
-          <p className="text-xs text-amber-800">
+          <p className="text-xs text-amber-800 dark:text-amber-200/80">
             La dashboard resta utilizzabile: i dati mancanti vengono mostrati come non disponibili.
           </p>
         </div>
       </div>
-      <Button type="button" variant="outline" size="sm" className="bg-white" onClick={onRetry}>
+      <Button type="button" variant="outline" size="sm" className="bg-white dark:bg-background" onClick={onRetry}>
         Riprova indicatori
       </Button>
     </div>
@@ -702,7 +927,7 @@ function DashboardActionCenter({
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
-      <Card className="rounded-2xl border-slate-200">
+      <Card className="rounded-2xl border shadow-sm">
         <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-2">
           <div className="flex items-start justify-between gap-3 max-sm:items-center">
             <div>
@@ -732,10 +957,10 @@ function DashboardActionCenter({
       {/* Assistente CFO (textarea + prompt): strumento da scrivania,
           ingombrante su mobile → solo da tablet in su. */}
       {!isMobile && (
-      <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 via-white to-emerald-50">
+      <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 via-white to-emerald-50 shadow-sm dark:border-blue-500/30 dark:from-blue-500/10 dark:via-card dark:to-emerald-500/10">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Bot className="h-4 w-4 text-blue-700" />
+            <Bot className="h-4 w-4 text-blue-700 dark:text-blue-400" />
             Assistente CFO
           </CardTitle>
         </CardHeader>
@@ -747,7 +972,7 @@ function DashboardActionCenter({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 rounded-full bg-white/80 px-3 text-xs"
+                className="h-8 rounded-full bg-white/80 px-3 text-xs dark:bg-background/60"
                 onClick={() => onAsk(prompt)}
               >
                 <Sparkles className="h-3.5 w-3.5" />
@@ -766,7 +991,7 @@ function DashboardActionCenter({
                   onAsk();
                 }
               }}
-              className="min-h-[86px] resize-none bg-white/85"
+              className="min-h-[86px] resize-none bg-white/85 dark:bg-background/60"
               placeholder="Es. spiegami cosa fare nei prossimi 7 giorni per migliorare cassa e rating"
             />
             {/* Senza le frasi di spiegazione: i suggerimenti e il campo bastano. */}
@@ -887,9 +1112,9 @@ function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
   if (!answer) return null;
 
   return (
-    <div className="rounded-xl border bg-white/85 p-3">
+    <div className="rounded-xl border bg-white/85 p-3 dark:bg-background/60">
       <div className="flex items-start gap-2">
-        <div className="mt-0.5 rounded-full bg-blue-100 p-1 text-blue-700">
+        <div className="mt-0.5 rounded-full bg-blue-100 p-1 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
           <Sparkles className="h-3.5 w-3.5" />
         </div>
         <div className="min-w-0 flex-1">
@@ -930,7 +1155,7 @@ function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
       {answer.links.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
           {answer.links.map((link) => (
-            <Button key={link.href} asChild variant="outline" size="sm" className="h-8 bg-white">
+            <Button key={link.href} asChild variant="outline" size="sm" className="h-8 bg-white dark:bg-background">
               <Link to={link.href}>
                 {link.label}
                 <ArrowRight className="h-3.5 w-3.5" />
@@ -944,7 +1169,7 @@ function CfoAnswerPanel({ answer }: { answer: CfoAnswer | null }) {
 }
 
 function KPIMacro({
-  label, value, sub, icon, tone, href, spiegazione,
+  label, value, sub, icon, tone, href, spiegazione, variazione, notaVariazione,
 }: {
   label: string;
   /** Numero in euro (mostrato compatto, pieno nel tooltip) o testo già pronto. */
@@ -954,40 +1179,60 @@ function KPIMacro({
   icon: React.ReactNode;
   tone: "blue" | "green" | "red" | "amber" | "neutral";
   href?: string;
+  /** Variazione percentuale da mostrare nella pillola (null = niente pillola). */
+  variazione?: number | null;
+  notaVariazione?: string;
 }) {
   // Mobile: nome e numero; il collegamento solo verso le schede che il
   // telefono mostra (cassa, commesse): le altre riaprivano il riepilogo.
   const isMobile = useIsMobile();
   const linkAttivo = href && (!isMobile || /cash-flow|commesse/.test(href)) ? href : undefined;
-  const palette = {
-    blue: "bg-blue-50",
-    green: "bg-emerald-50",
-    red: "bg-rose-50",
-    amber: "bg-amber-50",
-    neutral: "bg-muted/40",
+  // Filo colorato in alto e icona tinta: il colore dice lo stato senza
+  // riempire tutto il riquadro.
+  const filo = {
+    blue: "from-blue-500 to-sky-400",
+    green: "from-emerald-500 to-teal-400",
+    red: "from-rose-500 to-orange-400",
+    amber: "from-amber-500 to-yellow-400",
+    neutral: "from-slate-300 to-slate-200 dark:from-slate-600 dark:to-slate-700",
+  } as const;
+  const chip = {
+    blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    green: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    red: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    neutral: "bg-muted text-muted-foreground",
   } as const;
 
   const inner = (
-    <Card className={cn("rounded-2xl border-0 transition hover:shadow-sm", palette[tone])}>
-      <CardContent className="p-2.5 sm:p-4 min-w-0">
+    <Card className="relative h-full overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-200 hover:shadow-md motion-safe:hover:-translate-y-0.5">
+      <span className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", filo[tone])} aria-hidden />
+      <CardContent className="min-w-0 p-2.5 sm:p-3.5">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground truncate" title={spiegazione}>{label}</p>
-          <span className="text-muted-foreground shrink-0">{icon}</span>
+          {/* A capo e non troncata: «Cassa fine anno previs…» a sei per riga. */}
+          <p className="line-clamp-2 text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground sm:text-[11px]" title={spiegazione}>{label}</p>
+          <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-lg", chip[tone])}>{icon}</span>
         </div>
         {/* Niente truncate sul numero: «4.655.616,...» non diceva nulla. Sopra il
             milione «4,66 Mln €», l'importo pieno nel tooltip. */}
         <p
-          className="mt-1 text-base sm:text-xl font-bold tabular-nums leading-tight break-words"
+          className={cn(
+            "mt-1 break-words text-base font-bold leading-tight tracking-tight tabular-nums sm:text-xl",
+            tone === "red" && "text-rose-600 dark:text-rose-400",
+          )}
           title={typeof value === "number" ? formatCurrency(value) : undefined}
         >
           {typeof value === "number" ? formatEuroRiquadro(value) : value ?? "—"}
         </p>
-        <p className="hidden text-[10px] sm:block sm:text-[11px] text-muted-foreground leading-snug">{sub}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <PillolaVariazione pct={variazione ?? null} titolo={notaVariazione} />
+          <p className="hidden text-[10px] leading-snug text-muted-foreground sm:block sm:text-[11px]">{sub}</p>
+        </div>
       </CardContent>
     </Card>
   );
 
-  return linkAttivo ? <Link to={linkAttivo} className="block min-w-0">{inner}</Link> : inner;
+  return linkAttivo ? <Link to={linkAttivo} className="block h-full min-w-0">{inner}</Link> : inner;
 }
 
 function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {

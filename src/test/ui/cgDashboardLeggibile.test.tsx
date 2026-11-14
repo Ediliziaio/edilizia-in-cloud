@@ -8,8 +8,11 @@ const voce = (codice: string, valore: number) => ({ codice, label: codice, tipo:
 
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/controlloGestione/useCEriclassificato", () => ({
-  useCEriclassificato: () => q({ meta: {}, voci: [voce("01", 4655616.76), voce("A", 4655616.76), voce("E", 530795.43), voce("F", 460255.63), voce("L", 287444.44)] }),
-  useBEP: () => q({ gia_raggiunto: true, bep_data: "2026-09-03", giorni_residui: -48 }),
+  useCEriclassificato: (anno: number) => anno === 2025
+    ? q({ meta: {}, voci: [voce("01", 4000000), voce("E", 400000), voce("L", 200000)] })
+    : q({ meta: {}, voci: [voce("01", 4655616.76), voce("A", 4655616.76), voce("E", 530795.43), voce("F", 460255.63), voce("L", 287444.44)] }),
+  useBEP: () => q({ gia_raggiunto: true, bep_data: "2026-09-03", giorni_residui: -48, ricavi_consuntivi: 4200000, bep_fatturato_minimo: 3500000 }),
+  useCEMensile: () => q([]),
 }));
 vi.mock("@/hooks/controlloGestione/useStatoPatrimoniale", () => ({
   useStatoPatrimoniale: () => q({ quadratura: { quadrato: false, differenza: 1346331.55 } }),
@@ -25,8 +28,9 @@ vi.mock("@/hooks/controlloGestione/useMarginalitaCommesse", () => ({
 }));
 vi.mock("@/hooks/controlloGestione/useBudget", () => ({ useBudgetConfronto: () => q({ haBudget: false, righe: [] }) }));
 vi.mock("recharts", () => ({
-  ResponsiveContainer: (): null => null, LineChart: (): null => null, Line: (): null => null, XAxis: (): null => null,
-  YAxis: (): null => null, Tooltip: (): null => null, CartesianGrid: (): null => null, ReferenceLine: (): null => null,
+  ResponsiveContainer: (): null => null, ComposedChart: (): null => null, Line: (): null => null, Area: (): null => null,
+  Bar: (): null => null, XAxis: (): null => null, YAxis: (): null => null, Tooltip: (): null => null,
+  CartesianGrid: (): null => null, ReferenceLine: (): null => null,
 }));
 
 afterEach(cleanup);
@@ -51,5 +55,24 @@ describe("Dashboard del controllo di gestione", () => {
   it("le commesse in perdita dicono cosa contano", () => {
     render(<MemoryRouter><TabDashboard anno={2026} /></MemoryRouter>);
     expect(screen.getByText(/10 commesse stimate in perdita a fine lavori \(margine atteso sotto zero, aperte e chiuse\)/)).toBeInTheDocument();
+  });
+
+  it("i ricavi si confrontano con lo stesso periodo dell'anno prima; EBITDA e utile dell'anno in corso no", () => {
+    render(<MemoryRouter><TabDashboard anno={2026} /></MemoryRouter>);
+    // 4.655.616,76 contro 4.000.000 → +16,4%, verde.
+    const pillola = screen.getByText(/\+16,4%/);
+    expect(pillola).toHaveAttribute("title", expect.stringMatching(/^Rispetto a gennaio–\w+ 2025$/));
+    expect(pillola.className).toContain("emerald");
+    // EBITDA 530.795 contro 400.000 sarebbe +32,7%: per l'anno in corso non si mostra.
+    expect(screen.queryByText(/32,7%/)).not.toBeInTheDocument();
+  });
+
+  it("senza budget l'obiettivo è il fatturato per andare in pari, con la barra", () => {
+    render(<MemoryRouter><TabDashboard anno={2026} /></MemoryRouter>);
+    expect(screen.getByText("Fatturato per andare in pari")).toBeInTheDocument();
+    // 4,2 Mln su 3,5 Mln = 120%: raggiunto, barra piena.
+    expect(screen.getByText("120%")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+    expect(screen.getByText(/Pareggio raggiunto il 3 settembre 2026/)).toBeInTheDocument();
   });
 });
