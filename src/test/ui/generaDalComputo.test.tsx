@@ -21,12 +21,17 @@ vi.mock("@/hooks/useComputoCommessa", () => ({
   useRiprovaLetturaComputo: () => ({ mutate: vi.fn(), isPending: false }),
   useSalvaComputoImportato: () => ({ mutate: salva.mutate, isPending: false }),
 }));
-const tabelle = vi.hoisted(() => ({ fasi: [] as { id: string; name: string; position: number }[] }));
+const tabelle = vi.hoisted(() => ({
+  fasi: [] as { id: string; name: string; position: number }[],
+  articoli: [] as Record<string, unknown>[],
+  fornitori: [] as { id: string; name: string }[],
+}));
 vi.mock("@/integrations/supabase/client", () => {
   const da = (tabella: string) => {
-    const risposta = { data: (tabella === "order_work_phases" ? tabelle.fasi : []) as unknown[], error: null as null };
+    const dati: Record<string, unknown[]> = { order_work_phases: tabelle.fasi, article_templates: tabelle.articoli, suppliers: tabelle.fornitori };
+    const risposta = { data: (dati[tabella] ?? []) as unknown[], error: null as null };
     const catena: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "neq", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
+    for (const m of ["select", "eq", "neq", "gt", "order", "or", "limit", "not", "in"]) catena[m] = () => catena;
     catena.then = (ok: (v: typeof risposta) => unknown) => Promise.resolve(risposta).then(ok);
     return catena;
   };
@@ -58,7 +63,7 @@ const apri = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; salva.mutate.mockReset(); });
+beforeEach(() => { computi = []; vociLette = []; tabelle.fasi = []; tabelle.articoli = []; tabelle.fornitori = []; salva.mutate.mockReset(); });
 
 describe("Genera dal computo", () => {
   it("senza computo apre la finestra di «Importa voci»: trascinamento, scelta e gli stessi formati", async () => {
@@ -128,7 +133,7 @@ describe("Genera dal computo", () => {
     apri();
     expect(await screen.findByText("Intonaco premiscelato di fondo")).toBeInTheDocument();
     expect(screen.getAllByText(/da 01\.A10 · Intonaco civile premiscelato/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Probabile 70%/).length).toBe(2);
+    expect(screen.getAllByLabelText("Probabile 70%").length).toBe(2);
     expect(screen.getByText(/Spessore 2 cm invece di 1,5/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
     expect(screen.queryByLabelText("Ricorda per i prossimi computi")).not.toBeInTheDocument();
@@ -136,7 +141,7 @@ describe("Genera dal computo", () => {
     expect(screen.getByRole("button", { name: "Salva i materiali (1)" })).toBeEnabled();
     // Tolto il paraspigolo, la finestra propone di ricordarlo per i prossimi computi.
     expect(screen.getByLabelText("Ricorda per i prossimi computi")).toBeChecked();
-    expect(screen.getByText("«Intonaco premiscelato (1,5 cm)» senza Paraspigolo")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ricorda per i prossimi computi").closest("label")).toHaveTextContent("«Intonaco premiscelato (1,5 cm)» senza Paraspigolo");
     fireEvent.click(screen.getByLabelText("Seleziona tutti i materiali"));
     expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
     fireEvent.click(screen.getByLabelText(/Seleziona i materiali di/));
@@ -156,8 +161,42 @@ describe("Genera dal computo", () => {
     ];
     apri();
     expect(await screen.findByText("Lastra in cartongesso")).toBeInTheDocument();
-    const fasi = screen.getAllByText(/ · \d+$/).map((e) => e.textContent);
+    // Ogni fase ha la sua spunta; il numero dei materiali è nella stessa riga.
+    const fasi = screen.getAllByLabelText(/^Seleziona i materiali di /).map((e) => {
+      const nome = e.getAttribute("aria-label")!.replace("Seleziona i materiali di ", "");
+      const n = e.closest("tr")!.textContent!.match(/· (\d+)/)![1];
+      return `${nome} · ${n}`;
+    });
     expect(fasi).toEqual(expect.arrayContaining(["Intonaci e cartongessi · 5", "Impianto idraulico · 1", "Opere edili (nuova) · 1"]));
     expect(fasi).toHaveLength(3);
+  });
+
+  it("l'articolo si sceglie nella riga fra quelli simili: prezzo, fornitore, confezioni e totale cambiano", async () => {
+    tabelle.fornitori = [{ id: "f1", name: "Edilmarket" }];
+    tabelle.articoli = [
+      { id: "a1", name: "Adesivo cementizio C2TE sacco 25 kg", unit_of_measure: "sacco", supplier_id: "f1", prezzo_acquisto_netto: 9.5 },
+      { id: "a2", name: "Adesivo cementizio bianco C2 sacco 25 kg", unit_of_measure: "sacco", supplier_id: "f1", prezzo_acquisto_netto: 11 },
+    ];
+    computi = [computo({})];
+    vociLette = [{ id: "v1", descrizione_breve: "Pavimento in gres porcellanato 60x60", unita_misura: "mq", quantita: 45, super_categoria: "Pavimenti" }];
+    apri();
+    expect(await screen.findByText("Adesivo cementizio per piastrelle")).toBeInTheDocument();
+    const riga = () => screen.getByText("Adesivo cementizio per piastrelle").closest("tr")!;
+    // Simile ma non abbastanza da collegarlo da solo: si propone, in confezioni d'uso comune.
+    expect(riga()).toHaveTextContent("Scegli fra 2 simili");
+    expect(riga()).toHaveTextContent("8 sacco");
+    fireEvent.click(within(riga()).getByRole("button", { name: /Scegli l'articolo di Adesivo cementizio per piastrelle/ }));
+    const scelta = screen.getByRole("list", { name: "Abbinamenti possibili" });
+    expect(within(scelta).getAllByRole("button").length).toBe(2);
+    fireEvent.click(within(scelta).getByText("Adesivo cementizio bianco C2 sacco 25 kg"));
+    expect(riga()).toHaveTextContent("Adesivo cementizio bianco C2 sacco 25 kg");
+    expect(riga()).toHaveTextContent("Edilmarket");
+    expect(riga()).toHaveTextContent("88,00 €"); // 8 sacchi × 11 €
+    // La scelta a mano si ricorda per i prossimi computi.
+    expect(screen.getByLabelText("Ricorda per i prossimi computi").closest("label")).toHaveTextContent("«Adesivo cementizio per piastrelle» → Adesivo cementizio bianco C2 sacco 25 kg");
+    // I filtri come pastiglie: senza articolo restano le piastrelle e lo stucco.
+    fireEvent.click(screen.getByRole("button", { name: /^Senza articolo 2$/ }));
+    expect(screen.queryByText("Adesivo cementizio per piastrelle")).not.toBeInTheDocument();
+    expect(screen.getByText("Stucco per fughe")).toBeInTheDocument();
   });
 });

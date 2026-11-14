@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { generaDistinta, materialiCompresi, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
-import { collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
+import { aliasDaRicordare, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
 
 const voce = (p: Partial<VoceComputo> & { id: string; descrizione_breve: string }): VoceComputo => ({ quantita: 1, unita_misura: "cad", ...p });
@@ -293,6 +293,61 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       expect(rigaDaSalvare(sacchi)).toMatchObject({ quantita_calcolata: 20, unita_misura: "sacco", purchase_price: 4.68, prezzo_fonte: "listino" });
       // Un articolo dell'azienda: il prezzo lo mette il database dall'articolo.
       expect(rigaDaSalvare(materiali.find((m) => m.descrizione === "Intonaco premiscelato di fondo")!)).toMatchObject({ purchase_price: null, prezzo_fonte: null });
+    });
+  });
+
+  describe("abbinamento al catalogo: candidati, scelta a mano, alias, magazzino (14/11/2026)", () => {
+    const CATALOGO = {
+      articoli: [
+        { id: "a-adesivo", name: "Adesivo cementizio C2TE sacco 25 kg", unit_of_measure: "sacco", supplier_id: "f-edil", prezzo_acquisto_netto: 9.5 },
+        { id: "a-adesivo-bianco", name: "Adesivo cementizio bianco C2 sacco 25 kg", unit_of_measure: "sacco", supplier_id: "f-edil", prezzo_acquisto_netto: 11 },
+        { id: "a-colla", name: "Colla per piastrelle 25 kg", unit_of_measure: "sacco", marca: "Mapei", modello: "Keraflex", supplier_id: "f-2", prezzo_acquisto_netto: 12 },
+      ],
+      listini: [{ id: "l-adesivo", codice: "AD25", descrizione: "Adesivo cementizio per piastrelle C2 sacco 25 kg", unita: "sacco", prezzo: 10, sconto_pct: 20, supplier_id: "f-3", listino: "Rossi 2026" }],
+      giaUsati: [],
+    };
+    const gres = () => generaDistinta({ voci: [voce({ id: "g", descrizione_breve: "Pavimento in gres porcellanato 60x60", unita_misura: "mq", quantita: 45 })], scomposizioni: [], riserva: catalogoComeScomposizioni() })
+      .righe.find((m) => m.descrizione === "Adesivo cementizio per piastrelle")!;
+
+    it("propone più articoli col motivo, il primo sicuro si collega da solo", () => {
+      const c = candidatiArticolo(gres(), CATALOGO);
+      expect(c.length).toBeGreaterThanOrEqual(2);
+      expect(c[0]).toMatchObject({ automatico: true, motivo: expect.stringMatching(/^Nome simile \d+%/) });
+      expect(c.map((x) => x.collegamento.id)).toEqual(expect.arrayContaining(["l-adesivo", "a-adesivo"]));
+      // Un listino: prezzo netto con lo sconto e il nome del listino nel motivo.
+      expect(c.find((x) => x.collegamento.id === "l-adesivo")).toMatchObject({ motivo: expect.stringContaining("Rossi 2026"), collegamento: { prezzo: 8 } });
+    });
+
+    it("la scelta a mano vince, porta prezzo, fornitore e confezione, e si ricorda per la volta dopo", () => {
+      const r = gres();
+      const [m] = collegaMateriali([r], CATALOGO, { [r.chiave]: { tipo: "articolo", id: "a-adesivo-bianco" } });
+      expect(m.collegamento).toMatchObject({ id: "a-adesivo-bianco", fonte: "scelto", prezzo: 11 });
+      expect(m).toMatchObject({ article_template_id: "a-adesivo-bianco", supplier_id: "f-edil", conversione: { quantita: 8, unita: "sacco" } });
+      const alias = aliasDaRicordare([m], { [r.chiave]: { tipo: "articolo", id: "a-adesivo-bianco" } });
+      expect(alias).toEqual([{ alias_text: "Adesivo cementizio per piastrelle", article_template_id: "a-adesivo-bianco" }]);
+      // Al prossimo computo lo stesso materiale si ricollega a quello, «Scelto da voi l'ultima volta».
+      const [dopo] = collegaMateriali([gres()], { ...CATALOGO, alias });
+      expect(dopo.collegamento).toMatchObject({ id: "a-adesivo-bianco", fonte: "ricordato" });
+      expect(dopo.candidati[0].motivo).toBe("Scelto da voi l'ultima volta");
+    });
+
+    it("«Nessun articolo» toglie il collegamento; marca e modello aiutano a trovare l'articolo", () => {
+      const r = gres();
+      const [m] = collegaMateriali([r], CATALOGO, { [r.chiave]: { tipo: "nessuno" } });
+      expect(m).toMatchObject({ collegamento: null, article_template_id: null });
+      expect(m.conversione).toMatchObject({ comune: true, quantita: 8 });
+      const colla = { ...r, descrizione: "Colla Keraflex Mapei" };
+      expect(candidatiArticolo(colla, CATALOGO).some((x) => x.collegamento.id === "a-colla")).toBe(true);
+    });
+
+    it("dice se lo stesso materiale è in magazzino, per codice o per nome", () => {
+      const [m] = collegaMateriali([gres()], { ...CATALOGO, magazzino: [
+        { id: "w1", name: "Adesivo cementizio per piastrelle C2", unita_misura: "kg", quantity_available: 300 },
+        { id: "w2", name: "Stucco", unita_misura: "kg", quantity_available: 10 },
+      ] });
+      expect(m.magazzino).toEqual({ nome: "Adesivo cementizio per piastrelle C2", disponibile: 300, unita: "kg" });
+      const [vuoto] = collegaMateriali([gres()], { ...CATALOGO, magazzino: [{ id: "w1", name: "Adesivo cementizio per piastrelle C2", unita_misura: "kg", quantity_available: 0 }] });
+      expect(vuoto.magazzino).toBeNull();
     });
   });
 });

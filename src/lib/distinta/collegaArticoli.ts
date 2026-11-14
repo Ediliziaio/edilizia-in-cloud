@@ -24,6 +24,8 @@ export interface ArticoloCatalogo {
   supplier_id?: string | null;
   prezzo_acquisto_netto?: number | null;
   standard_cost?: number | null;
+  marca?: string | null;
+  modello?: string | null;
 }
 
 export interface VoceListino {
@@ -45,7 +47,34 @@ export interface MaterialeGiaUsato {
   supplier_id?: string | null;
 }
 
-export type FonteCollegamento = "codice" | "gia_usato" | "nome";
+export type FonteCollegamento = "scelto" | "ricordato" | "codice" | "gia_usato" | "nome";
+
+/** Un nome di materiale abbinato a mano a un articolo (product_aliases, learned_from 'voce_computo'). */
+export interface AliasMateriale { alias_text: string; article_template_id: string }
+
+/** Una giacenza di magazzino (warehouse_stock): solo per dire che c'è, non si preleva da qui. */
+export interface VoceMagazzino { id: string; name: string; internal_code?: string | null; unita_misura?: string | null; quantity_available?: number | null }
+
+export interface DatiCatalogo {
+  articoli: ArticoloCatalogo[];
+  listini: VoceListino[];
+  giaUsati: MaterialeGiaUsato[];
+  alias?: AliasMateriale[];
+  magazzino?: VoceMagazzino[];
+}
+
+/** Un abbinamento possibile, col perché: la finestra li mostra a un clic. */
+export interface Candidato {
+  collegamento: Collegamento;
+  /** 0-1: quanto è probabile che sia lui. */
+  punteggio: number;
+  motivo: string;
+  /** Abbastanza sicuro da collegarlo senza chiedere. */
+  automatico: boolean;
+}
+
+/** La scelta fatta a mano nella finestra: un articolo, una voce di listino, o nessuno. */
+export type SceltaArticolo = { tipo: "articolo" | "listino"; id: string } | { tipo: "nessuno" };
 
 export interface Collegamento {
   tipo: "articolo" | "listino";
@@ -96,6 +125,10 @@ export function confezioneComune(descrizione: string, unita: string): { quantita
 export interface MaterialeCollegato extends RigaDistintaCalcolata {
   collegamento: Collegamento | null;
   conversione: Conversione | null;
+  /** I migliori abbinamenti possibili (anche quello scelto), per cambiarlo a un clic. */
+  candidati: Candidato[];
+  /** La stessa cosa in magazzino, se c'è. */
+  magazzino: { nome: string; disponibile: number; unita: string | null } | null;
 }
 
 const PAROLE_VUOTE = new Set([
@@ -208,41 +241,75 @@ function codiciRiga(r: RigaDistintaCalcolata): string[] {
   return r.origini.flatMap((o) => (o.tipo === "computo" && o.codice ? [o.codice.trim().toUpperCase()] : []));
 }
 
-export function trovaCollegamento(
-  r: RigaDistintaCalcolata,
-  dati: { articoli: ArticoloCatalogo[]; listini: VoceListino[]; giaUsati: MaterialeGiaUsato[] },
-): Collegamento | null {
-  // 1. Lo stesso codice: vale solo per i materiali che sono la voce stessa (non i componenti).
+const testoArticolo = (a: ArticoloCatalogo) => [a.name, a.marca, a.modello].filter(Boolean).join(" ");
+
+/**
+ * Gli abbinamenti possibili di un materiale, dal più probabile (14/11/2026):
+ *   1. lo stesso nome abbinato a mano l'ultima volta (product_aliases);
+ *   2. lo stesso codice (solo per i materiali che sono la voce stessa);
+ *   3. lo stesso materiale comprato in un'altra commessa;
+ *   4. le parole del nome (con marca e modello dell'articolo), fra articoli e listini.
+ * Materia o misure diverse escludono sempre (ceramica ≠ resina, 80x120 ≠ 80x100).
+ */
+export function candidatiArticolo(r: RigaDistintaCalcolata, dati: DatiCatalogo, quanti = 5): Candidato[] {
+  const out = new Map<string, Candidato>();
+  const metti = (c: Collegamento, punteggio: number, motivo: string, automatico: boolean) => {
+    const k = `${c.tipo}:${c.id}`;
+    const prima = out.get(k);
+    if (!prima || prima.punteggio < punteggio) out.set(k, { collegamento: c, punteggio, motivo, automatico: automatico || !!prima?.automatico });
+  };
+  const nome = normalizzaTesto(r.descrizione);
+  // 1. Scelto a mano l'ultima volta.
+  for (const al of dati.alias ?? []) {
+    if (normalizzaTesto(al.alias_text) !== nome) continue;
+    const a = dati.articoli.find((x) => x.id === al.article_template_id);
+    if (a) metti(daArticolo(a, "ricordato"), 0.99, "Scelto da voi l'ultima volta", true);
+  }
+  // 2. Lo stesso codice.
   if (r.fonte === "fornitura") {
     const codici = codiciRiga(r);
     if (codici.length) {
-      const a = dati.articoli.find((x) => x.sku && codici.includes(x.sku.trim().toUpperCase()));
-      if (a) return daArticolo(a, "codice");
-      const l = dati.listini.find((x) => x.codice && codici.includes(x.codice.trim().toUpperCase()));
-      if (l) return daListino(l, "codice");
+      for (const a of dati.articoli) if (a.sku && codici.includes(a.sku.trim().toUpperCase())) metti(daArticolo(a, "codice"), 0.97, "Stesso codice", true);
+      for (const l of dati.listini) if (l.codice && codici.includes(l.codice.trim().toUpperCase())) metti(daListino(l, "codice"), 0.96, "Stesso codice nel listino", true);
     }
   }
-  // 2. Già comprato così in un'altra commessa.
+  // 3. Già comprato così in un'altra commessa (una scelta di prima va comunque controllata).
   const chiave = chiaveDescrizione(r.descrizione);
-  const usato = dati.giaUsati.find((m) => m.article_template_id && chiaveDescrizione(m.name) === chiave
-    && normalizzaUnita(m.unita_misura) === normalizzaUnita(r.unita_misura));
-  const articoloUsato = usato && dati.articoli.find((a) => a.id === usato.article_template_id);
-  // Anche una scelta di prima va controllata: un collegamento sbagliato non si propaga.
-  if (articoloUsato && !nomiInConflitto(r.descrizione, articoloUsato.name)) return daArticolo(articoloUsato, "gia_usato");
-  // 3. Le parole.
-  let migliore: { c: Collegamento; p: number } | null = null;
+  for (const m of dati.giaUsati) {
+    if (!m.article_template_id || chiaveDescrizione(m.name) !== chiave || normalizzaUnita(m.unita_misura) !== normalizzaUnita(r.unita_misura)) continue;
+    const a = dati.articoli.find((x) => x.id === m.article_template_id);
+    if (a && !nomiInConflitto(r.descrizione, a.name)) metti(daArticolo(a, "gia_usato"), 0.92, "Già comprato in un'altra commessa", true);
+  }
+  // 4. Le parole.
   const testo = `${r.descrizione} ${r.specifiche ?? ""}`;
   for (const a of dati.articoli) {
     if (!unitaCompatibili(r.unita_misura, a.unit_of_measure, a.name)) continue;
-    const p = Math.max(somiglianzaNome(r.descrizione, a.name), somiglianzaNome(testo, a.name) * 0.95);
-    if (p >= SOGLIA_NOME && (!migliore || p > migliore.p)) migliore = { c: daArticolo(a, "nome"), p };
+    const p = Math.max(somiglianzaNome(r.descrizione, testoArticolo(a)), somiglianzaNome(testo, testoArticolo(a)) * 0.95);
+    if (p >= 0.5) metti(daArticolo(a, "nome"), p * 0.85, `Nome simile ${Math.round(p * 100)}%`, p >= SOGLIA_NOME);
   }
   for (const l of dati.listini) {
     if (!unitaCompatibili(r.unita_misura, l.unita, l.descrizione)) continue;
     const p = Math.max(somiglianzaNome(r.descrizione, l.descrizione), somiglianzaNome(testo, l.descrizione) * 0.95) - 0.01;
-    if (p >= SOGLIA_NOME && (!migliore || p > migliore.p)) migliore = { c: daListino(l, "nome"), p };
+    if (p >= 0.5) metti(daListino(l, "nome"), p * 0.85, `Nome simile ${Math.round(p * 100)}%${l.listino ? ` · ${l.listino}` : ""}`, p >= SOGLIA_NOME);
   }
-  return migliore?.c ?? null;
+  return [...out.values()].sort((a, b) => b.punteggio - a.punteggio).slice(0, quanti);
+}
+
+export function trovaCollegamento(r: RigaDistintaCalcolata, dati: DatiCatalogo): Collegamento | null {
+  return candidatiArticolo(r, dati).find((c) => c.automatico)?.collegamento ?? null;
+}
+
+/** La stessa cosa in magazzino: stesso codice interno, o lo stesso nome con un'unità compatibile. */
+export function inMagazzino(r: RigaDistintaCalcolata, magazzino: VoceMagazzino[]): MaterialeCollegato["magazzino"] {
+  const codici = codiciRiga(r);
+  let migliore: { v: VoceMagazzino; p: number } | null = null;
+  for (const v of magazzino) {
+    if (!(Number(v.quantity_available) > 0)) continue;
+    const perCodice = !!v.internal_code && codici.includes(v.internal_code.trim().toUpperCase());
+    const p = perCodice ? 1 : unitaCompatibili(r.unita_misura, v.unita_misura, v.name) ? somiglianzaNome(r.descrizione, v.name) : 0;
+    if (p >= SOGLIA_NOME && (!migliore || p > migliore.p)) migliore = { v, p };
+  }
+  return migliore ? { nome: migliore.v.name, disponibile: Number(migliore.v.quantity_available), unita: migliore.v.unita_misura ?? null } : null;
 }
 
 const formato = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
@@ -268,25 +335,66 @@ export function convertiInConfezioni(quantita: number, unitaMateriale: string, c
 }
 
 /** Quanto alza la sicurezza un collegamento: lo stesso codice o un acquisto passato dicono molto. */
-const BONUS: Record<FonteCollegamento, number> = { codice: 0.1, gia_usato: 0.1, nome: 0.05 };
+const BONUS: Record<FonteCollegamento, number> = { scelto: 0.2, ricordato: 0.15, codice: 0.1, gia_usato: 0.1, nome: 0.05 };
+
+/** Il collegamento scelto a mano: dai candidati, o dal catalogo intero (la ricerca libera). */
+function daScelta(s: SceltaArticolo, candidati: Candidato[], dati: DatiCatalogo): Collegamento | null {
+  if (s.tipo === "nessuno") return null;
+  const c = candidati.find((x) => x.collegamento.tipo === s.tipo && x.collegamento.id === s.id)?.collegamento;
+  if (c) return { ...c, fonte: "scelto" };
+  if (s.tipo === "articolo") { const a = dati.articoli.find((x) => x.id === s.id); return a ? daArticolo(a, "scelto") : null; }
+  const l = dati.listini.find((x) => x.id === s.id);
+  return l ? daListino(l, "scelto") : null;
+}
 
 export function collegaMateriali(
   righe: RigaDistintaCalcolata[],
-  dati: { articoli: ArticoloCatalogo[]; listini: VoceListino[]; giaUsati: MaterialeGiaUsato[] },
+  dati: DatiCatalogo,
+  scelte: Record<string, SceltaArticolo> = {},
 ): MaterialeCollegato[] {
   return righe.map((r) => {
     const gia = r.article_template_id ? dati.articoli.find((a) => a.id === r.article_template_id) : undefined;
-    const collegamento = gia ? daArticolo(gia, "codice") : trovaCollegamento(r, dati);
+    const candidati = candidatiArticolo(r, dati);
+    const scelta = scelte[r.chiave];
+    const collegamento = scelta ? daScelta(scelta, candidati, dati)
+      : gia ? daArticolo(gia, "codice") : candidati.find((c) => c.automatico)?.collegamento ?? null;
     const conversione = convertiInConfezioni(r.quantita_calcolata, r.unita_misura, collegamento, r.descrizione);
+    const affidabilita = !collegamento || (gia && !scelta) ? r.affidabilita : Math.min(0.99, r.affidabilita + BONUS[collegamento.fonte]);
     return {
       ...r,
-      article_template_id: collegamento?.tipo === "articolo" ? collegamento.id : r.article_template_id,
-      supplier_id: r.supplier_id ?? collegamento?.supplier_id ?? null,
-      affidabilita: collegamento && !gia ? Math.min(0.99, r.affidabilita + BONUS[collegamento.fonte]) : r.affidabilita,
+      article_template_id: collegamento?.tipo === "articolo" ? collegamento.id : scelta ? null : r.article_template_id,
+      supplier_id: collegamento?.supplier_id ?? (scelta ? null : r.supplier_id) ?? null,
+      affidabilita,
       collegamento,
       conversione,
+      candidati,
+      magazzino: dati.magazzino?.length ? inMagazzino(r, dati.magazzino) : null,
     };
   });
+}
+
+/** La quantità che si ordina davvero: nelle confezioni, se ci sono. */
+export function quantitaAcquisto(m: MaterialeCollegato): { quantita: number; unita: string } {
+  return m.conversione ? { quantita: m.conversione.quantita, unita: m.conversione.unita } : { quantita: m.quantita_calcolata, unita: m.unita_misura };
+}
+
+/** Prezzo d'acquisto per l'unità d'ordine e totale della riga, dal collegamento (null se non c'è un prezzo). */
+export function prezzoRiga(m: MaterialeCollegato): { unitario: number; unita: string; totale: number } | null {
+  const c = m.collegamento;
+  if (!c?.prezzo || !(c.prezzo > 0)) return null;
+  const q = quantitaAcquisto(m);
+  return { unitario: c.prezzo, unita: q.unita, totale: Math.round(c.prezzo * q.quantita * 100) / 100 };
+}
+
+/** Gli abbinamenti scelti a mano da ricordare: solo quelli a un articolo (product_aliases vuole un articolo). */
+export function aliasDaRicordare(materiali: MaterialeCollegato[], scelte: Record<string, SceltaArticolo>): AliasMateriale[] {
+  const out = new Map<string, AliasMateriale>();
+  for (const m of materiali) {
+    const s = scelte[m.chiave];
+    if (s?.tipo !== "articolo") continue;
+    out.set(`${normalizzaTesto(m.descrizione)}|${s.id}`, { alias_text: m.descrizione, article_template_id: s.id });
+  }
+  return [...out.values()];
 }
 
 /**
@@ -295,7 +403,7 @@ export function collegaMateriali(
  * La chiave non cambia: al secondo import la riga si riconosce e si sostituisce.
  */
 export function rigaDaSalvare(m: MaterialeCollegato) {
-  const { collegamento, conversione, note, fonte, affidabilita, proposta_ai: _ai, ...riga } = m;
+  const { collegamento, conversione, note, fonte, affidabilita, proposta_ai: _ai, candidati: _c, magazzino: _m, ...riga } = m;
   const extra = [conversione?.testo, collegamento?.tipo === "listino" ? `Listino ${collegamento.listino ?? ""}: ${collegamento.nome}`.replace(/ {2,}/g, " ") : null]
     .filter(Boolean).join(" · ");
   return {

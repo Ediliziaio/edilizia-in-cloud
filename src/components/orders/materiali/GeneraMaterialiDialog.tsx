@@ -22,7 +22,7 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, Link2, Loader2, Sparkles, Upload } from "lucide-react";
+import { ChevronDown, FileText, Loader2, Sparkles, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -33,9 +33,13 @@ import { computoInLettura, computoLetto, useComputiCommessa, useRiprovaLetturaCo
 import { usePermissions } from "@/hooks/usePermissions";
 import { ImportaVociDialog } from "@/components/computo/ImportaVociDialog";
 import { chiaviMateriali } from "@/hooks/useMaterialiPerFase";
-import { ETICHETTA_FONTE_MATERIALE, generaDistinta, type ConteggioConfermato, type OrigineRiga, type Scomposizione } from "@/lib/distinta/generaDistinta";
+import { generaDistinta, type ConteggioConfermato, type Scomposizione } from "@/lib/distinta/generaDistinta";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
-import { collegaMateriali, rigaDaSalvare, type ArticoloCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type VoceListino } from "@/lib/distinta/collegaArticoli";
+import {
+  aliasDaRicordare, collegaMateriali, prezzoRiga, rigaDaSalvare,
+  type AliasMateriale, type ArticoloCatalogo, type DatiCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type SceltaArticolo, type VoceMagazzino,
+} from "@/lib/distinta/collegaArticoli";
+import { MaterialiProposti } from "./MaterialiProposti";
 import { capitoloVoce, faseDaTesto, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
 import { sceltePerRicordare, testoRicordi, type SceltePerRicordare } from "@/lib/distinta/ricordaScelte";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
@@ -65,8 +69,17 @@ async function caricaScomposizioni(companyId: string): Promise<{ attive: Scompos
  * della libreria senza i materiali tolti. Se l'azienda ha già quella scomposizione
  * standard (importata e non approvata), si aggiorna quella: il codice è unico per azienda.
  */
-async function ricordaScelte(companyId: string, r: SceltePerRicordare): Promise<number> {
+async function ricordaScelte(companyId: string, r: SceltePerRicordare, alias: AliasMateriale[] = []): Promise<number> {
   let fatte = 0;
+  if (alias.length) {
+    const { error } = await supabase.from("product_aliases").insert(alias.map((a) => ({
+      // alias_normalized lo calcola il database (colonna generata).
+      company_id: companyId, alias_text: a.alias_text,
+      article_template_id: a.article_template_id, learned_from: "voce_computo", confidence: 0.9,
+    })));
+    if (error) throw error;
+    fatte += alias.length;
+  }
   if (r.approvaAI.length) {
     const { error } = await supabase.from("scomposizioni_voce").update({ attiva: true })
       .eq("company_id", companyId).in("id", r.approvaAI.map((a) => a.id));
@@ -106,10 +119,16 @@ async function ricordaScelte(companyId: string, r: SceltePerRicordare): Promise<
 }
 
 /** Articoli, voci dei listini in corso e materiali già comprati: per collegare i materiali proposti. */
-async function caricaCatalogo(companyId: string, orderId: string): Promise<{ articoli: ArticoloCatalogo[]; listini: VoceListino[]; giaUsati: MaterialeGiaUsato[] }> {
+type Catalogo = DatiCatalogo & { fornitori: Map<string, string> };
+
+/** Gli errori di Supabase sono oggetti, non Error: si legge il loro messaggio. */
+const messaggioErrore = (e: unknown) => e instanceof Error ? e.message
+  : typeof e === "object" && e && "message" in e ? String((e as { message: unknown }).message) : String(e);
+
+async function caricaCatalogo(companyId: string, orderId: string): Promise<Catalogo> {
   const oggi = new Date().toLocaleDateString("en-CA");
-  const [articoli, listini, usati] = await Promise.all([
-    supabase.from("article_templates").select("id, name, sku, unit_of_measure, supplier_id, prezzo_acquisto_netto, standard_cost, attivo")
+  const [articoli, listini, usati, alias, magazzino, fornitori] = await Promise.all([
+    supabase.from("article_templates").select("id, name, sku, unit_of_measure, supplier_id, prezzo_acquisto_netto, standard_cost, attivo, marca, modello")
       .eq("company_id", companyId).limit(5000),
     supabase.from("listino_fornitore_voci").select("id, codice, descrizione, unita, prezzo, sconto_pct, listino:listini_fornitore!inner(nome, supplier_id, attivo, valido_dal, valido_al)")
       .eq("company_id", companyId).limit(5000),
@@ -118,6 +137,10 @@ async function caricaCatalogo(companyId: string, orderId: string): Promise<{ art
       // Le altre commesse: quelle di questa le ha generate la stessa proposta, e si ripeterebbero da sole.
       .neq("order_id", orderId)
       .order("created_at", { ascending: false }).limit(2000),
+    // I nomi abbinati a mano a un articolo (14/11/2026): la prossima volta si ricollegano da soli.
+    supabase.from("product_aliases").select("alias_text, article_template_id").eq("company_id", companyId).not("article_template_id", "is", null).limit(5000),
+    supabase.from("warehouse_stock").select("id, name, internal_code, unita_misura, quantity_available").eq("company_id", companyId).gt("quantity_available", 0).limit(5000),
+    supabase.from("suppliers").select("id, name").eq("company_id", companyId).limit(5000),
   ]);
   // Il catalogo aiuta ma non è indispensabile: se una lettura non riesce, si propone senza collegamenti.
   type RigaListino = { id: string; codice: string | null; descrizione: string; unita: string | null; prezzo: number | null; sconto_pct: number | null;
@@ -128,32 +151,13 @@ async function caricaCatalogo(companyId: string, orderId: string): Promise<{ art
       .filter((v) => v.listino && v.listino.attivo !== false && (!v.listino.valido_dal || v.listino.valido_dal <= oggi) && (!v.listino.valido_al || v.listino.valido_al >= oggi))
       .map((v) => ({ id: v.id, codice: v.codice, descrizione: v.descrizione, unita: v.unita, prezzo: v.prezzo, sconto_pct: v.sconto_pct, supplier_id: v.listino?.supplier_id ?? null, listino: v.listino?.nome ?? null })),
     giaUsati: (usati.data ?? []) as unknown as MaterialeGiaUsato[],
+    alias: (alias.data ?? []) as AliasMateriale[],
+    magazzino: (magazzino.data ?? []) as VoceMagazzino[],
+    fornitori: new Map(((fornitori.data ?? []) as { id: string; name: string }[]).map((f) => [f.id, f.name])),
   };
 }
 
 const RISERVA = catalogoComeScomposizioni();
-
-function Sicurezza({ valore }: { valore: number }) {
-  const [testo, classe] = valore >= 0.85 ? ["Sicuro", "bg-emerald-50 text-emerald-800 border-emerald-200"]
-    : valore >= 0.65 ? ["Probabile", "bg-sky-50 text-sky-800 border-sky-200"]
-      : ["Da controllare", "bg-amber-50 text-amber-900 border-amber-200"];
-  return <span className={`inline-flex whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${classe}`} title={`Sicurezza ${Math.round(valore * 100)}%`}>
-    {testo} {Math.round(valore * 100)}%
-  </span>;
-}
-
-/** Da quali voci del computo (o tavole) viene il materiale. */
-function Provenienza({ origini }: { origini: OrigineRiga[] }) {
-  const prima = origini[0];
-  if (!prima) return null;
-  const etichetta = (o: OrigineRiga) => o.tipo === "computo"
-    ? `${o.codice ? `${o.codice} · ` : ""}${o.descrizione} (${o.quantita_voce.toLocaleString("it-IT")} ${o.unita_voce ?? ""})`.replace(/ \)$/, ")")
-    : `Tavola ${o.documento ?? ""} · ${o.simbolo}${o.locale ? ` · ${o.locale}` : ""}`;
-  const tutte = origini.map(etichetta);
-  return <span className="block truncate text-[11px] text-slate-500" title={tutte.join("\n")}>
-    da {etichetta(prima)}{origini.length > 1 ? ` e altre ${origini.length - 1}` : ""}
-  </span>;
-}
 
 export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpenChange }: { orderId: string; orderCode?: string | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { effectiveCompany, user } = useAuth();
@@ -181,7 +185,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
         supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita")
           .eq("order_id", orderId).eq("confermato", true),
-        caricaCatalogo(companyId, orderId).catch(() => ({ articoli: [] as ArticoloCatalogo[], listini: [] as VoceListino[], giaUsati: [] as MaterialeGiaUsato[] })),
+        caricaCatalogo(companyId, orderId).catch((): Catalogo => ({ articoli: [], listini: [], giaUsati: [], fornitori: new Map() })),
       ]);
       if (fasi.error) throw fasi.error;
       if (conteggi.error) throw conteggi.error;
@@ -288,9 +292,11 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
       faseVoce,
     });
   }, [dati.data, vociComputo, mappa, scelte, sicuri]);
+  // L'articolo scelto a mano nella finestra, per materiale (chiave): vince sulla proposta.
+  const [sceltaArticolo, setSceltaArticolo] = useState<Record<string, SceltaArticolo>>({});
   const materiali = useMemo<MaterialeCollegato[]>(
-    () => (risultato && dati.data ? collegaMateriali(risultato.righe, dati.data.catalogo) : []),
-    [risultato, dati.data],
+    () => (risultato && dati.data ? collegaMateriali(risultato.righe, dati.data.catalogo, sceltaArticolo) : []),
+    [risultato, dati.data, sceltaArticolo],
   );
   // Righe spente: le proposte dell'AI da approvare partono spente, le altre si spengono a mano.
   const [accese, setAccese] = useState<Record<string, boolean>>({});
@@ -301,7 +307,15 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     () => sceltePerRicordare(materiali, (m) => accese[m.chiave] ?? !m.proposta_ai, RISERVA, dati.data?.scomposizioni.proposteAI ?? []),
     [materiali, accese, dati.data],
   );
-  const righeRicordi = testoRicordi(ricordi);
+  // Gli articoli scelti a mano: il nome del materiale si ricorda (product_aliases).
+  const aliasNuovi = useMemo(() => {
+    const gia = new Set((dati.data?.catalogo.alias ?? []).map((a) => `${a.alias_text.trim().toLowerCase()}|${a.article_template_id}`));
+    return aliasDaRicordare(materiali, sceltaArticolo).filter((a) => !gia.has(`${a.alias_text.trim().toLowerCase()}|${a.article_template_id}`));
+  }, [materiali, sceltaArticolo, dati.data]);
+  const righeRicordi = [
+    ...testoRicordi(ricordi),
+    ...aliasNuovi.map((a) => `«${a.alias_text}» → ${dati.data?.catalogo.articoli.find((x) => x.id === a.article_template_id)?.name ?? "articolo"}`),
+  ];
   const [ricorda, setRicorda] = useState(true);
 
   const nomeFase = (id: string | null) => {
@@ -317,11 +331,11 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     }
     return [...m.entries()];
   }, [materiali]);
-  const conteggiFonte = useMemo(() => {
-    const collegati = materiali.filter((m) => m.collegamento).length;
-    const daControllare = materiali.filter((m) => m.affidabilita < 0.65).length;
-    return { collegati, daControllare };
-  }, [materiali]);
+  const stima = useMemo(() => {
+    const conPrezzo = daSalvare.map(prezzoRiga).filter((p): p is NonNullable<typeof p> => !!p);
+    return { totale: conPrezzo.reduce((t, p) => t + p.totale, 0), senzaPrezzo: daSalvare.length - conPrezzo.length };
+  }, [daSalvare]);
+  const mostraPrezzi = !!(permessi.canViewCosts || permessi.canViewOrderAmounts);
 
   const [proponendo, setProponendo] = useState(false);
   const proponiAI = async () => {
@@ -388,17 +402,17 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
       // I materiali sono salvati: le scelte da ricordare non devono più fermarli.
       if (ricorda && righeRicordi.length) {
         try {
-          const n = await ricordaScelte(companyId, ricordi);
+          const n = await ricordaScelte(companyId, ricordi, aliasNuovi);
           toast.success(`Ricordato per i prossimi computi (${n})`, { description: righeRicordi.join(" · ") });
           qc.invalidateQueries({ queryKey: ["scomposizioni"] });
           qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
         } catch (e) {
-          toast.error("Scelte non ricordate", { description: e instanceof Error ? e.message : String(e) });
+          toast.error("Scelte non ricordate", { description: messaggioErrore(e) });
         }
       }
       onOpenChange(false);
     } catch (e) {
-      toast.error("Materiali non salvati", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Materiali non salvati", { description: messaggioErrore(e) });
     } finally {
       setSalvando(false);
     }
@@ -442,201 +456,164 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Genera dal computo</DialogTitle>
-          <DialogDescription>
-            I materiali da comprare letti dal computo e dalle tavole contate, divisi per fase: per ognuno vedi da quale voce viene e quanto è sicuro. Niente è salvato finché non premi «Salva i materiali». Le righe generate prima e non ancora ordinate vengono sostituite; quelle inserite a mano restano.
+      <DialogContent className="flex max-h-[92vh] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+        {/* Testata in una riga: titolo, il computo e le sue azioni. La spiegazione è nel suggerimento. */}
+        <DialogHeader className="space-y-1 border-b px-5 pb-3 pt-4 text-left">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pr-8">
+            <DialogTitle className="text-base">Genera dal computo</DialogTitle>
+            {salvaComputo.isPending ? (
+              <span className="flex items-center gap-1.5 text-xs text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />Salvo il computo nella commessa…</span>
+            ) : inLettura ? (
+              <span className="flex items-center gap-1.5 text-xs text-slate-600"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Sto leggendo «{inLettura.titolo || inLettura.file_name}»{inLettura.progresso ? ` (${inLettura.progresso})` : ""}</span>
+            ) : scelto ? (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                {letti.length > 1 ? (
+                  <Select value={scelto.id} onValueChange={(id) => { setComputoId(id); setScelte({}); setAccese({}); setSceltaArticolo({}); }}>
+                    <SelectTrigger className="h-7 w-auto max-w-xs gap-1 border-slate-200 px-2 text-xs" aria-label="Computo"><SelectValue /></SelectTrigger>
+                    <SelectContent>{letti.map((c) => <SelectItem key={c.id} value={c.id}>{c.titolo || c.file_name} · {c.stato}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : <span className="min-w-0 truncate font-medium text-slate-800">{scelto.titolo || scelto.file_name}</span>}
+                <span className="text-slate-500">{scelto.stato}{voci.data ? ` · ${voci.data.length} voci` : ""}</span>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setApriComputo(true)}>Apri il computo</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
+              </div>
+            ) : !computi.isLoading && companyId ? (
+              <div className="flex flex-1 items-center gap-2 text-xs text-slate-600">
+                <span>Nessun computo: i materiali vengono dalle tavole contate.</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica il computo</Button>
+              </div>
+            ) : null}
+          </div>
+          <DialogDescription className="text-xs">
+            Niente è salvato finché non premi «Salva i materiali»: le righe generate prima e non ancora ordinate si sostituiscono, quelle inserite a mano restano.
           </DialogDescription>
+          {riprovaUltimo}
         </DialogHeader>
 
-        {/* Il computo: da qui si apre per intero o se ne carica un altro. */}
-        <section aria-label="Il computo" className="space-y-2 rounded-lg border bg-slate-50/60 p-3 text-sm">
-          {salvaComputo.isPending ? (
-            <p className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin text-slate-500" aria-hidden />Salvo il computo nella commessa…</p>
-          ) : inLettura ? (
-            <p className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin text-slate-500" aria-hidden />
-              Sto leggendo «{inLettura.titolo || inLettura.file_name}»{inLettura.progresso ? ` (${inLettura.progresso})` : ""}: appena finito compare qui sotto l'anteprima dei materiali.</p>
-          ) : scelto ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <FileText className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-              <span className="min-w-0 flex-1"><span className="font-medium">{scelto.titolo || scelto.file_name}</span>
-                <span className="text-muted-foreground"> · {scelto.stato}{voci.data ? ` · ${voci.data.length} voci` : ""}</span></span>
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setApriComputo(true)}>Apri il computo</Button>
-              <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica un altro</Button>
-            </div>
-          ) : !computi.isLoading && companyId ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="min-w-0 flex-1">Nessun computo nella commessa: i materiali vengono dalle tavole contate.</span>
-              <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setImporta(true)}><Upload className="mr-1 h-3.5 w-3.5" aria-hidden />Carica il computo</Button>
-            </div>
-          ) : null}
-          {riprovaUltimo}
-        </section>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+          {caricamento && <p className="py-6 text-sm text-slate-500">Leggo computo, scomposizioni, catalogo e magazzino…</p>}
 
-        {caricamento && <p className="text-sm text-slate-500">Leggo computo, scomposizioni, articoli e conteggi…</p>}
-
-        {!caricamento && risultato && !nienteDaLeggere && (
-          <div className="space-y-4 text-sm">
-            {letti.length > 1 && (
-              <label className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">Computo</span>
-                <Select value={scelto?.id} onValueChange={(id) => { setComputoId(id); setScelte({}); setAccese({}); }}>
-                  <SelectTrigger className="h-8 w-72"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {letti.map((c) => <SelectItem key={c.id} value={c.id}>{c.titolo || c.file_name} · {c.stato}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </label>
-            )}
-
-            {capitoli.length > 0 && (
-              <details className="rounded border" open={capitoli.length <= 6}>
-                <summary className="cursor-pointer px-2 py-1.5 font-semibold">Capitolo del computo → fase della commessa ({capitoli.length})</summary>
-                {fasiNuove.length > 0 && !(dati.data?.fasi.length) && (
-                  <p className="px-2 pb-2 text-xs text-slate-600">La commessa non ha fasi: le creo dai capitoli del computo (puoi cambiarle).</p>
-                )}
-                {suggerimentiAI.isFetching && <p className="px-2 pb-2 text-xs text-slate-600">L'AI sta proponendo la fase per {incerti.length} capitoli senza abbinamento sicuro…</p>}
-                {suggerimentiAI.isError && <p className="px-2 pb-2 text-xs text-amber-800">Proposta dell'AI non disponibile: resta il confronto per parole, scegli tu la fase.</p>}
-                <ul className="divide-y border-t">
-                  {capitoli.map((c) => {
-                    const s = suggerimenti.find((x) => x.capitolo === c);
-                    const nuovaAI = s?.nuova_fase && s.nuova_fase !== c ? s.nuova_fase : null;
-                    return (
-                      <li key={c} className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
-                        <div className="min-w-0 flex-1">
-                          <span className="block truncate">{c}</span>
-                          {s && !sicuri.has(c) && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-violet-800" title="Suggerimento dell'AI: puoi cambiarlo">
-                              <Sparkles className="h-3 w-3" aria-hidden />
-                              AI: {s.motivo} · {Math.round(s.confidenza * 100)}%
-                            </span>
-                          )}
-                        </div>
-                        <Select value={mappa[c] ?? SENZA} onValueChange={(v) => setMappa({ ...mappa, [c]: v })}>
-                          <SelectTrigger className="h-8 w-64" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {(dati.data?.fasi ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                            {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>Crea la fase «{nuovaAI}» (AI)</SelectItem>}
-                            {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Crea la fase «{c}»</SelectItem>}
-                            <SelectItem value={SENZA}>{c === "Senza capitolo" ? "Dal testo della voce" : "Senza fase"}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </details>
-            )}
-
-            <section aria-label="Materiali che entrano">
-              <div className="mb-1 flex flex-wrap items-center gap-2">
-                <h4 className="font-semibold">Entrano {daSalvare.length} materiali{daSalvare.length !== materiali.length ? ` su ${materiali.length}` : ""}</h4>
-                <label className="ml-auto flex items-center gap-1.5 text-xs">
-                  <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label="Seleziona tutti i materiali"
-                    checked={!!materiali.length && daSalvare.length === materiali.length}
-                    ref={(el) => { if (el) el.indeterminate = daSalvare.length > 0 && daSalvare.length < materiali.length; }}
-                    onChange={(e) => { const si = e.target.checked; setAccese(Object.fromEntries(materiali.map((r) => [r.chiave, si]))); }} />
-                  Tutti
-                </label>
-              </div>
-              <p className="mb-2 text-xs text-muted-foreground">
-                {conteggiFonte.collegati ? `${conteggiFonte.collegati} collegati a un vostro articolo o listino. ` : ""}
-                {conteggiFonte.daControllare ? `${conteggiFonte.daControllare} da controllare. ` : ""}
-                La quantità d'acquisto è arrotondata per eccesso; quelle già modificate a mano restano. Togli la spunta a quello che non vuoi comprare.
-              </p>
-              {perFase.map(([fase, righe]) => (
-                <details key={fase} className="mb-1 rounded border" open={perFase.length <= 3}>
-                  <summary className="flex cursor-pointer items-center gap-2 px-2 py-1.5 font-medium">
-                    <input type="checkbox" className="h-3.5 w-3.5 accent-[hsl(var(--primary))]" aria-label={`Seleziona i materiali di ${nomeFase(fase === SENZA ? null : fase)}`}
-                      checked={righe.every(accesa)} ref={(el) => { if (el) el.indeterminate = righe.some(accesa) && !righe.every(accesa); }}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => { const si = e.target.checked; setAccese((a) => ({ ...a, ...Object.fromEntries(righe.map((r) => [r.chiave, si])) })); }} />
-                    <span>{nomeFase(fase === SENZA ? null : fase)} · {righe.filter(accesa).length}{righe.some((r) => !accesa(r)) ? ` su ${righe.length}` : ""}</span>
+          {!caricamento && risultato && !nienteDaLeggere && (
+            <div className="space-y-3 text-sm">
+              {capitoli.length > 0 && (
+                <details className="group mt-3 rounded-md border" open={capitoli.length <= 3 || (fasiNuove.length > 0 && !(dati.data?.fasi.length))}>
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 text-xs">
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-slate-500 transition-transform group-open:rotate-0" aria-hidden />
+                    <span className="font-medium text-slate-800">Capitoli → fasi</span>
+                    <span className="text-slate-500">{capitoli.length} capitoli in {new Set(capitoli.map((c) => mappa[c] ?? SENZA)).size} fasi</span>
+                    {suggerimentiAI.isFetching && <span className="flex items-center gap-1 text-violet-700"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />l'AI propone {incerti.length}</span>}
                   </summary>
-                  <table className="w-full text-xs">
-                    <tbody className="divide-y">
-                      {righe.map((r) => (
-                        <tr key={r.chiave} className={accesa(r) ? "" : "opacity-60"} data-materiale={r.descrizione}>
-                          <td className="w-8 px-2 py-1 align-top">
-                            <Checkbox checked={accesa(r)} aria-label={`Includi ${r.descrizione}`}
-                              onCheckedChange={(v) => setAccese((a) => ({ ...a, [r.chiave]: v === true }))} />
-                          </td>
-                          <td className="min-w-0 px-2 py-1 align-top">
-                            <span className="font-medium">{r.descrizione}</span>{r.specifiche ? <span className="text-slate-500"> · {r.specifiche}</span> : null}
-                            <Provenienza origini={r.origini} />
-                            {r.collegamento && (
-                              <span className="flex items-center gap-1 text-[11px] text-emerald-800">
-                                <Link2 className="h-3 w-3 shrink-0" aria-hidden />
-                                {r.collegamento.tipo === "articolo" ? "Articolo" : `Listino ${r.collegamento.listino ?? ""}`}: {r.collegamento.nome}
-                                {r.collegamento.prezzo ? ` · ${r.collegamento.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}/${r.collegamento.unita ?? r.unita_misura}` : ""}
-                                {r.collegamento.fonte === "gia_usato" ? " · già usato in altre commesse" : r.collegamento.fonte === "codice" ? " · stesso codice" : ""}
+                  {fasiNuove.length > 0 && !(dati.data?.fasi.length) && (
+                    <p className="px-3 pb-2 text-xs text-slate-600">La commessa non ha fasi: le creo dai capitoli del computo (puoi cambiarle).</p>
+                  )}
+                  {suggerimentiAI.isError && <p className="px-3 pb-2 text-xs text-amber-800">Proposta dell'AI non disponibile: resta il confronto per parole, scegli tu la fase.</p>}
+                  <ul className="grid gap-x-4 border-t px-3 py-1 sm:grid-cols-2">
+                    {capitoli.map((c) => {
+                      const s = suggerimenti.find((x) => x.capitolo === c);
+                      const nuovaAI = s?.nuova_fase && s.nuova_fase !== c ? s.nuova_fase : null;
+                      return (
+                        <li key={c} className="flex items-center gap-2 py-1 text-xs">
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate" title={c}>{c}</span>
+                            {!sicuri.has(c) && scelte[c] === undefined && (
+                              <span className="block text-[11px] text-slate-500">Ogni voce va nella fase del suo mestiere; qui la fase per le altre</span>
+                            )}
+                            {s && !sicuri.has(c) && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-violet-800" title={`Suggerimento dell'AI: ${s.motivo}`}>
+                                <Sparkles className="h-3 w-3" aria-hidden />AI · {Math.round(s.confidenza * 100)}%
                               </span>
                             )}
-                            {r.note.map((n) => <span key={n} className="block text-[11px] text-slate-500">{n}</span>)}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-1 text-right align-top tabular-nums">
-                            {r.quantita_calcolata.toLocaleString("it-IT")} {r.unita_misura}
-                            {r.sfrido ? <span className="text-slate-400"> (+{r.sfrido}%)</span> : null}
-                            {r.conversione && <span className="block text-[11px] font-medium text-slate-700">{r.conversione.quantita.toLocaleString("it-IT")} {r.conversione.unita}</span>}
-                          </td>
-                          <td className="w-40 px-2 py-1 align-top">
-                            <Sicurezza valore={r.affidabilita} />
-                            <span className="mt-0.5 block text-[10px] text-slate-500">{ETICHETTA_FONTE_MATERIALE[r.fonte]}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <Select value={mappa[c] ?? SENZA} onValueChange={(v) => setMappa({ ...mappa, [c]: v })}>
+                            <SelectTrigger className="h-7 w-52 text-xs" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {(dati.data?.fasi ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                              {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>Crea la fase «{nuovaAI}» (AI)</SelectItem>}
+                              {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Crea la fase «{c}»</SelectItem>}
+                              <SelectItem value={SENZA}>{c === "Senza capitolo" ? "Dal testo della voce" : "Senza fase"}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </details>
-              ))}
-            </section>
+              )}
 
-            {risultato.avvisi.length > 0 && (
-              <section aria-label="Avvisi" className="rounded border border-amber-200 bg-amber-50 p-2">
-                <h4 className="mb-1 font-semibold text-amber-900">Da guardare ({risultato.avvisi.length})</h4>
-                <ul className="max-h-40 list-disc space-y-0.5 overflow-auto pl-5 text-xs text-amber-900">
-                  {risultato.avvisi.map((a, i) => <li key={i}>{a.messaggio}</li>)}
-                </ul>
-                {risultato.senzaScomposizione.length > 0 && (
-                  <Button size="sm" variant="outline" className="mt-2 h-8 bg-white" disabled={proponendo} onClick={proponiAI}>
-                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                    {proponendo ? "L'AI sta proponendo…" : `Proponi con l'AI i materiali delle voci che le regole non riconoscono (${risultato.senzaScomposizione.length})`}
-                  </Button>
-                )}
-              </section>
-            )}
+              <MaterialiProposti
+                materiali={materiali}
+                accesa={accesa}
+                setAccese={setAccese}
+                perFase={perFase}
+                nomeFase={(id) => nomeFase(id === SENZA ? null : id)}
+                articoli={dati.data?.catalogo.articoli ?? []}
+                listini={dati.data?.catalogo.listini ?? []}
+                fornitori={dati.data?.catalogo.fornitori ?? new Map()}
+                mostraPrezzi={mostraPrezzi}
+                onScegliArticolo={(chiave, sc) => setSceltaArticolo((a) => ({ ...a, [chiave]: sc }))}
+              />
 
-            {risultato.escluse.length > 0 && (
-              <details className="rounded border">
-                <summary className="cursor-pointer px-2 py-1.5 font-medium">Escluse {risultato.escluse.length} voci, e perché</summary>
-                <ul className="max-h-56 divide-y overflow-auto text-xs">
-                  {risultato.escluse.map((e) => (
-                    <li key={e.voce_id} className="flex justify-between gap-2 px-2 py-1">
-                      <span className="min-w-0 truncate">{e.codice ? `${e.codice} · ` : ""}{e.descrizione}</span>
-                      <span className="shrink-0 text-slate-500">{e.motivo}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        )}
+              {risultato.avvisi.length > 0 && (
+                <section aria-label="Avvisi" className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">Da guardare ({risultato.avvisi.length})</span>
+                    {risultato.senzaScomposizione.length > 0 && (
+                      <Button size="sm" variant="outline" className="ml-auto h-7 bg-white text-xs" disabled={proponendo} onClick={proponiAI}>
+                        <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                        {proponendo ? "L'AI sta proponendo…" : `Proponi con l'AI i materiali delle voci che le regole non riconoscono (${risultato.senzaScomposizione.length})`}
+                      </Button>
+                    )}
+                  </div>
+                  <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-auto pl-5">
+                    {risultato.avvisi.map((a, i) => <li key={i}>{a.messaggio}</li>)}
+                  </ul>
+                </section>
+              )}
 
-        <DialogFooter className="sm:items-center">
+              {risultato.escluse.length > 0 && (
+                <details className="rounded-md border text-xs">
+                  <summary className="cursor-pointer px-3 py-1.5 font-medium">Escluse {risultato.escluse.length} voci, e perché</summary>
+                  <ul className="max-h-56 divide-y overflow-auto border-t">
+                    {risultato.escluse.map((e) => (
+                      <li key={e.voce_id} className="flex justify-between gap-2 px-3 py-1">
+                        <span className="min-w-0 truncate">{e.codice ? `${e.codice} · ` : ""}{e.descrizione}</span>
+                        <span className="shrink-0 text-slate-500">{e.motivo}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Piede fisso: quanti, quanto costano, cosa si ricorda, salva. */}
+        <DialogFooter className="flex-row flex-wrap items-center gap-2 border-t bg-slate-50/80 px-5 py-2.5 sm:space-x-0">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+          {risultato && (
+            <span className="text-xs tabular-nums text-slate-700">
+              <span className="font-semibold text-slate-900">{daSalvare.length} materiali</span>
+              {mostraPrezzi && stima.totale > 0 && <> · stima <span className="font-semibold text-slate-900">{stima.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span></>}
+              {mostraPrezzi && stima.senzaPrezzo > 0 && <span className="text-slate-500"> ({stima.senzaPrezzo} senza prezzo)</span>}
+            </span>
+          )}
           {righeRicordi.length > 0 && risultato && (
-            <label className="mr-auto flex min-w-0 items-start gap-2 text-xs text-slate-600">
-              <Checkbox checked={ricorda} onCheckedChange={(v) => setRicorda(!!v)} aria-label="Ricorda per i prossimi computi" className="mt-0.5" />
-              <span className="min-w-0">
-                <span className="font-medium text-slate-800">Ricorda per i prossimi computi</span>
-                <span className="block truncate" title={righeRicordi.join("\n")}>{righeRicordi.join(" · ")}</span>
+            <label className="flex min-w-0 max-w-md items-center gap-2 text-xs text-slate-600">
+              <Checkbox checked={ricorda} onCheckedChange={(v) => setRicorda(!!v)} aria-label="Ricorda per i prossimi computi" />
+              <span className="min-w-0 truncate" title={righeRicordi.join("\n")}>
+                <span className="font-medium text-slate-800">Ricorda per i prossimi computi</span> · {righeRicordi.join(" · ")}
               </span>
             </label>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Chiudi</Button>
-          <Button disabled={!daSalvare.length || salvando || salvaComputo.isPending} onClick={salva}>
-            {salvando ? "Salvo…" : `Salva i materiali (${daSalvare.length})`}
-          </Button>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Chiudi</Button>
+            <Button size="sm" disabled={!daSalvare.length || salvando || salvaComputo.isPending} onClick={salva}>
+              {salvando ? "Salvo…" : `Salva i materiali (${daSalvare.length})`}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
       {apriComputo && companyId && (

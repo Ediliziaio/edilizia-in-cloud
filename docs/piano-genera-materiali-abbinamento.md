@@ -90,6 +90,20 @@ righe che ci sono, filtri come pastiglie in una riga.
    Salva i materiali».
 6. Telefono: le colonne vanno a capo come nella pagina Materiali (stessa grammatica).
 
+## Stato (14/11/2026)
+
+- Lotto 1: confezioni d'uso comune fatte. Prezzo del listino: il client lo manda già;
+  la migrazione `20290322120000_materiali_generazione_prezzo_listino` è pronta e
+  provata in una transazione annullata, ma l'applicazione è stata fermata dal
+  controllo dei permessi: è fuori da `supabase/migrations/` finché il titolare non
+  la approva (finché non c'è, le righe col solo listino si salvano senza prezzo).
+- Lotto 2: candidati col motivo, scelta nella riga con ricerca, «Nessun articolo»,
+  alias in `product_aliases` (colonna `alias_normalized` generata dal database: non
+  si scrive), magazzino in sola lettura. Provato su Demo 2 andata e ritorno.
+- Lotto 3: finestra ridisegnata (`MaterialiProposti.tsx`): tabella a 43 px per riga,
+  prima riga a 209 px dalla testata (prima circa 600), pastiglie, totali per fase,
+  piede fisso con la stima.
+
 ## Prove
 
 - Vitest: confezioni (con e senza articolo), prezzo di listino nella riga salvata,
