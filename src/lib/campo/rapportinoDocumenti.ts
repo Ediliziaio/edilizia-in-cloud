@@ -50,16 +50,16 @@ export function documentoPerCommittente(q: QuadroDocumento, info: InfoRapportino
       quantita: conPrezzo && p.quantita != null ? Number(p.quantita) : Number(p.ore),
       prezzo: conPrezzo ? Number(p.prezzo) : null,
       ...(conPrezzo && p.ricavo != null ? { importo: Number(p.ricavo) } : {}),
-      iva: null,
+      iva: null as number | null,
     };
   });
   // Mezzi: le ore si dichiarano; il prezzo, se si vende il nolo, si scrive nella bozza.
   const mezzi: RigaDocumentoOperativo[] = (q.mezzi ?? []).filter((m) => Number(m.ore) > 0).map((m) => ({
-    gruppo, descrizione: `Mezzo - ${m.nome ?? "Mezzo"}`, unita: "h", quantita: Number(m.ore), prezzo: null, iva: null,
+    gruppo, descrizione: `Mezzo - ${m.nome ?? "Mezzo"}`, unita: "h", quantita: Number(m.ore), prezzo: null as number | null, iva: null as number | null,
   }));
   const voci: RigaDocumentoOperativo[] = (q.voci ?? []).filter((v) => v.descrizione?.trim() && Number(v.quantita) > 0).map((v) => ({
     gruppo, descrizione: v.codice ? `${v.codice} - ${v.descrizione}` : v.descrizione, unita: v.unita || "cad",
-    quantita: Number(v.quantita), prezzo: v.vendita_unitaria == null ? null : Number(v.vendita_unitaria), iva: null,
+    quantita: Number(v.quantita), prezzo: v.vendita_unitaria == null ? null : Number(v.vendita_unitaria), iva: null as number | null,
   }));
   return {
     tipo: "economia",
