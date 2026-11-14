@@ -40,8 +40,13 @@ Operazione = commessa generale «Sviluppo immobiliare»
   finanziamento, spese generali. È qui che si controlla il margine.
 - **Sull'unità** solo ciò che è di quell'unità: l'acquirente, il prezzo pattuito, caparre e
   acconti, le varianti di capitolato chieste dall'acquirente, i costi fatti solo per lei.
-- **I costi comuni non si dividono a mano**: l'analisi per unità li ripartisce (millesimi, m²
-  o prezzo) solo per lettura; il margine vero resta quello dell'operazione.
+- **I costi: due modi, li sceglie l'azienda** (Florin, 14/11). Si può tenere tutto sulla
+  generale e far dividere i costi alle unità con un criterio — millesimi, m², importo o parti
+  uguali, scelto nella vista «Costi di commessa» del piano (`CriterioRipartizione`, «automatico»
+  usa il primo dato presente) —, oppure caricare un costo direttamente sull'unità, o dividere
+  una spesa in percentuale tra più commesse («spesa divisa», `company_costs.allocations`).
+  Qualunque sia il modo, il margine vero è quello dell'operazione; quello per unità è una
+  lettura.
 - **Il controllo** è sempre: budget approvato → costi registrati → stima a finire →
   scostamento per voce; cassa mese per mese → capitale massimo impegnato → coperto dalle fonti?
 
@@ -90,7 +95,7 @@ Ogni lotto: verifica a schermo su O-0002, O-0003 e Demo Azienda 1 (O-0096), test
 pubblicazione. Le migrazioni seguono CLAUDE.md (idempotenti, `apply_migration`, riallineamento
 della versione, numerazione `2029…`).
 
-### Lotto 1 — P0 · La pagina dell'operazione va in timeout
+### Lotto 1 — P0 · La pagina dell'operazione va in timeout — FATTO 14/11 (`20290322090000`)
 `generale_unita_elenco` e `scheda_commessa` rispondono 500 dopo 8 s. Leggono
 `v_ordine_marginalita`, che avvolge `private.office_order_economics_projection()` e ricalcola
 l'economia di **tutte** le commesse visibili a ogni lettura (1,4 s per 47 commesse; il filtro
@@ -107,7 +112,7 @@ per id non entra). `generale_unita_elenco` la legge 11 volte su O-0003 (3,9 s da
 - Dopo: l'elenco commesse legge `v_ordine_marginalita` con `.in("id", …)` per pagina — stessa
   causa, stesso rimedio.
 
-### Lotto 2 — P0 · I costi con pagamento ignoto finiscono nel 9999
+### Lotto 2 — P0 · I costi con pagamento ignoto finiscono nel 9999 — FATTO 14/11 (`20290322090000`)
 `generale_piano_righe_reali` data una spesa con `coalesce(paid_date, due_date, created_at)`; la
 convenzione «pagamento ignoto» è `due_date = 9999-12-31`. Su Callimaco 738.937 € (l'acquisto)
 stanno nel mese 9999-12: fuori da cassa, capitale impegnato, andamento. Nel sistema: 138 costi
@@ -117,7 +122,7 @@ in 6 aziende.
 - **Fatto quando**: il capitale impegnato di Callimaco comprende l'acquisto a 09/2026; un test
   con un costo sentinella.
 
-### Lotto 3 — P1 · I costi sulla voce giusta del piano
+### Lotto 3 — P1 · I costi sulla voce giusta del piano — FATTO 14/11 (`20290322091000`)
 «Opere civili» e «Finiture» finiscono sulla prima voce della costruzione: quando la categoria
 del costo non è agganciata a una voce, l'abbinamento (`generale_piano_rango`) prende la prima per
 ordine. È il difetto che il 14/11 mostrava −97.046 € finti su Callimaco.
@@ -127,7 +132,7 @@ ordine. È il difetto che il 14/11 mostrava −97.046 € finti su Callimaco.
   `AgganciaCategorieDialog`), invece di finire sulla prima.
 - **Fatto quando**: i costi di prova vanno su «Opere civili secondo computo» e su «da abbinare».
 
-### Lotto 4 — P1 · L'unità non è un contratto finché non si vende
+### Lotto 4 — P1 · L'unità non è un contratto finché non si vende — FATTO 14/11 (`20290322092000`)
 - `generale_unita_nuova_commessa`: nessuno stato di lavorazione alla nascita (oggi lo stato
   predefinito dell'azienda, «Contratto Firmato», su tutte le 73 unità del sistema).
 - Dettaglio unità, vista a colonne, schede mobile, conteggi per stato: lo stato di vendita,
@@ -189,3 +194,21 @@ per unità; provvigione dell'agenzia per unità.
 | 8 | Lotto 8 vendite | quando si vende | — |
 
 I lotti 1-4 non chiedono niente al titolare e si possono fare subito.
+
+## Com'è andata (14/11, lotti 1-4)
+
+- **Lotto 1.** `economia_commesse(ids)`: elenco unità O-0003 3.859 → 81 ms, O-0002 2.750 →
+  149 ms; scheda commessa 1.677 → 277 ms. Confronto riga per riga con la vista su Ke Bei
+  (385 commesse, amministratore e utente senza commesse): identico. Restano sulla vista
+  l'elenco commesse (margini della pagina) e gli altri lettori: stesso rimedio quando serve.
+- **Lotto 2.** Il reale del piano di Via Callimaco ora sta in 09-11/2026, non più nel 9999.
+- **Lotto 3.** Nuova chiave «costruzione» (opere, scavi, strutture, finiture…) e
+  `generale_piano_somiglianza`. Sulle 92 righe reali di 14 generali nessun abbinamento cambia;
+  i costi di prova vanno su «Opere civili secondo computo», «Impianti elettrici», «Nolo
+  macchinari». Il «da abbinare» esplicito resta da fare.
+- **Lotto 4.** Le unità nuove nascono senza stato di lavorazione. **Le 73 esistenti no**: cambiare
+  lo stato di una commessa fa partire automazioni, notifiche e webhook; l'elenco mostra già lo
+  stato di vendita. Margine di un'unità libera o prenotata: nessuno (prima il listino). Documenti
+  di vendita di un'unità: dovuti dalla prenotazione. La vista a colonne, senza filtri, non mostra
+  più le unità (paginazione al primo livello).
+

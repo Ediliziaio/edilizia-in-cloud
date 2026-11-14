@@ -155,7 +155,9 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
         fatturato: numero(f.fatturato),
         incassato: numero(f.incassato),
         costo: numero(f.costo),
-        margine: numero(f.margine),
+        // Un'unità libera o prenotata non ha un prezzo pattuito: il suo «margine» sarebbe il
+        // listino meno i costi propri, un guadagno che nessuno ha ancora fatto.
+        margine: f.stato_vendita === "libera" || f.stato_vendita === "prenotata" ? null : numero(f.margine),
         divisa: f.divisa === true,
         acconti: numero(f.acconti),
         residuoUnita: numero(f.residuo_unita),
@@ -225,7 +227,7 @@ export function totaliGenerale(r: Pick<RiepilogoGenerale, "figlie" | "generale" 
       ]) ?? 0)
       : null,
     costo: r.permessi.costi && f.length > 0 ? somma(f.map((x) => x.costo ?? 0)) : null,
-    margine: r.permessi.margini && f.length > 0 ? somma(f.map((x) => x.margine ?? 0)) : null,
+    margine: r.permessi.margini && f.some((x) => x.margine !== null) ? somma(f.map((x) => x.margine ?? 0)) : null,
     avanzamento: Math.round(avanzamento * 10) / 10,
     base: valore ?? assegnato,
   };

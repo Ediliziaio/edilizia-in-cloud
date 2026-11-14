@@ -69,6 +69,7 @@ export const CHIAVI_REALI: Record<string, string> = {
   terreno: "Terreno e acquisto",
   oneri: "Oneri, permessi e imposte",
   progettazione: "Progettazione e professionisti",
+  costruzione: "Costruzione",
   materiali: "Materiali",
   manodopera: "Manodopera",
   subappalti: "Subappalti e squadre",

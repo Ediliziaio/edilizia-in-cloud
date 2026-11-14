@@ -384,8 +384,11 @@ export const scadenzaProposta = (voce: Pick<VoceDocumento, "conScadenza" | "vali
 export function calcolaChecklist(p: {
   voci: readonly VoceDocumento[];
   generaleId: string;
-  /** Le figlie della generale; incassato null = chi guarda non vede gli importi. */
-  figlie: readonly { id: string; incassato: number | null }[];
+  /**
+   * Le figlie della generale; incassato null = chi guarda non vede gli importi. `libera`: un'unità
+   * ancora senza acquirente, i cui documenti di vendita non sono ancora dovuti.
+   */
+  figlie: readonly { id: string; incassato: number | null; libera?: boolean }[];
   allegati: readonly AllegatoCommessa[];
   segni: readonly SegnoDocumento[];
   oggi: string;
@@ -416,7 +419,7 @@ export function calcolaChecklist(p: {
   assegna(p.generaleId, "generale");
   for (const f of p.figlie) assegna(f.id, "figlia");
 
-  const casella = (voce: VoceDocumento, orderId: string, incassato?: number | null): CasellaDocumento => {
+  const casella = (voce: VoceDocumento, orderId: string, incassato?: number | null, libera = false): CasellaDocumento => {
     const segni = segniPer.get(chiave(orderId, voce.id)) ?? [];
     const documenti: DocumentoDellaVoce[] = [
       ...segni
@@ -433,7 +436,9 @@ export function calcolaChecklist(p: {
         ? { segnoId: null as string | null, motivo: "nessun_incasso" as const }
         : null;
     // Senza vedere gli importi non si sa se l'unità ha incassato: la voce resta, ma non conta tra i mancanti.
-    const obbligatoria = voce.obbligatoria && !(conIncassi && incassato == null);
+    // Un'unità libera non chiede ancora i documenti di vendita: diventano dovuti dalla prenotazione
+    // (URBAN VISION 14/11: 59 «mancanti» per unità che nessuno stava vendendo).
+    const obbligatoria = voce.obbligatoria && !(conIncassi && incassato == null) && !(voce.ambito === "figlia" && libera);
 
     const date = documenti.map((d) => d.scadenza).filter((d): d is string => !!d).sort();
     const scadenza = voce.conScadenza ? date[date.length - 1] ?? null : null;
@@ -457,7 +462,7 @@ export function calcolaChecklist(p: {
   const generale = attive.filter((v) => v.ambito === "generale").map((v) => casella(v, p.generaleId));
   const figlie = attive
     .filter((v) => v.ambito === "figlia")
-    .map((v) => ({ voce: v, caselle: p.figlie.map((f) => casella(v, f.id, f.incassato)) }));
+    .map((v) => ({ voce: v, caselle: p.figlie.map((f) => casella(v, f.id, f.incassato, f.libera === true)) }));
   const tutte = [...generale, ...figlie.flatMap((g) => g.caselle)];
   const richieste = tutte.filter((c) => c.obbligatoria && c.stato !== "non_serve");
   return {

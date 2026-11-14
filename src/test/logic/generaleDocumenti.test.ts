@@ -324,3 +324,20 @@ describe("parole e date", () => {
     expect(scadenzaProposta(voce(vociDelModello("appalto"), "psc"), OGGI)).toBeNull();
   });
 });
+
+describe("unità libere: i documenti di vendita non sono ancora dovuti (URBAN VISION, 14/11/2026)", () => {
+  const voci = vociDelModello("sviluppo");
+  const conta = (libera: boolean) => calcolaChecklist({
+    voci, generaleId: GEN, figlie: [{ id: "u1", incassato: 0, libera }], allegati: [], segni: [], oggi: OGGI,
+  });
+
+  it("un'unità libera non conta tra i mancanti; dalla prenotazione sì", () => {
+    const libera = conta(true);
+    const prenotata = conta(false);
+    // APE e accatastamento sono obbligatori per l'unità: dovuti solo quando c'è un acquirente.
+    expect(prenotata.conteggi.mancanti - libera.conteggi.mancanti).toBe(2);
+    const ape = libera.figlie.find((g) => g.voce.id === "ape")!.caselle[0];
+    expect(ape.obbligatoria).toBe(false);
+    expect(ape.stato).toBe("mancante");
+  });
+});

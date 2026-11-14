@@ -146,3 +146,21 @@ describe("impostazioni e percentuali", () => {
     expect(quota(null, 100)).toBeNull();
   });
 });
+
+describe("unità in vendita: il listino non è un margine (URBAN VISION, 14/11/2026)", () => {
+  const riepilogo = (stati: string[]) => leggiRiepilogo({
+    generale: { id: "g", codice: "O-0003", nome: "Via Lotti", modello: "sviluppo", valore: 950000 },
+    figlie: stati.map((s, i) => ({ id: `u${i}`, codice: `O-00${40 + i}`, nome: `Unità ${i + 1}`, importo: 475000, costo: 3000, margine: 472000, stato_vendita: s, avanzamento: 0 })),
+    permessi: { importi: true, costi: true, margini: true },
+  })!;
+
+  it("un'unità libera o prenotata non ha margine; venduta sì", () => {
+    const r = riepilogo(["libera", "prenotata", "compromesso"]);
+    expect(r.figlie.map((f) => f.margine)).toEqual([null, null, 472000]);
+    expect(totaliGenerale(r).margine).toBe(472000);
+  });
+
+  it("se nessuna unità è venduta il margine delle unità non c'è, invece di valere zero", () => {
+    expect(totaliGenerale(riepilogo(["libera", "libera"])).margine).toBeNull();
+  });
+});

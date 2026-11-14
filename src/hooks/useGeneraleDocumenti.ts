@@ -133,6 +133,7 @@ export function useChecklistGenerale(r: RiepilogoGenerale): ChecklistGenerale {
       figlie: r.figlie.map((f) => ({
         id: f.id,
         incassato: r.permessi.importi ? sommeDaGarantire(f) : null,
+        libera: f.statoVendita === "libera",
       })),
       allegati: dati.allegati,
       segni: dati.segni,
