@@ -80,3 +80,12 @@ export function trovaClienteDaContratto(dal: ClienteDelContratto, clienti: reado
   }
   return { esito: "nessuno" };
 }
+
+/**
+ * Dove sono i lavori secondo il contratto (14/11/2026): l'indirizzo del cantiere, se no quello scritto accanto al
+ * cliente. In «Nuova commessa» vale prima dell'indirizzo in anagrafica, anche se il cliente si aggancia dopo.
+ */
+export function indirizzoCantiereDalContratto(ex: { indirizzo_cantiere?: string | null; cliente?: { indirizzo?: string | null } | null }): string | null {
+  const v = (ex.indirizzo_cantiere ?? "").trim() || (ex.cliente?.indirizzo ?? "").trim();
+  return v || null;
+}

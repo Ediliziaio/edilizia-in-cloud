@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codiceNormalizzato, paroleDelNome, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
+import { codiceNormalizzato, indirizzoCantiereDalContratto, paroleDelNome, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
 
 const clienti: ClienteAnagrafica[] = [
   { id: "f45", first_name: "Famiglia DEMO 2026 45", last_name: "", email: "cliente-2026-44@demo.invalid" },
@@ -56,5 +56,21 @@ describe("il lettore AI copia il nome intero, numeri compresi (14/11/2026)", () 
     expect(prompt).toContain("COPIATO COM'E' SCRITTO");
     expect(prompt).toContain("il numero NON e' un civico");
     expect(prompt).toContain("che va in 'indirizzo'");
+  });
+});
+
+describe("indirizzo del cantiere dal contratto, non dall'anagrafica (14/11/2026)", () => {
+  it("prima l'indirizzo dei lavori, poi quello scritto accanto al cliente", () => {
+    expect(indirizzoCantiereDalContratto({ indirizzo_cantiere: " Via Verdi 1, Lecco ", cliente: { indirizzo: "Via Roma 3, Monza" } })).toBe("Via Verdi 1, Lecco");
+    expect(indirizzoCantiereDalContratto({ indirizzo_cantiere: null, cliente: { indirizzo: "Via Roma 3, Monza" } })).toBe("Via Roma 3, Monza");
+    expect(indirizzoCantiereDalContratto({ indirizzo_cantiere: "  ", cliente: { indirizzo: null } })).toBeNull();
+  });
+  it("in «Nuova commessa» il cambio cliente non lo sovrascrive; una modifica a mano sì", async () => {
+    const { readFileSync } = await import("node:fs");
+    const s = readFileSync("src/pages/azienda/CreateOrder.tsx", "utf8");
+    const effetto = s.slice(s.indexOf("Cambio cliente → riparte l'auto-compilazione"), s.indexOf("Codice Commessa progressivo"));
+    expect(effetto.indexOf("indirizzoContrattoRef.current")).toBeGreaterThan(-1);
+    expect(effetto.indexOf("indirizzoContrattoRef.current")).toBeLessThan(effetto.indexOf("suggestedCantiere)"));
+    expect(s).toMatch(/cantiereTouchedRef\.current = true;\s+indirizzoContrattoRef\.current = null;/);
   });
 });

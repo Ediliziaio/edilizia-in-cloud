@@ -13,7 +13,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
-import { codiceNormalizzato, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
+import { codiceNormalizzato, indirizzoCantiereDalContratto, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
 import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
@@ -319,6 +319,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [cantiereAddress, setCantiereAddress] = useState("");
   const [cantiereAddressData, setCantiereAddressData] = useState<AddressData | null>(null);
   const cantiereTouchedRef = useRef(false);
+  // L'indirizzo letto dal contratto (14/11/2026): vale prima di quello in anagrafica, anche quando il cliente
+  // si aggancia dopo la lettura. Lo toglie solo una modifica a mano o un modulo azzerato.
+  const indirizzoContrattoRef = useRef<string | null>(null);
   const lastCantiereCustomerRef = useRef<string | null>(null);
   const createdOrderIdRef = useRef<string | null>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -346,6 +349,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setCantiereAddress("");
     setCantiereAddressData(null);
     cantiereTouchedRef.current = false;
+    indirizzoContrattoRef.current = null;
     lastCantiereCustomerRef.current = null;
     // Un ordine creato da una commessa generale parte pulito: la bozza è di un'altra commessa nuova.
     const draft = searchParams.get("generale") ? null : loadDraft();
@@ -519,6 +523,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setContractSource(source ?? null);
     setContrattoImportato(ex);
     standardApplicatoRef.current = null;
+    // Il cantiere è dove dice il contratto: il suo indirizzo dei lavori, se no quello scritto accanto al cliente.
+    const indirizzoContratto = indirizzoCantiereDalContratto(ex);
+    indirizzoContrattoRef.current = indirizzoContratto;
+    if (indirizzoContratto) {
+      setCantiereAddress(indirizzoContratto);
+      setCantiereAddressData(null);
+      cantiereTouchedRef.current = true;
+    }
     const piano = prepareContract(ex, fasiDiPartenza.perContratto, workflowProfilo.data);
     setValue("internal_notes", contractPreparationNotes(piano));
     setValue("customer_id", "");
@@ -729,6 +741,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setCantiereAddress("");
     setCantiereAddressData(null);
     cantiereTouchedRef.current = false;
+    indirizzoContrattoRef.current = null;
     lastCantiereCustomerRef.current = null;
     scegliModelloFasi(null);
     setFasiPersonalizzate(null);
@@ -890,6 +903,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       lastCantiereCustomerRef.current = customerId;
       setCantiereAddress("");
       setCantiereAddressData(null);
+    }
+    if (indirizzoContrattoRef.current) {
+      setCantiereAddress(indirizzoContrattoRef.current);
+      setCantiereAddressData(null);
+      cantiereTouchedRef.current = true;
+      return;
     }
     if (!cantiereTouchedRef.current && suggestedCantiere) {
       setCantiereAddress(suggestedCantiere);
@@ -1770,6 +1789,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                   value={cantiereAddressData ?? indirizzoCantiereDaTesto(cantiereAddress)}
                   onChange={(address) => {
                     cantiereTouchedRef.current = true;
+                    indirizzoContrattoRef.current = null;
                     setCantiereAddressData(address);
                     setCantiereAddress(testoIndirizzoCantiere(address));
                   }}
