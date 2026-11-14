@@ -117,3 +117,56 @@ describe("commesse generali nella lista", () => {
     expect(screen.queryByRole("button", { name: /commesse dentro/ })).not.toBeInTheDocument();
   });
 });
+
+describe("unità in vendita nella lista (URBAN VISION, 14/11/2026)", () => {
+  // Le commesse delle unità nascono con lo stato predefinito dell'azienda («Contratto Firmato») e
+  // con il listino come importo: la lista le mostrava come contratti firmati da incassare.
+  const firmato = { name: "Contratto Firmato", color: "#2563eb" };
+  const unita = (id: string, codice: string, totale: number) => ({ ...riga(id, codice, totale), status: firmato }) as OrderWithDetails;
+  const mappa = {
+    figliePerGenerale: new Map([["g", 3]]),
+    generaleDellaFiglia: new Map([
+      ["u2", { id: "g", etichetta: "O-0002" }],
+      ["u1", { id: "g", etichetta: "O-0002" }],
+      ["u3", { id: "g", etichetta: "O-0002" }],
+    ]),
+    statoVenditaUnita: new Map([["u1", "libera" as const], ["u2", "prenotata" as const], ["u3", "compromesso" as const]]),
+  };
+  const disegnaUnita = () => render(
+    <MemoryRouter>
+      <OrdersTable
+        orders={[riga("g", "O-0002", 0)]} figlieFuoriPagina={[unita("u2", "O-0013", 300_000), unita("u1", "O-0012", 365_000), unita("u3", "O-0014", 200_000)]}
+        onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} visibleColumns={new Set(["totalIvato", "due"])} mappaGenerali={mappa}
+      />
+    </MemoryRouter>,
+  );
+
+  it("un'unità libera o prenotata mostra lo stato di vendita, il listino e niente da incassare", () => {
+    disegnaUnita();
+    fireEvent.click(within(tabella()).getByRole("button", { name: "Apri le 3 commesse dentro" }));
+    const libera = within(tabella()).getByText("O-0012").closest("tr")!;
+    expect(libera).toHaveTextContent("Libera");
+    expect(libera).not.toHaveTextContent("Contratto Firmato");
+    expect(libera).toHaveTextContent(/365\.000,00 €listino/);
+    expect(libera).toHaveTextContent("Non venduta");
+    expect(within(tabella()).getByText("O-0013").closest("tr")!).toHaveTextContent("Prenotata");
+    // Con il compromesso c'è un prezzo pattuito: è da incassare.
+    const venduta = within(tabella()).getByText("O-0014").closest("tr")!;
+    expect(venduta).toHaveTextContent("Compromesso");
+    expect(venduta).not.toHaveTextContent("Non venduta");
+  });
+
+  it("la generale somma solo il venduto e dice a parte quanto è ancora in vendita", () => {
+    disegnaUnita();
+    const generale = within(tabella()).getByText("Generale · 3").closest("tr")!;
+    expect(generale).toHaveTextContent(/200\.000,00/);
+    expect(generale).toHaveTextContent(/in vendita 665\.000,00/);
+  });
+
+  it("dentro la generale le unità vanno in ordine di codice", () => {
+    disegnaUnita();
+    fireEvent.click(within(tabella()).getByRole("button", { name: "Apri le 3 commesse dentro" }));
+    const codici = within(tabella()).getAllByRole("row").map((r) => r.textContent?.match(/O-00\d\d/g)?.[0]).filter(Boolean);
+    expect(codici).toEqual(["O-0002", "O-0012", "O-0013", "O-0014"]);
+  });
+});

@@ -23,6 +23,13 @@ export interface OrdersReaderFilters {
   sortField: string; sortDir: "asc" | "desc";
   /** «solo» = le generali e ciò che contengono; «senza» = le commesse fuori da ogni generale. */
   generaliFilter?: "all" | "solo" | "senza";
+  /**
+   * Solo il primo livello: generali e commesse normali, senza le commesse dentro una generale.
+   * Le pagine contano così le righe che si vedono, e le commesse dentro arrivano sotto la loro
+   * generale (le legge a parte la lista). Senza, 44 unità appena create riempivano la prima
+   * pagina e le loro generali finivano in fondo: unità sciolte con «in O-…» (URBAN VISION, 14/11).
+   */
+  soloPrimoLivello?: boolean;
 }
 
 /** Le commesse scelte per id, senza nessun altro filtro. */
@@ -134,6 +141,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       if (allowedOrderIds !== null && allowedOrderIds.length <= 100) query = query.in("id", allowedOrderIds);
       if (filters.generaliFilter === "solo") query = query.or("workflow_kind.eq.generale,commessa_generale_id.not.is.null");
       if (filters.generaliFilter === "senza") query = query.or("workflow_kind.neq.generale").or("commessa_generale_id.is.null");
+      if (filters.soloPrimoLivello) query = query.is("commessa_generale_id", null);
       if (sf.includeStatuses.length) query = query.in("current_status_id", sf.includeStatuses);
       if (sf.excludeStatuses.length) query = query.or(`current_status_id.not.in.(${sf.excludeStatuses.join(",")}),current_status_id.is.null`);
       if (sf.orderSearch.trim()) {

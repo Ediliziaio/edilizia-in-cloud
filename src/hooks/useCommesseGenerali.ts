@@ -305,7 +305,17 @@ export interface MappaGenerali {
   incassiUnita?: Map<string, number>;
   /** Le permute delle unità: pagano il prezzo senza essere un incasso, quindi tolgono solo dal «da incassare». */
   permuteUnita?: Map<string, number>;
+  /**
+   * Lo stato di vendita delle unità, per commessa. Per un'unità è questo che conta, non lo stato di
+   * lavorazione della commessa (che nasce con quello predefinito dell'azienda, spesso «Contratto
+   * Firmato»): un'unità libera o prenotata non è un contratto e il suo listino non è da incassare.
+   */
+  statoVenditaUnita?: Map<string, StatoVenditaUnita>;
 }
+
+export type StatoVenditaUnita = "libera" | "prenotata" | "compromesso" | "rogitata";
+/** Libera o prenotata: nessun prezzo pattuito con un acquirente, quindi niente da incassare. */
+export const unitaInVendita = (stato: StatoVenditaUnita | undefined) => stato === "libera" || stato === "prenotata";
 
 const MAPPA_VUOTA: MappaGenerali = { figliePerGenerale: new Map(), generaleDellaFiglia: new Map() };
 
@@ -341,8 +351,8 @@ export function useMappaGenerali(): MappaGenerali {
           figliePerGenerale.set(r.commessa_generale_id, (figliePerGenerale.get(r.commessa_generale_id) ?? 0) + 1);
           generaleDellaFiglia.set(r.id, { id: r.commessa_generale_id, etichetta: generali.get(r.commessa_generale_id)! });
         }
-        const { incassi: incassiUnita, permute: permuteUnita } = await leggiMovimentiUnita(companyId!);
-        return { figliePerGenerale, generaleDellaFiglia, incassiUnita, permuteUnita };
+        const { incassi: incassiUnita, permute: permuteUnita, statoVendita: statoVenditaUnita } = await leggiMovimentiUnita(companyId!);
+        return { figliePerGenerale, generaleDellaFiglia, incassiUnita, permuteUnita, statoVenditaUnita };
       } catch {
         return MAPPA_VUOTA;
       }
@@ -523,17 +533,25 @@ export async function leggiIncassiUnita(companyId: string): Promise<Map<string, 
   return (await leggiMovimentiUnita(companyId)).incassi;
 }
 
-/** Caparre, acconti e saldi delle unità, e a parte le permute: pagano il prezzo ma non sono incassi. */
-export async function leggiMovimentiUnita(companyId: string): Promise<{ incassi: Map<string, number>; permute: Map<string, number> }> {
+/**
+ * Caparre, acconti e saldi delle unità, a parte le permute (pagano il prezzo ma non sono incassi),
+ * e lo stato di vendita di ogni unità, per commessa.
+ */
+export async function leggiMovimentiUnita(companyId: string): Promise<{
+  incassi: Map<string, number>; permute: Map<string, number>; statoVendita: Map<string, StatoVenditaUnita>;
+}> {
   const incassi = new Map<string, number>();
   const permute = new Map<string, number>();
+  const statoVendita = new Map<string, StatoVenditaUnita>();
   try {
     const [unita, movimenti] = await Promise.all([
-      db.from("unita_immobiliari").select("id, order_id").eq("company_id", companyId).limit(5000),
+      db.from("unita_immobiliari").select("id, order_id, stato_vendita").eq("company_id", companyId).limit(5000),
       db.from("unita_movimenti").select("unita_id, importo, tipo").eq("company_id", companyId).is('stornato_at',null).limit(20000),
     ]);
-    if (unita.error || movimenti.error) return { incassi, permute };
-    const ordineDi = new Map(((unita.data ?? []) as { id: string; order_id: string }[]).map((u) => [u.id, u.order_id]));
+    if (unita.error || movimenti.error) return { incassi, permute, statoVendita };
+    const righe = (unita.data ?? []) as { id: string; order_id: string; stato_vendita: StatoVenditaUnita | null }[];
+    const ordineDi = new Map(righe.map((u) => [u.id, u.order_id]));
+    for (const u of righe) if (u.stato_vendita) statoVendita.set(u.order_id, u.stato_vendita);
     for (const m of (movimenti.data ?? []) as { unita_id: string; importo: number | string; tipo: string }[]) {
       const ordine = ordineDi.get(m.unita_id);
       if (!ordine) continue;
@@ -541,5 +559,5 @@ export async function leggiMovimentiUnita(companyId: string): Promise<{ incassi:
       dove.set(ordine, (dove.get(ordine) ?? 0) + Number(m.importo || 0));
     }
   } catch { /* la lista funziona anche senza */ }
-  return { incassi, permute };
+  return { incassi, permute, statoVendita };
 }

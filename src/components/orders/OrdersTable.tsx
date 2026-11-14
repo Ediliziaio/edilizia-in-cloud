@@ -6,7 +6,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { Eye, Pencil, Trash2, X, ChevronDown, ChevronRight, HardHat, Layers, MoreVertical } from "lucide-react";
 import { raggruppaGenerali, sommaFiglie, type RigaAlbero } from "@/lib/orders/listaGenerali";
 import { nettoUnitaInLordo } from "@/lib/orders/incassiCommessa";
-import type { MappaGenerali } from "@/hooks/useCommesseGenerali";
+import { unitaInVendita, type MappaGenerali } from "@/hooks/useCommesseGenerali";
+import { NOMI_STATO } from "@/lib/orders/generali/unita";
+import { COLORE_STATO } from "@/components/orders/generali/unita/aspetto";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { format } from "date-fns";
@@ -85,7 +87,21 @@ function incassatoConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
   if(o.incasso_unita_lordo!=null) return getAmountCollected(o);
   return Math.max(getAmountCollected(o), nettoUnitaInLordo(mappa.incassiUnita?.get(o.id) ?? 0, o.vat_rate));
 }
+/** Unità libera o prenotata: nessun acquirente con un prezzo pattuito. */
+const inVendita = (o: OrderWithDetails, mappa: MappaGenerali) => unitaInVendita(mappa.statoVenditaUnita?.get(o.id));
+/**
+ * Lo stato da mostrare. Per un'unità è quello di vendita: la sua commessa nasce con lo stato
+ * predefinito dell'azienda («Contratto Firmato») anche se nessuno l'ha comprata.
+ */
+function statoMostrato(o: OrderWithDetails, mappa: MappaGenerali): { name: string; color: string } | null {
+  const v = mappa.statoVenditaUnita?.get(o.id);
+  if (v) return { name: NOMI_STATO[v].una, color: COLORE_STATO[v] };
+  return o.status ? { name: o.status.name, color: o.status.color } : null;
+}
+/** Il lordo che è un contratto: il listino di un'unità ancora in vendita non lo è. */
+const lordoVenduto = (o: OrderWithDetails, mappa: MappaGenerali) => (inVendita(o, mappa) ? 0 : getGrossOrderAmount(o));
 function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number {
+  if (inVendita(o, mappa)) return 0;
   const inPiu = incassatoConUnita(o, mappa) - getAmountCollected(o);
   const permuta = nettoUnitaInLordo(mappa.permuteUnita?.get(o.id) ?? 0, o.vat_rate);
   return Math.max(0, getAmountDue(o) - Math.max(0, inPiu) - permuta);
@@ -164,7 +180,11 @@ export const OrdersTable = React.memo(function OrdersTable({
   });
   const righe = useMemo<RigaAlbero<OrderWithDetails>[]>(
     () => raggruppaGenerali(
-      figlieFuoriPagina.length > 0 ? [...sortedItems, ...figlieFuoriPagina] : sortedItems,
+      // Le commesse lette a parte vanno sotto la generale in ordine di codice: create insieme
+      // (le unità in serie) hanno la stessa data, e l'ordine per data le mescolava.
+      figlieFuoriPagina.length > 0
+        ? [...sortedItems, ...[...figlieFuoriPagina].sort((a, b) => (a.order_code ?? "").localeCompare(b.order_code ?? "", "it", { numeric: true }))]
+        : sortedItems,
       (id) => mappaGenerali.generaleDellaFiglia.get(id)?.id,
       (id) => mappaGenerali.figliePerGenerale.has(id),
       aperte,
@@ -181,11 +201,15 @@ export const OrdersTable = React.memo(function OrdersTable({
       return {
         generale, totalIvato: getGrossOrderAmount(order), collected: incassato(order), due: daIncassare(order),
         variableCosts: orderCosts.get(order.id)?.variableCosts ?? 0,
+        unitaInVendita: inVendita(order, mappaGenerali), listinoInVendita: 0,
       };
     }
     return {
       generale,
-      totalIvato: sommaFiglie(riga.figlie, getGrossOrderAmount),
+      unitaInVendita: false,
+      // Il totale della generale è il venduto; il listino di ciò che è ancora in vendita sta a parte.
+      listinoInVendita: sommaFiglie(riga.figlie, (f) => (inVendita(f, mappaGenerali) ? getGrossOrderAmount(f) : 0)),
+      totalIvato: sommaFiglie(riga.figlie, (f) => lordoVenduto(f, mappaGenerali)),
       collected: sommaFiglie(riga.figlie, incassato),
       due: sommaFiglie(riga.figlie, daIncassare),
       variableCosts: sommaFiglie(riga.figlie, (f) => orderCosts.get(f.id)?.variableCosts ?? 0) + (orderCosts.get(order.id)?.variableCosts ?? 0),
@@ -249,7 +273,8 @@ export const OrdersTable = React.memo(function OrdersTable({
       <div className="sm:hidden divide-y">
         {righe.map((riga) => {
           const order = riga.order;
-          const { generale, totalIvato, collected, due } = numeriRiga(riga);
+          const { generale, totalIvato, collected, due, unitaInVendita: libera, listinoInVendita } = numeriRiga(riga);
+          const stato = statoMostrato(order, mappaGenerali);
           const aperta = aperte.has(order.id);
           return (
             // Due colonne: a sinistra codice e stato, descrizione, cliente; a
@@ -279,10 +304,10 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
                   {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
-                  {order.status && (
-                    <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: order.status.color }}>
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: order.status.color }} />
-                      <span className="truncate">{order.status.name}</span>
+                  {stato && (
+                    <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: stato.color }}>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
+                      <span className="truncate">{stato.name}</span>
                     </span>
                   )}
                 </div>
@@ -294,8 +319,13 @@ export const OrdersTable = React.memo(function OrdersTable({
                 )}
               </div>
               <div className="shrink-0 text-right tabular-nums">
-                <p className="text-sm font-bold leading-tight">{generale && riga.figlie.length === 0 ? "—" : formatCurrency(totalIvato)}</p>
-                {due > 0 ? (
+                {libera ? (
+                  <p className="text-sm leading-tight text-muted-foreground">{formatCurrency(totalIvato)} <span className="text-[11px]">listino</span></p>
+                ) : (
+                  <p className="text-sm font-bold leading-tight">{(generale && riga.figlie.length === 0) || (generale && totalIvato === 0 && listinoInVendita > 0) ? "—" : formatCurrency(totalIvato)}</p>
+                )}
+                {generale && listinoInVendita > 0 && <p className="text-[11px] text-muted-foreground">in vendita {formatCurrencyCompact(listinoInVendita)}</p>}
+                {libera ? null : due > 0 ? (
                   <p className="text-[11px] font-medium text-orange-600 dark:text-orange-400">da ricevere {formatCurrencyCompact(due)}</p>
                 ) : collected > 0 ? (
                   <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">✓ Saldato</p>
@@ -427,7 +457,9 @@ export const OrdersTable = React.memo(function OrdersTable({
           >
             {renderedItems.map(({ vr, riga }) => {
               const order = riga.order;
-              const { generale, totalIvato, collected, due, variableCosts } = numeriRiga(riga);
+              const { generale, totalIvato, collected, due, variableCosts, unitaInVendita: libera, listinoInVendita } = numeriRiga(riga);
+              const stato = statoMostrato(order, mappaGenerali);
+              const nienteVenduto = generale && totalIvato === 0 && listinoInVendita > 0;
               const aperta = aperte.has(order.id);
               const pending = getPendingPayments(order);
               const timing = orderPaymentTiming(order);
@@ -517,7 +549,14 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("totalIvato") && (
                     <TableCell className="hidden sm:table-cell text-right" title={generale ? "Somma delle commesse dentro" : undefined}>
-                      {generale && riga.figlie.length === 0 ? "—" : <span className={generale ? "italic" : undefined}>{formatCurrency(totalIvato)}</span>}
+                      {libera ? (
+                        <span className="text-muted-foreground" title="Prezzo di listino: l'unità non è ancora venduta">
+                          {formatCurrency(totalIvato)}<span className="block text-xs">listino</span>
+                        </span>
+                      ) : generale && (riga.figlie.length === 0 || nienteVenduto) ? "—" : <span className={generale ? "italic" : undefined}>{formatCurrency(totalIvato)}</span>}
+                      {generale && listinoInVendita > 0 && (
+                        <span className="block text-xs text-muted-foreground">in vendita {formatCurrency(listinoInVendita)}</span>
+                      )}
                     </TableCell>
                   )}
                   {visibleColumns.has("imponibile") && (
@@ -534,9 +573,13 @@ export const OrdersTable = React.memo(function OrdersTable({
                   )}
                   {visibleColumns.has("due") && (
                     <TableCell className="hidden md:table-cell text-right">
+                      {libera || nienteVenduto ? (
+                        <span className="text-muted-foreground">—<span className="block text-xs">{libera ? "Non venduta" : "Niente di venduto"}</span></span>
+                      ) : (
                       <span className={due > 0 ? "text-orange-600 dark:text-orange-400 font-medium" : "text-emerald-600 dark:text-emerald-400"}>
                         {formatCurrency(due)}
                       </span>
+                      )}
                       {due > 0.01 && <span className={`mt-0.5 block text-xs ${timing.overdueDays ? "font-medium text-red-700" : "text-muted-foreground"}`}>
                         {timing.overdueDays ? `Scaduto da ${timing.overdueDays} gg` : timing.nextDate ? `Scadenza ${format(new Date(`${timing.nextDate}T00:00:00`), "dd/MM/yyyy")}` : "Scadenza non indicata"}
                       </span>}
@@ -628,18 +671,18 @@ export const OrdersTable = React.memo(function OrdersTable({
                     </TableCell>
                   )}
                   <TableCell>
-                    {order.status ? (
+                    {stato ? (
                       <Badge
                         variant="outline"
                         style={{
-                          borderColor: order.status.color,
-                          color: order.status.color,
+                          borderColor: stato.color,
+                          color: stato.color,
                         }}
                       >
-                        {order.status.name}
+                        {stato.name}
                       </Badge>
                     ) : generale && riga.figlie.length > 0 ? (
-                      <StatiFiglie figlie={riga.figlie} />
+                      <StatiFiglie figlie={riga.figlie} mappa={mappaGenerali} />
                     ) : (
                       "—"
                     )}
@@ -705,12 +748,13 @@ function SegnoGenerale({ order, mappa, compatto = false }: { order: OrderWithDet
 }
 
 /** Generale senza stato suo: gli stati delle commesse dentro, il più frequente in vista e gli altri nel titolo. */
-function StatiFiglie({ figlie }: { figlie: OrderWithDetails[] }) {
+function StatiFiglie({ figlie, mappa }: { figlie: OrderWithDetails[]; mappa: MappaGenerali }) {
   const conti = new Map<string, { n: number; colore: string | undefined }>();
   for (const f of figlie) {
-    const nome = f.status?.name ?? "Senza stato";
+    const stato = statoMostrato(f, mappa);
+    const nome = stato?.name ?? "Senza stato";
     const prima = conti.get(nome);
-    conti.set(nome, { n: (prima?.n ?? 0) + 1, colore: f.status?.color ?? prima?.colore });
+    conti.set(nome, { n: (prima?.n ?? 0) + 1, colore: stato?.color ?? prima?.colore });
   }
   const ordinati = [...conti.entries()].sort((a, b) => b[1].n - a[1].n);
   const [nome, { n, colore }] = ordinati[0];

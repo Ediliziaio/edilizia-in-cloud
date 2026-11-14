@@ -70,7 +70,7 @@ import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
 import { RaggruppaDialog } from "@/components/orders/generali/RaggruppaDialog";
 import { NuovaGeneraleDialog } from "@/components/orders/generali/NuovaGeneraleDialog";
-import { leggiIdGenerali, leggiMovimentiUnita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
+import { leggiIdGenerali, leggiMovimentiUnita, unitaInVendita, useImpostazioniCommesseGenerali, useMappaGenerali } from "@/hooks/useCommesseGenerali";
 import type { ModelloGenerale } from "@/lib/orders/commesseGenerali";
 
 // MP-CAN-001 — types/constants estratti in ./OrdersList/constants.ts
@@ -283,7 +283,7 @@ function OrdersListInner() {
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
     queryKey: ["orders-global-stats", "annual-management-v3", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
     queryFn: async () => {
-      const EMPTY = { annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[] };
+      const EMPTY = { annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[], unitaInVenditaIds: [] as string[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
@@ -306,9 +306,13 @@ function OrdersListInner() {
       // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
       const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
       // Caparre, acconti e saldi delle unità in vendita contano come incassato anche nei riquadri in alto.
-      const { incassi: incassiUnita, permute: permuteUnita } = generaliConfigurate ? await leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined };
+      const { incassi: incassiUnita, permute: permuteUnita, statoVendita } = generaliConfigurate ? await leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined, statoVendita: undefined };
       const generali = new Set(generaliIds);
-      const righeCheContano = generali.size ? rows.filter(order => !generali.has(order.id)) : rows;
+      // Nemmeno le unità ancora in vendita: sono appartamenti da vendere, non lavori né crediti
+      // (44 unità di URBAN VISION contavano come 44 contratti firmati da incassare, 14/11).
+      const righeCheContano = generali.size
+        ? rows.filter(order => !generali.has(order.id) && !unitaInVendita(statoVendita?.get(order.id)))
+        : rows;
       const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
       const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
       const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
@@ -331,7 +335,8 @@ function OrdersListInner() {
         else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
       }
       const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
-      return { annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds };
+      const unitaInVenditaIds = [...(statoVendita?.entries() ?? [])].filter(([, v]) => unitaInVendita(v)).map(([id]) => id);
+      return { annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds, unitaInVenditaIds };
     },
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
     refetchOnMount: "always",
@@ -348,8 +353,9 @@ function OrdersListInner() {
   const listScopeCounts = useMemo(() => {
     const ids = new Set(isYearCorrente ? listScopeIds : scopeOrderIds);
     for (const id of globalStats?.generaliIds ?? []) ids.delete(id); // le generali non sono lavori da contare
+    for (const id of globalStats?.unitaInVenditaIds ?? []) ids.delete(id); // né le unità ancora da vendere
     return orderWorkflowCounts(scopeOrders.filter(order=>ids.has(order.id)),lastStatusId,supportStatusId,new Set(globalStats?.supportOrderIds ?? []));
-  },[scopeOrders,listScopeIds,scopeOrderIds,isYearCorrente,lastStatusId,supportStatusId,globalStats?.supportOrderIds,globalStats?.generaliIds]);
+  },[scopeOrders,listScopeIds,scopeOrderIds,isYearCorrente,lastStatusId,supportStatusId,globalStats?.supportOrderIds,globalStats?.generaliIds,globalStats?.unitaInVenditaIds]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
@@ -386,12 +392,21 @@ function OrdersListInner() {
       contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds]);
   }
 
+  // Senza ricerca né filtri sulle righe, le pagine contano solo generali e commesse normali: le
+  // commesse dentro una generale stanno sotto di lei (figlieFuoriPagina), mai sciolte in un'altra
+  // pagina. Con un filtro sulle righe si cercano anche quelle dentro, con la loro etichetta «in O-…».
+  const soloPrimoLivello = mappaGenerali.figliePerGenerale.size > 0 && generaliFilter !== "senza"
+    && !debouncedSearch && statusFilter === "all" && paymentFilter === "all" && customerFilter === "all"
+    && !amountMin && !amountMax && salespersonFilter === "all" && laborFilter === "all" && supplierFilter === "all"
+    && focusIds === null && countActiveFilters(sidebarFilters) === 0
+    && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
+    && !expectedDateRange.from && !expectedDateRange.to && monthFilter === "all";
   const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
     queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
     enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
     placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
@@ -1033,6 +1048,8 @@ function OrdersListInner() {
 
     monthlyOrders.forEach((order: any) => {
       if (!order.created_at) return;
+      // Un'unità ancora in vendita non è venduto: il suo listino resta fuori dal grafico.
+      if (unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))) return;
       const date = new Date(order.created_at);
       if (Number.isNaN(date.getTime())) return;
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -1045,16 +1062,16 @@ function OrdersListInner() {
     });
 
     return months;
-  }, [monthlyOrders, hasSelectedYear, selectedYear, isYearCorrente, currentYear]);
+  }, [monthlyOrders, hasSelectedYear, selectedYear, isYearCorrente, currentYear, mappaGenerali]);
 
   const chartWithComparison = useMemo(() => {
     if (!comparisonEnabled || !comparisonPeriod || comparisonPending || comparisonError) return monthlySalesChart;
-    const values = (rows: typeof monthlyOrders) => rows.map(order => ({
+    const values = (rows: typeof monthlyOrders) => rows.filter(order => !unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))).map(order => ({
       created_at: order.created_at!, venduto: getGrossOrderAmount(order as any),
       incassato: getAmountCollected(order as any), daIncassare: getAmountDue(order as any),
     }));
     return comparableOrderMonths(monthlySalesChart, values(monthlyOrders), values(previousChartOrders), comparisonPeriod);
-  }, [comparisonEnabled, comparisonPeriod?.to.getTime(), comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders]);
+  }, [comparisonEnabled, comparisonPeriod?.to.getTime(), comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders, mappaGenerali]);
 
   const monthlySalesTotals = useMemo(() => {
     return monthlySalesChart.reduce(
