@@ -16,7 +16,7 @@ import {
 } from "../_shared/openwaSend.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
-import { mappaStatoOpenWa, statoGrezzoDaPayload } from "../_shared/openwaStato.ts";
+import { eQrNonPronto, mappaStatoOpenWa, statoGrezzoDaPayload } from "../_shared/openwaStato.ts";
 // URL pubblico del webhook (il gateway esterno lo chiama a ogni evento).
 function webhookUrl(): string {
   const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
@@ -279,6 +279,11 @@ serveConMetriche("openwa-gateway", async (req) => {
       if (!sessionId) return new Response(JSON.stringify({ error: "session_id richiesto" }), { status: 400, headers: jsonH });
 
       const r = await owaFetch(cfg, OWA_PATHS.getQr(sessionId));
+      // Il QR che non è ancora pronto non è un errore: si risponde «aspetta» e
+      // chi ha chiesto riprova tra qualche secondo, senza buttare la sessione.
+      if (!r.ok && eQrNonPronto(r)) {
+        return new Response(JSON.stringify({ ok: true, qr: null, in_attesa: true }), { headers: jsonH });
+      }
       if (!r.ok) return new Response(JSON.stringify({ error: `Gateway: ${r.status} ${r.text}` }), { status: 502, headers: jsonH });
       const qr = r.json?.qrCode ?? r.json?.qr ?? r.json?.data ?? r.text;
       return new Response(JSON.stringify({ ok: true, qr, status: r.json?.status ?? null }), { headers: jsonH });

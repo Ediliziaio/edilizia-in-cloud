@@ -51,3 +51,18 @@ export function mappaStatoOpenWa(raw: string): StatoOpenWa | null {
 export function riassuntoPayload(payload: unknown, max = 300): string {
   try { return JSON.stringify(payload).slice(0, max); } catch { return String(payload).slice(0, max); }
 }
+
+/** «QR code is not ready yet. Please wait...» — è un'ATTESA, non un guasto.
+ *
+ *  Dopo `start` il motore impiega qualche secondo a caricare WhatsApp Web, e
+ *  finché non ha finito il QR non esiste. Il gateway lo dice con un 400, che
+ *  diventava «Gateway: 400 …» mostrato in rosso: il 14/11/2026 «Ricollega
+ *  Iphone» ha spaventato con quel messaggio mentre la sessione stava
+ *  ripartendo davvero (risultava connessa pochi minuti dopo). Chi legge pensa
+ *  che serva un intervento, e intanto il dialog tornava indietro senza QR.
+ *
+ *  Attenzione a non allargare la rete: un 400 che parla d'altro (nome non
+ *  valido, sessione sconosciuta) resta un errore da mostrare. */
+export function eQrNonPronto(r: { status: number; text?: string }): boolean {
+  return r.status === 400 && /not ready|please wait/i.test(r.text ?? "");
+}

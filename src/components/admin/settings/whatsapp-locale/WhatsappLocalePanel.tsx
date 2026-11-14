@@ -266,6 +266,10 @@ export default function WhatsappLocalePanel() {
   const [displayName, setDisplayName] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [qr, setQr] = useState("");
+  // Il ciclo di polling deve sapere se un QR c'è già senza rinascere a ogni
+  // cambio di `qr` (si rimetterebbe in piedi l'intervallo da capo).
+  const qrRef = useRef("");
+  useEffect(() => { qrRef.current = qr; }, [qr]);
   const [polling, setPolling] = useState(false);
   // Lo stesso dialog serve anche a RICOLLEGARE un numero già in lista: cambia
   // solo il testo e il fatto che la sessione esiste già.
@@ -303,7 +307,9 @@ export default function WhatsappLocalePanel() {
     const tick = async () => {
       ticks++;
       // Ogni ~21s ri-scarica il QR: OpenWA lo rigenera e quello mostrato scade.
-      if (ticks % 7 === 0) {
+      // Finché un QR non c'è ancora (il motore sta caricando WhatsApp Web) si
+      // chiede a ogni giro: è l'attesa che l'utente sta guardando.
+      if (!qrRef.current || ticks % 7 === 0) {
         try {
           const q = await invokeGateway("get_qr", { session_id: sessionId });
           if (!cancelled) setQr(String(q.qr ?? ""));
@@ -350,9 +356,16 @@ export default function WhatsappLocalePanel() {
       const nuovoSid = String(r.session_id ?? sid);
       setSessionId(nuovoSid);
       if (r.ricreata) toast.message("Sessione ricreata sul gateway: inquadra il nuovo QR.");
-      const qrData = await invokeGateway("get_qr", { session_id: nuovoSid });
-      setQr(String(qrData.qr ?? ""));
+      // La sessione è ripartita: da qui in poi niente può più buttarla via.
+      // Il QR arriva quando il motore ha finito di caricare — qualche secondo —
+      // e se non c'è ancora (o la chiamata non riesce) ci pensa il polling, che
+      // lo richiede ogni 3 secondi. Prima un QR non pronto faceva chiudere
+      // tutto con un errore rosso mentre il numero si stava ricollegando.
       setPolling(true);
+      try {
+        const qrData = await invokeGateway("get_qr", { session_id: nuovoSid });
+        setQr(String(qrData.qr ?? ""));
+      } catch { /* il polling riprova */ }
       queryClient.invalidateQueries({ queryKey: ["openwa", "numbers"] });
     } catch (e) {
       // Torniamo allo stato "nessun QR" così il footer mostra "Riprova".
@@ -634,7 +647,11 @@ export default function WhatsappLocalePanel() {
               )}
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                {relinkLoading ? "Riavvio della sessione sul gateway…" : "In attesa della scansione… il QR si rinnova da solo."}
+                {relinkLoading
+                  ? "Riavvio della sessione sul gateway…"
+                  : qr
+                    ? "In attesa della scansione… il QR si rinnova da solo."
+                    : "Il QR si sta preparando: il telefono virtuale sta caricando WhatsApp, ci vogliono pochi secondi."}
               </p>
 
               {/* Il QR a volte non si lascia inquadrare (schermo piccolo, fotocamera
