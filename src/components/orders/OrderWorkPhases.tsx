@@ -56,6 +56,7 @@ import { SottofasiFase, type PianoSottofase } from "./SottofasiFase";
 import { DitteContrattiCommessa } from "./DitteContrattiCommessa";
 import { SilvioAiuto } from "@/components/silvio/SilvioAiuto";
 import { controlliFasi, type AzioneSilvio } from "@/lib/orders/silvioControlli";
+import { ImportaFasiDaComputo } from "@/components/orders/ImportaFasiDaComputo";
 import { ModelliFasiPicker } from "./ModelliFasiPicker";
 import { SalvaFasiComeModello } from "./SalvaFasiComeModello";
 import { faseHaSottofasi, fineDaGiorni, vociDelleSottofasi, type Sottofase, type VoceSottofase } from "@/lib/orders/sottofasi";
@@ -180,7 +181,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   const showWork = true;
   const showTeam = showWork;
   const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
-  const { role } = useAuth();
+  const { role, user, effectiveCompany } = useAuth();
   const puoModelli = role === "company_admin" || role === "super_admin" || !!canEditSettingsOrders;
   // Squadre: le mette sulla commessa chi modifica le commesse o gli operai.
   const puoSquadre = canEditOrders || canEditOperai;
@@ -382,7 +383,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     }]));
   }, [modoFasi, phases, employees, externalTeams, squadrePerFase, mezziPerFase, materialsByPhase]);
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
-  const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello">("manuale");
+  const [phaseCreationMode, setPhaseCreationMode] = useState<"manuale" | "modello" | "computo">("manuale");
   const [filter, setFilter] = useState<WorkFilter>("all");
   const [search, setSearch] = useState("");
   const [completedVisibility, setCompletedVisibility] = useState<{orderId: string; value: boolean} | null>(null);
@@ -483,11 +484,17 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Aggiungi una fase</DialogTitle>
-                  <DialogDescription>Scrivi una fase oppure usa un modello con più fasi.</DialogDescription>
+                  <DialogDescription>Scrivi una fase, usa un modello oppure importa le fasi da un computo o da un preventivo.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-2" aria-label="Come aggiungere le fasi"><Button variant={phaseCreationMode === "manuale" ? "default" : "outline"} aria-pressed={phaseCreationMode === "manuale"} onClick={() => setPhaseCreationMode("manuale")}>Scrivi una fase</Button><Button variant={phaseCreationMode === "modello" ? "default" : "outline"} aria-pressed={phaseCreationMode === "modello"} onClick={() => setPhaseCreationMode("modello")}>Usa un modello</Button></div>
+                  <div className="grid grid-cols-3 gap-2" aria-label="Come aggiungere le fasi"><Button variant={phaseCreationMode === "manuale" ? "default" : "outline"} aria-pressed={phaseCreationMode === "manuale"} onClick={() => setPhaseCreationMode("manuale")}>Scrivi una fase</Button><Button variant={phaseCreationMode === "modello" ? "default" : "outline"} aria-pressed={phaseCreationMode === "modello"} onClick={() => setPhaseCreationMode("modello")}>Usa un modello</Button><Button variant={phaseCreationMode === "computo" ? "default" : "outline"} aria-pressed={phaseCreationMode === "computo"} onClick={() => setPhaseCreationMode("computo")}>Da computo o preventivo</Button></div>
+                  {/* Computo o preventivo → fasi con le righe per i SAL (14/11/2026) */}
+                  {phaseCreationMode === "computo" && effectiveCompany?.id && user?.id && <ImportaFasiDaComputo
+                    orderId={orderId} companyId={effectiveCompany.id} userId={user.id}
+                    fasiEsistenti={phases.map((p) => p.name)} mostraImporti={canViewOrderAmounts}
+                    onFatto={() => { void refetch(); closePhaseDialog(); }}
+                  />}
                   {/* Modelli di fasi: quelli dell'azienda (con le sottofasi); finché non sono suoi, gli stessi di sempre */}
                   {phaseCreationMode === "modello" && <ModelliFasiPicker
                     inCorso={applyTemplate.isPending}
