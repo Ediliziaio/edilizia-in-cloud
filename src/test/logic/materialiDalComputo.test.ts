@@ -278,6 +278,13 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
       expect(confezioneComune("Idropittura per interni", "l")).toEqual({ quantita: 14, unita: "l", nome: "secchio" });
       expect(confezioneComune("Primer per autolivellante", "l")).toMatchObject({ nome: "tanica" });
       expect(confezioneComune("Sabbia per massetti", "mc")).toBeNull();
+      // Un listino a taniche si collega e converte (prova su Demo 2 col listino Edilmateriali Roma).
+      const fiss = generaDistinta({ voci: [voce({ id: "t", descrizione_breve: "Tinteggiatura di pareti con idropittura a due mani", unita_misura: "mq", quantita: 100 })], scomposizioni: [], riserva: catalogoComeScomposizioni() })
+        .righe.find((m) => m.descrizione === "Fissativo")!;
+      const [conListino] = collegaMateriali([fiss], { articoli: [], giaUsati: [],
+        listini: [{ id: "l-fis", codice: "FIS5", descrizione: "Fissativo acrilico per interni tanica 5 l", unita: "tanica", prezzo: 19.5, sconto_pct: 15, supplier_id: "f1", listino: "Listino" }] });
+      expect(conListino.collegamento).toMatchObject({ id: "l-fis", prezzo: 16.575 });
+      expect(conListino.conversione).toMatchObject({ quantita: 3, unita: "tanica", contenuto: 5 });
       expect(confezioneComune("Cavo unipolare", "m")).toBeNull();
     });
 

@@ -59,9 +59,12 @@ function provenienza(origini: OrigineRiga[]): { breve: string; tutte: string } {
   return { breve: `da ${etichetta(prima)}${origini.length > 1 ? ` e altre ${origini.length - 1}` : ""}`, tutte: origini.map(etichetta).join("\n") };
 }
 
+/** «Listino Primavera 2026», ma «Listino» se il listino si chiama già così (Demo 2: «Listino Listino»). */
+const nomeListino = (nome: string | null | undefined) => !nome?.trim() ? "Listino" : /^listino\b/i.test(nome.trim()) ? nome.trim() : `Listino ${nome.trim()}`;
+
 function nomeCollegamento(c: Collegamento, fornitori: Map<string, string>): { nome: string; sotto: string } {
   const fornitore = c.supplier_id ? fornitori.get(c.supplier_id) : null;
-  const dove = c.tipo === "listino" ? [c.listino ? `Listino ${c.listino}` : "Listino", fornitore].filter(Boolean).join(" · ") : fornitore ?? "Catalogo";
+  const dove = c.tipo === "listino" ? [nomeListino(c.listino), fornitore].filter(Boolean).join(" · ") : fornitore ?? "Catalogo";
   return { nome: c.nome, sotto: dove };
 }
 
@@ -80,7 +83,7 @@ function SceltaArticoloRiga({ m, articoli, listini, fornitori, mostraPrezzi, onS
       ...articoli.filter((a) => ok(`${a.name} ${a.sku ?? ""} ${a.marca ?? ""} ${a.modello ?? ""}`)).slice(0, 6)
         .map((a) => ({ tipo: "articolo" as const, id: a.id, nome: a.name, sotto: (a.supplier_id && fornitori.get(a.supplier_id)) || "Catalogo", unita: a.unit_of_measure ?? null, prezzo: Number(a.prezzo_acquisto_netto) || Number(a.standard_cost) || null })),
       ...listini.filter((l) => ok(`${l.descrizione} ${l.codice ?? ""}`)).slice(0, 6)
-        .map((l) => ({ tipo: "listino" as const, id: l.id, nome: l.descrizione, sotto: [l.listino ? `Listino ${l.listino}` : "Listino", l.supplier_id ? fornitori.get(l.supplier_id) : null].filter(Boolean).join(" · "), unita: l.unita ?? null,
+        .map((l) => ({ tipo: "listino" as const, id: l.id, nome: l.descrizione, sotto: [nomeListino(l.listino), l.supplier_id ? fornitori.get(l.supplier_id) : null].filter(Boolean).join(" · "), unita: l.unita ?? null,
           prezzo: Number(l.prezzo) > 0 ? Math.round(Number(l.prezzo) * (1 - (Number(l.sconto_pct) || 0) / 100) * 100) / 100 : null })),
     ];
   }, [cerca, articoli, listini, fornitori]);

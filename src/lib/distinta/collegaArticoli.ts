@@ -137,7 +137,8 @@ const PAROLE_VUOTE = new Set([
 ]);
 
 /** Unità di confezione: il materiale si conta in kg o litri, l'articolo a confezioni. */
-const CONFEZIONI = /^(sacc|sacch|secch|latt|tanich|confez|conf|bidon|fust|cartuc|rotol)/;
+// «tanic»: tanica e taniche (14/11/2026, il fissativo «tanica 5 l» del listino non si collegava).
+const CONFEZIONI = /^(sacc|sacch|secch|latt|tanic|confez|conf|bidon|fust|cartuc|rotol)/;
 
 /** Le radici significative: prime 6 lettere, niente numeri da soli. */
 function radici(s: string): string[] {
