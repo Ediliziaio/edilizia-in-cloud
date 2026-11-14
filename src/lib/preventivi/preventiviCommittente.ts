@@ -311,7 +311,8 @@ export function bozzaLavoroExtra(q: TestataPerVariante, righe: RigaPerVariante[]
     amount: perVoci ? "" : virgola(imponibile),
     lines: perVoci
       ? vere.map((r, i) => ({
-          id: `preventivo-${i + 1}`,
+          // Un uuid, come ogni voce di variante: variante-commessa rifiuta altro («Voce della variante non valida»).
+          id: crypto.randomUUID(),
           description: [(r.name ?? "").trim(), (r.description ?? "").trim()].filter(Boolean).join(" — "),
           quantity: virgola(Number(r.quantity)),
           price: virgola(prezzoNetto(r)),

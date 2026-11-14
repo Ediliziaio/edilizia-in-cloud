@@ -192,3 +192,20 @@ describe("preventiviImportabili (14/11/2026)", () => {
     expect(preventiviImportabili([q("a", "accettata"), q("d", "accettata")], []).map((x) => x.id)).toEqual(["a", "d"]);
   });
 });
+
+describe("bozzaLavoroExtra: voci con id valido (14/11/2026)", () => {
+  it("ogni voce ha un uuid, come chiede variante-commessa", async () => {
+    const { isVariationUuid } = await import("@/lib/orders/variationWorkspace");
+    const bozza = bozzaLavoroExtra(
+      { quote_number: "P/1", title: "T", description: null, signed_at: null, signed_by_name: null, subtotal: 300, discount_amount: 0, total: 366, vat_amount: 66 },
+      [
+        { name: "A", description: null, quantity: 1, unit_price: 100, unit_of_measure: "corpo", item_category: "posa", is_optional: false, discount_percent: 0 },
+        { name: "B", description: null, quantity: 2, unit_price: 100, unit_of_measure: "mq", item_category: "posa", is_optional: false, discount_percent: 0 },
+      ],
+      emptyVariationDraft(),
+    );
+    expect(bozza.pricing).toBe("voci");
+    expect(bozza.lines).toHaveLength(2);
+    expect(bozza.lines.every((l) => isVariationUuid(l.id))).toBe(true);
+  });
+});
