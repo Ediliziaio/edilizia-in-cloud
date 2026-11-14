@@ -8,19 +8,23 @@
  *    «leasing», «interessi», «commercialista»…), usata quando la prima nota dice solo «altro»;
  *  - movimenti del Previsionale (`FORECAST_CATEGORIES` + fonte + categoria della spesa);
  *  - voci manuali del Controllo di gestione (categoria scelta nell'editor).
- * Ciò che non si riconosce va in «Altri incassi» / «Altre uscite» e si conta come non classificato.
+ * Dal 14/11/2026 vince la categoria CONFERMATA sul movimento di banca (`cassa_voci`, il catalogo
+ * dell'azienda): ogni voce del catalogo dice in quale di queste righe finisce.
+ * Ciò che non si riconosce va in «Da classificare» e si conta come non classificato.
  */
 import type { ForecastMovement } from "@/lib/finance/forecastLedger";
 
-export type GruppoCassa = "incassi" | "uscite" | "investimenti" | "finanziamenti";
+export type GruppoCassa = "incassi" | "uscite" | "investimenti" | "finanziamenti" | "altri";
 
 export type VoceCassa =
   | "inc_clienti"
   | "inc_acconti"
   | "inc_incentivi"
   | "inc_altri"
+  | "inc_fiscali"
   | "inc_giroconti"
   | "inc_manuali"
+  | "inc_da_classificare"
   | "usc_materiali"
   | "usc_subappalti"
   | "usc_personale"
@@ -29,19 +33,28 @@ export type VoceCassa =
   | "usc_generali"
   | "usc_consulenze"
   | "usc_mezzi"
+  | "usc_marketing"
   | "usc_provvigioni"
+  | "usc_banca"
+  | "usc_rimborsi_clienti"
   | "usc_blocca_prezzo"
   | "usc_altre"
   | "usc_giroconti"
   | "usc_manuali"
+  | "usc_da_classificare"
   | "inv_cespiti"
+  | "inv_finanziari"
+  | "inv_disinvestimenti"
   | "inv_manuali"
   | "fin_mutui_capitale"
   | "fin_mutui_interessi"
   | "fin_leasing"
   | "fin_entrate"
+  | "fin_interessi_attivi"
   | "fin_soci_uscite"
-  | "fin_manuali";
+  | "fin_manuali"
+  | "alt_cauzioni_in"
+  | "alt_cauzioni_out";
 
 export interface DefinizioneVoce {
   key: VoceCassa;
@@ -51,6 +64,8 @@ export interface DefinizioneVoce {
   sempre: boolean;
   /** Spiegazione breve (tooltip). */
   aiuto?: string;
+  /** Riga di parcheggio: movimenti veri senza categoria, da evidenziare. */
+  daClassificare?: boolean;
 }
 
 /** Ordine delle righe nella tabella. */
@@ -59,29 +74,40 @@ export const VOCI_CASSA: DefinizioneVoce[] = [
   { key: "inc_acconti", gruppo: "incassi", label: "Acconti dai clienti", sempre: true },
   { key: "inc_incentivi", gruppo: "incassi", label: "Incentivi e bonus (blocca prezzo, sconto in fattura)", sempre: true },
   { key: "inc_altri", gruppo: "incassi", label: "Altri incassi", sempre: true },
+  { key: "inc_fiscali", gruppo: "incassi", label: "Rimborsi fiscali ricevuti", sempre: false },
   { key: "inc_giroconti", gruppo: "incassi", label: "Giroconti in entrata (tra i tuoi conti)", sempre: false, aiuto: "Soldi spostati da un tuo conto all'altro: si compensano con i giroconti in uscita." },
   { key: "inc_manuali", gruppo: "incassi", label: "Voci manuali (solo Controllo di gestione)", sempre: false },
+  { key: "inc_da_classificare", gruppo: "incassi", label: "Da classificare", sempre: false, daClassificare: true, aiuto: "Incassi veri, già nel saldo, a cui manca la categoria. Aprili e scegline una: non spariscono, cambiano riga." },
   { key: "usc_materiali", gruppo: "uscite", label: "Fornitori di materiali", sempre: true },
-  { key: "usc_subappalti", gruppo: "uscite", label: "Subappalti e squadre esterne", sempre: true },
+  { key: "usc_subappalti", gruppo: "uscite", label: "Subappalti, squadre e servizi di cantiere", sempre: true },
   { key: "usc_personale", gruppo: "uscite", label: "Personale (stipendi netti)", sempre: true },
-  { key: "usc_contributi", gruppo: "uscite", label: "Contributi, ritenute e F24", sempre: true },
+  { key: "usc_contributi", gruppo: "uscite", label: "Imposte, contributi, ritenute e F24", sempre: true },
   { key: "usc_iva", gruppo: "uscite", label: "IVA versata", sempre: true },
   { key: "usc_generali", gruppo: "uscite", label: "Affitti, utenze e costi generali", sempre: true },
   { key: "usc_consulenze", gruppo: "uscite", label: "Consulenze (commercialista, consulente del lavoro)", sempre: true },
   { key: "usc_mezzi", gruppo: "uscite", label: "Carburanti, mezzi e trasporti", sempre: true },
+  { key: "usc_marketing", gruppo: "uscite", label: "Marketing e vendite", sempre: false },
   { key: "usc_provvigioni", gruppo: "uscite", label: "Provvigioni dei venditori", sempre: false },
+  { key: "usc_banca", gruppo: "uscite", label: "Commissioni e spese bancarie", sempre: false },
+  { key: "usc_rimborsi_clienti", gruppo: "uscite", label: "Rimborsi e storni ai clienti", sempre: false },
   { key: "usc_blocca_prezzo", gruppo: "uscite", label: "Blocca prezzo da restituire", sempre: false },
   { key: "usc_altre", gruppo: "uscite", label: "Altre uscite", sempre: true },
   { key: "usc_giroconti", gruppo: "uscite", label: "Giroconti in uscita (tra i tuoi conti)", sempre: false, aiuto: "Soldi spostati da un tuo conto all'altro: si compensano con i giroconti in entrata." },
   { key: "usc_manuali", gruppo: "uscite", label: "Voci manuali (solo Controllo di gestione)", sempre: false },
-  { key: "inv_cespiti", gruppo: "investimenti", label: "Acquisto di attrezzature e mezzi", sempre: true },
+  { key: "usc_da_classificare", gruppo: "uscite", label: "Da classificare", sempre: false, daClassificare: true, aiuto: "Uscite vere, già nel saldo, a cui manca la categoria. Aprile e scegline una: non spariscono, cambiano riga." },
+  { key: "inv_cespiti", gruppo: "investimenti", label: "Acquisti di beni durevoli (attrezzature, mezzi, impianti)", sempre: true },
+  { key: "inv_finanziari", gruppo: "investimenti", label: "Investimenti finanziari, prestiti concessi, crediti acquistati", sempre: false },
+  { key: "inv_disinvestimenti", gruppo: "investimenti", label: "Vendite di beni durevoli e contributi in conto impianti", sempre: false },
   { key: "inv_manuali", gruppo: "investimenti", label: "Voci manuali (solo Controllo di gestione)", sempre: false },
-  { key: "fin_mutui_capitale", gruppo: "finanziamenti", label: "Rate mutui · quota capitale", sempre: true },
-  { key: "fin_mutui_interessi", gruppo: "finanziamenti", label: "Rate mutui · interessi", sempre: true },
+  { key: "fin_mutui_capitale", gruppo: "finanziamenti", label: "Rimborsi di capitale (mutui, prestiti, anticipi)", sempre: true },
+  { key: "fin_mutui_interessi", gruppo: "finanziamenti", label: "Interessi e oneri finanziari", sempre: true },
   { key: "fin_leasing", gruppo: "finanziamenti", label: "Canoni di leasing", sempre: true },
   { key: "fin_entrate", gruppo: "finanziamenti", label: "Nuovi finanziamenti e versamenti dei soci", sempre: true },
+  { key: "fin_interessi_attivi", gruppo: "finanziamenti", label: "Interessi attivi", sempre: false },
   { key: "fin_soci_uscite", gruppo: "finanziamenti", label: "Dividendi e rimborsi ai soci", sempre: false },
   { key: "fin_manuali", gruppo: "finanziamenti", label: "Voci manuali (solo Controllo di gestione)", sempre: false },
+  { key: "alt_cauzioni_in", gruppo: "altri", label: "Cauzioni e depositi rientrati o ricevuti", sempre: false },
+  { key: "alt_cauzioni_out", gruppo: "altri", label: "Cauzioni e depositi versati o restituiti", sempre: false },
 ];
 
 export const GRUPPI_CASSA: { key: GruppoCassa; label: string; totale: string }[] = [
@@ -89,6 +115,7 @@ export const GRUPPI_CASSA: { key: GruppoCassa; label: string; totale: string }[]
   { key: "uscite", label: "Uscite della gestione", totale: "Totale uscite della gestione" },
   { key: "investimenti", label: "Investimenti", totale: "Totale investimenti" },
   { key: "finanziamenti", label: "Finanziamenti", totale: "Totale finanziamenti" },
+  { key: "altri", label: "Cauzioni e depositi", totale: "Totale cauzioni e depositi" },
 ];
 
 export const VOCE_PER_CHIAVE = new Map(VOCI_CASSA.map((v) => [v.key, v]));
@@ -268,8 +295,11 @@ export interface Classificazione {
 /** Categorie che dicono solo «pagato un fornitore». */
 const CATEGORIE_FORNITORE = new Set(["pagamento_fornitore", "pagamento_fornitori", "fornitore", "fornitori"]);
 
-const ALTRO_IN: Classificazione = { voce: "inc_altri", nonClassificato: true };
-const ALTRO_OUT: Classificazione = { voce: "usc_altre", nonClassificato: true };
+// Quello che non si riconosce non finisce più in «Altri incassi» / «Altre uscite»,
+// dove si confondeva con ciò che è stato classificato davvero così: va in una
+// riga «Da classificare» evidenziata, dentro il saldo e i totali.
+const ALTRO_IN: Classificazione = { voce: "inc_da_classificare", nonClassificato: true };
+const ALTRO_OUT: Classificazione = { voce: "usc_da_classificare", nonClassificato: true };
 
 function daMappa(direzione: "in" | "out", categoria: string | null | undefined): VoceCassa | null {
   const c = normalizzaCategoria(categoria);

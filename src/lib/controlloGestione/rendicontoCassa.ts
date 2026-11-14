@@ -293,7 +293,7 @@ export function costruisciRendiconto(input: {
   const gruppi = Object.fromEntries(GRUPPI_CASSA.map((g) => [g.key, zeri()])) as Record<GruppoCassa, number[]>;
   for (const v of VOCI_CASSA) righe[v.key].forEach((c, i) => (gruppi[v.gruppo][i] += c));
   const flussoOperativo = MESI.map((_, i) => gruppi.incassi[i] + gruppi.uscite[i]);
-  const flussoNetto = MESI.map((_, i) => flussoOperativo[i] + gruppi.investimenti[i] + gruppi.finanziamenti[i]);
+  const flussoNetto = MESI.map((_, i) => flussoOperativo[i] + gruppi.investimenti[i] + gruppi.finanziamenti[i] + gruppi.altri[i]);
   const vociVisibili = VOCI_CASSA.filter((v) => v.sempre || righe[v.key].some((c) => c !== 0)).map((v) => v.key);
 
   // ── Saldi ─────────────────────────────────────────────────────────────────

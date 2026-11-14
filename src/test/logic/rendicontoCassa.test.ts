@@ -47,9 +47,11 @@ describe("mappa categoria → voce", () => {
     expect(u("altro", null, { supplierId: "s1" })).toBe("usc_materiali");
   });
 
-  it("mette in «Altre uscite» / «Altri incassi» ciò che non riconosce, e lo dice", () => {
-    expect(classificaRegistrato({ direction: "uscita", category: "boh" })).toEqual({ voce: "usc_altre", nonClassificato: true });
-    expect(classificaRegistrato({ direction: "entrata", category: "regalo" })).toEqual({ voce: "inc_altri", nonClassificato: true });
+  // Dal 14/11/2026 ciò che non si riconosce non si confonde più con «Altre uscite»
+  // classificate davvero: sta in «Da classificare», dentro saldo e totali.
+  it("mette in «Da classificare» ciò che non riconosce, e lo dice", () => {
+    expect(classificaRegistrato({ direction: "uscita", category: "boh" })).toEqual({ voce: "usc_da_classificare", nonClassificato: true });
+    expect(classificaRegistrato({ direction: "entrata", category: "regalo" })).toEqual({ voce: "inc_da_classificare", nonClassificato: true });
   });
 
   it("riconosce gli incassi: fatture, acconti dalle rate, giroconti, finanziamenti", () => {

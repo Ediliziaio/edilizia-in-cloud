@@ -333,7 +333,7 @@ function Avvisi({ r }: { r: RendicontoCassa }) {
       chiave: "nc",
       testo: (
         <>
-          {r.nonClassificati.numero} movimenti non classificati ({euro(r.nonClassificati.cents)}) sono in «Altri incassi» o «Altre uscite».{" "}
+          {r.nonClassificati.numero} movimenti senza categoria ({euro(r.nonClassificati.cents)}) sono nelle righe «Da classificare»: contano nel saldo e nei totali, ma non in una categoria.{" "}
           <Link className="font-medium underline" to="/azienda/prima-nota">Dagli una categoria in Prima nota</Link>.
         </>
       ),

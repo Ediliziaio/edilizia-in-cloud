@@ -56,7 +56,7 @@ describe('rendiconto di cassa', () => {
   it('mostra tutti i gruppi e le voci, con saldi e flussi', () => {
     apri();
     const table = screen.getByRole('table');
-    for (const testo of ['Saldo di cassa a inizio mese', 'Incassi', 'Uscite della gestione', 'Flusso della gestione operativa', 'Investimenti', 'Finanziamenti', 'Flusso netto del mese', 'Saldo di cassa a fine mese', 'Contributi, ritenute e F24', 'Rate mutui · quota capitale'])
+    for (const testo of ['Saldo di cassa a inizio mese', 'Incassi', 'Uscite della gestione', 'Flusso della gestione operativa', 'Investimenti', 'Finanziamenti', 'Flusso netto del mese', 'Saldo di cassa a fine mese', 'Imposte, contributi, ritenute e F24', 'Rimborsi di capitale (mutui, prestiti, anticipi)'])
       expect(within(table).getAllByText(testo).length).toBeGreaterThan(0);
   });
 
