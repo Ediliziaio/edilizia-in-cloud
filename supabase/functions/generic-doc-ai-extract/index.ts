@@ -181,7 +181,7 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
     "informazioni_da_confermare": ["ruolo, quota, regime IVA, ribasso, oneri o altri dati dubbi"]
   },
   "cliente": {
-    "nome_completo": "ragione sociale OPPURE nome e cognome del committente/cliente",
+    "nome_completo": "ragione sociale OPPURE nome e cognome del committente/cliente, COPIATO COM'E' SCRITTO: mantieni ogni parola, numero e sigla che fa parte del nome (es. 'Famiglia Rossi 2', 'Condominio Via Roma 12', 'Edil 2000 S.r.l.' restano interi, il numero NON e' un civico). Togli solo titoli di cortesia (Sig., Sig.ra, Spett.le) e cio' che sta DOPO il nome separato da virgola o trattino (indirizzo, citta', provincia), che va in 'indirizzo'",
     "email": "string o null",
     "telefono": "string o null",
     "indirizzo": "string o null",

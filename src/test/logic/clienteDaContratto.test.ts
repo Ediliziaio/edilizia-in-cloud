@@ -48,3 +48,13 @@ describe("il cliente del contratto si aggancia all'anagrafica (14/11/2026)", () 
     expect(r.esito === "ambiguo" && r.candidati.map((c) => c.id)).toEqual(["bianchi1", "bianchi2"]);
   });
 });
+
+describe("il lettore AI copia il nome intero, numeri compresi (14/11/2026)", () => {
+  it("il prompt del contratto dice di non togliere i numeri dal nome e di mettere la città nell'indirizzo", async () => {
+    const { readFileSync } = await import("node:fs");
+    const prompt = readFileSync("supabase/functions/generic-doc-ai-extract/index.ts", "utf8");
+    expect(prompt).toContain("COPIATO COM'E' SCRITTO");
+    expect(prompt).toContain("il numero NON e' un civico");
+    expect(prompt).toContain("che va in 'indirizzo'");
+  });
+});
