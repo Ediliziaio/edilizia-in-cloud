@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 
-const m = vi.hoisted(() => ({ completo: true, errore: false }));
+const m = vi.hoisted(() => ({ completo: true, errore: false, budget: false }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
@@ -16,8 +16,8 @@ vi.mock("@/hooks/useGeneralePiano", () => ({
       budgetCompleto: m.completo,
       confronto: {
         costi: [
-          { categoria: "materiali", reale: 150, stima: 300 },
-          { categoria: "manodopera", reale: 50, stima: 100 },
+          { categoria: "materiali", reale: 150, stima: 300, previsto: m.budget ? 700 : 0 },
+          { categoria: "manodopera", reale: 50, stima: 100, previsto: m.budget ? 300 : 0 },
         ],
       },
     },
@@ -37,6 +37,7 @@ afterEach(cleanup);
 beforeEach(() => {
   m.completo = true;
   m.errore = false;
+  m.budget = false;
 });
 
 describe("composizione costi nel portale", () => {
@@ -78,5 +79,15 @@ describe("composizione costi nel portale", () => {
       "Costi momentaneamente non disponibili",
     );
     expect(screen.queryByText(/200\s*€/)).not.toBeInTheDocument();
+  });
+
+  it("con un budget parte dal budget per gruppo, non dallo speso del grafico a linea", () => {
+    m.budget = true;
+    disegna();
+    expect(screen.getByRole("button", { name: "Budget" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/1\.000\s*€/)).toBeVisible();
+    expect(screen.getByText("budget del piano")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Registrati" }));
+    expect(screen.getByText(/200\s*€/)).toBeVisible();
   });
 });

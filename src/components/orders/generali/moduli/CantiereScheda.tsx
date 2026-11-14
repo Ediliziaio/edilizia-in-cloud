@@ -21,6 +21,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import type { ModuloScheda, PropsScheda } from "../tipiScheda";
+import { MovimentiOperazione } from "./MovimentiOperazione";
+
+/** Valore del selettore per «tutta l'operazione»: generale e figlie insieme, sola lettura. */
+const TUTTA = "__tutta__";
 
 const RapportiniUfficio = lazy(() =>
   import("@/components/orders/RapportiniUfficio").then((m) => ({
@@ -104,8 +108,9 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
     setParametri(p, { replace: true });
   };
   const [ambito, setAmbito] = useState(g.id);
+  const tutta = ambito === TUTTA && riepilogo.figlie.length > 0;
   const scelto =
-    ambito === g.id ? g : (riepilogo.figlie.find((f) => f.id === ambito) ?? g);
+    ambito === g.id || tutta ? g : (riepilogo.figlie.find((f) => f.id === ambito) ?? g);
   const orderId = scelto.id;
   const permessi = usePermissions();
   const { effectiveCompany } = useAuth();
@@ -183,10 +188,15 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 Registra e consulta su
                 <select
                   aria-label="Ambito del cantiere"
-                  value={orderId}
+                  value={tutta ? TUTTA : orderId}
                   onChange={(e) => setAmbito(e.target.value)}
                   className="mt-1 block h-10 w-full rounded-md border bg-background px-3 font-normal"
                 >
+                  {riepilogo.figlie.length > 0 && (
+                    <option value={TUTTA}>
+                      Tutta l'operazione · generale e {riepilogo.figlie.length} {riepilogo.figlie.length === 1 ? "commessa" : "commesse"} (consulta)
+                    </option>
+                  )}
                   <option value={g.id}>
                     Commessa generale · {g.codice ?? g.nome}
                   </option>
@@ -204,11 +214,15 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 </select>
               </label>
               <p className="mt-2 text-xs text-muted-foreground">
-                Società titolare:{" "}
-                <strong>{effectiveCompany?.name ?? "azienda attiva"}</strong>.
-                Documenti, costi e pagamenti appartengono a questa società. Per
-                una SPV diversa seleziona la sua azienda nel portale prima di
-                creare l'operazione.
+                {tutta ? (
+                  <>Elenchi unici di generale e commesse. Per registrare, scegli dove: la generale o una commessa (basta un clic sul codice).</>
+                ) : (
+                  <>
+                    Società titolare:{" "}
+                    <strong>{effectiveCompany?.name ?? "azienda attiva"}</strong>.
+                    Documenti, costi e pagamenti appartengono a questa società.
+                  </>
+                )}
               </p>
             </div>
             <nav
@@ -249,6 +263,12 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
             </nav>
 
             <Suspense fallback={<Skeleton className="mt-4 h-64 w-full" />}>
+              {tutta ? (
+                <div className="pt-2">
+                  <MovimentiOperazione riepilogo={riepilogo} vista={vista} onApri={setAmbito} />
+                </div>
+              ) : (
+              <>
               <TabsContent value="rapportini" className="space-y-4 pt-2">
                 {puoModificare && (
                   <RapportiniUfficio
@@ -329,6 +349,8 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                     <Riconciliazione riepilogo={riepilogo} />
                   </TabsContent>
                 </>
+              )}
+              </>
               )}
             </Suspense>
           </Tabs>

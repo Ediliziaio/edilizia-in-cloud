@@ -14,13 +14,17 @@ export function ComposizioneCosti({
   riepilogo: RiepilogoGenerale;
 }) {
   const n = useGeneralePianoNumeri(riepilogo);
-  const [modalita, setModalita] = useState<"reale" | "stima">("reale");
+  // Lo speso nel tempo sta nel grafico «Speso contro piano»: qui, se c'è un piano, si parte dal
+  // budget diviso per gruppo (dove andranno i soldi), non dallo stesso totale speso.
+  const [modalita, setModalita] = useState<"budget" | "reale" | "stima" | null>(null);
   const [parametri, setParametri] = useSearchParams();
   const telefono = useIsMobile();
   if (!riepilogo.permessi.costi || !riepilogo.permessi.margini) return null;
   const previsioneDisponibile = !!n.piano && n.piano.budgetCompleto !== false;
+  const conBudget = !!n.piano?.confronto.costi.some((r) => (r.previsto ?? 0) > 0);
+  const scelta = modalita ?? (conBudget ? "budget" : "reale");
   const colonna =
-    modalita === "stima" && previsioneDisponibile ? "stima" : "reale";
+    scelta === "stima" && previsioneDisponibile ? "stima" : scelta === "budget" && conBudget ? "previsto" : "reale";
   const righe =
     n.piano?.confronto.costi.map((r) => ({
       categoria: r.categoria,
@@ -39,7 +43,8 @@ export function ComposizioneCosti({
     p.delete("categorie-costo");
     if (categorie?.length) p.set("categorie-costo", categorie.join(","));
     if (n.inVista?.id) p.set("versione-piano", n.inVista.id);
-    p.set("base-costi", colonna);
+    if (colonna === "previsto") p.delete("base-costi");
+    else p.set("base-costi", colonna);
     setParametri(p);
   };
   return (
@@ -62,6 +67,15 @@ export function ComposizioneCosti({
           role="group"
           aria-label="Base della composizione costi"
         >
+          {conBudget && (
+            <button
+              type="button"
+              aria-pressed={colonna === "previsto"}
+              onClick={() => setModalita("budget")}
+            >
+              Budget
+            </button>
+          )}
           <button
             type="button"
             aria-pressed={colonna === "reale"}
@@ -119,13 +133,13 @@ export function ComposizioneCosti({
               }
               valore={formattaEuro(c.totale)}
               etichetta={
-                colonna === "reale" ? "costi registrati" : "stima finale"
+                colonna === "reale" ? "costi registrati" : colonna === "previsto" ? "budget del piano" : "stima finale"
               }
             />
           )}
           <dl
             className="generale-chart-legend"
-            aria-label={`Costi ${colonna === "reale" ? "registrati" : "stimati"} per categoria`}
+            aria-label={`Costi ${colonna === "reale" ? "registrati" : colonna === "previsto" ? "a budget" : "stimati"} per categoria`}
           >
             {c.categorie.map((r) => (
               <div key={r.id} className="generale-legend-row">
@@ -169,7 +183,9 @@ export function ComposizioneCosti({
         <span>
           {c.conRettifiche
             ? "Le rettifiche sono incluse con il loro segno."
-            : colonna === "reale"
+            : colonna === "previsto"
+              ? "Il budget del piano, gruppo per gruppo: dove andranno i soldi."
+              : colonna === "reale"
               ? "Costi sulla generale e sulle commesse collegate."
               : "Reale registrato + costi ancora da sostenere."}
         </span>
