@@ -451,7 +451,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
       }
       if (puoComprare) {
         // Il passo dopo: gli ordini. Se la lettura non riesce, si chiude come prima.
-        const restano = await materialiDaOrdinare(companyId, orderId).catch(() => null);
+        const restano = await materialiDaOrdinare(companyId, orderId).catch((): ProcurementItem[] | null => null);
         if (restano?.length) { setDaOrdinare(restano); return; }
       }
       onOpenChange(false);

@@ -389,8 +389,8 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
         { id: "a-magro", name: "BETON SUD [10/05/2026] - Calcestruzzo C12/15 Dmax 31,5 mm", unit_of_measure: "m3", prezzo_acquisto_netto: 95 },
       ],
       listini: [
-        { id: "l-c25", codice: null, descrizione: "Calcestruzzo strutturale Rck 30 (C25/30) S4 - classi XC1/XC2", unita: "mc", prezzo: 102, sconto_pct: 0, supplier_id: "f-beton", listino: "Beton Sud 2026" },
-        { id: "l-c30", codice: null, descrizione: "Calcestruzzo strutturale Rck 37 (C30/37) S4 - classi XC1/XC2", unita: "mc", prezzo: 112, sconto_pct: 0, supplier_id: "f-beton", listino: "Beton Sud 2026" },
+        { id: "l-c25", codice: null as string | null, descrizione: "Calcestruzzo strutturale Rck 30 (C25/30) S4 - classi XC1/XC2", unita: "mc", prezzo: 102, sconto_pct: 0, supplier_id: "f-beton", listino: "Beton Sud 2026" },
+        { id: "l-c30", codice: null as string | null, descrizione: "Calcestruzzo strutturale Rck 37 (C30/37) S4 - classi XC1/XC2", unita: "mc", prezzo: 112, sconto_pct: 0, supplier_id: "f-beton", listino: "Beton Sud 2026" },
       ],
       giaUsati: [] as MaterialeGiaUsato[],
     };

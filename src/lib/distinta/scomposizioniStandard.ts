@@ -38,7 +38,7 @@ export interface ScomposizioneStandard {
   ambito: AmbitoStandard;
   nome: string;
   /** Unità della voce di computo: null = qualsiasi (cad, n., pz); «mq» per le opere edili a superficie. */
-  unita_misura: "m" | "mq" | null;
+  unita_misura: "m" | "mq" | "mc" | null;
   parole_chiave: string[];
   /** Come compare di solito nella legenda delle tavole (per chi controlla i conteggi). */
   simboli: string[];
