@@ -10,8 +10,9 @@
 import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
+import { loadArchivedOrderIds } from "@/lib/orders/archivedOrderScope";
 import { readAllOrderRows } from "@/lib/orders/listScope";
+import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 import { dataVendita, fatturatoMedioMensile } from "@/lib/dataVendita";
 import { useAuth } from "@/contexts/AuthContext";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
@@ -96,14 +97,23 @@ export function useMarginData(): MarginData {
       const archivedIds = await loadArchivedOrderIds(companyId!);
       // 08/11/2026: tutte le commesse dei 24 mesi, a pagine. Prima il limite di 500 righe
       // si fermava alle ultime 500 e il margine medio del pareggio era il loro.
-      return readAllOrderRows<MarginViewRow>((from, to) => excludeArchivedOrders((supabase as any)
-        .from("v_ordine_marginalita")
-        .select("id, order_code, description, cliente_nome, created_at, preventivo_totale, consuntivo, costo_acquisti, costo_materiali_magazzino, costo_errori, costo_manodopera, costo_provvigioni, costo_diretto, margine, margine_perc")
+      // 14/11/2026: prima la vista v_ordine_marginalita, che ricalcola TUTTE le commesse a ogni
+      // lettura (oltre 3 s, e il Cruscotto andava in 500). Ora gli id da orders e l'economia
+      // solo di quelle, con gli stessi diritti (economia_commesse).
+      const archiviate = new Set(archivedIds);
+      const ordini = await readAllOrderRows<{ id: string }>((from, to) => supabase.from("orders")
+        .select("id")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .gte("created_at", cutoff.toISOString())
-        .order("created_at", { ascending: false })
         .order("id")
-        .range(from, to), archivedIds));
+        .range(from, to));
+      const righe = await leggiEconomiaCommesse<MarginViewRow & { company_id?: string }>(
+        ordini.map((o) => o.id).filter((id) => !archiviate.has(id)),
+      );
+      return righe
+        .filter((r) => !r.company_id || r.company_id === companyId)
+        .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -115,14 +125,15 @@ export function useMarginData(): MarginData {
     queryKey: [...queryKeys.margin.orders(companyId), "giorni-vendita"],
     queryFn: async (): Promise<Map<string, string | null>> => {
       type Ordine = { id: string; created_at: string | null; work_start_date: string | null; deposit_expected_date: string | null; deposit_paid_date: string | null };
-      type Rata = { id: string; order_id: string; expected_date: string | null; paid_date: string | null };
+      type Rata = { order_id: string; expected_date: string | null; paid_date: string | null };
       const [ordini, rate] = await Promise.all([
         readAllOrderRows<Ordine>((from, to) => supabase.from("orders")
           .select("id, created_at, work_start_date, deposit_expected_date, deposit_paid_date")
           .eq("company_id", companyId!).is("deleted_at", null).order("id").range(from, to)),
-        readAllOrderRows<Rata>((from, to) => supabase.from("order_installments")
-          .select("id, order_id, expected_date, paid_date, order:orders!inner(company_id)")
-          .eq("order.company_id", companyId!).order("id").range(from, to) as unknown as PromiseLike<{ data: Rata[] | null; error: unknown }>),
+        // Solo le date, da una funzione: order_installments passa dalla vista dei diritti
+        // per rata, lenta su tutto il database (14/11/2026).
+        (supabase as any).rpc("cruscotto_date_rate", { p_company_id: companyId! })
+          .then(({ data, error }: { data: Rata[] | null; error: unknown }) => { if (error) throw error; return data ?? []; }) as Promise<Rata[]>,
       ]);
       const dateRate = new Map<string, string[]>();
       for (const r of rate) {

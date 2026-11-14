@@ -180,6 +180,9 @@ describe("numeri corretti dopo il confronto coi dati veri (20290108100000)", () 
     expect(dati).toContain('rpc("cruscotto_rate_da_incassare", { p_company_id: companyId }).order("id").range(from, to)');
     const margini = leggi("src/hooks/useMarginData.ts");
     expect(margini).not.toContain(".limit(500)");
-    expect(margini).toContain("readAllOrderRows<MarginViewRow>");
+    // 14/11/2026: tutti gli id a pagine, poi l'economia a blocchi (niente vista intera).
+    expect(margini).toContain('readAllOrderRows<{ id: string }>');
+    expect(margini).toContain("leggiEconomiaCommesse<MarginViewRow");
+    expect(margini).not.toContain('from("v_ordine_marginalita")');
   });
 });

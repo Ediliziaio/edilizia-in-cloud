@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { loadArchivedOrderIds, excludeArchivedOrders } from "@/lib/orders/archivedOrderScope";
+import { loadArchivedOrderIds } from "@/lib/orders/archivedOrderScope";
+import { leggiEconomiaCommesse } from "@/lib/economiaCommesse";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { leggiIdGenerali } from "@/hooks/useCommesseGenerali";
 import { formatCurrency } from "@/lib/formatters";
@@ -46,16 +47,19 @@ export function MarginalitaWidget() {
       // Fuori anche le commesse generali: sono contenitori a importo zero, i loro
       // costi comuni le farebbero sembrare un cantiere in perdita.
       const [archivedIds, generali] = await Promise.all([loadArchivedOrderIds(companyId!), leggiIdGenerali(companyId!)]);
-      const { data, error } = await excludeArchivedOrders(supabase
-        .from("v_ordine_marginalita")
-        .select(
-          "id, order_code, description, cliente_nome, preventivo_contratto, preventivo_totale, variazioni_approvate, costo_acquisti, costo_errori, consuntivo, margine, margine_perc",
-        )
+      // 14/11/2026: non più la vista v_ordine_marginalita (ricalcola tutte le commesse,
+      // oltre 3 s): le ultime commesse da orders, poi l'economia solo di quelle.
+      const fuori = new Set([...archivedIds, ...generali]);
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id")
         .eq("company_id", companyId!)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
-        .limit(WIDGET_FETCH_LIMIT), [...archivedIds, ...generali]);
+        .limit(WIDGET_FETCH_LIMIT + fuori.size);
       if (error) throw error;
-      return (data || []) as OrdineMarginalitaRow[];
+      const ids = (data ?? []).map((o) => o.id).filter((id) => !fuori.has(id)).slice(0, WIDGET_FETCH_LIMIT);
+      return leggiEconomiaCommesse<OrdineMarginalitaRow>(ids);
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
