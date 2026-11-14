@@ -1040,3 +1040,14 @@ html .react-flow .react-flow__edges svg {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
 }
+
+/* L'anello delle percentuali si riempie all'apertura (dashoffset dal pieno
+   al valore). Con «meno movimento» è già al suo posto. */
+@media (prefers-reduced-motion: no-preference) {
+  .anello-riempie {
+    animation: anello-riempie 1s cubic-bezier(0.22, 1, 0.36, 1) 250ms backwards;
+  }
+}
+@keyframes anello-riempie {
+  from { stroke-dashoffset: var(--anello-pieno); }
+}

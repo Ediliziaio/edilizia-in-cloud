@@ -27,6 +27,8 @@ import {
   type RigaCoda,
 } from "@/hooks/useCallCenterDashboard";
 import { formattaMinuti, indicatori } from "@/lib/reporting/callCenterNumeri";
+import { PillolaVariazione } from "@/components/charts/grafici/comune";
+import { cn } from "@/lib/utils";
 
 const GRUPPI: { id: CategoriaCoda; titolo: string; descrizione: string }[] = [
   { id: "richiamo", titolo: "Richiami", descrizione: "Scaduti o fissati per oggi" },
@@ -77,13 +79,108 @@ function dettaglioRiga(r: RigaCoda): string {
   return parti.filter(Boolean).join(" · ");
 }
 
-function Riquadro({ etichetta, valore, nota }: { etichetta: string; valore: string; nota?: string }) {
+interface Variazione {
+  valore: number | null;
+  piuEMeglio?: boolean;
+  unita?: string;
+}
+
+/** Differenza fra due valori: in punti per le percentuali, relativa per i conteggi. */
+function differenza(ora: number | null, prima: number | null, punti: boolean): number | null {
+  if (ora == null || prima == null) return null;
+  if (punti) return ora - prima;
+  return prima === 0 ? null : ((ora - prima) / Math.abs(prima)) * 100;
+}
+
+/**
+ * Anello della percentuale: si riempie all'apertura (ferma con «riduci
+ * movimento», vedi .anello-riempie in index.css).
+ */
+function Anello({ pct }: { pct: number }) {
+  const r = 15;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  const colore = p >= 60 ? "hsl(var(--chart-2))" : p >= 30 ? "hsl(var(--chart-3))" : "hsl(var(--chart-5))";
   return (
-    <div className="rounded-lg border bg-card p-3">
-      <p className="text-xs text-muted-foreground">{etichetta}</p>
-      <p className="mt-1 text-xl font-semibold tabular-nums">{valore}</p>
-      {nota && <p className="mt-0.5 text-xs text-muted-foreground">{nota}</p>}
+    <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0 -rotate-90" aria-hidden>
+      <circle cx="20" cy="20" r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth="4" />
+      <circle
+        cx="20" cy="20" r={r} fill="none" stroke={colore} strokeWidth="4" strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)}
+        className="anello-riempie"
+        style={{ ["--anello-pieno" as string]: String(c) }}
+      />
+    </svg>
+  );
+}
+
+function Riquadro({
+  etichetta, valore, nota, variazione, anello,
+}: {
+  etichetta: string;
+  valore: string;
+  nota?: string;
+  variazione?: Variazione;
+  /** Percentuale da disegnare nell'anello accanto al numero. */
+  anello?: number | null;
+}) {
+  return (
+    <div className="flex h-full min-w-0 items-start justify-between gap-2 rounded-xl border bg-card p-2.5 shadow-sm sm:p-3 transition-shadow hover:shadow-md motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-500 motion-safe:fill-mode-both">
+      <div className="min-w-0">
+        <p className="break-words text-[10px] font-semibold uppercase leading-tight tracking-wide text-muted-foreground sm:text-[11px]">{etichetta}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <p className="text-xl font-bold tabular-nums tracking-tight">{valore}</p>
+          {variazione && (
+            <PillolaVariazione
+              pct={variazione.valore}
+              piuEMeglio={variazione.piuEMeglio ?? true}
+              unita={variazione.unita}
+              titolo="Rispetto al periodo precedente, della stessa durata"
+            />
+          )}
+        </div>
+        {nota && <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{nota}</p>}
+      </div>
+      {anello != null && <span className="hidden sm:block"><Anello pct={anello} /></span>}
     </div>
+  );
+}
+
+/**
+ * Dalla chiamata all'appuntamento: una barra per passaggio, larga quanto il
+ * numero rispetto alle chiamate, con la percentuale sul passaggio prima.
+ */
+function PercorsoChiamate({ numeri }: { numeri: NumeriCallCenter }) {
+  const passi = [
+    { nome: "Chiamate fatte", n: numeri.chiamate, colore: "from-blue-500 to-sky-400" },
+    { nome: "Contatti chiamati", n: numeri.contatti_chiamati, colore: "from-sky-500 to-cyan-400" },
+    { nome: "Contatti raggiunti", n: numeri.contatti_raggiunti, colore: "from-teal-500 to-emerald-400" },
+    { nome: "Appuntamenti fissati", n: numeri.appuntamenti_fissati, colore: "from-emerald-500 to-lime-400" },
+    { nome: "Presentati", n: numeri.svolti_presentati, colore: "from-amber-500 to-yellow-400" },
+  ];
+  const max = Math.max(1, ...passi.map((p) => p.n));
+  return (
+    <ol className="space-y-1.5">
+      {passi.map((p, i) => {
+        const prima = i > 0 ? passi[i - 1].n : null;
+        const quota = prima ? Math.round((p.n / prima) * 100) : null;
+        return (
+          <li key={p.nome} className="grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-2 text-xs sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:gap-3">
+            <span className="truncate text-muted-foreground">{p.nome}</span>
+            <span className="h-5 overflow-hidden rounded-md bg-muted">
+              <span
+                className={cn("cg-barra-cresce block h-full rounded-md bg-gradient-to-r", p.colore)}
+                style={{ width: `${Math.max(p.n > 0 ? 2 : 0, (p.n / max) * 100)}%`, animationDelay: `${250 + i * 90}ms` }}
+              />
+            </span>
+            <span className="text-right tabular-nums sm:w-24">
+              <strong className="text-sm text-foreground">{p.n.toLocaleString("it-IT")}</strong>
+              {quota != null && <span className="ml-1.5 text-muted-foreground">{quota}%</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -135,24 +232,39 @@ function RigaContatto({
   );
 }
 
-function NumeriPeriodo({ numeri }: { numeri: NumeriCallCenter }) {
+function NumeriPeriodo({ numeri, prima }: { numeri: NumeriCallCenter; prima?: NumeriCallCenter }) {
   const i = indicatori(numeri);
+  const p = prima ? indicatori(prima) : null;
   const conEsito = numeri.svolti_presentati + numeri.svolti_assenti;
+  const v = (ora: number | null, prec: number | null | undefined, punti = true, piuEMeglio = true): Variazione | undefined =>
+    p ? { valore: differenza(ora, prec ?? null, punti), unita: punti ? " pt" : "%", piuEMeglio } : undefined;
   return (
+    <div className="space-y-4">
+    {numeri.chiamate > 0 && (
+      <div className="rounded-xl border bg-muted/30 p-3">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Dalla chiamata all'appuntamento</p>
+        <PercorsoChiamate numeri={numeri} />
+      </div>
+    )}
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Riquadro
         etichetta="Conversione sui raggiunti"
         valore={percento(i.appSuRaggiunti)}
+        anello={i.appSuRaggiunti}
+        variazione={v(i.appSuRaggiunti, p?.appSuRaggiunti)}
         nota={`${numeri.appuntamenti_fissati} appuntamenti, ${numeri.contatti_raggiunti} contatti raggiunti`}
       />
       <Riquadro
         etichetta="Conversione sui lead assegnati"
         valore={percento(i.appSuAssegnati)}
+        anello={i.appSuAssegnati}
+        variazione={v(i.appSuAssegnati, p?.appSuAssegnati)}
         nota={`${numeri.lead_con_appuntamento} su ${numeri.lead_assegnati} lead arrivati nel periodo`}
       />
       <Riquadro
         etichetta="Prima chiamata (mediana)"
         valore={formattaMinuti(numeri.mediana_minuti)}
+        variazione={v(numeri.mediana_minuti, prima?.mediana_minuti, false, false)}
         nota={
           numeri.lead_assegnati
             ? `${numeri.lead_chiamati} chiamati su ${numeri.lead_assegnati} lead arrivati`
@@ -162,11 +274,14 @@ function NumeriPeriodo({ numeri }: { numeri: NumeriCallCenter }) {
       <Riquadro
         etichetta="Chiamati entro 5 minuti"
         valore={percento(i.entro5Min)}
+        anello={i.entro5Min}
+        variazione={v(i.entro5Min, p?.entro5Min)}
         nota={numeri.lead_chiamati ? `${numeri.entro_5_min} su ${numeri.lead_chiamati} lead chiamati` : "Nessun lead chiamato"}
       />
       <Riquadro
         etichetta="Chiamate al giorno"
         valore={numero(i.chiamateAlGiorno)}
+        variazione={v(i.chiamateAlGiorno, p?.chiamateAlGiorno, false)}
         nota={`${numeri.chiamate} chiamate in ${numeri.giorni_attivi} giorni di lavoro`}
       />
       <Riquadro
@@ -177,17 +292,22 @@ function NumeriPeriodo({ numeri }: { numeri: NumeriCallCenter }) {
       <Riquadro
         etichetta="Contatti raggiunti"
         valore={percento(i.contatto)}
+        anello={i.contatto}
+        variazione={v(i.contatto, p?.contatto)}
         nota={`${numeri.contatti_raggiunti} su ${numeri.contatti_chiamati} chiamati`}
       />
       <Riquadro
         etichetta="Presenza agli appuntamenti"
         valore={percento(i.presenza)}
+        anello={i.presenza}
+        variazione={v(i.presenza, p?.presenza)}
         nota={
           numeri.svolti_totale
             ? `Esito segnato su ${conEsito} appuntamenti di ${numeri.svolti_totale}`
             : "Nessun appuntamento a calendario nel periodo"
         }
       />
+    </div>
     </div>
   );
 }
@@ -213,6 +333,8 @@ export default function CallCenterDashboard() {
   const coda = useCodaCallCenter(operatoreId);
   const numeriOggi = useNumeriCallCenter(operatoreId, oggi, oggi);
   const numeriPeriodo = useNumeriCallCenter(operatoreId, inizioPeriodo, oggi);
+  // Lo stesso numero di giorni subito prima, per la variazione sui riquadri.
+  const numeriPrima = useNumeriCallCenter(operatoreId, giornoItalia(2 * giorniPeriodo - 1), giornoItalia(giorniPeriodo));
   const appuntamenti = useAppuntamentiCallCenter(operatoreId);
 
   const righePerGruppo = useMemo(() => {
@@ -336,7 +458,7 @@ export default function CallCenterDashboard() {
               <div className="grid grid-cols-3 gap-3">
                 <Riquadro etichetta="Chiamate" valore={numero(numeriOggi.data.chiamate)} />
                 <Riquadro etichetta="Raggiunti" valore={numero(numeriOggi.data.contatti_raggiunti)} />
-                <Riquadro etichetta="Appuntamenti" valore={numero(numeriOggi.data.appuntamenti_fissati)} />
+                <Riquadro etichetta="Fissati" valore={numero(numeriOggi.data.appuntamenti_fissati)} nota="appuntamenti" />
               </div>
             )}
           </CardContent>
@@ -386,7 +508,7 @@ export default function CallCenterDashboard() {
         <CardContent>
           {numeriPeriodo.isLoading && <Skeleton className="h-40 w-full" />}
           {numeriPeriodo.isError && <p className="text-sm text-destructive">Non riesco a caricare i numeri del periodo.</p>}
-          {numeriPeriodo.data && <NumeriPeriodo numeri={numeriPeriodo.data} />}
+          {numeriPeriodo.data && <NumeriPeriodo numeri={numeriPeriodo.data} prima={numeriPrima.data} />}
           {numeriPeriodo.data?.chiamate === 0 && (
             <p className="mt-3 text-sm text-muted-foreground">Nessuna chiamata registrata in questo periodo.</p>
           )}

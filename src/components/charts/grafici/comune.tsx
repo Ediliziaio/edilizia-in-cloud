@@ -136,7 +136,7 @@ export function Comparsa({
 
 /** Pillola della variazione: verde se va nel verso buono, rossa se no. */
 export function PillolaVariazione({
-  pct, piuEMeglio = true, titolo, className, suScuro,
+  pct, piuEMeglio = true, titolo, className, suScuro, unita = "%",
 }: {
   pct: number | null;
   piuEMeglio?: boolean;
@@ -144,15 +144,17 @@ export function PillolaVariazione({
   className?: string;
   /** Su un fondo scuro fisso (pannelli blu notte): colori chiari. */
   suScuro?: boolean;
+  /** «%» (variazione relativa, predefinito) o « pt» (differenza fra due percentuali). */
+  unita?: string;
 }) {
   if (pct == null || !Number.isFinite(pct)) return null;
   const buona = Math.abs(pct) < 0.05 ? null : (pct > 0) === piuEMeglio;
-  const testo = `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${new Intl.NumberFormat("it-IT", { maximumFractionDigits: Math.abs(pct) >= 100 ? 0 : 1 }).format(Math.abs(pct))}%`;
+  const testo = `${pct > 0 ? "+" : pct < 0 ? "−" : ""}${new Intl.NumberFormat("it-IT", { maximumFractionDigits: Math.abs(pct) >= 100 ? 0 : 1 }).format(Math.abs(pct))}${unita}`;
   return (
     <span
       title={titolo}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none",
+        "inline-flex items-center gap-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none",
         !suScuro && buona === true && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
         !suScuro && buona === false && "bg-rose-500/10 text-rose-700 dark:text-rose-400",
         !suScuro && buona === null && "bg-muted text-muted-foreground",
