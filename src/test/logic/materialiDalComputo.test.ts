@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { generaDistinta, materialiCompresi, nomeMateriale, specificheDallaVoce, spessoreCm, type Scomposizione, type VoceComputo } from "@/lib/distinta/generaDistinta";
 import { sceltePerRicordare, testoRicordi } from "@/lib/distinta/ricordaScelte";
 import { catalogoComeScomposizioni } from "@/lib/distinta/scomposizioniStandard";
-import { aliasDaRicordare, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome } from "@/lib/distinta/collegaArticoli";
+import { aliasDaRicordare, candidatiArticolo, collegaMateriali, confezioneComune, contenutoConfezione, nomiInConflitto, rigaDaSalvare, somiglianzaNome, type MaterialeGiaUsato } from "@/lib/distinta/collegaArticoli";
 import { faseDaTesto, faseDelMestiere, propostaFasi } from "@/lib/distinta/fasiMateriali";
 
 const voce = (p: Partial<VoceComputo> & { id: string; descrizione_breve: string }): VoceComputo => ({ quantita: 1, unita_misura: "cad", ...p });
@@ -304,7 +304,7 @@ describe("riconoscimento dei materiali da un computo con voci composte", () => {
         { id: "a-colla", name: "Colla per piastrelle 25 kg", unit_of_measure: "sacco", marca: "Mapei", modello: "Keraflex", supplier_id: "f-2", prezzo_acquisto_netto: 12 },
       ],
       listini: [{ id: "l-adesivo", codice: "AD25", descrizione: "Adesivo cementizio per piastrelle C2 sacco 25 kg", unita: "sacco", prezzo: 10, sconto_pct: 20, supplier_id: "f-3", listino: "Rossi 2026" }],
-      giaUsati: [],
+      giaUsati: [] as MaterialeGiaUsato[],
     };
     const gres = () => generaDistinta({ voci: [voce({ id: "g", descrizione_breve: "Pavimento in gres porcellanato 60x60", unita_misura: "mq", quantita: 45 })], scomposizioni: [], riserva: catalogoComeScomposizioni() })
       .righe.find((m) => m.descrizione === "Adesivo cementizio per piastrelle")!;
