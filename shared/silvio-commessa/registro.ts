@@ -243,6 +243,7 @@ export const COLONNE_IGNORATE: Readonly<Record<string, string>> = {
   parent_contract_id: "collegamento al contratto: richiede selezione e verifica esplicita nel percorso interventi",
   intervention_reference: "riferimento operativo: viene richiesto dal percorso interventi, non dalla creazione AI standard",
   appalto_contratto_id: "associazione all'appalto: scelta esplicita di un contratto esistente, mai dedotta dal testo",
+  tariffa_manodopera_id: "prezzo delle ore in economia dal listino aziendale: lo sceglie chi gestisce i rapportini, mai dedotto dal testo",
   commessa_generale_id: "raggruppamento contabile: si seleziona nella gestione delle commesse generali",
   riferimento_committente: "identificativo contrattuale del percorso interventi: non viene inventato dal creatore AI standard",
   tetto_importo: "limite contrattuale: si verifica nel percorso contratti, non si deduce dall'importo della commessa",
