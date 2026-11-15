@@ -2,8 +2,9 @@
  * Una variante letta da un documento con l'AI (15/11/2026): cosa si prende e cosa no.
  */
 import { describe, expect, it } from "vitest";
-import { bozzaVarianteDaDocumento, leggiVarianteDaAi, tipoVariante } from "@/lib/orders/varianteDaDocumento";
+import { avvisiLeggibili, bozzaVarianteDaDocumento, leggiVarianteDaAi, tipoVariante } from "@/lib/orders/varianteDaDocumento";
 import { prepareVariation } from "@/lib/orders/variationDraft";
+import { isVariationUuid } from "@/lib/orders/variationWorkspace";
 
 describe("Lettura difensiva", () => {
   it("scarta voci senza descrizione, prezzi negativi diventano voci tolte", () => {
@@ -30,6 +31,16 @@ describe("Lettura difensiva", () => {
     expect(l.voci.map((v) => v.quantita)).toEqual([1, null]);
   });
 
+  it("gli avvisi coi nomi dei campi diventano parole, o si tolgono (collaudo del 15/11)", () => {
+    expect(avvisiLeggibili([
+      "giorni_aggiuntivi: il documento pone una domanda ('Ci vorra un giorno in piu?') ma non rappresenta un accordo; impostato a null",
+      "importo_a_corpo_eur: non calcolato dal documento",
+      "richiesto_da: non specificato nel documento",
+      "motivazione: non esplicitamente dichiarata",
+      "La mail non è firmata.",
+    ])).toEqual(["Il documento non concorda giorni in più: decidili tu.", "La mail non è firmata."]);
+  });
+
   it("il tipo viene dalle voci", () => {
     expect(tipoVariante([{ segno: "aggiunta" }])).toBe("aggiunta");
     expect(tipoVariante([{ segno: "tolta" }, { segno: "tolta" }])).toBe("riduzione");
@@ -45,7 +56,7 @@ describe("Bozza dalla lettura", () => {
       voci: [{ descrizione: "Punto luce cucina", quantita: 2, unita: "pz", prezzo_unitario_eur: 85.5 }],
     }));
     expect(bozza).toMatchObject({ kind: "aggiunta", pricing: "voci", title: "Due punti luce", days: "2", requester: "Cliente" });
-    expect(bozza.lines).toEqual([{ id: "doc-1", description: "Punto luce cucina", quantity: "2", price: "85,5", unit: "pz" }]);
+    expect(bozza.lines).toEqual([{ id: expect.stringMatching(/^[0-9a-f-]{36}$/), description: "Punto luce cucina", quantity: "2", price: "85,5", unit: "pz" }]);
     expect(avvisi).toEqual([]);
     expect(prepareVariation(bozza).impatto_economico).toBe(171);
   });
@@ -101,6 +112,8 @@ describe("Bozza dalla lettura", () => {
       ],
     }));
     expect(bozza).toMatchObject({ kind: "modifica", pricing: "voci", days: "1" });
+    // Il salvataggio vuole un uuid per voce: con «doc-1» rispondeva «Voce della variante non valida».
+    expect(bozza.lines.every((l) => isVariationUuid(l.id))).toBe(true);
     expect(avvisi).toEqual([]);
     expect(prepareVariation(bozza).impatto_economico).toBe(-390);
   });

@@ -680,7 +680,12 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               <dt className="text-slate-500">Importo</dt>
               <dd className="font-medium tabular-nums">{imponibile != null ? formatCurrency(imponibile) : "—"}{extract.iva_pct != null ? ` + IVA ${extract.iva_pct}%` : ""}</dd>
               <dt className="text-slate-500">Pagamento</dt>
-              <dd>{extract.modalita_pagamento || "—"}{extract.fasi_pagamento.length ? ` · ${extract.fasi_pagamento.length} fasi` : ""}</dd>
+              <dd>{extract.modalita_pagamento || "—"}{extract.fasi_pagamento.length ? ` · ${extract.fasi_pagamento.length} ${extract.fasi_pagamento.length === 1 ? "rata" : "rate"}` : ""}</dd>
+              {/* Le lavorazioni lette (15/11/2026): diventano le fasi proposte della commessa. */}
+              {(extract.fasi_lavoro?.length ?? 0) > 0 && <>
+                <dt className="text-slate-500">Fasi di lavoro</dt>
+                <dd>{extract.fasi_lavoro!.map((f) => f.nome).join(" · ")}</dd>
+              </>}
               <dt className="text-slate-500">Voci</dt>
               <dd>{extract.voci.length ? `${extract.voci.length} articoli` : "—"}</dd>
             </dl>

@@ -49,6 +49,24 @@ const testo = (v: unknown, max = 500): string | null => {
   return s && s.toLowerCase() !== "null" ? s.slice(0, max) : null;
 };
 
+/**
+ * Gli avvisi dell'AI arrivano coi nomi dei campi («giorni_aggiuntivi: il documento pone una domanda…»): al collaudo
+ * del 15/11 finivano così nel messaggio. Quello sui giorni si dice in parole; gli altri sui campi si tolgono, perché
+ * i vuoti li segnala già la bozza (importo, titolo). Restano gli avvisi scritti in italiano senza nome di campo.
+ */
+export function avvisiLeggibili(grezzi: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const w of grezzi) {
+    const t = w.trim();
+    if (!t) continue;
+    const campo = /^([a-z]+(?:_[a-z]+)+)\s*:/.exec(t)?.[1] ?? (/^(titolo|descrizione|voci|motivazione)\s*:/i.exec(t)?.[1] ?? null);
+    if (campo === "giorni_aggiuntivi") { out.push("Il documento non concorda giorni in più: decidili tu."); continue; }
+    if (campo) continue;
+    out.push(t);
+  }
+  return [...new Set(out)].slice(0, 5);
+}
+
 /** Parsing difensivo di quello che risponde l'AI. */
 export function leggiVarianteDaAi(raw: unknown): VarianteLetta {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -83,7 +101,7 @@ export function leggiVarianteDaAi(raw: unknown): VarianteLetta {
     giorni_aggiuntivi: g != null && g >= 0 && g <= 3650 ? Math.round(g) : null,
     richiesto_da: testo(r.richiesto_da, 160),
     motivazione: testo(r.motivazione, 1000),
-    avvisi: Array.isArray(r.warnings) ? r.warnings.map((w) => String(w)).filter(Boolean).slice(0, 10) : [],
+    avvisi: avvisiLeggibili(Array.isArray(r.warnings) ? r.warnings.map((w) => String(w)) : []),
   };
 }
 
@@ -99,13 +117,18 @@ export function tipoVariante(voci: readonly Pick<VoceVarianteLetta, "segno">[]):
  * La bozza da aprire nella variante. `base` porta i dati del documento (impresa, cliente), come per «Nuova
  * variante». Gli avvisi vanno mostrati a chi la apre.
  */
-export function bozzaVarianteDaDocumento(letta: VarianteLetta, base: VariationDraft = emptyVariationDraft()): { bozza: VariationDraft; avvisi: string[] } {
+export function bozzaVarianteDaDocumento(
+  letta: VarianteLetta,
+  base: VariationDraft = emptyVariationDraft(),
+  nuovoId: () => string = () => crypto.randomUUID(),
+): { bozza: VariationDraft; avvisi: string[] } {
   const avvisi = [...letta.avvisi];
   const kind = tipoVariante(letta.voci);
   const tuttePrezzate = letta.voci.length > 0 && letta.voci.every((v) => v.quantita != null && v.prezzo_unitario_eur != null);
   const lines: VariationLine[] = tuttePrezzate
     ? letta.voci.map((v, i) => ({
-      id: `doc-${i + 1}`,
+      // Un uuid, come ogni voce di variante: variante-commessa rifiuta altro («Voce della variante non valida»).
+      id: nuovoId(),
       description: v.segno === "tolta" && kind === "modifica" ? `Da togliere: ${v.descrizione}` : v.descrizione,
       quantity: decimale(v.quantita!),
       // In una modifica le voci tolte scendono di prezzo; in una riduzione si scrivono positive.

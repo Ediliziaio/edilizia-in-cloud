@@ -2011,7 +2011,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           />
           {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
           {fasiDalModello && <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); setFasiDalContrattoAttive(false); }} /></div>
+            <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} dalContratto={fasiDalContrattoAttive && fasiPersonalizzate !== null} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); setFasiDalContrattoAttive(false); }} /></div>
             <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => { setFasiPersonalizzate(null); setFasiDalContrattoAttive(false); }} piano={pianoFasi} dalContratto={fasiDalContrattoAttive && fasiPersonalizzate !== null} />
           </div>}
           </div>
