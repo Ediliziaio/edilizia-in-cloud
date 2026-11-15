@@ -192,9 +192,10 @@ function buildSalesOSCommandActions({
         },
   );
 
-  actions.push(
-    actualRevenue <= 0 && (salesVelocity > 0 || activeQuotesValue > 0 || openOpportunities > 0)
-      ? {
+  // 15/11/2026: la scheda c'è solo quando c'è da fare (pipeline senza firme). Il ricavo firmato
+  // è già nel riquadro in cima (e, al telefono, nei numeri del comando): era scritto due volte.
+  if (actualRevenue <= 0 && (salesVelocity > 0 || activeQuotesValue > 0 || openOpportunities > 0))
+    actions.push({
           key: "revenue-gap",
           icon: Receipt,
           title: "Trasforma pipeline in firme",
@@ -207,19 +208,7 @@ function buildSalesOSCommandActions({
           target: "quotes",
           tone: "text-amber-700",
           badge: "Ricavo firmato",
-        }
-      : {
-          key: "signed-revenue",
-          icon: Receipt,
-          title: "Ricavo firmato",
-          value: fmt(actualRevenue),
-          detail: `${signedQuotesCount} preventivi firmati`,
-          action: "Preventivi",
-          target: "quotes",
-          tone: "text-emerald-700",
-          badge: "Reale",
-        },
-  );
+        });
 
   actions.push({
     key: "forecast",
@@ -294,7 +283,7 @@ function useSlowQueryFallback(isLoading: boolean, timeoutMs = 3500) {
 
 // ─── SalesVelocityCard ────────────────────────────────────────────────────────
 
-function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId }: { companyId: string; daysBack: number; periodLabel: string; pipelineId?: string }) {
+function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId, onAllarga }: { companyId: string; daysBack: number; periodLabel: string; pipelineId?: string; onAllarga?: () => void }) {
   const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId, daysBack, pipelineId);
   const showSlowFallback = useSlowQueryFallback(isLoading);
   const showLoading = isLoading && !showSlowFallback;
@@ -331,7 +320,15 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel, pipelineId }: { c
           <span className="text-sm font-normal text-muted-foreground ml-1">/giorno</span>
         </div>
         {velocity.sales_velocity == null && (
-          <p className="text-xs text-muted-foreground mt-0.5">Nessuna vendita chiusa nel periodo</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Nessuna vendita chiusa nel periodo
+            {onAllarga && (
+              <>
+                {" · "}
+                <button type="button" onClick={onAllarga} className="font-medium text-primary hover:underline">guarda gli ultimi 12 mesi</button>
+              </>
+            )}
+          </p>
         )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
           <div>
@@ -587,11 +584,6 @@ function SalesFocusPanel({
     navigate("/azienda/marketing/opportunita?status=open");
   };
 
-  const revenueGap =
-    quoteRevenue &&
-    actualRevenue <= 0 &&
-    ((velocity?.sales_velocity ?? 0) > 0 || activeQuotesValue > 0 || (velocity?.open_opportunities ?? 0) > 0);
-
   return (
     // Telefono: senza riquadro esterno, i numeri e le azioni stanno a filo pagina.
     <Card className="border-slate-200 shadow-sm max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
@@ -607,17 +599,11 @@ function SalesFocusPanel({
         </div>
       </CardHeader>
       <CardContent className="max-sm:p-0">
-        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.3fr] max-sm:gap-3">
-          {/* Telefono: quattro numeri 2×2 senza la riga sotto né la spiegazione. */}
-          <div className="rounded-lg border bg-muted/20 p-4 max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
-            <div className="flex items-center justify-between gap-3 max-sm:hidden">
-              <span />
-              {revenueGap && (
-                <Badge variant="outline" className="border-amber-300 text-amber-700">
-                  Gap firme
-                </Badge>
-              )}
-            </div>
+        {/* 15/11/2026: da computer i numeri del comando erano tutti ripetuti (ricavo firmato e
+            preventivi aperti nei riquadri in cima, forecast nella scheda «Proteggi forecast»):
+            restano al telefono, dove i riquadri in cima non ci sono. */}
+        <div className="grid gap-4 max-sm:gap-3">
+          <div className="rounded-lg border bg-muted/20 p-4 sm:hidden max-sm:border-0 max-sm:bg-transparent max-sm:p-0">
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 max-sm:mt-0 max-sm:grid-cols-2 max-sm:gap-2">
               {metrics.map((metric) => (
                 <div key={metric.label} className={`rounded-md bg-background p-3 max-sm:border max-sm:px-2.5 max-sm:py-2 ${metric.soloTelefono ? "sm:hidden" : ""}`}>
@@ -648,7 +634,7 @@ function SalesFocusPanel({
                 <p className="text-sm font-semibold max-sm:text-[13px]">Cosa fare adesso</p>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 max-sm:gap-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 max-sm:gap-2">
               {commandActions.map((voce) => {
                 const item = nonArrivati[voce.key]
                   ? { ...voce, icon: AlertTriangle, value: "—", detail: "Dati non arrivati: riprova tra poco.", tone: "text-red-600", badge: "Errore" }
@@ -1406,7 +1392,7 @@ export default function SalesOSDashboard() {
 
       {/* KPI Bar — telefono no: gli stessi numeri stanno nel «comando di oggi» qui sotto. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-sm:hidden">
-        <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} pipelineId={pipelineId} />
+        <SalesVelocityCard companyId={companyId} daysBack={range.daysBack} periodLabel={range.label} pipelineId={pipelineId} onAllarga={period === "12m" ? undefined : () => setPeriod("12m")} />
         <QuoteRevenueCard
           companyId={companyId}
           dateFrom={range.dateFrom}
