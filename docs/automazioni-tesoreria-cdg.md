@@ -1,0 +1,249 @@
+# Tesoreria e controllo di gestione: riconciliazioni senza doppi conteggi
+
+Area **C** del piano `docs/piano-ai-addebiti-e-automazioni-20261115.md` (§7.10, §7.15).
+Scritto il 15/11/2026 dopo la ricognizione di codice e database. Il documento descrive
+cosa c'è, cosa si aggiunge e con quale regola; i numeri vengono da produzione il 15/11.
+
+## 0. Cosa c'è già (e resta)
+
+| Pezzo | Dove | Cosa fa |
+|---|---|---|
+| Ripartizione di un movimento su più documenti | `riconcilia_movimento_su_documenti`, `bank_conferma_ripartizione`, `scollega_riga_ripartita` | Quote su fatture emesse, scadenze, rate; residui controllati nel database, tutto o niente |
+| Lotto di conferme | `bank_conferma_lotto` (richiesta idempotente, lock aziendale, fino a 100 movimenti) | Riusa le funzioni sopra; un errore annulla il lotto |
+| Bonifico su fattura / bonifico parlante | `riconcilia_bonifico_fattura`, `riconcilia_bonifico_parlante` | Netto, lordo, ritenuta, commissioni |
+| Differenze e commissioni | `private.bank_register_difference` / `bank_reverse_difference` | Commissione o arrotondamento ≤ 1 € come costo pagato, stornabile solo se creato lì |
+| Prove di pagamenti già registrati | `bank_associa_pagamenti`, `bank_scollega_pagamento` | Il bonifico diventa prova di un pagamento esistente, senza crearne un altro |
+| Annullamento incasso | `annulla_incasso_scadenza`, `bank_scollega_pagamento` | Storno della fonte contabile, storico conservato |
+| Proposte | `bank_suggerisci_riconciliazioni` (cron `bank-auto-reconcile`), `bank_proposte_movimento` («Trova corrispondenze») | Importo uguale al residuo + numero o nome nella causale; punteggio con flag `forte` |
+| Movimento senza fattura | `chiudi_movimento_senza_fattura` | Crea un costo pagato «senza fattura» oppure chiude «nessun costo» |
+| Fatture importate | `private.bank_record_imported`, `bank_external_payment_target` | Residuo locale + write-back con target assoluto |
+| Rate fornitori | `rate_fornitori` (fattura_ricevuta_id, company_cost_id) | Piano di pagamento della fattura ricevuta |
+| Previsionale di cassa | `src/lib/finance/forecastLedger.ts` (18 fonti, nel browser) | Doppioni marcati `possibleDuplicate` sui collegamenti esatti |
+| Economia commessa | `private.office_order_economics_base` → `v_ordine_marginalita`, `economia_commesse(ids)` | Costi da ODA, magazzino, costi diretti e ripartiti, manodopera, SAL subappalto |
+| IBAN dei fornitori | `fornitori_iban_storico` (confermato, da chi, quando), `suppliers.iban` | Tabella vuota il 15/11: nessun IBAN confermato |
+
+Numeri del 15/11: 1.733 movimenti in 2 aziende, 181 ancora da collegare, 1.375 abbinamenti
+attivi, 0 annullati, 0 proposte aperte; 6.491 scadenze, nessuna previsionale; 579 righe
+fattura↔commessa.
+
+### Cosa manca nel motore attuale
+
+1. **Il punteggio compensa.** Un IBAN diverso è solo un avviso: importo + nome + data
+   possono ancora fare «forte». Il piano chiede che un conflitto su un dato essenziale blocchi.
+2. **Il numero vale da solo.** «FT 12» nella causale vale anche se la fattura 12 è di un
+   altro cliente o di un altro anno.
+3. **Solo uno a uno.** Cumulativi, parziali, acconti senza fattura, compensazioni con nota di
+   credito, giroconti, F24, storni non sono riconosciuti: finiscono «da collegare» senza un perché.
+4. **La proposta non si spiega dopo.** In `reconciliation_suggestions` restano solo gli id;
+   i motivi si ricalcolano ad ogni apertura e non c'è versione della regola né storia.
+5. **Un movimento può creare un costo che c'era già.** `chiudi_movimento_senza_fattura`
+   registra una spesa nuova anche se una scadenza aperta dello stesso fornitore, stesso
+   importo, è lì da pagare: la commessa conta il costo due volte.
+6. **Previsione e fattura convivono.** Una scadenza previsionale non viene chiusa quando
+   arriva la fattura vera: oggi non ce ne sono, ma la regola non è scritta.
+
+## 1. Matrice dei flussi (§7.1)
+
+| Flusso | Comportamento attuale | Dati disponibili/mancanti | Parser e regole proposti | AI residua | Eccezioni | Moduli | Priorità | Impegno | Criterio di accettazione |
+|---|---|---|---|---|---|---|---|---|---|
+| Bonifico in entrata = una fattura | Proposta se importo = residuo e numero o nome in causale; conferma a mano | Causale, nome e IBAN ordinante, numero/anno/cliente del documento, P.IVA nello snapshot; manca un IBAN verificato dei clienti | R-DOC: numero con anno e soggetto, IBAN, nome normalizzato senza forma societaria; esito unico/plausibile/più candidati/conflitto/nessuno | Nessuna | Numero di un altro anno → conflitto; nome di un altro cliente → conflitto | Tesoreria, Fatture emesse, Prima nota | Alta | S | Caso unico e verificato → `automatico`; numero giusto ma anno diverso → `conflitto` |
+| Bonifico cumulativo (più fatture) | A mano con la ripartizione | Partite aperte dello stesso soggetto | R-CUMULO: sottoinsieme delle partite aperte dello stesso soggetto (≤ 8 partite, ≤ 256 combinazioni) che somma esattamente | Nessuna | Due combinazioni diverse → `scelta` | Tesoreria, Scadenzario | Alta | M | 400 + 600 = 1.000 → una proposta con due quote; nessun doppio |
+| Pagamento parziale / più pagamenti per una fattura | A mano | Residuo del documento | R-PARZIALE: soggetto certo, importo < residuo → proposta di quota parziale | Nessuna | Importo > residuo → resto da qualificare, mai ricavo | Tesoreria, Fatture | Alta | S | Dopo 400 su 1.000 il residuo è 600; il secondo bonifico da 600 è `automatico` |
+| Acconto prima della fattura | Finisce «da collegare» | Rate della commessa (`order_installments`) non fatturate, cliente della commessa | R-ACCONTO: soggetto = cliente della commessa, rata non pagata senza fattura, importo uguale → proposta «acconto su rata» | Nessuna | Rata già fatturata → si propone la fattura, non la rata | Commesse, Tesoreria | Media | S | Accredito 2.000 su rata da 2.000 → proposta di tipo `rata`; alla fattura il denaro non si conta due volte (rata pagata = fattura collegata) |
+| Compensazione con nota di credito | A mano | NC aperte dello stesso cliente | R-NC: fatture − note di credito dello stesso soggetto = importo | Nessuna | NC di un altro cliente → esclusa | Fatture emesse | Media | S | Fattura 1.000, NC 200, bonifico 800 → proposta con la NC come quota negativa |
+| Commissioni e arrotondamenti | `bank_register_difference` ≤ 1 € alla conferma | Differenza importo/residuo | R-DIFF: differenza ≤ 1 € con soggetto certo → proposta con differenza esposta | Nessuna | Oltre 1 € → parziale | Tesoreria, Costi | Media | S | 998 su 1.000 → proposta con differenza 2 € da classificare (non chiude da sola) |
+| Rimborsi e storni | Non riconosciuti | Movimento opposto stesso conto, stessa controparte, stesso importo | R-STORNO: movimento di segno opposto entro 60 giorni + parola chiave (storno, rimborso, reso, retrocessione) | Nessuna | Più movimenti originari → `scelta` | Tesoreria | Bassa | S | Accredito 500 dopo un addebito 500 allo stesso IBAN → proposta di storno, nessun ricavo |
+| Giroconto | Testo: «l'IBAN di un altro conto segnala un giroconto» | IBAN dei conti dell'azienda | R-GIRO: IBAN controparte = IBAN di un altro conto dell'azienda; gamba opposta ±5 giorni | Nessuna | IBAN di un conto di un'altra azienda → non è giroconto | Tesoreria | Alta | S | Uscita 5.000 da A, entrata 5.000 su B → esito `automatico` natura `giroconto`, nessun costo né ricavo |
+| F24 e movimenti senza fattura | `chiudi_movimento_senza_fattura` a mano | Causale (F24, delega, Agenzia Entrate, INPS), scadenze `scadenza_fiscale` | R-F24: causale F24 → scadenze fiscali aperte con lo stesso importo; senza scadenza → da gestire con «componenti F24 mancanti» | Nessuna | F24 a saldo zero, più deleghe stesso giorno → `scelta` | Tesoreria, Contabilità | Media | S | Addebito F24 = scadenza fiscale → proposta; nessun costo di commessa |
+| Spesa bancaria senza documento | A mano | Causale (commissioni, canone, bollo, interessi) | R-BANCA: parole chiave → natura `spesa_bancaria`, esito `da_gestire` con suggerimento | Nessuna | — | Tesoreria | Bassa | S | Movimento «canone» → da gestire con la categoria suggerita |
+| Pagamento da/a un soggetto diverso | Non distinto | Relazione pagante ↔ intestatario (manca) | R-TERZO: numero giusto ma pagante diverso → conflitto se non c'è un rapporto in `tesoreria_paganti_autorizzati` | Nessuna | Un solo pagamento non crea il rapporto | Tesoreria | Media | S | Senza rapporto → `conflitto`; con rapporto documentato → proposta |
+| Movimento che chiude un debito già registrato | Si può creare una spesa nuova | Scadenze di uscita aperte, fornitore, importo | GUARDIA: `chiudi_movimento_senza_fattura` (spesa) rifiuta se esiste un debito aperto unico con lo stesso importo e lo stesso fornitore/IBAN, finché la proposta non è scartata | Nessuna | Proposta scartata → la spesa si può registrare | Tesoreria, Costi, CdG | Alta | S | Scadenza aperta 300 del fornitore X + uscita 300 a X → la spesa nuova è rifiutata |
+| Previsione → fattura ricevuta | Nessuna regola | Scadenze `is_previsionale`, fornitore, commessa | REGOLA: `tesoreria_sostituisci_previsione(previsione, reale)`: la previsione si chiude (annullata) per la parte coperta, il resto rimane; collegamento tracciato | Nessuna | Fattura > previsione: previsione chiusa intera; < : residuo aperto | Scadenzario, Previsionale | Media | S | Previsione 1.000 + fattura 800 → previsione residua 200, cassa prevista 1.000 non 1.800 |
+| Ripartizione su più commesse | Quote per bonifico (`bank_transaction_contexts`) e per costo (`allocations`) | `fattura_ordine.importo_associato`, `company_costs.allocations`, `scadenze.order_id` | La commessa si ricava dalle partite collegate, in proporzione; se mancano le quote → «ripartizione da completare» | Nessuna | Documento senza commessa → nessuna attribuzione | Commesse, CdG | Alta | S | Bonifico 1.000 su fatture di due commesse 400/600 → commesse 400 e 600 |
+| Integrità di cassa e CdG | Controlli sparsi | Tutte le fonti sopra | `cdg_controllo_doppi(azienda)`: sei controlli (sotto) | Nessuna | — | CdG, Tesoreria | Alta | M | Ogni anomalia ha tipo, documenti, importo e cosa fare |
+| Retry e concorrenza | Lock aziendale nel lotto | — | Classificazione sotto `pg_advisory_xact_lock`, impronta degli input: stesso input = nessuna nuova riga di storia | Nessuna | — | Tesoreria | Alta | S | Due classificazioni simultanee → una sola riga di esito, una sola riga di storia |
+
+## 2. Gli esiti (regola `tesoreria_classifica_movimento`, versione 1)
+
+Gli esiti sono **cinque** e non si compensano.
+
+| Esito | Quando | Cosa può fare il sistema |
+|---|---|---|
+| `automatico` | Un solo candidato (o una sola combinazione), importo esatto, identità forte (IBAN verificato, oppure numero+anno **e** soggetto), nessun conflitto | Idoneo alla conferma automatica **se** l'azienda la abilita. Oggi nessuna azienda la ha: resta una proposta «verde» |
+| `proposta` | Identità certa ma incompleta (parziale, acconto, differenza, NC, cumulativo), oppure identità debole con importo esatto | Proposta da confermare |
+| `scelta` | Più candidati con la stessa forza | L'utente sceglie; ogni alternativa ha i suoi motivi |
+| `conflitto` | Un dato essenziale contraddice: IBAN verificato di un altro soggetto, numero di un altro anno, numero del documento con un pagante diverso senza rapporto | Nessun collegamento proposto, il conflitto è scritto |
+| `da_gestire` | Nessun candidato | Elenco dei dati mancanti (soggetto, numero, documento) e una natura suggerita (spesa bancaria, F24) |
+
+**Identità** (in ordine di forza): IBAN verificato (`fornitori_iban_storico.confermato`, IBAN
+dei conti dell'azienda per i giroconti) → numero del documento con anno compatibile **e**
+soggetto → IBAN in anagrafica (`suppliers.iban`, `iban_cliente`) → nome normalizzato
+(minuscolo, senza accenti, senza forma societaria: srl, s.r.l., spa, snc, sas, sapa, ss,
+scarl, coop) → solo importo (mai sufficiente).
+
+**Numero di documento**: «12/2026», «FT-2026-0012», «2026/12», «n. 12 del 2026» si leggono come
+(numero 12, anno 2026). Il numero vale se nella causale c'è come parola intera (non dentro un
+IBAN o una cifra più lunga); se nella causale c'è anche un anno vicino e non è quello del
+documento, è **conflitto**. Un numero corto (1–2 cifre) senza parola «fattura/ft/fatt/n.»
+vicino non vale.
+
+**Commessa**: dalle partite collegate — `fattura_ordine.importo_associato` per le fatture
+emesse, `scadenze.order_id` o il costo collegato (`company_costs.order_id` o `allocations`)
+per le uscite, `order_installments.order_id` per le rate. Più commesse sullo stesso
+documento senza quote → `ripartizione_da_completare`.
+
+**Dove si legge**: `public.tesoreria_esiti` (una riga per movimento: esito, natura, regola,
+versione, candidati con motivi, conflitti, mancanti, commesse, impronta), storia in
+`public.tesoreria_esiti_storia`. `tesoreria_esito_movimento(azienda, movimento)` la
+restituisce; `tesoreria_classifica_movimenti(azienda, limite)` la aggiorna (la chiama anche il
+cron `bank-auto-reconcile`).
+
+### Forma per le schermate
+
+```jsonc
+{
+  "esito": "proposta",            // automatico | proposta | scelta | conflitto | da_gestire
+  "natura": "cumulativo",         // documento | cumulativo | parziale | eccedenza | acconto | compensazione_nc
+                                  // differenza | giroconto | f24 | storno | spesa_bancaria | spesa_carta
+                                  // gia_riconciliato | sconosciuta
+  "regola": "R-CUMULO", "versione": 1,
+  "motivi": ["Stesso soggetto", "Somma esatta di 2 partite aperte"],
+  "conflitti": [],                // testo leggibile, uno per riga
+  "mancanti": [],                 // cosa servirebbe per chiudere
+  "differenza": 0,                // importo non attribuito (commissione, eccedenza)
+  "candidati": [                  // una o più alternative; ognuna è una ripartizione completa
+    { "chiave": "...", "forza": "forte|media|debole", "motivi": [...], "conflitti": [],
+      "righe": [ { "tipo": "documento|scadenza|rata|movimento", "id": "uuid", "titolo": "FT 12/2026",
+                   "controparte": "...", "residuo": 400, "quota": 400,
+                   "commesse": [ { "order_id": "uuid", "quota": 400 } ] } ] }
+  ],
+  "commesse": [ { "order_id": "uuid", "quota": 1000 } ],
+  "ripartizione_da_completare": false
+}
+```
+
+Ogni riga di `righe` si passa così com'è a `bank_conferma_ripartizione` / `bank_conferma_lotto`:
+la conferma resta quella esistente, che ricontrolla residui e concorrenza.
+
+## 3. Integrità e controllo di gestione (§7.15)
+
+### Chi alimenta cosa
+
+| Oggetto | Budget | Consuntivo (costo/ricavo di commessa) | Cassa |
+|---|---|---|---|
+| Ordine (ODA) | Impegno | Sì, finché non c'è la fattura: `marginalita_costo_oda` | No (previsto nel previsionale come impegno) |
+| DDT | — | No: movimento fisico; valorizza il magazzino e la copertura ODA | No |
+| SAL attivo | Avanzamento | Ricavo maturato | No |
+| SAL subappalto | — | `sal_sub_da_fatturare` finché non è fatturato | No |
+| Fattura ricevuta / costo | — | Sì, **sostituisce** l'ODA collegato (`purchase_order_id`) | Genera scadenze / rate |
+| Fattura emessa | — | Ricavo | Genera scadenze / rate |
+| Scadenza (reale) | — | No: è il calendario del debito/credito | Prevista |
+| Scadenza previsionale | — | No | Prevista **finché** non è sostituita dalla fattura |
+| Movimento bancario | — | **Mai**, tranne commissioni/spese senza documento | Effettiva |
+| Allocazione alla commessa | — | Ripartisce il costo/ricavo del documento, non il denaro | Ripartisce il denaro sulla commessa per l'esposizione |
+
+Regole che tengono separati i conteggi:
+
+1. **Un movimento che chiude un debito non crea un costo.** Il pagamento aggiorna il saldo e
+   chiude la partita; il costo è già nella fattura/costo. Guardia nel database su
+   `company_costs` (`private.tes_spesa_da_banca_non_doppia`): blocca quando il debito aperto è
+   verificato (stesso fornitore e importo + numero del documento in causale, oppure IBAN
+   verificato del fornitore). Il caso solo plausibile (stesso fornitore e importo) passa,
+   finché l'interfaccia non permette di scartare la proposta, e lo segnala `cdg_controllo_doppi`.
+2. **La fattura ricevuta sostituisce la previsione** collegata (`tesoreria_sostituisci_previsione`):
+   la previsione si riduce dell'importo della fattura, mai sotto zero; il collegamento resta.
+3. **La rata della commessa fatturata è la fattura**: il previsionale già la marca doppione
+   quando la fattura è sulla rata; l'acconto prima della fattura si collega alla rata, e
+   quando la fattura arriva sulla stessa rata il denaro è già lì.
+4. Ogni collegamento conserva azienda, documenti e righe, importi, regola, prove, chi, quando,
+   stato e storia: `bank_reconciliations` (quote, `matched_by`, `matched_at`, `unmatched_at`,
+   `unmatch_reason`) + `tesoreria_esiti` / `_storia` (regola, versione, prove). Le colonne
+   `regola` e `prove` si aggiungono a `bank_reconciliations` e le compila un trigger dalla
+   proposta in vigore al momento della conferma.
+
+### `cdg_controllo_doppi(azienda)`
+
+| Controllo | Cosa trova |
+|---|---|
+| `movimento_oltre_importo` | Quote attive di un movimento che superano il suo importo |
+| `documento_oltre_totale` | Incassi di una fattura emessa oltre il totale da pagare |
+| `spesa_da_banca_su_debito_aperto` | Spesa creata da un movimento mentre un debito aperto dello stesso fornitore e importo aspettava quel pagamento |
+| `previsione_non_sostituita` | Scadenza previsionale aperta con una scadenza reale dello stesso fornitore e commessa |
+| `prima_nota_doppia` | Due righe di prima nota non stornate per lo stesso movimento e lo stesso documento |
+| `allocazioni_non_100` | Costo con ripartizione su commesse che non somma a 100% |
+
+## 4. Dati storici
+
+Prima l'anteprima, poi i lotti. `tesoreria_classifica_movimenti` scrive solo nelle tabelle
+degli esiti (nessun pagamento, nessun costo, nessuna modifica ai movimenti) a lotti di 100
+con `lock_timeout` 3 s e `statement_timeout` 60 s. Anteprima del 15/11: vedi §6.
+
+## 5. Decisioni per il titolare
+
+1. **Conferma automatica**: quali aziende, e per quali nature? Proposta: solo `automatico`
+   su incassi di fatture emesse e giroconti, prima su Demo Azienda 2, interruttore per azienda.
+2. **Soglia delle differenze**: oggi 1 € per commissioni e arrotondamenti. Resta così?
+3. **IBAN verificati dei clienti**: oggi non esiste un registro come `fornitori_iban_storico`
+   per i clienti. Lo si apre (conferma alla prima riconciliazione manuale)?
+
+## 6. Stato dei lotti
+
+### Lotto 1 — motore degli esiti, guardie, controllo dei doppi (15/11/2026)
+
+Migrazioni `20290404310000_tesoreria_esiti_riconciliazione`,
+`20290404311000_tesoreria_esiti_regole_dati_veri` e `20290404312000_tesoreria_guardia_solo_se_verificato`
+(guardia ristretta ai casi verificati, intermediari solo con nomi interi), applicate e riallineate; cron
+`bank-auto-reconcile` che dopo le proposte di sempre registra anche gli esiti.
+
+| Funzione | Cosa fa | Chi |
+|---|---|---|
+| `tesoreria_classifica_movimento(azienda, movimento)` | Esito calcolato ora, senza scrivere | lettura tesoreria |
+| `tesoreria_classifica_movimenti(azienda, limite, anteprima)` | Registra gli esiti a lotti (≤ 500), lock aziendale, impronta: un retry non scrive niente | riconciliazione (o servizio) |
+| `tesoreria_esito_movimento(azienda, movimento)` | Esito registrato + storia | lettura tesoreria |
+| `tesoreria_scarta_esito(azienda, movimento, motivo)` | Scarta con motivo; resta nella storia | riconciliazione |
+| `tesoreria_sostituisci_previsione` / `tesoreria_annulla_sostituzione` | Regola previsione → fattura, idempotente e annullabile | gestione scadenze |
+| `cdg_controllo_doppi(azienda)` | I sei controlli del §3 | CdG o tesoreria |
+
+Trigger: `tes_spesa_da_banca_non_doppia` (company_costs), `tes_previsione_da_reale` (scadenze),
+`tes_quota_eredita_prove` (bank_reconciliations: colonne nuove `regola`, `prove`).
+
+**Anteprima e registrazione sui dati veri** (181 movimenti da collegare, 2 aziende):
+
+| Azienda | Esiti |
+|---|---|
+| Demo Azienda 2 (24) | 3 proposte (2 giroconti, 1 eccedenza), 2 scelte (parziali), 19 da gestire |
+| Azienda cliente (157) | 157 da gestire: 62 acquisti con carta senza ricevuta, 40 uscite senza partita aperta, 31 spese bancarie (di cui 14 con un intermediario al posto del pagante), 10 incassi senza documento, 12 con solo l'importo che coincide, 2 F24 senza scadenza fiscale |
+
+Il motore non collega niente sull'azienda cliente perché i documenti non ci sono: gli
+incassi citano i codici di cantiere del cliente (es. «rif MMxxx»), che nel gestionale non
+esistono; le uscite vanno a fornitori senza fattura registrata. È un dato mancante, non
+una regola mancante. La prima anteprima aveva trovato un falso conflitto («del 26 05 2026»
+letto come fattura 26 e 5): corretto nella seconda migrazione, con il test.
+
+Esiti registrati a lotti da 100 (scrivono solo `tesoreria_esiti` e `_storia`); il secondo
+giro su Demo Azienda 2 ha cambiato 0 righe. `cdg_controllo_doppi` sulle aziende con banca e
+sulle otto con più costi: un rilievo, un costo ripartito su commesse che non arriva al 100%
+(2.055,17 €).
+
+**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 31 casi):
+unico verificato, anno diverso, pagante terzo con e senza rapporto, scelta, cumulativo,
+parziale e saldo, acconto prima della fattura e poi fatturato, nota di credito, commissione
+sotto e sopra 1 €, giroconto e non-giroconto, F24, storno, spesa bancaria, acquisto con
+carta, solo importo, IBAN verificato di un altro fornitore, ripartizione su più commesse e
+ripartizione da completare, abbinamento annullato, isolamento fra aziende, nessuna scrittura
+di denaro, anteprima/retry/simultaneità, eredità delle prove, costo doppio bloccato,
+previsione sostituita/annullata/chiusa, previsioni ambigue, controlli, guardia verificata contro
+plausibile, fornitore col nome di una banca.
+
+Nota: il trigger `tes_previsione_da_reale` riduce da solo la previsione quando arriva una
+scadenza reale dello stesso fornitore e della stessa commessa e la previsione aperta è una sola;
+la riduzione è tracciata in `scadenze_sostituzioni` e si annulla.
+
+### Da fare (lotti successivi)
+
+1. **Schermate** (sessione «Fatture, Scadenzario e Tesoreria»): mostrare esito, motivi,
+   conflitti e mancanti nel Dettaglio movimento; «Scarta» con motivo → `tesoreria_scarta_esito`.
+2. **Conferma automatica** per azienda, solo esiti `automatico` (decisione 1 del §5).
+3. Registro degli IBAN verificati dei clienti (decisione 3) e conferma dell'IBAN alla prima
+   riconciliazione manuale, con i componenti comuni della sessione B quando arrivano su `main`.
+4. Componenti F24 (righe tributo) per collegare una delega a più scadenze fiscali.
