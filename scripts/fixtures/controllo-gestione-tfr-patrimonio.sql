@@ -47,7 +47,7 @@ do $$
 declare
   c constant uuid := 'c9000000-0000-4000-a000-000000000001';
   v_ce numeric; v_mesi numeric; v_det numeric; v_l numeric;
-  sp jsonb; p jsonb; sp26 jsonb; v jsonb;
+  sp jsonb; p jsonb; sp26 jsonb; vf jsonb;
 begin
   -- Conto economico: costo del personale con il TFR e la rivalutazione; mesi e dettaglio sommano uguale.
   select (v ->> 'valore')::numeric into v_ce
@@ -92,14 +92,14 @@ begin
   -- Versamenti F24 2025 (20290401210000): ritenute e contributi di gennaio il 16/2 (600 + 1.650),
   -- quelli di novembre più l'acconto dell'imposta sostitutiva (31,82) il 16/12; senza conti in banca
   -- le scadenze passate non sono verificabili. Il TFR al fondo pensione non è un F24.
-  v := public.cg_get_versamenti_fiscali(c, 2025);
-  if jsonb_array_length(v -> 'scadenze') <> 11 then raise exception 'Versamenti 2025: attese 11 scadenze, trovate %', jsonb_array_length(v -> 'scadenze'); end if;
-  if v -> 'scadenze' -> 0 ->> 'scadenza' <> '2025-02-16' or (v -> 'scadenze' -> 0 ->> 'atteso')::numeric <> 2250.00
-     or v -> 'scadenze' -> 0 ->> 'stato' <> 'non_verificabile' then
-    raise exception 'Versamenti 2025, prima scadenza: attesa 16/2 2250 non verificabile, trovata %', v -> 'scadenze' -> 0;
+  vf := public.cg_get_versamenti_fiscali(c, 2025);
+  if jsonb_array_length(vf -> 'scadenze') <> 11 then raise exception 'Versamenti 2025: attese 11 scadenze, trovate %', jsonb_array_length(vf -> 'scadenze'); end if;
+  if vf -> 'scadenze' -> 0 ->> 'scadenza' <> '2025-02-16' or (vf -> 'scadenze' -> 0 ->> 'atteso')::numeric <> 2250.00
+     or vf -> 'scadenze' -> 0 ->> 'stato' <> 'non_verificabile' then
+    raise exception 'Versamenti 2025, prima scadenza: attesa 16/2 2250 non verificabile, trovata %', vf -> 'scadenze' -> 0;
   end if;
-  if v -> 'scadenze' -> 10 ->> 'scadenza' <> '2025-12-16' or (v -> 'scadenze' -> 10 ->> 'atteso')::numeric <> 2281.82 then
-    raise exception 'Versamenti 2025, 16/12: attesi 2281.82, trovato %', v -> 'scadenze' -> 10;
+  if vf -> 'scadenze' -> 10 ->> 'scadenza' <> '2025-12-16' or (vf -> 'scadenze' -> 10 ->> 'atteso')::numeric <> 2281.82 then
+    raise exception 'Versamenti 2025, 16/12: attesi 2281.82, trovato %', vf -> 'scadenze' -> 10;
   end if;
 end $$;
 
