@@ -113,17 +113,42 @@ async function commessaDaRegole(
   supabase: any, fattura: AnyObj, companyId: string,
 ): Promise<{ regola: CommessaDaRegole | null; conflitto: ConflittoDaRegole | null }> {
   const daCodici = await commessaDaCodici(supabase, fattura, companyId);
-  if (daCodici) return { regola: daCodici, conflitto: null };
+  if (daCodici) {
+    // I codici sono una proposta: la conferma nel popup porta il costo sulla commessa.
+    await registraCommessa(supabase, fattura.id, daCodici, "codici_commessa", "proposta");
+    return { regola: daCodici, conflitto: null };
+  }
   try {
     const esito = await catenaDellaFattura(supabase, {
       id: fattura.id, company_id: companyId, fornitore_id: fattura.fornitore_id ?? null, data_fattura: fattura.data_fattura ?? null,
       xml_raw: fattura.xml_raw ?? null, indice_corpo: fattura.indice_corpo ?? 0,
     });
     if (esito.conflitto) return { regola: null, conflitto: { conflitto: esito.conflitto } };
+    // La catena c'è solo se è certa: «automatico», che il database fa valere solo con l'interruttore
+    // acceso e su una fattura già contabilizzata col costo libero; altrimenti diventa una proposta.
+    if (esito.commessa) await registraCommessa(supabase, fattura.id, esito.commessa, "catena_documenti", "automatico");
     return { regola: esito.commessa, conflitto: null };
   } catch (e) {
     console.warn("[ai-fattura-classify] catena non disponibile:", e instanceof Error ? e.message : e);
     return { regola: null, conflitto: null };
+  }
+}
+
+/**
+ * La commessa trovata dalle regole entra nella traccia (`acquisti_commessa_della_fattura`, solo servizio):
+ * col collegamento il costo segue la commessa. Un errore qui non ferma la classificazione.
+ */
+async function registraCommessa(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any, fatturaId: string, commessa: CommessaDaRegole, regola: string, esito: "automatico" | "proposta",
+): Promise<void> {
+  try {
+    const { error } = await supabase.rpc("acquisti_commessa_della_fattura", {
+      p_fattura: fatturaId, p_order: commessa.order_id, p_regola: regola, p_esito: esito, p_motivo: commessa.motivo,
+    });
+    if (error) console.warn("[ai-fattura-classify] commessa non registrata:", error.message);
+  } catch (e) {
+    console.warn("[ai-fattura-classify] commessa non registrata:", e instanceof Error ? e.message : e);
   }
 }
 

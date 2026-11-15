@@ -508,3 +508,124 @@ describe("fattura ↔ ordine per importo uguale (decisione del 15/11)", () => {
     expect(await stato(94)).toEqual({ po: null, traccia: [] });
   });
 });
+
+describe("fattura → commessa: il costo segue il collegamento (migrazione 20290404306000)", () => {
+  const COMM = id(60), COMM2 = id(61), COSTO = id(62);
+  beforeAll(async () => {
+    await db.exec(`
+      alter table fatture_ricevute add column if not exists company_cost_id uuid, add column if not exists order_id_suggerito uuid,
+        add column if not exists updated_at timestamptz;
+      create table if not exists company_costs(id uuid primary key default gen_random_uuid(), company_id uuid, order_id uuid,
+        allocations jsonb default '[]', quota_magazzino numeric, purchase_order_id uuid, order_external_team_id uuid, updated_at timestamptz);
+      -- Come in produzione, ridotta all'osso: serve una persona col permesso, contabilizza se manca il costo,
+      -- una commessa intera va in order_id, una quota in allocations; segna la scelta come manuale.
+      create or replace function fattura_collega_commesse(p_fattura_id uuid, p_quote jsonb, p_magazzino numeric default 0, p_magazzino_righe jsonb default null)
+      returns jsonb language plpgsql as $$
+      declare v uuid; b numeric; n int := jsonb_array_length(p_quote); intera boolean;
+      begin
+        if auth.uid() is null then raise exception 'Il tuo ruolo non permette di registrare i costi delle commesse.'; end if;
+        select company_cost_id, abs(coalesce(imponibile_totale, totale_documento, 0)) into v, b from fatture_ricevute where id = p_fattura_id;
+        if v is null then
+          insert into company_costs(company_id) select company_id from fatture_ricevute where id = p_fattura_id returning id into v;
+          update fatture_ricevute set company_cost_id = v where id = p_fattura_id;
+        end if;
+        intera := n = 1 and (p_quote->0->>'importo')::numeric >= b - 0.01;
+        update company_costs set order_id = case when intera then (p_quote->0->>'order_id')::uuid end,
+               allocations = case when n = 0 or intera then '[]'::jsonb else p_quote end where id = v;
+        update fatture_ricevute set order_id_suggerito = case when n = 1 then (p_quote->0->>'order_id')::uuid end, aggancio_oda_manuale = true where id = p_fattura_id;
+        return '{}'::jsonb;
+      end $$;`);
+    await db.exec(readFileSync("supabase/migrations/20290404306000_acquisti_commessa_costo_alla_conferma.sql", "utf8"));
+  });
+  beforeEach(async () => {
+    await db.exec(`truncate company_costs`);
+    await db.query(`insert into orders(id, company_id) values ($1,$2),($3,$2)`, [COMM, AZ, COMM2]);
+  });
+  const fatturaCommessa = async (n: number, contabilizzata = true) => {
+    await fattura(n, []);
+    await db.query(`update fatture_ricevute set imponibile_totale = 100 where id = $1`, [id(n)]);
+    if (contabilizzata) {
+      await db.query(`insert into company_costs(id, company_id) values ($1,$2)`, [COSTO, AZ]);
+      await db.query(`update fatture_ricevute set company_cost_id = $1 where id = $2`, [COSTO, id(n)]);
+    }
+  };
+  const dallaCatena = (n: number, esito = "automatico", a = COMM) =>
+    db.query<{ r: { esito: string; costo: string | null; motivo?: string } }>(
+      `select acquisti_commessa_della_fattura($1,$2,'catena_documenti',$3,'catena: DDT 12 → ordine ODA-1') r`, [id(n), a, esito]);
+  const costo = async () =>
+    (await db.query<{ order_id: string | null; quote: number }>(`select order_id, jsonb_array_length(allocations) quote from company_costs`)).rows;
+  const traccia = async (n: number) =>
+    (await db.query<{ id: string; esito: string; stato: string }>(`select id, esito, stato from acquisti_collegamenti where da_id = $1 and a_tipo = 'commessa'`, [id(n)])).rows;
+  const persona = () =>
+    db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${AZ}',false)`);
+
+  it("acceso, fattura contabilizzata col costo libero: collegata da sola, il costo va sulla commessa", async () => {
+    await fatturaCommessa(100);
+    expect((await dallaCatena(100)).rows[0].r).toMatchObject({ esito: "collegato", costo: "sulla_commessa" });
+    expect(await costo()).toEqual([{ order_id: COMM, quote: 0 }]);
+    expect((await traccia(100))[0]).toMatchObject({ esito: "automatico", stato: "collegato" });
+  });
+
+  it("acceso ma non contabilizzata: proposta; la conferma di una persona contabilizza e porta il costo", async () => {
+    await fatturaCommessa(101, false);
+    expect((await dallaCatena(101)).rows[0].r).toMatchObject({ esito: "proposto", costo: null });
+    expect(await costo()).toEqual([]);
+    await persona();
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [(await traccia(101))[0].id]);
+    expect(await costo()).toEqual([{ order_id: COMM, quote: 0 }]);
+  });
+
+  it("spento: proposta, il costo resta dov'è", async () => {
+    await db.query(`update company_governance_settings set collegamento_automatico = false where company_id = $1`, [AZ]);
+    await fatturaCommessa(102);
+    expect((await dallaCatena(102)).rows[0].r.esito).toBe("proposto");
+    expect(await costo()).toEqual([{ order_id: null, quote: 0 }]);
+  });
+
+  it("costo già su un'altra commessa: non si registra niente; dal popup la conferma lo dice", async () => {
+    await fatturaCommessa(103);
+    await db.query(`update company_costs set order_id = $1`, [COMM2]);
+    expect((await dallaCatena(103)).rows[0].r).toMatchObject({ esito: "saltata", motivo: "il costo è già assegnato" });
+    expect(await traccia(103)).toEqual([]);
+    await db.query(`select acquisti_collegamento_registra($1,'fattura_ricevuta',$2,null,'commessa',$3,null,'codici_commessa','proposta')`, [AZ, id(103), COMM]);
+    await persona();
+    await expect(db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [(await traccia(103))[0].id])).rejects.toThrow(/già su un'altra commessa/);
+    expect(await costo()).toEqual([{ order_id: COMM2, quote: 0 }]);
+  });
+
+  it("annullata dal popup: il costo torna libero, e la regola non lo rimette", async () => {
+    await fatturaCommessa(104);
+    await dallaCatena(104);
+    await persona();
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'annullato','cantiere sbagliato')`, [(await traccia(104))[0].id]);
+    expect(await costo()).toEqual([{ order_id: null, quote: 0 }]);
+    await db.exec(`select set_config('test.role','service_role',false), set_config('test.user','',false)`);
+    await dallaCatena(104);
+    expect(await costo()).toEqual([{ order_id: null, quote: 0 }]);
+    expect((await traccia(104))[0].stato).toBe("annullato");
+  });
+
+  it("una persona aveva tolto la commessa dalla fattura: si propone, non si rimette da solo", async () => {
+    await fatturaCommessa(105);
+    await db.query(`update fatture_ricevute set aggancio_oda_manuale = true where id = $1`, [id(105)]);
+    expect((await dallaCatena(105)).rows[0].r.esito).toBe("proposto");
+    expect(await costo()).toEqual([{ order_id: null, quote: 0 }]);
+  });
+
+  it("quota della riga: conferma porta 40 su 100 alla commessa, annullo la toglie", async () => {
+    await fatturaCommessa(106);
+    await db.query(`select acquisti_collegamento_registra($1,'fattura_ricevuta',$2,'2','commessa',$3,null,'riga_cantiere','proposta','[]'::jsonb,null,null,null,40)`, [AZ, id(106), COMM]);
+    await persona();
+    const c = (await traccia(106))[0].id;
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [c]);
+    expect(await costo()).toEqual([{ order_id: null, quote: 1 }]);
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'annullato','riga di un altro cantiere')`, [c]);
+    expect(await costo()).toEqual([{ order_id: null, quote: 0 }]);
+  });
+
+  it("la porta della commessa trovata dalle regole è solo del servizio", async () => {
+    await fatturaCommessa(107);
+    await persona();
+    await expect(dallaCatena(107)).rejects.toThrow(/servizio/);
+  });
+});

@@ -267,6 +267,18 @@ solo servizio): le fatture senza fornitore scendono da 12.515 a 4.309. Restano s
 Velocità: indici per chiave fiscale sulle fatture senza fornitore e sulla rubrica; prima ogni
 fattura rileggeva tutta la rubrica (da 4,6 s a 0,04 s per fornitore).
 
+**Lotto 13 — il costo segue la commessa** (migrazione `20290404306000`): la commessa trovata dalle
+regole entra nella traccia da `acquisti_commessa_della_fattura` (solo servizio, chiamata da
+`ai-fattura-classify`): la catena dei documenti come «automatico», i codici CUP/CIG/commessa come
+«proposta». L'automatico (interruttore acceso) sposta sulla commessa solo un costo che c'è già e
+che è libero; non contabilizza fatture da sé (il 15/11 l'88% non è contabilizzato) e non passa mai
+sopra una persona che aveva tolto la commessa: in quei casi è una proposta. Nel popup di verifica,
+**Conferma** porta il costo sulla commessa (tutto, o la quota scritta nel collegamento per una
+riga) e **Annulla/Rifiuta** lo riporta indietro, passando da `fattura_collega_commesse` (stessi
+controlli, permesso «Costi»; se serve contabilizza, come il popup della fattura). Un costo già su
+un'altra commessa o diviso non si tocca: la conferma lo dice. Provato in produzione su Demo
+Azienda 2 in una transazione annullata.
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 
@@ -281,7 +293,7 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
 | Fattura ↔ DDT (testata) | era: numero identico, solo all'arrivo (180/1.560) | `DatiDDT` + `RiferimentoNumeroLinea`; bolle registrate | **fatto**: numero normalizzato + fornitore + anno + data ±10 gg; trigger sulla bolla | nessuna | numero ripetuto in anni diversi (vincolo unico senza anno); bolla mai caricata | Fatture ricevute, DDT | A | — | fatto: casi PGlite verdi, anteprima senza scritture |
 | DDT nelle descrizioni | **fatto (lotto 9)** | «Rif. DDT n. … del …» nelle righe | `ddtNelleDescrizioni` (solo con la parola DDT/bolla davanti) → stesse regole | nessuna | numeri nudi (prezzi, misure) esclusi di proposito | Fatture ricevute | B | S | nuove righe `fattura_ddt` con origine «descrizione» |
 | Fattura ↔ ordine (DatiOrdineAcquisto) | non letto; solo `aggancia_fattura_a_oda` per importo | `IdDocumento`, `Data`, `NumItem`, righe; 3/570 citano nostri ordini | `abbinaOrdine`: nostro numero o conferma del fornitore, anno, fornitore essenziale; riferimenti vuoti ignorati | nessuna | ordine di un altro fornitore (conflitto); conferma d'ordine del fornitore non registrata | Fatture, ODA | B | M | percorso «ordine X» nella traccia; nessun ordine agganciato per solo importo senza proposta |
-| Fattura → commessa | `commessa_da_codici` (CUP/CIG/codice) → proposta; AI `riconcilia-fattura-ai` | catena DDT/ordine/contratto, codici, indirizzo | `costruisciCatena`: fonti forti in accordo → automatico; forte contro debole → conflitto; indirizzo da solo → proposta; per riga dove l'XML lo dice | AI solo per leggere un codice da un allegato scansionato, poi verificato | ordine e indirizzo in disaccordo; commessa chiusa; nessun elemento → «da attribuire» | Fatture, Commesse, CdG (C) | A | M | nessuna commessa forzata: le fatture senza elementi restano «da attribuire» con i dati mancanti |
+| Fattura → commessa | **fatto (lotto 13)**: catena → automatico, codici → proposta, il costo segue la conferma; AI `riconcilia-fattura-ai` per il resto | catena DDT/ordine/contratto, codici, indirizzo | `costruisciCatena`: fonti forti in accordo → automatico; forte contro debole → conflitto; indirizzo da solo → proposta; per riga dove l'XML lo dice | AI solo per leggere un codice da un allegato scansionato, poi verificato | ordine e indirizzo in disaccordo; commessa chiusa; nessun elemento → «da attribuire» | Fatture, Commesse, CdG (C) | A | M | nessuna commessa forzata: le fatture senza elementi restano «da attribuire» con i dati mancanti |
 | Ripartizione su più commesse | a mano (`fattura_collega_commesse`) | righe con riferimenti diversi | allocazioni per riga; accessori in proporzione, criterio scritto | nessuna | righe senza riferimento → da attribuire | Fatture, Commesse | B | M | somma allocazioni = imponibile, criterio visibile |
 | Costi generali / da attribuire | categorie a mano | categoria fornitore, assenza di riferimenti | destinazione «da_attribuire» esplicita; costi generali per categoria del fornitore (regola dichiarata) | classificazione `fattura_classify` solo per la categoria contabile | fornitore misto (cantiere e sede) | Fatture, CdG (C) | B | S | nessun costo generale finisce su una commessa per default |
 | Righe fattura ↔ righe DDT | `fattura_riconciliazione_*` con AI (`fattura_riconcilia`, 41 chiamate) | `RiferimentoNumeroLinea`, `CodiceArticolo`, equivalenze | `abbinaRigheFattura`: codice (anche via equivalenze), descrizione uguale; quantità conferma; una riga DDT una volta | AI solo per le righe rimaste senza codice e senza descrizione uguale, sulle sole righe | codici fornitore diversi dai nostri (equivalenze); unità diverse (conversioni autorizzate) | Fatture, DDT, Magazzino | A | M | % righe chiuse senza AI misurata per azienda; `fattura_riconcilia` cala |
