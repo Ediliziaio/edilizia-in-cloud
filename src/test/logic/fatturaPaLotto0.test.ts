@@ -40,7 +40,7 @@ function fatturaPa(esigibilita: "I" | "S" | null, extra: Record<string, unknown>
     tipo: "fattura_pa", numero: "FT-2026-0100", data_emissione: "2026-11-15", cliente_snapshot: cliente,
     righe: [riga], riepilogo_iva: t.riepilogo_iva, imponibile_totale: t.imponibile_totale, iva_totale: t.iva_totale,
     totale_documento: t.totale_documento, totale_da_pagare: t.totale_da_pagare, metodo_pagamento_codice: "MP05",
-    scadenze_pagamento: [], esigibilita_iva: esigibilita, cig: "Z1A2B3C4D5", cup: "J12F34000000001", ...extra,
+    scadenze_pagamento: [] as unknown[], esigibilita_iva: esigibilita, cig: "Z1A2B3C4D5", cup: "J12F34000000001", ...extra,
   };
 }
 const xml = (doc: Record<string, unknown>, az: Record<string, unknown> = azienda) =>
