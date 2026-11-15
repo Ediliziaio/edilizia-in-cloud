@@ -226,7 +226,7 @@ giro su Demo Azienda 2 ha cambiato 0 righe. `cdg_controllo_doppi` sulle aziende 
 sulle otto con più costi: un rilievo, un costo ripartito su commesse che non arriva al 100%
 (2.055,17 €).
 
-**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 39 casi):
+**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 42 casi; UI `impostazioniAutomazioni.test.tsx`):
 unico verificato, anno diverso, pagante terzo con e senza rapporto, scelta, cumulativo,
 parziale e saldo, acconto prima della fattura e poi fatturato, nota di credito, commissione
 sotto e sopra 1 €, giroconto e non-giroconto, F24, storno, spesa bancaria, acquisto con
@@ -271,6 +271,25 @@ applicate e riallineate.
   riga di prima nota, nessun costo creato, movimento riconciliato; secondo giro senza conferme.
   Trovato e corretto lì: la quota diceva «manuale» perché la conferma vera la scrive sul
   movimento di cassa, non sull'id della fattura (`…314000`).
+
+### Lotto 3 — traccia comune e riga nelle Automazioni (15/11/2026)
+
+Migrazione `20290404317000_tesoreria_traccia_comune_e_stato`.
+
+- **Traccia comune**: ogni conferma vera (automatica o con un clic) si registra anche in
+  `acquisti_collegamenti` con `acquisti_collegamento_registra`: `movimento_banca → documento_fiscale`
+  (incasso) o `movimento_banca → movimento_banca` (giroconto), importo, regola `tesoreria:R-…`,
+  esito `automatico` o `manuale`, prove nel formato comune (`private.tes_prove_comuni`: IBAN
+  verificato e numero del documento *identificano*, controparte e importo *confermano*, data è
+  *indizio*). Mai prima della conferma: il popup comune non deve mostrare «collegato» senza il
+  pagamento registrato. Se la traccia rifiuta (chi conferma non ha il permesso acquisti),
+  l'incasso resta registrato e la storia dell'esito lo annota (`traccia[].non_registrato`).
+- **Impostazioni → Automazioni**: riga «Incassi e giroconti dalla banca» (`incassi-giroconti-banca`,
+  area Tesoreria) in `registroAutomatismi.ts`, con lo **stesso** interruttore del collegamento
+  automatico (`useStatoCollegamento`, esportato) e l'ultimo esito da
+  `tesoreria_stato_automatismo(azienda)` (`src/hooks/useUltimoEsitoTesoreria.ts`): prima un
+  errore dell'ultimo giro, poi i movimenti certi in attesa, poi l'ultima conferma. Chi non vede
+  la tesoreria riceve «nessun esito».
 
 ### Da fare (lotti successivi)
 

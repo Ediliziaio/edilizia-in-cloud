@@ -9,6 +9,7 @@
 import { useCollegamentoAutomatico, useSalvaCollegamentoAutomatico } from "@/hooks/useCollegamentoAutomatico";
 import { useUltimoCollegamento } from "@/hooks/useUltimoCollegamento";
 import { useUltimoCollegamentoSubappalti } from "@/hooks/useUltimoCollegamentoSubappalti";
+import { useUltimoEsitoTesoreria } from "@/hooks/useUltimoEsitoTesoreria";
 
 /** Lo stato dell'interruttore, letto dal server. */
 export interface StatoAutomatismo {
@@ -70,5 +71,15 @@ export const AUTOMATISMI: Automatismo[] = [
       "Da spento la fattura ti viene proposta nella sua scheda e la colleghi con un clic. Una fattura sul cumulativo, oltre il contratto o su un SAL già fatturato non si collega mai da sola.",
     useStato: useStatoCollegamento,
     useUltimoEsito: useUltimoCollegamentoSubappalti,
+  },
+  {
+    id: "incassi-giroconti-banca",
+    area: "Tesoreria",
+    titolo: "Incassi e giroconti dalla banca",
+    cosaFa:
+      "Quando un bonifico in entrata salda una fattura emessa senza dubbi — stesso cliente o IBAN verificato, numero e anno della fattura nella causale, importo uguale al residuo — registra l'incasso da solo. Fa lo stesso per i giroconti fra due conti dell'azienda. Segue l'interruttore del collegamento automatico.",
+    daSpento: "Da spento il movimento certo ti viene proposto in tesoreria e lo confermi con un clic. Parziali, cumulativi e casi dubbi li decidi sempre tu.",
+    useStato: useStatoCollegamento,
+    useUltimoEsito: useUltimoEsitoTesoreria,
   },
 ];

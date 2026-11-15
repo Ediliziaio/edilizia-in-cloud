@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   acceso: false,
   salvati: [] as boolean[],
   esito: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
+  esitoTesoreria: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
   esitoSubappalti: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
@@ -24,9 +25,14 @@ vi.mock("@/hooks/useUltimoCollegamento", async (importOriginal) => ({
   useUltimoCollegamento: () => state.esito,
 }));
 
+vi.mock("@/hooks/useUltimoEsitoTesoreria", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useUltimoEsitoTesoreria")>()),
+  useUltimoEsitoTesoreria: () => state.esitoTesoreria,
+}));
 vi.mock("@/hooks/useUltimoCollegamentoSubappalti", () => ({ useUltimoCollegamentoSubappalti: () => state.esitoSubappalti }));
 
 import SettingsAutomazioni from "@/pages/azienda/settings/SettingsAutomazioni";
+import { testoUltimoEsitoTesoreria, type StatoTesoreria } from "@/hooks/useUltimoEsitoTesoreria";
 import { AUTOMATISMI } from "@/components/settings/automazioni/registroAutomatismi";
 import { testoUltimoCollegamento } from "@/hooks/useUltimoCollegamento";
 
@@ -40,6 +46,7 @@ afterEach(() => {
   state.acceso = false;
   state.salvati = [];
   state.esito = null;
+  state.esitoTesoreria = null;
   state.esitoSubappalti = null;
 });
 
@@ -107,5 +114,33 @@ describe("ultimo esito del collegamento automatico", () => {
     expect(testoUltimoCollegamento(1, null)).toMatchObject({ testo: "1 collegamento proposto aspetta la tua conferma", tono: "attenzione" });
     expect(testoUltimoCollegamento(0, { stato: "collegato", esito: "automatico", updated_at: "2026-11-15T10:00:00Z" })).toMatchObject({ testo: "Ultimo collegamento fatto da solo", tono: "ok" });
     expect(testoUltimoCollegamento(0, { stato: "annullato", esito: "automatico", updated_at: "2026-11-15T10:00:00Z" })).toMatchObject({ testo: expect.stringMatching(/annullato/), tono: "neutro" });
+  });
+});
+
+describe("Tesoreria: incassi e giroconti dalla banca", () => {
+  it("ha la sua riga, segue lo stesso interruttore e mostra il suo ultimo esito", () => {
+    state.acceso = true;
+    state.esitoTesoreria = { quando: "2026-11-15T10:00:00Z", testo: "2 movimenti certi aspettano la conferma", tono: "attenzione" };
+    open();
+    const riga = document.getElementById("incassi-giroconti-banca")!;
+    expect(within(riga).getByText("Incassi e giroconti dalla banca")).toBeInTheDocument();
+    expect(within(riga).getByText(/registra l'incasso da solo/)).toBeInTheDocument();
+    expect(within(riga).getByText("2 movimenti certi aspettano la conferma")).toBeInTheDocument();
+    const interruttore = within(riga).getByRole("switch", { name: "Incassi e giroconti dalla banca" });
+    expect(interruttore).toBeChecked();
+    fireEvent.click(interruttore);
+    expect(state.salvati).toEqual([false]); // è lo stesso interruttore del collegamento automatico
+    const a = AUTOMATISMI.find((x) => x.id === "incassi-giroconti-banca")!;
+    expect(a.useStato).toBe(AUTOMATISMI.find((x) => x.id === "collegamento-documenti")!.useStato);
+  });
+
+  it("ultimo esito: prima l'errore, poi chi aspetta, poi l'ultima conferma", () => {
+    const base: StatoTesoreria = { in_attesa: 0, ultima_conferma_il: null, ultima_conferma: null, ultimo_errore_il: null, ultimo_errore: null };
+    expect(testoUltimoEsitoTesoreria(null)).toBeNull();
+    expect(testoUltimoEsitoTesoreria({ ...base })).toBeNull();
+    expect(testoUltimoEsitoTesoreria({ ...base, ultimo_errore_il: "2026-11-15T10:00:00Z", ultimo_errore: "x", in_attesa: 3 })).toMatchObject({ tono: "errore" });
+    expect(testoUltimoEsitoTesoreria({ ...base, in_attesa: 1 })).toMatchObject({ testo: "1 movimento certo aspetta la conferma", tono: "attenzione" });
+    expect(testoUltimoEsitoTesoreria({ ...base, ultima_conferma_il: "2026-11-15T10:00:00Z", ultima_conferma: "confermato_auto" })).toMatchObject({ testo: "Ultimo movimento collegato da solo", tono: "ok" });
+    expect(testoUltimoEsitoTesoreria({ ...base, ultima_conferma_il: "2026-11-15T10:00:00Z", ultima_conferma: "confermato_clic" })).toMatchObject({ testo: "Ultimo movimento confermato con un clic" });
   });
 });

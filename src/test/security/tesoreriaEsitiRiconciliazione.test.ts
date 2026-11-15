@@ -113,11 +113,21 @@ beforeAll(async () => {
    create function public.azienda_collegamento_automatico(p_company uuid) returns boolean language sql stable security definer as $$
     select coalesce((select g.collegamento_automatico from public.company_governance_settings g where g.company_id=p_company),false)$$;`);
   await pg.exec(await readFile("supabase/migrations/20290404316000_tesoreria_conferma_con_interruttore_comune.sql", "utf8"));
+  // Traccia comune (sessione Acquisti) ridotta: registra gli argomenti; «test.traccia_rifiuta» simula il permesso mancante.
+  await pg.exec(`
+   create table test_traccia(company_id uuid,da_tipo text,da_id uuid,a_tipo text,a_id uuid,regola text,esito text,prove jsonb,importo numeric);
+   create function public.acquisti_collegamento_registra(p_company uuid,p_da_tipo text,p_da_id uuid,p_da_riga text,p_a_tipo text,p_a_id uuid,p_a_riga text,p_regola text,p_esito text,p_prove jsonb,p_percorso jsonb,p_quantita numeric,p_unita text,p_importo numeric,p_versione_regola integer,p_con_ai boolean,p_motivo text) returns uuid language plpgsql security definer as $$
+   begin
+    if coalesce(current_setting('test.traccia_rifiuta',true),'')='true' then raise exception 'Non hai il permesso di collegare i documenti d''acquisto.'; end if;
+    insert into public.test_traccia values(p_company,p_da_tipo,p_da_id,p_a_tipo,p_a_id,p_regola,p_esito,p_prove,p_importo);
+    return gen_random_uuid();
+   end $$;`);
+  await pg.exec(await readFile("supabase/migrations/20290404317000_tesoreria_traccia_comune_e_stato.sql", "utf8"));
 }, 60000);
 
 beforeEach(async () => {
   await pg.exec(`reset role;select set_config('test.user','${user}',false);select set_config('test.role','service_role',false);
-   truncate company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
+   truncate test_traccia,company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
      documenti_fiscali,scadenze,suppliers,company_costs,fattura_ordine,orders,order_installments,fornitori_iban_storico,prima_nota_entries,test_permissions,companies cascade;
    insert into companies values('${company}'),('${other}');
    insert into test_permissions values('${company}',true,true,true);
@@ -565,5 +575,42 @@ describe("Conferma automatica con l'interruttore comune", () => {
     await service(`update test_permissions set write=false where company_id=$1`, [company]);
     await expect(conferma(t)).rejects.toThrow(/permesso/);
     expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(0);
+  });
+});
+
+describe("Traccia comune e riga delle Automazioni", () => {
+  it("la conferma con un clic finisce nella traccia comune, con prove a ruoli; lo stato lo racconta", async () => {
+    const d = await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    expect(await rpc("tesoreria_stato_automatismo", [company])).toMatchObject({ in_attesa: 1, ultima_conferma_il: null });
+    await rpc("tesoreria_conferma_esito", [company, t]);
+    const tr = (await service(`select da_tipo,da_id,a_tipo,a_id,regola,esito,importo::numeric i,prove from test_traccia`)).rows;
+    expect(tr).toHaveLength(1);
+    expect(tr[0]).toMatchObject({ da_tipo: "movimento_banca", da_id: t, a_tipo: "documento_fiscale", a_id: d, regola: "tesoreria:R-DOC", esito: "manuale", i: "1000.00" });
+    expect(tr[0].prove.find((p: any) => p.campo === "numero_documento")).toMatchObject({ ruolo: "identifica", esito: "uguale" });
+    expect(tr[0].prove.find((p: any) => p.campo === "importo")).toMatchObject({ ruolo: "conferma" });
+    expect(await rpc("tesoreria_stato_automatismo", [company])).toMatchObject({ in_attesa: 0, ultima_conferma: "confermato_clic" });
+  });
+
+  it("se la traccia rifiuta (permesso acquisti), l'incasso resta registrato e lo si annota", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    await pg.exec(`select set_config('test.traccia_rifiuta','true',false)`);
+    try {
+      await rpc("tesoreria_conferma_esito", [company, t]);
+    } finally {
+      await pg.exec(`select set_config('test.traccia_rifiuta','',false)`);
+    }
+    expect((await service(`select count(*)::int n from bank_reconciliations where transaction_id=$1`, [t])).rows[0].n).toBe(1);
+    expect((await service(`select count(*)::int n from test_traccia`)).rows[0].n).toBe(0);
+    const ev = (await service(`select risultato->'traccia' tr from tesoreria_esiti_storia where transaction_id=$1 and evento='confermato_clic'`, [t])).rows[0].tr;
+    expect(ev[0].non_registrato).toMatch(/permesso/);
+  });
+
+  it("chi non vede la tesoreria riceve null, non un errore", async () => {
+    await service(`delete from test_permissions where company_id=$1`, [company]);
+    expect(await rpc("tesoreria_stato_automatismo", [company])).toBeNull();
   });
 });
