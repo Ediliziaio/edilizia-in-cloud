@@ -20,6 +20,12 @@ describe("Documento SAL progressivo",()=>{
     expect(html).not.toContain("Quota nuova di questo SAL");
     expect(()=>buildSalHtml(record(),null,company,null,undefined,20000,null,{certificato:{...certificato,netto:9000}})).toThrow(/Certificato/);
   });
+  it("SAL di contratto: un solo riepilogo fino al netto, «Contratto» non ripetuto (15/11/2026)",()=>{
+    const contratto={periodo_dal:"2026-07-01",periodo_al:"2026-09-30",lordo:10000,ritenuta_pct:5,ritenuta:500,recupero_pct:10,recupero_anticipazione:1000,netto:8500,riferimento_contratto:"Contratto d'appalto del 15/01/2026",cig:null as null,cup:null as null,split_payment:false,reverse_charge:false};
+    const html=buildSalHtml(record(),{description:"Lavori",order_code:"G",total_amount:40000},company,null,undefined,20000,contratto,{aliquotaIva:10});
+    expect(html).toContain("Netto da liquidare");expect(html).not.toContain("Quota nuova di questo SAL");expect(html).not.toContain("Totale della quota, IVA inclusa");
+    expect(html).not.toContain("Contratto Contratto");
+  });
   it("blocca voci assenti o incoerenti prima di produrre un documento",()=>{
     expect(()=>buildSalHtml({...record(),sal_voci:[]},null,company)).toThrow();expect(()=>buildSalHtml({...record(),importo_totale:29999},null,company)).toThrow();
     expect(()=>buildSalHtml({...record(),sal_voci:[{...record().sal_voci[0],percentuale_avanzamento:50}]},null,company)).toThrow();

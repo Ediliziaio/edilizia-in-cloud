@@ -28,6 +28,7 @@ type Allinea = "left" | "right";
 interface Colonna { titolo: string; larghezza: number; allinea?: Allinea }
 type Cella = string | { testo: string; grassetto?: boolean; corsivo?: boolean };
 
+// jsPDF scrive in Helvetica WinAnsi: il segno «−» (U+2212) usciva come «"» (15/11/2026). Si usa il trattino.
 const euro = (n: number | null | undefined) => (n == null ? "" : formatEuro(n));
 const q = (n: number | null | undefined, dec = 2) => n == null ? "" : n.toLocaleString("it-IT", { minimumFractionDigits: dec, maximumFractionDigits: Math.max(dec, 3) });
 const pct = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
@@ -207,7 +208,7 @@ export async function stampaRegistro(reg: Registro, finoAl: string | null, h: In
 function righeRegistro(reg: Registro): Array<[string, string, boolean?]> {
   return [
     ["Lavori a misura e a corpo ai prezzi di contratto (sicurezza esclusa)", euro(reg.lavori_lordo)],
-    [`A dedurre ribasso d'asta del ${pct(reg.ribasso_percentuale)}%`, `− ${euro(reg.ribasso)}`],
+    [`A dedurre ribasso d'asta del ${pct(reg.ribasso_percentuale)}%`, `- ${euro(reg.ribasso)}`],
     ["Lavori al netto del ribasso", euro(reg.lavori_netti)],
     [`Oneri della sicurezza ${reg.sicurezza_modo === "a_misura" ? "(a misura)" : "(in proporzione ai lavori eseguiti)"}, non soggetti a ribasso`, euro(reg.sicurezza)],
     ["Importo complessivo dei lavori eseguiti", euro(reg.totale), true],
@@ -224,14 +225,14 @@ export interface VoceStampaSal {
 export function righeSal(s: CalcoloSal, sicurezzaModo: string, ribassoP: number): Array<[string, string, boolean?]> {
   return [
     ["Lavori a misura e a corpo eseguiti a tutto oggi, ai prezzi di contratto", euro(s.lavori_lordo)],
-    [`A dedurre ribasso d'asta del ${pct(ribassoP)}%`, `− ${euro(s.ribasso)}`],
+    [`A dedurre ribasso d'asta del ${pct(ribassoP)}%`, `- ${euro(s.ribasso)}`],
     ["Importo netto dei lavori", euro(s.lavori_netti)],
     [`Oneri della sicurezza ${sicurezzaModo === "a_misura" ? "(a misura)" : "(in proporzione)"}, non soggetti a ribasso`, euro(s.sicurezza)],
     ["IMPORTO COMPLESSIVO DEI LAVORI A TUTTO OGGI", euro(s.totale_a_oggi), true],
-    [`A dedurre ritenuta di garanzia dello ${pct(s.ritenuta_percentuale)}%`, `− ${euro(s.ritenuta)}`],
-    ...(s.anticipazione_percentuale ? [[`A dedurre recupero dell'anticipazione (${pct(s.anticipazione_percentuale)}% su ${euro(s.anticipazione)} €)`, `− ${euro(s.recupero_anticipazione)}`] as [string, string]] : []),
+    [`A dedurre ritenuta di garanzia dello ${pct(s.ritenuta_percentuale)}%`, `- ${euro(s.ritenuta)}`],
+    ...(s.anticipazione_percentuale ? [[`A dedurre recupero dell'anticipazione (${pct(s.anticipazione_percentuale)}% su ${euro(s.anticipazione)} €)`, `- ${euro(s.recupero_anticipazione)}`] as [string, string]] : []),
     ["Importo netto a tutto oggi", euro(s.netto_a_oggi)],
-    ["A dedurre l'importo degli stati d'avanzamento precedenti", `− ${euro(s.sal_precedenti)}`],
+    ["A dedurre l'importo degli stati d'avanzamento precedenti", `- ${euro(s.sal_precedenti)}`],
     ["IMPORTO DEL PRESENTE STATO D'AVANZAMENTO", euro(s.importo_sal), true],
   ];
 }
@@ -261,9 +262,9 @@ export async function stampaCertificato(c: CertificatoPagamento & { numero: numb
   let y = intestazione(doc, `CERTIFICATO DI PAGAMENTO N. ${c.numero}`, `relativo allo stato d'avanzamento lavori n. ${c.salNumero} (lavori a tutto il ${dataIt(c.lavoriATutto)}) · ${dataIt(c.data)}`, h);
   y = prospetto(doc, y, [
     ["Importo complessivo dei lavori a tutto oggi", euro(sal.totale_a_oggi)],
-    [`A dedurre ritenuta di garanzia dello ${pct(sal.ritenuta_percentuale)}%`, `− ${euro(sal.ritenuta)}`],
-    ...(sal.anticipazione_percentuale ? [["A dedurre recupero dell'anticipazione", `− ${euro(sal.recupero_anticipazione)}`] as [string, string]] : []),
-    ["A dedurre certificati precedenti", `− ${euro(sal.sal_precedenti)}`],
+    [`A dedurre ritenuta di garanzia dello ${pct(sal.ritenuta_percentuale)}%`, `- ${euro(sal.ritenuta)}`],
+    ...(sal.anticipazione_percentuale ? [["A dedurre recupero dell'anticipazione", `- ${euro(sal.recupero_anticipazione)}`] as [string, string]] : []),
+    ["A dedurre certificati precedenti", `- ${euro(sal.sal_precedenti)}`],
     ["Importo del presente certificato (imponibile)", euro(c.imponibile), true],
     [`IVA ${pct(c.aliquota_iva)}%`, euro(c.iva)],
     ["Totale", euro(c.totale), true],
@@ -300,7 +301,7 @@ export async function stampaConfrontoVariante(c: ConfrontoVariante, titolo: stri
     ["Oneri della sicurezza: contratto / variante", `${euro(c.contratto.sicurezza)} / ${euro(c.variante.sicurezza)}`],
     ["Importo contrattuale (al netto del ribasso, sicurezza compresa)", euro(c.contratto.importo_contrattuale)],
     ["Importo dopo la variante", euro(c.variante.importo_contrattuale), true],
-    [`Maggiore (+) o minore (−) importo: ${c.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 })}%${c.oltre_quinto ? " — oltre il quinto d'obbligo" : ""}`, euro(c.differenza), true],
+    [`Maggiore (+) o minore (-) importo: ${c.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 })}%${c.oltre_quinto ? " — oltre il quinto d'obbligo" : ""}`, euro(c.differenza), true],
   ]);
   firme(doc, y, ["Il Direttore dei lavori", "L'Impresa", "Il Responsabile unico del progetto"]);
   pieDiPagina(doc, "Perizia di variante");

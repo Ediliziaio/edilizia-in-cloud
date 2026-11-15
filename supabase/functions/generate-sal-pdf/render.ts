@@ -223,7 +223,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   if(!Number.isFinite(Number(sal.importo_totale)) || Math.abs(totaleSal-Number(sal.importo_totale))>0.01 || !Number.isFinite(previous))throw new Error("Totale SAL non coerente: verificare voci e storico");
   const economic=nettoSal(totaleSal,previous);
   const contrattoHtml=contratto ? buildContrattoHtml(contratto,economic.daFatturare) : "";
-  const datiContratto=contratto ? [contratto.riferimento_contratto && `Contratto ${contratto.riferimento_contratto}`, contratto.cig && `CIG ${contratto.cig}`, contratto.cup && `CUP ${contratto.cup}`].filter(Boolean).join(" · ") : "";
+  const datiContratto=contratto ? [contratto.riferimento_contratto && (/^\s*contratto\b/i.test(contratto.riferimento_contratto) ? contratto.riferimento_contratto : `Contratto ${contratto.riferimento_contratto}`), contratto.cig && `CIG ${contratto.cig}`, contratto.cup && `CUP ${contratto.cup}`].filter(Boolean).join(" · ") : "";
   const periodo=contratto?.periodo_al ? `Lavori ${contratto.periodo_dal ? `dal ${fmtDate(contratto.periodo_dal)} ` : ""}al ${fmtDate(contratto.periodo_al)}` : "";
   const percMedia = totaleContrattuale > 0 ? (totaleSal / totaleContrattuale) * 100 : 0;
   const pct = (n: number) => `${n.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
@@ -379,7 +379,9 @@ ${veste.apri}<div class="page">
   <div style="display:flex;gap:8pt;margin-bottom:6pt;">
     <div class="doc-riquadro" style="flex:1;">${etichetta("Lavori a tutto il presente SAL")}<div class="numero">${fmtEur(economic.totale)}</div><div class="nota">${pct(percMedia)} delle voci</div></div>
     <div class="doc-riquadro" style="flex:1;">${etichetta("SAL precedenti")}<div class="numero">${fmtEur(economic.precedente)}</div></div>
-    ${certificato
+    ${contratto
+      ? `<div class="doc-riquadro" style="flex:1;">${etichetta("Netto da liquidare")}<div class="numero conta" style="font-weight:700;">${fmtEur(Number(contratto.netto))}</div><div class="nota">IVA esclusa · lavori del periodo ${fmtEur(economic.daFatturare)}</div></div>`
+      : certificato
       ? `<div class="doc-riquadro" style="flex:1;">${etichetta("Netto da pagare con questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(Number(certificato.netto))}</div><div class="nota">IVA esclusa · dopo ritenuta${Number(certificato.recupero_anticipazione) ? " e acconto" : ""}</div></div>`
       : `<div class="doc-riquadro" style="flex:1;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(economic.daFatturare)}</div><div class="nota">IVA esclusa</div></div>`}
   </div>
@@ -409,7 +411,7 @@ ${veste.apri}<div class="page">
 
   <!-- Riepilogo economico -->
   <div style="display:flex;gap:14pt;align-items:flex-start;margin-bottom:10pt;">
-    ${certificato ? certificatoHtml : `<table class="doc-tabella" style="flex:1.3;">
+    ${contratto ? `<div style="flex:1.3;">${contrattoHtml}</div>` : certificato ? certificatoHtml : `<table class="doc-tabella" style="flex:1.3;">
       <tbody>
         ${rigaRiep("Lavori eseguiti a tutto il presente SAL", economic.totale)}
         ${rigaRiep("A dedurre: SAL precedenti", -economic.precedente)}
@@ -423,9 +425,8 @@ ${veste.apri}<div class="page">
       <div class="nota" style="margin-top:2px;">su ${fmtEur(totaleContrattuale)} di voci del contratto</div>
     </div>
   </div>
-  <p class="nota" style="margin:0 0 14pt;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento.${certificato ? " La ritenuta di garanzia si restituisce allo svincolo, come da contratto." : " Acconti e fatture già emesse si verificano prima della fatturazione."}</p>
+  <p class="nota" style="margin:0 0 14pt;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento.${certificato || contratto ? " La ritenuta di garanzia si restituisce allo svincolo, come da contratto." : " Acconti e fatture già emesse si verificano prima della fatturazione."}</p>
   ${sal.stato === "bozza" ? '<p style="margin:0 0 14pt;color:var(--warn);font-weight:bold;">BOZZA - Non emessa. Nessun link di approvazione attivo.</p>' : ""}
-  ${contrattoHtml}
   ${sal.note ? `
   <div class="doc-sezione">Note</div>
   <div style="white-space:pre-wrap;margin-bottom:14pt;">${escHtml(sal.note)}</div>` : ""}
