@@ -105,7 +105,7 @@ export function useSuggerimentiMovimento(company: string, m: BankMovement, puoAb
 export type SuggerimentiMovimento = ReturnType<typeof useSuggerimentiMovimento>;
 
 /** Riga «Controparte»: il nome, la scheda del fornitore, l'ODA citato e quanto ha di aperto. */
-export function ControparteRiconosciuta({ s }: { s: SuggerimentiMovimento }) {
+export function ControparteRiconosciuta({ s, onCollegaOda, odaCollegate = [] }: { s: SuggerimentiMovimento; onCollegaOda?: (odaId: string) => void; odaCollegate?: string[] }) {
   const { controparte, uscita, fornitore, oda, rifOda, candidati, dellaControparte, apertiControparte, puoAbbinare } = s;
   return (
     <>
@@ -127,6 +127,10 @@ export function ControparteRiconosciuta({ s }: { s: SuggerimentiMovimento }) {
                 <Link to={linkOda(oda.data.id)} className="font-medium text-primary hover:underline">{/^oda/i.test(oda.data.oda_number ?? "") ? oda.data.oda_number : `ODA ${oda.data.oda_number}`}</Link>
                 {oda.data.status && <span className="text-muted-foreground">· {oda.data.status}</span>}
                 {oda.data.order_id && <Link to={linkCommessa(oda.data.order_id)} className="text-primary hover:underline">· commessa</Link>}
+                {onCollegaOda && !odaCollegate.includes(oda.data.id) && (
+                  <button type="button" className="font-medium text-primary hover:underline" onClick={() => onCollegaOda(oda.data!.id)}>· collega</button>
+                )}
+                {odaCollegate.includes(oda.data.id) && <span className="text-emerald-700">· collegato</span>}
               </>
             : <span>ODA {rifOda} nella causale{oda.isSuccess && <span className="text-muted-foreground"> · non trovato</span>}</span>}
         </span>

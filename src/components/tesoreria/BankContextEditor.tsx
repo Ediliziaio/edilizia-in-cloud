@@ -93,8 +93,9 @@ export function BankContextEditor({
       <div>
         <h3 className="font-semibold">Commesse e altri riferimenti</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Ripartisci le quote per commessa, mezzo o destinatario. Questi
-          riferimenti non registrano nuovi pagamenti o costi.
+          Ripartisci le quote per commessa, mezzo, ordine d'acquisto, F24,
+          cespite o destinatario. Questi riferimenti non registrano nuovi
+          pagamenti o costi.
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-[170px_1fr]">
@@ -127,7 +128,7 @@ export function BankContextEditor({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nome, codice commessa o mese del cedolino…"
+            placeholder="Nome, codice commessa o ODA, mese del cedolino o dell'F24…"
             className="mt-1"
           />
         </label>

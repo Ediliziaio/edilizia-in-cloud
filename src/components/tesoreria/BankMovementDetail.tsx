@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -225,6 +225,14 @@ function Detail({
   const puoContesti = write && !m.links.restricted_contexts;
   const apriContesti = puoContesti ? () => { setEditContexts(true); setContextDirty(false); } : undefined;
   const noteCambiata = note !== savedAnnotation.note;
+  // L'ODA letto nella causale si collega con un clic, per l'intero importo, tenendo gli altri collegamenti.
+  const collegaOda = (odaId: string) =>
+    void act(async () => {
+      const righe = m.links.contexts.map((c) => ({ kind: c.kind, target_id: c.id, amount: c.amount, note: c.note ?? null }));
+      righe.push({ kind: "oda", target_id: odaId, amount: Math.abs(m.amount), note: null });
+      const r = await bankRpc<number>("bank_context_save", { p_company: company, p_tx: m.id, p_revision: revision, p_rows: righe });
+      setRevision(r);
+    }, "Ordine d'acquisto collegato");
   const riga = (titolo: string, contenuto: ReactNode, sotto?: ReactNode) => (
     <>
       <dt className="pt-0.5 text-muted-foreground">{titolo}</dt>
@@ -291,7 +299,7 @@ function Detail({
           <Link2 className="h-4 w-4" /> A cosa è collegato
         </h3>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
-          {riga("Controparte", <ControparteRiconosciuta s={s} />)}
+          {riga("Controparte", <ControparteRiconosciuta s={s} onCollegaOda={puoContesti && !editContexts ? collegaOda : undefined} odaCollegate={contesti(["oda"]).map((c) => c.id)} />)}
           {riga(
             "Categoria",
             <CategoriaMovimento
@@ -426,6 +434,23 @@ function Detail({
             riga("Fornitori", contesti(["fornitore"]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
           {contesti(["dipendente", "cedolino"]).length > 0 &&
             riga("Personale", contesti(["dipendente", "cedolino"]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+          {([["oda", "Ordini d'acquisto"], ["f24", "F24"], ["cespite", "Cespiti"]] as const).map(([tipo, titolo]) =>
+            contesti([tipo]).length > 0 ? (
+              <Fragment key={tipo}>
+                {riga(titolo, <>
+                  {contesti([tipo]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />)}
+                  {!editContexts && <Azione onClick={apriContesti} label={`Modifica ${titolo}`}>Modifica</Azione>}
+                </>)}
+              </Fragment>
+            ) : null,
+          )}
+          {!editContexts && puoContesti && riga(
+            "Altro",
+            <span className="text-xs text-muted-foreground">
+              Fornitore, ordine d'acquisto, F24, cespite o personale:{" "}
+              <Azione onClick={apriContesti} label="Collega un altro riferimento">Collega</Azione>
+            </span>,
+          )}
           {m.links.restricted_contexts && riga("", <span className="text-xs text-muted-foreground">Alcuni riferimenti sono riservati: li modifica un amministratore.</span>)}
           {editContexts && puoContesti && (
             <div

@@ -9,7 +9,10 @@ export type ContextKind =
   | "mezzo"
   | "fornitore"
   | "dipendente"
-  | "cedolino";
+  | "cedolino"
+  | "oda"
+  | "f24"
+  | "cespite";
 export interface BankTarget {
   id: string;
   kind: ContextKind;
@@ -113,6 +116,9 @@ export const CONTEXT_LABELS: Record<ContextKind, string> = {
   fornitore: "Fornitore",
   dipendente: "Dipendente",
   cedolino: "Cedolino",
+  oda: "Ordine d'acquisto",
+  f24: "F24",
+  cespite: "Cespite",
 };
 export function bankFiltersPayload(f: BankFilters): BankFilters {
   const result = { ...f };
