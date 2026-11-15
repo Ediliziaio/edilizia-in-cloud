@@ -105,7 +105,9 @@ export function TfrEditor() {
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           Il fondo TFR dello Stato patrimoniale è il fondo di partenza, più il TFR che matura con i cedolini, meno
-          liquidazioni e anticipi pagati. Il TFR di chi lo versa a un fondo pensione o al Fondo Tesoreria INPS resta un
+          liquidazioni e anticipi pagati, più la rivalutazione annua: 1,5% più il 75% dell'inflazione ISTAT sul fondo
+          dell'anno prima (art. 2120 c.c.), calcolata da sola coi coefficienti ISTAT, al netto dell'imposta
+          sostitutiva del 17%. Finché dicembre non è pubblicato, il coefficiente dell'anno è stimato dall'ultimo mese. Il TFR di chi lo versa a un fondo pensione o al Fondo Tesoreria INPS resta un
           costo del conto economico, ma non entra nel fondo: finché non è versato è un debito previdenziale.
         </p>
       </CardHeader>
