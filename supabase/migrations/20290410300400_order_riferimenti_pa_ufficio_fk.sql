@@ -3,6 +3,9 @@
 -- Ufficio cancellato (o ente cancellato, che si porta via i suoi uffici) = riferimento
 -- senza ufficio, non errore. Il 15/11 nessuna riga ha ufficio_id: niente orfani.
 -- Idempotente.
+--
+-- Era 20290410230000: veniva prima di 20290410300000, che crea order_riferimenti_pa, e la
+-- ricostruzione da zero del database (CI) si fermava qui. Rinumerata dopo la tabella.
 
 set lock_timeout = '3s';
 set statement_timeout = '60s';
