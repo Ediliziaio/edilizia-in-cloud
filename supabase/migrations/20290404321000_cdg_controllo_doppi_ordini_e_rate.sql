@@ -12,6 +12,8 @@ DO $do$
 DECLARE src text; a text; b text;
 BEGIN
  SELECT prosrc INTO src FROM pg_proc WHERE oid='public.cdg_controllo_doppi(uuid)'::regprocedure;
+ -- Rilanciata a mano non deve duplicare i controlli: se ci sono già, non fa niente.
+ IF position('fattura_su_ordine_e_su_commessa' IN src)>0 THEN RETURN; END IF;
  a:=$a$ RETURN out;
 END $a$;
  b:=$b$ -- 7. Fattura su un ordine e, col suo costo, anche direttamente sulla commessa

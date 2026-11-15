@@ -37,12 +37,19 @@ serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
    const conferme=await client.rpc("tesoreria_conferma_automatica",{p_company:id,p_limite:50});
    if(conferme.error){errors.push(`${id}: conferme ${conferme.error.message}`);continue;}
    confirmed.push({company_id:id,...(conferme.data as Record<string,unknown>)});
-   const esterne=((conferme.data as {confermati?:{esterne?:{invoice_id?:string}[]}[]}|null)?.confermati??[]).flatMap(c=>c.esterne??[]);
+   const confermatiEsterne=((conferme.data as {confermati?:{transaction_id?:string;esterne?:{invoice_id?:string}[]}[]}|null)?.confermati??[]).filter(c=>(c.esterne??[]).length>0);
+   // La data del pagamento su Fatture in Cloud è quella del movimento in banca, non quella del giro.
+   const date=new Map<string,string>();
+   if(confermatiEsterne.length){
+    const {data:righe}=await admin.from("bank_transactions").select("id,booking_date").in("id",confermatiEsterne.map(c=>c.transaction_id!).filter(Boolean));
+    for(const r of righe??[])if(r.booking_date)date.set(r.id,r.booking_date);
+   }
+   const esterne=confermatiEsterne.flatMap(c=>(c.esterne??[]).map(e=>({...e,paid_date:c.transaction_id?date.get(c.transaction_id):undefined})));
    for(const e of esterne){
     if(!e.invoice_id)continue;
     const r=await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/billing-payment-push`,{method:"POST",
      headers:{"Content-Type":"application/json",Authorization:`Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`},
-     body:JSON.stringify({invoice_id:e.invoice_id,azione:"allinea_banca"})}).catch(()=>null);
+     body:JSON.stringify({invoice_id:e.invoice_id,azione:"allinea_banca",...(e.paid_date?{paid_date:e.paid_date}:{})})}).catch(()=>null);
     const esito=r?await r.json().catch(()=>null) as {ok?:boolean;skipped?:boolean;messaggio?:string}|null:null;
     if(!esito||!(esito.ok||esito.skipped))errors.push(`${id}: gestionale esterno da riallineare per la fattura ${e.invoice_id}${esito?.messaggio?` (${esito.messaggio})`:""}`);
    }
