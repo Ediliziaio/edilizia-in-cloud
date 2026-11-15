@@ -29401,6 +29401,7 @@ export type Database = {
       }
       company_governance_settings: {
         Row: {
+          collegamento_automatico: boolean
           company_id: string
           created_at: string
           marginalita_alert_enabled: boolean
@@ -29415,6 +29416,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          collegamento_automatico?: boolean
           company_id: string
           created_at?: string
           marginalita_alert_enabled?: boolean
@@ -29429,6 +29431,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          collegamento_automatico?: boolean
           company_id?: string
           created_at?: string
           marginalita_alert_enabled?: boolean
@@ -33684,6 +33687,8 @@ export type Database = {
       }
       contratti_subappalto: {
         Row: {
+          acconto_importo: number
+          acconto_recupero_pct: number | null
           articoli_personalizzati: Json
           company_id: string
           created_at: string | null
@@ -33715,6 +33720,8 @@ export type Database = {
           subappaltatore_id: string
         }
         Insert: {
+          acconto_importo?: number
+          acconto_recupero_pct?: number | null
           articoli_personalizzati?: Json
           company_id: string
           created_at?: string | null
@@ -33746,6 +33753,8 @@ export type Database = {
           subappaltatore_id: string
         }
         Update: {
+          acconto_importo?: number
+          acconto_recupero_pct?: number | null
           articoli_personalizzati?: Json
           company_id?: string
           created_at?: string | null
@@ -82421,6 +82430,13 @@ export type Database = {
             referencedRelation: "v_ordine_esposizione"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "order_riferimenti_pa_ufficio_fk"
+            columns: ["ufficio_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafica_uffici_pa"
+            referencedColumns: ["id"]
+          },
         ]
       }
       order_salespeople: {
@@ -105287,6 +105303,7 @@ export type Database = {
       }
       sal_subappaltatori: {
         Row: {
+          acconto_recuperato: number
           attachment_url: string | null
           company_id: string
           contratto_id: string
@@ -105310,6 +105327,7 @@ export type Database = {
           subappaltatore_id: string
         }
         Insert: {
+          acconto_recuperato?: number
           attachment_url?: string | null
           company_id: string
           contratto_id: string
@@ -105333,6 +105351,7 @@ export type Database = {
           subappaltatore_id?: string
         }
         Update: {
+          acconto_recuperato?: number
           attachment_url?: string | null
           company_id?: string
           contratto_id?: string
@@ -145121,6 +145140,28 @@ export type Database = {
         Args: { p_id: string; p_motivo?: string; p_stato: string }
         Returns: Json
       }
+      acquisti_collegamento_registra: {
+        Args: {
+          p_a_id: string
+          p_a_riga: string
+          p_a_tipo: string
+          p_company: string
+          p_con_ai?: boolean
+          p_da_id: string
+          p_da_riga: string
+          p_da_tipo: string
+          p_esito: string
+          p_importo?: number
+          p_motivo?: string
+          p_percorso?: Json
+          p_prove?: Json
+          p_quantita?: number
+          p_regola: string
+          p_unita?: string
+          p_versione_regola?: number
+        }
+        Returns: string
+      }
       acquisti_conferma_impostazioni_salva: {
         Args: { p_company: string; p_giorni: number; p_tolleranza: number }
         Returns: undefined
@@ -145138,6 +145179,10 @@ export type Database = {
           numero: string
           vicina: boolean
         }[]
+      }
+      acquisti_documento_dell_azienda: {
+        Args: { p_company: string; p_id: string; p_tipo: string }
+        Returns: boolean
       }
       acquisti_impostazioni_salva: {
         Args: {
@@ -146399,6 +146444,10 @@ export type Database = {
       }
       azienda_ancora_esiste: {
         Args: { p_company_id: string }
+        Returns: boolean
+      }
+      azienda_collegamento_automatico: {
+        Args: { p_company: string }
         Returns: boolean
       }
       azienda_del_percorso: { Args: { p_nome: string }; Returns: string }
@@ -159798,6 +159847,10 @@ export type Database = {
       }
       tesoreria_classifica_movimento: {
         Args: { p_company: string; p_tx: string }
+        Returns: Json
+      }
+      tesoreria_conferma_automatica: {
+        Args: { p_company: string; p_limite?: number }
         Returns: Json
       }
       tesoreria_esito_movimento: {
