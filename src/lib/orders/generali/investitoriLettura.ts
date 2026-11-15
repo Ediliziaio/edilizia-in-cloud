@@ -20,7 +20,7 @@ export const COLONNE_FONTE =
   "id, tipo, nome, soggetto, cliente_id, email, impegno, quota_utile_pct, tasso_pct, data_inizio, scadenza, nota, ordine, forma, spese_iniziali, rimborso, ammortamento_dal";
 export const COLONNE_MOVIMENTO = "id, fonte_id, tipo, data, importo, nota, unita_id";
 export const COLONNE_RENDICONTO =
-  "id, fonte_id, fonte_nome, destinatario, oggetto, stato, errore, pdf_path, created_at, inviato_at";
+  "id, fonte_id, fonte_nome, destinatario, oggetto, stato, errore, pdf_path, created_at, inviato_at, versione_piano:numeri->>versionePiano, con_piano:numeri->>conPiano";
 
 export function leggiFonti(data: unknown): Fonte[] {
   return righe(data)
@@ -66,9 +66,14 @@ export interface RendicontoInviato {
   fonteNome: string;
   destinatario: string;
   oggetto: string;
-  stato: "in_invio" | "inviato" | "fallito";
+  /** «scaricato»: niente email, solo il PDF salvato nello storico. */
+  stato: "in_invio" | "inviato" | "fallito" | "scaricato";
   errore: string | null;
   pdfPath: string | null;
+  /** «Versione 2 approvata»; null nei rendiconti fatti prima del 15/11/2026. */
+  versionePiano: string | null;
+  /** Il PDF porta il piano voce per voce. null = non si sa (rendiconti vecchi). */
+  conPiano: boolean | null;
   creatoIl: string;
   inviatoIl: string | null;
 }
@@ -82,9 +87,11 @@ export function leggiRendiconti(data: unknown): RendicontoInviato[] {
       fonteNome: testo(r.fonte_nome) ?? "—",
       destinatario: testo(r.destinatario) ?? "—",
       oggetto: testo(r.oggetto) ?? "",
-      stato: r.stato === "inviato" || r.stato === "fallito" ? r.stato : "in_invio",
+      stato: r.stato === "inviato" || r.stato === "fallito" || r.stato === "scaricato" ? r.stato : "in_invio",
       errore: testo(r.errore),
       pdfPath: testo(r.pdf_path),
+      versionePiano: testo(r.versione_piano),
+      conPiano: r.con_piano === "true" || r.con_piano === true ? true : r.con_piano === "false" || r.con_piano === false ? false : null,
       creatoIl: testo(r.created_at) ?? "",
       inviatoIl: testo(r.inviato_at),
     }));

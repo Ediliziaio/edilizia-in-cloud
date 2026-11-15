@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   mobile: false,
   modifica: true,
   invia: vi.fn(),
+  archivia: vi.fn(),
   input: null as unknown,
 }));
 
@@ -23,15 +24,19 @@ vi.mock("@react-pdf/renderer", async (importOriginal) => ({
   pdf: () => ({ toBlob: async () => new Blob(["%PDF-1.4"], { type: "application/pdf" }) }),
 }));
 vi.mock("@/hooks/useGeneraleRendiconto", () => ({
-  useDatiDossier: () => ({ input: m.input, isLoading: false }),
+  useDatiDossier: () => ({ input: m.input, isLoading: false, versioni: [] as unknown[], versionePiano: null as unknown }),
   useFotoDossier: () => ({ data: [] as unknown[], isLoading: false }),
-  useInviaDossier: () => ({ mutate: m.invia, isPending: false }),
+  useInviaDossier: () => ({ mutate: m.invia, mutateAsync: m.archivia, isPending: false }),
   useStoricoDossier: () => ({
     isLoading: false, isError: false, refetch: vi.fn(),
     data: [{
       id: "d1", modello: "banca", titolo: "Rendiconto", sezioni: ["sintesi", "piano"], livello: "margini", destinatari: ["fidi@banca.example"],
       oggetto: "Rendiconto Residenza Via Roma", stato: "inviato", esiti: [] as unknown[], errore: null as string | null,
-      pdfPath: "a/g1/d1.pdf", xlsxPath: null as string | null, creatoIl: "2027-05-02T10:00:00Z", inviatoIl: "2027-05-02T10:00:01Z",
+      pdfPath: "a/g1/d1.pdf", xlsxPath: null as string | null, creatoIl: "2027-05-02T10:00:00Z", inviatoIl: "2027-05-02T10:00:01Z", versionePiano: "Versione 2 approvata",
+    }, {
+      id: "d2", modello: "soci", titolo: "Rendiconto", sezioni: ["sintesi"], livello: "margini", destinatari: [] as string[],
+      oggetto: "Rendiconto Residenza Via Roma per i soci.pdf", stato: "scaricato", esiti: [] as unknown[], errore: null as string | null,
+      pdfPath: "a/g1/d2.pdf", xlsxPath: null as string | null, creatoIl: "2027-05-03T10:00:00Z", inviatoIl: null as string | null, versionePiano: null as string | null,
     }],
   }),
   linkFileDossier: vi.fn(),
@@ -50,6 +55,8 @@ beforeEach(() => {
   m.mobile = false;
   m.modifica = true;
   m.invia.mockReset();
+  m.archivia.mockReset();
+  m.archivia.mockResolvedValue({ id: "x", stato: "scaricato", esiti: [] });
   URL.createObjectURL = vi.fn(() => "blob:anteprima") as never;
   URL.revokeObjectURL = vi.fn() as never;
 });
@@ -65,9 +72,10 @@ describe("Rendiconto della commessa generale", () => {
   it("da telefono: solo lo storico, con il PDF da riaprire", async () => {
     m.mobile = true;
     await apri(prepara(inputSviluppo()));
-    expect(screen.getByText("Rendiconti inviati")).toBeInTheDocument();
-    expect(screen.getByText("A fidi@banca.example")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Apri il PDF/ })).toBeInTheDocument();
+    expect(screen.getByText("Storico dei rendiconti")).toBeInTheDocument();
+    expect(screen.getByText(/A fidi@banca\.example · piano: Versione 2 approvata/)).toBeInTheDocument();
+    expect(screen.getByText("Scaricato, non inviato")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Scarica il PDF/ })).toHaveLength(2);
     expect(screen.queryByText("Per chi è")).not.toBeInTheDocument();
   });
 
@@ -121,6 +129,31 @@ describe("Rendiconto della commessa generale", () => {
     await apri(prepara(inputSviluppo()));
     expect(screen.queryByLabelText("Invia a")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Invia/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/per inviarli serve il permesso/)).toBeInTheDocument();
+    expect(screen.getByText(/per inviarli, e per salvarli nello storico, serve il permesso/)).toBeInTheDocument();
+  });
+
+  it("«PDF» scarica e salva nello storico come «scaricato», senza email", async () => {
+    await apri(prepara(inputSviluppo()));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^PDF$/ })).toBeEnabled());
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^PDF$/ })); });
+    await waitFor(() => expect(m.archivia).toHaveBeenCalledTimes(1));
+    expect(m.archivia.mock.calls[0][0]).toMatchObject({ archivia: true, destinatari: [], modello: "banca" });
+    expect(m.invia).not.toHaveBeenCalled();
+  });
+
+  it("«Tutti i modelli» fa completo, banca e soci, e li salva tutti e tre", async () => {
+    await apri(prepara(inputSviluppo()));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Tutti i modelli/ })).toBeEnabled());
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Tutti i modelli/ })); });
+    await waitFor(() => expect(m.archivia).toHaveBeenCalledTimes(3));
+    expect(m.archivia.mock.calls.map((c) => c[0].modello).sort()).toEqual(["banca", "completo", "soci"]);
+  });
+
+  it("senza il permesso di modificare si scarica ma non si salva nello storico", async () => {
+    m.modifica = false;
+    await apri(prepara(inputSviluppo()));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^PDF$/ })).toBeEnabled());
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: /^PDF$/ })); });
+    expect(m.archivia).not.toHaveBeenCalled();
   });
 });

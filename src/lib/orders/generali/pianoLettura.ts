@@ -17,6 +17,11 @@ export interface VersionePiano {
   creataIl: string | null;
 }
 
+/** «Versione 2 approvata», «Versione 3 in bozza», «Versione 1 superata»: nei PDF e negli storici. */
+export function nomeVersionePiano(v: Pick<VersionePiano, "numero" | "stato">): string {
+  return `Versione ${v.numero}${v.stato === "approvata" ? " approvata" : v.stato === "bozza" ? " in bozza" : " superata"}`;
+}
+
 export interface CategoriaAzienda { chiave: string; etichetta: string }
 
 export interface RealePiano {

@@ -33,7 +33,10 @@ vi.mock("@/hooks/useGeneraleInvestitori", async () => {
     useVenditeGenerale: () => ({ data: null as unknown }),
     useRendicontiInviati: () => ({
       isLoading: false,
-      data: [{ id: "r1", fonteId: "M", fonteNome: "Mario Rossi", destinatario: "mario@example.com", oggetto: "x", stato: "inviato", errore: null as string | null, pdfPath: "a/b/r1.pdf", creatoIl: "2027-05-02T10:00:00Z", inviatoIl: "2027-05-02T10:00:01Z" }],
+      data: [
+        { id: "r1", fonteId: "M", fonteNome: "Mario Rossi", destinatario: "mario@example.com", oggetto: "x", stato: "inviato", errore: null as string | null, pdfPath: "a/b/r1.pdf", creatoIl: "2027-05-02T10:00:00Z", inviatoIl: "2027-05-02T10:00:01Z", versionePiano: "Versione 2 approvata", conPiano: true },
+        { id: "r2", fonteId: "M", fonteNome: "Mario Rossi", destinatario: "", oggetto: "Rendiconto senza piano.pdf", stato: "scaricato", errore: null as string | null, pdfPath: "a/b/r2.pdf", creatoIl: "2027-05-03T10:00:00Z", inviatoIl: null as string | null, versionePiano: "Versione 1 superata", conPiano: false },
+      ],
     }),
     useEliminaFonte: muta, useEliminaMovimento: muta, useSalvaFonte: muta, useAggiungiMovimento: muta, useInviaRendiconto: muta,
     messaggioInvestitori: () => "errore", linkPdfRendiconto: vi.fn(),
@@ -164,11 +167,14 @@ describe("il modulo Investitori", () => {
     expect(screen.getByRole("button", { name: /Banca o mutuo/ })).toBeInTheDocument();
   });
 
-  it("tiene lo storico dei rendiconti inviati", () => {
+  it("tiene lo storico dei rendiconti inviati e scaricati, con la versione del piano", () => {
     disegna();
-    const storico = screen.getByRole("region", { name: "Rendiconti inviati" });
+    const storico = screen.getByRole("region", { name: "Storico dei rendiconti" });
     expect(storico).toHaveTextContent("mario@example.com");
     expect(storico).toHaveTextContent("Inviato");
+    expect(storico).toHaveTextContent("Scaricato");
+    expect(storico).toHaveTextContent("Versione 2 approvata · con il piano voce per voce");
+    expect(storico).toHaveTextContent("Versione 1 superata · senza il piano voce per voce");
   });
 
   it("il riquadro in Panoramica distingue capitale dentro e ancora da versare", () => {

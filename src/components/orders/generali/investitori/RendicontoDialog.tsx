@@ -1,12 +1,17 @@
 // src/components/orders/generali/investitori/RendicontoDialog.tsx
 // F7 «Rendere conto a un investitore»: anteprima del PDF con i suoi numeri → invio per
 // email, solo con un clic esplicito su «Invia». Il PDF che parte è lo stesso dell'anteprima.
+// Si sceglie la versione del piano e se mettere il piano voce per voce; «Scarica» dà il PDF
+// con il piano, senza o tutti e due, e li salva nello storico (stato «scaricato»).
 // @react-pdf/renderer arriva con un import dinamico all'apertura: è il pezzo pesante del bundle.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Loader2, Mail, RefreshCw } from "lucide-react";
+import { ChevronDown, Download, Loader2, Mail, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
@@ -14,12 +19,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useInviaRendiconto } from "@/hooks/useGeneraleInvestitori";
+import { useGeneraleInvestitori, useInviaRendiconto } from "@/hooks/useGeneraleInvestitori";
 import { DEFINIZIONI_MODELLI, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import type { ContiInvestitori } from "@/lib/orders/generali/investitoriConti";
 import type { VenditeUnita } from "@/lib/orders/generali/investitoriLettura";
 import { datiRendiconto, nomeFileRendiconto, type DatiRendiconto } from "@/lib/orders/generali/investitoriRendiconto";
 import type { NumeriInvestitori } from "@/lib/orders/generali/pianoConti";
+import { nomeVersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { logger } from "@/utils/logger";
 
 let moduloPdf: Promise<{
@@ -86,44 +92,62 @@ export function RendicontoDialog(props: Props) {
   );
 }
 
+type Versione = "anteprima" | "con" | "senza" | "tutte";
+
 function Contenuto({ onOpenChange, riepilogo, fonteId, conti, numeriPiano, vendite, oggi, puoInviare }: Props) {
   const azienda = useAzienda();
   const invia = useInviaRendiconto(riepilogo.generale.id);
+  const archivia = useInviaRendiconto(riepilogo.generale.id);
   const fonte = conti.fonti.find((c) => c.fonte.id === fonteId)?.fonte ?? null;
   const [note, setNote] = useState("");
+  // Le note entrano nel PDF con «Aggiorna l'anteprima»: finché non lo si preme vale la prima stesura.
+  const [noteStampa, setNoteStampa] = useState<string | null>(null);
+  const [conPiano, setConPiano] = useState(true);
+  // null = la versione del piano che il modulo guarda di solito (l'approvata, se c'è).
+  const [versioneId, setVersioneId] = useState<string | null>(null);
   const [destinatario, setDestinatario] = useState(fonte?.email ?? "");
   const [oggetto, setOggetto] = useState(`Rendiconto ${riepilogo.generale.nome}`);
   const [messaggio, setMessaggio] = useState(
     `le mandiamo il rendiconto aggiornato dell'operazione «${riepilogo.generale.nome}»: la sua posizione, come stanno andando lavori e vendite e quanto le spetta a fine operazione secondo la stima di oggi.\n\nPer qualunque domanda siamo a disposizione.`,
   );
-  // Le note entrano nel PDF con «Aggiorna l'anteprima»: finché non lo si preme vale la prima stesura.
-  const [richiesti, setRichiesti] = useState<DatiRendiconto | null>(null);
+  const [scarico, setScarico] = useState(false);
 
-  const dati = useMemo(
-    () =>
-      azienda.data
+  // Con un'altra versione del piano cambiano anche i conti dell'investitore: si rifanno qui.
+  // Senza scelta, stesse chiavi di cache del modulo: nessuna lettura in più.
+  const inv = useGeneraleInvestitori(riepilogo);
+  const invVersione = useGeneraleInvestitori(riepilogo, { versioneId, enabled: versioneId !== null });
+  const sorgente = versioneId !== null ? invVersione : inv;
+  const caricoVersione = versioneId !== null && invVersione.isLoading;
+  const contiUsati = sorgente.isLoading ? conti : sorgente.conti;
+  const numeriUsati = sorgente.isLoading ? numeriPiano : sorgente.numeriPiano;
+  const versioni = inv.versioni ?? [];
+  const versioneInVista = sorgente.versionePiano ?? null;
+
+  const datiPer = useCallback(
+    (piano: boolean): DatiRendiconto | null =>
+      azienda.data && !caricoVersione
         ? datiRendiconto({
-            oggi, riepilogo, numeri: numeriPiano, conti, fonteId, vendite, azienda: azienda.data,
+            oggi, riepilogo, numeri: numeriUsati, conti: contiUsati, fonteId, vendite, azienda: azienda.data,
             unitaNome: DEFINIZIONI_MODELLI[riepilogo.generale.modello].figlia.tante,
+            note: noteStampa, conPiano: piano, versionePiano: versioneInVista,
           })
         : null,
-    [azienda.data, oggi, riepilogo, numeriPiano, conti, fonteId, vendite],
+    [azienda.data, caricoVersione, oggi, riepilogo, numeriUsati, contiUsati, fonteId, vendite, noteStampa, versioneInVista],
   );
-  const daStampare = richiesti ?? dati;
+  const dati = useMemo(() => datiPer(conPiano), [datiPer, conPiano]);
 
   // Il PDF dell'anteprima: si rifà solo quando cambiano i numeri da stampare.
   const anteprima = useQuery({
-    queryKey: ["generale-rendiconto-pdf", daStampare],
-    enabled: !!daStampare,
+    queryKey: ["generale-rendiconto-pdf", dati],
+    enabled: !!dati,
     staleTime: Infinity,
     gcTime: 0,
     retry: false,
     meta: { silent: true },
     queryFn: async () => {
-      const d = daStampare!;
+      const d = dati!;
       try {
-        const { pdf: crea, Doc } = await caricaPdf();
-        return { blob: await crea(<Doc d={d} />).toBlob(), dati: d };
+        return { blob: await creaPdf(d), dati: d };
       } catch (e) {
         logger.error("RendicontoDialog", e);
         throw e;
@@ -133,24 +157,49 @@ function Contenuto({ onOpenChange, riepilogo, fonteId, conti, numeriPiano, vendi
   const url = useMemo(() => (anteprima.data ? URL.createObjectURL(anteprima.data.blob) : null), [anteprima.data]);
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
   const pdf = anteprima.data && url ? { ...anteprima.data, url } : null;
-  const inPreparazione = anteprima.isFetching;
+  const inPreparazione = anteprima.isFetching || caricoVersione;
   const errore = anteprima.isError ? "Non sono riuscito a preparare il PDF. Riprova." : null;
 
-  const datiConNote = dati ? { ...dati, note: note.trim() || null } : null;
-  const nomeFile = dati ? nomeFileRendiconto(dati) : "Rendiconto.pdf";
+  const nomeFile = pdf ? nomeFileRendiconto(pdf.dati) : "Rendiconto.pdf";
   // Si manda il PDF dell'anteprima: note scritte dopo, senza aggiornarla, non partono.
-  const noteDaAggiornare = !!pdf && (note.trim() || null) !== pdf.dati.note;
+  const noteDaAggiornare = (note.trim() || null) !== noteStampa;
   const emailValida = EMAIL.test(destinatario.trim());
   const puoMandare = puoInviare && !!pdf && !inPreparazione && !noteDaAggiornare && emailValida && oggetto.trim().length > 0 && !invia.isPending;
 
-  const scarica = () => {
+  /**
+   * Scarica una o più versioni del PDF (con il piano voce per voce, senza, o tutte e due) e,
+   * a chi può modificare la commessa, le salva nello storico come «scaricato» per riaverle.
+   */
+  const scarica = async (quale: Versione) => {
     if (!pdf) return;
-    const a = document.createElement("a");
-    a.href = pdf.url;
-    a.download = nomeFile;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    setScarico(true);
+    try {
+      const scelte = quale === "anteprima" ? [pdf.dati.conPiano !== false] : quale === "con" ? [true] : quale === "senza" ? [false] : [true, false];
+      const files: { blob: Blob; dati: DatiRendiconto }[] = [];
+      for (const piano of scelte) {
+        if ((pdf.dati.conPiano !== false) === piano) files.push({ blob: pdf.blob, dati: pdf.dati });
+        else {
+          const d = datiPer(piano);
+          if (d) files.push({ blob: await creaPdf(d), dati: d });
+        }
+      }
+      for (const f of files) salvaFile(f.blob, nomeFileRendiconto(f.dati));
+      if (!puoInviare) {
+        toast.success(files.length > 1 ? `${files.length} PDF scaricati` : "PDF scaricato");
+        return;
+      }
+      const esiti = await Promise.allSettled(files.map((f) => archivia.mutateAsync({
+        fonteId, archivia: true, to: "", subject: "", message: "", filename: nomeFileRendiconto(f.dati), pdf: f.blob, numeri: f.dati,
+      })));
+      const salvati = esiti.filter((e) => e.status === "fulfilled").length;
+      if (salvati === files.length) toast.success(`${files.length > 1 ? `${files.length} PDF scaricati` : "PDF scaricato"} e salvati nello storico dei rendiconti`);
+      else toast.warning("Scaricato, ma non salvato nello storico", { description: "Il file è sul tuo computer; riprova più tardi per averlo anche nello storico." });
+    } catch (e) {
+      logger.error("RendicontoDialog scarica", e);
+      toast.error("Non sono riuscito a preparare il PDF. Riprova.");
+    } finally {
+      setScarico(false);
+    }
   };
 
   const manda = () => {
@@ -166,6 +215,7 @@ function Contenuto({ onOpenChange, riepilogo, fonteId, conti, numeriPiano, vendi
 
   if (!fonte) return <p className="text-sm text-muted-foreground">Fonte non trovata.</p>;
 
+  const pianoPronto = !!numeriUsati?.righe && numeriUsati.righe.length > 0;
   return (
     <>
       <DialogHeader>
@@ -183,10 +233,34 @@ function Contenuto({ onOpenChange, riepilogo, fonteId, conti, numeriPiano, vendi
           {errore && <p className="p-4 text-sm text-destructive">{errore}</p>}
         </div>
         <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); manda(); }}>
+          <fieldset className="space-y-2 rounded-md border p-3">
+            <legend className="px-1 text-sm font-medium">Cosa c'è nel PDF</legend>
+            {versioni.length > 1 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="rend-versione" className="text-xs">Versione del piano</Label>
+                <Select value={versioneId ?? inv.versionePiano?.id ?? ""} onValueChange={(v) => setVersioneId(v === inv.versionePiano?.id ? null : v)}>
+                  <SelectTrigger id="rend-versione" className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {versioni.map((v) => <SelectItem key={v.id} value={v.id}>{nomeVersionePiano(v)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Cambiano il piano stampato e anche i conti dell'investitore.</p>
+              </div>
+            )}
+            <div className="flex items-start gap-2">
+              <Checkbox id="rend-piano" checked={conPiano} onCheckedChange={(v) => setConPiano(v === true)} disabled={!pianoPronto} className="mt-0.5" />
+              <Label htmlFor="rend-piano" className="text-sm font-normal leading-tight">
+                Includi il piano voce per voce
+                <span className="block text-xs text-muted-foreground">
+                  {pianoPronto ? "Tabella per categoria, torta dei costi e cascata. Senza, restano solo i totali." : "Il piano non è ancora pronto: nel PDF ci sono solo i totali."}
+                </span>
+              </Label>
+            </div>
+          </fieldset>
           <div className="space-y-1.5">
             <Label htmlFor="rend-note">Note nel PDF <span className="font-normal text-muted-foreground">(facoltative)</span></Label>
             <Textarea id="rend-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1500} />
-            <Button type="button" variant="outline" size="sm" onClick={() => setRichiesti(datiConNote)} disabled={inPreparazione || !datiConNote}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setNoteStampa(note.trim() || null)} disabled={inPreparazione || !noteDaAggiornare}>
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Aggiorna l'anteprima
             </Button>
             {noteDaAggiornare && <p className="text-xs text-amber-700 dark:text-amber-400">Le note cambiate entrano nel PDF quando aggiorni l'anteprima.</p>}
@@ -208,14 +282,25 @@ function Contenuto({ onOpenChange, riepilogo, fonteId, conti, numeriPiano, vendi
             <p className="text-xs text-muted-foreground">Comincia con «Gentile {fonte.nome},».</p>
             <Textarea id="rend-messaggio" rows={6} value={messaggio} onChange={(e) => setMessaggio(e.target.value)} maxLength={4000} />
           </div>
-          {!puoInviare && <p className="text-xs text-muted-foreground">Puoi scaricare il PDF; per inviarlo serve il permesso di modificare la commessa.</p>}
+          {!puoInviare && <p className="text-xs text-muted-foreground">Puoi scaricare il PDF; per inviarlo, e per salvarlo nello storico, serve il permesso di modificare la commessa.</p>}
         </form>
       </div>
       <DialogFooter className="gap-2 sm:gap-0">
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Chiudi</Button>
-        <Button type="button" variant="outline" onClick={scarica} disabled={!pdf || inPreparazione}>
-          <Download className="mr-1.5 h-4 w-4" /> Scarica
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" disabled={!pdf || inPreparazione || scarico}>
+              {scarico ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} Scarica <ChevronDown className="ml-1 h-3.5 w-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => void scarica("anteprima")}>Il PDF dell'anteprima</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={!pianoPronto} onSelect={() => void scarica("con")}>Con il piano voce per voce</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void scarica("senza")}>Senza il piano (solo i totali)</DropdownMenuItem>
+            <DropdownMenuItem disabled={!pianoPronto} onSelect={() => void scarica("tutte")}>Tutte e due le versioni</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {puoInviare && (
           <Button type="button" onClick={manda} disabled={!puoMandare}>
             {invia.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Mail className="mr-1.5 h-4 w-4" />}
@@ -225,4 +310,20 @@ function Contenuto({ onOpenChange, riepilogo, fonteId, conti, numeriPiano, vendi
       </DialogFooter>
     </>
   );
+}
+
+async function creaPdf(d: DatiRendiconto): Promise<Blob> {
+  const { pdf: crea, Doc } = await caricaPdf();
+  return crea(<Doc d={d} />).toBlob();
+}
+
+function salvaFile(blob: Blob, nome: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

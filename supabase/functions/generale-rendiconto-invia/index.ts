@@ -20,8 +20,12 @@
  *     message?: string,         // testo semplice, va nel corpo dell'email
  *     filename: string,
  *     pdf_base64: string,       // base64 puro, senza prefisso data:
- *     numeri?: object           // i numeri del rendiconto, per lo storico
+ *     numeri?: object,          // i numeri del rendiconto, per lo storico
+ *     archivia?: boolean        // true = niente email: solo storico e PDF, stato «scaricato»
  *   }
+ *
+ * Con «archivia» (15/11/2026) un rendiconto scaricato resta nello storico come uno inviato,
+ * per poterlo riscaricare: stessi permessi, nessun destinatario (destinatario = '').
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
@@ -76,10 +80,11 @@ Deno.serve(async (req) => {
     const filename = (String(body?.filename ?? "Rendiconto.pdf").replace(/[\\/:*?"<>|]+/g, " ").trim() || "Rendiconto.pdf").slice(0, 180);
     const pdf = String(body?.pdf_base64 ?? "");
     const numeri = body?.numeri && typeof body.numeri === "object" ? body.numeri : {};
+    const archivia = body?.archivia === true;
 
     if (!/^[0-9a-f-]{36}$/i.test(fonteId)) return errorResponse("Fonte non indicata.", 400, corsH);
-    if (!isEmail(to)) return errorResponse("L'indirizzo email del destinatario non è valido.", 400, corsH);
-    if (!subject || subject.length > 200) return errorResponse("Scrivi un oggetto (al massimo 200 caratteri).", 400, corsH);
+    if (!archivia && !isEmail(to)) return errorResponse("L'indirizzo email del destinatario non è valido.", 400, corsH);
+    if (!archivia && (!subject || subject.length > 200)) return errorResponse("Scrivi un oggetto (al massimo 200 caratteri).", 400, corsH);
     if (!pdf) return errorResponse("Manca il PDF del rendiconto.", 400, corsH);
     if (pdf.length > MAX_PDF_B64) return errorResponse("Il PDF è troppo grande per l'email.", 413, corsH);
 
@@ -114,8 +119,8 @@ Deno.serve(async (req) => {
         generale_id: fonte.generale_id,
         fonte_id: fonte.id,
         fonte_nome: fonte.nome,
-        destinatario: to,
-        oggetto: subject,
+        destinatario: archivia ? "" : to,
+        oggetto: archivia ? filename : subject,
         messaggio: message || null,
         numeri,
         inviato_da: userId,
@@ -140,6 +145,11 @@ Deno.serve(async (req) => {
     const { error: upErr } = await supabaseAdmin.storage.from(BUCKET).upload(path, bytes, { contentType: "application/pdf", upsert: true });
     if (upErr) return await fallito(`PDF non salvato: ${upErr.message}`, 500);
     await supabaseAdmin.from("generale_rendiconti").update({ pdf_path: path }).eq("id", riga.id);
+
+    if (archivia) {
+      await supabaseAdmin.from("generale_rendiconti").update({ stato: "scaricato" }).eq("id", riga.id);
+      return jsonResponse({ success: true, id: riga.id, stato: "scaricato" }, 200, corsH);
+    }
 
     // 3. Invio.
     const result = await sendEmailUnified({

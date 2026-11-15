@@ -25,8 +25,12 @@
  *     periodo_dal?: string | null, periodo_al?: string | null,
  *     filename: string, pdf_base64: string,          // base64 puro, senza prefisso data:
  *     xlsx_filename?: string, xlsx_base64?: string,  // facoltativi
- *     numeri?: object            // i numeri del dossier, per lo storico
+ *     numeri?: object,           // i numeri del dossier, per lo storico
+ *     archivia?: boolean         // true = niente email: solo storico e file, stato «scaricato»
  *   }
+ *
+ * Con «archivia» (15/11/2026) un dossier scaricato resta nello storico come uno inviato, per
+ * poterlo riscaricare: stessi permessi, nessun destinatario (destinatari = '{}').
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
@@ -109,13 +113,14 @@ Deno.serve(async (req) => {
     const xlsx = body?.xlsx_base64 ? String(body.xlsx_base64) : "";
     const xlsxName = pulisci(body?.xlsx_filename, "Rendiconto.xlsx");
     const numeri = body?.numeri && typeof body.numeri === "object" ? body.numeri : {};
+    const archivia = body?.archivia === true;
 
     if (!/^[0-9a-f-]{36}$/i.test(generaleId)) return errorResponse("Commessa generale non indicata.", 400, corsH);
-    if (destinatari.length === 0) return errorResponse("Scrivi almeno un destinatario.", 400, corsH);
+    if (!archivia && destinatari.length === 0) return errorResponse("Scrivi almeno un destinatario.", 400, corsH);
     if (destinatari.length > MAX_DESTINATARI) return errorResponse(`Al massimo ${MAX_DESTINATARI} destinatari per invio.`, 400, corsH);
     const sbagliato = destinatari.find((d) => !isEmail(d));
     if (sbagliato) return errorResponse(`L'indirizzo «${sbagliato}» non è valido.`, 400, corsH);
-    if (!subject || subject.length > 200) return errorResponse("Scrivi un oggetto (al massimo 200 caratteri).", 400, corsH);
+    if (!archivia && (!subject || subject.length > 200)) return errorResponse("Scrivi un oggetto (al massimo 200 caratteri).", 400, corsH);
     if (sezioni.length === 0) return errorResponse("Il dossier non contiene sezioni.", 400, corsH);
     if (!pdf) return errorResponse("Manca il PDF del rendiconto.", 400, corsH);
     if (pdf.length + xlsx.length > MAX_B64) return errorResponse("Il dossier è troppo grande per l'email: togli qualche foto.", 413, corsH);
@@ -160,8 +165,8 @@ Deno.serve(async (req) => {
         livello,
         periodo_dal: isGiorno(body?.periodo_dal) ? body.periodo_dal : null,
         periodo_al: isGiorno(body?.periodo_al) ? body.periodo_al : null,
-        destinatari,
-        oggetto: subject,
+        destinatari: archivia ? [] : destinatari,
+        oggetto: archivia ? filename : subject,
         messaggio: message || null,
         numeri,
         inviato_da: userId,
@@ -191,6 +196,11 @@ Deno.serve(async (req) => {
       percorsi.xlsx_path = `${base}.xlsx`;
     }
     await supabaseAdmin.from("generale_dossier").update(percorsi).eq("id", riga.id);
+
+    if (archivia) {
+      await supabaseAdmin.from("generale_dossier").update({ stato: "scaricato" }).eq("id", riga.id);
+      return jsonResponse({ success: true, id: riga.id, stato: "scaricato", esiti: [] }, 200, corsH);
+    }
 
     // 3. Un'email per destinatario.
     const allegati = [{ filename, content: pdf, type: "application/pdf" }];

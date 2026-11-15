@@ -8,7 +8,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { RendicontoInvestitorePDF } from "@/components/orders/generali/investitori/RendicontoInvestitorePDF";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { calcolaInvestitori, type Fonte } from "@/lib/orders/generali/investitoriConti";
-import { datiRendiconto, type DatiRendiconto } from "@/lib/orders/generali/investitoriRendiconto";
+import { datiRendiconto, nomeFileRendiconto, type DatiRendiconto } from "@/lib/orders/generali/investitoriRendiconto";
 import type { NumeriInvestitori } from "@/lib/orders/generali/pianoConti";
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -109,6 +109,16 @@ describe("PDF del rendiconto all'investitore", () => {
     expect(t).toContain("Totale costi");
     expect(t).toContain("DOVE VANNO I COSTI");
     expect(t).toContain("DAI RICAVI AL MARGINE");
+    expect(nomeFileRendiconto(d)).not.toContain("senza piano");
+    // Senza la spunta «Includi il piano»: solo i totali, e il nome del file lo dice.
+    const senza = datiRendiconto({ oggi: "2027-06-30", riepilogo, numeri: conPiano, conti, fonteId: "M", azienda, unitaNome: "Unità", vendite: null, conPiano: false, versionePiano: { numero: 2, stato: "approvata" } })!;
+    expect(senza.piano).toBeNull();
+    expect(senza.versionePiano).toBe("Versione 2 approvata");
+    expect(nomeFileRendiconto(senza)).toMatch(/ senza piano\.pdf$/);
+    const tSenza = await testo(senza);
+    expect(tSenza).not.toContain("IL PIANO ECONOMICO");
+    expect(tSenza).not.toContain("Calcestruzzo");
+    expect(tSenza).toContain("Piano: Versione 2 approvata");
     // Il segno meno vero (U+2212) l'Helvetica non lo ha: sparirebbe.
     expect(t).not.toContain("\u2212");
   });

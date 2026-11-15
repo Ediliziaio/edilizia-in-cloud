@@ -9,6 +9,7 @@ import {
 } from "@/lib/orders/generali/investitoriConti";
 import type { VenditeUnita } from "@/lib/orders/generali/investitoriLettura";
 import type { NumeriInvestitori } from "@/lib/orders/generali/pianoConti";
+import { nomeVersionePiano, type VersionePiano } from "@/lib/orders/generali/pianoLettura";
 
 export interface DatiRendiconto {
   /** «2027-03-15». */
@@ -34,6 +35,10 @@ export interface DatiRendiconto {
    * da dove viene il loro numero). Facoltativo: i rendiconti salvati prima non lo hanno.
    */
   piano?: { ricavi: RigaPianoRendiconto[]; costi: RigaPianoRendiconto[] } | null;
+  /** Chi prepara il rendiconto può togliere il piano voce per voce (spunta «Includi il piano»). */
+  conPiano?: boolean;
+  /** La versione del piano da cui vengono i numeri: «Versione 2 approvata». */
+  versionePiano?: string | null;
   /** La cassa dell'operazione mese per mese: stima e piano com'era scritto. */
   flusso?: { mese: string; entrate: number; uscite: number; cumulato: number; previsto: number | null }[] | null;
   conto: {
@@ -130,7 +135,11 @@ export function datiRendiconto(input: {
   azienda: DatiRendiconto["azienda"];
   unitaNome: string;
   note?: string | null;
+  /** Falso: il PDF porta solo i totali, senza il piano voce per voce né la cascata. Di base vero. */
+  conPiano?: boolean;
+  versionePiano?: Pick<VersionePiano, "numero" | "stato"> | null;
 }): DatiRendiconto | null {
+  const conPiano = input.conPiano !== false;
   const { riepilogo, numeri, conti } = input;
   const c = conti.fonti.find((f) => f.fonte.id === input.fonteId);
   if (!c) return null;
@@ -170,7 +179,9 @@ export function datiRendiconto(input: {
           impegni: conti.totali.impegno,
         }
       : null,
-    piano: numeri?.righe
+    conPiano,
+    versionePiano: input.versionePiano ? nomeVersionePiano(input.versionePiano) : null,
+    piano: conPiano && numeri?.righe
       ? {
           ricavi: numeri.righe.filter((x) => x.tipo === "ricavo").map(rigaRendiconto),
           costi: numeri.righe.filter((x) => x.tipo === "costo").map(rigaRendiconto),
@@ -198,7 +209,7 @@ export function datiRendiconto(input: {
 }
 
 /** Il nome del file: «Rendiconto Residenza Via Roma - Mario Rossi 2027-03-15.pdf», senza caratteri strani. */
-export function nomeFileRendiconto(d: Pick<DatiRendiconto, "operazione" | "investitore" | "data">): string {
+export function nomeFileRendiconto(d: Pick<DatiRendiconto, "operazione" | "investitore" | "data" | "conPiano">): string {
   const pulito = (s: string) => s.replace(/[^\p{L}\p{N} .,_-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60);
-  return `Rendiconto ${pulito(d.operazione.nome)} - ${pulito(d.investitore.nome)} ${d.data}.pdf`;
+  return `Rendiconto ${pulito(d.operazione.nome)} - ${pulito(d.investitore.nome)} ${d.data}${d.conPiano === false ? " senza piano" : ""}.pdf`;
 }

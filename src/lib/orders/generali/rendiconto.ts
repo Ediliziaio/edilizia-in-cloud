@@ -21,7 +21,7 @@ import {
 import { avanzamentoOperazione } from "@/lib/orders/generali/investitoriRendiconto";
 import { moduliDelModello, type ModuloGenerale } from "@/lib/orders/generali/moduli";
 import type { PianoCalcolato, RigaConfronto, TotaliColonne } from "@/lib/orders/generali/pianoConti";
-import type { FotografiaPiano, VersionePiano } from "@/lib/orders/generali/pianoLettura";
+import { nomeVersionePiano, type FotografiaPiano, type VersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { NOMI_STATO, isStatoVendita, prezzoCorrente, unitaVive, type ElencoUnita, type StatoVendita } from "@/lib/orders/generali/unita";
 import { pagamentiUnita, riepilogoVendite } from "@/lib/orders/generali/unitaConti";
 
@@ -376,7 +376,7 @@ export function componiDossier(i: InputDossier): DatiDossier {
   const pc = i.piano;
   const piano: DatiDossier["piano"] = c.has("piano") && pc
     ? {
-        versione: i.versionePiano ? `Versione ${i.versionePiano.numero}${i.versionePiano.stato === "approvata" ? " approvata" : i.versionePiano.stato === "bozza" ? " in bozza" : ""}` : null,
+        versione: i.versionePiano ? nomeVersionePiano(i.versionePiano) : null,
         ricavi: pc.confronto.ricavi.map(rigaPiano),
         costi: pc.confronto.costi.map(rigaPiano),
         totali: pc.confronto.totali,

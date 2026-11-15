@@ -108,7 +108,7 @@ function picco(flusso: NonNullable<DatiRendiconto["flusso"]>): { indice: number;
   return indice >= 0 ? { indice, testo: soldi(minimo) } : null;
 }
 
-function PianoEconomico({ piano }: { piano: NonNullable<DatiRendiconto["piano"]> }) {
+function PianoEconomico({ piano, versione }: { piano: NonNullable<DatiRendiconto["piano"]>; versione: string | null }) {
   const somma = (righe: typeof piano.ricavi) => ({
     previsto: righe.reduce((t, r) => t + r.previsto, 0), reale: righe.reduce((t, r) => t + r.reale, 0),
     aFinire: righe.reduce((t, r) => t + r.aFinire, 0), stima: righe.reduce((t, r) => t + r.stima, 0),
@@ -124,7 +124,7 @@ function PianoEconomico({ piano }: { piano: NonNullable<DatiRendiconto["piano"]>
   return (
     <View style={s.sezione}>
       <View wrap={false}>
-        <Text style={s.label}>Il piano economico</Text>
+        <Text style={s.label}>Il piano economico{versione ? ` · ${versione}` : ""}</Text>
         {gruppiCosti.length > 0 ? (
           <FilaGrafici>
             <RiquadroGrafico titolo="Dove vanno i costi" larghezza="44%">
@@ -173,6 +173,7 @@ export function RendicontoInvestitorePDF({ d, platformName = "Edilizia in Cloud"
           <View>
             <Text style={s.titolo}>Rendiconto all'investitore</Text>
             <Text style={s.data}>al {giorno(d.data)}</Text>
+            {d.versionePiano ? <Text style={s.data}>Piano: {d.versionePiano}</Text> : null}
           </View>
         </View>
 
@@ -312,7 +313,7 @@ export function RendicontoInvestitorePDF({ d, platformName = "Edilizia in Cloud"
           </RiquadroGrafico>
         ) : null}
 
-        {d.piano && (d.piano.ricavi.length > 0 || d.piano.costi.length > 0) ? <PianoEconomico piano={d.piano} /> : null}
+        {d.piano && (d.piano.ricavi.length > 0 || d.piano.costi.length > 0) ? <PianoEconomico piano={d.piano} versione={d.versionePiano ?? null} /> : null}
 
         {d.flusso && d.flusso.length > 1 ? (
           <View style={s.sezione}>

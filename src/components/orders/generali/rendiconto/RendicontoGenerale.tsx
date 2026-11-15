@@ -2,10 +2,12 @@
 // Il bottone «Rendiconto» della testata della generale e il suo dialogo: scegli per chi è
 // (banca, soci, completo) e cosa entra, guarda l'anteprima del PDF, scaricalo in PDF o Excel
 // e, solo con un clic su «Invia», mandalo per email a uno o più destinatari. Lo storico
-// tiene ogni invio col file partito. Da telefono si vede solo lo storico.
+// tiene ogni invio e ogni PDF scaricato, col file. Si sceglie la versione del piano e si
+// possono scaricare in un colpo i tre modelli (completo, banca, soci). Da telefono si vede
+// solo lo storico.
 // @react-pdf/renderer ed exceljs arrivano con un import dinamico: sono i pezzi pesanti.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, FileSpreadsheet, FileText, Loader2, Mail, RefreshCw } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Files, Loader2, Mail, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +15,7 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { StoricoDossier } from "@/components/orders/generali/rendiconto/StoricoDossier";
@@ -25,6 +28,7 @@ import {
   componiDossier, leggiDestinatari, nomeFileDossier, presenzaDati, sezioniDelModello, sezioniDisponibili,
   type DatiDossier, type DisponibilitaSezione, type ModelloDossier, type SezioneDossier,
 } from "@/lib/orders/generali/rendiconto";
+import { nomeVersionePiano, type VersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { TIPO_XLSX } from "@/lib/orders/generali/rendicontoExcel";
 import { cn } from "@/lib/utils";
 import { logger } from "@/utils/logger";
@@ -82,8 +86,8 @@ function Contenuto({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onCh
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Rendiconti inviati</DialogTitle>
-          <DialogDescription>Da telefono puoi riaprire quelli già fatti. Per prepararne uno nuovo usa un tablet o un computer.</DialogDescription>
+          <DialogTitle>Storico dei rendiconti</DialogTitle>
+          <DialogDescription>Da telefono puoi riscaricare quelli già fatti, inviati o scaricati. Per prepararne uno nuovo usa un tablet o un computer.</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto"><StoricoDossier generaleId={riepilogo.generale.id} /></div>
       </>
@@ -96,7 +100,7 @@ function Contenuto({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onCh
         <DialogDescription>Un dossier unico per banca, soci o commercialista. Parte solo quando premi «Invia».</DialogDescription>
         <TabsList className="w-fit">
           <TabsTrigger value="prepara">Prepara</TabsTrigger>
-          <TabsTrigger value="storico">Inviati</TabsTrigger>
+          <TabsTrigger value="storico">Storico</TabsTrigger>
         </TabsList>
       </DialogHeader>
       <TabsContent value="prepara" className="mt-3 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
@@ -126,33 +130,51 @@ const oggi = () => {
 };
 
 function Prepara({ riepilogo, onChiudi }: { riepilogo: RiepilogoGenerale; onChiudi: () => void }) {
-  const { input, isLoading } = useDatiDossier(riepilogo);
+  // null = la versione del piano che la scheda guarda di solito (l'approvata, se c'è).
+  const [versioneId, setVersioneId] = useState<string | null>(null);
+  const { input, isLoading, versioni, versionePiano } = useDatiDossier(riepilogo, { versioneId });
+  // Il primo caricamento mostra l'attesa; cambiando versione l'editor resta aperto con le sue scelte.
+  const [pronto, setPronto] = useState(false);
+  useEffect(() => { if (input && !isLoading) setPronto(true); }, [input, isLoading]);
   const fotoQ = useFotoDossier(riepilogo);
   const candidate: FotoCandidata[] = useMemo(() => (Array.isArray(fotoQ.data) ? fotoQ.data : []), [fotoQ.data]);
   const disponibili = useMemo(
     () => (input ? sezioniDisponibili({ modello: riepilogo.generale.modello, permessi: riepilogo.permessi, dati: presenzaDati({ ...input, foto: candidate }) }) : []),
     [input, candidate, riepilogo.generale.modello, riepilogo.permessi],
   );
-  if (!input || isLoading || fotoQ.isLoading) {
+  if (!input || (!pronto && (isLoading || fotoQ.isLoading))) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" /> Raccolgo i numeri dei moduli…
       </div>
     );
   }
-  return <Editor riepilogo={riepilogo} onChiudi={onChiudi} input={input} candidate={candidate} disponibili={disponibili} />;
+  return (
+    <Editor
+      riepilogo={riepilogo} onChiudi={onChiudi} input={input} candidate={candidate} disponibili={disponibili}
+      versioni={versioni} versionePiano={versionePiano} caricoNumeri={isLoading}
+      scegliVersione={(id) => setVersioneId(id === versioni.find((v) => v.stato === "approvata")?.id ? null : id)}
+    />
+  );
 }
 
-function Editor({ riepilogo, onChiudi, input, candidate, disponibili }: {
+function Editor({ riepilogo, onChiudi, input, candidate, disponibili, versioni, versionePiano, caricoNumeri, scegliVersione }: {
   riepilogo: RiepilogoGenerale;
   onChiudi: () => void;
   input: NonNullable<ReturnType<typeof useDatiDossier>["input"]>;
   candidate: FotoCandidata[];
   disponibili: DisponibilitaSezione[];
+  versioni: VersionePiano[];
+  versionePiano: VersionePiano | null;
+  /** Vero mentre arrivano i numeri di un'altra versione del piano. */
+  caricoNumeri: boolean;
+  scegliVersione: (id: string) => void;
 }) {
   const permissions = usePermissions();
   const puoInviare = !!permissions.canEditOrders;
   const invia = useInviaDossier(riepilogo.generale.id);
+  const archivia = useInviaDossier(riepilogo.generale.id);
+  const [scarico, setScarico] = useState(false);
   // Prima stesura: «Per la banca», le sei foto più recenti, dalla nascita della generale a oggi.
   const [scelte, setScelte] = useState<Scelte>(() => ({
     modello: "banca",
@@ -215,6 +237,22 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Cambiata la versione del piano: l'anteprima si rifà da sola appena arrivano i suoi numeri.
+  const versioneAttesa = useRef<string | null>(null);
+  useEffect(() => {
+    if (versioneAttesa.current && !caricoNumeri && versionePiano?.id === versioneAttesa.current) {
+      versioneAttesa.current = null;
+      prepara(scelte);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caricoNumeri, versionePiano, input]);
+  const cambiaVersione = (id: string) => {
+    if (id === versionePiano?.id) return;
+    versioneAttesa.current = id;
+    setPreparo(true);
+    scegliVersione(id);
+  };
+
   const [destinatari, setDestinatari] = useState("");
   const [oggetto, setOggetto] = useState(`Rendiconto ${riepilogo.generale.nome}`);
   const [messaggio, setMessaggio] = useState(
@@ -243,6 +281,60 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili }: {
     } catch (e) {
       logger.error("RendicontoGenerale excel", e);
       toast.error("Non sono riuscito a preparare l'Excel. Riprova.");
+    }
+  };
+
+  /** Salva i PDF scaricati nello storico (stato «scaricato»), a chi può modificare la commessa. */
+  const archiviaFile = async (files: { blob: Blob; dati: DatiDossier }[]) => {
+    if (!puoInviare) {
+      toast.success(files.length > 1 ? `${files.length} PDF scaricati` : "PDF scaricato");
+      return;
+    }
+    const esiti = await Promise.allSettled(files.map(({ blob, dati: d }) => archivia.mutateAsync({
+      archivia: true, destinatari: [], subject: "", message: "",
+      modello: d.modello, titolo: d.titolo, sezioni: d.sezioni, periodo: d.periodo,
+      filename: nomeFileDossier(d), pdf: blob, excel: null,
+      numeri: { ...d, foto: d.foto.map((f) => ({ didascalia: f.didascalia, data: f.data })) },
+    })));
+    const salvati = esiti.filter((e) => e.status === "fulfilled").length;
+    if (salvati === files.length) toast.success(`${files.length > 1 ? `${files.length} PDF scaricati` : "PDF scaricato"} e salvati nello storico`);
+    else toast.warning("Scaricato, ma non salvato nello storico", { description: "Il file è sul tuo computer; riprova più tardi per averlo anche nello storico." });
+  };
+
+  const scaricaPdf = async () => {
+    if (!anteprima) return;
+    scarica(anteprima.blob, nomeFileDossier(anteprima.dati));
+    setScarico(true);
+    try { await archiviaFile([{ blob: anteprima.blob, dati: anteprima.dati }]); } finally { setScarico(false); }
+  };
+
+  /** I tre modelli (completo, per la banca, per i soci) con lo stesso periodo, note e foto dell'anteprima. */
+  const scaricaModelli = async () => {
+    if (!anteprima) return;
+    setScarico(true);
+    try {
+      const { pdf, Doc } = await caricaPdf();
+      const files: { blob: Blob; dati: DatiDossier }[] = [];
+      for (const m of MODELLI_DOSSIER_ORDINE) {
+        const sezioni = sezioniDelModello(m, disponibili);
+        if (sezioni.length === 0) continue;
+        const d = componiDossier({
+          ...input, modello: m, sezioni,
+          periodo: { dal: scelte.dal || null, al: scelte.al || oggi() },
+          note: scelte.note, foto: anteprima.dati.foto,
+        });
+        const blob = d.modello === anteprima.dati.modello && JSON.stringify(d.sezioni) === JSON.stringify(anteprima.dati.sezioni)
+          ? anteprima.blob
+          : await pdf(<Doc d={d} />).toBlob();
+        files.push({ blob, dati: d });
+        scarica(blob, nomeFileDossier(d));
+      }
+      await archiviaFile(files);
+    } catch (e) {
+      logger.error("RendicontoGenerale modelli", e);
+      toast.error("Non sono riuscito a preparare i PDF. Riprova.");
+    } finally {
+      setScarico(false);
     }
   };
 
@@ -321,6 +413,19 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili }: {
             ))}
           </fieldset>
 
+          {versioni.length > 1 && scelte.sezioni.some((x) => x === "piano" || x === "cassa" || x === "andamento" || x === "fonti" || x === "investitori") && (
+            <div className="space-y-1.5">
+              <Label htmlFor="dossier-versione" className="text-sm font-medium">Versione del piano</Label>
+              <Select value={versionePiano?.id ?? ""} onValueChange={cambiaVersione}>
+                <SelectTrigger id="dossier-versione" className="h-8 text-sm"><SelectValue placeholder="Scegli la versione" /></SelectTrigger>
+                <SelectContent>
+                  {versioni.map((v) => <SelectItem key={v.id} value={v.id}>{nomeVersionePiano(v)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">I numeri del piano, della cassa e degli investitori vengono da questa versione.</p>
+            </div>
+          )}
+
           <fieldset className="grid grid-cols-2 gap-2">
             <legend className="mb-1 text-sm font-medium">Periodo</legend>
             <div className="space-y-1">
@@ -398,7 +503,7 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili }: {
               </div>
             </fieldset>
           ) : (
-            <p className="border-t pt-4 text-xs text-muted-foreground">Puoi scaricare PDF ed Excel; per inviarli serve il permesso di modificare le commesse.</p>
+            <p className="border-t pt-4 text-xs text-muted-foreground">Puoi scaricare PDF ed Excel; per inviarli, e per salvarli nello storico, serve il permesso di modificare le commesse.</p>
           )}
         </form>
 
@@ -415,8 +520,11 @@ function Editor({ riepilogo, onChiudi, input, candidate, disponibili }: {
 
       <DialogFooter className="mt-3 gap-2 sm:gap-0">
         <Button type="button" variant="ghost" onClick={onChiudi}>Chiudi</Button>
-        <Button type="button" variant="outline" disabled={!anteprima || daAggiornare || preparo} onClick={() => anteprima && scarica(anteprima.blob, nomeFileDossier(anteprima.dati))}>
-          <Download className="mr-1.5 h-4 w-4" /> PDF
+        <Button type="button" variant="outline" disabled={!anteprima || daAggiornare || preparo || scarico} onClick={() => void scaricaPdf()}>
+          {scarico ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />} PDF
+        </Button>
+        <Button type="button" variant="outline" title="Completo, per la banca e per i soci: tre PDF con lo stesso periodo, note e foto" disabled={!anteprima || daAggiornare || preparo || scarico} onClick={() => void scaricaModelli()}>
+          <Files className="mr-1.5 h-4 w-4" /> Tutti i modelli
         </Button>
         <Button type="button" variant="outline" disabled={!anteprima || daAggiornare || preparo} onClick={() => void scaricaExcel()}>
           <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Excel

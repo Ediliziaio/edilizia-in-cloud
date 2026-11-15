@@ -478,40 +478,49 @@ function Storico({ generaleId, fonti }: { generaleId: string; fonti: Fonte[] }) 
   const elenco = Array.isArray(rendiconti.data) ? rendiconti.data : [];
   const nomi = new Map(fonti.map((f) => [f.id, f.nome]));
 
-  const apri = async (id: string, path: string) => {
+  const apri = async (id: string, path: string, nome: string) => {
     setApro(id);
     try {
-      window.open(await linkPdfRendiconto(path), "_blank", "noopener");
+      // Il nome del file: quello che aveva quando è stato fatto (oggetto dei salvati), o uno nuovo.
+      // Il link porta «scarica come»: la pagina resta qui e il browser salva il file.
+      window.location.assign(await linkPdfRendiconto(path, nome));
     } catch {
-      toast.error("Non riesco ad aprire il PDF. Riprova tra poco.");
+      toast.error("Non riesco a scaricare il PDF. Riprova tra poco.");
     } finally {
       setApro(null);
     }
   };
 
   return (
-    <section aria-label="Rendiconti inviati" className="rounded-lg border bg-card">
-      <h3 className="border-b px-4 py-2 text-sm font-semibold">Rendiconti inviati</h3>
+    <section aria-label="Storico dei rendiconti" className="rounded-lg border bg-card">
+      <h3 className="border-b px-4 py-2 text-sm font-semibold">Storico dei rendiconti <span className="font-normal text-muted-foreground">· inviati e scaricati</span></h3>
       {rendiconti.isLoading ? (
         <Skeleton className="m-4 h-8" />
       ) : elenco.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-muted-foreground">Nessun rendiconto inviato. Apri una fonte e premi «Rendiconto».</p>
+        <p className="px-4 py-3 text-sm text-muted-foreground">Nessun rendiconto ancora. Apri una fonte e premi «Rendiconto»: ogni PDF inviato o scaricato resta qui.</p>
       ) : (
         <ul className="divide-y">
           {elenco.map((r) => (
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
               <span className="min-w-0">
                 <span className="font-medium">{nomi.get(r.fonteId ?? "") ?? r.fonteNome}</span>
-                <span className="text-muted-foreground"> · {r.destinatario} · {dataBreve((r.inviatoIl ?? r.creatoIl).slice(0, 10))}</span>
+                <span className="text-muted-foreground">
+                  {r.destinatario && r.stato !== "scaricato" ? ` · ${r.destinatario}` : ""} · {dataBreve((r.inviatoIl ?? r.creatoIl).slice(0, 10))}
+                </span>
+                {(r.versionePiano || r.conPiano !== null) && (
+                  <span className="block text-xs text-muted-foreground">
+                    {[r.versionePiano, r.conPiano === false ? "senza il piano voce per voce" : r.conPiano ? "con il piano voce per voce" : null].filter(Boolean).join(" · ")}
+                  </span>
+                )}
                 {r.stato === "fallito" && r.errore && <span className="block text-xs text-destructive">{r.errore}</span>}
               </span>
               <span className="flex items-center gap-2">
-                <Badge variant={r.stato === "fallito" ? "destructive" : r.stato === "inviato" ? "secondary" : "outline"} className="font-normal">
-                  {r.stato === "inviato" ? "Inviato" : r.stato === "fallito" ? "Non partito" : "In invio"}
+                <Badge variant={r.stato === "fallito" ? "destructive" : r.stato === "inviato" || r.stato === "scaricato" ? "secondary" : "outline"} className="font-normal">
+                  {r.stato === "inviato" ? "Inviato" : r.stato === "scaricato" ? "Scaricato" : r.stato === "fallito" ? "Non partito" : "In invio"}
                 </Badge>
                 {r.pdfPath && (
-                  <Button size="sm" variant="ghost" className="h-7" disabled={apro === r.id} onClick={() => void apri(r.id, r.pdfPath!)}>
-                    {apro === r.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-1.5 h-3.5 w-3.5" />} PDF
+                  <Button size="sm" variant="ghost" className="h-7" disabled={apro === r.id} onClick={() => void apri(r.id, r.pdfPath!, r.stato === "scaricato" && r.oggetto.endsWith(".pdf") ? r.oggetto : `Rendiconto ${r.fonteNome} ${(r.inviatoIl ?? r.creatoIl).slice(0, 10)}.pdf`)}>
+                    {apro === r.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-1.5 h-3.5 w-3.5" />} Scarica
                   </Button>
                 )}
               </span>

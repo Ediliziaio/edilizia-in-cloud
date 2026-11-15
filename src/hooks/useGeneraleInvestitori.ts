@@ -123,12 +123,13 @@ const oggiIso = () => {
  * Tutto il modulo in una chiamata: fonti, movimenti, numeri del piano e conti.
  * Vuoto (e nessuna lettura) senza il permesso sui margini.
  */
-export function useGeneraleInvestitori(riepilogo: RiepilogoGenerale | undefined, opzioni: { enabled?: boolean } = {}) {
+export function useGeneraleInvestitori(riepilogo: RiepilogoGenerale | undefined, opzioni: { enabled?: boolean; versioneId?: string | null } = {}) {
   const generaleId = riepilogo?.generale.id;
   const attivo = (opzioni.enabled ?? true) && !!riepilogo?.permessi.margini;
   const fonti = useFontiGenerale(generaleId, attivo);
   const movimenti = useMovimentiFonti(generaleId, attivo);
-  const piano = useGeneralePianoNumeri(riepilogo, { enabled: attivo });
+  // Una versione del piano chiesta per nome (il rendiconto può stamparne una precedente).
+  const piano = useGeneralePianoNumeri(riepilogo, { enabled: attivo, versioneId: opzioni.versioneId ?? null });
   const oggi = oggiIso();
 
   const numeriPiano = useMemo(() => (piano.piano && piano.piano.calendarioCompleto !== false ? numeriPerInvestitori(piano.piano) : null), [piano.piano]);
@@ -152,6 +153,8 @@ export function useGeneraleInvestitori(riepilogo: RiepilogoGenerale | undefined,
     conti,
     oggi,
     pianoVuoto: piano.vuoto,
+    versioni: piano.versioni,
+    versionePiano: piano.inVista,
     pianoInBozza: piano.inVista?.stato === "bozza",
     isLoading: fonti.isLoading || movimenti.isLoading || piano.isLoading,
     isError: fonti.isError || movimenti.isError,
@@ -299,6 +302,8 @@ export function useConfermaMovimento(generaleId: string) {
 
 export interface InvioRendiconto {
   fonteId: string;
+  /** true = niente email: il PDF scaricato resta nello storico (stato «scaricato»). */
+  archivia?: boolean;
   to: string;
   subject: string;
   message: string;
@@ -328,13 +333,14 @@ export function useInviaRendiconto(generaleId: string) {
           filename: r.filename,
           pdf_base64: await base64(r.pdf),
           numeri: r.numeri,
+          archivia: r.archivia === true,
         },
       });
       if (error) {
         // Il messaggio scritto dalla funzione sta nel corpo della risposta.
         const ctx = (error as { context?: Response }).context;
         const corpo = ctx && typeof ctx.json === "function" ? await ctx.json().catch((): null => null) : null;
-        throw new Error((corpo as { error?: string } | null)?.error ?? "Invio non riuscito. Riprova tra poco.");
+        throw new Error((corpo as { error?: string } | null)?.error ?? (r.archivia ? "Non salvato nello storico." : "Invio non riuscito. Riprova tra poco."));
       }
       return data as { id: string };
     },
@@ -342,9 +348,9 @@ export function useInviaRendiconto(generaleId: string) {
   });
 }
 
-/** Un link temporaneo per riaprire il PDF di un rendiconto inviato. */
-export async function linkPdfRendiconto(path: string): Promise<string> {
-  const { data, error } = await supabase.storage.from("generale-rendiconti").createSignedUrl(path, 300);
+/** Un link temporaneo per riaprire il PDF di un rendiconto; con `scarica`, il browser lo salva col suo nome. */
+export async function linkPdfRendiconto(path: string, scarica: string | false = false): Promise<string> {
+  const { data, error } = await supabase.storage.from("generale-rendiconti").createSignedUrl(path, 300, scarica ? { download: scarica } : undefined);
   if (error || !data?.signedUrl) throw error ?? new Error("PDF non trovato");
   return data.signedUrl;
 }

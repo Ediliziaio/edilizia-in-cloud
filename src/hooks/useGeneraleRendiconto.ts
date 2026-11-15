@@ -149,16 +149,16 @@ export async function fotoPerPdf(src: string, lato = 1200): Promise<string | nul
  * Tutto quello che serve a comporre il dossier, dai moduli. `input` è senza le scelte di chi
  * genera (sezioni, periodo, note, foto): le aggiunge il dialogo.
  */
-export function useDatiDossier(r: RiepilogoGenerale) {
+export function useDatiDossier(r: RiepilogoGenerale, opzioni: { versioneId?: string | null } = {}) {
   const moduli = moduliDelModello(r.generale.modello);
   const id = r.generale.id;
   const margini = r.permessi.margini;
   const conPiano = moduli.includes("piano") && margini;
   const conInvestitori = moduli.includes("investitori") && margini;
 
-  const piano = useGeneralePianoNumeri(r, { enabled: conPiano });
+  const piano = useGeneralePianoNumeri(r, { enabled: conPiano, versioneId: opzioni.versioneId ?? null });
   const fotografie = useFotografieGenerale(id, conPiano);
-  const investitori = useGeneraleInvestitori(r, { enabled: conInvestitori });
+  const investitori = useGeneraleInvestitori(r, { enabled: conInvestitori, versioneId: opzioni.versioneId ?? null });
   const unita = useElencoUnita(moduli.includes("unita") ? id : undefined);
   const contratto = useDatiContratto(id, moduli.includes("contratto") && r.permessi.importi);
   const documenti = useChecklistGenerale(r);
@@ -187,7 +187,7 @@ export function useDatiDossier(r: RiepilogoGenerale) {
     || (moduli.includes("contratto") && r.permessi.importi && contratto.isLoading)
     || documenti.isLoading;
 
-  return { input, isLoading };
+  return { input, isLoading, versioni: conPiano ? piano.versioni : [], versionePiano: conPiano ? piano.inVista : null };
 }
 
 // ── Storico ────────────────────────────────────────────────────────────────
@@ -200,7 +200,10 @@ export interface DossierInviato {
   livello: LivelloDossier;
   destinatari: string[];
   oggetto: string;
-  stato: "in_invio" | "inviato" | "parziale" | "fallito";
+  /** «scaricato»: niente email, solo i file salvati nello storico. */
+  stato: "in_invio" | "inviato" | "parziale" | "fallito" | "scaricato";
+  /** «Versione 2 approvata», se il dossier aveva il piano. */
+  versionePiano: string | null;
   esiti: { a: string; ok: boolean; errore: string | null }[];
   errore: string | null;
   pdfPath: string | null;
@@ -223,7 +226,8 @@ export function leggiStoricoDossier(data: unknown): DossierInviato[] {
       livello: r.livello === "base" || r.livello === "importi" ? r.livello : "margini",
       destinatari: Array.isArray(r.destinatari) ? (r.destinatari as unknown[]).filter((x): x is string => typeof x === "string") : [],
       oggetto: testo(r.oggetto) ?? "",
-      stato: r.stato === "inviato" || r.stato === "parziale" || r.stato === "fallito" ? r.stato : "in_invio",
+      stato: r.stato === "inviato" || r.stato === "parziale" || r.stato === "fallito" || r.stato === "scaricato" ? r.stato : "in_invio",
+      versionePiano: testo(r.versione_piano),
       esiti: Array.isArray(r.esiti)
         ? (r.esiti as Record<string, unknown>[]).map((e) => ({ a: String(e?.a ?? ""), ok: e?.ok === true, errore: testo(e?.errore) }))
         : [],
@@ -244,7 +248,7 @@ export function useStoricoDossier(generaleId: string | undefined, enabled = true
     queryFn: async (): Promise<DossierInviato[]> => {
       const { data, error } = await db
         .from("generale_dossier")
-        .select("id, modello, titolo, sezioni, livello, destinatari, oggetto, stato, esiti, errore, pdf_path, xlsx_path, created_at, inviato_at")
+        .select("id, modello, titolo, sezioni, livello, destinatari, oggetto, stato, esiti, errore, pdf_path, xlsx_path, created_at, inviato_at, versione_piano:numeri->piano->>versione")
         .eq("generale_id", generaleId)
         .order("created_at", { ascending: false })
         .limit(100);
@@ -256,9 +260,9 @@ export function useStoricoDossier(generaleId: string | undefined, enabled = true
   });
 }
 
-/** Un link temporaneo per riaprire un file dello storico. */
-export async function linkFileDossier(path: string): Promise<string> {
-  const { data, error } = await supabase.storage.from("generale-dossier").createSignedUrl(path, 300);
+/** Un link temporaneo per riaprire un file dello storico; con `scarica`, il browser lo salva col suo nome. */
+export async function linkFileDossier(path: string, scarica: string | false = false): Promise<string> {
+  const { data, error } = await supabase.storage.from("generale-dossier").createSignedUrl(path, 300, scarica ? { download: scarica } : undefined);
   if (error || !data?.signedUrl) throw error ?? new Error("File non trovato");
   return data.signedUrl;
 }
@@ -266,6 +270,8 @@ export async function linkFileDossier(path: string): Promise<string> {
 // ── Invio ──────────────────────────────────────────────────────────────────
 
 export interface InvioDossier {
+  /** true = niente email: il dossier scaricato resta nello storico (stato «scaricato»). */
+  archivia?: boolean;
   destinatari: string[];
   subject: string;
   message: string;
@@ -307,6 +313,7 @@ export function useInviaDossier(generaleId: string) {
           xlsx_filename: r.excel?.filename,
           xlsx_base64: r.excel ? await base64(r.excel.dati) : undefined,
           numeri: r.numeri,
+          archivia: r.archivia === true,
         },
       });
       if (error) {
