@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  bozzaDaFonte, bozzaVuota, controllaRiferimento, ETICHETTA_FONTE, TIPI_RIFERIMENTO_PA,
+  bozzaDaFonte, bozzaVuota, controllaRiferimento, ETICHETTA_FONTE, MAX_LOTTO, TIPI_RIFERIMENTO_PA,
   type BozzaRiferimentoPa, type FonteRiferimentoEsistente, type TipoRiferimentoPa,
 } from "@/lib/orders/riferimentiPa";
 
@@ -88,7 +88,8 @@ export function RiferimentiPaEditor({ bozze, onChange, fonti = [], disabilitato 
               </div>
               <div className="space-y-1">
                 <Label htmlFor={id("numero")}>Numero</Label>
-                <Input id={id("numero")} value={b.numero} disabled={disabilitato} onChange={(e) => cambia(b.chiave, { numero: e.target.value })} placeholder="Es. Rep. 1234/2026" />
+                <Input id={id("numero")} value={b.numero} disabled={disabilitato} aria-invalid={!!errori.numero} onChange={(e) => cambia(b.chiave, { numero: e.target.value })} placeholder="Es. Rep. 1234/2026" />
+                {errori.numero && <p className="text-xs text-red-700" role="alert">{errori.numero}</p>}
               </div>
               <div className="space-y-1">
                 <Label htmlFor={id("data")}>Data</Label>
@@ -128,7 +129,8 @@ export function RiferimentiPaEditor({ bozze, onChange, fonti = [], disabilitato 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label htmlFor={id("lotto")}>Lotto</Label>
-                <Input id={id("lotto")} value={b.lotto} disabled={disabilitato} onChange={(e) => cambia(b.chiave, { lotto: e.target.value })} />
+                <Input id={id("lotto")} value={b.lotto} disabled={disabilitato} aria-invalid={!!errori.lotto} onChange={(e) => cambia(b.chiave, { lotto: e.target.value })} placeholder={`Es. Lotto 1 (max ${MAX_LOTTO})`} />
+                {errori.lotto && <p className="text-xs text-red-700" role="alert">{errori.lotto}</p>}
               </div>
               <div className="space-y-1">
                 <Label htmlFor={id("determina")}>Determina / atto di affidamento</Label>

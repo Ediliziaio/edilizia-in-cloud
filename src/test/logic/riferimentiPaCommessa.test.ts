@@ -61,6 +61,13 @@ describe("controllaRiferimento", () => {
     expect(e.mancanze).toContain("Motivo per cui il CIG non è dovuto");
     expect(e.mancanze).not.toContain("CIG (o la spunta «non dovuto»)");
   });
+  it("numero e lotto: al massimo 20 caratteri (IdDocumento e NumItem dell'XML)", () => {
+    const ok = controllaRiferimento({ ...bozzaVuota(), numero: "12345678901234567890", lotto: " Lotto 1 " });
+    expect(ok.errori).toEqual({});
+    const ko = controllaRiferimento({ ...bozzaVuota(), numero: "Repertorio n. 1234/2026", lotto: "Lotto 1 — scuola media" });
+    expect(ko.errori.numero).toMatch(/IdDocumento.*23/);
+    expect(ko.errori.lotto).toMatch(/NumItem.*22/);
+  });
   it("formati sbagliati dicono quanti caratteri ci sono", () => {
     const e = controllaRiferimento({ ...bozzaVuota(), cig: "ABC123ABC123ABC", cup: "J51", codice_univoco_ufficio: "1234567" });
     expect(e.errori.cig).toMatch(/15/);

@@ -89,7 +89,11 @@ export function RiquadroRiferimentiPa({ orderId, puoModificare }: { orderId: str
     });
   };
   const importa = (f: FonteRiferimentoEsistente) => {
-    salva.mutate({ bozze: [...righe.map(bozzaDaRiga), bozzaDaFonte(f)], attivi: true }, {
+    const nuove = [...righe.map(bozzaDaRiga), bozzaDaFonte(f)];
+    // Un riferimento della fonte troppo lungo o col formato sbagliato non si salva così com'è:
+    // si apre «Modifica» con la riga già importata, da correggere.
+    if (nuove.some(bozzaHaErrori)) { setBozze(nuove); toast.warning("Da correggere prima di salvare", { description: f.etichetta }); return; }
+    salva.mutate({ bozze: nuove, attivi: true }, {
       onSuccess: () => toast.success("Riferimento importato", { description: f.problemi.length ? "Il codice non ha il formato giusto: correggilo con «Modifica»." : f.etichetta }),
       onError: (e) => toast.error("Importazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
     });

@@ -16,7 +16,7 @@ const stato = vi.hoisted(() => ({
 vi.mock("@/hooks/useRiferimentiPaCommessa", () => ({
   useRiferimentiPaCommessa: () => ({ data: stato.data, isLoading: false, isError: false, salva: { mutate: stato.mutate, isPending: false } }),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 import { RiquadroRiferimentiPa } from "@/components/orders/riferimentiPa/RiquadroRiferimentiPa";
 import { RiferimentiPaEditor } from "@/components/orders/riferimentiPa/RiferimentiPaEditor";
@@ -86,6 +86,19 @@ describe("RiquadroRiferimentiPa", () => {
     expect(arg.attivi).toBe(true);
     expect(arg.bozze).toHaveLength(1);
     expect(arg.bozze[0]).toMatchObject({ fonte: "computo", fonte_id: "k1", cig: "1234567ABC" });
+  });
+
+  it("una fonte col numero troppo lungo non si salva: apre «Modifica» con l'errore", () => {
+    stato.data = {
+      attivi: true, clientePa: true, customerId: "p", righe: [],
+      fonti: [{ fonte: "contratto_generale", fonte_id: "g1", etichetta: "Contratto della commessa generale", cig: "1234567ABC", cup: null, numero: "Repertorio n. 1234/2026 del Comune", data: null, giaPresente: false, problemi: [] }],
+    };
+    render(<RiquadroRiferimentiPa orderId="o" puoModificare />);
+    fireEvent.click(screen.getByRole("button", { name: /Importa/ }));
+    expect(stato.mutate).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText(/Al massimo 20 caratteri: nella fattura elettronica diventa IdDocumento/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Salva" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("una fonte già importata non si ripropone", () => {

@@ -121,12 +121,12 @@ Migrazioni applicate e riallineate: `20290410300000_order_riferimenti_pa`, `2029
 | `company_id` | uuid | lo scrive il trigger dalla commessa: qualunque valore mandato viene sostituito |
 | `order_id` | uuid → `orders` on delete cascade | |
 | `tipo` | text | `contratto` → `DatiContratto`, `ordine_acquisto` → `DatiOrdineAcquisto`, `convenzione` → `DatiConvenzione` |
-| `numero`, `data` | text, date | → `IdDocumento`, `Data` |
+| `numero`, `data` | text, date | → `IdDocumento` (max 20 caratteri, CHECK dal 15/11 sera), `Data` |
 | `cig` | text | `^[A-Z0-9]{10}$` (anche SmartCIG); → `CodiceCIG` |
 | `cig_non_dovuto`, `cig_motivo_esclusione` | boolean, text | mai insieme a `cig` (CHECK); il motivo resta solo se la spunta c'è |
 | `cup` | text | `^[A-Z][A-Z0-9]{14}$`; → `CodiceCUP` |
 | `cup_non_dovuto` | boolean | mai insieme a `cup` (CHECK) |
-| `lotto`, `determina`, `impegno_spesa` | text | `determina` = atto di affidamento; `impegno_spesa` va di norma nella Causale o in `CodiceCommessaConvenzione`, da decidere nel lotto 5 |
+| `lotto`, `determina`, `impegno_spesa` | text | `lotto` → `NumItem`, max 20 caratteri (CHECK, migrazione `20290410300500`; prima l'unica riga oltre, quella di prova su Demo 2, è stata accorciata); `determina` = atto di affidamento; `impegno_spesa` va di norma nella Causale o in `CodiceCommessaConvenzione`, da decidere nel lotto 5 |
 | `ufficio_id` | uuid | **senza chiave esterna**: `anagrafica_uffici_pa` (lotto 2) non c'era quando è stata applicata. Va aggiunta con una migrazione del lotto 2 o 4 (`references anagrafica_uffici_pa(id) on delete set null`) |
 | `codice_univoco_ufficio` | text | copia del codice (`^[A-Z0-9]{6}$`) per quando l'ufficio cambia o non c'è: oggi lo scrive l'utente, nessun trigger lo copia dall'ufficio |
 | `note_fatturazione` | text | |

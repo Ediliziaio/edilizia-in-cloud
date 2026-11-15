@@ -113,9 +113,13 @@ export const codiceUfficioValido = (v: string): boolean => /^[A-Z0-9]{6}$/.test(
 /** I vecchi SmartCIG (affidamenti sotto soglia) iniziano con Z, X o Y. */
 export const eSmartCig = (v: string): boolean => cigValido(v) && /^[XYZ]/.test(normalizzaCodice(v));
 
+/** Limiti dello schema FatturaPA 1.2.2: numero → IdDocumento, lotto → NumItem (anche CHECK nel database). */
+export const MAX_NUMERO = 20;
+export const MAX_LOTTO = 20;
+
 export interface EsitoRiferimento {
   /** Impediscono il salvataggio: il database li rifiuterebbe. */
-  errori: Partial<Record<"cig" | "cup" | "codice_univoco_ufficio" | "data", string>>;
+  errori: Partial<Record<"cig" | "cup" | "codice_univoco_ufficio" | "data" | "numero" | "lotto", string>>;
   /** Cosa manca ancora: avvisi, non errori. La riga si salva comunque. */
   mancanze: string[];
 }
@@ -135,6 +139,10 @@ export function controllaRiferimento(b: BozzaRiferimentoPa): EsitoRiferimento {
     : "Il CUP comincia con una lettera, poi lettere e numeri.";
   if (ufficio && !codiceUfficioValido(ufficio)) errori.codice_univoco_ufficio = `Il Codice Univoco Ufficio ha 6 caratteri (ne hai scritti ${ufficio.length}).`;
   if (b.data && !/^\d{4}-\d{2}-\d{2}$/.test(b.data)) errori.data = "Data non valida.";
+  const numero = b.numero.trim();
+  if (numero.length > MAX_NUMERO) errori.numero = `Al massimo ${MAX_NUMERO} caratteri: nella fattura elettronica diventa IdDocumento (ne hai scritti ${numero.length}). Il resto va nelle note.`;
+  const lotto = b.lotto.trim();
+  if (lotto.length > MAX_LOTTO) errori.lotto = `Al massimo ${MAX_LOTTO} caratteri: nella fattura elettronica diventa NumItem (ne hai scritti ${lotto.length}). Scrivi solo il numero o il codice del lotto, la descrizione nelle note.`;
 
   const nome = etichettaTipoRiferimento(b.tipo).toLowerCase();
   if (!b.numero.trim()) mancanze.push(`Numero del ${nome}`);
