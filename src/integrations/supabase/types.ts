@@ -7006,6 +7006,7 @@ export type Database = {
           error_detail: string | null
           fallback_hops: number | null
           id: string
+          idempotency_key: string | null
           latency_ms: number | null
           margin_eur: number | null
           markup_applied_pct: number | null
@@ -7034,6 +7035,7 @@ export type Database = {
           error_detail?: string | null
           fallback_hops?: number | null
           id?: string
+          idempotency_key?: string | null
           latency_ms?: number | null
           margin_eur?: number | null
           markup_applied_pct?: number | null
@@ -7062,6 +7064,7 @@ export type Database = {
           error_detail?: string | null
           fallback_hops?: number | null
           id?: string
+          idempotency_key?: string | null
           latency_ms?: number | null
           margin_eur?: number | null
           markup_applied_pct?: number | null
@@ -65146,6 +65149,78 @@ export type Database = {
           unit?: string | null
         }
         Relationships: []
+      }
+      lavori_ai_esiti: {
+        Row: {
+          chiamate_ai: number
+          chiave: string
+          company_id: string
+          created_at: string
+          esito: string
+          flusso: string
+          id: string
+          motivo: string | null
+          updated_at: string
+        }
+        Insert: {
+          chiamate_ai?: number
+          chiave: string
+          company_id: string
+          created_at?: string
+          esito: string
+          flusso: string
+          id?: string
+          motivo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chiamate_ai?: number
+          chiave?: string
+          company_id?: string
+          created_at?: string
+          esito?: string
+          flusso?: string
+          id?: string
+          motivo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lavori_ai_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lavori_ai_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lavori_ai_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lavori_ai_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lavori_ai_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
       }
       lead_first_touch_runs: {
         Row: {
@@ -135543,6 +135618,25 @@ export type Database = {
         }
         Relationships: []
       }
+      consumi_ai_azienda: {
+        Row: {
+          addebitato: boolean | null
+          addebitato_eur: number | null
+          company_id: string | null
+          compito: string | null
+          created_at: string | null
+          id: string | null
+          modello: string | null
+          nota: string | null
+          origine: string | null
+          persona_key: string | null
+          stato: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       credit_transactions_unified: {
         Row: {
           amount: number | null
@@ -144124,6 +144218,19 @@ export type Database = {
         }
         Returns: Json
       }
+      addebita_ai_diretta: {
+        Args: {
+          p_company_id: string
+          p_cost_usd_real: number
+          p_idempotency_key: string
+          p_metadata?: Json
+          p_model_used: string
+          p_task_kind: string
+          p_tokens_completion: number
+          p_tokens_prompt: number
+        }
+        Returns: Json
+      }
       addebita_sms_wallet: {
         Args: {
           p_company_id: string
@@ -144837,6 +144944,19 @@ export type Database = {
         Returns: boolean
       }
       ai_provider_request_redact_expired: { Args: never; Returns: number }
+      ai_regole_ricarico: {
+        Args: { p_giorni?: number }
+        Returns: {
+          addebitate: number
+          addebitato_eur: number
+          chiamate: number
+          compito: string
+          costo_reale_eur: number
+          origine: string
+          regola: string
+          ricarico_effettivo_pct: number
+        }[]
+      }
       ai_test_lab_kpi: {
         Args: { p_company_id: string; p_from?: string; p_to?: string }
         Returns: {
@@ -146277,6 +146397,10 @@ export type Database = {
           p_company_id?: string
           p_data_riferimento?: string
         }
+        Returns: Json
+      }
+      cg_get_versamenti_fiscali: {
+        Args: { p_anno?: number; p_company_id?: string }
         Returns: Json
       }
       cg_giorni_periodo: { Args: { p_anno: number }; Returns: number }
@@ -152321,6 +152445,10 @@ export type Database = {
       metodo_costo_da_lista: { Args: { p: string }; Returns: string }
       metodo_da_codice_mp: { Args: { p_mp: string }; Returns: string }
       metodo_incasso_da_codice: { Args: { p_codice: string }; Returns: string }
+      metriche_ai_azienda: {
+        Args: { p_company_id: string; p_giorni?: number }
+        Returns: Json
+      }
       mezzi_categorie_predefinite: {
         Args: { p_company: string }
         Returns: undefined
@@ -154361,6 +154489,17 @@ export type Database = {
         }
         Returns: Json
       }
+      registra_esito_lavoro_ai: {
+        Args: {
+          p_chiamate_ai?: number
+          p_chiave: string
+          p_company_id: string
+          p_esito: string
+          p_flusso: string
+          p_motivo?: string
+        }
+        Returns: undefined
+      }
       registra_esportazione_crm: {
         Args: {
           p_company_id: string
@@ -154714,6 +154853,7 @@ export type Database = {
           rimossi: number
         }[]
       }
+      ritenuta_da_piano_preventivo: { Args: { p_piano: Json }; Returns: Json }
       rpc_anon_applica_superficie: { Args: never; Returns: Json }
       rpc_anon_superficie_attesa: {
         Args: never

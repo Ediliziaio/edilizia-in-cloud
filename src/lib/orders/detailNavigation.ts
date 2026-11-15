@@ -237,8 +237,10 @@ export function mostraSalAlCliente(p: {
   figliaDiGenerale: boolean;
   rate: ReadonlyArray<{ trigger_evento?: string | null }>;
   aziendaUsaSal: boolean;
+  /** Il computo della commessa è un lavoro pubblico: la vista porta alla sua contabilità. */
+  lavoroPubblico?: boolean;
 }): boolean {
-  if (p.salEsistenti > 0) return true;
+  if (p.salEsistenti > 0 || p.lavoroPubblico) return true;
   if (p.inAppalto || p.figliaDiGenerale) return false;
   if (p.rate.some((r) => r.trigger_evento === "sal_numero" || r.trigger_evento === "sal_percentuale")) return true;
   return p.aziendaUsaSal;

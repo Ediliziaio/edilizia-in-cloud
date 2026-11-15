@@ -185,7 +185,7 @@ export default function SchedaLibretto({ computo, contratto, orderId, companyId,
         return { numero: r.numero, data: r.data, voce: v?.numero ?? "?", tariffa: v?.tariffa ?? "", descrizione: v?.descrizione ?? "", unita_misura: v?.unita_misura ?? "",
           righe: r.righe, quantita: r.quantita, annotazioni: r.annotazioni, firmatario: r.firmatario, firmato: !!r.firmato_at,
           progressivo: progressivi.get(r.id), sal: r.sal_id ? numeroSal.get(r.sal_id) ?? null : null };
-      }), intestazioneDa(computo, impostazioni, orderLabel));
+      }), intestazioneDa(computo, impostazioni, orderLabel, companyId));
     } catch (e) { toast.error(e instanceof Error ? e.message : "Stampa non riuscita."); } finally { setStampa(false); }
   };
 

@@ -41,11 +41,42 @@ export interface RataPreventivo {
   termineFineMese?: boolean;
 }
 
+/**
+ * La ritenuta di garanzia (15/11/2026): non è una rata, è una trattenuta sui pagamenti che torna allo svincolo.
+ * Passa alla commessa (orders.ritenuta_garanzia) e da lì al certificato di ogni SAL.
+ */
+export interface RitenutaPiano {
+  /** Percentuale sull'imponibile, da 0,01 a 100. */
+  percentuale: number;
+  svincolo: "collaudo" | "mesi";
+  /** Mesi dopo la fine lavori, se lo svincolo non è al collaudo. */
+  mesi: number;
+}
+
 export interface PianoPagamento {
   modo: ModoPagamento;
   righe: RataPreventivo[];
   /** Una frase in più sotto la tabella (bonifico, banca, tempi). */
   note: string | null;
+  ritenuta?: RitenutaPiano | null;
+}
+
+/** La ritenuta del piano, se è scritta bene; altrimenti nessuna. */
+export function leggiRitenutaPiano(raw: unknown): RitenutaPiano | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const pct = arrotonda2(Number(String(r.percentuale ?? "").replace(",", ".")));
+  if (!(pct > 0) || pct > 100) return null;
+  const mesi = Math.trunc(Number(r.mesi));
+  return { percentuale: pct, svincolo: r.svincolo === "mesi" ? "mesi" : "collaudo", mesi: Number.isFinite(mesi) && mesi > 0 ? limita(mesi, 1, 60) : 12 };
+}
+
+/** La frase per il PDF del preventivo: le rate sono al netto della ritenuta, che torna allo svincolo. */
+export function testoRitenutaPiano(r: RitenutaPiano | null | undefined): string | null {
+  if (!r) return null;
+  const pct = r.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+  const quando = r.svincolo === "mesi" ? `${r.mesi} mesi dopo la fine dei lavori` : "al collaudo";
+  return `Su ogni SAL si trattiene il ${pct}% dell'imponibile a garanzia, restituito ${quando}.`;
 }
 
 export const MAX_RATE_PIANO = 12;
@@ -80,7 +111,8 @@ export function leggiPianoPagamento(raw: unknown): PianoPagamento | null {
     });
   if (righe.length === 0) return null;
   const note = typeof r.note === "string" && r.note.trim() ? r.note.trim() : null;
-  return { modo, righe, note };
+  const ritenuta = leggiRitenutaPiano(r.ritenuta);
+  return { modo, righe, note, ...(ritenuta ? { ritenuta } : {}) };
 }
 
 /** La somma delle percentuali, arrotondata: un piano vale solo se fa 100. */

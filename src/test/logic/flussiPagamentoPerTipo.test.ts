@@ -27,6 +27,9 @@ describe("«SAL al cliente» solo dove serve", () => {
     expect(mostraSalAlCliente({ ...base, inAppalto: true, aziendaUsaSal: true, rate: [{ trigger_evento: "sal_numero" }] })).toBe(false);
     expect(mostraSalAlCliente({ ...base, figliaDiGenerale: true, aziendaUsaSal: true })).toBe(false);
   });
+  it("un lavoro pubblico porta sempre alla sua contabilità", () => {
+    expect(mostraSalAlCliente({ ...base, lavoroPubblico: true })).toBe(true);
+  });
   it("i SAL già fatti non spariscono mai", () => {
     expect(mostraSalAlCliente({ ...base, salEsistenti: 2, inAppalto: true })).toBe(true);
   });
@@ -42,5 +45,19 @@ describe("la ritenuta del preventivo con computo passa alla commessa", () => {
     expect(ritenutaPerCommessa({ percentuale: "" })).toBeNull();
     expect(ritenutaPerCommessa({ percentuale: "150" })).toBeNull();
     expect(ritenutaPerCommessa(undefined)).toBeNull();
+  });
+});
+
+import { leggiPianoPagamento, testoRitenutaPiano } from "@/lib/preventivi/pianoPagamento";
+
+describe("preventivatori: la ritenuta nel piano di pagamento", () => {
+  it("si legge, resta nel piano e diventa una frase del PDF", () => {
+    const piano = leggiPianoPagamento({ modo: "sal", righe: [{ nome: "Acconto", percent: 20, evento: "firma_contratto" }], ritenuta: { percentuale: "5", svincolo: "mesi", mesi: 12 } });
+    expect(piano?.ritenuta).toEqual({ percentuale: 5, svincolo: "mesi", mesi: 12 });
+    expect(testoRitenutaPiano(piano?.ritenuta)).toBe("Su ogni SAL si trattiene il 5% dell'imponibile a garanzia, restituito 12 mesi dopo la fine dei lavori.");
+  });
+  it("senza ritenuta il piano resta com'era", () => {
+    expect(leggiPianoPagamento({ modo: "rate", righe: [{ nome: "Saldo", percent: 100, evento: "fine_lavori" }] })).not.toHaveProperty("ritenuta");
+    expect(testoRitenutaPiano(null)).toBeNull();
   });
 });

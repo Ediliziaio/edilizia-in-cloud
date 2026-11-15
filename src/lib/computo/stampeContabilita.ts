@@ -22,6 +22,8 @@ export interface IntestazioneContabilita {
   direttoreLavori?: string | null;
   rup?: string | null;
   ribasso?: number | null;
+  /** L'azienda che stampa: per il logo in testata (15/11/2026). */
+  companyId?: string | null;
 }
 
 type Allinea = "left" | "right";
@@ -34,12 +36,40 @@ const q = (n: number | null | undefined, dec = 2) => n == null ? "" : n.toLocale
 const pct = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 4 });
 const dataIt = (s: string | null | undefined) => s ? new Date(`${s.slice(0, 10)}T12:00:00`).toLocaleDateString("it-IT") : "";
 
-async function nuovoDoc(orizzontale: boolean) {
+async function nuovoDoc(orizzontale: boolean, h?: IntestazioneContabilita) {
   const mod = await import("jspdf");
   const JsPDF = mod.default ?? (mod as typeof mod & { jsPDF?: typeof mod.default }).jsPDF;
-  return new JsPDF({ orientation: orizzontale ? "landscape" : "portrait", unit: "pt", format: "a4" });
+  const doc = new JsPDF({ orientation: orizzontale ? "landscape" : "portrait", unit: "pt", format: "a4" });
+  const logo = h?.companyId ? await logoPerStampa(h.companyId) : null;
+  if (logo) logoDelDoc.set(doc, logo);
+  return doc;
 }
 type Doc = Awaited<ReturnType<typeof nuovoDoc>>;
+
+/**
+ * Il logo dell'azienda in testata, come negli altri documenti (15/11/2026): prima quello dell'anagrafica, poi
+ * quello dell'azienda. Se non si legge (rete, formato) la stampa esce lo stesso, senza logo.
+ */
+interface LogoStampa { dati: string; formato: "PNG" | "JPEG"; larghezza: number; altezza: number }
+const logoDelDoc = new WeakMap<object, LogoStampa>();
+async function logoPerStampa(companyId: string): Promise<LogoStampa | null> {
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const [anag, az] = await Promise.all([
+      supabase.from("anagrafica_azienda").select("logo_url").eq("company_id", companyId).maybeSingle(),
+      supabase.from("companies").select("logo_url").eq("id", companyId).maybeSingle(),
+    ]);
+    const url = (anag.data as { logo_url?: string | null } | null)?.logo_url || (az.data as { logo_url?: string | null } | null)?.logo_url;
+    if (!url) return null;
+    const blob = await (await fetch(url)).blob();
+    if (!/image\/(png|jpe?g)/.test(blob.type)) return null;
+    const dati = await new Promise<string>((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = ko; r.readAsDataURL(blob); });
+    const dim = await new Promise<{ w: number; h: number }>((ok, ko) => { const i = new Image(); i.onload = () => ok({ w: i.naturalWidth, h: i.naturalHeight }); i.onerror = ko; i.src = dati; });
+    return { dati, formato: blob.type.includes("png") ? "PNG" : "JPEG", larghezza: dim.w, altezza: dim.h };
+  } catch {
+    return null;
+  }
+}
 
 function scarica(doc: Doc, nome: string) {
   const url = URL.createObjectURL(new Blob([doc.output("arraybuffer")], { type: "application/pdf" }));
@@ -53,6 +83,13 @@ function scarica(doc: Doc, nome: string) {
 function intestazione(doc: Doc, titolo: string, sottotitolo: string | null, h: IntestazioneContabilita): number {
   const W = doc.internal.pageSize.getWidth(); const m = 36;
   let y = m;
+  const logo = logoDelDoc.get(doc);
+  if (logo && logo.larghezza > 0 && logo.altezza > 0) {
+    // Alto 30 pt, mai più largo di 140: in alto a sinistra, come nello stile unico dei documenti.
+    const alto = Math.min(30, (140 * logo.altezza) / logo.larghezza);
+    const largo = (alto * logo.larghezza) / logo.altezza;
+    try { doc.addImage(logo.dati, logo.formato, m, y - 8, largo, alto); y += alto + 4; } catch { /* logo illeggibile: si va avanti */ }
+  }
   doc.setFont("helvetica", "normal"); doc.setFontSize(8);
   const righe = [
     h.stazioneAppaltante && `Stazione appaltante: ${h.stazioneAppaltante}`,
@@ -145,7 +182,7 @@ function pieDiPagina(doc: Doc, testo: string) {
 // ── Elenco prezzi ────────────────────────────────────────────────────────────
 
 export async function stampaElencoPrezzi(righe: RigaElencoPrezzi[], h: IntestazioneContabilita) {
-  const doc = await nuovoDoc(false);
+  const doc = await nuovoDoc(false, h);
   const y = intestazione(doc, "ELENCO PREZZI UNITARI", h.ribasso != null ? `Ribasso d'asta ${pct(h.ribasso)}% (gli oneri della sicurezza non sono soggetti a ribasso)` : null, h);
   tabella(doc, y, [
     { titolo: "N.", larghezza: 30 }, { titolo: "Tariffa", larghezza: 60 }, { titolo: "Descrizione", larghezza: 250 },
@@ -165,7 +202,7 @@ export interface RigaStampaLibretto {
 }
 
 export async function stampaLibretto(righe: RigaStampaLibretto[], h: IntestazioneContabilita) {
-  const doc = await nuovoDoc(true);
+  const doc = await nuovoDoc(true, h);
   const y = intestazione(doc, "LIBRETTO DELLE MISURE", null, h);
   const corpo: Cella[][] = [];
   for (const r of righe) {
@@ -192,7 +229,7 @@ export async function stampaLibretto(righe: RigaStampaLibretto[], h: Intestazion
 // ── Registro di contabilità ──────────────────────────────────────────────────
 
 export async function stampaRegistro(reg: Registro, finoAl: string | null, h: IntestazioneContabilita) {
-  const doc = await nuovoDoc(true);
+  const doc = await nuovoDoc(true, h);
   let y = intestazione(doc, "REGISTRO DI CONTABILITÀ", finoAl ? `Lavori a tutto il ${dataIt(finoAl)}` : null, h);
   y = tabella(doc, y, [
     { titolo: "N.", larghezza: 28 }, { titolo: "Tariffa", larghezza: 60 }, { titolo: "Descrizione", larghezza: 260 }, { titolo: "U.M.", larghezza: 30 },
@@ -239,7 +276,7 @@ export function righeSal(s: CalcoloSal, sicurezzaModo: string, ribassoP: number)
 
 export async function stampaSal(sal: CalcoloSal & { numero: number; data: string; lavori_a_tutto: string; sicurezza_modo: string; ribasso_percentuale: number; stato: string },
   voci: VoceStampaSal[], h: IntestazioneContabilita) {
-  const doc = await nuovoDoc(true);
+  const doc = await nuovoDoc(true, h);
   let y = intestazione(doc, `STATO D'AVANZAMENTO LAVORI N. ${sal.numero}`,
     `Lavori a tutto il ${dataIt(sal.lavori_a_tutto)} · redatto il ${dataIt(sal.data)}${sal.stato === "approvato" ? "" : " · BOZZA"}`, h);
   y = tabella(doc, y, [
@@ -258,7 +295,7 @@ export async function stampaSal(sal: CalcoloSal & { numero: number; data: string
 
 export async function stampaCertificato(c: CertificatoPagamento & { numero: number; data: string; salNumero: number; lavoriATutto: string },
   sal: CalcoloSal, h: IntestazioneContabilita) {
-  const doc = await nuovoDoc(false);
+  const doc = await nuovoDoc(false, h);
   let y = intestazione(doc, `CERTIFICATO DI PAGAMENTO N. ${c.numero}`, `relativo allo stato d'avanzamento lavori n. ${c.salNumero} (lavori a tutto il ${dataIt(c.lavoriATutto)}) · ${dataIt(c.data)}`, h);
   y = prospetto(doc, y, [
     ["Importo complessivo dei lavori a tutto oggi", euro(sal.totale_a_oggi)],
@@ -285,7 +322,7 @@ export async function stampaCertificato(c: CertificatoPagamento & { numero: numb
 // ── Perizia di variante: quadro di confronto ────────────────────────────────
 
 export async function stampaConfrontoVariante(c: ConfrontoVariante, titolo: string, h: IntestazioneContabilita) {
-  const doc = await nuovoDoc(true);
+  const doc = await nuovoDoc(true, h);
   let y = intestazione(doc, "PERIZIA DI VARIANTE · QUADRO DI CONFRONTO", titolo, h);
   y = tabella(doc, y, [
     { titolo: "N.", larghezza: 30 }, { titolo: "Descrizione", larghezza: 220 }, { titolo: "U.M.", larghezza: 28 },

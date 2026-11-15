@@ -93,7 +93,7 @@ function EditorVariante({ variante, props }: { variante: ComputoCommessa; props:
           <Button type="button" size="sm" variant="outline" disabled={stampa} onClick={async () => {
             setStampa(true);
             try { const { stampaConfrontoVariante } = await import("@/lib/computo/stampeContabilita");
-              await stampaConfrontoVariante(confronto, variante.titolo || `Perizia di variante n. ${variante.numero_variante}`, intestazioneDa(computo, impostazioni, orderLabel)); }
+              await stampaConfrontoVariante(confronto, variante.titolo || `Perizia di variante n. ${variante.numero_variante}`, intestazioneDa(computo, impostazioni, orderLabel, companyId)); }
             catch (e) { toast.error(e instanceof Error ? e.message : "Stampa non riuscita."); } finally { setStampa(false); }
           }}><FileDown className="mr-1 h-4 w-4" />Quadro di confronto</Button>
           {modificabile && !np && <Button type="button" size="sm" variant="outline" onClick={() => setNp({ descrizione: "", um: "", q: "", p: "" })}><Plus className="mr-1 h-4 w-4" />Nuovo prezzo (NP)</Button>}

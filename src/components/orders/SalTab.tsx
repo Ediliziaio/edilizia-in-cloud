@@ -36,6 +36,7 @@ import {anticipazioneDalPiano,certificatoDelSal,certificatoBloccato, certificato
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
 import {leggiFasiPerSal} from "@/lib/orders/leggiFasiPerSal";
 import {arrotondamentoAbituale, certificatoNelModulo, rataProposta, rataSaldoPerSalFinale, vociCheCambiano, type Arrotondamento} from "@/lib/orders/salNuovoVerbale";
+import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
 import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
 
 interface SalVoceSottofase {
@@ -204,6 +205,17 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   });
   // L'acconto già fatturato o incassato, senza IVA: ogni certificato ne recupera la sua parte.
   const anticipazione = anticipazioneDalPiano(installments ?? [], vatRate);
+  // Un lavoro pubblico ha la sua contabilità (libretto delle misure, SAL e certificato sul computo): qui la si
+  // indica, invece di lasciarla sotto Articoli → Apri computo dove nessuno la trovava (15/11/2026).
+  const { data: lavoroPubblico = false } = useQuery({
+    queryKey: ["computo-lavoro-pubblico", orderId, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("computo_uploads").select("id").eq("order_id", orderId).eq("company_id", companyId).eq("lavoro_pubblico", true).limit(1);
+      return !error && (data ?? []).length > 0;
+    },
+    enabled: !!orderId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
   const sostituisciRate = useSostituisciRate(orderId);
   // La ritenuta dei certificati nel registro delle ritenute (15/11/2026): la scrive l'emissione, se emette un
   // amministratore; altrimenti resta fuori e qui si vede. Il registro lo legge solo l'amministratore.
@@ -539,6 +551,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           </dl>
         );
       })()}
+
+      {lavoroPubblico && (
+        <div role="note" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+          <span>Lavoro pubblico: libretto delle misure, SAL e certificati di pagamento si fanno nella contabilità del computo.</span>
+          <ApriComputoCommessa orderId={orderId} />
+        </div>
+      )}
 
       {!vedeImporti && (
         <p role="note" className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">

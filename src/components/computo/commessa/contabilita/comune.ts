@@ -13,12 +13,13 @@ export const quant = (n: number | null | undefined) => (n == null ? "" : n.toLoc
 export const oggi = () => new Date().toLocaleDateString("en-CA");
 export const dataIt = (s: string | null | undefined) => (s ? new Date(`${s.slice(0, 10)}T12:00:00`).toLocaleDateString("it-IT") : "");
 
-export function intestazioneDa(computo: ComputoCommessa, imp: ImpostazioniContabilita, orderLabel?: string | null): IntestazioneContabilita {
+export function intestazioneDa(computo: ComputoCommessa, imp: ImpostazioniContabilita, orderLabel?: string | null, companyId?: string | null): IntestazioneContabilita {
   const contratto = [imp.contratto_estremi, imp.contratto_data && `del ${dataIt(imp.contratto_data)}`].filter(Boolean).join(" ");
   return {
     lavori: computo.oggetto_lavori || computo.titolo || (orderLabel ? `Commessa ${orderLabel}` : computo.file_name),
     stazioneAppaltante: computo.stazione_appaltante, cig: computo.cig, cup: computo.cup, impresa: imp.impresa,
     contratto: contratto || null, direttoreLavori: imp.direttore_lavori, rup: imp.rup, ribasso: computo.ribasso_percentuale ?? 0,
+    companyId: companyId ?? null,
   };
 }
 

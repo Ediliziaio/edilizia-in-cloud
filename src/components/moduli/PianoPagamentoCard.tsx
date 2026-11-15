@@ -21,7 +21,7 @@ import { EVENTI_RATA, GRUPPI_EVENTO } from "@/lib/orders/rateEventi";
 import { useModelliPagamento } from "@/hooks/useModelliPagamento";
 import {
   MAX_NOME_RATA_PIANO, MAX_RATE_PIANO, cambiaModo, leggiPianoPagamento, partenzeDelModulo, pianoCompleto,
-  pianoDaModello, quandoSiPaga, quotaAMisura, rateConImporti, totalePercentuali,
+  leggiRitenutaPiano, pianoDaModello, quandoSiPaga, quotaAMisura, rateConImporti, totalePercentuali,
   type ModoPagamento, type PianoPagamento, type RataPreventivo,
 } from "@/lib/preventivi/pianoPagamento";
 import { TERMINI_RATA, testoTermine } from "@/lib/terminiPagamento";
@@ -230,6 +230,41 @@ export function PianoPagamentoCard({ piano: raw, onChange, totale, testoDelModel
               ? "Le rate fisse si prendono tutto il prezzo: alle rate a misura non resta niente da fatturare."
               : "Finché le rate non fanno 100 il piano non esce nel PDF: il cliente vedrebbe un piano che non copre il prezzo."}
           </p>
+        )}
+
+        {/* La ritenuta di garanzia (15/11/2026): con i SAL è normale, e passa alla commessa e al certificato. */}
+        {(piano.modo === "sal" || !!piano.ritenuta) && (
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <Label className="text-[11px] text-muted-foreground" htmlFor="piano-ritenuta">Ritenuta di garanzia %</Label>
+              <Input
+                id="piano-ritenuta"
+                inputMode="decimal"
+                className="mt-0.5 h-8 w-24 text-xs"
+                placeholder="nessuna"
+                defaultValue={piano.ritenuta ? String(piano.ritenuta.percentuale).replace(".", ",") : ""}
+                onBlur={(e) => {
+                  const r = leggiRitenutaPiano({ percentuale: e.target.value, svincolo: piano.ritenuta?.svincolo ?? "collaudo", mesi: piano.ritenuta?.mesi ?? 12 });
+                  scrivi({ ...piano, ritenuta: r });
+                }}
+              />
+            </div>
+            {piano.ritenuta && (
+              <div>
+                <Label className="text-[11px] text-muted-foreground" htmlFor="piano-svincolo">Si restituisce</Label>
+                <Select
+                  value={piano.ritenuta.svincolo === "mesi" ? String(piano.ritenuta.mesi) : "collaudo"}
+                  onValueChange={(v) => scrivi({ ...piano, ritenuta: { ...piano.ritenuta!, svincolo: v === "collaudo" ? "collaudo" : "mesi", mesi: v === "collaudo" ? piano.ritenuta!.mesi : Number(v) } })}
+                >
+                  <SelectTrigger id="piano-svincolo" className="mt-0.5 h-8 w-48 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="collaudo">al collaudo</SelectItem>
+                    {[6, 12, 24].map((m) => <SelectItem key={m} value={String(m)}>{m} mesi dopo la fine lavori</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         )}
 
         <div>

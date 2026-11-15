@@ -96,7 +96,7 @@ export default function SchedaSal({ computo, voci, contratto, orderId, companyId
   const ultimo = sal[sal.length - 1];
   const precedentiImporto = sal.reduce((s, x) => s + x.importo_sal, 0);
   const importoContrattuale = quadroEconomicoCompleto(voci, computo.ribasso_percentuale).quadro.importo_contrattuale;
-  const intestazione = intestazioneDa(computo, impostazioni, orderLabel);
+  const intestazione = intestazioneDa(computo, impostazioni, orderLabel, companyId);
   const registrazioni = comeRegistrazioni(libretto);
 
   // Anteprima del nuovo SAL.

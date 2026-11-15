@@ -20,7 +20,7 @@ import SchedaLibretto from "./SchedaLibretto";
 import SchedaSal from "./SchedaSal";
 import SchedaVarianti from "./SchedaVarianti";
 
-function ElencoPrezzi({ computo, contratto, impostazioni, orderLabel, canViewAmounts }: PropsScheda) {
+function ElencoPrezzi({ computo, contratto, impostazioni, orderLabel, canViewAmounts, companyId }: PropsScheda) {
   const [filtro, setFiltro] = useState("");
   const [stampa, setStampa] = useState(false);
   const righe = elencoPrezzi(contratto, computo.ribasso_percentuale);
@@ -33,7 +33,7 @@ function ElencoPrezzi({ computo, contratto, impostazioni, orderLabel, canViewAmo
         <CardTitle className="text-base">Elenco prezzi contrattuale <span className="text-sm font-normal text-slate-500">· {righe.length} prezzi · ribasso {(computo.ribasso_percentuale ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 4 })}%</span></CardTitle>
         <Button type="button" size="sm" variant="outline" disabled={stampa} onClick={async () => {
           setStampa(true);
-          try { const { stampaElencoPrezzi } = await import("@/lib/computo/stampeContabilita"); await stampaElencoPrezzi(righe, intestazioneDa(computo, impostazioni, orderLabel)); }
+          try { const { stampaElencoPrezzi } = await import("@/lib/computo/stampeContabilita"); await stampaElencoPrezzi(righe, intestazioneDa(computo, impostazioni, orderLabel, companyId)); }
           catch (e) { toast.error(e instanceof Error ? e.message : "Stampa non riuscita."); } finally { setStampa(false); }
         }}>{stampa ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}PDF</Button>
       </CardHeader>
@@ -65,7 +65,7 @@ function ElencoPrezzi({ computo, contratto, impostazioni, orderLabel, canViewAmo
   );
 }
 
-function Registro({ computo, contratto, impostazioni, orderLabel, orderId, canViewAmounts }: PropsScheda) {
+function Registro({ computo, contratto, impostazioni, orderLabel, orderId, canViewAmounts, companyId }: PropsScheda) {
   const { data: libretto = [] } = useLibretto(orderId);
   const [finoAl, setFinoAl] = useState("");
   const [stampa, setStampa] = useState(false);
@@ -83,7 +83,7 @@ function Registro({ computo, contratto, impostazioni, orderLabel, orderId, canVi
             <Input id="registro-fino" type="date" value={finoAl} onChange={e => setFinoAl(e.target.value)} className="h-8 w-40" /></div>
           <Button type="button" size="sm" variant="outline" disabled={stampa} onClick={async () => {
             setStampa(true);
-            try { const { stampaRegistro } = await import("@/lib/computo/stampeContabilita"); await stampaRegistro(reg, finoAl || null, intestazioneDa(computo, impostazioni, orderLabel)); }
+            try { const { stampaRegistro } = await import("@/lib/computo/stampeContabilita"); await stampaRegistro(reg, finoAl || null, intestazioneDa(computo, impostazioni, orderLabel, companyId)); }
             catch (e) { toast.error(e instanceof Error ? e.message : "Stampa non riuscita."); } finally { setStampa(false); }
           }}>{stampa ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileDown className="mr-1 h-4 w-4" />}PDF</Button>
         </div>

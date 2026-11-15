@@ -435,6 +435,9 @@ function OrderDetailInner() {
   const importiFinanziari=useQuery({queryKey:['commessa-importi-finanziari',companyId,id],enabled:!!companyId && !!id && permissions.canViewOrderAmounts,
     queryFn:async()=>(await caricaImportiFinanziari(companyId!,[{id:id!}]))[0],staleTime:30000});
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
+  // Fattura, proforma, DDT e note di credito dal sistema: lo stesso stato in testata e nella sezione (15/11/2026).
+  const documentiBloccati = !isNativeBilling || permissions.solaLettura;
+  const motivoDocumentiBloccati = permissions.solaLettura ? "Accesso in sola lettura" : "Per creare fatture, proforma, DDT e note di credito dal sistema attiva la fatturazione nativa in Impostazioni > Fatturazione.";
 
   const { getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
   const [riepilogoAperto, setRiepilogoAperto] = useState(false);
@@ -585,13 +588,14 @@ function OrderDetailInner() {
     enabled: !!id && !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const [qui, azienda] = await Promise.all([
+      const [qui, azienda, pubblico] = await Promise.all([
         supabase.from("sal_records").select("id", { count: "exact", head: true }).eq("order_id", id!),
         supabase.from("sal_records").select("id").eq("company_id", companyId!).limit(1),
+        supabase.from("computo_uploads").select("id").eq("order_id", id!).eq("lavoro_pubblico", true).limit(1),
       ]);
       // Se non si legge, la vista resta: meglio una vista in più che un SAL che non si trova.
-      if (qui.error || azienda.error) return { qui: 1, azienda: true };
-      return { qui: qui.count ?? 0, azienda: (azienda.data ?? []).length > 0 };
+      if (qui.error || azienda.error) return { qui: 1, azienda: true, pubblico: false };
+      return { qui: qui.count ?? 0, azienda: (azienda.data ?? []).length > 0, pubblico: !pubblico.error && (pubblico.data ?? []).length > 0 };
     },
   });
   const visteEconomiche = useMemo(
@@ -603,6 +607,7 @@ function OrderDetailInner() {
         figliaDiGenerale: !!(order as { commessa_generale_id?: string | null } | undefined)?.commessa_generale_id,
         rate: dbInstallments,
         aziendaUsaSal: salDellaCommessa.data?.azienda ?? true,
+        lavoroPubblico: salDellaCommessa.data?.pubblico ?? false,
       });
       return true;
     }),
@@ -1596,8 +1601,8 @@ function OrderDetailInner() {
       onCreateInvoice={permissions.canViewBilling ? () => {
         if (isNativeBilling && !permissions.solaLettura) setCreaFatturaOpen(true);
       } : undefined}
-      invoiceDisabled={!isNativeBilling || permissions.solaLettura}
-      invoiceHint={permissions.solaLettura ? "Accesso in sola lettura" : !isNativeBilling ? "Attiva la fatturazione nativa nelle Impostazioni per creare fatture" : "Prepara una fattura collegata alla commessa"}
+      invoiceDisabled={documentiBloccati}
+      invoiceHint={documentiBloccati ? motivoDocumentiBloccati : "Prepara una fattura collegata alla commessa"}
       askSilvio={
         <SilvioCommessa
           className="ml-auto"
@@ -2263,20 +2268,15 @@ function OrderDetailInner() {
                 )}
                 {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
                       su tutta la card larga desktop). flex-wrap li tiene compatti. */}
+                {/* Come il comando della testata (15/11/2026): disattivati, con il motivo, invece di un avviso a clic. */}
+                {documentiBloccati && <p className="mb-2 text-xs text-muted-foreground">{motivoDocumentiBloccati}</p>}
                 <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
                   {permissions.canViewBilling && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaFatturaOpen(true);
-                      } else {
-                        toast.info(
-                          "Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
-                        );
-                      }
-                    }}
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaFatturaOpen(true)}
                   >
                     <Receipt className="h-3.5 w-3.5 mr-1" />
                     Fattura
@@ -2286,15 +2286,8 @@ function OrderDetailInner() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaProformaOpen(true);
-                      } else {
-                        toast.info(
-                          "Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
-                        );
-                      }
-                    }}
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaProformaOpen(true)}
                   >
                     <FileText className="h-3.5 w-3.5 mr-1" />
                     Proforma
@@ -2304,15 +2297,8 @@ function OrderDetailInner() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaDDTOpen(true);
-                      } else {
-                        toast.info(
-                          "Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
-                        );
-                      }
-                    }}
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaDDTOpen(true)}
                   >
                     <Truck className="h-3.5 w-3.5 mr-1" />
                     DDT
@@ -2322,15 +2308,8 @@ function OrderDetailInner() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaNotaCreditoOpen(true);
-                      } else {
-                        toast.info(
-                          "Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.",
-                        );
-                      }
-                    }}
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaNotaCreditoOpen(true)}
                   >
                     <FileWarning className="h-3.5 w-3.5 mr-1" />
                     N. Credito

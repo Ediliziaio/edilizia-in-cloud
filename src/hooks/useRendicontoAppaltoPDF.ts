@@ -106,7 +106,7 @@ export function useRendicontoAppaltoPDF() {
         }
 
         const orderIds = [...new Set(righe.map((r) => r.order_id))];
-        const [cantieriRes, committenteRes, contrattoRes, societari, logoRes] = await Promise.all([
+        const [cantieriRes, committenteRes, contrattoRes, societari, logoRes, logoAnagrafica] = await Promise.all([
           supabase.from("orders").select("id, order_code, description").in("id", orderIds),
           supabase
             .from("profiles")
@@ -123,6 +123,8 @@ export function useRendicontoAppaltoPDF() {
           // Il logo in testata (10/11/2026): il rendiconto usciva senza, e senza nome dell'impresa.
           // Col colore principale: l'accento dello stile unico dei documenti (10/11/2026).
           supabase.from("companies").select("logo_url, brand_primary_color").eq("id", effectiveCompany.id).maybeSingle(),
+          // Come gli altri documenti (15/11/2026): prima il logo dell'anagrafica, poi quello dell'azienda.
+          supabase.from("anagrafica_azienda").select("logo_url").eq("company_id", effectiveCompany.id).maybeSingle(),
         ]);
 
         const cantieri = raggruppaPerCantiere(righe, (cantieriRes.data ?? []) as Array<{
@@ -155,7 +157,8 @@ export function useRendicontoAppaltoPDF() {
             statoEtichetta: STATI_SAL[sal.stato]?.etichetta ?? sal.stato,
             azienda: {
               name: societari?.ragioneSociale || effectiveCompany.name || "—",
-              logo_url: (logoRes.data as { logo_url?: string | null } | null)?.logo_url ?? null,
+              logo_url: (logoAnagrafica.data as { logo_url?: string | null } | null)?.logo_url
+                || (logoRes.data as { logo_url?: string | null } | null)?.logo_url || null,
               colore: (logoRes.data as { brand_primary_color?: string | null } | null)?.brand_primary_color ?? null,
             },
             societarie: righeSocietarie(societari),
