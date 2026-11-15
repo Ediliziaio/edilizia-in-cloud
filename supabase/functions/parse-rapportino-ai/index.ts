@@ -89,6 +89,9 @@ REGOLE CRITICHE:
 - Rispondi SOLO con il JSON, senza markdown, senza testo extra
 - Se un campo non è chiaro nella trascrizione, usa null (non ometter la chiave)`;
 
+/** Tetto alla durata dichiarata dal client, usata solo se Whisper non dà la sua. */
+const DURATA_DICHIARATA_MAX_SEC = 15 * 60;
+
 async function transcribeAudio(audioBytes: Uint8Array, mimeType: string, misura?: { durata: number | null }): Promise<string> {
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY non configurata");
@@ -315,7 +318,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       company_id: companyId,
       task_kind: "parse_rapportino",
       model_used: "openai/whisper-1",
-      cost_usd_real: estimateWhisperCostUsd(Math.max(misura.durata ?? 0, Number(payload.duration_sec) || 0) || null),
+      // Durata misurata da Whisper; quella dichiarata solo come ripiego, con un
+      // tetto (un rapportino a voce non dura più di 15 minuti).
+      cost_usd_real: estimateWhisperCostUsd(misura.durata ?? (Math.min(Math.max(Number(payload.duration_sec) || 0, 0), DURATA_DICHIARATA_MAX_SEC) || null)),
       cost_is_estimated: misura.durata === null,
       metadata: {
         user_id: user.id,

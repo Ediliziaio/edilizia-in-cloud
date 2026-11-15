@@ -215,7 +215,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Trascrizione non riuscita. Riprova tra poco o scrivi il testo: nessun addebito." }, esito.errore.status, cors);
     }
     const trascrizione = esito.testo;
-    const durataVera = Math.max(esito.durata ?? 0, Number(durata) || 0) || null;
+    // La durata misurata da Whisper; quella dichiarata dal browser solo se
+    // Whisper non la dà (è già limitata a DETTA_MAX_SECONDI dal controllo sopra).
+    const durataVera = esito.durata ?? (Number(durata) || null);
     await chargeAndLogDirect({
       supabase: db,
       company_id: companyId,

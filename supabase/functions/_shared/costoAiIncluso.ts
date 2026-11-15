@@ -75,3 +75,29 @@ export async function registraCostoIncluso(c: CostoIncluso, db: Db | null = clie
     return false;
   }
 }
+
+/**
+ * Chiamate «incluse» già fatte per una sessione (es. le analisi della foto di
+ * un render). Serve a mettere un tetto per sessione a un lavoro che non scala
+ * il portafoglio AI. In caso di errore di lettura risponde 0: il tetto è una
+ * protezione, non deve fermare il lavoro.
+ */
+export async function chiamateInclusePerSessione(
+  taskKey: string,
+  sessionId: string,
+  // deno-lint-ignore no-explicit-any
+  db: any = clientDiServizio(),
+): Promise<number> {
+  if (!db || !sessionId) return 0;
+  try {
+    const { count, error } = await db.from("ai_call_ledger")
+      .select("id", { count: "exact", head: true })
+      .eq("task_key", taskKey)
+      .eq("status", "skipped")
+      .eq("metadata->>session_id", sessionId);
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}

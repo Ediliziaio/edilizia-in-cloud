@@ -13,6 +13,12 @@ import { callOpenAI, transcribeAudioWhisper } from "./openai.ts";
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
+import { precallCheck } from "../_shared/ai-provider/billing.ts";
+
+/** Credito AI dell'azienda finito: il vocale non si trascrive (niente Whisper gratis). */
+export class CreditoTrascrizioneEsaurito extends Error {
+  constructor(public messaggio: string) { super(messaggio); this.name = "CreditoTrascrizioneEsaurito"; }
+}
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { normalizzaDdtLetto, sembraDdtDallaDidascalia, testoDdtPerAssistente } from "../_shared/ddtLetto.ts";
 import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
@@ -137,6 +143,11 @@ export async function transcribeAudio(
   prompt?: string,
   addebito?: { companyId: string | null; messageId: string },
 ): Promise<string> {
+  // Credito PRIMA di Whisper, come detta-testo (revisione del 15/11/2026).
+  if (addebito?.companyId) {
+    const pre = await precallCheck(supabase, { company_id: addebito.companyId, task_kind: "audio_transcription" as never, estimated_tokens_total: 2000 });
+    if (!pre.allow) throw new CreditoTrascrizioneEsaurito(pre.user_message_it || "Crediti AI esauriti");
+  }
   const bucket = "whatsapp-media";
   const { data, error } = await supabase.storage.from(bucket).download(storagePath);
   if (error || !data) throw new Error(`Audio download failed: ${error?.message}`);

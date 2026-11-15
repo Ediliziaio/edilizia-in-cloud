@@ -64,7 +64,7 @@ import { FINANCE_RECONCILIATION_RULES, MONEY_CONFIRMATION_RULES } from "../_shar
 import { SITE_HEALTH_TOOL, siteHealthPreflight, siteHealthDirectAnswer } from "../_shared/silvioSiteHealth.ts";
 import { resolveIdentity } from "./identity.ts";
 import { gestisciMessaggioCliente } from "./cliente.ts";
-import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio } from "./media.ts";
+import { leggiDocumentoOperativo, leggiFotoOperativa, scaricaMediaDelMessaggio, transcribeAudio, CreditoTrascrizioneEsaurito } from "./media.ts";
 import { callOpenAI, type ChatMessage } from "./openai.ts";
 import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget } from "./budget.ts";
@@ -378,6 +378,13 @@ Deno.serve(async (req) => {
         }
         userContent = `[Audio trascritto]: ${transcript}`;
       } catch (e) {
+        if (e instanceof CreditoTrascrizioneEsaurito) {
+          await sendReply(
+            msg,
+            "🎙️ Non posso ascoltare il vocale: i crediti AI dell'azienda sono finiti. Scrivimi il messaggio, oppure chiedi al titolare di ricaricarli.",
+          );
+          return markDone(supabase, body.message_id, "failed", "credito_ai_esaurito");
+        }
         console.error(JSON.stringify({ level: "error", fn: "transcribe", error: String(e) }));
         await sendReply(
           msg,

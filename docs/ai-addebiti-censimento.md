@@ -316,6 +316,27 @@ In ordine di costo unitario:
 - **Video**: il costo vero di un video MiniMax non è misurato, vale la stima scritta nel codice. Non so se `REPLICATE_API_TOKEN` è impostato in produzione: i segreti delle funzioni non sono visibili da qui.
 - **Fatturazione esterna delle ricariche (Stripe)**: non riletta in questa sessione.
 
+## 8 bis. Revisione finale (15/11 notte)
+
+La revisione dei commit `4d1618e04` e `1a2d2e449` ha segnalato nove difetti. Ognuno è stato verificato prima di correggerlo.
+
+1. **Costo e margine leggibili dal browser.** Vero, e più largo di quanto segnalato: anche sei viste invoker (`ai_revenue_summary`, `ai_usage_log`, `company_ai_usage_month`, `v_ai_margin_by_model`, `v_ai_real_cost_per_model`, `v_markup_simulator`) davano a ogni azienda il nostro costo per le sue righe.
+   - Migrazione `20290403150300`: GRANT di SELECT per colonna su `ai_call_ledger` e `ai_model_usage_log`, tutto tranne `cost_real_usd`, `cost_real_eur`, `margin_eur`, `applied_markup_pct`, `markup_applied_pct` e `cost_usd`. Scritture tolte ad `authenticated`, viste coi costi chiuse.
+   - I pannelli admin ora passano da funzioni definer riservate (super admin o `can_view_platform_stats`): `admin_ai_spesa_reale`, `admin_ai_diretta_per_azienda`, `admin_ai_revenue_summary`, `admin_ai_usage_aggregato`. Quest'ultima `useAIUsageMonitor` la cercava già, ma non esisteva e il pannello ripiegava sulla vista.
+   - `consumi_ai_azienda` non usa colonne di costo e resta la lettura dell'azienda.
+2. **L3 con aziende senza credito che occupavano il lotto.** Vero. La selezione è larga (200), il credito si controlla una volta per azienda, le aziende senza credito escono dalla query successiva e il lotto si fa con le altre. La risposta elenca `aziende_senza_credito`.
+   - Stessa protezione nell'embedding storico delle email.
+3. **Whisper senza credito prima.** Vero. Ora `precallCheck` precede la trascrizione nei vocali WhatsApp, e a credito finito arriva una risposta chiara all'utente.
+   - Credito prima anche nella ricerca semantica e nell'embedding storico.
+   - Gli embedding di `addebitaEmbedding` girano dentro flussi (computo, preventivi, Silvio) che hanno già il controllo del router sulla chiamata principale, quindi non lo ripetono.
+4. **Errore 23514 da `pool_consuma` che annullava la riga.** Vero. In `addebita_ai_diretta` l'addebito ora sta in un blocco con `EXCEPTION`, e resta la riga `non_addebitato` con `errore_<SQLSTATE>`.
+   - Provato su Demo 2 col portafoglio azzerato, in una transazione annullata: riga scritta, motivo `errore_23514`.
+5. **`deduct_ai_credits_with_markup` ferma a `20280130000000` nel repository.** Vero. La definizione attuale ora è nella migrazione `20290403150400`, riapplicata identica: stesso md5 prima e dopo.
+6. **Durata audio, il massimo fra misurata e dichiarata.** Vero. Ora conta quella misurata da Whisper, e quella dichiarata serve solo da ripiego. Nel rapportino a voce il ripiego ha un tetto di 15 minuti.
+7. **Analisi della foto dei render senza limite.** Vero. Il tetto è di 15 chiamate per sessione, contate dalle righe incluse già registrate, prima della chiamata al provider. Il prezzo non cambia: resta la domanda 8.
+8. **Ricerca semantica sempre sull'azienda del profilo.** Vero. Ora vale l'azienda del corpo se `user_can_access_company` lo consente.
+9. **Ripiego su `ad_video_jobs` per i video avviati prima del deploy.** **Non si può fare**: la tabella non esiste nel database, e l'inserimento in `ai-ads-video-generate` è sempre fallito senza dirlo. Non c'è un registro dei video vecchi da consultare. Un video avviato prima del deploy lo vede solo chi ha l'id della previsione, e non è mai stato addebitato.
+
 ## 9. Decisioni commerciali aperte (per il titolare)
 
 1. **Ricarico unico?** Oggi il ricarico effettivo va da +80% (`vision_po`, diretta) a +2.382% (`documento_contratto`, router). La regola del router è «il più alto fra il listino del tier e 3× il costo». Si vuole un solo ricarico per tutto (per esempio 3× il costo vero, sempre), o un ricarico per compito scritto in una tabella?

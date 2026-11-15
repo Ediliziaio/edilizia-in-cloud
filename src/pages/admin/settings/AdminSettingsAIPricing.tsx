@@ -118,11 +118,9 @@ export default function AdminSettingsAIPricing() {
     queryFn: async () => {
       const since = new Date();
       since.setDate(since.getDate() - 30);
-      const { data, error } = await supabase
-        .from("ai_revenue_summary")
-        .select("*")
-        .gte("day", since.toISOString().slice(0, 10))
-        .order("day", { ascending: false });
+      // La vista non è più leggibile dal browser (costi e margini, 15/11/2026):
+      // passa dalla funzione riservata agli admin.
+      const { data, error } = await supabase.rpc("admin_ai_revenue_summary", { p_da: since.toISOString().slice(0, 10) });
       if (error) throw error;
       return (data ?? []) as unknown as RevenueDay[];
     },

@@ -29,6 +29,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
+import { precallCheck } from "../_shared/ai-provider/billing.ts";
 
 interface SearchBody {
   query: string;
@@ -119,7 +120,15 @@ Deno.serve(async (req) => {
   const superAdmin = (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
 
   const body = await req.json().catch(() => ({})) as SearchBody;
-  const companyId: string | null = superAdmin ? (body.company_id ?? profilo?.company_id ?? null) : (profilo?.company_id ?? null);
+  // L'azienda del corpo vale se l'utente può accedervi (profilo, accesso
+  // multi-azienda, commercialista, super admin: user_can_access_company);
+  // altrimenti quella del profilo. Prima chi lavora su più aziende cercava e
+  // pagava sempre su quella del profilo.
+  let companyId: string | null = profilo?.company_id ?? null;
+  if (body.company_id && body.company_id !== companyId) {
+    const { data: puo } = await supaAuth.rpc("user_can_access_company", { p_company_id: body.company_id });
+    if (puo === true || superAdmin) companyId = body.company_id;
+  }
   if (!companyId && !superAdmin) {
     return new Response(JSON.stringify({ error: "company_required" }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
@@ -135,6 +144,16 @@ Deno.serve(async (req) => {
   }
 
   const t0Total = Date.now();
+
+  // Credito PRIMA dell'embedding (revisione del 15/11/2026).
+  if (companyId) {
+    const pre = await precallCheck(admin, { company_id: companyId, task_kind: "semantic_search_embedding" as never, estimated_tokens_total: 500 });
+    if (!pre.allow) {
+      return new Response(JSON.stringify({ results: [], error: "insufficient_credits", message: pre.user_message_it || "Crediti AI esauriti." }), {
+        status: 402, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+  }
 
   // 1) Embed query
   const tEmbStart = Date.now();

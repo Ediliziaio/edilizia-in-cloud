@@ -19,26 +19,14 @@ export function AdminAiPerCompanyTable() {
     queryKey: ["admin", "ai-by-company-30d"],
     refetchInterval: 60_000,
     queryFn: async () => {
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-      // Paginazione esplicita: senza, PostgREST tronca a 1000 righe in
-      // silenzio e chiamate/costi/margini per azienda erano sottostimati.
-      const PAGE = 1000;
-      const rows: Array<{ company_id: string | null; cost_real_eur: number | null; cost_billed_eur: number | null; margin_eur: number | null }> = [];
-      for (let pageIdx = 0; pageIdx < 50; pageIdx++) {
-        const { data, error } = await supabase
-          .from("ai_model_usage_log")
-          .select("company_id, cost_real_eur, cost_billed_eur, margin_eur")
-          .gte("ts", since.toISOString())
-          .eq("ok", true)
-          .eq("credits_deducted", true)
-          .not("company_id", "is", null)
-          .order("ts", { ascending: true })
-          .range(pageIdx * PAGE, (pageIdx + 1) * PAGE - 1);
-        if (error) throw error;
-        rows.push(...(data ?? []));
-        if ((data?.length ?? 0) < PAGE) break;
-      }
+      // Costi e margini non sono più leggibili dalle tabelle grezze (GRANT per
+      // colonna, 15/11/2026): li somma la funzione riservata agli admin.
+      const { data: righe, error } = await supabase.rpc("admin_ai_diretta_per_azienda", { p_giorni: 30 });
+      if (error) throw error;
+      const rows = (righe ?? []).map((r) => ({
+        company_id: r.company_id, n_calls: Number(r.n_calls ?? 0),
+        cost_real_eur: Number(r.cost_real_eur ?? 0), cost_billed_eur: Number(r.cost_billed_eur ?? 0), margin_eur: Number(r.margin_eur ?? 0),
+      }));
 
       const map = new Map<string, CompanyStats>();
       for (const r of rows) {
@@ -50,7 +38,7 @@ export function AdminAiPerCompanyTable() {
           cost_billed_eur: 0,
           margin_eur: 0,
         };
-        cur.n_calls += 1;
+        cur.n_calls += r.n_calls;
         cur.cost_real_eur += Number(r.cost_real_eur ?? 0);
         cur.cost_billed_eur += Number(r.cost_billed_eur ?? 0);
         cur.margin_eur += Number(r.margin_eur ?? 0);

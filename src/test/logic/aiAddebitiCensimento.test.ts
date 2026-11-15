@@ -315,3 +315,67 @@ describe("secondo giro del censimento (15/11 sera)", () => {
     expect(leggi("analyze-window-photo/index.ts")).toMatch(/render_photo_analysis_\$\{sessionCompanyId\}_\$\{session_id\}_\$\{analyzeMode\}_\$\{crypto\.randomUUID\(\)\}/);
   });
 });
+
+describe("revisione finale (15/11 notte)", () => {
+  const leggi = (p: string) => readFileSync(`supabase/functions/${p}`, "utf8");
+  const sorgente = (p: string) => readFileSync(p, "utf8");
+
+  it("costo e margine non si leggono più dalle tabelle grezze: i pannelli admin passano da funzioni riservate", () => {
+    const m = sorgente("supabase/migrations/20290403150300_ai_costi_chiusi_al_browser.sql");
+    for (const t of ["ai_call_ledger", "ai_model_usage_log"]) expect(m).toMatch(new RegExp(`REVOKE ALL ON public\\.${t} FROM anon, authenticated`));
+    // le colonne di costo non compaiono nelle GRANT per colonna
+    const grant = m.split("-- ── 2.")[0].split("GRANT SELECT (").slice(1).map((g) => g.split(")")[0]).join(",");
+    for (const c of ["cost_real_eur", "cost_real_usd", "margin_eur", "markup_applied_pct", "applied_markup_pct", "cost_usd"]) {
+      expect(grant.split(/[\s,]+/)).not.toContain(c);
+    }
+    expect(sorgente("src/components/admin/ai-provider/AdminAiSpesaRealeCard.tsx")).toMatch(/rpc\("admin_ai_spesa_reale"/);
+    expect(sorgente("src/components/admin/ai-provider/AdminAiPerCompanyTable.tsx")).toMatch(/rpc\("admin_ai_diretta_per_azienda"/);
+    expect(sorgente("src/pages/admin/settings/AdminSettingsAIPricing.tsx")).toMatch(/rpc\("admin_ai_revenue_summary"/);
+    // nessun componente del browser legge più le colonne di costo dalle tabelle grezze
+    for (const f of ["src/components/admin/ai-provider/AdminAiSpesaRealeCard.tsx", "src/components/admin/ai-provider/AdminAiPerCompanyTable.tsx", "src/components/credits/TeamAIUsage.tsx"]) {
+      expect(sorgente(f), f).not.toMatch(/from\("ai_(call_ledger|model_usage_log)"\)/);
+    }
+  });
+
+  it("triage L3: le aziende senza credito restano fuori dal lotto", () => {
+    const s = leggi("email-ai-l3-batch/index.ts");
+    expect(s).toMatch(/await precallCheck\(supabase, \{ company_id: c, task_kind: "email_ai_l3_batch"/);
+    expect(s).toMatch(/q\.not\("company_id", "in", `\(\$\{senzaCredito\.join\(","\)\}\)`\)/);
+    expect(s).toMatch(/rows = data\.filter\(\(r: any\) => creditoAzienda\.get\(r\.company_id\)\)/);
+  });
+
+  it("credito prima di Whisper (WhatsApp) e degli embedding che girano da soli", () => {
+    const wa = leggi("whatsapp-ai-processor/media.ts");
+    expect(wa.indexOf("await precallCheck(")).toBeGreaterThan(0);
+    expect(wa.indexOf("await precallCheck(")).toBeLessThan(wa.indexOf("await transcribeAudioWhisper("));
+    expect(leggi("whatsapp-ai-processor/index.ts")).toMatch(/e instanceof CreditoTrascrizioneEsaurito/);
+    const ss = leggi("semantic-search-global/index.ts");
+    expect(ss.indexOf("await precallCheck(")).toBeLessThan(ss.indexOf("await generateEmbedding(query)"));
+    const eb = leggi("email-ai-embed-backfill/index.ts");
+    expect(eb.indexOf("await precallCheck(")).toBeLessThan(eb.indexOf("await generateEmbedding(text)"));
+  });
+
+  it("ricerca semantica: l'azienda del corpo vale se l'utente può accedervi", () => {
+    expect(leggi("semantic-search-global/index.ts")).toMatch(/rpc\("user_can_access_company", \{ p_company_id: body\.company_id \}\)/);
+  });
+
+  it("durata audio: quella misurata, la dichiarata solo come ripiego (con tetto nel rapportino)", () => {
+    expect(leggi("detta-testo/index.ts")).toMatch(/const durataVera = esito\.durata \?\? \(Number\(durata\) \|\| null\);/);
+    const r = leggi("parse-rapportino-ai/index.ts");
+    expect(r).toMatch(/misura\.durata \?\? \(Math\.min\(.*DURATA_DICHIARATA_MAX_SEC\)/);
+    expect(r).not.toMatch(/Math\.max\(misura\.durata/);
+  });
+
+  it("analisi della foto dei render: tetto per sessione prima della chiamata", () => {
+    const s = leggi("_shared/ai-provider/sceneAnalysis.ts");
+    expect(s.indexOf("chiamateInclusePerSessione(")).toBeGreaterThan(0);
+    expect(s.indexOf("chiamateInclusePerSessione(")).toBeLessThan(s.indexOf("await callOpenRouter("));
+    expect(s).toMatch(/ANALISI_MAX_PER_SESSIONE = 15/);
+  });
+
+  it("addebita_ai_diretta: un errore dell'addebito non cancella la riga del consumo", () => {
+    const m = sorgente("supabase/migrations/20290403150400_ai_diretta_errore_e_definizione_salvata.sql");
+    expect(m).toMatch(/EXCEPTION WHEN OTHERS THEN\s+v_ok := false;\s+v_reason := 'errore_' \|\| SQLSTATE;/);
+    expect(m).toMatch(/PERFORM public\.pool_consuma\(p_company_id, 'ai', v_from_paid/);
+  });
+});

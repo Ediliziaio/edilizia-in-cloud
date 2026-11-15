@@ -32,6 +32,7 @@ const PERIODI = [
 interface RigaLedger {
   tier_key: string | null;
   task_key: string | null;
+  chiamate: number;
   cost_real_eur: number | null;
   cost_billed_eur: number | null;
 }
@@ -46,7 +47,7 @@ function aggrega(righe: RigaLedger[], chiave: (r: RigaLedger) => string) {
   for (const r of righe) {
     const k = chiave(r) || "(non classificato)";
     const acc = m.get(k) ?? { nome: k, n: 0, speso: 0, incassato: 0 };
-    acc.n += 1;
+    acc.n += Number(r.chiamate ?? 1);
     acc.speso += Number(r.cost_real_eur ?? 0);
     acc.incassato += Number(r.cost_billed_eur ?? 0);
     m.set(k, acc);
@@ -64,18 +65,9 @@ export function AdminAiSpesaRealeCard() {
     queryKey: ["admin-ai-spesa-reale", periodo],
     refetchInterval: 60_000,
     queryFn: async () => {
-      let q = supabase
-        .from("ai_call_ledger")
-        .select("tier_key, task_key, cost_real_eur, cost_billed_eur")
-        .eq("status", "success")
-        .order("created_at", { ascending: false })
-        .limit(20000);
-      if (giorni != null) {
-        const da = new Date();
-        da.setDate(da.getDate() - giorni);
-        q = q.gte("created_at", da.toISOString());
-      }
-      const { data, error } = await q;
+      // Costi e margini non sono più leggibili dalle tabelle grezze (GRANT per
+      // colonna, 15/11/2026): li dà la funzione riservata agli admin, già sommati.
+      const { data, error } = await supabase.rpc("admin_ai_spesa_reale", { p_giorni: giorni ?? undefined });
       if (error) throw error;
       return (data ?? []) as RigaLedger[];
     },

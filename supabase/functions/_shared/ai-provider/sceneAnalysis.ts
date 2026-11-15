@@ -5,7 +5,15 @@
 import { callOpenRouter } from "./openrouter.ts";
 import { makeAIError } from "./types.ts";
 import type { ChatMessage } from "./types.ts";
-import { registraCostoIncluso } from "../costoAiIncluso.ts";
+import { chiamateInclusePerSessione, registraCostoIncluso } from "../costoAiIncluso.ts";
+
+/**
+ * Tetto alle analisi della foto per sessione di render (revisione del 15/11/2026):
+ * l'analisi è inclusa nel credito render e non scala il portafoglio AI, quindi
+ * senza tetto si poteva rifarla all'infinito. Ogni modello della catena conta
+ * come una chiamata: 15 sono 5 analisi complete anche con due ripieghi ciascuna.
+ */
+export const ANALISI_MAX_PER_SESSIONE = 15;
 
 // v8.6.32 — Gemini eliminato. Chain: Claude Haiku + OpenAI Vision.
 const SCENE_MODELS_CHAIN = [
@@ -51,6 +59,18 @@ export async function analyzeScene(
       ],
     },
   ];
+
+  if (args.metadata.session_id) {
+    const fatte = await chiamateInclusePerSessione(args.metadata.task_kind, args.metadata.session_id);
+    if (fatte >= ANALISI_MAX_PER_SESSIONE) {
+      throw makeAIError(
+        "rate_limit",
+        `Limite di analisi della foto raggiunto per questa sessione (${ANALISI_MAX_PER_SESSIONE}). Apri una nuova sessione di render.`,
+        false,
+        429,
+      );
+    }
+  }
 
   let lastError: Error | null = null;
 

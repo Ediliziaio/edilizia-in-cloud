@@ -48676,6 +48676,7 @@ export type Database = {
           sottocategoria_ai: string | null
           stato: string
           storico_esterno: boolean
+          subappalto_acconto: boolean
           tipo_documento: string
           totale_documento: number | null
           trattenuta_garanzia: number | null
@@ -48757,6 +48758,7 @@ export type Database = {
           sottocategoria_ai?: string | null
           stato?: string
           storico_esterno?: boolean
+          subappalto_acconto?: boolean
           tipo_documento?: string
           totale_documento?: number | null
           trattenuta_garanzia?: number | null
@@ -48838,6 +48840,7 @@ export type Database = {
           sottocategoria_ai?: string | null
           stato?: string
           storico_esterno?: boolean
+          subappalto_acconto?: boolean
           tipo_documento?: string
           totale_documento?: number | null
           trattenuta_garanzia?: number | null
@@ -54437,6 +54440,7 @@ export type Database = {
           costo_eur: number
           file_id: string
           hash: string | null
+          includi: boolean
           lease_fino: string | null
           lettura_id: string
           motivo: string | null
@@ -54453,6 +54457,7 @@ export type Database = {
           costo_eur?: number
           file_id: string
           hash?: string | null
+          includi?: boolean
           lease_fino?: string | null
           lettura_id: string
           motivo?: string | null
@@ -54469,6 +54474,7 @@ export type Database = {
           costo_eur?: number
           file_id?: string
           hash?: string | null
+          includi?: boolean
           lease_fino?: string | null
           lettura_id?: string
           motivo?: string | null
@@ -54544,6 +54550,8 @@ export type Database = {
           gruppi_fatti: number
           gruppi_totali: number | null
           id: string
+          lease_fino: string | null
+          motore: string | null
           stato: string
           stima_eur: number
           strutturati: Json
@@ -54569,6 +54577,8 @@ export type Database = {
           gruppi_fatti?: number
           gruppi_totali?: number | null
           id?: string
+          lease_fino?: string | null
+          motore?: string | null
           stato?: string
           stima_eur?: number
           strutturati?: Json
@@ -54594,6 +54604,8 @@ export type Database = {
           gruppi_fatti?: number
           gruppi_totali?: number | null
           id?: string
+          lease_fino?: string | null
+          motore?: string | null
           stato?: string
           stima_eur?: number
           strutturati?: Json
@@ -146087,6 +146099,10 @@ export type Database = {
         Args: { p_company: string; p_giorni: number; p_tolleranza: number }
         Returns: undefined
       }
+      acquisti_crea_fornitore_da_cedente: {
+        Args: { p_chiave: string; p_company: string }
+        Returns: Json
+      }
       acquisti_data_italiana: { Args: { p: string }; Returns: string }
       acquisti_ddt_candidati: {
         Args: {
@@ -146120,6 +146136,10 @@ export type Database = {
       acquisti_documento_dell_azienda: {
         Args: { p_company: string; p_id: string; p_tipo: string }
         Returns: boolean
+      }
+      acquisti_fornitori_automatici_lotto: {
+        Args: { p_company: string; p_limite?: number }
+        Returns: Json
       }
       acquisti_fornitori_dalle_fatture_anteprima: {
         Args: { p_company: string; p_limite?: number }
@@ -146218,6 +146238,23 @@ export type Database = {
         Args: { p: string }
         Returns: Record<string, unknown>
       }
+      acquisti_oda_da_importo: {
+        Args: {
+          p_cf: string
+          p_company: string
+          p_fattura: string
+          p_imponibile: number
+          p_piva: string
+          p_tipo: string
+          p_totale: number
+          p_xml: string
+        }
+        Returns: {
+          identifica: boolean
+          oda_id: string
+          oda_numero: string
+        }[]
+      }
       acquisti_puo_collegare: { Args: { p_company: string }; Returns: boolean }
       acquisti_richiedi_offerta: {
         Args: {
@@ -146235,6 +146272,14 @@ export type Database = {
       acquisti_ricollega_ddt_lotto: {
         Args: { p_company: string; p_limite?: number }
         Returns: Json
+      }
+      acquisti_tipo_fornitore_certo: {
+        Args: { p_chiave: string; p_company: string; p_nome: string }
+        Returns: string
+      }
+      acquisti_tipo_fornitore_da_nome: {
+        Args: { p_nome: string }
+        Returns: string
       }
       acquisti_transizione_ammessa: {
         Args: { p_a: string; p_da: string }
@@ -146328,6 +146373,46 @@ export type Database = {
       }
       admin_accounts_overview: { Args: never; Returns: Json }
       admin_ai_cost_health: { Args: { p_days?: number }; Returns: Json }
+      admin_ai_diretta_per_azienda: {
+        Args: { p_giorni?: number }
+        Returns: {
+          company_id: string
+          cost_billed_eur: number
+          cost_real_eur: number
+          margin_eur: number
+          n_calls: number
+        }[]
+      }
+      admin_ai_puo_vedere_costi: { Args: never; Returns: boolean }
+      admin_ai_revenue_summary: {
+        Args: { p_da: string }
+        Returns: {
+          calls: number | null
+          cost_real_eur: number | null
+          day: string | null
+          margin_eur: number | null
+          markup_real_pct: number | null
+          revenue_eur: number | null
+          tokens_in_total: number | null
+          tokens_out_total: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ai_revenue_summary"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      admin_ai_spesa_reale: {
+        Args: { p_giorni?: number }
+        Returns: {
+          chiamate: number
+          cost_billed_eur: number
+          cost_real_eur: number
+          task_key: string
+          tier_key: string
+        }[]
+      }
       admin_ai_usage_aggregato: {
         Args: {
           p_a: string
@@ -148807,6 +148892,27 @@ export type Database = {
       cliente_senza_portale: {
         Args: { p_company_id: string; p_user_id: string }
         Returns: boolean
+      }
+      clienti_per_scelta: {
+        Args: { p_company_id: string }
+        Returns: {
+          address: string
+          business_name: string
+          city: string
+          created_at: string
+          email: string
+          first_name: string
+          fiscal_code: string
+          id: string
+          is_business: boolean
+          last_name: string
+          phone: string
+          province: string
+          site_address: string
+          site_city: string
+          tipo_cliente: string
+          vat_number: string
+        }[]
       }
       clienti_solo_assegnati: {
         Args: { p_company_id: string }
@@ -151506,6 +151612,7 @@ export type Database = {
         Returns: string
       }
       generale_lettura_annulla: { Args: { p_id: string }; Returns: undefined }
+      generale_lettura_avvia: { Args: { p_id: string }; Returns: string }
       generale_lettura_bozza_salva: {
         Args: { p_bozza: Json; p_id: string }
         Returns: undefined
@@ -151522,6 +151629,14 @@ export type Database = {
         }
         Returns: string
       }
+      generale_lettura_includi_pagina: {
+        Args: { p_file: string; p_id: string; p_numero: number }
+        Returns: undefined
+      }
+      generale_lettura_prendi: {
+        Args: { p_id: string; p_motore: string }
+        Returns: boolean
+      }
       generale_lettura_prendi_pagine: {
         Args: { p_id: string; p_quante: number }
         Returns: {
@@ -151530,6 +151645,7 @@ export type Database = {
           costo_eur: number
           file_id: string
           hash: string | null
+          includi: boolean
           lease_fino: string | null
           lettura_id: string
           motivo: string | null
@@ -160716,6 +160832,7 @@ export type Database = {
       }
       subappalto_collega_fattura: {
         Args: {
+          p_acconto?: boolean
           p_contratto: string
           p_esito?: string
           p_fattura: string
@@ -160952,6 +161069,10 @@ export type Database = {
       }
       tesoreria_ricorda_iban_cliente: {
         Args: { p_company: string; p_documento: string; p_tx: string }
+        Returns: Json
+      }
+      tesoreria_ricorda_iban_da_quota: {
+        Args: { p_company: string; p_riconciliazione: string }
         Returns: Json
       }
       tesoreria_riferimenti_verificati: {

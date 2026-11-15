@@ -34,6 +34,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
+import { precallCheck } from "../_shared/ai-provider/billing.ts";
 import {
   persistClassification,
   learnSender,
@@ -161,6 +162,8 @@ serveConMetricheRapida("email-ai-l3-batch", async (req) => {
     // ─── Selezione email da batchare ──────────────────────────────────────
     const limit = Math.min(body.limit || BATCH_SIZE, BATCH_SIZE);
     let rows: any[];
+    const creditoAzienda = new Map<string, boolean>();
+    const senzaCredito: string[] = [];
 
     if (body.mode === "single" && Array.isArray(body.email_ids)) {
       const { data } = await supabase
@@ -169,20 +172,35 @@ serveConMetricheRapida("email-ai-l3-batch", async (req) => {
         .in("id", body.email_ids.slice(0, BATCH_SIZE));
       rows = data || [];
     } else {
-      // Mode "live" o backfill: prendi le email senza categoria
-      let q = supabase
-        .from("email_inbox")
-        .select("id, company_id, from_email, from_name, subject, raw_text, raw_html")
-        .is("categoria", null)
-        .order("received_at", { ascending: false })
-        .limit(limit);
-      if (body.company_id) q = q.eq("company_id", body.company_id);
-      const { data } = await q;
-      rows = data || [];
+      // Mode "live" o backfill: prendi le email senza categoria, ma solo delle
+      // aziende che passano il controllo del credito. Prima le email di
+      // un'azienda a credito zero tornavano a ogni giro e occupavano tutto il
+      // lotto: quelle delle altre aziende non venivano mai classificate.
+      rows = [];
+      for (let giro = 0; giro < 4 && rows.length === 0; giro++) {
+        let q: any = supabase
+          .from("email_inbox")
+          .select("id, company_id, from_email, from_name, subject, raw_text, raw_html")
+          .is("categoria", null)
+          .not("company_id", "is", null)
+          .order("received_at", { ascending: false })
+          .limit(200);
+        if (body.company_id) q = q.eq("company_id", body.company_id);
+        if (senzaCredito.length > 0) q = q.not("company_id", "in", `(${senzaCredito.join(",")})`);
+        const { data } = await q;
+        if (!data || data.length === 0) break;
+        for (const c of new Set<string>(data.map((r: any) => r.company_id))) {
+          if (creditoAzienda.has(c)) continue;
+          const pre = await precallCheck(supabase, { company_id: c, task_kind: "email_ai_l3_batch" as never, estimated_tokens_total: 4000 });
+          creditoAzienda.set(c, pre.allow);
+          if (!pre.allow) senzaCredito.push(c);
+        }
+        rows = data.filter((r: any) => creditoAzienda.get(r.company_id)).slice(0, limit);
+      }
     }
 
     if (rows.length === 0) {
-      return json({ batched: 0, classified: 0, da_rivedere: 0, message: "Nessuna email da classificare" }, 200, corsHeaders);
+      return json({ batched: 0, classified: 0, da_rivedere: 0, aziende_senza_credito: senzaCredito, message: "Nessuna email da classificare" }, 200, corsHeaders);
     }
 
     // ─── Un batch per azienda ──────────────────────────────────────────────
@@ -289,6 +307,7 @@ serveConMetricheRapida("email-ai-l3-batch", async (req) => {
       processed: results.length,
       results,
       saltate,
+      aziende_senza_credito: senzaCredito,
       anthropic_usage: usages,
       elapsed_ms: Date.now() - apiStart,
       model: HAIKU_MODEL,
