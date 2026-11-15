@@ -223,3 +223,164 @@
     padding-inline: 16px;
   }
 }
+
+/* ── Tabella delle voci: un foglio pulito ──────────────────────────────────────
+   Le celle modificabili sembrano testo finché non ci si passa sopra: il bordo e la
+   freccia delle tendine compaiono al passaggio o al focus. La regola globale che
+   ridà il bordo ai trigger dei Select (index.css) qui va spenta. */
+.generale-plan-table [role="combobox"]:not(:hover):not(:focus-visible):not([data-state="open"]) {
+  border-color: transparent;
+}
+.generale-plan-table [role="combobox"] > svg {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.generale-plan-table tr:hover [role="combobox"] > svg,
+.generale-plan-table [role="combobox"]:focus-visible > svg,
+.generale-plan-table [role="combobox"][data-state="open"] > svg {
+  opacity: 0.55;
+}
+.generale-plan-table thead th {
+  background: hsl(var(--card));
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+.generale-plan-table tbody tr > td {
+  transition: background-color 0.12s;
+}
+
+/* Intestazione di categoria: nome, quante voci, totali del gruppo. */
+.generale-plan-cat > th,
+.generale-plan-cat > td {
+  padding: 9px 8px;
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.35);
+  font-size: 13px;
+  font-weight: 500;
+}
+.generale-plan-cat > th {
+  padding-left: 10px;
+}
+.generale-plan-cat button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+.generale-plan-cat button:focus-visible {
+  outline: 2px solid rgb(var(--brand-accent, 249 115 22));
+  outline-offset: 2px;
+}
+.generale-plan-cat button > svg,
+.generale-plan-empty-toggle button > svg {
+  width: 15px;
+  height: 15px;
+  color: hsl(var(--muted-foreground));
+  transition: transform 0.15s;
+}
+.generale-plan-cat button[aria-expanded="true"] > svg,
+.generale-plan-empty-toggle button[aria-expanded="true"] > svg {
+  transform: rotate(90deg);
+}
+.generale-plan-cat-name {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.generale-plan-cat-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+}
+.generale-plan-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: hsl(38 92% 50% / 0.14);
+  color: hsl(30 80% 32%);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dark .generale-plan-pill {
+  color: hsl(38 90% 70%);
+}
+
+/* «Mostra N voci senza importo»: discreto, sotto le voci del gruppo. */
+.generale-plan-empty-toggle > td {
+  padding: 2px 10px 6px 30px;
+}
+.generale-plan-empty-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.generale-plan-empty-toggle button:hover {
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted) / 0.5);
+}
+.generale-plan-row--empty > td {
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.12);
+}
+.generale-plan-cell-note {
+  display: block;
+  padding-right: 6px;
+  text-align: right;
+  font-size: 10.5px;
+  line-height: 1.1;
+  color: hsl(30 80% 38%);
+}
+.dark .generale-plan-cell-note {
+  color: hsl(38 90% 65%);
+}
+
+/* Numeri provvisori: si leggono, ma non pesano come quelli definitivi. */
+.generale-indicator--provvisorio .generale-indicator-value {
+  color: hsl(var(--foreground) / 0.72);
+}
+.generale-indicator-tag {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: hsl(38 92% 50% / 0.14);
+  color: hsl(30 80% 32%);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 17px;
+}
+.dark .generale-indicator-tag {
+  color: hsl(38 90% 70%);
+}
+.generale-plan-context-link {
+  font-weight: 500;
+  color: rgb(var(--brand-accent-dark, 217 94 11));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* La prima colonna resta ferma quando la tabella scorre di lato (schermi stretti). */
+.generale-plan-table thead th:first-child,
+.generale-plan-table .generale-plan-cat > th:first-child,
+.generale-plan-table .generale-plan-voce > td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: hsl(var(--card));
+}
+.generale-plan-table .generale-plan-cat > th:first-child {
+  background: linear-gradient(hsl(var(--muted) / 0.35), hsl(var(--muted) / 0.35)), hsl(var(--card));
+}
+.generale-plan-table .generale-plan-row--empty > td:first-child {
+  background: linear-gradient(hsl(var(--muted) / 0.12), hsl(var(--muted) / 0.12)), hsl(var(--card));
+}
+.generale-plan-table .generale-plan-voce:hover > td:first-child {
+  background: linear-gradient(hsl(var(--muted) / 0.3), hsl(var(--muted) / 0.3)), hsl(var(--card));
+}

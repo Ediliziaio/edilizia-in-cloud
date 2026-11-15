@@ -7,10 +7,11 @@ import { DA_STIMARE } from "@/lib/orders/generali/budgetCompletezza";
  * Il calendario rapido del piano e il riquadro «Budget da completare» (14/11/2026, URBAN VISION:
  * 88 voci importate da Excel senza mese bloccavano cassa, capitale e approvazione).
  */
-const m = vi.hoisted(() => ({ salva: vi.fn(), modifica: vi.fn() }));
+const m = vi.hoisted(() => ({ salva: vi.fn(), modifica: vi.fn(), elimina: vi.fn() }));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useCalendarioPiano: () => ({ mutate: m.salva, isPending: false }),
   useModificaVoce: () => ({ mutate: m.modifica, isPending: false }),
+  useEliminaVoce: () => ({ mutate: m.elimina, isPending: false }),
   messaggioPiano: (_e: unknown, cosa: string) => `errore ${cosa}`,
 }));
 
@@ -23,7 +24,7 @@ const voce = (v: Partial<VocePiano>): VocePiano => ({
   figliaId: null, categorieCosto: [], aFinire: null, nota: null, ordine: n * 10, origineId: null, ...v,
 });
 
-beforeEach(() => { n = 0; m.salva.mockReset(); m.modifica.mockReset(); });
+beforeEach(() => { n = 0; m.salva.mockReset(); m.modifica.mockReset(); m.elimina.mockReset(); });
 afterEach(cleanup);
 
 describe("calendario rapido del piano", () => {
@@ -89,8 +90,25 @@ describe("budget da completare", () => {
     expect(onCalendario).toHaveBeenCalled();
     expect(screen.queryByText("Bonifica")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Vedi le voci/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Conferma zero" }));
-    expect(m.modifica.mock.calls[0][0]).toEqual({ id: "v2", modifica: { importo: 0 } });
+    // Niente zeri confermati (15/11/2026): una voce che non serve si toglie.
+    expect(screen.queryByRole("button", { name: "Conferma zero" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Non serve, togli" }));
+    expect(m.elimina.mock.calls[0][0]).toBe("v2");
+  });
+
+  it("le spese su voci senza previsto si portano nel budget con un clic", () => {
+    const v = voce({ importo: 0, descrizione: "Progettazione architettonica", mese: "2026-12" });
+    render(
+      <CompletezzaBudget
+        generaleId="g" versioneId="b" modificabile onCalendario={vi.fn()}
+        voci={[voce({ importo: 5000, mese: "2026-12" }), v]}
+        spesoSenzaPrevisto={[{ voce: v, reale: 15600 }]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Budget da controllare" })).toBeInTheDocument();
+    expect(screen.getByText(/1 voce ha già spese per 15\.600/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Usa lo speso come previsto" }));
+    expect(m.modifica.mock.calls[0][0]).toEqual({ id: v.id, modifica: { importo: 15600 } });
   });
 
   it("in sola lettura dice cosa manca senza offrire azioni", () => {

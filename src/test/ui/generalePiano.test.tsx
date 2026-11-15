@@ -168,6 +168,9 @@ describe("la scheda del piano economico", () => {
     d.piano = calcolaPianoEconomico({ oggi: "2026-10-30", generaleId: "G", voci: d.voci, righe, incassi: [], figlie: [] });
     m.numeri = d;
     disegna(false);
+    // Le voci senza importo stanno raccolte sotto il loro gruppo: si aprono a richiesta.
+    expect(within(screen.getByRole("table")).queryByText("Voce a zero confermato")).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button", { name: /Mostra 1 voce senza importo/ }));
     const riga = within(screen.getByRole("table")).getByText("Voce a zero confermato").closest("tr")!;
     expect(within(riga).getByText("Non necessario")).toBeVisible();
   });
@@ -236,14 +239,15 @@ describe("indicatori economici nella prima schermata", () => {
     expect(within(indicatori).getByText("Costi finali stimati").parentElement).toHaveTextContent("1.556.000");
     expect(within(indicatori).getByText("Margine stimato a fine lavori").parentElement).toHaveTextContent("844.000");
   });
-  it("non presenta una previsione finale completa se il budget è ancora parziale", () => {
+  it("col budget ancora parziale i numeri finali sono segnati come provvisori", () => {
     const n=numeri("approvata");m.numeri={...n,piano:{...n.piano!,budgetCompleto:false}};disegna();
     const indicatori=screen.getByRole("region",{name:"Indicatori del piano economico"});
-    expect(within(indicatori).getByText("Margine stimato a fine lavori").parentElement).toHaveTextContent("—");
-    // I ricavi non dipendono dalle stime dei costi: restano.
+    // 15/11/2026: i numeri ci sono, segnati come provvisori (prima erano lineette).
+    expect(within(indicatori).getByText("Margine stimato a fine lavori").parentElement).toHaveTextContent("provvisorio");
     expect(within(indicatori).getByText("Ricavi stimati").parentElement).toHaveTextContent("2.400.000");
-    expect(within(indicatori).getByText("Costi finali stimati").parentElement).toHaveTextContent("—");
-    expect(within(indicatori).queryByText(/844.000/)).not.toBeInTheDocument();
+    expect(within(indicatori).getByText("Ricavi stimati").parentElement).not.toHaveTextContent("provvisorio");
+    expect(within(indicatori).getByText("Costi finali stimati").parentElement).toHaveTextContent("provvisorio");
+    expect(within(indicatori).getByText("Costi finali stimati").closest(".generale-indicator")).toHaveTextContent(/€/);
   });
   it("gli indicatori rispettano i permessi di importi e costi", () => {
     m.numeri=numeri("approvata");const r=riepilogo();r.permessi.importi=false;r.permessi.costi=false;

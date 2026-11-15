@@ -83,7 +83,7 @@ import { meseCorrente } from "@/lib/orders/generali/avvio";
 import { avvisoSenzaMese, avvisoStimeMancanti, type RigaReale, type Scenario } from "@/lib/orders/generali/pianoConti";
 import type { VersionePiano } from "@/lib/orders/generali/pianoLettura";
 import { cn } from "@/lib/utils";
-import { controllaBudget } from "@/lib/orders/generali/budgetCompletezza";
+import { controllaBudget, stimaMancante } from "@/lib/orders/generali/budgetCompletezza";
 import { CompletezzaBudget } from "./CompletezzaBudget";
 import { StoricoBusinessPlan } from "./StoricoBusinessPlan";
 import { CassaScadenze } from "./CassaScadenze";
@@ -266,6 +266,14 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
   const apriRighe = (titolo: string, righe: RigaReale[]) =>
     setDettaglio({ titolo, righe });
   const t = piano.confronto.totali.margine;
+  // Con voci ancora da stimare i numeri si mostrano lo stesso, segnati come provvisori.
+  const incompleto = piano.budgetCompleto === false;
+  const daStimare = n.voci.filter((x) => stimaMancante(x)).length;
+  const apriDati = () => {
+    const p = new URLSearchParams(parametri);
+    p.set("scheda", "dati");
+    setParametri(p);
+  };
   // Stime e mesi mancanti li dice il riquadro del budget da completare, con la loro azione:
   // qui non si ripetono. Le frasi si riconoscono dalle funzioni che le scrivono.
   const budget = controllaBudget(n.voci);
@@ -461,24 +469,37 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             />
             <Numero
               etichetta="Costi finali stimati"
-              valore={riepilogo.permessi.costi ? euro(piano.budgetCompleto === false ? null : piano.confronto.totali.costi.stima) : "Riservato"}
-              nota={riepilogo.permessi.costi ? `Registrati ${euro(piano.confronto.totali.costi.reale)}` : undefined}
+              provvisorio={incompleto}
+              valore={riepilogo.permessi.costi ? euro(piano.confronto.totali.costi.stima) : "Riservato"}
+              nota={riepilogo.permessi.costi ? <>
+                Registrati {euro(piano.confronto.totali.costi.reale)}
+                {incompleto && <> <span aria-hidden="true">·</span> {daStimare === 1 ? "1 voce da stimare" : `${daStimare} voci da stimare`}</>}
+              </> : undefined}
             />
             <Numero
               etichetta="Margine stimato a fine lavori"
-              valore={euro(piano.budgetCompleto === false ? null : t.stima)}
-              evidenza={piano.budgetCompleto === false ? undefined : t.stima < 0 ? "rosso" : "verde"}
-              nota={piano.budgetCompleto === false ? "Completa le stime prima di confrontare" : <>
-                <span>Previsto {euro(t.previsto)}</span>{" · "}<span className={tonoScostamento(t.scostamento, "margine")}>{euroSegno(t.scostamento)}</span>
-              </>}
+              provvisorio={incompleto}
+              valore={euro(t.stima)}
+              evidenza={incompleto ? undefined : t.stima < 0 ? "rosso" : "verde"}
+              nota={incompleto
+                ? `${quotaTesto(t.stima, piano.confronto.totali.ricavi.stima)} sui ricavi, prima delle voci da stimare`
+                : <><span>Previsto {euro(t.previsto)}</span>{" · "}<span className={tonoScostamento(t.scostamento, "margine")}>{euroSegno(t.scostamento)}</span></>}
             />
             <Numero
               etichetta="Capitale massimo impegnato"
-              valore={euro(piano.calendarioCompleto === false ? null : piano.capitale.massimoStima)}
-              nota={piano.calendarioCompleto === false ? (budget.calendario.length === 0 ? "Completa prima le stime" : piano.budgetCompleto === false ? "Completa stime e calendario" : "Completa il calendario del piano") : piano.capitale.meseMassimoStima ? `Picco a ${nomeMese(piano.capitale.meseMassimoStima)}` : `Previsto ${euro(piano.capitale.massimoPrevisto)}`}
+              provvisorio={incompleto && budget.calendario.length === 0}
+              valore={euro(budget.calendario.length > 0 ? null : piano.capitale.massimoStima)}
+              nota={budget.calendario.length > 0
+                ? "Completa il calendario del piano"
+                : piano.capitale.meseMassimoStima ? `Picco a ${nomeMese(piano.capitale.meseMassimoStima)}` : `Previsto ${euro(piano.capitale.massimoPrevisto)}`}
             />
           </section>
-          <p className="generale-plan-context">Importi del piano al netto dell’IVA <span aria-hidden="true">·</span> Capitale investito a oggi <strong>{euro(piano.capitale.investitoOggi)}</strong>{conApprovato && t.approvato !== null && <> <span aria-hidden="true">·</span> Margine approvato {euro(t.approvato)}</>}</p>
+          <p className="generale-plan-context">
+            Importi del piano al netto dell’IVA <span aria-hidden="true">·</span> Capitale investito a oggi <strong>{euro(piano.capitale.investitoOggi)}</strong>
+            {conApprovato && t.approvato !== null && <> <span aria-hidden="true">·</span> Margine approvato {euro(t.approvato)}</>}
+            {!g.inizio && <> <span aria-hidden="true">·</span> Inizio lavori non indicato, i mesi sono ipotesi{" "}
+              <button type="button" className="generale-plan-context-link" onClick={apriDati}>Indicalo</button></>}
+          </p>
         </>}
 
         {(avvisiSenzaBudget.length > 0 ||
@@ -504,6 +525,8 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           modificabile={modificabile}
           onCalendario={() => setCalendario(true)}
           stimeAperte={parametri.get("stime") === "1"}
+          spesoSenzaPrevisto={riepilogo.permessi.costi ? piano.confronto.costi.flatMap((r) =>
+            r.voce && r.previsto < 0.005 && r.reale > 0.005 ? [{ voce: r.voce, reale: r.reale }] : []) : []}
         />
         {/* Si apre anche dalla Panoramica («Completa l'operazione» → ?calendario=1). */}
         {modificabile && (calendario || parametri.get("calendario") === "1") && (
@@ -547,23 +570,6 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                 );
               }}
             />
-            {riepilogo.permessi.costi && (
-              <nav
-                className="generale-plan-workflow"
-                aria-label="Dal piano ai documenti"
-              >
-                <span>Controlla i documenti dell’operazione</span>
-                <button type="button" onClick={() => apriCantiere("forniture")}>
-                  Ordini e DDT
-                </button>
-                <button type="button" onClick={() => apriCantiere("fatture")}>
-                  Fatture e costi
-                </button>
-                <button type="button" onClick={() => apriCantiere("pagamenti")}>
-                  Pagamenti · IVA inclusa
-                </button>
-              </nav>
-            )}
           </>
         )}
         <TabsContent value="voci" className="mt-3">
@@ -726,16 +732,20 @@ function Numero({
   valore,
   nota,
   evidenza,
+  provvisorio,
 }: {
   etichetta: string;
   valore: string;
   nota?: ReactNode;
   evidenza?: "verde" | "rosso";
+  /** Il budget ha ancora voci da stimare: il numero c'è, ma può cambiare. */
+  provvisorio?: boolean;
 }) {
   return (
-    <div className={cn("generale-indicator", evidenza && `generale-indicator--${evidenza}`)}>
+    <div className={cn("generale-indicator", evidenza && `generale-indicator--${evidenza}`, provvisorio && "generale-indicator--provvisorio")}>
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {etichetta}
+        {provvisorio && <span className="generale-indicator-tag">provvisorio</span>}
       </p>
       <p
         className="generale-indicator-value font-semibold tabular-nums"
@@ -749,6 +759,12 @@ function Numero({
       )}
     </div>
   );
+}
+
+/** «18,2%» del margine sui ricavi; lineetta se i ricavi sono zero. */
+function quotaTesto(parte: number, base: number) {
+  if (Math.abs(base) < 0.005) return "—";
+  return `${((parte / base) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
 }
 
 function Avviso({ testo }: { testo: string }) {

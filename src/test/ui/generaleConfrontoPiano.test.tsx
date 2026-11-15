@@ -110,7 +110,7 @@ it("conserva il segno delle rettifiche e distingue reale e stima", () => {
   expect(screen.getByText("Nessuno scostamento sfavorevole")).toBeVisible();
 });
 
-it("non presenta come attendibili budget e previsione quando manca una stima", () => {
+it("con una stima mancante mostra budget e previsione come provvisori", () => {
   render(
     <ConfrontoPiano
       piano={piano(undefined, [{ ...voce, importo: 0, nota: DA_STIMARE }])}
@@ -119,13 +119,13 @@ it("non presenta come attendibili budget e previsione quando manca una stima", (
       onCategoria={vi.fn()}
     />,
   );
-  expect(
-    within(screen.getByLabelText("Confronto costi in euro netti")).getAllByText(
-      "Da completare",
-    ),
-  ).toHaveLength(2);
-  expect(screen.getByText("Prima completa il budget")).toBeVisible();
-  expect(screen.queryByText(/di costi in più/)).not.toBeInTheDocument();
+  // 15/11/2026: i numeri si vedono lo stesso, segnati come provvisori.
+  const confronto = within(screen.getByLabelText("Confronto costi in euro netti"));
+  expect(confronto.queryByText("Da completare")).not.toBeInTheDocument();
+  expect(confronto.getAllByText("provvisorio")).toHaveLength(2);
+  expect(screen.getByText(/1 voce ancora da stimare/)).toBeVisible();
+  // La spesa già registrata sulla voce senza stima è un fatto: compare fra gli scostamenti.
+  expect(screen.getAllByText(/di costi in più/).length).toBeGreaterThan(0);
 });
 
 it("non espone costi e margine attraverso grafici o priorità senza il permesso dei costi", () => {

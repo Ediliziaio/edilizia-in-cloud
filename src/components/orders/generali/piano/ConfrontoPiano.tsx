@@ -11,6 +11,7 @@ import type {
   RigaReale,
 } from "@/lib/orders/generali/pianoConti";
 import { formatCurrency } from "@/lib/formatters";
+import { stimaMancante } from "@/lib/orders/generali/budgetCompletezza";
 import {
   CATEGORIE_PIANO,
   CHIAVI_REALI,
@@ -73,23 +74,26 @@ export function ConfrontoPiano({
   if (!tipo) return null;
   const completo = piano.budgetCompleto !== false;
   const t = piano.confronto.totali[tipo.id];
-  const valori = [t.reale, ...(completo ? [t.previsto, t.stima] : [])];
+  // Con voci da stimare i numeri si mostrano lo stesso, segnati come provvisori.
+  const daStimare = [...piano.confronto.costi, ...piano.confronto.ricavi].filter(
+    (r) => r.voce && stimaMancante(r.voce),
+  ).length;
+  const valori = [t.reale, t.previsto, t.stima];
   const righe =
     tipo.id === "costi"
       ? piano.confronto.costi
       : tipo.id === "ricavi"
         ? piano.confronto.ricavi
         : [];
-  const scostamenti = completo
-    ? [
-        ...(permessi.costi ? piano.confronto.costi : []),
-        ...(permessi.importi ? piano.confronto.ricavi : []),
-      ]
-        .filter(
-          (r) => (r.tipo === "costo" ? r.scostamento : -r.scostamento) > 0.005,
-        )
-        .sort((a, b) => Math.abs(b.scostamento) - Math.abs(a.scostamento))
-    : [];
+  // Anche col budget incompleto: una spesa oltre il previsto (o senza previsto) è già un fatto.
+  const scostamenti = [
+    ...(permessi.costi ? piano.confronto.costi : []),
+    ...(permessi.importi ? piano.confronto.ricavi : []),
+  ]
+    .filter(
+      (r) => (r.tipo === "costo" ? r.scostamento : -r.scostamento) > 0.005,
+    )
+    .sort((a, b) => Math.abs(b.scostamento) - Math.abs(a.scostamento));
   const sfavorevole =
     tipo.id === "costi" ? t.scostamento > 0.005 : t.scostamento < -0.005;
   const differenza =
@@ -139,7 +143,7 @@ export function ConfrontoPiano({
           {[
             {
               nome: "Budget previsto",
-              valore: completo ? t.previsto : null,
+              valore: t.previsto,
               classe: "generale-plan-bar--budget",
             },
             {
@@ -149,22 +153,21 @@ export function ConfrontoPiano({
             },
             {
               nome: "Stima finale",
-              valore: completo ? t.stima : null,
+              valore: t.stima,
               classe: sfavorevole
                 ? "generale-plan-bar--rischio"
                 : "generale-plan-bar--stima",
             },
           ].map((r) => (
             <div key={r.nome}>
-              <dt>{r.nome}</dt>
-              <dd>
-                {r.valore === null ? "Da completare" : formatCurrency(r.valore)}
-              </dd>
-              {/* Col budget da completare il registrato non ha un riferimento: la sua barra,
-                  scalata su sé stessa, sarebbe sempre piena e direbbe «budget consumato». */}
-              {r.valore !== null && completo && (
-                <Barra valore={r.valore} valori={valori} classe={r.classe} />
-              )}
+              <dt>
+                {r.nome}
+                {!completo && r.nome !== "Registrato a oggi" && (
+                  <span className="generale-indicator-tag">provvisorio</span>
+                )}
+              </dt>
+              <dd>{formatCurrency(r.valore)}</dd>
+              <Barra valore={r.valore} valori={valori} classe={r.classe} />
             </div>
           ))}
         </dl>
@@ -174,7 +177,7 @@ export function ConfrontoPiano({
           >
             {completo
               ? differenza
-              : "Completa le stime per confrontare il budget."}
+              : `${differenza} · ${daStimare === 1 ? "1 voce" : `${daStimare} voci`} ancora da stimare`}
           </span>
           {tipo.id !== "margine" && (
             <button
@@ -195,8 +198,7 @@ export function ConfrontoPiano({
         <footer className="generale-panel-footer generale-plan-formula">
           <span>
             Registrato {formatCurrency(t.reale)} <b>+</b> a finire{" "}
-            {completo ? formatCurrency(t.aFinire) : "da completare"} <b>=</b>{" "}
-            stima {completo ? formatCurrency(t.stima) : "da completare"}
+            {formatCurrency(t.aFinire)} <b>=</b> stima {formatCurrency(t.stima)}
           </span>
           <small>
             {tipo.id === "margine"
@@ -226,21 +228,14 @@ export function ConfrontoPiano({
             </div>
           </div>
         </header>
-        {!completo ? (
-          <div className="generale-plan-priorities-empty">
-            <strong>Prima completa il budget</strong>
-            <p>
-              Gli scostamenti diventano attendibili quando le stime mancanti
-              sono state compilate.
-            </p>
-          </div>
-        ) : !scostamenti.length ? (
+        {!scostamenti.length ? (
           <div className="generale-plan-priorities-empty">
             <CheckCircle2 aria-hidden="true" />
-            <strong>Nessuno scostamento sfavorevole</strong>
+            <strong>{completo ? "Nessuno scostamento sfavorevole" : "Finora nessuna spesa oltre il previsto"}</strong>
             <p>
-              Le stime attuali non riducono il margine rispetto alle voci
-              previste.
+              {completo
+                ? "Le stime attuali non riducono il margine rispetto alle voci previste."
+                : "Il confronto completo arriva quando le voci da stimare hanno un importo."}
             </p>
           </div>
         ) : (
