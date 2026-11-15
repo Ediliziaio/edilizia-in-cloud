@@ -97,7 +97,7 @@ Dati di prova su Demo Azienda 2: «PROVA Comune di Demolandia» (PA, uffici UFTS
 - Riquadro in Panoramica: codici in evidenza, pulsante copia, valori lunghi leggibili, cosa manca, «Modifica» secondo i permessi.
 
 #### Stato del lotto 3 — FATTO il 15/11/2026
-Migrazioni applicate e riallineate: `20290410300000_order_riferimenti_pa`, `20290410300100_orders_visibili_riferimenti_pa`.
+Migrazioni applicate e riallineate: `20290410300000_order_riferimenti_pa`, `20290410300100_orders_visibili_riferimenti_pa`, `20290410300200_order_riferimenti_pa_titolare` (regola del titolare con `e_amministratore_di`).
 
 **Contratto dello schema (per i lotti 4-5)** — tabella `public.order_riferimenti_pa`, una riga per affidamento / lotto / progetto:
 

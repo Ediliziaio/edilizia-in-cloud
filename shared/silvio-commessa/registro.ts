@@ -245,6 +245,7 @@ export const COLONNE_IGNORATE: Readonly<Record<string, string>> = {
   appalto_contratto_id: "associazione all'appalto: scelta esplicita di un contratto esistente, mai dedotta dal testo",
   tariffa_manodopera_id: "prezzo delle ore in economia dal listino aziendale: lo sceglie chi gestisce i rapportini, mai dedotto dal testo",
   commessa_generale_id: "raggruppamento contabile: si seleziona nella gestione delle commesse generali",
+  riferimenti_pa_attivi: "interruttore dei dati appalto PA: lo accende il cliente PA o il primo riferimento; CIG e CUP stanno in order_riferimenti_pa, mai dedotti dal testo",
   riferimento_committente: "identificativo contrattuale del percorso interventi: non viene inventato dal creatore AI standard",
   tetto_importo: "limite contrattuale: si verifica nel percorso contratti, non si deduce dall'importo della commessa",
   valorizzazione: "modalità di valorizzazione del contratto: scelta esplicita nel percorso dedicato",

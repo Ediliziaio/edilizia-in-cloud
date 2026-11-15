@@ -184,14 +184,8 @@ create policy order_riferimenti_pa_modifica on public.order_riferimenti_pa
 drop policy if exists order_riferimenti_pa_admin on public.order_riferimenti_pa;
 create policy order_riferimenti_pa_admin on public.order_riferimenti_pa
   for all to authenticated
-  using (
-    (select public.has_role((select auth.uid()), 'company_admin'::app_role))
-    and company_id = (select public.get_user_company_id((select auth.uid())))
-  )
-  with check (
-    (select public.has_role((select auth.uid()), 'company_admin'::app_role))
-    and public.get_order_company_id(order_id) = (select public.get_user_company_id((select auth.uid())))
-  );
+  using ((select public.e_amministratore_di(company_id)))
+  with check ((select public.e_amministratore_di(public.get_order_company_id(order_id))));
 
 drop policy if exists order_riferimenti_pa_super_admin on public.order_riferimenti_pa;
 create policy order_riferimenti_pa_super_admin on public.order_riferimenti_pa
