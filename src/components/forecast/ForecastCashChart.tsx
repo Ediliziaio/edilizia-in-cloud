@@ -146,9 +146,16 @@ export function ForecastCashChart({
     const conSaldo = rows.filter((r) => r.balance !== null);
     if (conSaldo.length === 0) return null;
     const alto = conSaldo.reduce((a, b) => ((b.balance ?? 0) > (a.balance ?? 0) ? b : a));
-    const basso = conSaldo.reduce((a, b) => ((b.balance ?? 0) < (a.balance ?? 0) ? b : a));
+    const bassoRighe = conSaldo.reduce((a, b) => ((b.balance ?? 0) < (a.balance ?? 0) ? b : a));
+    // 15/11/2026: le righe sono saldi di fine giornata; il minimo della previsione conta anche la
+    // disponibilità di stamattina. Prima «Più basso» diceva 122.419 € il 16/11 e, sotto, «Minimo
+    // previsto» −48.514 € il 15/11: si prende il più basso dei due.
+    const basso =
+      minimum !== null && minimumDate && minimum < (bassoRighe.balance ?? Infinity)
+        ? { ...bassoRighe, balance: minimum, start: minimumDate, end: minimumDate }
+        : bassoRighe;
     return { alto, basso };
-  }, [rows]);
+  }, [rows, minimum, minimumDate]);
   const scale = useMemo(
     () =>
       cashChartScale([
@@ -290,7 +297,8 @@ export function ForecastCashChart({
                 valore={
                   <span className="inline-flex flex-wrap items-center gap-1.5">
                     {opening !== null && closing !== null ? `${closing - opening > 0 ? "+" : ""}${money(closing - opening)}` : "—"}
-                    {opening !== null && opening !== 0 && closing !== null && (
+                    {/* Una percentuale su una base negativa (+993% partendo da −48.514 €) non dice niente. */}
+                    {opening !== null && opening > 0 && closing !== null && (
                       <PillolaVariazione pct={((closing - opening) / Math.abs(opening)) * 100} titolo="Saldo a fine periodo rispetto alla disponibilità di oggi" />
                     )}
                   </span>
