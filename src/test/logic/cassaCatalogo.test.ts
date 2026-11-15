@@ -70,10 +70,22 @@ beforeAll(async () => {
     );
     create table treasury_categories (id uuid primary key);
     create table prima_nota_entries (id uuid primary key default gen_random_uuid(), company_id uuid,
-      bank_transaction_id uuid, reversal_of uuid);
+      bank_transaction_id uuid, reversal_of uuid, cost_id uuid, invoice_id uuid, documento_fiscale_id uuid);
+    -- I documenti dietro una riconciliazione, ridotti alle colonne che servono.
+    create table bank_reconciliations (id uuid primary key default gen_random_uuid(), company_id uuid, transaction_id uuid,
+      matched_amount numeric, unmatched_at timestamptz, scadenza_id uuid, prima_nota_id uuid, invoice_id uuid,
+      documento_id uuid, payment_source jsonb);
+    create table scadenze (id uuid primary key default gen_random_uuid(), company_id uuid, cost_id uuid, invoice_id uuid);
+    create table company_costs (id uuid primary key default gen_random_uuid(), company_id uuid, category text);
+    create table fatture_ricevute (id uuid primary key default gen_random_uuid(), company_id uuid, company_cost_id uuid,
+      categoria_ai text, categoria_confidenza numeric);
+    create table invoices (id uuid primary key default gen_random_uuid(), company_id uuid, document_type text);
+    create table documenti_fiscali (id uuid primary key default gen_random_uuid(), company_id uuid, tipo text);
   `);
   await db.exec(migrazione());
   await db.exec(migrazione("_cassa_classifica_movimenti.sql"));
+  await db.exec(migrazione("_cassa_ripartizione_documento.sql"));
+  await db.exec(migrazione("_cassa_catalogo_standard_per_tutti.sql"));
   await db.exec(`
     create trigger bank_transaction_operator_guard before insert or delete or update on bank_transactions
       for each row execute function bank_transaction_operator_guard();
@@ -138,8 +150,10 @@ describe("il catalogo base è l'Excel", () => {
 
 describe("la copia dell'azienda", () => {
   it("nasce dal catalogo: aree, categorie e voci, nella gerarchia giusta", async () => {
+    // La copia c'è già: l'ha fatta la migrazione per ogni azienda esistente.
     const r = await prepara();
-    expect(r.r.create).toBe(r.r.totale);
+    expect(r.r.create).toBe(0);
+    expect(r.r.totale).toBeGreaterThan(370);
     const g = await db.query<{ livello: string; n: number }>(
       "select livello, count(*)::int n from cassa_voci where company_id = $1 group by livello order by livello", [A]);
     expect(Object.fromEntries(g.rows.map((x) => [x.livello, x.n]))).toMatchObject({ voce: 330, categoria: 44 });
@@ -147,6 +161,13 @@ describe("la copia dell'azienda", () => {
       `select c.nome cat, a.nome area from cassa_voci v join cassa_voci c on c.id = v.parent_id join cassa_voci a on a.id = c.parent_id
         where v.company_id = $1 and v.codice = '04.02'`, [A]);
     expect(v).toEqual({ cat: "Materiali e merci", area: "Operativa" });
+  });
+
+  it("un'azienda nuova nasce con lo standard dell'Excel, senza che nessuno apra la pagina", async () => {
+    const C = "00000000-0000-0000-0000-00000000000c";
+    await db.query("insert into companies values ($1, 'Azienda C')", [C]);
+    const n = await uno<{ n: number }>("select count(*)::int n from cassa_voci where company_id = $1 and livello = 'voce'", [C]);
+    expect(n.n).toBe(330);
   });
 
   it("rilanciarla non duplica niente e non tocca ciò che l'azienda ha cambiato", async () => {
@@ -430,5 +451,170 @@ describe("classificare in blocco dal Cash flow", () => {
     const r = (await lista()).find((x) => x.id === a)!;
     expect(r.revisione).toBe(2);
     expect(r.voce).toMatchObject({ codice: "09.01", origine: "manuale", confermata: true });
+  });
+});
+
+describe("ripartire un movimento su più voci", () => {
+  beforeEach(async () => { await prepara(); });
+  type Quota = { voce: string; cents: number };
+  const ripartisci = (tx: string, quote: Quota[] | null, rev = 1) =>
+    uno<{ rev: number }>("select public.bank_movimento_ripartizione($1, $2, $3, $4, 'bonifico unico') rev", [A, tx, quote === null ? null : JSON.stringify(quote), rev]);
+
+  it("1.000 € al fornitore: 700 di materiali e 300 di trasporto", async () => {
+    const tx = await movimento({ amount: -1000 });
+    const mat = await voce("04.02");
+    const tra = await voce("09.12");
+    await comeUtente();
+    expect((await ripartisci(tx, [{ voce: tra.id, cents: 30000 }, { voce: mat.id, cents: 70000 }])).rev).toBe(2);
+    const t = await uno<{ cassa_voce_id: string; category: string; cassa_ripartizione: Array<{ voce_id: string; cents: number }> }>(
+      "select cassa_voce_id, category, cassa_ripartizione from bank_transactions where id = $1", [tx]);
+    // La voce principale è la quota più grande: chi legge una voce sola vede quella.
+    expect(t.cassa_voce_id).toBe(mat.id);
+    expect(t.category).toBe(mat.nome);
+    expect(t.cassa_ripartizione).toHaveLength(2);
+    const s = await uno<{ ripartizione: unknown; motivo: string }>(
+      "select ripartizione, motivo from cassa_voce_storico where bank_transaction_id = $1 order by il desc limit 1", [tx]);
+    expect(s.motivo).toBe("bonifico unico");
+    expect(s.ripartizione).toHaveLength(2);
+  });
+
+  it("le quote devono fare l'importo, al centesimo", async () => {
+    const tx = await movimento({ amount: -1000 });
+    await comeUtente();
+    await expect(ripartisci(tx, [{ voce: (await voce("04.02")).id, cents: 70000 }, { voce: (await voce("09.12")).id, cents: 29999 }]))
+      .rejects.toThrow(/sommano 999.99 €, il movimento è di 1000.00 €/);
+  });
+
+  it("ogni quota rispetta le regole della voce: verso, voce attiva, niente doppioni", async () => {
+    const tx = await movimento({ amount: -1000 });
+    await comeUtente();
+    const mat = (await voce("04.02")).id;
+    for (const [altra, errore] of [["01.04", /entrate/], ["04", /non una categoria/], ["04.02", /due volte/]] as const) {
+      await db.exec("savepoint q");
+      await expect(ripartisci(tx, [{ voce: mat, cents: 50000 }, { voce: (await voce(altra)).id, cents: 50000 }])).rejects.toThrow(errore);
+      await db.exec("rollback to savepoint q");
+    }
+    await expect(ripartisci(tx, [{ voce: mat, cents: 100000 }])).rejects.toThrow(/almeno due voci/);
+  });
+
+  it("una categoria scelta dopo toglie la ripartizione, anche se è la stessa voce", async () => {
+    const tx = await movimento({ amount: -1000 });
+    const mat = (await voce("04.02")).id;
+    await comeUtente();
+    await ripartisci(tx, [{ voce: mat, cents: 70000 }, { voce: (await voce("09.12")).id, cents: 30000 }]);
+    await categoria(tx, mat, 2);
+    expect((await uno<{ r: unknown }>("select cassa_ripartizione r from bank_transactions where id = $1", [tx])).r).toBeNull();
+  });
+
+  it("anche la classificazione in blocco: ma un ripartito confermato si salta, se non lo chiedi", async () => {
+    const tx = await movimento({ amount: -1000 });
+    const mat = (await voce("04.02")).id;
+    await comeUtente();
+    await ripartisci(tx, [{ voce: mat, cents: 70000 }, { voce: (await voce("09.12")).id, cents: 30000 }]);
+    const r = await uno<{ r: { aggiornati: number; saltati: number } }>(
+      "select public.cassa_classifica_movimenti($1, $2, $3, null, false) r", [A, [tx], mat]);
+    expect(r.r).toEqual({ aggiornati: 0, saltati: 1 });
+    const f = await uno<{ r: { aggiornati: number } }>("select public.cassa_classifica_movimenti($1, $2, $3, null, true) r", [A, [tx], mat]);
+    expect(f.r.aggiornati).toBe(1);
+    expect((await uno<{ r: unknown }>("select cassa_ripartizione r from bank_transactions where id = $1", [tx])).r).toBeNull();
+  });
+
+  it("il rendiconto riceve le quote con la loro riga del cash flow", async () => {
+    const tx = await movimento({ amount: -1000 });
+    await comeUtente();
+    await ripartisci(tx, [{ voce: (await voce("04.02")).id, cents: 70000 }, { voce: (await voce("09.01")).id, cents: 30000 }]);
+    const r = await uno<{ r: { movimenti: Array<{ quote: Array<{ out: string; cents: number }> }> } }>(
+      "select public.cassa_rendiconto_banca($1, 2026) r", [A]);
+    expect(r.r.movimenti[0].quote.map((q) => [q.out, q.cents])).toEqual([["usc_materiali", 70000], ["usc_mezzi", 30000]]);
+  });
+
+  it("un elenco vuoto toglie la ripartizione e lascia la voce principale", async () => {
+    const tx = await movimento({ amount: -1000 });
+    const mat = (await voce("04.02")).id;
+    await comeUtente();
+    await ripartisci(tx, [{ voce: mat, cents: 70000 }, { voce: (await voce("09.12")).id, cents: 30000 }]);
+    await ripartisci(tx, [], 2);
+    const t = await uno<{ v: string; r: unknown }>("select cassa_voce_id v, cassa_ripartizione r from bank_transactions where id = $1", [tx]);
+    expect(t).toEqual({ v: mat, r: null });
+  });
+
+  it("le quote non sono dati della banca, ma l'importo sì", async () => {
+    const tx = await movimento({ amount: -1000 });
+    await comeUtente();
+    await ripartisci(tx, [{ voce: (await voce("04.02")).id, cents: 70000 }, { voce: (await voce("09.12")).id, cents: 30000 }]);
+    await expect(db.query("update bank_transactions set amount = -999 where id = $1", [tx])).rejects.toThrow(/non si possono riscrivere/);
+  });
+});
+
+describe("la categoria dalla fattura collegata", () => {
+  beforeEach(async () => { await prepara(); });
+  type Proposta = { codice: string; origine: string; confermata: boolean; proposta_quote: Array<{ codice: string; cents: number }> | null };
+  const proposta = async (tx: string) =>
+    (await uno<{ r: Record<string, Proposta> }>("select public.cassa_voci_movimenti($1, $2) r", [A, [tx]])).r[tx];
+  const costo = async (categoria: string | null) =>
+    (await uno<{ id: string }>("insert into company_costs (company_id, category) values ($1, $2) returning id", [A, categoria])).id;
+  const pagaScadenza = async (tx: string, cost: string, euro: number) => {
+    const s = await uno<{ id: string }>("insert into scadenze (company_id, cost_id) values ($1, $2) returning id", [A, cost]);
+    await db.query("insert into bank_reconciliations (company_id, transaction_id, matched_amount, scadenza_id) values ($1, $2, $3, $4)", [A, tx, euro, s.id]);
+  };
+
+  it("un pagamento riconciliato con un costo «materiali_edili» propone Materiali edili, dalla fattura", async () => {
+    const tx = await movimento({ amount: -500, category: "Trasporti" });
+    await pagaScadenza(tx, await costo("materiali_edili"), 500);
+    expect(await proposta(tx)).toMatchObject({ codice: "04.02", origine: "documento", confermata: false });
+  });
+
+  it("senza categoria sul costo usa quella dell'AI sulla fattura ricevuta", async () => {
+    const tx = await movimento({ amount: -500 });
+    const c = await costo(null);
+    await db.query("insert into fatture_ricevute (company_id, company_cost_id, categoria_ai, categoria_confidenza) values ($1, $2, 'trasporti_logistica', 0.9)", [A, c]);
+    await pagaScadenza(tx, c, 500);
+    expect(await proposta(tx)).toMatchObject({ codice: "09.12", origine: "documento" });
+  });
+
+  it("un incasso di una fattura emessa propone Incassi clienti; una nota di credito no", async () => {
+    const tx = await movimento({ amount: 1200 });
+    const inv = await uno<{ id: string }>("insert into invoices (company_id, document_type) values ($1, 'invoice') returning id", [A]);
+    await db.query("insert into bank_reconciliations (company_id, transaction_id, matched_amount, invoice_id) values ($1, $2, 1200, $3)", [A, tx, inv.id]);
+    expect(await proposta(tx)).toMatchObject({ codice: "01", origine: "documento" });
+    const nc = await movimento({ amount: 80 });
+    const n = await uno<{ id: string }>("insert into invoices (company_id, document_type) values ($1, 'credit_note') returning id", [A]);
+    await db.query("insert into bank_reconciliations (company_id, transaction_id, matched_amount, invoice_id) values ($1, $2, 80, $3)", [A, nc, n.id]);
+    expect(await proposta(nc)).toBeUndefined();
+  });
+
+  it("un bonifico che paga due fatture di categorie diverse propone già la ripartizione", async () => {
+    const tx = await movimento({ amount: -1000 });
+    await pagaScadenza(tx, await costo("materiali_edili"), 700);
+    await pagaScadenza(tx, await costo("Trasporti"), 300);
+    const p = await proposta(tx);
+    expect(p).toMatchObject({ codice: "04.02", origine: "documento" });
+    expect(p.proposta_quote!.map((q) => [q.codice, q.cents])).toEqual([["04.02", 70000], ["09.12", 30000]]);
+  });
+
+  it("una riconciliazione annullata non dice niente", async () => {
+    const tx = await movimento({ amount: -500 });
+    await pagaScadenza(tx, await costo("materiali_edili"), 500);
+    await db.query("update bank_reconciliations set unmatched_at = now() where transaction_id = $1", [tx]);
+    expect(await proposta(tx)).toBeUndefined();
+  });
+
+  it("nel popup del Cash flow la fattura viene prima della controparte", async () => {
+    const vecchio = await movimento({ amount: -900, controparte: "Rossi", iban: "IT00R", data: "2026-10-01" });
+    const nuovo = await movimento({ amount: -500, controparte: "Rossi", iban: "IT00R" });
+    await pagaScadenza(nuovo, await costo("materiali_edili"), 500);
+    await comeUtente();
+    await categoria(vecchio, (await voce("09.01")).id);
+    const r = (await uno<{ r: Array<{ id: string; voce: { codice: string; origine: string } }> }>(
+      "select public.cassa_movimenti_da_classificare($1, '2026-01-01', '2026-12-31') r", [A])).r.find((x) => x.id === nuovo)!;
+    expect(r.voce).toMatchObject({ codice: "04.02", origine: "documento" });
+  });
+
+  it("una categoria confermata vince sulla fattura", async () => {
+    const tx = await movimento({ amount: -500 });
+    await pagaScadenza(tx, await costo("materiali_edili"), 500);
+    await comeUtente();
+    await categoria(tx, (await voce("09.01")).id);
+    expect(await proposta(tx)).toMatchObject({ codice: "09.01", confermata: true, origine: "manuale" });
   });
 });

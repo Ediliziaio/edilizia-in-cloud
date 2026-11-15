@@ -5,7 +5,7 @@
  * raddoppia, il saldo quadra con la banca.
  */
 import { describe, expect, it } from "vitest";
-import { uniscMovimentiBanca, type MovimentoBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
+import { dividiNelleQuote, uniscMovimentiBanca, type MovimentoBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
 import { costruisciRendiconto, type MovimentoRegistrato } from "@/lib/controlloGestione/rendicontoCassa";
 
 const banca = (p: Partial<MovimentoBancaCassa> & { id: string; cents: number }): MovimentoBancaCassa => ({
@@ -115,5 +115,39 @@ describe("quadratura con la banca", () => {
     const r = rendiconto(u.registrati);
     const netto = r.flussoNetto.reduce((s, c) => s + c, 0);
     expect(netto).toBe(100000 - 30000 - 20000);
+  });
+});
+
+describe("un movimento ripartito su più voci (15/11/2026)", () => {
+  const voce = { id: "m", nome: "Materiali edili", codice: "04.02", in: null, out: "usc_materiali" as const, origine: "manuale" };
+  const quote = [
+    { id: "m", nome: "Materiali edili", codice: "04.02", in: null, out: "usc_materiali" as const, cents: 70000 },
+    { id: "t", nome: "Trasporti", codice: "09.12", in: null, out: "usc_mezzi" as const, cents: 30000 },
+  ];
+
+  it("senza prima nota: una riga per quota, ognuna nella sua riga del cash flow", () => {
+    const u = uniscMovimentiBanca([], [banca({ id: "t1", cents: -100000, voce, quote })]);
+    expect(u.registrati.map((r) => [r.id, r.amount, r.voceCassa])).toEqual([
+      ["banca:t1#0", 700, "usc_materiali"],
+      ["banca:t1#1", 300, "usc_mezzi"],
+    ]);
+    const r = rendiconto(u.registrati);
+    expect(r.righe.usc_materiali[2]).toBe(-70000);
+    expect(r.righe.usc_mezzi[2]).toBe(-30000);
+    expect(u.daBanca).toBe(1);
+  });
+
+  it("con prima nota: la scrittura si divide nella stessa proporzione, il totale non cambia", () => {
+    const registrati = [pn({ id: "p1", amount: 1000.01, category: "Materiali", bankTransactionId: "t1" })];
+    const u = uniscMovimentiBanca(registrati, [banca({ id: "t1", cents: -100001, in_prima_nota: true, voce, quote })]);
+    expect(u.registrati).toHaveLength(2);
+    expect(u.registrati.reduce((s, r) => s + Math.round(Number(r.amount) * 100), 0)).toBe(100001);
+    expect(u.registrati.map((r) => r.voceCassa)).toEqual(["usc_materiali", "usc_mezzi"]);
+  });
+
+  it("i centesimi di arrotondamento vanno alla quota più grande", () => {
+    expect(dividiNelleQuote(100, [{ cents: 1 }, { cents: 1 }, { cents: 1 }])).toEqual([34, 33, 33]);
+    expect(dividiNelleQuote(1001, [{ cents: 300 }, { cents: 700 }])).toEqual([300, 701]);
+    expect(dividiNelleQuote(500, [])).toEqual([]);
   });
 });

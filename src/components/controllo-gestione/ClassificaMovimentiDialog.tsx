@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { bankRpc } from "@/lib/finance/bankWorkspace";
-import { ORIGINE_VOCE, useAggiornaDopoCategoria, useCatalogoCassa, type VoceCatalogo } from "@/lib/finance/cassaVoci";
+import { ORIGINE_VOCE, useAggiornaDopoCategoria, useCatalogoCassa, type VoceCatalogo, type QuotaVoce } from "@/lib/finance/cassaVoci";
 import { etichettaVoce } from "@/lib/controlloGestione/rendicontoCassa";
 import { ScegliVoceCassa } from "@/components/tesoreria/ScegliVoceCassa";
 import { euroIntero } from "@/lib/controlloGestione/formatoCG";
@@ -37,7 +37,13 @@ export interface MovimentoDaClassificare {
   controparte: string | null;
   categoria_testo: string | null;
   revisione: number;
-  voce: { id: string; nome: string; codice: string; categoria: string | null; origine: string; confermata: boolean } | null;
+  voce: {
+    id: string; nome: string; codice: string; categoria: string | null; origine: string; confermata: boolean;
+    /** Ripartito su più voci (salvato). */
+    quote?: QuotaVoce[] | null;
+    /** La fattura collegata copre più voci: la ripartizione proposta. */
+    proposta_quote?: QuotaVoce[] | null;
+  } | null;
 }
 
 type Vista = "da-classificare" | "proposte" | "classificati" | "tutti";
@@ -61,6 +67,11 @@ function nellaVista(m: MovimentoDaClassificare, vista: Vista): boolean {
 
 /** Una proposta si può accettare così com'è solo se indica una voce, non una categoria intera. */
 const propostaAccettabile = (m: MovimentoDaClassificare) => !!m.voce && !m.voce.confermata && m.voce.codice.includes(".");
+/** Una ripartizione proposta dalla fattura si accetta così com'è solo se ogni quota è una voce precisa e fa l'importo. */
+const quoteAccettabili = (m: MovimentoDaClassificare) => {
+  const q = m.voce?.proposta_quote;
+  return !!q && q.length > 1 && q.every((x) => x.codice.includes(".")) && q.reduce((s, x) => s + x.cents, 0) === Math.abs(m.cents);
+};
 
 export function ClassificaMovimentiDialog({
   open,
@@ -174,10 +185,22 @@ export function ClassificaMovimentiDialog({
 
   async function accettaProposte() {
     const perVoce = new Map<string, string[]>();
-    for (const m of proposteScelte) perVoce.set(m.voce!.id, [...(perVoce.get(m.voce!.id) ?? []), m.id]);
+    // La fattura che copre più voci (tutte precise) si accetta come ripartizione.
+    const ripartite = proposteScelte.filter((m) => quoteAccettabili(m));
+    for (const m of proposteScelte) {
+      if (ripartite.includes(m)) continue;
+      perVoce.set(m.voce!.id, [...(perVoce.get(m.voce!.id) ?? []), m.id]);
+    }
     setOccupato(true);
     let fatti = 0;
     try {
+      for (const m of ripartite) {
+        await bankRpc<number>("bank_movimento_ripartizione", {
+          p_company: company, p_tx: m.id, p_revision: m.revisione, p_motivo: motivo.trim() || "Ripartizione della fattura accettata",
+          p_quote: m.voce!.proposta_quote!.map((q) => ({ voce: q.id, cents: q.cents })),
+        });
+        fatti++;
+      }
       for (const [voce, ids] of perVoce) {
         const r = await bankRpc<{ aggiornati: number }>("cassa_classifica_movimenti", {
           p_company: company, p_tx: ids, p_voce: voce, p_motivo: motivo.trim() || "Proposta accettata", p_anche_confermati: false,
@@ -325,12 +348,19 @@ export function ClassificaMovimentiDialog({
                                 <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                                   {m.voce ? (
                                     <Badge variant="outline" className={cn("h-5 px-1.5 text-[11px] font-normal", m.voce.confermata ? "border-emerald-300 text-emerald-800 dark:text-emerald-300" : "border-amber-300 text-amber-900 dark:text-amber-200")} title={ORIGINE_VOCE[m.voce.origine] ?? m.voce.origine}>
-                                      {m.voce.confermata ? "" : "Proposta: "}{m.voce.nome}
+                                      {m.voce.confermata ? "" : "Proposta: "}
+                                      {m.voce.quote && m.voce.quote.length > 1 ? `Ripartito: ${m.voce.quote.map((q) => q.nome).join(" + ")}` : m.voce.nome}
                                     </Badge>
                                   ) : (
                                     <span className="text-amber-800 dark:text-amber-300">Senza categoria</span>
                                   )}
                                   {!m.voce?.confermata && m.voce?.origine === "controparte" && <span className="text-muted-foreground">come l'ultima volta</span>}
+                                  {!m.voce?.confermata && m.voce?.origine === "documento" && (
+                                    <span className="text-muted-foreground">
+                                      dalla fattura collegata
+                                      {m.voce.proposta_quote && m.voce.proposta_quote.length > 1 && `, che copre ${m.voce.proposta_quote.length} voci: ${m.voce.proposta_quote.map((q) => `${q.nome} ${euro(q.cents)}`).join(", ")}`}
+                                    </span>
+                                  )}
                                 </span>
                               </span>
                               <span className={cn("shrink-0 font-semibold tabular-nums", m.cents < 0 && "text-rose-700")}>{euro(m.cents)}</span>

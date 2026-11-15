@@ -1,8 +1,9 @@
 /**
  * Categorie di cassa (catalogo `cassa_voci`, 14/11/2026): una sola fonte per il
  * movimento bancario, il popup di classificazione del Cash flow e la
- * Configurazione. Il catalogo dell'azienda nasce da `cassa_catalogo_base` (le
- * 330 voci del file) alla prima apertura, con `cassa_catalogo_prepara`.
+ * Configurazione. Il catalogo dell'azienda è lo standard dell'Excel
+ * (`cassa_catalogo_base`, 330 voci): dal 15/11/2026 ogni azienda lo ha già,
+ * dalla nascita; `cassa_catalogo_prepara` resta come rete di sicurezza.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +47,19 @@ export interface VoceMovimento {
   origine: string;
   confermata: boolean;
   il: string | null;
+  /** Il movimento è ripartito su più voci: le quote salvate, la più grande prima. */
+  quote?: QuotaVoce[] | null;
+  /** La fattura collegata copre più voci: la ripartizione che propone. */
+  proposta_quote?: QuotaVoce[] | null;
+}
+
+export interface QuotaVoce {
+  id: string;
+  nome: string;
+  codice: string;
+  /** Solo nelle proposte: una categoria intera va precisata prima di salvare. */
+  livello?: LivelloVoce;
+  cents: number;
 }
 
 export const ORIGINE_VOCE: Record<string, string> = {
@@ -184,6 +198,35 @@ export async function salvaCategoriaMovimento(args: {
     p_revision: args.revision,
     p_motivo: args.motivo ?? null,
   });
+}
+
+/**
+ * Ripartisce un movimento su più voci (somma = importo, in centesimi). Un
+ * elenco vuoto toglie la ripartizione. Restituisce la nuova revisione.
+ */
+export async function salvaRipartizioneMovimento(args: {
+  company: string;
+  tx: string;
+  quote: { voce: string; cents: number }[];
+  revision: number;
+  motivo?: string | null;
+}): Promise<number> {
+  return bankRpc<number>("bank_movimento_ripartizione", {
+    p_company: args.company,
+    p_tx: args.tx,
+    p_quote: args.quote,
+    p_revision: args.revision,
+    p_motivo: args.motivo ?? null,
+  });
+}
+
+/** «1.000,50» o «1000.5» → 100050 centesimi; null se non è un importo. */
+export function centesimiDaTesto(testo: string): number | null {
+  let t = testo.replace(/[€\s]/g, "");
+  if (!t) return null;
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
+  return Math.round(Number(t) * 100);
 }
 
 /** Configurazione di una voce (nuova se `id` è null). */

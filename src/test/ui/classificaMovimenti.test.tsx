@@ -102,6 +102,28 @@ describe("classifica i movimenti", () => {
     );
   });
 
+  it("una ripartizione proposta dalla fattura si accetta come ripartizione", async () => {
+    m.rpc.mockImplementation(async (nome: string) => {
+      if (nome === "cassa_movimenti_da_classificare") return [mov({ id: "r", cents: -10000, revisione: 3, voce: {
+        id: "v0412", nome: "Minuteria e ferramenta", codice: "04.12", categoria: "Materiali e merci", origine: "documento", confermata: false,
+        proposta_quote: [
+          { id: "v0412", nome: "Minuteria e ferramenta", codice: "04.12", livello: "voce", cents: 7000 },
+          { id: "v0901", nome: "Carburante", codice: "09.01", livello: "voce", cents: 3000 },
+        ] } })];
+      return 4;
+    });
+    apri();
+    expect(await screen.findByText(/dalla fattura collegata, che copre 2 voci/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Seleziona Causale r/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Accetta le proposte/ }));
+    await waitFor(() =>
+      expect(m.rpc).toHaveBeenCalledWith("bank_movimento_ripartizione", expect.objectContaining({
+        p_tx: "r", p_revision: 3, p_quote: [{ voce: "v0412", cents: 7000 }, { voce: "v0901", cents: 3000 }],
+      })),
+    );
+    expect(m.rpc).not.toHaveBeenCalledWith("cassa_classifica_movimenti", expect.anything());
+  });
+
   it("chi non può riconciliare vede le categorie ma non le assegna", async () => {
     apri(false);
     await screen.findByText("Causale a");
