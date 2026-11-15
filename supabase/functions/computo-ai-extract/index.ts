@@ -19,6 +19,7 @@ import { messaggioErroreLettura } from "../_shared/computoErroreLettura.ts";
 import { bloccoAiPerUtente, erroreAiPerUtente } from "../_shared/erroriAi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
+import { addebitaEmbedding } from "../_shared/addebitoEmbedding.ts";
 import { extractPdfWithCoverage, splitPdfTextAtRows } from "../_shared/pdfExtraction.ts";
 // 18/10/2026: il lettore PDF condiviso ora carica le librerie in modo che il deploy le includa.
 import { arrayBufferToBase64 } from "../_shared/base64.ts";
@@ -853,6 +854,7 @@ async function matchAndUpdateVoci(
 
       // ── 2. pgvector fallback ─────────────────────────────────────────────
       const embedding = await generateEmbedding(queryText);
+      await addebitaEmbedding({ supabase: sb, companyId, testo: queryText, taskKind: "computo_match_embedding" });
       const embeddingLiteral = `[${embedding.join(",")}]`;
 
       // 2a. Tariffe / manodopera / posa: se la voce sembra servizio, evita

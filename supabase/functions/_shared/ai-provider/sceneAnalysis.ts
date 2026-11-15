@@ -5,6 +5,7 @@
 import { callOpenRouter } from "./openrouter.ts";
 import { makeAIError } from "./types.ts";
 import type { ChatMessage } from "./types.ts";
+import { registraCostoIncluso } from "../costoAiIncluso.ts";
 
 // v8.6.32 — Gemini eliminato. Chain: Claude Haiku + OpenAI Vision.
 const SCENE_MODELS_CHAIN = [
@@ -68,6 +69,16 @@ export async function analyzeScene(
           company_id: args.metadata.company_id,
         },
       );
+
+      // L'analisi della foto è il primo passo del render, che si paga in crediti
+      // render: ogni chiamata (anche un tentativo poi scartato) resta registrata
+      // col suo costo, a 0 per il portafoglio AI.
+      await registraCostoIncluso({
+        companyId: args.metadata.company_id, taskKey: args.metadata.task_kind, modello: result.model,
+        tokensIn: result.usage.prompt_tokens, tokensOut: result.usage.completion_tokens,
+        costoUsd: result.cost_usd, motivo: "incluso nei crediti render",
+        generationId: result.generation_id ?? null, metadata: { session_id: args.metadata.session_id ?? null },
+      });
 
       const text = (result.content ?? "").trim();
       if (!text) {

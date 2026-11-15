@@ -148,31 +148,31 @@ corpo della richiesta, ma il server verifica che l'utente le appartenga.
 | Email: estrazione dati dall'allegato PDF | `email-ai-estrai-allegato/index.ts:157` | OpenRouter (Sonnet, PDF) | token | `ai_pricing_markup` | dalla email (RLS) | era nessuno | Sonnet sui PDF pagato da noi | `callOpenRouterAddebitato`: credito prima, addebito dopo, chiave allegato + generazione |
 | Email: opportunità | `email-ai-opportunita/index.ts:95` | OpenRouter (Haiku) | token | `ai_pricing_markup` | dalla email | era nessuno | non addebitato | `callOpenRouterAddebitato` |
 | Email: evento, bozza L4, digest, query Silvio | `claudeMessagesBilled` | OpenRouter | token | `ai_pricing_markup` | dalla email / `requireCompanyAccess` | D | nessuna chiave; addebito fallito ignorato | chiave dalla generazione; il consumo non addebitato resta registrato |
-| Email: embedding della query Silvio | `email-silvio-query/index.ts:179` | OpenAI embedding | token | — | profilo | P (dichiarato) | non addebitato | **resta** (vedi §4) |
+| Email: embedding della query Silvio | `email-silvio-query/index.ts:179` | OpenAI embedding | token | — | profilo | D | non addebitato | **chiuso (sera)**: `addebitaEmbedding` all'azienda del profilo |
 | Email: embedding storico | `email-ai-embed-backfill/index.ts:88` | OpenAI embedding | token | `ai_pricing_markup` (default) | dalla email | D | bastava un JWT qualunque, su tutte le aziende | solo cron o super admin; addebito per email all'azienda della email |
 | Ricerca semantica | `semantic-search-global/index.ts:56` | OpenAI embedding | token | `ai_pricing_markup` (default) | **era il corpo**, ora il profilo (il corpo solo per il super admin) | D | bastava il prefisso «Bearer»: chiave anonima pubblica | `auth.getUser`, azienda dal profilo, addebito |
 | Assistente sopralluogo | `survey-ai-assistant/index.ts` | OpenRouter (Haiku) | token | `ai_pricing_markup` | dal sopralluogo | era nessuno | IDOR: sopralluogo di un'altra azienda letto via service role; non addebitato | `requireCompanyAccess` sull'azienda del sopralluogo; `claudeMessagesBilled`; 402 chiaro |
-| Video per le inserzioni | `ai-ads-video-generate/index.ts:170` | Replicate (SVD, MiniMax) | video | tier `t2_vision` su costo stimato in `MODELS` (3 / 20 centesimi) | profilo (super admin escluso) | era nessuno → U | il costo unitario più alto, mai addebitato | `controllaCreditoUnitario` prima, `addebitaUnitario` con chiave `video_replicate_<id>`. Limite noto: se l'addebito fallisce dopo l'avvio, lo stato del video risponde 404 (si vede nei log); i video avviati prima del deploy non si recuperano dallo stato |
+| Video per le inserzioni | `ai-ads-video-generate/index.ts:170` | Replicate (SVD, MiniMax) | video | tier `t2_vision` su costo stimato in `MODELS` (3 / 20 centesimi) | profilo (super admin escluso) | era nessuno → U | il costo unitario più alto, mai addebitato | `controllaCreditoUnitario` prima, `addebitaUnitario` con chiave `video_replicate_<id>`. Se l'addebito non passa dopo l'avvio, il lavoro Replicate si **annulla** (`/cancel`) e la risposta è 502: nessun video gratis, nessun video «orfano» che lo stato non sa dare |
 | Stato del video | `ai-ads-video-status/index.ts:68` | Replicate GET | — | — | **era il corpo** | — | URL dal corpo chiamato col token Replicate (furto del token, SSRF); scrittura su qualunque azienda | URL costruito dal server; appartenenza verificata; la previsione deve essere addebitata a quell'azienda |
-| Immagini per le inserzioni | `ai-ads-image-generate` → `image.ts` | OpenRouter / OpenAI | immagine | tier | profilo | U (`chargeDirectAiCall`) | chiave casuale senza `client_request_id` | resta (§5) |
+| Immagini per le inserzioni | `ai-ads-image-generate` → `image.ts` | OpenRouter / OpenAI | immagine | tier | profilo | U (`chargeDirectAiCall`) | chiave casuale senza `client_request_id` | **verificato, giusto**: ogni generazione richiama il provider, quindi una chiamata = un addebito; con `client_request_id` il retry dello stesso clic non conta due volte |
 | Creatività di Silvio (worker) | `silvio-generation-worker` → `image.ts` | OpenRouter / OpenAI | immagine | tier | dal job | U, chiave `silvio-creativita:<job>` | il ramo non interno accettava qualunque utente | solo super admin (`requireRole`) |
 | Render (10 funzioni `generate-*-render`) | `image.ts` `editImage`, visionQa, rewriter | OpenRouter / OpenAI | immagine + token | crediti render | sessione + `canAccessCompany` | RC | — | — |
-| Render: azione `analyze` | floor :242, shutter :205, bathroom :338, facade :213 | OpenRouter vision | token | — | sessione facoltativa | P di fatto | analisi gratuita prima del credito; in floor e shutter, senza sessione, su un `image_url` qualsiasi | **resta** (§5) |
+| Render: azione `analyze` | floor :242, shutter :205, bathroom :338, facade :213 | OpenRouter vision | token | — | sessione obbligatoria | RC (incluso nel render) | analisi gratuita, in floor, shutter e bathroom anche senza sessione su un `image_url` qualsiasi | **chiuso (sera)**: sessione obbligatoria ovunque; ogni chiamata (anche i tentativi scartati della catena) registrata col costo vero in `ai_call_ledger`, `skipped`, motivo «incluso nei crediti render» (`_shared/costoAiIncluso.ts`). Addebitarla anche come AI sarebbe un doppio addebito: domanda 8 |
 | Planimetria | `planimetria-genera` | OpenRouter | token | crediti render | sessione | RC (`skipped` nel router) | rimborso +1 su illimitate | già corretto in DB dal 05/11 |
 | Dettatura | `detta-testo/index.ts:121` | Whisper | secondi audio | `ai_pricing_markup` | `requireCompanyAccess` | D, credito prima | si addebitava sulla durata **dichiarata dal browser** | `verbose_json`: si addebita la maggiore fra la durata misurata da Whisper e quella dichiarata, così un browser non può dichiarare meno |
 | Rapportino a voce | `parse-rapportino-ai/index.ts:110` | Whisper + router | secondi + token | come sopra | profilo + accesso | D + R | come sopra | come sopra |
 | Vocali WhatsApp | `whatsapp-ai-processor/openai.ts:155` | Whisper | secondi | `ai_pricing_markup` | dal messaggio (DB) | era nessuno → D | non addebitato | durata da Whisper (o stima dai byte), addebito all'azienda del messaggio |
 | Trascrizioni Silvio / audio | `silvio-transcribe-audio`, `trascrizione-audio` | Whisper | secondi | `ai_pricing_markup` | profilo + accesso | D | esito ignorato | ora il consumo non addebitato resta registrato |
 | Preventivo a voce | `ai-preventivo-conversazione/audio.ts` | Whisper | secondi | `ai_pricing_markup` | accesso | D, con `runGuardedAiRequest` | — (l'unico che controlla l'esito) | — |
-| Matrice da immagine | `parse-matrix-image` :271/:308/:372 | OpenAI / OpenRouter / Gemini | token | `ai_pricing_markup` | accesso | D | nessun credito prima; esito ignorato | consumo non addebitato registrato; il credito prima resta da mettere |
-| Verifica ordine, offerta RDO | `verify-purchase-order`, `rdo-ai-estrai-offerta` | OpenRouter (Sonnet) | token | `ai_pricing_markup` | accesso | D | chiave solo nei metadati, non applicata | nessuna: ogni chiamata richiama il provider e si addebita, il che è giusto; il consumo non addebitato ora resta registrato |
-| Foto finestra | `analyze-window-photo` | OpenRouter / OpenAI | token | tier | sessione + accesso | U, chiave fissa per sessione e modo | la ri-analisi della stessa sessione non si paga | resta (§5) |
-| Assistente email, orchestratore Silvio | `email-ai-assistant`, `silvio-orchestratore` | OpenRouter | token | tier | thread / `get_effective_company_id` | U, chiave casuale | sul ramo di servizio l'orchestratore si fida del `company_id` del corpo | resta (§5) |
+| Matrice da immagine | `parse-matrix-image` :271/:308/:372 | OpenAI / OpenRouter / Gemini | token | `ai_pricing_markup` | accesso | D, credito prima | nessun credito prima; esito ignorato | **chiuso (sera)**: `precallCheck` prima del provider (402 chiaro); il consumo non addebitato resta registrato |
+| Verifica ordine, offerta RDO | `verify-purchase-order`, `rdo-ai-estrai-offerta` | OpenRouter (Sonnet) | token | `ai_pricing_markup` | accesso | D, credito prima | `verify-purchase-order/index.ts` senza credito prima | **chiuso (sera)**: `precallCheck` prima della lettura (il ramo `controlloDocumento` lo aveva già). La chiave nei metadati non serve: ogni lettura richiama il provider e si paga |
+| Foto finestra | `analyze-window-photo` | OpenRouter / OpenAI | token | tier | sessione + accesso | U | la ri-analisi della stessa sessione non si pagava (chiave fissa) | **chiuso (sera)**: chiave per chiamata |
+| Assistente email, orchestratore Silvio | `email-ai-assistant`, `silvio-orchestratore` | OpenRouter | token | tier | thread / `get_effective_company_id` | U, chiave per chiamata | sul ramo di servizio l'orchestratore prende il `company_id` dal corpo | **verificato, giusto**: la chiave casuale vuol dire una chiamata = un addebito; il ramo di servizio vuole la chiave di servizio esatta o il segreto del cron, e i chiamanti (`silvio-trigger-tick`, `silvio-canale-adapter`) prendono l'azienda dal record |
 | Chat dei bot (WhatsApp, lead, assistenza, ads) | `ai-provider` `chat()` | OpenRouter | token | `ai_pricing_markup` | dal record / profilo | D, credito prima, lancia se non addebita | — | — |
-| Embedding (`brainEmbed`): computo, preventivi, RAG di Silvio, KB | `_shared/brainEmbed.ts` | OpenAI | token | — | vari | P (dichiarato), tranne memoria e ingest del cervello (U) | non addebitato | **resta** (§4) |
+| Embedding (`brainEmbed`): computo, preventivi, RAG di Silvio, KB | `_shared/brainEmbed.ts` | OpenAI | token | — | vari | D per i punti di un'azienda; P per la KB della piattaforma | non addebitato | **chiuso (sera)**: `addebitaEmbedding` in computo (`computo_match_embedding`), preventivi (`preventivo_storico_embedding`, `preventivo_listino_embedding`), RAG di Silvio (`silvio_rag_embedding`); memoria e ingest del cervello erano già U; la KB della piattaforma (seed, ingest, test, playground, sync) resta P |
 | KB della piattaforma: ingest, test RAG, rerank | `kb-ingest-batch`, `kb-test-rag`, `silvio-kb-search` (Cohere) | OpenAI / Cohere | token | — | nessuna | P | — | ora con la riga «interno_piattaforma» |
 | Customer OS (6 agenti CS della piattaforma) | `_customer_os_shared` `callLLM` | OpenRouter | token | — | nessuna (piattaforma) | P, costo in `complete_workflow_run` | — | dichiarato |
-| Voce: chiamate in uscita, centralino | `initiate-outbound-call`, `fishCentralino` | ElevenLabs / Fish | minuti | `voicePricing` | agente / servizio | V | il ramo di servizio si fida del `company_id` del corpo (solo chiave di servizio) | resta (§5) |
+| Voce: chiamate in uscita, centralino | `initiate-outbound-call`, `fishCentralino` | ElevenLabs / Fish | minuti | `voicePricing` | agente / servizio | V | il ramo di servizio prende il `company_id` dal corpo (solo chiave di servizio) | **verificato, giusto**: i chiamanti interni (`process-automation`, `silvio-execute-action`) passano l'azienda del record |
 | Voce: gestione agenti, KB, clonazione | `elevenlabs-proxy`, `kb-sync` | ElevenLabs (API di gestione) | — | abbonamento | `agentCompanyAccess` | P | la clonazione voce consuma quota dell'abbonamento | dichiarato |
 | Voce: anteprime Fish | `fish-agent-proxy` `preview_*`, `simulate` | Fish TTS | caratteri (≤ 500) | — | accesso | P, con limite di frequenza | non addebitato | dichiarato |
 | Sweeper conversazioni | `ai-conversations-sweeper` | ElevenLabs GET | — | — | DB | V tramite webhook | — | — |
@@ -195,15 +195,16 @@ In ordine di costo unitario:
 
 **Restano a carico della piattaforma, dichiarati qui:**
 
-- tutti gli embedding non elencati sopra (0,02 $ per milione di token: millesimi di euro al mese);
+- gli embedding della KB della piattaforma (seed, ingest, test, playground, sync esterni);
 - il rerank Cohere della KB;
 - le API di gestione di ElevenLabs, compresa la clonazione della voce (consuma la quota dell'abbonamento);
 - le anteprime Fish (≤ 500 caratteri, con limite di frequenza);
 - il Customer OS;
 - Silvio dei super admin;
 - la sonda;
-- la diagnostica;
-- l'azione `analyze` dei render (§5).
+- la diagnostica.
+
+**Inclusi in un'altra unità** (registrati col costo, a 0 sul portafoglio AI): l'analisi della foto e la generazione dei render (crediti render), le planimetrie (crediti render).
 
 ## 5. Politica comune
 
@@ -216,14 +217,7 @@ In ordine di costo unitario:
 - **Gratuito, promozionale, amministrativo.** L'omaggio del mese si consuma per primo ed è tracciato (`da_omaggio`). Demo 2 è illimitata ma ha i consumi registrati. I costi interni hanno `interno: true` o `error_code='interno_piattaforma'`.
 - **Isolamento.** Provato sul database con un amministratore di Demo 2: 2.230 righe sue in `consumi_ai_azienda`, 0 delle 6.386 di altre aziende. Un utente di cantiere (`e_solo_campo`) non vede consumi. `metriche_ai_azienda` su un'altra azienda risponde «Accesso non autorizzato». I clienti esterni del portale non leggono più `ai_model_usage_log`: prima lo leggevano, ora la regola è la stessa di `ai_call_ledger`.
 
-**Restano aperti, da fare in un lotto successivo:**
-
-- l'azione `analyze` dei render prima del credito, e senza sessione su URL arbitrario;
-- il credito prima della chiamata in `parse-matrix-image` e `verify-purchase-order/index.ts`;
-- il ramo di servizio di `silvio-orchestratore` e `initiate-outbound-call`, che si fida del `company_id` del corpo: solo chiave di servizio, nessun utente può arrivarci;
-- la chiave fissa per sessione di `analyze-window-photo`, che non fa pagare la ri-analisi;
-- le chiavi casuali di `email-ai-assistant` e `ai-ads-image-generate` senza `client_request_id`;
-- gli embedding di `brainEmbed`, se il titolare vuole addebitarli (domanda 6).
+**Righe tecniche aperte: nessuna** dopo il secondo giro del 15/11 sera. Le scelte rimaste sono commerciali (§9).
 
 ## 6. Prima i dati, poi l'AI (§7.16)
 
@@ -231,6 +225,8 @@ In ordine di costo unitario:
 - **Dove si legge.** `metriche_ai_azienda` restituisce la percentuale di lavori chiusi senza AI, per flusso, insieme alle chiamate e all'importo per compito e al costo medio. La pagina «Consumo AI del team» la mostra nel riquadro «Lavori chiusi senza AI».
 - **Primo flusso agganciato: la classificazione delle fatture ricevute** (`ai-fattura-classify`). Se CUP, CIG o codice commessa la risolvono, l'esito è `senza_ai`. Se la risposta arriva dalla cache, è `dato_gia_presente`.
 - **Gli altri flussi.** Le sessioni B, C e D li agganciano con una riga (`registraEsitoLavoroAi`) nei flussi che riducono: lettura bolle, abbinamenti, rapportini.
+- **La misura vera, 30 giorni al 15/11 sera** (`ai_metriche_piattaforma(30)`): 2.084 chiamate, 1.970 addebitate, 84,40 € addebitati su 29,55 € di costo reale, costo medio 0,043 € per chiamata addebitata; lavori chiusi senza AI **93,5%** (triage email: 3.536 email con le regole, 245 con Haiku). Il registro `lavori_ai_esiti` si riempie man mano che i flussi lo scrivono; il triage email si legge da `email_inbox.classificato_da`, che c'era già.
+- **Dove la vede il titolare.** Pannello admin → AI Provider & Margini → riquadro «AI: addebiti e lavori senza AI» (`AdminAiAddebitiMisureCard`, da `ai_metriche_piattaforma`): totali, lavori senza AI per flusso, chiamate/costo/addebitato/costo medio per compito, per azienda (con il costo non addebitato), e quanto paga la piattaforma per conto suo. L'azienda vede la sua parte in «Consumo AI del team».
 - **Controlli già presenti prima dell'AI.** La cache delle risposte (`cacheTtlDays`), l'impronta del file sulle bolle persistenti (`ddt_persistente_<azienda>_<hash>`), la guardia SDI sugli allegati XML/p7m e il filtro dei candidati nell'estrazione degli allegati. Il triage email L1/L2 usa regole e mittente imparato e chiama Haiku solo per i casi irrisolti.
 
 ## 7. Correzioni, file per file
@@ -267,29 +263,58 @@ In ordine di costo unitario:
 
 **Frontend**: `src/components/credits/TeamAIUsage.tsx`, `src/integrations/supabase/types.ts` (rigenerato).
 
+**Secondo giro (15/11 sera)**:
+- migrazione `20290403150200_misure_ai_per_il_titolare.sql` (applicata e riallineata): `lavori_ai_periodo` (lavori registrati + triage email), `metriche_ai_azienda` che la usa, `ai_metriche_piattaforma` per il super admin;
+- nuovi `_shared/costoAiIncluso.ts` (costo registrato a 0 per il portafoglio AI, col motivo) e `_shared/addebitoEmbedding.ts`;
+- `_shared/ai-provider/sceneAnalysis.ts` (ogni chiamata registrata); `generate-floor-render`, `generate-shutter-render`, `generate-bathroom-render` (sessione obbligatoria per l'analisi);
+- `parse-matrix-image`, `verify-purchase-order` (credito prima); `analyze-window-photo` (chiave per chiamata); `ai-ads-video-generate` (annulla il video se l'addebito non passa);
+- embedding addebitati in `computo-ai-extract`, `ai-quote-supreme`, `ai-quote-from-capture`, `_shared/ragInjector.ts` (Silvio e orchestratore), `email-silvio-query`;
+- `src/components/admin/ai-provider/AdminAiAddebitiMisureCard.tsx` nel pannello `AdminAiMarginsPanel`.
+
 ## 8. Test
 
-- **`src/test/logic/aiAddebitiCensimento.test.ts`**: 20 casi con provider e database finti. Coprono:
-  - crediti disponibili e corrispondenza col prezzo atteso (0,01 $ × 0,92 × 3 = 0,0276 €);
-  - stessa chiave con provider richiamato (secondo addebito) e stessa generazione (nessun doppio);
-  - crediti insufficienti (il provider non parte);
-  - errore e timeout del provider (saldo intatto);
-  - azienda assente (costo interno registrato) e isolamento fra due aziende con chiavi uguali;
-  - strada diretta: replay, tre richieste simultanee (una sola addebitata), credito finito dopo la chiamata (registrato, non addebitato);
-  - video: credito negato con messaggio, addebito senza token, replay;
-  - esiti dei lavori;
-  - lettura del codice di L3 per azienda, URL Replicate, controlli d'accesso, strade che addebitano.
-- **Restano verdi**: `aiRouterBillingVerification` (28), `dettaTesto`, `allarmeAIAgganci`.
-- **Sul database**, in transazioni annullate:
-  - `addebita_ai_diretta` su Demo 2: addebito 0,0276 €, replay senza secondo addebito, costo interno senza azienda, azienda bloccata con la riga `non_addebitato`;
-  - isolamento di `consumi_ai_azienda` e di `metriche_ai_azienda`.
-- **`typecheck:ci`** e la suite mirata sono segnati nel commit.
+- **`src/test/logic/aiAddebitiCensimento.test.ts`**: 27 casi con provider e database finti.
+  - Crediti disponibili, e il prezzo addebitato corrisponde all'atteso (0,01 $ × 0,92 × 3 = 0,0276 €).
+  - Stessa chiave con il provider richiamato: secondo addebito. Stessa generazione: nessun doppio.
+  - Crediti insufficienti: il provider non parte.
+  - Errore e timeout del provider: saldo intatto.
+  - Senza azienda: costo interno registrato. Due aziende con le stesse chiavi restano isolate.
+  - Strada diretta: replay, tre richieste simultanee (ne passa una sola), credito finito dopo la chiamata (registrato, non addebitato).
+  - Video: credito negato col messaggio, addebito senza token, replay. Il lavoro si annulla se l'addebito non passa.
+  - Costo incluso nei crediti render e costo interno. Embedding addebitati e mai bloccanti.
+  - Esiti dei lavori.
+  - Lettura del codice:
+    - L3 un batch per azienda;
+    - URL di Replicate costruito dal server;
+    - controlli d'accesso;
+    - sessione obbligatoria per l'analisi dei render;
+    - credito controllato prima della chiamata;
+    - chiave per chiamata;
+    - strade che addebitano.
+- **Restano verdi**: `aiRouterBillingVerification` (28), `costoVeroAI`, `dettaTesto`, `dettaTestoGestore`, `allarmeAIAgganci`, `silvioBloccoCartaMotivoVero` e le suite che leggono i file toccati.
+  - Rossi anche su `main`, prima di questo lavoro: `funzioniDaRipubblicare`, `silvioMenoToken`, `silvioPermessiDelVenditore`.
+- **Sul database, in transazioni annullate:**
+  - `addebita_ai_diretta` su Demo 2: addebito di 0,0276 €, replay senza secondo addebito, costo interno senza azienda, azienda bloccata con la riga `non_addebitato`.
+  - **Uso incluso nel piano (omaggio mensile)**: con 0,05 € di omaggio, il primo addebito da 0,0414 € esce tutto dall'omaggio. Il secondo prende gli 0,0086 € rimasti e mette 0,0328 € sul portafoglio.
+  - Isolamento di `consumi_ai_azienda` (2.230 righe proprie, 0 delle 6.386 altrui) e di `metriche_ai_azienda` (un'altra azienda → «Accesso non autorizzato»).
+- **Dopo il deploy, in produzione** (giro CI 43736659603: 136 funzioni ripubblicate, nessun errore):
+  - Prima di qualunque prova, l'embedding delle email (6 righe) e le opportunità dalle email (2 righe, con chiave) di aziende vere risultavano già addebitati all'azienda. Prima non lo erano.
+  - **Chiamate vere su Demo 2** (via `pg_net` col segreto del cron), tutte con `credits_deducted = true` e il movimento nello storico crediti:
 
-**Verifiche non fatte**:
+    | Funzione | Costo reale | Addebitato |
+    |---|---|---|
+    | triage L3 «single» (Haiku, 1.154 token in + 53 out) | 0,00142 $ | 0,0039 € |
+    | opportunità dalla email | 0,00117 $ | 0,0032 € |
+    | embedding storico | — | 0,000003 € |
 
-- nessuna chiamata vera a Replicate, OpenAI o OpenRouter, quindi il costo vero di un video MiniMax non è misurato (vale la stima scritta nel codice);
-- i segreti delle funzioni (es. `REPLICATE_API_TOKEN`) non sono visibili da qui: non so se il video è attivo in produzione;
-- la fatturazione esterna delle ricariche (Stripe) non è stata riletta in questa sessione.
+**Verifiche non fatte, e perché:**
+
+- **Ricerca semantica, assistente del sopralluogo, dettatura, video, analisi dei render dal vivo**: vogliono il token di un utente vero. Non ho una sessione nell'app e non inserisco credenziali.
+  - Da fare: una prova a mano su Demo 2, poi in `consumi_ai_azienda` deve comparire la riga del compito: `semantic_search_embedding`, `survey_ai_assistant`, `audio_transcription`, `ads_video_genera`, oppure la riga `skipped` dell'analisi render.
+  - Sono coperte dai test con il provider finto.
+- **Estrazione dall'allegato PDF**: Demo 2 non ha email con allegati.
+- **Video**: il costo vero di un video MiniMax non è misurato, vale la stima scritta nel codice. Non so se `REPLICATE_API_TOKEN` è impostato in produzione: i segreti delle funzioni non sono visibili da qui.
+- **Fatturazione esterna delle ricariche (Stripe)**: non riletta in questa sessione.
 
 ## 9. Decisioni commerciali aperte (per il titolare)
 
@@ -298,5 +323,6 @@ In ordine di costo unitario:
 3. **Consumo incluso nel piano**: oggi c'è solo l'omaggio mensile in euro. Si vuole un numero di letture o chiamate incluse per piano, e oltre cosa succede: blocco, credito o avviso?
 4. **Consumo a credito finito dopo la chiamata** (riga `non_addebitato`): si lascia a carico nostro, si scala in negativo o si recupera alla ricarica successiva?
 5. **Video**: il prezzo si basa sulla stima del codice (3 e 20 centesimi a video) col ricarico del tier `t2_vision`. È il prezzo voluto per il video?
-6. **Embedding e rerank**: restano a carico della piattaforma (costo trascurabile) o si addebitano come gli altri?
+6. **Embedding**: dal 15/11 quelli fatti per un'azienda (ricerca, email, computo, preventivi, contesto di Silvio) si addebitano col ricarico di `ai_pricing_markup` (`default`), come le altre chiamate dirette: millesimi di euro al mese. Si tengono o si regalano? Rerank Cohere e KB della piattaforma restano a carico nostro.
 7. **Silvio dei super admin**: resta costo interno. Proposta: sì, dichiarato com'è ora.
+8. **Analisi della foto dei render**: oggi è inclusa nel credito render (registrata, non addebitata come AI). Si tiene inclusa o si fa pagare a parte?

@@ -419,6 +419,10 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Senza sessione non c'è azienda: niente analisi gratis su un URL qualsiasi (15/11/2026).
+      if (!session_id) {
+        return jsonResponse({ error: "validation_error", message: "session_id is required for analyze" }, 400);
+      }
       try {
         const analysis = await runBathroomAnalysis({
           supabase,

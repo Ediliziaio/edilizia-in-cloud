@@ -168,6 +168,14 @@ Deno.serve(async (req) => {
           },
         );
       }
+      // Senza sessione non c'è azienda: l'analisi (a pagamento) girava su un
+      // URL qualsiasi, gratis (15/11/2026). Il frontend manda sempre la sessione.
+      if (!session_id) {
+        return new Response(
+          JSON.stringify({ error: "validation_error", message: "session_id is required for analyze" }),
+          { status: 400, headers: { ...CORS, "Content-Type": "application/json" } },
+        );
+      }
       let analysisCompanyId: string | null = null;
       if (session_id) {
         const { data: sessionForAnalysis, error: sessionForAnalysisErr } =

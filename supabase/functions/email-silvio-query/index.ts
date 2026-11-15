@@ -22,6 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 import { claudeMessages, hasClaudeProvider, claudeMessagesBilled } from "../_shared/claudeProxy.ts";
+import { addebitaEmbedding } from "../_shared/addebitoEmbedding.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -109,6 +110,7 @@ Deno.serve(async (req) => {
       if (OPENAI_API_KEY) {
         const emb = await generateEmbedding(qsem);
         if (emb) {
+          await addebitaEmbedding({ supabase, companyId: billCompanyId, testo: qsem.slice(0, 8000), taskKind: "email_silvio_embedding", userId: u.user.id });
           // pgvector via PostgREST: passare come STRING literal "[1,2,3]" (pattern provato
           // in kb-test-rag/ai-quote-supreme). L'array raw NON viene castato a vector → errore.
           const { data } = await userClient.rpc("email_semantic_search", {

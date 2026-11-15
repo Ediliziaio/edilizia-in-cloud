@@ -19,6 +19,8 @@ import { aiRouterComplete, chiaveAddebitoChiamataRipetuta } from "../../../supab
 import { chargeAndLogDirect, chiaveAddebitoDiretto } from "../../../supabase/functions/_shared/ai-provider/directApi";
 import { addebitaUnitario, controllaCreditoUnitario } from "../../../supabase/functions/_shared/addebitoAiUnitario";
 import { esitoDaRisultatoRouter, registraEsitoLavoroAi } from "../../../supabase/functions/_shared/esitoLavoroAi";
+import { registraCostoIncluso } from "../../../supabase/functions/_shared/costoAiIncluso";
+import { addebitaEmbedding } from "../../../supabase/functions/_shared/addebitoEmbedding";
 
 type Args = Record<string, unknown>;
 const round8 = (n: number) => Math.round(n * 1e8) / 1e8;
@@ -251,5 +253,65 @@ describe("lavori in background e accessi (lettura del codice)", () => {
     expect(leggi("survey-ai-assistant/index.ts")).toMatch(/claudeMessagesBilled\(/);
     expect(leggi("whatsapp-ai-processor/media.ts")).toMatch(/task_kind: "audio_transcription"/);
     expect(leggi("ai-ads-video-generate/index.ts")).toMatch(/controllaCreditoUnitario\(/);
+  });
+});
+
+describe("secondo giro del censimento (15/11 sera)", () => {
+  beforeEach(() => { vi.stubGlobal("Deno", { env: { get: (): undefined => undefined } }); });
+  afterEach(() => vi.unstubAllGlobals());
+  const leggi = (p: string) => readFileSync(`supabase/functions/${p}`, "utf8");
+
+  it("costo incluso nei crediti render: riga a 0 con l'azienda e il motivo, mai scalata", async () => {
+    const righe: Array<{ t: string; r: Args }> = [];
+    const db = { from: (t: string) => ({ insert: async (r: Args) => { righe.push({ t, r }); return { error: null as unknown }; } }) };
+    await registraCostoIncluso({ companyId: "azienda-A", taskKey: "render_floor_analysis", modello: "anthropic/claude-haiku-4.5",
+      tokensIn: 1000, tokensOut: 200, costoUsd: 0.002, motivo: "incluso nei crediti render", generationId: "gen-1" }, db);
+    await registraCostoIncluso({ companyId: null, taskKey: "kb_test", modello: "openai/x", tokensIn: 1, tokensOut: 0, costoUsd: 0.0001, motivo: "interno" }, db);
+    expect(righe[0]).toMatchObject({ t: "ai_call_ledger", r: { company_id: "azienda-A", status: "skipped", cost_billed_eur: 0, cost_real_usd: 0.002,
+      idempotency_key: "render_floor_analysis_incluso_gen-1", metadata: expect.objectContaining({ motivo: "incluso nei crediti render" }) } });
+    expect(righe[1]).toMatchObject({ t: "platform_ai_usage_log", r: { operation_key: "kb_test", metadata: expect.objectContaining({ interno: true }) } });
+  });
+
+  it("embedding: addebitato all'azienda sulla strada diretta, e non lancia mai", async () => {
+    const db = dbFinto();
+    await addebitaEmbedding({ supabase: db, companyId: "azienda-A", testo: "massetto sabbia cemento", taskKind: "computo_match_embedding" });
+    const [nome, args] = db.rpc.mock.calls[0] as [string, Args];
+    expect(nome).toBe("addebita_ai_diretta");
+    expect(args).toMatchObject({ p_company_id: "azienda-A", p_task_kind: "computo_match_embedding", p_model_used: "openai/text-embedding-3-small" });
+    await expect(addebitaEmbedding({ supabase: { rpc: async () => { throw new Error("giù"); } }, companyId: "a", testo: "x", taskKind: "t" })).resolves.toBeUndefined();
+  });
+
+  it("i punti che lavorano per un'azienda addebitano l'embedding", () => {
+    for (const f of ["computo-ai-extract/index.ts", "ai-quote-supreme/index.ts", "ai-quote-from-capture/index.ts", "_shared/ragInjector.ts", "email-silvio-query/index.ts"]) {
+      expect(leggi(f), f).toMatch(/addebitaEmbedding\(\{/);
+    }
+  });
+
+  it("l'analisi della foto del render vuole la sessione (l'azienda) e registra il costo", () => {
+    for (const f of ["generate-floor-render/index.ts", "generate-shutter-render/index.ts", "generate-bathroom-render/index.ts"]) {
+      expect(leggi(f), f).toMatch(/session_id is required for analyze/);
+    }
+    expect(leggi("generate-facade-render/index.ts")).toMatch(/session_id is required/);
+    expect(leggi("_shared/ai-provider/sceneAnalysis.ts")).toMatch(/registraCostoIncluso\(\{/);
+  });
+
+  it("credito controllato PRIMA della chiamata dove mancava", () => {
+    const m = leggi("parse-matrix-image/index.ts");
+    expect(m.indexOf("await precallCheck(")).toBeGreaterThan(0);
+    expect(m.indexOf("await precallCheck(")).toBeLessThan(m.indexOf("const available = getAvailableProviders()"));
+    const v = leggi("verify-purchase-order/index.ts");
+    expect(v.indexOf("await precallCheck(")).toBeGreaterThan(0);
+    expect(v.indexOf("await precallCheck(")).toBeLessThan(v.indexOf("await claudeMessages("));
+  });
+
+  it("video: se l'addebito non passa, il lavoro Replicate si annulla e non parte gratis", () => {
+    const s = leggi("ai-ads-video-generate/index.ts");
+    const addebito = s.indexOf("await addebitaUnitario(");
+    expect(s.indexOf("/cancel`")).toBeGreaterThan(addebito);
+    expect(s).toMatch(/error: "billing_unavailable"/);
+  });
+
+  it("foto finestra: la chiave identifica la chiamata, non la sessione", () => {
+    expect(leggi("analyze-window-photo/index.ts")).toMatch(/render_photo_analysis_\$\{sessionCompanyId\}_\$\{session_id\}_\$\{analyzeMode\}_\$\{crypto\.randomUUID\(\)\}/);
   });
 });

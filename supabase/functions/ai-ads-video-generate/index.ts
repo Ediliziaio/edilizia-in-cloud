@@ -207,7 +207,16 @@ Deno.serve(async (req) => {
       costoUsd: costoUsdStimato,
       metadata: { replicate_id: prediction.id, mode: body.mode, costo_stimato: true },
     });
-    if (!addebito.ok) console.error("[ai-ads-video-generate] addebito non registrato:", addebito.errore, prediction.id);
+    if (!addebito.ok) {
+      // Addebito non registrato: il video non deve girare gratis, e senza la riga
+      // nel registro ai-ads-video-status non lo darebbe mai. Si annulla il lavoro.
+      console.error("[ai-ads-video-generate] addebito non registrato, annullo la previsione:", addebito.errore, prediction.id);
+      await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Token ${replicateToken}` },
+      }).catch(() => undefined);
+      return fn({ error: "billing_unavailable", message: "Addebito non riuscito: il video non è partito. Riprova tra poco." }, 502, corsHeaders);
+    }
 
     // Store job in ad_video_jobs (best-effort — table might not exist yet)
     const jobData = {

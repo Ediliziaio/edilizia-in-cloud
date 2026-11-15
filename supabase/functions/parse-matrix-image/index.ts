@@ -52,6 +52,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
+import { precallCheck } from "../_shared/ai-provider/billing.ts";
 import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
 
 // ── Limiti difensivi ────────────────────────────────────────────────────────
@@ -436,6 +437,15 @@ Deno.serve(async (req: Request) => {
       companyId = (profile as { company_id?: string } | null)?.company_id ?? "";
     }
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
+
+    // Credito PRIMA della chiamata (15/11/2026): prima si addebitava solo dopo.
+    const preCredito = await precallCheck(supabaseAdmin, { company_id: companyId, task_kind: "vision_matrix" as never, estimated_tokens_total: 8000 });
+    if (!preCredito.allow) {
+      return new Response(
+        JSON.stringify({ ok: false, code: "insufficient_credits", error: preCredito.user_message_it || "Crediti AI esauriti: ricarica il borsellino per leggere la tabella." }),
+        { status: 402, headers: { ...corsH, "Content-Type": "application/json" } },
+      );
+    }
 
     if (!image_base64 || typeof image_base64 !== "string") {
       return new Response(

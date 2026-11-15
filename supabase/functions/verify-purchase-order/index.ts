@@ -15,6 +15,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { controllaDocumento, type RichiestaControllo } from "./controlloDocumento.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
+import { precallCheck } from "../_shared/ai-provider/billing.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { claudeMessages, hasClaudeProvider, type ClaudeMessagesBody } from "../_shared/claudeProxy.ts";
 
@@ -272,6 +273,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     const companyId: string = profile.company_id;
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsH);
+
+    // Credito PRIMA della lettura (15/11/2026): prima si addebitava solo dopo,
+    // e a saldo zero la lettura partiva lo stesso.
+    const preCredito = await precallCheck(supabaseAdmin, { company_id: companyId, task_kind: "vision_po" as never, estimated_tokens_total: 8000 });
+    if (!preCredito.allow) {
+      return new Response(
+        JSON.stringify({ error: "insufficient_credits", message: preCredito.user_message_it || "Crediti AI esauriti: ricarica il borsellino per verificare l'ordine." }),
+        { status: 402, headers: { ...corsH, "Content-Type": "application/json" } },
+      );
+    }
 
     // ── 2. Load OdA data ──────────────────────────────────────────────
 

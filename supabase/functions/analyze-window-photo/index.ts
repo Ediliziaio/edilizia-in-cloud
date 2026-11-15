@@ -552,9 +552,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Charge billing per provider usato ──────────────────────────────────
+    // La chiave identifica QUESTA chiamata al provider (15/11/2026): prima era
+    // fissa per sessione e modo, e ogni nuova analisi della stessa sessione
+    // richiamava il provider senza addebito.
     await chargeDirectAiCall({
       supabase,
-      idempotencyKey: `render_photo_analysis_${sessionCompanyId}_${user.id}_${session_id}_${analyzeMode}`,
+      idempotencyKey: `render_photo_analysis_${sessionCompanyId}_${session_id}_${analyzeMode}_${crypto.randomUUID()}`,
       companyId: sessionCompanyId,
       userId: user.id,
       taskKey: analyzeMode === "bathroom" ? "render_bathroom_photo_analysis" : "render_window_photo_analysis",

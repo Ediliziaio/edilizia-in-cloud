@@ -51,6 +51,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbeddingsBatch } from "../_shared/brainEmbed.ts";
+import { addebitaEmbedding } from "../_shared/addebitoEmbedding.ts";
 
 interface AdviseRequest {
   mode?: "advise" | "compose";
@@ -270,6 +271,7 @@ serve(async (req) => {
     if (canUseCompanyHistory && queryText.length >= 6) {
       try {
         const [embedding] = await generateEmbeddingsBatch([queryText]);
+        await addebitaEmbedding({ supabase: supabaseAdmin, companyId, testo: queryText, taskKind: "preventivo_storico_embedding", userId });
         if (embedding && embedding.length > 0) {
           const { data: matches, error: matchesError } = await supabaseAdmin.rpc("silvio_match_brain", {
             p_company_id: companyId,

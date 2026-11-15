@@ -27,6 +27,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
+import { addebitaEmbedding } from "../_shared/addebitoEmbedding.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -573,6 +574,7 @@ async function matchViaVector(
     ].filter(Boolean).join(" ");
 
     const embedding = await generateEmbedding(queryText);
+    await addebitaEmbedding({ supabase, companyId, testo: queryText, taskKind: "preventivo_listino_embedding" });
     const embeddingLiteral = `[${embedding.join(",")}]`;
 
     // Provo prima famiglie (più probabile per serramenti)

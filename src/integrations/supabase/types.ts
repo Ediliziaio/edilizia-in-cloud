@@ -19127,6 +19127,303 @@ export type Database = {
           },
         ]
       }
+      bollette: {
+        Row: {
+          avvisi: Json
+          company_id: string
+          costo_esito: string | null
+          data: string | null
+          deciso_da: string | null
+          deciso_il: string | null
+          doppione_di: string | null
+          fattura_ricevuta_id: string
+          fornitore_piva: string | null
+          id: string
+          letta_il: string
+          numero: string | null
+          rettifica_di: string[]
+          stato: string
+          tipo: string
+          totale: number | null
+        }
+        Insert: {
+          avvisi?: Json
+          company_id: string
+          costo_esito?: string | null
+          data?: string | null
+          deciso_da?: string | null
+          deciso_il?: string | null
+          doppione_di?: string | null
+          fattura_ricevuta_id: string
+          fornitore_piva?: string | null
+          id?: string
+          letta_il?: string
+          numero?: string | null
+          rettifica_di?: string[]
+          stato: string
+          tipo: string
+          totale?: number | null
+        }
+        Update: {
+          avvisi?: Json
+          company_id?: string
+          costo_esito?: string | null
+          data?: string | null
+          deciso_da?: string | null
+          deciso_il?: string | null
+          doppione_di?: string | null
+          fattura_ricevuta_id?: string
+          fornitore_piva?: string | null
+          id?: string
+          letta_il?: string
+          numero?: string | null
+          rettifica_di?: string[]
+          stato?: string
+          tipo?: string
+          totale?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bollette_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "bollette_doppione_di_fkey"
+            columns: ["doppione_di"]
+            isOneToOne: false
+            referencedRelation: "bollette"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: true
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: true
+            referencedRelation: "fatture_ricevute_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: true
+            referencedRelation: "fatture_ricevute_periodo_iva"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bollette_righe: {
+        Row: {
+          bolletta_id: string
+          codice: string
+          company_id: string
+          consumo: number | null
+          id: string
+          importo: number
+          letture: string | null
+          periodo_al: string | null
+          periodo_dal: string | null
+          prove: Json
+          righe_fattura: number[]
+          unita: string | null
+          utenza_id: string | null
+        }
+        Insert: {
+          bolletta_id: string
+          codice: string
+          company_id: string
+          consumo?: number | null
+          id?: string
+          importo?: number
+          letture?: string | null
+          periodo_al?: string | null
+          periodo_dal?: string | null
+          prove?: Json
+          righe_fattura?: number[]
+          unita?: string | null
+          utenza_id?: string | null
+        }
+        Update: {
+          bolletta_id?: string
+          codice?: string
+          company_id?: string
+          consumo?: number | null
+          id?: string
+          importo?: number
+          letture?: string | null
+          periodo_al?: string | null
+          periodo_dal?: string | null
+          prove?: Json
+          righe_fattura?: number[]
+          unita?: string | null
+          utenza_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bollette_righe_bolletta_id_fkey"
+            columns: ["bolletta_id"]
+            isOneToOne: false
+            referencedRelation: "bollette"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_righe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_righe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_righe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_righe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_righe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "bollette_righe_utenza_id_fkey"
+            columns: ["utenza_id"]
+            isOneToOne: false
+            referencedRelation: "utenze"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bollette_viste: {
+        Row: {
+          company_id: string
+          e_bolletta: boolean
+          fattura_ricevuta_id: string
+          vista_il: string
+        }
+        Insert: {
+          company_id: string
+          e_bolletta: boolean
+          fattura_ricevuta_id: string
+          vista_il?: string
+        }
+        Update: {
+          company_id?: string
+          e_bolletta?: boolean
+          fattura_ricevuta_id?: string
+          vista_il?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bollette_viste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: true
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: true
+            referencedRelation: "fatture_ricevute_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bollette_viste_fattura_ricevuta_id_fkey"
+            columns: ["fattura_ricevuta_id"]
+            isOneToOne: true
+            referencedRelation: "fatture_ricevute_periodo_iva"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bonifica_azioni: {
         Row: {
           annullabile: boolean
@@ -52784,11 +53081,13 @@ export type Database = {
       }
       generale_contratti: {
         Row: {
+          a_corpo_misura: string | null
           anticipazione_data: string | null
           anticipazione_importo: number | null
           anticipazione_pct: number
           cig: string | null
           company_id: string
+          costo_manodopera: number | null
           created_at: string
           created_by: string | null
           cup: string | null
@@ -52796,25 +53095,35 @@ export type Database = {
           data_fine_prevista: string | null
           data_firma: string | null
           data_ultimazione: string | null
+          durata_giorni: number | null
           generale_id: string
           importo_base: number | null
+          importo_totale_appalto: number | null
           note: string | null
           oneri_sicurezza: number
           penale_giornaliera: number | null
           penale_massima_pct: number
+          quota_pct: number | null
           reverse_charge: boolean
+          revisione_prezzi: string | null
           ribasso_pct: number
           riferimento: string | null
           ritenuta_pct: number
+          sal_cadenza_giorni: number | null
+          sal_soglia_importo: number | null
           split_payment: boolean
+          termini_pagamento_giorni: number | null
+          tetto_accordo: number | null
           updated_at: string
         }
         Insert: {
+          a_corpo_misura?: string | null
           anticipazione_data?: string | null
           anticipazione_importo?: number | null
           anticipazione_pct?: number
           cig?: string | null
           company_id?: string
+          costo_manodopera?: number | null
           created_at?: string
           created_by?: string | null
           cup?: string | null
@@ -52822,25 +53131,35 @@ export type Database = {
           data_fine_prevista?: string | null
           data_firma?: string | null
           data_ultimazione?: string | null
+          durata_giorni?: number | null
           generale_id: string
           importo_base?: number | null
+          importo_totale_appalto?: number | null
           note?: string | null
           oneri_sicurezza?: number
           penale_giornaliera?: number | null
           penale_massima_pct?: number
+          quota_pct?: number | null
           reverse_charge?: boolean
+          revisione_prezzi?: string | null
           ribasso_pct?: number
           riferimento?: string | null
           ritenuta_pct?: number
+          sal_cadenza_giorni?: number | null
+          sal_soglia_importo?: number | null
           split_payment?: boolean
+          termini_pagamento_giorni?: number | null
+          tetto_accordo?: number | null
           updated_at?: string
         }
         Update: {
+          a_corpo_misura?: string | null
           anticipazione_data?: string | null
           anticipazione_importo?: number | null
           anticipazione_pct?: number
           cig?: string | null
           company_id?: string
+          costo_manodopera?: number | null
           created_at?: string
           created_by?: string | null
           cup?: string | null
@@ -52848,17 +53167,25 @@ export type Database = {
           data_fine_prevista?: string | null
           data_firma?: string | null
           data_ultimazione?: string | null
+          durata_giorni?: number | null
           generale_id?: string
           importo_base?: number | null
+          importo_totale_appalto?: number | null
           note?: string | null
           oneri_sicurezza?: number
           penale_giornaliera?: number | null
           penale_massima_pct?: number
+          quota_pct?: number | null
           reverse_charge?: boolean
+          revisione_prezzi?: string | null
           ribasso_pct?: number
           riferimento?: string | null
           ritenuta_pct?: number
+          sal_cadenza_giorni?: number | null
+          sal_soglia_importo?: number | null
           split_payment?: boolean
+          termini_pagamento_giorni?: number | null
+          tetto_accordo?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -53015,6 +53342,7 @@ export type Database = {
           generale_id: string
           id: string
           importo: number | null
+          massimale: number | null
           note: string | null
           numero: string | null
           scadenza: string | null
@@ -53032,6 +53360,7 @@ export type Database = {
           generale_id: string
           id?: string
           importo?: number | null
+          massimale?: number | null
           note?: string | null
           numero?: string | null
           scadenza?: string | null
@@ -53049,6 +53378,7 @@ export type Database = {
           generale_id?: string
           id?: string
           importo?: number | null
+          massimale?: number | null
           note?: string | null
           numero?: string | null
           scadenza?: string | null
@@ -54093,6 +54423,263 @@ export type Database = {
           },
           {
             foreignKeyName: "generale_ipotesi_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generale_lettura_pagine: {
+        Row: {
+          classe: string | null
+          company_id: string
+          costo_eur: number
+          file_id: string
+          hash: string | null
+          lease_fino: string | null
+          lettura_id: string
+          motivo: string | null
+          numero: number
+          percorso: string | null
+          stato: string
+          tentativi: number
+          testo: string | null
+          updated_at: string
+        }
+        Insert: {
+          classe?: string | null
+          company_id: string
+          costo_eur?: number
+          file_id: string
+          hash?: string | null
+          lease_fino?: string | null
+          lettura_id: string
+          motivo?: string | null
+          numero: number
+          percorso?: string | null
+          stato?: string
+          tentativi?: number
+          testo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          classe?: string | null
+          company_id?: string
+          costo_eur?: number
+          file_id?: string
+          hash?: string | null
+          lease_fino?: string | null
+          lettura_id?: string
+          motivo?: string | null
+          numero?: number
+          percorso?: string | null
+          stato?: string
+          tentativi?: number
+          testo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generale_lettura_pagine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "generale_lettura_pagine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generale_lettura_pagine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "generale_lettura_pagine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "generale_lettura_pagine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "generale_lettura_pagine_lettura_id_fkey"
+            columns: ["lettura_id"]
+            isOneToOne: false
+            referencedRelation: "generale_letture"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generale_letture: {
+        Row: {
+          avviata_at: string | null
+          avvisi: Json
+          bozza: Json
+          company_id: string
+          costo_estrazione_eur: number
+          costo_eur: number
+          created_at: string
+          created_by: string | null
+          creato: Json | null
+          dati: Json
+          errore: string | null
+          file: Json
+          finita_at: string | null
+          forma: string | null
+          generale_id: string | null
+          gruppi_fatti: number
+          gruppi_totali: number | null
+          id: string
+          stato: string
+          stima_eur: number
+          strutturati: Json
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          avviata_at?: string | null
+          avvisi?: Json
+          bozza?: Json
+          company_id: string
+          costo_estrazione_eur?: number
+          costo_eur?: number
+          created_at?: string
+          created_by?: string | null
+          creato?: Json | null
+          dati?: Json
+          errore?: string | null
+          file?: Json
+          finita_at?: string | null
+          forma?: string | null
+          generale_id?: string | null
+          gruppi_fatti?: number
+          gruppi_totali?: number | null
+          id?: string
+          stato?: string
+          stima_eur?: number
+          strutturati?: Json
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          avviata_at?: string | null
+          avvisi?: Json
+          bozza?: Json
+          company_id?: string
+          costo_estrazione_eur?: number
+          costo_eur?: number
+          created_at?: string
+          created_by?: string | null
+          creato?: Json | null
+          dati?: Json
+          errore?: string | null
+          file?: Json
+          finita_at?: string | null
+          forma?: string | null
+          generale_id?: string | null
+          gruppi_fatti?: number
+          gruppi_totali?: number | null
+          id?: string
+          stato?: string
+          stima_eur?: number
+          strutturati?: Json
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generale_letture_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generale_letture_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "commesse_valore_pattuito"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
+            columns: ["generale_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "generale_letture_generale_id_fkey"
             columns: ["generale_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_esposizione"
@@ -126592,6 +127179,84 @@ export type Database = {
           },
         ]
       }
+      tesoreria_iban_verificati: {
+        Row: {
+          chiave_fiscale: string
+          company_id: string
+          confermato_at: string
+          confermato_da: string
+          fonte_documento_id: string | null
+          fonte_transaction_id: string | null
+          iban: string
+          id: string
+          revocato_at: string | null
+          revocato_da: string | null
+          soggetto_nome: string | null
+        }
+        Insert: {
+          chiave_fiscale: string
+          company_id: string
+          confermato_at?: string
+          confermato_da: string
+          fonte_documento_id?: string | null
+          fonte_transaction_id?: string | null
+          iban: string
+          id?: string
+          revocato_at?: string | null
+          revocato_da?: string | null
+          soggetto_nome?: string | null
+        }
+        Update: {
+          chiave_fiscale?: string
+          company_id?: string
+          confermato_at?: string
+          confermato_da?: string
+          fonte_documento_id?: string | null
+          fonte_transaction_id?: string | null
+          iban?: string
+          id?: string
+          revocato_at?: string | null
+          revocato_da?: string | null
+          soggetto_nome?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tesoreria_iban_verificati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_iban_verificati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_iban_verificati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_iban_verificati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_iban_verificati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       tesoreria_paganti_autorizzati: {
         Row: {
           company_id: string
@@ -129932,6 +130597,247 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      utenze: {
+        Row: {
+          attiva: boolean
+          codice: string
+          codice_chiave: string
+          company_id: string
+          created_at: string
+          fornitore_nome: string | null
+          fornitore_piva: string | null
+          id: string
+          indirizzo_fornitura: string | null
+          intestatario: string | null
+          note: string | null
+          numero_contratto: string | null
+          origine: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          attiva?: boolean
+          codice: string
+          codice_chiave: string
+          company_id: string
+          created_at?: string
+          fornitore_nome?: string | null
+          fornitore_piva?: string | null
+          id?: string
+          indirizzo_fornitura?: string | null
+          intestatario?: string | null
+          note?: string | null
+          numero_contratto?: string | null
+          origine?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          attiva?: boolean
+          codice?: string
+          codice_chiave?: string
+          company_id?: string
+          created_at?: string
+          fornitore_nome?: string | null
+          fornitore_piva?: string | null
+          id?: string
+          indirizzo_fornitura?: string | null
+          intestatario?: string | null
+          note?: string | null
+          numero_contratto?: string | null
+          origine?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "utenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "utenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "utenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      utenze_destinazioni: {
+        Row: {
+          collegato_da: string | null
+          collegato_il: string
+          company_id: string
+          destinazione_tipo: string
+          id: string
+          order_id: string | null
+          sede_id: string | null
+          stato: string
+          unita_id: string | null
+          utenza_id: string
+          valido_al: string | null
+          valido_dal: string
+        }
+        Insert: {
+          collegato_da?: string | null
+          collegato_il?: string
+          company_id: string
+          destinazione_tipo: string
+          id?: string
+          order_id?: string | null
+          sede_id?: string | null
+          stato?: string
+          unita_id?: string | null
+          utenza_id: string
+          valido_al?: string | null
+          valido_dal: string
+        }
+        Update: {
+          collegato_da?: string | null
+          collegato_il?: string
+          company_id?: string
+          destinazione_tipo?: string
+          id?: string
+          order_id?: string | null
+          sede_id?: string | null
+          stato?: string
+          unita_id?: string | null
+          utenza_id?: string
+          valido_al?: string | null
+          valido_dal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utenze_destinazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "commesse_valore_pattuito"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_sede_id_fkey"
+            columns: ["sede_id"]
+            isOneToOne: false
+            referencedRelation: "sedi"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_unita_id_fkey"
+            columns: ["unita_id"]
+            isOneToOne: false
+            referencedRelation: "unita_immobiliari"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utenze_destinazioni_utenza_id_fkey"
+            columns: ["utenza_id"]
+            isOneToOne: false
+            referencedRelation: "utenze"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -145181,6 +146087,7 @@ export type Database = {
         Args: { p_company: string; p_giorni: number; p_tolleranza: number }
         Returns: undefined
       }
+      acquisti_data_italiana: { Args: { p: string }; Returns: string }
       acquisti_ddt_candidati: {
         Args: {
           p_company: string
@@ -145195,9 +146102,44 @@ export type Database = {
           vicina: boolean
         }[]
       }
+      acquisti_ddt_dalle_descrizioni: {
+        Args: { p_righe: Json }
+        Returns: {
+          data: string
+          numero: string
+        }[]
+      }
+      acquisti_ddt_descrizioni_anteprima: {
+        Args: { p_company: string }
+        Returns: Json
+      }
+      acquisti_ddt_descrizioni_lotto: {
+        Args: { p_company: string; p_limite?: number }
+        Returns: Json
+      }
       acquisti_documento_dell_azienda: {
         Args: { p_company: string; p_id: string; p_tipo: string }
         Returns: boolean
+      }
+      acquisti_fornitori_dalle_fatture_anteprima: {
+        Args: { p_company: string; p_limite?: number }
+        Returns: {
+          chiave: string
+          codice_fiscale: string
+          fatture: number
+          gia_in_rubrica: string
+          identificativo_valido: boolean
+          nome: string
+          omonimi: number
+          paese: string
+          piva: string
+          totale: number
+          ultima: string
+        }[]
+      }
+      acquisti_fornitori_dalle_fatture_crea: {
+        Args: { p_chiavi: string[]; p_company: string }
+        Returns: Json
       }
       acquisti_impostazioni_salva: {
         Args: {
@@ -145267,6 +146209,11 @@ export type Database = {
           vat_rate: number
         }[]
       }
+      acquisti_misura_collegamenti: {
+        Args: { p_company: string; p_giorni?: number }
+        Returns: Json
+      }
+      acquisti_nome_confrontabile: { Args: { p: string }; Returns: string }
       acquisti_numero_documento: {
         Args: { p: string }
         Returns: Record<string, unknown>
@@ -146013,6 +146960,7 @@ export type Database = {
         Returns: Json
       }
       ai_is_service_role: { Args: never; Returns: boolean }
+      ai_metriche_piattaforma: { Args: { p_giorni?: number }; Returns: Json }
       ai_persona_sessions_bulk_archive: {
         Args: { p_archived: boolean; p_session_ids: string[] }
         Returns: number
@@ -146682,6 +147630,27 @@ export type Database = {
       bolla_tocca_ordine: {
         Args: { p_ddt: string; p_po: string }
         Returns: boolean
+      }
+      bolletta_applica_costo: {
+        Args: { p_bolletta: string; p_esito?: string }
+        Returns: Json
+      }
+      bolletta_decidi: {
+        Args: { p_bolletta: string; p_decisione: string }
+        Returns: Json
+      }
+      bolletta_registra: {
+        Args: { p_fattura: string; p_lettura: Json }
+        Returns: Json
+      }
+      bollette_da_leggere: {
+        Args: { p_limite?: number }
+        Returns: {
+          company_id: string
+          id: string
+          indice_corpo: number
+          xml_raw: string
+        }[]
       }
       bonifica_annulla: { Args: { p_azione_id: string }; Returns: Json }
       bonifica_archivia_categoria: {
@@ -148061,8 +149030,16 @@ export type Database = {
         }
         Returns: string
       }
+      commessa_generale_crea_da_documenti: {
+        Args: { p_lettura: string; p_piano: Json }
+        Returns: string
+      }
       commessa_generale_criterio: {
         Args: { p_criterio: string; p_generale_id: string }
+        Returns: undefined
+      }
+      commessa_generale_da_documenti_annulla: {
+        Args: { p_lettura: string }
         Returns: undefined
       }
       commessa_generale_dati_salva: {
@@ -150443,6 +151420,10 @@ export type Database = {
         Args: { p_anno?: number; p_company_id: string; p_tipo: string }
         Returns: string
       }
+      generale_applicativo_crea: {
+        Args: { p_generale: string; p_lettura: string; p_piano: Json }
+        Returns: string
+      }
       generale_contratto_leggi: {
         Args: { p_generale_id: string }
         Returns: Json
@@ -150450,6 +151431,15 @@ export type Database = {
       generale_contratto_valore: {
         Args: { p_generale_id: string }
         Returns: number
+      }
+      generale_documenti_scrivi_pezzi: {
+        Args: {
+          p_company: string
+          p_generale: string
+          p_ordine_pa: string
+          p_piano: Json
+        }
+        Returns: Json
       }
       generale_dossier_puo_inviare: {
         Args: { p_generale_id: string; p_livello: string }
@@ -150515,6 +151505,53 @@ export type Database = {
         }
         Returns: string
       }
+      generale_lettura_annulla: { Args: { p_id: string }; Returns: undefined }
+      generale_lettura_bozza_salva: {
+        Args: { p_bozza: Json; p_id: string }
+        Returns: undefined
+      }
+      generale_lettura_crea: {
+        Args: {
+          p_company: string
+          p_file: Json
+          p_forma: string
+          p_generale: string
+          p_pagine: Json
+          p_strutturati?: Json
+          p_tipo: string
+        }
+        Returns: string
+      }
+      generale_lettura_prendi_pagine: {
+        Args: { p_id: string; p_quante: number }
+        Returns: {
+          classe: string | null
+          company_id: string
+          costo_eur: number
+          file_id: string
+          hash: string | null
+          lease_fino: string | null
+          lettura_id: string
+          motivo: string | null
+          numero: number
+          percorso: string | null
+          stato: string
+          tentativi: number
+          testo: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "generale_lettura_pagine"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      generale_lettura_segna_usata: {
+        Args: { p_creato: Json; p_generale: string; p_lettura: string }
+        Returns: undefined
+      }
+      generale_lettura_stima: { Args: { p_id: string }; Returns: number }
       generale_nome_modello: { Args: { p_modello: string }; Returns: string }
       generale_numero_it: {
         Args: { p_decimali: number; p_n: number }
@@ -152243,6 +153280,15 @@ export type Database = {
       kb_track_retrieval: {
         Args: { p_doc_id: string; p_similarity: number }
         Returns: undefined
+      }
+      lavori_ai_periodo: {
+        Args: { p_company_id: string; p_da: string }
+        Returns: {
+          chiamate_ai: number
+          company_id: string
+          esito: string
+          flusso: string
+        }[]
       }
       lead_scraper_bump_usage: {
         Args: { p_n: number; p_provider: string }
@@ -159885,6 +160931,33 @@ export type Database = {
         Args: { p_company: string; p_tx: string }
         Returns: Json
       }
+      tesoreria_registra_pagante: {
+        Args: {
+          p_company: string
+          p_pagante_iban: string
+          p_pagante_nome: string
+          p_prova: string
+          p_soggetto_id?: string
+          p_soggetto_nome: string
+        }
+        Returns: string
+      }
+      tesoreria_revoca_iban_cliente: {
+        Args: { p_company: string; p_id: string }
+        Returns: undefined
+      }
+      tesoreria_revoca_pagante: {
+        Args: { p_company: string; p_id: string }
+        Returns: undefined
+      }
+      tesoreria_ricorda_iban_cliente: {
+        Args: { p_company: string; p_documento: string; p_tx: string }
+        Returns: Json
+      }
+      tesoreria_riferimenti_verificati: {
+        Args: { p_company: string }
+        Returns: Json
+      }
       tesoreria_scarta_esito: {
         Args: { p_company: string; p_motivo: string; p_tx: string }
         Returns: undefined
@@ -160079,6 +161152,15 @@ export type Database = {
       utente_sola_lettura: { Args: { p_company_id: string }; Returns: boolean }
       utente_solo_campo: { Args: { p_user: string }; Returns: boolean }
       utente_super_admin: { Args: never; Returns: boolean }
+      utenza_collega_destinazione: {
+        Args: {
+          p_destinazione: string
+          p_tipo: string
+          p_utenza: string
+          p_valido_dal?: string
+        }
+        Returns: Json
+      }
       valida_portale_token: { Args: { p_token: string }; Returns: Json }
       valore_asse_leggibile: { Args: { p: string }; Returns: string }
       variante_crea_lavori: { Args: { p_id: string }; Returns: string }

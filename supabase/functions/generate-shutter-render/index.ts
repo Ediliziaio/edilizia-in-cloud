@@ -283,6 +283,11 @@ Deno.serve(async (req) => {
         }, 400);
       }
 
+      // Senza sessione non c'è azienda: l'analisi girava gratis su un URL
+      // qualsiasi (15/11/2026). Il frontend manda sempre la sessione.
+      if (!session_id) {
+        return jsonResponse({ error: "validation_error", message: "session_id is required for analyze" }, 400);
+      }
       let analysisImageUrl = image_url;
       if (session_id) {
         const session = await loadSession(supabase, session_id);

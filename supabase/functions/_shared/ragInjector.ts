@@ -19,6 +19,7 @@
  * legacy (utile per rollback).
  */
 import { generateEmbedding } from "./brainEmbed.ts";
+import { addebitaEmbedding } from "./addebitoEmbedding.ts";
 import { normalizeRagSources } from "./ragSources.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,6 +103,7 @@ export async function buildPreRagContext(opts: BuildPreRagOptions): Promise<RagI
   let embeddingTokens = 0;
   try {
     embedding = await generateEmbedding(query);
+    await addebitaEmbedding({ supabase: opts.supabase, companyId: opts.companyId, testo: query, taskKind: "silvio_rag_embedding", userId: opts.userId });
     // brainEmbed non ritorna usage; usage approssimato 1 token ≈ 4 char ASCII
     embeddingTokens = Math.ceil(query.length / 4);
   } catch (e) {
