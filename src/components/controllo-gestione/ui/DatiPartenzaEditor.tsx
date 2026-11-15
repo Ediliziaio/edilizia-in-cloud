@@ -58,8 +58,7 @@ export function PatrimonioNettoEditor({ anno }: { anno: number }) {
           </p>
           <p>
             Il fondo TFR qui è quello di partenza: il gestionale aggiunge da solo il TFR che matura con i cedolini
-            (lordo / 13,5). Se nell'anno hai liquidato il TFR a chi è uscito o lo versi a un fondo pensione, correggi il
-            fondo di partenza.
+            (lordo / 13,5) e toglie liquidazioni e anticipi registrati qui sotto, nel riquadro del TFR.
           </p>
           <p>Gli anni dopo si riportano da soli, con gli utili del conto economico: li reinserisci solo per correggerli.</p>
           <p>Importi in euro, per esempio 100.000 oppure 100000,50.</p>
