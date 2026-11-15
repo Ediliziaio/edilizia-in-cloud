@@ -591,12 +591,9 @@ export function PersonnelCostsTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <MonthPicker month={month} onChange={onMonthChange} />
-        <p className="text-xs text-muted-foreground">
-          Ore e commesse dai rapportini di campo · costi dal contratto in{" "}
-          <Link to="/azienda/personale" className="underline underline-offset-2 hover:text-muted-foreground">
-            Personale
-          </Link>
-        </p>
+        <Link to="/azienda/personale" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+          Contratti in Personale
+        </Link>
       </div>
 
       {isError && (
@@ -614,18 +611,7 @@ export function PersonnelCostsTab({
       {/* Testata navy di famiglia (stessa delle Spese fisse/variabili). */}
       <div className="overflow-hidden rounded-2xl border border-border shadow-sm">
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
-          {/* Da 640 niente titoletto «Personale — Le persone: ore vere, costo
-              vero»: la linguetta aperta dice già dove sei. */}
-          <div className="flex items-start gap-3 sm:hidden">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] sm:h-11 sm:w-11">
-              <HardHat className="h-4 w-4 sm:h-5 sm:w-5" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-orange-100 sm:text-xs">Personale</p>
-              <h2 className="mt-0.5 text-base font-semibold text-white sm:text-xl">Personale: ore dichiarate e stima dei costi</h2>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:gap-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
             <NavyStatCard
               label="Costo personale stimato"
               value={formatCurrency(totali.costoTotale)}
@@ -653,7 +639,7 @@ export function PersonnelCostsTab({
             <NavyStatCard
               label="Dipendenti attivi"
               value={String(totali.dipendentiAttivi)}
-              sub="con contratto attivo in anagrafica"
+              sub="in forza nel mese"
               icon={HardHat}
               tone="text-emerald-200"
             />
@@ -721,8 +707,7 @@ export function PersonnelCostsTab({
                   <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/80" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[260px] text-xs">
-                  Hanno registrato rapportini ma non hanno una scheda dipendente collegata: le ore
-                  sono visibili, il costo no. Collega l'utente in Personale per il costo completo.
+                  Senza scheda dipendente: costo non calcolato.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

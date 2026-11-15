@@ -16,6 +16,7 @@
 // ============================================================================
 
 import { useMemo } from "react";
+import { profiloHrPrincipale } from "@/lib/personale/profiloHrPrincipale";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -165,7 +166,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active, role_type, area, profilo_costo, created_at, data_assunzione, hr_profili(data_assunzione, data_cessazione)",
+          "id, first_name, last_name, qualifica, livello_inquadramento, gross_salary, inps_rate, monthly_hours, ore_settimana, costo_orario, user_id, is_active, role_type, area, profilo_costo, created_at, data_assunzione, hr_profili(data_assunzione, data_cessazione, attivo, updated_at)",
         )
         .eq("company_id", companyId!)
         .eq("is_active", true)
@@ -249,8 +250,9 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
     // costava in qualunque mese, anche prima dell'assunzione.
     const inForza = employees.filter((emp) => {
       const e = emp as EmployeeRow & { created_at?: string | null; data_assunzione?: string | null; hr_profili?: Array<{ data_assunzione?: string | null; data_cessazione?: string | null }> | null };
-      const assunto = e.data_assunzione ?? e.hr_profili?.[0]?.data_assunzione ?? e.created_at ?? null;
-      const cessato = e.hr_profili?.[0]?.data_cessazione ?? null;
+      const hr = profiloHrPrincipale(e.hr_profili);
+      const assunto = e.data_assunzione ?? hr?.data_assunzione ?? e.created_at ?? null;
+      const cessato = hr?.data_cessazione ?? null;
       if (assunto && assunto.slice(0, 7) > monthKey) return false;
       if (cessato && cessato.slice(0, 7) < monthKey) return false;
       return true;

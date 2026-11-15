@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { leggiCostiAzienda } from "@/lib/finance/leggiCostiAzienda";
 import { categorieDelCosto } from "@/lib/costi/partiPerCategoria";
+import { profiloHrPrincipale } from "@/lib/personale/profiloHrPrincipale";
 import { useQuery } from "@tanstack/react-query";
 import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, parseISO, startOfDay, endOfDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -162,15 +163,15 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       // ferma lì invece che su created_at (= onboarding piattaforma).
       const { data, error } = await (supabase as any)
         .from("employees")
-        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate, role_type, qualifica, area, profilo_costo, data_assunzione, hr_profili(data_assunzione, data_cessazione)")
+        .select("id, first_name, last_name, gross_salary, is_active, created_at, inps_rate, role_type, qualifica, area, profilo_costo, data_assunzione, hr_profili(data_assunzione, data_cessazione, attivo, updated_at)")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("last_name");
       if (error) throw error;
       return (data || []).map((e: any) => ({
         ...e,
-        hire_date: e.data_assunzione ?? e.hr_profili?.[0]?.data_assunzione ?? null,
-        termination_date: e.hr_profili?.[0]?.data_cessazione ?? null,
+        hire_date: e.data_assunzione ?? profiloHrPrincipale(e.hr_profili)?.data_assunzione ?? null,
+        termination_date: profiloHrPrincipale(e.hr_profili)?.data_cessazione ?? null,
       }));
     },
     enabled: !!companyId,

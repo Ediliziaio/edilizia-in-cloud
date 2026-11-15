@@ -458,16 +458,18 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             {breakEvenData.monthlyRevenue > 0 && breakEvenData.coveragePercent >= 100 && (() => {
               const sicurezza = Math.round(((breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue) / breakEvenData.monthlyRevenue) * 100);
               return (
-                <p className={cn("mt-1 text-xs", sicurezza < 20 ? "font-medium text-orange-700" : "text-muted-foreground")}>
-                  Margine di sicurezza {sicurezza}%: il fatturato può calare di {formatCurrency(breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue)} prima di andare in perdita.
-                  {sicurezza < 20 && " Sotto il 20% basta una commessa rimandata per chiudere il mese in rosso."}
+                <p
+                  className={cn("mt-1 text-xs", sicurezza < 20 ? "font-medium text-orange-700" : "text-muted-foreground")}
+                  title="Quanto può calare il fatturato del mese prima di andare in perdita. Sotto il 20% basta una commessa rimandata."
+                >
+                  Margine di sicurezza {sicurezza}% · {formatCurrency(breakEvenData.monthlyRevenue - breakEvenData.breakEvenRevenue)}
                 </p>
               );
             })()}
             <p className="text-[10px] text-muted-foreground mt-0.5">
               {breakEvenData.ipotesiDaDati
-                ? <>Dalle tue commesse degli ultimi 12 mesi: margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>
-                : <>Ipotesi di ripiego (nessuna commessa consuntivata negli ultimi 12 mesi): margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)}</>}
+                ? <>Margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)} (ultimi 12 mesi)</>
+                : <>Margine {breakEvenData.averageOrderMargin.toLocaleString("it-IT")}% · commessa media {formatCurrency(breakEvenData.averageOrderValue)} (ipotesi: nessuna commessa consuntivata)</>}
             </p>
 
             {/* Il secondo pareggio (cap. 31): dal conto corrente escono anche
@@ -477,12 +479,12 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
             {rateFinanziamenti > 0 && breakEvenData.averageOrderMargin > 0 && (() => {
               const beFinanziario = (breakEvenData.monthlyFixedCosts + rateFinanziamenti) / (breakEvenData.averageOrderMargin / 100);
               return (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Il secondo pareggio: con le rate dei finanziamenti ({formatCurrency(rateFinanziamenti)}/mese)
-                  il fatturato per non finire in banca sale a{" "}
-                  <strong className="text-foreground">{formatCurrency(beFinanziario)}/mese</strong>
-                  {breakEvenData.averageOrderValue > 0 && <> ({Math.ceil(beFinanziario / breakEvenData.averageOrderValue)} commesse)</>}.
-                  Imposte e sostituzione mezzi escluse: non sono ancora tracciate.
+                <p
+                  className="mt-1 text-xs text-muted-foreground"
+                  title={`Con le rate dei finanziamenti (${formatCurrency(rateFinanziamenti)}/mese). Imposte e sostituzione mezzi escluse.`}
+                >
+                  Pareggio con le rate: <strong className="text-foreground">{formatCurrency(beFinanziario)}/mese</strong>
+                  {breakEvenData.averageOrderValue > 0 && <> · {Math.ceil(beFinanziario / breakEvenData.averageOrderValue)} commesse</>}
                 </p>
               );
             })()}
@@ -494,11 +496,11 @@ export function CostsStatsCards({ monthlyDistribution, yearlyStats, selectedYear
               const capitale = Math.max(0, (mediaUsciteMensili - circolante.accontiMese) * circolante.mesiCiclo);
               if (capitale <= 0) return null;
               return (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Capitale circolante a regime ≈ <strong className="text-foreground">{formatCurrency(capitale)}</strong>:
-                  ({formatCurrency(mediaUsciteMensili)} di uscite − {formatCurrency(circolante.accontiMese)} di acconti al mese)
-                  × {circolante.mesiCiclo.toLocaleString("it-IT")} mesi di ciclo reale (da {circolante.commesse} commesse incassate).
-                  È il fido da dimensionare prima che serva.
+                <p
+                  className="mt-1 text-xs text-muted-foreground"
+                  title={`(${formatCurrency(mediaUsciteMensili)} di uscite − ${formatCurrency(circolante.accontiMese)} di acconti al mese) × ${circolante.mesiCiclo.toLocaleString("it-IT")} mesi di ciclo (da ${circolante.commesse} commesse incassate): il fido da dimensionare prima che serva.`}
+                >
+                  Capitale circolante a regime ≈ <strong className="text-foreground">{formatCurrency(capitale)}</strong>
                 </p>
               );
             })()}

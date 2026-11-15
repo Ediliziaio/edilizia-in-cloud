@@ -1769,7 +1769,7 @@ export function ForecastWorkspace({
               <p className="mt-1 text-muted-foreground">
                 Partenza:{" "}
                 {data.opening.source === "banca"
-                  ? "saldo disponibile dei conti attivi (se manca, il saldo contabile)"
+                  ? "saldo disponibile dei conti attivi (se manca, il saldo contabile), più i movimenti di Prima Nota registrati dopo la data del saldo"
                   : data.opening.source === "prima-nota"
                     ? "saldo della Prima Nota fino a oggi"
                     : "nessun saldo: collega un conto in Tesoreria"}
@@ -1778,11 +1778,12 @@ export function ForecastWorkspace({
                 Blocca prezzo. Uscite: spese, scadenzario, pagamenti ai
                 fornitori degli articoli, ODA aperti o ricevuti senza spesa,
                 squadre esterne, provvigioni, cedolini, F24 registrati, stima
-                IVA.
+                IVA; per i mesi senza cedolino stipendi, F24 e tredicesima stimati
+                dall’anagrafica; le spese ricorrenti mese per mese.
               </p>
             </div>
-            <div>
-              <h2 className="font-semibold">Come</h2>
+            <details>
+              <summary className="cursor-pointer font-semibold">Come si calcola</summary>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
                 <li>
                   Importi di cassa: IVA inclusa ove prevista, solo i residui non
@@ -1818,7 +1819,7 @@ export function ForecastWorkspace({
                   bonifici nello stesso giorno.
                 </li>
               </ul>
-            </div>
+            </details>
             {data.warnings.length > 0 && (
               <div>
                 <h2 className="font-semibold">Ipotesi sulle stime</h2>
