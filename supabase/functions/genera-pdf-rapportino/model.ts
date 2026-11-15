@@ -190,7 +190,8 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
     return {
       id,
       nome: text(v.nome) || text(v.name) || nomiFasi.get(text(v.phase_id)) || "Lavorazione non identificata",
-      percentuale: percentuale !== null && percentuale <= 100 ? percentuale : null,
+      // 0 è il valore di partenza del modulo, non un avanzamento: «0% in corso» con la barra vuota non diceva niente (15/11/2026).
+      percentuale: percentuale !== null && percentuale > 0 && percentuale <= 100 ? percentuale : null,
       // Zero ore non sono ore dichiarate: «0 h dichiarate» sulla scheda non diceva niente (10/11/2026).
       ore: number(v.ore) || null,
       materiali,

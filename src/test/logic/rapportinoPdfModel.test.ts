@@ -92,7 +92,8 @@ describe("rapportino a blocchi: materiali e foto per fase", () => {
 
   it("l'avanzamento fuori scala o mancante non si inventa", () => {
     const b = bloccoFasi({ fasi_lavorate: [{ phase_id: "a", percentuale: 140 }, { phase_id: "b" }, { phase_id: "c", percentuale: 0 }] }, new Map());
-    expect(b.fasi.map(f => f.percentuale)).toEqual([null, null, 0]);
+    // 0 è il valore di partenza del modulo, non un avanzamento dichiarato (15/11/2026): la fase esce «lavorata».
+    expect(b.fasi.map(f => f.percentuale)).toEqual([null, null, null]);
   });
 
   it("l'origine di un materiale si legge dal dato: furgone, articolo della commessa o dichiarato", () => {
