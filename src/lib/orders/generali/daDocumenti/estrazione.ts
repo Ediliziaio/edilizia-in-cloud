@@ -119,9 +119,29 @@ function valida(a: number, m: number, g: number): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Percentuale o per mille: un punto da solo è il decimale («12.345%» = 12,345, non 12.345), e
+ * il valore deve stare sotto 100. Null = non è un numero valido per questo campo.
+ */
+export function numeroPercentuale(v: unknown): number | null {
+  let x: unknown = v;
+  if (typeof v === "string") {
+    const t = v.replace(/[%‰\s]|per ?mille|percento/gi, "");
+    if (/^\d+\.\d+$/.test(t)) {
+      const n = Number(t);
+      return n >= 0 && n < 100 ? n : null;
+    }
+    x = t;
+  }
+  const n = numeroItaliano(x);
+  return n === null || n < 0 || n >= 100 ? null : n;
+}
+
 export function valoreDelTipo(tipo: CampoCatalogo["tipo"], v: unknown): Valore | null {
   switch (tipo) {
-    case "importo": case "percentuale": case "permille": {
+    case "percentuale": case "permille":
+      return numeroPercentuale(v);
+    case "importo": {
       const n = numeroItaliano(v);
       return n === null || n < 0 ? null : n;
     }

@@ -41,6 +41,11 @@ export interface CampoCatalogo {
   puntoAperto?: PuntoApertoId;
   /** Dato personale di terzi: non si estrae (piano §2.1, «Tracciabilità»). */
   escluso?: boolean;
+  /**
+   * Testo che è un identificativo (repertorio, numero di pratica, dati catastali) o una scelta
+   * fra poche voci: due scritture diverse sono sempre un conflitto, senza confronto «a somiglianza».
+   */
+  rigido?: boolean;
 }
 
 export interface DocumentoAtteso {
@@ -122,7 +127,7 @@ const CAMPI_APPALTO_COMUNI: CampoCatalogo[] = [
   c("committente", "Committente", "testo", "parti", "anagrafica.cliente"),
   c("committente_piva", "P.IVA o CF del committente", "codice", "parti", "anagrafica.cliente"),
   c("esecutore_forma", "Esecutore (singola, RTI, consorzio)", "testo", "parti", "nuovo:dati.appalto.esecutore", { puntoAperto: "rti" }),
-  c("contratto_numero", "Numero o repertorio del contratto", "testo", "codici", "generale_contratti.riferimento"),
+  c("contratto_numero", "Numero o repertorio del contratto", "testo", "codici", "generale_contratti.riferimento", { rigido: true }),
   c("contratto_data", "Data di stipula", "data", "codici", "generale_contratti.data_firma"),
   c("direttore_lavori", "Direttore lavori", "testo", "figure", "dati.appalto.direttore_lavori"),
   c("cse", "Coordinatore sicurezza (CSE)", "testo", "figure", "dati.appalto.cse"),
@@ -131,7 +136,7 @@ const CAMPI_APPALTO_COMUNI: CampoCatalogo[] = [
   c("oneri_sicurezza", "Oneri della sicurezza non soggetti a ribasso", "importo", "importi", "generale_contratti.oneri_sicurezza"),
   c("costo_manodopera", "Costo della manodopera", "importo", "importi", "nuovo:generale_contratti.costo_manodopera"),
   c("importo_contrattuale", "Importo contrattuale", "importo", "importi", "solo_controllo"),
-  c("corpo_misura", "A corpo o a misura", "testo", "importi", "nuovo:generale_contratti.a_corpo_misura"),
+  c("corpo_misura", "A corpo o a misura", "testo", "importi", "nuovo:generale_contratti.a_corpo_misura", { rigido: true }),
   c("categorie_soa", "Categorie SOA e importi", "testo", "importi", "nuovo:dati.appalto.categorie_soa"),
   c("durata_giorni", "Durata", "giorni", "tempi", "nuovo:generale_contratti.durata_giorni"),
   c("data_consegna", "Consegna lavori", "data", "tempi", "generale_contratti.data_consegna_lavori", { doveCercare: "verbale di consegna" }),
@@ -173,10 +178,10 @@ const CAMPI_SOLO_PRIVATO: CampoCatalogo[] = [
 ];
 
 const CAMPI_SVILUPPO: CampoCatalogo[] = [
-  c("catasto", "Dati catastali dell'area", "testo", "area", "dati.area.catasto"),
-  c("superficie", "Superficie", "testo", "area", "dati.area.superficie"),
-  c("titolo_tipo", "Titolo edilizio", "testo", "titolo", "dati.titolo.tipo"),
-  c("titolo_numero", "Numero del titolo", "testo", "titolo", "dati.titolo.numero"),
+  c("catasto", "Dati catastali dell'area", "testo", "area", "dati.area.catasto", { rigido: true }),
+  c("superficie", "Superficie", "testo", "area", "dati.area.superficie", { rigido: true }),
+  c("titolo_tipo", "Titolo edilizio", "testo", "titolo", "dati.titolo.tipo", { rigido: true }),
+  c("titolo_numero", "Numero del titolo", "testo", "titolo", "dati.titolo.numero", { rigido: true }),
   c("titolo_data", "Rilasciato il", "data", "titolo", "dati.titolo.data"),
   c("titolo_scadenza", "Fine lavori entro", "data", "titolo", "dati.titolo.scadenza"),
   c("prezzo_area", "Prezzo d'acquisto dell'area", "importo", "area", "solo_controllo"),
@@ -184,7 +189,7 @@ const CAMPI_SVILUPPO: CampoCatalogo[] = [
 
 const CAMPI_COMPRAVENDITA: CampoCatalogo[] = [
   c("immobile_indirizzo", "Indirizzo dell'immobile", "testo", "immobile", "dati.immobile.indirizzo"),
-  c("immobile_catasto", "Dati catastali", "testo", "immobile", "dati.immobile.catasto"),
+  c("immobile_catasto", "Dati catastali", "testo", "immobile", "dati.immobile.catasto", { rigido: true }),
   c("prezzo_compromesso", "Prezzo nel compromesso", "importo", "immobile", "solo_controllo"),
   c("prezzo_atto", "Prezzo nell'atto", "importo", "immobile", "dati.immobile.prezzo"),
   c("data_compromesso", "Compromesso", "data", "immobile", "dati.immobile.data_compromesso"),

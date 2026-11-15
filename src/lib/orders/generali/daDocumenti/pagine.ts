@@ -15,8 +15,6 @@ const norm = (t: string) => t.toLowerCase().replace(/\s+/g, " ");
 
 /** Le regole in ordine: vince la prima che trova. */
 const REGOLE: { classe: string; esclusa?: boolean; parole: RegExp }[] = [
-  { classe: "Documento d'identità", esclusa: true, parole: /carta d.identit|identity card|passaporto|patente di guida|documento di riconoscimento|repubblica italiana.{0,40}(carta|patente)/ },
-  { classe: "Autocertificazione", esclusa: true, parole: /dichiarazione sostitutiva (di certificazione|dell.atto di notoriet)/ },
   { classe: "Verbale di consegna", parole: /verbale di consegna|consegna in via d.urgenza|si procede alla consegna/ },
   { classe: "Polizza", parole: /polizza|contraente.{0,80}assicurat|somma assicurata|massimale/ },
   { classe: "Computo metrico", parole: /computo metrico|riporto|a riportare|quantit[aà].{0,40}prezzo unitario|n\.? ?ord\.?.{0,40}tariffa/ },
@@ -34,9 +32,44 @@ const REGOLE: { classe: string; esclusa?: boolean; parole: RegExp }[] = [
 /** Pagina senza testo (o quasi): la decide lo stato «bianca», non questa funzione. */
 export const PAGINA_QUASI_VUOTA = 25;
 
-export function riconosciPagina(testo: string | null | undefined): Riconoscimento {
+/**
+ * Un documento d'identità o un'autocertificazione con dati personali: la pagina è breve e ha
+ * insieme la parola del documento e almeno due dati anagrafici. Una sola parola non basta: il
+ * frontespizio di un atto che cita «carta d'identità» del firmatario è una pagina utile.
+ */
+const DOCUMENTO = /carta d.identit|identity card|passaporto|patente di guida|documento di riconoscimento/;
+const AUTOCERTIFICAZIONE = /dichiarazione sostitutiva (di certificazione|dell.atto di notoriet)/;
+const ANAGRAFICI = [/\bcognome\b/, /\bnat[oa] (a|il)\b|luogo di nascita/, /data di nascita/, /rilasciat[oa]/, /\bscadenza\b/, /statura/, /cittadinanza/, /residenza|residente in/, /codice fiscale/];
+const MAX_CARATTERI_DOCUMENTO = 2500;
+
+function datiPersonali(t: string): Riconoscimento | null {
+  const anagrafici = ANAGRAFICI.filter((r) => r.test(t)).length;
+  if (DOCUMENTO.test(t) && anagrafici >= 2 && t.length <= MAX_CARATTERI_DOCUMENTO) {
+    return { classe: "Documento d'identità", esclusa: true, motivo: "Dati personali: la pagina resta nell'originale, non si legge. Se serve, «Includi questa pagina»." };
+  }
+  if (AUTOCERTIFICAZIONE.test(t) && anagrafici >= 2) {
+    return { classe: "Autocertificazione", esclusa: true, motivo: "Dati personali: la pagina resta nell'originale, non si legge. Se serve, «Includi questa pagina»." };
+  }
+  return null;
+}
+
+/**
+ * IBAN e codici fiscali di PERSONE (16 caratteri) si coprono prima di salvare il testo e prima
+ * di mandarlo al modello. La partita IVA (11 cifre) resta: identifica committente e appaltatore.
+ */
+export function mascheraDatiPersonali(testo: string): string {
+  return testo
+    .replace(/\bIT\s?\d{2}\s?[A-Z](?:\s?[0-9A-Z]){22}\b/gi, "[IBAN]")
+    .replace(/\b[A-Z]{6}\s?\d{2}[A-Z]\d{2}\s?[A-Z]\d{3}[A-Z]\b/gi, "[CODICE FISCALE]");
+}
+
+export function riconosciPagina(testo: string | null | undefined, opzioni: { includi?: boolean } = {}): Riconoscimento {
   const t = norm(testo ?? "");
   if (t.replace(/[^a-z0-9]/g, "").length < PAGINA_QUASI_VUOTA) return { classe: "Pagina quasi vuota", esclusa: false };
+  if (!opzioni.includi) {
+    const personale = datiPersonali(t);
+    if (personale) return personale;
+  }
   for (const r of REGOLE) {
     if (r.parole.test(t)) {
       return r.esclusa

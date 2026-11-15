@@ -217,14 +217,33 @@ describe("appalto privato: soglie del pubblico non bloccano", () => {
 describe("varianti di uno stesso testo (lotto 9)", () => {
   it("titoli, punteggiatura e testo contenuto non sono un conflitto; si mostra il più completo", () => {
     expect(statoCampo("appalto_pubblico", "rup", { rup: [o("Sig. Mario Prova"), o("Ing. Mario Prova")] }).stato).toBe("letto");
-    const s = statoCampo("appalto_pubblico", "oggetto", { oggetto: [o("Lavori di manutenzione delle strade"), o("Lavori di manutenzione delle strade comunali, lotto 2")] });
+    const s = statoCampo("appalto_pubblico", "oggetto", { oggetto: [o("Lavori di manutenzione delle strade"), o("Lavori di manutenzione delle strade comunali")] });
     expect(s.stato).toBe("letto");
-    expect(s.valore).toBe("Lavori di manutenzione delle strade comunali, lotto 2");
+    expect(s.valore).toBe("Lavori di manutenzione delle strade comunali");
     expect(statoCampo("appalto_pubblico", "stazione_appaltante", { stazione_appaltante: [o("COMUNE DI PROVA - Ufficio Tecnico"), o("Comune di Prova, Ufficio tecnico")] }).stato).toBe("letto");
   });
   it("testi diversi, codici e date restano conflitti", () => {
     expect(statoCampo("appalto_pubblico", "esecutore_forma", { esecutore_forma: [o("RTI"), o("Impresa singola")] }).stato).toBe("conflitto");
     expect(statoCampo("appalto_pubblico", "cig", { cig: [o("Z1A2B3C4D5"), o("Z1A2B3C4D6")] }).stato).toBe("conflitto");
     expect(statoCampo("appalto_pubblico", "contratto_numero", { contratto_numero: [o("12/2027"), o("Prot. 3456 del 2027")] }).stato).toBe("conflitto");
+  });
+});
+
+describe("revisione finale del 15/11: confronti e manodopera", () => {
+  it("parole intere e numeri uguali", () => {
+    expect(statoCampo("appalto_pubblico", "rup", { rup: [o("Mario Rossi"), o("Mario Rossini")] }).stato).toBe("conflitto");
+    expect(statoCampo("appalto_pubblico", "luogo", { luogo: [o("Lotto 1 via Prova"), o("Lotto 12 via Prova")] }).stato).toBe("conflitto");
+  });
+  it("repertori, catasto e corpo/misura sono rigidi", () => {
+    expect(statoCampo("appalto_pubblico", "contratto_numero", { contratto_numero: [o("Rep. 12"), o("Rep. 123")] }).stato).toBe("conflitto");
+    expect(statoCampo("appalto_pubblico", "corpo_misura", { corpo_misura: [o("a corpo"), o("a corpo e a misura")] }).stato).toBe("conflitto");
+    expect(statoCampo("sviluppo", "catasto", { catasto: [o("Fg. 5 mapp. 12"), o("mapp. 123")] }).stato).toBe("conflitto");
+  });
+  it("manodopera fuori dal ribasso: la seconda formula torna e lo dice", () => {
+    // (400.000 − 100.000) × 0,75 + 100.000 + 15.000 = 340.000
+    const d = { importo_base: [o(400000)], ribasso_pct: [o(25)], oneri_sicurezza: [o(15000)], costo_manodopera: [o(100000)], importo_contrattuale: [o(340000)] };
+    const c = controlli("appalto_pubblico", d).find((x) => x.id === "importo_contrattuale")!;
+    expect(c.esito).toBe("ok");
+    expect(c.messaggio).toContain("manodopera fuori dal ribasso");
   });
 });

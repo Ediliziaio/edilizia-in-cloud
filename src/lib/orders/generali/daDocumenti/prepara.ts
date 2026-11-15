@@ -14,13 +14,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hasLargePdfImage, pdfTextByLines, type PdfTextItem } from "../../../../../supabase/functions/_shared/pdfExtraction";
 import { leggiFileComputo, PdfDaLeggereConAi } from "@/lib/computo/leggiFileComputo";
-import { riconosciPagina } from "./pagine";
+import { mascheraDatiPersonali, riconosciPagina } from "./pagine";
 import type { Strutturati, Strutturato } from "./strutturati";
 import type { TipoDaDocumenti } from "./catalogo";
 
 export const BUCKET_LETTURE = "documenti-smart";
 export const MAX_BYTE_FILE = 100 * 1024 * 1024;
 export const MAX_PAGINE = 400;
+/** Ogni pagina o foto che va all'OCR resta sotto questo peso: oltre, si riduce (la funzione ne accetta 12 MB). */
+export const MAX_BYTE_PAGINA = 8 * 1024 * 1024;
 const DOCUMENTI_STRUTTURABILI = new Set(["computo", "elenco_prezzi", "sicurezza"]);
 
 export interface FileDaLeggere { file: File; documento: string }
@@ -73,6 +75,7 @@ function strutturatoDa(c: Awaited<ReturnType<typeof leggiFileComputo>>, document
     prezzo: v.prezzo_unitario ?? 0,
     importo: v.importo ?? 0,
     capitolo: v.categoria?.nome ?? v.super_categoria?.nome ?? null,
+    sicurezza: !!v.is_sicurezza,
   }));
   const somma = Math.round(voci.reduce((s, v) => s + (v.importo || 0), 0) * 100) / 100;
   return {
@@ -100,6 +103,28 @@ async function quasiBianca(pagina: { getViewport(o: { scale: number }): { width:
   } catch {
     return false;
   }
+}
+
+/** Un'immagine o una pagina disegnata, in JPEG sotto gli 8 MB: si rimpicciolisce finché ci sta. */
+async function jpegLeggero(disegna: (scala: number) => Promise<HTMLCanvasElement>): Promise<Blob> {
+  for (const [scala, qualita] of [[2, 0.85], [1.5, 0.8], [1.1, 0.75], [0.8, 0.7]] as const) {
+    const tela = await disegna(scala);
+    const blob = await new Promise<Blob | null>((ok) => tela.toBlob(ok, "image/jpeg", qualita));
+    if (blob && blob.size <= MAX_BYTE_PAGINA) return blob;
+  }
+  throw new Error("Una pagina resta troppo pesante anche ridotta: scansionala a una risoluzione più bassa.");
+}
+
+async function fotoLeggera(f: File): Promise<Blob> {
+  if (f.size <= MAX_BYTE_PAGINA) return f;
+  const img = await createImageBitmap(f);
+  return jpegLeggero(async (scala) => {
+    const k = Math.min(1, (scala / 2) * Math.sqrt((MAX_BYTE_PAGINA * 1.5) / f.size));
+    const tela = document.createElement("canvas");
+    tela.width = Math.max(1, Math.round(img.width * k)); tela.height = Math.max(1, Math.round(img.height * k));
+    tela.getContext("2d")!.drawImage(img, 0, 0, tela.width, tela.height);
+    return tela;
+  });
 }
 
 async function caricaSu(db: SupabaseClient, percorso: string, corpo: Blob | Uint8Array, mime: string) {
@@ -143,23 +168,45 @@ async function preparaPdf(db: SupabaseClient, f: FileDaLeggere, fileId: string, 
       const testo = pdfTextByLines((await pagina.getTextContent()).items as PdfTextItem[]);
       const operatori = await pagina.getOperatorList();
       const immagine = hasLargePdfImage(operatori, opzioni, pagina.getViewport({ scale: 1 }));
-      if (testo.trim() && !immagine) {
-        const r = riconosciPagina(testo);
-        pagine.push(r.esclusa
-          ? { file_id: fileId, numero: n, stato: "esclusa", classe: r.classe, testo: null }
-          : { file_id: fileId, numero: n, stato: "testo", classe: r.classe, testo });
-      } else if (!testo.trim() && (operatori.fnArray.length === 0 || await quasiBianca(pagina as never))) {
-        pagine.push({ file_id: fileId, numero: n, stato: "bianca", classe: "Pagina bianca" });
-      } else {
+      /** La pagina da sola, da mandare all'OCR: PDF di una pagina, o JPEG se il PDF pesa troppo. */
+      const paginaSola = async (): Promise<{ percorso: string; hash: string }> => {
         sorgente ??= await PDFDocument.load(byte, { ignoreEncryption: true, updateMetadata: false });
         const una = await PDFDocument.create({ updateMetadata: false });
         const [copia] = await una.copyPages(sorgente, [n - 1]);
         una.addPage(copia);
         const unaByte = await una.save({ useObjectStreams: false });
-        const hash = await sha256(unaByte);
-        const percorso = `${cartella}${fileId}/p${String(n).padStart(4, "0")}.pdf`;
-        pagine.push({ file_id: fileId, numero: n, stato: "in_coda", percorso, hash });
-        daCaricare.push(() => caricaSu(db, percorso, new Blob([unaByte.slice().buffer as ArrayBuffer], { type: "application/pdf" }), "application/pdf"));
+        const base = `${cartella}${fileId}/p${String(n).padStart(4, "0")}`;
+        if (unaByte.length <= MAX_BYTE_PAGINA) {
+          const percorso = `${base}.pdf`;
+          daCaricare.push(() => caricaSu(db, percorso, new Blob([unaByte.slice().buffer as ArrayBuffer], { type: "application/pdf" }), "application/pdf"));
+          return { percorso, hash: await sha256(unaByte) };
+        }
+        // Una scansione enorme: si disegna la pagina in JPEG, più leggera ma ancora leggibile.
+        const jpeg = await jpegLeggero(async (scala) => {
+          const vista = pagina.getViewport({ scale: scala });
+          const tela = document.createElement("canvas");
+          tela.width = Math.round(vista.width); tela.height = Math.round(vista.height);
+          const ctx = tela.getContext("2d")!;
+          ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, tela.width, tela.height);
+          await pagina.render({ canvasContext: ctx, viewport: vista, canvas: tela } as never).promise;
+          return tela;
+        });
+        const percorso = `${base}.jpg`;
+        daCaricare.push(() => caricaSu(db, percorso, jpeg, "image/jpeg"));
+        return { percorso, hash: await sha256(await jpeg.arrayBuffer()) };
+      };
+      if (testo.trim() && !immagine) {
+        const r = riconosciPagina(testo);
+        if (r.esclusa) {
+          // Dati personali: il testo non parte; la pagina si carica lo stesso, per «Includi questa pagina».
+          pagine.push({ file_id: fileId, numero: n, stato: "esclusa", classe: r.classe, testo: null, ...(await paginaSola()) });
+        } else {
+          pagine.push({ file_id: fileId, numero: n, stato: "testo", classe: r.classe, testo: mascheraDatiPersonali(testo) });
+        }
+      } else if (!testo.trim() && (operatori.fnArray.length === 0 || await quasiBianca(pagina as never))) {
+        pagine.push({ file_id: fileId, numero: n, stato: "bianca", classe: "Pagina bianca" });
+      } else {
+        pagine.push({ file_id: fileId, numero: n, stato: "in_coda", ...(await paginaSola()) });
       }
       pagina.cleanup();
     }
@@ -204,9 +251,14 @@ export async function preparaFile(db: SupabaseClient, companyId: string, files: 
       nPagine = p.length;
       pagine.push(...p);
     } else {
-      // Una foto: è già la pagina da leggere.
-      const byte = await f.file.arrayBuffer();
-      pagine.push({ file_id: id, numero: 1, stato: "in_coda", percorso, hash: await sha256(byte) });
+      // Una foto: è già la pagina da leggere. Sopra gli 8 MB si riduce, in un file a parte.
+      const leggera = await fotoLeggera(f.file);
+      let percorsoPagina = percorso;
+      if (leggera !== f.file) {
+        percorsoPagina = `${cartella}${id}/p0001.jpg`;
+        await caricaSu(db, percorsoPagina, leggera, "image/jpeg");
+      }
+      pagine.push({ file_id: id, numero: 1, stato: "in_coda", percorso: percorsoPagina, hash: await sha256(await leggera.arrayBuffer()) });
     }
     registrati.push({ id, nome: f.file.name, documento: f.documento, percorso, mime: f.file.type, byte: f.file.size, pagine: nPagine, strutturato: !!strutturato });
   }

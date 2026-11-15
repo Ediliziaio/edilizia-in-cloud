@@ -217,32 +217,50 @@ export function pianoDiScrittura(
   // Computo strutturato → elenco prezzi e fasi (lotto 6). Solo per gli appalti: è il contratto.
   const quotaFasi = bozza.quotaPct !== null && bozza.quotaPct > 0 && bozza.quotaPct < 100 ? bozza.quotaPct / 100 : 1;
   if (appalto) {
-    const computi = Object.values(strutturati).filter((s) => s.documento !== "sicurezza" && s.voci?.length);
+    const tutti = Object.values(strutturati).filter((s) => s.voci?.length);
+    const computi = tutti.filter((s) => s.documento === "computo");
+    const sicurezze = tutti.filter((s) => s.documento === "sicurezza");
+    const elenchi = tutti.filter((s) => s.documento === "elenco_prezzi");
     if (bozza.conElenco) {
       const visti = new Set<string>();
-      for (const s of computi) for (const x of s.voci) {
+      // L'elenco prezzi del contratto: dal file dell'elenco se c'è, altrimenti dalle voci del computo.
+      for (const s of elenchi.length ? elenchi : computi) for (const x of s.voci) {
         const chiave = `${x.codice ?? ""}|${x.descrizione}`;
         if (visti.has(chiave) || !x.descrizione.trim() || !(x.prezzo >= 0)) continue;
         visti.add(chiave);
-        piano.elenco.push({ codice: x.codice, descrizione: x.descrizione.slice(0, 2000), unita_misura: x.unita, prezzo: x.prezzo, quantita_contratto: x.quantita || null, soggetto_ribasso: true });
+        piano.elenco.push({ codice: x.codice, descrizione: x.descrizione.slice(0, 2000), unita_misura: x.unita, prezzo: x.prezzo, quantita_contratto: elenchi.length ? null : x.quantita || null, soggetto_ribasso: !x.sicurezza });
       }
-      for (const s of Object.values(strutturati).filter((s) => s.documento === "sicurezza")) for (const x of s.voci) {
+      for (const s of sicurezze) for (const x of s.voci) {
         if (!x.descrizione.trim() || !(x.prezzo >= 0)) continue;
         piano.elenco.push({ codice: x.codice, descrizione: x.descrizione.slice(0, 2000), unita_misura: x.unita, prezzo: x.prezzo, quantita_contratto: x.quantita || null, soggetto_ribasso: false });
       }
     }
-    if (bozza.conFasi) {
+    // Le fasi portano il venduto: i prezzi del computo sono prima del ribasso, quindi si
+    // ribassano col ribasso confermato; la sicurezza va in una fase a parte, senza ribasso.
+    // Senza ribasso confermato le fasi non si creano: il venduto verrebbe gonfiato.
+    // Nell'appalto privato spesso non c'è ribasso: vale zero. Nel pubblico va confermato.
+    const ribasso = num(v.ribasso_pct) ?? (tipo === "appalto_privato" ? 0 : null);
+    if (bozza.conFasi && computi.length && ribasso === null) {
+      note.push("Fasi dal computo: conferma prima il ribasso, i prezzi del computo sono prima del ribasso. Senza, le fasi non si creano.");
+    } else if (bozza.conFasi && computi.length) {
+      const fattore = 1 - ribasso! / 100;
       const perCapitolo = new Map<string, PianoScrittura["fasi"][number]>();
+      const sicurezza: PianoScrittura["fasi"][number] = { nome: "Oneri della sicurezza", voci: [] };
       for (const s of computi) for (const x of s.voci) {
+        // In un raggruppamento le fasi valgono per la quota, come il contratto.
+        if (x.sicurezza) { sicurezza.voci.push({ descrizione: x.descrizione.slice(0, 500), unita: x.unita, quantita: x.quantita, importo: tondo(x.importo * quotaFasi) }); continue; }
         const nome = (x.capitolo || "Lavori").slice(0, 160);
         const f = perCapitolo.get(nome) ?? { nome, voci: [] };
-        // In un raggruppamento le fasi valgono per la quota, come il contratto.
-        f.voci.push({ descrizione: x.descrizione.slice(0, 500), unita: x.unita, quantita: x.quantita, importo: tondo(x.importo * quotaFasi) });
+        f.voci.push({ descrizione: x.descrizione.slice(0, 500), unita: x.unita, quantita: x.quantita, importo: tondo(x.importo * fattore * quotaFasi) });
         perCapitolo.set(nome, f);
       }
+      for (const s of sicurezze) for (const x of s.voci) {
+        sicurezza.voci.push({ descrizione: x.descrizione.slice(0, 500), unita: x.unita, quantita: x.quantita, importo: tondo(x.importo * quotaFasi) });
+      }
       const tutte = [...perCapitolo.values()];
-      if (tutte.length > 60) note.push(`Il computo ha ${tutte.length} capitoli: si creano le prime 60 fasi, le altre si aggiungono dalla commessa.`);
-      piano.fasi = tutte.slice(0, 60);
+      if (tutte.length > 59) note.push(`Il computo ha ${tutte.length} capitoli: si creano le prime 59 fasi più la sicurezza, le altre si aggiungono dalla commessa.`);
+      piano.fasi = [...tutte.slice(0, 59), ...(sicurezza.voci.length ? [sicurezza] : [])];
+      if (ribasso! > 0) note.push(`Fasi dal computo con il ribasso del ${ribasso!.toLocaleString("it-IT")}%; la sicurezza senza ribasso.`);
     }
   }
   return piano;

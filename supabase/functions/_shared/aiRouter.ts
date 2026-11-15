@@ -134,6 +134,13 @@ export interface AiRouterCompleteOptions {
    */
   cacheKey?: string;
   /**
+   * Con la cache accesa, salva la risposta solo se il modello l'ha finita (`finish_reason`
+   * «stop»). Senza, una risposta troncata (`length`) finiva in cache e al tentativo dopo
+   * tornava come buona per tutta la durata della cache (15/11/2026, letture delle commesse
+   * generali: una pagina OCR tagliata a metà passava per completa).
+   */
+  cacheSoloSeFinita?: boolean;
+  /**
    * Streaming (2026-09-13). Se presente, la chiamata al modello va in stream
    * e a ogni pezzo di testo ricevuto viene chiamata con il TESTO ACCUMULATO
    * finora (non il delta) — solo finche' il modello non ha chiesto tool: da
@@ -1609,7 +1616,9 @@ export async function aiRouterComplete(
 
       // Write-behind cache risposte (solo task opt-in con companyId, vedi
       // cacheTtlDays). Best-effort: errori non bloccano la risposta.
-      if (cacheInputHash && (opts.cacheTtlDays ?? 0) > 0 && opts.companyId && content.trim()) {
+      const rispostaFinita = (choice?.finish_reason ?? null) === "stop";
+      if (cacheInputHash && (opts.cacheTtlDays ?? 0) > 0 && opts.companyId && content.trim()
+          && (!opts.cacheSoloSeFinita || rispostaFinita)) {
         try {
           const expiresAt = new Date(Date.now() + (opts.cacheTtlDays as number) * 86400_000).toISOString();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

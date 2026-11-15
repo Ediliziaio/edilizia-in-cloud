@@ -10,8 +10,8 @@ import type { DatiLetti, Occorrenza } from "@/lib/orders/generali/daDocumenti/co
 
 describe("riconoscere una pagina", () => {
   it("documento d'identità e autocertificazione si escludono", () => {
-    expect(riconosciPagina("REPUBBLICA ITALIANA carta d'identità n. CA00000AA").esclusa).toBe(true);
-    expect(riconosciPagina("Dichiarazione sostitutiva di certificazione ai sensi del DPR 445/2000").esclusa).toBe(true);
+    expect(riconosciPagina("REPUBBLICA ITALIANA carta d'identità n. CA00000AA. Cognome PROVA Nome MARIO nato a ROMA il 01/01/1970, cittadinanza italiana, scadenza 2030").esclusa).toBe(true);
+    expect(riconosciPagina("Dichiarazione sostitutiva di certificazione ai sensi del DPR 445/2000: il sottoscritto Mario Prova, nato a Roma il 01/01/1970, residente in via Prova").esclusa).toBe(true);
   });
   it("un contratto con i dati di nascita del firmatario NON si esclude", () => {
     const r = riconosciPagina("Art. 1 – Oggetto. Tra le parti: il sig. Mario Prova, nato a Roma il 01/01/1970, in qualità di legale rappresentante dell'appaltatore");
@@ -169,9 +169,14 @@ describe("piano di scrittura", () => {
         { codice: null as string | null, descrizione: "Recinzione", unita: "m", quantita: 5, prezzo: 10, importo: 50, capitolo: null as string | null },
       ] },
     };
-    const p = pianoDiScrittura("appalto_pubblico", {}, { ...BOZZA_VUOTA, nome: "x" }, s);
+    const conRibasso = conferma({ ...BOZZA_VUOTA, nome: "x" }, "ribasso_pct");
+    const p = pianoDiScrittura("appalto_pubblico", { ribasso_pct: [o(25)] }, conRibasso, s);
     expect(p.elenco.map((e) => [e.codice, e.soggetto_ribasso])).toEqual([["A.1", true], ["B.1", true], [null, false]]);
-    expect(p.fasi.map((f) => f.nome)).toEqual(["Scavi", "Pavimentazioni"]);
+    // Venduto delle fasi al netto del ribasso; la sicurezza a parte, senza ribasso.
+    expect(p.fasi.map((f) => [f.nome, f.voci.reduce((t, x) => t + x.importo, 0)])).toEqual([["Scavi", 75], ["Pavimentazioni", 150], ["Oneri della sicurezza", 50]]);
+    const senzaRibasso = pianoDiScrittura("appalto_pubblico", {}, { ...BOZZA_VUOTA, nome: "x" }, s);
+    expect(senzaRibasso.fasi).toEqual([]);
+    expect(senzaRibasso.note.join(" ")).toContain("conferma prima il ribasso");
     const senza = pianoDiScrittura("appalto_pubblico", {}, { ...BOZZA_VUOTA, nome: "x", conElenco: false, conFasi: false }, s);
     expect(senza.elenco).toEqual([]);
     expect(senza.fasi).toEqual([]);
@@ -222,13 +227,13 @@ describe("RTI e capitoli", () => {
     const s = { f1: { formato: "xpwe" as const, documento: "computo", totale: 100, oggetto: null as string | null, committente: null as string | null, voci: [
       { codice: "A", descrizione: "Scavo", unita: "mc", quantita: 1, prezzo: 100, importo: 100, capitolo: "Scavi" as string | null },
     ] } };
-    const p = pianoDiScrittura("appalto_pubblico", {}, { ...BOZZA_VUOTA, nome: "x", quotaPct: 40 }, s);
+    const p = pianoDiScrittura("appalto_pubblico", { ribasso_pct: [o(0)] }, conferma({ ...BOZZA_VUOTA, nome: "x", quotaPct: 40 }, "ribasso_pct"), s);
     expect(p.fasi[0].voci[0].importo).toBe(40);
   });
   it("oltre 60 capitoli lo dice nelle note", () => {
     const voci = Array.from({ length: 61 }, (_, i) => ({ codice: `C${i}`, descrizione: `V${i}`, unita: "n", quantita: 1, prezzo: 1, importo: 1, capitolo: `Cap ${i}` as string | null }));
-    const p = pianoDiScrittura("appalto_pubblico", {}, { ...BOZZA_VUOTA, nome: "x" }, { f1: { formato: "xpwe", documento: "computo", totale: 61, oggetto: null, committente: null, voci } });
-    expect(p.fasi).toHaveLength(60);
+    const p = pianoDiScrittura("appalto_pubblico", { ribasso_pct: [o(0)] }, conferma({ ...BOZZA_VUOTA, nome: "x" }, "ribasso_pct"), { f1: { formato: "xpwe", documento: "computo", totale: 61, oggetto: null, committente: null, voci } });
+    expect(p.fasi).toHaveLength(59);
     expect(p.note.join(" ")).toContain("61 capitoli");
   });
 });
@@ -251,5 +256,40 @@ describe("accordo quadro", () => {
     const p = pianoDiScrittura("appalto_pubblico", datiAppalto(), conferma({ ...BOZZA_VUOTA, forma: "applicativo", nome: "Applicativo 1" }, "importo_contrattuale", "cig"));
     expect(p.valore).toBe(365000);
     expect(p.riferimenti_pa[0]).toMatchObject({ cig: "Z1A2B3C4D5" });
+  });
+});
+
+describe("revisione finale del 15/11", () => {
+  it("dati personali: IBAN e codici fiscali di persone si coprono, la partita IVA resta", async () => {
+    const { mascheraDatiPersonali } = await import("@/lib/orders/generali/daDocumenti/pagine");
+    const t = mascheraDatiPersonali("Conto IT60 X054 2811 1010 0000 0123 456, delegato PRVMRA70A01H501Z, P.IVA 01234567890");
+    expect(t).toContain("[IBAN]");
+    expect(t).toContain("[CODICE FISCALE]");
+    expect(t).toContain("01234567890");
+    expect(t).not.toContain("PRVMRA70A01H501Z");
+  });
+  it("il frontespizio di un atto che cita la carta d'identità non si esclude; con «includi» nulla si esclude", () => {
+    expect(riconosciPagina("Repertorio n. 12. Avanti a me notaio è presente il sig. Mario Prova, identificato con carta d'identità, che stipula il presente atto di compravendita dell'immobile in via Prova").esclusa).toBe(false);
+    const id = "Carta d'identità. Cognome PROVA, nato a Roma il 01/01/1970, rilasciata dal Comune di Prova";
+    expect(riconosciPagina(id).esclusa).toBe(true);
+    expect(riconosciPagina(id, { includi: true }).esclusa).toBe(false);
+  });
+  it("percentuali: un punto solo è il decimale, 100 e oltre si rifiutano", async () => {
+    const { numeroPercentuale } = await import("@/lib/orders/generali/daDocumenti/estrazione");
+    expect(numeroPercentuale("12.345%")).toBe(12.345);
+    expect(numeroPercentuale("12,5")).toBe(12.5);
+    expect(numeroPercentuale("0,5 per mille")).toBe(0.5);
+    expect(numeroPercentuale("125")).toBeNull();
+    expect(numeroPercentuale("12.345")).toBe(12.345);
+  });
+  it("più file di computo si sommano; l'elenco prezzi non entra nei totali", () => {
+    const v = (importo: number) => ({ codice: null as string | null, descrizione: "x", unita: "n", quantita: 1, prezzo: importo, importo, capitolo: null as string | null });
+    const d = datiDaStrutturati({
+      a: { formato: "xpwe", documento: "computo", totale: 100, oggetto: null, committente: null, voci: [v(100)] },
+      b: { formato: "excel", documento: "computo", totale: 50, oggetto: null, committente: null, voci: [v(50)] },
+      c: { formato: "excel", documento: "elenco_prezzi", totale: 999, oggetto: null, committente: null, voci: [v(999)] },
+    }, [{ id: "a", nome: "A.xpwe" }, { id: "b", nome: "B.xlsx" }, { id: "c", nome: "Elenco.xlsx" }]);
+    expect(d.totale_computo).toHaveLength(1);
+    expect(d.totale_computo[0].valore).toBe(150);
   });
 });

@@ -527,6 +527,19 @@ Migrazioni: `20290416200000` (letture e pagine, RPC, compiti del router), `…20
 dell'estrazione), `…200200` (pagine escluse dal browser), `…200300` (colonne del contratto, creazione
 in una transazione, contratto applicativo, «Annulla tutto»).
 
+### Revisione finale (15/11, notte): dieci correzioni
+
+Migrazione `20290416200400`. Una lettura la porta avanti un motore solo (avvio in un UPDATE, lease
+per giro, avanzamento dell'estrazione solo se nessuno è andato avanti); in cache dell'OCR solo
+risposte finite (`cacheSoloSeFinita` nel router) e costo delle pagine sommato; fasi dal computo
+con il ribasso confermato e la sicurezza in una fase a parte (senza ribasso confermato non si
+creano); confronto rigido per repertori, catasto e scelte, a parole intere e con gli stessi numeri
+per i nomi; IBAN e codici fiscali di persone coperti prima di salvare e di chiamare il modello,
+pagine escluse tolte dalla cache, regola dei documenti d'identità più stretta e «Includi questa
+pagina»; formula con la manodopera fuori dal ribasso; computi sommati ed elenco prezzi fuori dai
+totali; percentuali col punto decimale e sotto 100; stima per gruppi veri; pagine e foto sotto gli
+8 MB, OCR una pagina alla volta, tre tentativi anche per i giri morti, estrazione con 100 secondi.
+
 ### Lotto 9: il contratto vero, in locale
 
 Fatto senza scritture in produzione e senza dati del documento nel repository. L'OCR e il modello

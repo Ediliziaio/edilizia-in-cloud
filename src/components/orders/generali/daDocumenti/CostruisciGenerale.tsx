@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { catalogoPer, PUNTI_APERTI, SEZIONI, type CampoCatalogo, type SezioneId, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 import { controlli, statoCampi, statoCampo, type Controllo, type EsitoCampo, type Occorrenza, type Valore } from "@/lib/orders/generali/daDocumenti/controlli";
-import { dataIso, numeroItaliano } from "@/lib/orders/generali/daDocumenti/estrazione";
+import { dataIso, numeroItaliano, numeroPercentuale } from "@/lib/orders/generali/daDocumenti/estrazione";
 import { bozzaDa, mancaPerCreare, pianoDiScrittura, type BozzaCostruisci } from "@/lib/orders/generali/daDocumenti/scritture";
 import type { Strutturati } from "@/lib/orders/generali/daDocumenti/strutturati";
 import type { RigaLettura, RigaPagina } from "@/lib/orders/generali/daDocumenti/foto";
@@ -174,7 +174,13 @@ export function CostruisciGenerale({ lettura, pagine, onIndietro, onChiudi, onCr
           )}
         </section>
         <aside className={cn("min-h-0 overflow-y-auto border-l bg-white", vista === "documento" ? "block" : "hidden lg:block")} aria-label="Documento">
-          <Documento lettura={lettura} fonte={fonte} />
+          <Documento lettura={lettura} fonte={fonte} onIncludi={async (f) => {
+            const { error } = await db.rpc("generale_lettura_includi_pagina", { p_id: lettura.id, p_file: f.fileId, p_numero: f.pagina });
+            if (error) { toast.error(error.message); return; }
+            toast.success("Pagina inclusa", { description: "Premi «Riprendi»: si legge la pagina e si rifà l'estrazione (costa come una lettura nuova delle pagine)." });
+            await qc.invalidateQueries({ queryKey: chiaveLettura(lettura.id) });
+            onIndietro();
+          }} />
           <Domanda letturaId={lettura.id} onFonte={(f) => setFonte(f)} nomiFile={nomiFile} />
         </aside>
       </div>
@@ -326,7 +332,12 @@ function RigaCampo({ def, esito, confermato, onCambia, onConferma, onFonte }: {
   const puoConfermare = valore !== null && valore !== "";
   const salva = () => {
     const v = leggiInput(def.tipo, testo);
-    if (v === null) { toast.error(`Valore non valido per «${def.etichetta}».`); return; }
+    if (v === null) {
+      toast.error(def.tipo === "percentuale" || def.tipo === "permille"
+        ? `«${def.etichetta}»: scrivi un numero sotto 100, con la virgola o il punto per i decimali (es. 12,5).`
+        : `Valore non valido per «${def.etichetta}».`);
+      return;
+    }
     onCambia(def.chiave, v); setModifica(false); onConferma(def.chiave, false);
   };
   return (
@@ -447,7 +458,7 @@ function Fonti({ lettura, pagine, attiva, onApri }: { lettura: RigaLettura; pagi
   );
 }
 
-function Documento({ lettura, fonte }: { lettura: RigaLettura; fonte: Fonte | null }) {
+function Documento({ lettura, fonte, onIncludi }: { lettura: RigaLettura; fonte: Fonte | null; onIncludi: (f: Fonte) => void }) {
   const testo = useQuery({
     queryKey: ["generale-lettura-pagina", lettura.id, fonte?.fileId, fonte?.pagina],
     enabled: !!fonte,
@@ -474,7 +485,15 @@ function Documento({ lettura, fonte }: { lettura: RigaLettura; fonte: Fonte | nu
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={apriPdf}><ExternalLink className="mr-1 h-3.5 w-3.5" />Originale</Button>
       </div>
       {testo.isLoading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        : testo.data?.stato === "esclusa" ? <p className="text-sm text-muted-foreground">Pagina con dati personali: non è stata letta. Aprila dall'originale.</p>
+        : testo.data?.stato === "esclusa" ? (
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>Pagina con dati personali ({testo.data.classe ?? "esclusa"}): non è stata letta. Guardala dall'originale.</p>
+            {lettura.stato !== "usata" && (
+              <Button size="sm" variant="outline" onClick={() => onIncludi(fonte)}>Includi questa pagina</Button>
+            )}
+            <p className="text-xs">Se non contiene dati personali, includila: si rilegge e l'estrazione riparte da capo.</p>
+          </div>
+        )
           : !corpo ? <p className="text-sm text-muted-foreground">Nessun testo per questa pagina.</p>
             : (
               <pre className="max-h-[60vh] whitespace-pre-wrap break-words rounded border bg-slate-50 p-2 font-sans text-xs leading-relaxed">
@@ -533,7 +552,7 @@ function ResiduoAccordo({ accordoId, importo }: { accordoId: string; importo: Va
   if (!r.data) return null;
   const t = totaliGenerale(r.data);
   const valore = r.data.generale.valore;
-  if (valore === null || t.daAssegnare === null) return <p className="mt-1 text-xs text-muted-foreground">L'accordo non ha un importo massimo: scrivilo nel suo contratto.</p>;
+  if (valore === null || t.daAssegnare === null) return <p className="mt-1 text-xs text-muted-foreground">L'accordo non ha un valore: scrivilo dalla sua pagina («Modifica»).</p>;
   const questo = typeof importo === "number" ? importo : 0;
   const dopo = t.daAssegnare - questo;
   const tono = dopo < 0 ? "text-destructive" : dopo < valore * 0.1 ? "text-amber-700" : "text-muted-foreground";
@@ -564,7 +583,8 @@ function leggiInput(tipo: CampoCatalogo["tipo"], t: string): Valore | null {
   const s = t.trim();
   if (!s) return null;
   switch (tipo) {
-    case "importo": case "percentuale": case "permille": { const n = numeroItaliano(s.replace(/giorni|al giorno/gi, "")); return n === null || n < 0 ? null : n; }
+    case "percentuale": case "permille": return numeroPercentuale(s.replace(/al giorno/gi, ""));
+    case "importo": { const n = numeroItaliano(s); return n === null || n < 0 ? null : n; }
     case "giorni": { const n = numeroItaliano(s.replace(/giorni/gi, "")); return n === null || !Number.isInteger(n) || n < 0 ? null : n; }
     case "data": return dataIso(s);
     case "si_no": return /^s[iì]$/i.test(s) ? true : /^no$/i.test(s) ? false : null;

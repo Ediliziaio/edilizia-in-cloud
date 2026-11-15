@@ -65,17 +65,28 @@ const nudo = (v: Valore) => String(v).toLowerCase().normalize("NFKD").replace(/[
   .replace(/\b(sig|sigra|ing|geom|arch|dott|dottssa|avv|p ?i)\b\.?/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
 
 /**
- * Per i campi di TESTO, due scritture della stessa cosa non sono un conflitto: uguali senza
- * punteggiatura e titoli, una contenuta nell'altra, o con almeno il 60% delle parole in comune.
- * Lotto 9 (contratto vero): metà dei «conflitti» erano questo. Codici, numeri e date restano rigidi.
+ * Per i campi di TESTO descrittivi (nomi, oggetto, luogo), due scritture della stessa cosa non sono
+ * un conflitto: uguali senza punteggiatura e titoli; oppure le PAROLE di una tutte dentro l'altra
+ * (parole intere: «Rossi» non è «Rossini»); oppure almeno il 60% delle parole in comune. In ogni
+ * caso i NUMERI devono coincidere: «Lotto 1» non è «Lotto 12». Lotto 9 (contratto vero): metà dei
+ * «conflitti» erano scritture diverse dello stesso nome. I campi `rigido` del catalogo (repertori,
+ * catasto, scelte) non passano di qui.
  */
 export function stessoTesto(a: Valore, b: Valore): boolean {
   const x = nudo(a), y = nudo(b);
   if (!x || !y) return x === y;
-  if (x === y || x.includes(y) || y.includes(x)) return true;
-  const px = new Set(x.split(" ")), py = new Set(y.split(" "));
-  const comuni = [...px].filter((w) => py.has(w)).length;
-  return comuni / new Set([...px, ...py]).size >= 0.6;
+  if (x === y) return true;
+  const px = x.split(" "), py = y.split(" ");
+  const numeri = (p: string[]) => p.filter((w) => /\d/.test(w)).sort().join(" ");
+  if (numeri(px) !== numeri(py)) return false;
+  const sx = new Set(px), sy = new Set(py);
+  const [corta, lunga] = sx.size <= sy.size ? [sx, sy] : [sy, sx];
+  if (corta.size >= 2 && [...corta].every((w) => lunga.has(w))) return true;
+  const parole = (s: Set<string>) => [...s].filter((w) => !/\d/.test(w));
+  const wx = parole(sx), wy = new Set(parole(sy));
+  const comuni = wx.filter((w) => wy.has(w)).length;
+  const unione = new Set([...wx, ...wy]).size;
+  return unione > 0 && comuni / unione >= 0.6;
 }
 
 function raggruppa(occ: Occorrenza[], testo = false): EsitoCampo["valori"] {
@@ -97,7 +108,7 @@ export function statoCampo(tipo: TipoDaDocumenti, chiave: string, dati: DatiLett
   const def = campoDelCatalogo(tipo, chiave);
   const puntoAperto = def?.puntoAperto;
   if (def?.escluso) return { chiave, stato: "escluso", valori: [], valore: null, puntoAperto };
-  const valori = raggruppa(dati[chiave] ?? [], def?.tipo === "testo");
+  const valori = raggruppa(dati[chiave] ?? [], def?.tipo === "testo" && !def.rigido);
   if (Object.prototype.hasOwnProperty.call(scelte, chiave) && scelte[chiave] !== null) {
     return { chiave, stato: "scelto", valori, valore: scelte[chiave], puntoAperto };
   }
@@ -169,13 +180,21 @@ function controlliAppalto(tipo: TipoDaDocumenti, l: Lettore): Controllo[] {
     const id = "importo_contrattuale", titolo = "Base ribassata più oneri = importo contrattuale";
     const campi = ["importo_base", "ribasso_pct", "oneri_sicurezza", "importo_contrattuale"];
     const base = l.num("importo_base"), rib = l.num("ribasso_pct"), oneri = l.num("oneri_sicurezza"), contr = l.num("importo_contrattuale");
+    const manodopera = l.num("costo_manodopera");
     if (base === null || rib === null || oneri === null || contr === null) out.push(nonVerificabile(id, titolo, campi, l));
     else {
-      const calcolato = Math.round((base * (1 - rib / 100) + oneri) * 100) / 100;
-      const diff = contr - calcolato;
-      out.push(Math.abs(diff) <= TOLLERANZA_EURO
-        ? { id, titolo, campi, esito: "ok", messaggio: `${euro(base)} − ${pct(rib)} + ${euro(oneri)} = ${euro(calcolato)}, come nel contratto.` }
-        : { id, titolo, campi, esito: "errore", messaggio: `Il calcolo dà ${euro(calcolato)}, il contratto dice ${euro(contr)}: differenza di ${euro(Math.abs(diff))}.` });
+      const tondo = (n: number) => Math.round(n * 100) / 100;
+      const calcolato = tondo(base * (1 - rib / 100) + oneri);
+      // Manodopera scorporata (D.Lgs. 36/2023, art. 41 c. 14): il ribasso non tocca la manodopera.
+      const scorporato = manodopera !== null && manodopera < base ? tondo((base - manodopera) * (1 - rib / 100) + manodopera + oneri) : null;
+      if (Math.abs(contr - calcolato) <= TOLLERANZA_EURO) {
+        out.push({ id, titolo, campi, esito: "ok", messaggio: `${euro(base)} − ${pct(rib)} + ${euro(oneri)} = ${euro(calcolato)}, come nel contratto.` });
+      } else if (scorporato !== null && Math.abs(contr - scorporato) <= TOLLERANZA_EURO) {
+        out.push({ id, titolo, campi: [...campi, "costo_manodopera"], esito: "ok", messaggio: `Con la manodopera fuori dal ribasso: (${euro(base)} − ${euro(manodopera!)}) − ${pct(rib)} + ${euro(manodopera!)} + ${euro(oneri)} = ${euro(scorporato)}, come nel contratto.` });
+      } else {
+        const altro = scorporato !== null ? ` (con la manodopera fuori dal ribasso ${euro(scorporato)})` : "";
+        out.push({ id, titolo, campi, esito: "errore", messaggio: `Il calcolo dà ${euro(calcolato)}${altro}, il contratto dice ${euro(contr)}: differenza di ${euro(Math.abs(contr - calcolato))}.` });
+      }
     }
   }
 

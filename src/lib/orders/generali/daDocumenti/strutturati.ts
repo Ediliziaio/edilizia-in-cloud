@@ -15,6 +15,8 @@ export interface VoceStrutturata {
   prezzo: number;
   importo: number;
   capitolo: string | null;
+  /** Voce della sicurezza (PriMus la segna): non si ribassa e va nella fase a parte. */
+  sicurezza?: boolean;
 }
 
 export interface Strutturato {
@@ -36,15 +38,25 @@ export function datiDaStrutturati(strutturati: unknown, file: { id: string; nome
   if (!strutturati || typeof strutturati !== "object") return dati;
   const nomi = new Map(file.map((f) => [f.id, f.nome]));
   const metti = (k: string, o: Occorrenza) => { (dati[k] ??= []).push(o); };
+  // Più file dello stesso tipo sono parti dello stesso totale: si sommano, non sono un conflitto.
+  // L'elenco prezzi non ha totale (sono prezzi unitari): resta fuori.
+  const somme: Record<"totale_computo" | "totale_sicurezza", { totale: number; voci: number; file: string[]; nomi: string[] }> = {
+    totale_computo: { totale: 0, voci: 0, file: [], nomi: [] }, totale_sicurezza: { totale: 0, voci: 0, file: [], nomi: [] },
+  };
   for (const [id, s] of Object.entries(strutturati as Record<string, Strutturato>)) {
-    if (!s || typeof s.totale !== "number" || !Number.isFinite(s.totale)) continue;
+    if (!s || s.documento === "elenco_prezzi" || typeof s.totale !== "number" || !Number.isFinite(s.totale)) continue;
     const nome = nomi.get(id) ?? id;
-    const chiave = s.documento === "sicurezza" ? "totale_sicurezza" : "totale_computo";
-    metti(chiave, {
-      valore: Math.round(s.totale * 100) / 100, file: nome, pagina: 1, certezza: "calcolato",
-      citazione: `Somma di ${s.voci?.length ?? 0} voci del ${FORMATO[s.formato] ?? "file"}`,
-    });
+    const k = s.documento === "sicurezza" ? "totale_sicurezza" : "totale_computo";
+    somme[k].totale += s.totale; somme[k].voci += s.voci?.length ?? 0; somme[k].file.push(`${nome} (${FORMATO[s.formato] ?? "file"})`); somme[k].nomi.push(nome);
     if (s.oggetto) metti("oggetto", { valore: s.oggetto, file: nome, pagina: 1, certezza: "letto", citazione: "Intestazione del computo" });
+  }
+  for (const k of ["totale_computo", "totale_sicurezza"] as const) {
+    const x = somme[k];
+    if (x.file.length === 0) continue;
+    metti(k, {
+      valore: Math.round(x.totale * 100) / 100, file: x.nomi.length === 1 ? x.nomi[0] : `${x.nomi.length} file`, pagina: 1, certezza: "calcolato",
+      citazione: `Somma di ${x.voci} voci: ${x.file.join(", ")}`,
+    });
   }
   return dati;
 }
