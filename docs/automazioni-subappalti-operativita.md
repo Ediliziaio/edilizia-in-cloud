@@ -37,8 +37,8 @@ e cosa resta.
 | **Periodi sovrapposti** | Nessun controllo | Periodo solo nel testo («dal … al …»); `sal_subappaltatori` ha solo `data_emissione` | Parser del periodo, sovrapposizione con le altre fatture dello stesso contratto → avviso | Nessuna | Senza periodo scritto non si controlla | Fatture | Media | Fatto (testo); periodo strutturato sul SAL da fare | Test periodo sovrapposto |
 | **Riferimenti incoerenti** | Nessun controllo | Numero SAL / contratto nel testo vs collegamento | Citato ≠ collegato → blocco | Nessuna | Testo con due SAL diversi → nessun numero letto | Fatture | Alta | Fatto | Test SAL e contratto diversi |
 | **Pagamenti e ritenute del SAL** | `registra_pagamento_sal_sub`, registro ritenute, avviso «ritenute non registrate» | Pagato, ritenute trattenute/svincolate | Restano quelli; residuo contrattuale = valore − eseguito; residuo finanziario = netto − pagato | Nessuna | Svincolo prima del collaudo: regola del contratto | Subappaltatori, Tesoreria (C) | Media | Esistente | Riepilogo del contratto coerente |
-| **Rapportino: operaio, qualifica, costo** | Costo fotografato all'approvazione; tariffa a mano vince, altrimenti costo vero da lordo/oneri | Persona, ore, qualifica; **manca la storia del costo orario** | Costo valido alla **data del rapportino** (serve una tabella `costo_orario_dipendente_storico` con `valido_dal`) | Nessuna | Rapportino approvato in ritardo dopo un aumento: oggi prende il costo del giorno dell'approvazione | Campo, Personale | Media | 1 lotto (tabella + funzione con data + trigger) | Due rapportini dello stesso operaio prima/dopo l'aumento hanno costi diversi |
-| **Rapportino: mezzo e tariffa** | `rapportino_mezzi_costi_trg`, costo orario del mezzo | Mezzo, ore; costo orario senza validità | Come sopra, storico con `valido_dal` | Nessuna | Mezzo a noleggio: costo dalla fattura del noleggio (B) | Campo, Mezzi | Bassa | 1 lotto | — |
+| **Rapportino: operaio, qualifica, costo** | Costo fotografato all'approvazione; tariffa a mano vince, altrimenti costo vero da lordo/oneri | Persona, ore, qualifica, storico del costo (`costi_orari_storico`, dal 15/11) | Costo valido alla **data del lavoro**: fatto (lotto 2) | Nessuna | Decorrenza passata di un aumento: da fare nell'interfaccia | Campo, Personale | Media | Fatto | Due rapportini dello stesso operaio prima/dopo l'aumento hanno costi diversi |
+| **Rapportino: mezzo e tariffa** | `rapportino_mezzi_costi_trg`, costo orario del mezzo | Mezzo, ore; storico del costo manuale e delle ore previste | Costo alla data del lavoro: fatto (lotto 2); il calcolato sulle spese resta senza storia | Nessuna | Mezzo a noleggio: costo dalla fattura del noleggio (B) | Campo, Mezzi | Bassa | Fatto | — |
 | **Rapportino: listino e prezzo** | `prezzo_voce_commessa`: cantiere → committente → generale | Tariffe, eccezioni per commessa | Esistente; il prezzo del committente **non** sostituisce il costo (campi separati) | Nessuna | Unità diverse fra listino committente e generale: segnalate (`unita_diverse`) | Campo, Listini | — | Esistente | Test in `src/test/logic/rapportiniPrezzoListino.test.ts` |
 | **Materiali: magazzino → cantiere** | Scarico al costo medio, quota «a magazzino» sulla fattura | Movimenti, costo medio | La fattura a magazzino non va sulla commessa; lo scarico sì: un costo solo | Nessuna | Rientro dal cantiere al costo d'uscita | Magazzino (B) | — | Area B | Test dell'area B |
 | **Bollette e utenze** | Non esiste | — | Vedi §4 | Lettura del PDF quando manca l'XML | Conguagli, note di credito, più utenze, doppioni | Nuovo modulo | Media | 3–4 lotti | Vedi §4 |
@@ -115,10 +115,20 @@ un conguaglio non viene scambiato per doppione; un doppione non entra due volte 
 
 ## 5. Lacune trovate, non ancora corrette
 
-1. **Costo orario senza storia**: `costo_orario_dipendente(uuid)` non ha data; il rapportino
-   fotografa il costo all'approvazione. Un rapportino di settembre approvato a novembre dopo un
-   aumento prende il costo di novembre. Serve uno storico con `valido_dal` e la data del
-   rapportino nella funzione. Lo stesso per `mezzi_costo_orario`.
+1. ~~**Costo orario senza storia**~~ — **corretto il 15/11/2026** (lotto 2, migrazione
+   `20290415100000_costo_orario_alla_data_del_lavoro`): `costi_orari_storico` registra ogni
+   cambio del costo di un dipendente (scheda o parametri del profilo) o di un mezzo (costo
+   manuale, ore previste) con `valido_dal` = oggi, e la prima volta anche il costo di prima,
+   valido dal passato remoto. Il rapportino prende il costo valido alla `data_lavoro`
+   (`private.costo_orario_dipendente_al`, `private.mezzo_costo_orario_al`). Nessun dato esistente
+   cambia: senza storia il costo è quello di adesso, come prima. Verifica:
+   `supabase/tests/costo_orario_alla_data_verifica.sql` (Demo 2, transazione annullata).
+   Restano:
+   - il costo **calcolato** di un mezzo (spese degli ultimi 12 mesi) cambia col tempo senza
+     lasciare storia: si storicizzano solo le modifiche del manuale e delle ore previste;
+   - un aumento con decorrenza passata («dal 1° del mese») si registra dal giorno in cui lo si
+     scrive: la data a scelta serve nell'interfaccia della scheda dipendente;
+   - `rapportino_costo_recupera` (il costo che mancava e arriva dopo) usa il primo costo noto.
 2. **Periodo del SAL del subappaltatore**: c'è solo `data_emissione`. Con `periodo_dal`/`periodo_al`
    sul SAL la sovrapposizione si controlla anche quando la fattura non scrive il periodo.
 3. **Acconto al subappaltatore**: non c'è un campo strutturato sul contratto; una fattura
