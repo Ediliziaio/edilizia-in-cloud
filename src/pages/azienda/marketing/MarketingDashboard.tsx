@@ -473,7 +473,10 @@ export default function MarketingDashboard() {
           <div className="grid gap-0 xl:grid-cols-[minmax(340px,0.58fr)_minmax(540px,1fr)]">
             {/* Telefono: titolo, bottone e quattro numeri 2×2; via icona, occhiello e spiegazione. */}
             <div className="bg-eic-navy-deep p-5 text-white sm:p-6 max-sm:p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between max-sm:gap-3">
+              {/* 15/11/2026: tra 1280 e 1535 px la colonna è stretta (circa 370 px): titolo e
+                  bottone uno sotto l'altro, e niente icone nei quattro riquadri, che si
+                  troncavano («LEAD PERIO…», «4 · 413…»). */}
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between xl:flex-col 2xl:flex-row max-sm:gap-3">
                 <div className="flex min-w-0 gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)] max-sm:hidden">
                     {executiveState.tone === "green" ? <ShieldCheck className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
@@ -504,7 +507,7 @@ export default function MarketingDashboard() {
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 max-sm:hidden",
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 max-sm:hidden xl:hidden 2xl:flex",
                             item.tone === "green" && "text-emerald-100",
                             item.tone === "red" && "text-red-100",
                             item.tone === "orange" && "text-orange-100",
