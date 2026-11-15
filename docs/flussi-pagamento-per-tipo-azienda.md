@@ -52,14 +52,19 @@ acconto 40.000 + netti 150.000 + svincolo 10.000 = 200.000.
 - La ritenuta del preventivo con computo arriva alla commessa.
 - Cronologia della commessa: i SAL non si sommano più fra loro (sono cumulativi).
 
-## Cosa resta da decidere o sistemare
+## Sistemato dopo (15/11, sera)
 
-1. **Lavori pubblici**: la contabilità a misura (lp_sal) sta sotto Articoli → Apri computo, mai usata (0 righe).
-   I suoi certificati non sono legati alle rate e «Crea fattura» non li vede.
-2. **Tre generatori di documenti diversi** (verbale SAL, rendiconto, contabilità lavori pubblici): aspetto e
-   numerazione diversi. Da unificare sullo stile unico.
-3. **Incassi ripetuti**: lo stato dei pagamenti si legge in tre punti (Panoramica, Incassi, SAL al cliente).
-4. **Il pulsante «Fattura»** senza fatturazione nativa si comporta in due modi (testata disattivata, sezione con avviso).
-5. **Vulcano** ha 59 lavori per committente e non ha mai usato il Rendiconto (0 righe): lavora solo a rate.
-   Da capire con loro se il rendiconto serve o se basta così.
-6. **Nessuno scrive la ritenuta dei preventivatori** (solo il computo la conosce).
+- Incassi: il riquadro «SAL al cliente» dava la differenza dei lavori; ora, col certificato, il netto da
+  incassare (tolti acconto e ritenuta).
+- Preventivatori: la ritenuta di garanzia sta nel piano di pagamento, esce nel PDF e arriva alla commessa.
+- Lavori pubblici: la vista SAL lo dice e apre la contabilità del computo.
+- Logo dell'azienda in tutte le stampe (anche contabilità dei lavori pubblici e rendiconto, dall'anagrafica).
+- Fattura/proforma/DDT/nota di credito: senza fatturazione nativa disattivati col motivo, come in testata.
+
+## Cosa resta
+
+1. **Lavori pubblici**: i certificati di pagamento non sono legati alle rate (si fatturano da «Prepara la
+   fattura» del certificato). Nessuna azienda ha ancora usato questa contabilità: da collegare al primo uso vero.
+2. **Tre generatori di documenti** (verbale SAL, rendiconto, contabilità lavori pubblici): ora tutti col logo,
+   ma con impaginazioni diverse.
+3. **Vulcano** ha 59 lavori per committente e non ha mai usato il Rendiconto: da chiedere a loro se serve.
