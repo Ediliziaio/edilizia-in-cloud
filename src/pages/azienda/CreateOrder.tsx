@@ -394,7 +394,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (draft.orderItems?.length) setOrderItems(draft.orderItems);
     if (draft.bonusLines?.length) setBonusLines(draft.bonusLines);
     fasiDiPartenza.scegli(draft.modelloFasiId ?? null);
-    setFasiPersonalizzate(fasiDaBozza(draft.fasiLavoro));
+    const fasiInBozza = fasiDaBozza(draft.fasiLavoro);
+    setFasiPersonalizzate(fasiInBozza);
+    setFasiDalContrattoAttive(draft.fasiDalContratto === true && !!fasiInBozza);
     setDurataLavori(typeof draft.durataLavori === "string" ? draft.durataLavori : "");
     setSettimanaLavorativa(draft.settimanaLavorativa === 6 ? 6 : 5);
     if (typeof draft.cantiereAddress === "string") {
@@ -708,6 +710,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         cantiereAddressManuale: cantiereTouchedRef.current,
         modelloFasiId: fasiDiPartenza.scelto ?? fasiDiPartenza.modello?.id ?? null,
         fasiLavoro: fasiPersonalizzate ?? (fasiDiPartenza.modello ? fasiDaCreare : null),
+        fasiDalContratto: fasiDalContrattoAttive && fasiPersonalizzate !== null,
         durataLavori,
         settimanaLavorativa,
         paymentType: paymentType,
@@ -726,7 +729,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       installments, financingCost, financingCostMode,
       hasBuildingBonus, bonusLines,
       orderItems, dateToIso, cantiereAddress, cantiereAddressData,
-      fasiDiPartenza.scelto, fasiDiPartenza.modello, fasiPersonalizzate, fasiDaCreare,
+      fasiDiPartenza.scelto, fasiDiPartenza.modello, fasiPersonalizzate, fasiDaCreare, fasiDalContrattoAttive,
       durataLavori, settimanaLavorativa, contrattoImportato, contractSource, officeAssignments]);
 
   // Anche il completamento usa questa fotografia: dopo la RPC la bozza conserva l'id già creato.

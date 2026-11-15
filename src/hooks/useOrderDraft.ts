@@ -33,6 +33,8 @@ export interface OrderDraftData {
   cantiereAddressManuale?: boolean;
   modelloFasiId?: string | null;
   fasiLavoro?: FaseModello[] | null;
+  /** Le fasi in bozza vengono dal contratto letto (15/11/2026): ripresa la bozza, la tendina lo dice ancora. */
+  fasiDalContratto?: boolean;
   durataLavori?: string;
   settimanaLavorativa?: 5 | 6;
   /** Recupero dopo una creazione riuscita ma un completamento interrotto: non creare un duplicato. */
