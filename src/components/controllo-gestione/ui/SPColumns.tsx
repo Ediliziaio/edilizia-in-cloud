@@ -25,7 +25,7 @@ function buildAttivo(a: SPAttivo): Riga[] {
     { chiave: "imm_materiali", label: "Immobilizzazioni materiali", valore: a.imm_materiali, livello: "voce", spiegazione: "Mezzi, attrezzature, immobili: valore residuo dopo gli ammortamenti." },
     { chiave: "imm_finanziarie", label: "Immobilizzazioni finanziarie", valore: a.imm_finanziarie, livello: "voce" },
     { chiave: "attivo_fisso", label: "Attivo fisso", valore: a.attivo_fisso, livello: "subtot", spiegazione: "Quello che resta in azienda per più anni." },
-    { chiave: "rimanenze", label: "Rimanenze di magazzino", valore: a.rimanenze, livello: "voce" },
+    { chiave: "rimanenze", label: "Rimanenze di magazzino", valore: a.rimanenze, livello: "voce", spiegazione: "Giacenza alla data, dai carichi e scarichi di magazzino, al costo medio attuale." },
     { chiave: "lavori_in_corso", label: "Lavori in corso", valore: a.lavori_in_corso ?? 0, livello: "voce", spiegazione: "Lavori eseguiti e non ancora fatturati, con la stessa regola del conto economico." },
     { chiave: "crediti_clienti", label: "Crediti verso clienti", valore: a.crediti_clienti, livello: "voce", spiegazione: "Fatture emesse non ancora incassate alla data, IVA compresa, meno le note di credito da rimborsare." },
     { chiave: "crediti_tributari", label: "Crediti tributari", valore: a.crediti_tributari, livello: "voce", spiegazione: "Credito IVA dalle liquidazioni periodiche (registri IVA dell'app), riportato di periodo in periodo." },
