@@ -51,7 +51,7 @@ function buildPassivo(p: SPPassivo): Riga[] {
     { chiave: "pas_consolidato", label: "Debiti a lungo termine", valore: p.pas_consolidato, livello: "subtot" },
     { chiave: "banche_negative", label: "Conti in rosso", valore: p.banche_negative, livello: "voce", spiegazione: "Saldo dei conti in rosso alla data (scoperti, anticipi), senza compensarli coi conti in attivo." },
     { chiave: "mutui_breve", label: "Mutui: quota entro 12 mesi", valore: p.mutui_breve ?? 0, livello: "voce", spiegazione: "Quota capitale delle prossime dodici rate." },
-    { chiave: "debiti_fornitori", label: "Debiti verso fornitori", valore: p.debiti_fornitori, livello: "voce", spiegazione: "Pagamenti a fornitori ancora aperti alla data nello scadenzario." },
+    { chiave: "debiti_fornitori", label: "Debiti verso fornitori", valore: p.debiti_fornitori, livello: "voce", spiegazione: "Fatture ricevute registrate e non pagate alla data, IVA compresa, più i pagamenti a fornitori aperti nello scadenzario." },
     { chiave: "debiti_tributari", label: "Debiti tributari", valore: p.debiti_tributari, livello: "voce", spiegazione: "IRES e IRAP stimate dell'esercizio (acconti non registrati), F24 e scadenze fiscali da pagare, ritenute dei cedolini fino al 16 del mese dopo e IVA dei periodi non ancora scaduti (quelli scaduti si considerano versati)." },
     { chiave: "debiti_personale", label: "Debiti verso il personale", valore: p.debiti_personale, livello: "voce", spiegazione: "Stipendi netti non ancora pagati alla data." },
     { chiave: "debiti_previdenziali", label: "Debiti previdenziali", valore: p.debiti_previdenziali, livello: "voce", spiegazione: "Contributi dei cedolini da versare con l'F24 del 16 del mese dopo." },
