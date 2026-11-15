@@ -931,8 +931,13 @@ describe("giro 1: numeri giusti", () => {
     const fallback = emptyForecastSources();
     fallback.employees = [employee];
     const rows = buildForecastLedger(fallback, today);
-    expect(rows.movements.map((m) => m.date)).toEqual(["2026-10-31", "2026-11-30", "2026-12-31", "2027-01-31"]);
+    expect(rows.movements.filter((m) => m.id.startsWith("stipendio:")).map((m) => m.date)).toEqual(["2026-10-31", "2026-11-30", "2026-12-31", "2027-01-31"]);
     expect(rows.warnings.join(" ")).toMatch(/l’ultimo giorno del mese/);
+    // 15/11/2026: F24 il 16 del mese dopo (2000 − 1500 + 30% di 2000 = 1100 €) e la tredicesima a dicembre.
+    const f24 = rows.movements.filter((m) => m.id.startsWith("f24-stimato:"));
+    expect(f24.find((m) => m.id === "f24-stimato:2026-10")).toEqual(expect.objectContaining({ date: "2026-11-16", cents: 110000, category: "fisco", estimated: true }));
+    expect(f24.find((m) => m.id === "f24-stimato:2026-12")?.cents).toBe(220000);
+    expect(rows.movements.find((m) => m.id.startsWith("tredicesima:"))).toEqual(expect.objectContaining({ date: "2026-12-31", cents: 150000 }));
   });
   it("estimates VAT to pay on the 16th of next month, only when positive and not already in F24", () => {
     const s = emptyForecastSources();
@@ -958,6 +963,16 @@ describe("giro 1: numeri giusti", () => {
     // Stime spente: la stima IVA esce dal piano.
     const p = projectForecast(buildForecastLedger(s, "2026-08-01").movements, 0, "2026-08-01", 30, 0, { ...scenario, includeEstimates: false });
     expect(p.excludedEstimates).toHaveLength(1);
+  });
+  it("stima anche una spesa mensile senza generazione automatica (15/11/2026)", () => {
+    const s = emptyForecastSources();
+    s.costs = [
+      { id: "affitto", name: "Affitto magazzino", amount: 2500, vat_rate: 0, due_date: "2026-04-30", is_paid: true, recurrence: "monthly", recurrence_auto: false },
+      { id: "una", name: "Una volta", amount: 100, vat_rate: 0, due_date: "2026-04-30", is_paid: true, recurrence: "once", recurrence_auto: false },
+    ];
+    const stime = buildForecastLedger(s, "2026-11-14").movements.filter((m) => m.estimated);
+    expect(stime[0].id).toBe("ricorrente:affitto:2026-11-30");
+    expect(stime.every((m) => m.id.startsWith("ricorrente:affitto:"))).toBe(true);
   });
   it("recognizes a recurring occurrence registered a few days off, and repeats weekly costs", () => {
     const s = emptyForecastSources();

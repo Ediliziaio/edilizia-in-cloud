@@ -191,6 +191,8 @@ export interface EmployeeRow {
   data_assunzione?: string | null;
   data_inizio_lavoro?: string | null;
   created_at?: string;
+  /** Contributi a carico dell'azienda in % del lordo; vuoto = stima al 30%. */
+  inps_rate?: Money;
 }
 export interface PayrollRow {
   id: string;
@@ -1191,7 +1193,10 @@ export function buildForecastLedger(
   };
   for (const c of s.costs) {
     const base = validDay(c.due_date);
-    if (!c.recurrence_auto || !base) continue;
+    // 15/11/2026: ogni spesa ricorrente, anche senza la generazione automatica. Una spesa
+    // «mensile» senza generazione resta una riga sola in Costi, ma esce lo stesso ogni mese:
+    // su Demo 2 affitto, carburante e software non comparivano da dicembre in poi.
+    if (!c.recurrence || c.recurrence === "once" || !base) continue;
     const cents = grossCents(c.amount, c.vat_rate ?? c.supplier?.vat_rate);
     for (const date of occurrences(c, base)) {
       if (c.recurrence_end_date && date > c.recurrence_end_date) break;
@@ -1706,7 +1711,21 @@ export function buildForecastLedger(
             : undefined,
     });
   }
-  // Unissued payroll is explicitly a planning estimate. No invented F24 or VAT dates.
+  // Unissued payroll is explicitly a planning estimate.
+  // 15/11/2026: per i mesi stimati dall'anagrafica anche l'F24 del 16 del mese dopo (ritenute e
+  // contributi del dipendente = lordo − netto, più i contributi dell'azienda) e la tredicesima di
+  // dicembre. Prima per quei mesi uscivano solo i netti: su Demo 2 circa 51.000 € al mese mancanti.
+  const f24Stimati = new Map<string, { cents: number; n: number }>();
+  const aggiungiF24 = (mese: string, e: EmployeeRow, mensilita = 1) => {
+    const lordo = toCents(e.gross_salary);
+    const netto = toCents(e.net_salary);
+    if (lordo <= 0 || netto <= 0 || netto > lordo) return;
+    const aliquota = Number(e.inps_rate) > 0 ? Number(e.inps_rate) / 100 : 0.3;
+    const v = f24Stimati.get(mese) ?? { cents: 0, n: 0 };
+    v.cents += Math.round((lordo - netto + lordo * aliquota) * mensilita);
+    v.n += 1;
+    f24Stimati.set(mese, v);
+  };
   for (const e of s.employees) {
     if (toCents(e.net_salary) <= 0 && toCents(e.gross_salary) <= 0) continue;
     for (let offset = 0; offset < 4; offset++) {
@@ -1745,7 +1764,44 @@ export function buildForecastLedger(
         estimated: true,
         note: `${toCents(e.net_salary) > 0 ? "Netto" : "Lordo usato come stima prudente: netto mancante"}; ${observedPayday != null ? `giorno ${observedPayday} ricavato dai pagamenti registrati` : "fine mese ipotizzata: nessun giorno ricavabile dai pagamenti"}.`,
       });
+      aggiungiF24(date.slice(0, 7), e);
+      // Tredicesima: a dicembre una mensilità in più, nello stesso giorno dello stipendio.
+      if (date.slice(5, 7) === "12" && toCents(e.net_salary) > 0) {
+        add({
+          id: `tredicesima:${e.id}:${date.slice(0, 4)}`,
+          description: "Tredicesima prevista",
+          counterparty: `${e.first_name} ${e.last_name}`,
+          category: "personale",
+          direction: "out",
+          cents: toCents(e.net_salary),
+          date,
+          source: "Stima personale",
+          href: "/azienda/personale",
+          estimated: true,
+          note: "Una mensilità netta in più a dicembre, stimata dall'anagrafica finché non c'è il cedolino.",
+        });
+        aggiungiF24(date.slice(0, 7), e);
+      }
     }
+  }
+  for (const [mese, v] of f24Stimati) {
+    const [y, m] = mese.split("-").map(Number);
+    if (f24Dipendenti.has(`${y}-${m}`) || f24Contributi.has(`${y}-${m}`)) continue;
+    const date = sediciDelMeseDopo(`${mese}-01`);
+    if (date < today) continue;
+    add({
+      id: `f24-stimato:${mese}`,
+      description: `F24 stimato · ritenute e contributi (stipendi ${String(m).padStart(2, "0")}/${y})`,
+      counterparty: "Erario e INPS",
+      category: "fisco",
+      direction: "out",
+      cents: v.cents,
+      date,
+      source: "Stima personale",
+      href: "/azienda/personale",
+      estimated: true,
+      note: "Lordo meno netto (ritenute e contributi del dipendente) più i contributi dell'azienda (aliquota in anagrafica, altrimenti 30% del lordo). Confrontalo col prospetto del consulente.",
+    });
   }
   if (manualPayroll.length)
     warnings.add(
@@ -1753,7 +1809,7 @@ export function buildForecastLedger(
     );
   if (s.employees.length) {
     warnings.add(
-      "Stipendi non ancora emessi stimati dall’anagrafica. Imposte e contributi entrano quando sono registrati in F24; verifica che siano completi.",
+      "Stipendi non ancora emessi stimati dall’anagrafica, con F24 e tredicesima stimati: sostituiscili coi cedolini e gli F24 veri appena ci sono.",
     );
     warnings.add(`Giorno di pagamento degli stipendi: ${paydayRule}.`);
   }

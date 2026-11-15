@@ -656,20 +656,22 @@ export default function CompanyCostsManager({
     queryFn: async () => {
       const { data: rows, error } = await supabase
         .from("company_costs")
-        .select("amount, recurrence, recurrence_end_date")
+        .select("amount, recurrence, recurrence_end_date, recurrence_auto")
         .eq("company_id", companyId!)
         .neq("recurrence", "once");
       if (error) throw error;
       const oggi = new Date();
       let mensile = 0;
       let attive = 0;
-      (rows || []).forEach((r: { amount: number | string | null; recurrence: string; recurrence_end_date: string | null }) => {
+      let senzaAuto = 0;
+      (rows || []).forEach((r: { amount: number | string | null; recurrence: string; recurrence_end_date: string | null; recurrence_auto: boolean | null }) => {
         if (r.recurrence_end_date && new Date(r.recurrence_end_date) < oggi) return;
         attive += 1;
+        if (!r.recurrence_auto && !r.recurrence_end_date) senzaAuto += 1;
         const div = r.recurrence === "monthly" ? 1 : r.recurrence === "quarterly" ? 3 : 12;
         mensile += (Number(r.amount) || 0) / div;
       });
-      return { attive, mensile };
+      return { attive, mensile, senzaAuto };
     },
     enabled: !!companyId && view === "spese" && typeLock === "fixed",
     staleTime: 60 * 1000,
@@ -784,7 +786,8 @@ export default function CompanyCostsManager({
               <NavyStatCard
                 label="Ricorrenti"
                 value={<>{eur0(ricorrentiSintesi.data?.mensile ?? 0)}<span className="text-sm font-normal text-blue-50/70">/mese</span></>}
-                sub={`${ricorrentiSintesi.data?.attive ?? 0} voci${soloLettura ? "" : " · gestisci"}`}
+                // 15/11/2026: le voci senza generazione automatica non creano i mesi in Costi
+                sub={`${ricorrentiSintesi.data?.attive ?? 0} voci${ricorrentiSintesi.data?.senzaAuto ? ` · ${ricorrentiSintesi.data.senzaAuto} non si generano` : ""}${soloLettura ? "" : " · gestisci"}`}
                 icon={Repeat}
                 onClick={soloLettura ? undefined : () => setRicorrentiOpen(true)}
               />

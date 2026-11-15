@@ -182,7 +182,8 @@ export async function loadForecastDataset(
           // Lo storico delle spese pagate serve solo per: ricorrenze (la spesa madre), ODA già
           // diventati spesa, e occorrenze vicine a oggi da non ripetere. Il resto non cambia il piano.
         ).or(
-          `is_paid.eq.false,is_paid.is.null,recurrence_auto.eq.true,purchase_order_id.not.is.null,due_date.gte.${moveDay(today, -7)}`,
+          // 15/11/2026: tutte le spese madri ricorrenti, non solo quelle con la generazione accesa
+          `is_paid.eq.false,is_paid.is.null,recurrence_auto.eq.true,recurrence.neq.once,purchase_order_id.not.is.null,due_date.gte.${moveDay(today, -7)}`,
         ),
     },
     {
@@ -281,7 +282,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "employees",
-          "id,first_name,last_name,net_salary,gross_salary,data_assunzione,data_inizio_lavoro,created_at",
+          "id,first_name,last_name,net_salary,gross_salary,data_assunzione,data_inizio_lavoro,created_at,inps_rate",
         ).eq("is_active", true),
     },
     {

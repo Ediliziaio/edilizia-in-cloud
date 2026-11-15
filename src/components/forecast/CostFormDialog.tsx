@@ -344,7 +344,14 @@ export function CostFormDialog({
                 <Select
                   value={formData.recurrence}
                   onValueChange={(v) => {
-                    setFormData({ ...formData, recurrence: v, ...(v === "once" ? { end_date: "" } : {}) });
+                    // 15/11/2026: passando a una ricorrenza senza data di fine, la generazione
+                    // automatica parte accesa: altrimenti resta una riga sola che si dice «mensile».
+                    setFormData({
+                      ...formData,
+                      recurrence: v,
+                      ...(v === "once" ? { end_date: "" } : {}),
+                      ...(v !== "once" && formData.recurrence === "once" && !formData.end_date ? { recurrence_auto: true } : {}),
+                    });
                   }}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
