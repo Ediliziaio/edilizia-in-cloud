@@ -22,8 +22,9 @@ import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
-import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, Map as MapIcon, FileQuestion, HardHat, NotebookPen } from "lucide-react";
+import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, usaGenerali, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
+import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, HardHat, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -98,6 +99,7 @@ function OrdersListInner() {
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   // Commesse generali accese da Impostazioni: il bivio «Nuova Commessa» le offre accanto alla commessa normale.
   const { modelli: modelliGenerali, configurata: generaliConfigurate, commessaCliente } = useImpostazioniCommesseGenerali();
+  const { scelta: sceltaRiepilogo } = useRiepilogoCommesse(effectiveCompany?.id);
   const [nuovaGenerale, setNuovaGenerale] = useState<ModelloGenerale | null>(null);
   const mappaGenerali = useMappaGenerali();
   const queryClient = useQueryClient();
@@ -1016,7 +1018,7 @@ function OrdersListInner() {
 
   // Da telefono la parte blu è il riassunto dei soldi. Fatturato: il registro vendite, come nel cruscotto.
   const { data: kpiFatturazione } = useDashboardBillingKPI(
-    effectiveCompany?.id ?? null, isMobile && isYearCorrente && isNative && orderPerms.canViewBilling);
+    effectiveCompany?.id ?? null, isNative && orderPerms.canViewBilling && ((isMobile && isYearCorrente) || sceltaRiepilogo.riquadri.includes("fatturato")));
   const costiSostenuti = useMemo(() => {
     if (!scopeMargins || !globalStats) return null;
     const delPeriodo = new Set(globalStats.annualIds);
@@ -1365,10 +1367,15 @@ function OrdersListInner() {
   const isWorkflowStatsLoading = isEconomicStatsLoading || (!!effectiveCompany?.id && isLoadingStatuses);
 
   // Riepilogo commesse: i riquadri e il grafico li sceglie l'azienda; chi guarda vede solo quelli che i suoi permessi consentono.
-  const { scelta: sceltaRiepilogo } = useRiepilogoCommesse(effectiveCompany?.id);
   const [sceltaRiepilogoAperta, setSceltaRiepilogoAperta] = useState(false);
-  const permessiRiepilogo = { importi: orderPerms.canViewOrderAmounts, costi: orderPerms.canViewCosts, margini: orderPerms.canViewMargins };
+  const permessiRiepilogo = {
+    importi: orderPerms.canViewOrderAmounts, costi: orderPerms.canViewCosts, margini: orderPerms.canViewMargins,
+    fatturazione: orderPerms.canViewBilling && isNative,
+    appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita"),
+  };
   const riquadriRiepilogo = riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo);
+  // I numeri delle generali li dà il server, già filtrati per permesso: si chiedono solo se un riquadro li usa.
+  const { data: numeriGenerali, isPending: numeriGeneraliPending } = useCruscottoGenerali(usaGenerali(riquadriRiepilogo));
   const valoriRiepilogo = useMemo(() => {
     const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
     const periodo = isYearCorrente ? String(currentYear) : "del periodo";
@@ -1376,6 +1383,9 @@ function OrdersListInner() {
     const righe = (globalStats?.scopeRows ?? []).filter((o) => !generali.has(o.id));
     const ritardo = commesseInRitardo(righe, new Set([lastStatusId, supportStatusId].filter(Boolean)), new Date().toLocaleDateString("en-CA"));
     const margine = scopeMargins && globalStats ? margineDelPeriodo(scopeMargins, new Set(globalStats.annualIds)) : null;
+    const soldi = (n: number | null | undefined) => (n == null ? "—" : euro(n));
+    const ta = numeriGenerali?.totaleAppalti;
+    const to = numeriGenerali?.totaleOperazioni;
     const quanteCommesse = isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders;
     const valori: Record<RiquadroRiepilogo, { titolo: string; valore: string; nota: string; icona: typeof Euro }> = {
       commesse: { titolo: isYearCorrente ? `Commesse ${currentYear}` : "Commesse del periodo", valore: String(quanteCommesse), icona: ShoppingBag,
@@ -1392,15 +1402,31 @@ function OrdersListInner() {
       in_ritardo: { titolo: "In ritardo", valore: String(ritardo), icona: Clock, nota: "posa prevista già passata" },
       assistenza: { titolo: "In assistenza", valore: String(stats.countAssistenza), icona: Wrench, nota: "nella fase di assistenza" },
       completate: { titolo: "Completate", valore: String(stats.countCompletati), icona: CheckCircle2, nota: "arrivate all'ultima fase" },
+      pregresso: { titolo: "Pregresso da gestire", valore: String(globalStats?.previous.count ?? 0), icona: History,
+        nota: `${globalStats?.reasons.work ?? 0} lavori · ${globalStats?.reasons.support ?? 0} assistenze · ${globalStats?.reasons.payment ?? 0} saldi` },
+      fatturato: { titolo: `Fatturato ${currentYear}`, valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: "imponibile, tutta l'azienda" },
+      appalti_valore: { titolo: "Valore appalti in corso", valore: soldi(ta?.valore), icona: Landmark,
+        nota: `${ta?.appalti ?? 0} appalti · eseguito ${soldi(ta?.eseguito)}` },
+      appalti_da_eseguire: { titolo: "Lavori da eseguire", valore: soldi(ta?.daEseguire), icona: Hammer, nota: `su ${soldi(ta?.valore)} di appalti` },
+      appalti_da_incassare: { titolo: "Da incassare sugli appalti", valore: soldi(ta?.daIncassare), icona: AlertCircle, nota: `fatturato ${soldi(ta?.fatturato)}` },
+      appalti_margine: { titolo: "Margine a finire appalti", valore: soldi(ta?.margineAFinire), icona: Percent, nota: `stima su ${ta?.conPiano ?? 0} appalti con il piano` },
+      unita_vendute: { titolo: "Unità vendute", valore: to ? `${to.vendute} su ${to.unita}` : "—", icona: Building2, nota: `${to?.operazioni ?? 0} operazioni in corso` },
+      unita_libere: { titolo: "Unità libere", valore: String(to?.libere ?? 0), icona: Building2, nota: `su ${to?.unita ?? 0} unità` },
+      operazioni_venduto: { titolo: "Venduto unità", valore: soldi(to?.venduto), icona: Euro, nota: `incassato ${soldi(to?.incassato)}` },
+      operazioni_incassato: { titolo: "Incassato unità", valore: soldi(to?.incassato), icona: TrendingUp,
+        nota: to?.venduto && to.incassato != null ? `${Math.round((to.incassato / to.venduto) * 100)}% del venduto` : "caparre, acconti e saldi" },
+      capitale_impegnato: { titolo: "Capitale impegnato", valore: soldi(to?.capitaleImpegnato), icona: Wallet, nota: `costi meno incassi · ${to?.conPiano ?? 0} con il piano` },
+      operazioni_margine: { titolo: "Margine a finire operazioni", valore: soldi(to?.margineAFinire), icona: Percent, nota: `stima su ${to?.conPiano ?? 0} operazioni con il piano` },
     };
     return valori;
-  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages]);
+  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione]);
 
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="orders-workspace flex flex-col gap-3">
       {orderPerms.canEditSettingsOrders && effectiveCompany?.id && <RiepilogoCommesseScelta open={sceltaRiepilogoAperta}
-        onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo} />}
+        onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo}
+        gruppi={{ appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita") }} />}
       {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
       {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
           alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
@@ -1606,7 +1632,9 @@ function OrdersListInner() {
                 const v = valoriRiepilogo[id];
                 const Icona = v.icona;
                 const daCosti = CATALOGO_RIQUADRI.find((c) => c.id === id)?.permesso;
-                const inAttesa = isEconomicStatsLoading || ((daCosti === "costi" || daCosti === "margini") && scopeMarginsPending);
+                const gruppo = CATALOGO_RIQUADRI.find((c) => c.id === id)?.gruppo;
+                const inAttesa = gruppo !== "commesse" ? numeriGeneraliPending
+                  : isEconomicStatsLoading || ((daCosti === "costi" || daCosti === "margini") && scopeMarginsPending);
                 return <div key={id} data-riquadro={id} className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">

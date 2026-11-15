@@ -11,12 +11,13 @@ import { leggiCruscottoGenerali, type CruscottoGenerali } from "@/lib/orders/gen
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-export function useCruscottoGenerali() {
+/** `abilitato`: false per non fare la chiamata (es. il riepilogo commesse che non usa riquadri delle generali). */
+export function useCruscottoGenerali(abilitato = true) {
   const companyId = useEffectiveCompanyId();
   const { attiva } = useImpostazioniCommesseGenerali();
   const query = useQuery({
     queryKey: ["cruscotto", "commesse-generali", companyId],
-    enabled: !!companyId && attiva,
+    enabled: !!companyId && attiva && abilitato,
     staleTime: 2 * 60_000,
     queryFn: async (): Promise<CruscottoGenerali | null> => {
       const { data, error } = await db.rpc("cruscotto_commesse_generali", { p_company_id: companyId });

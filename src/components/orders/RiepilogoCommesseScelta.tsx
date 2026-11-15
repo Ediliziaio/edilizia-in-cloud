@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useSalvaRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import {
-  CATALOGO_RIQUADRI, CATALOGO_SERIE, SCELTA_PREDEFINITA,
+  CATALOGO_RIQUADRI, CATALOGO_SERIE, NOMI_GRUPPI, SCELTA_PREDEFINITA, type GruppoRiquadro,
   type RiquadroRiepilogo, type SceltaRiepilogo, type SerieGrafico,
 } from "@/lib/orders/riepilogoCommesse";
 
-const ETICHETTA_PERMESSO = { nessuno: "", importi: "serve «Venduto e importi»", costi: "serve «Costi»", margini: "serve «Margini»" } as const;
+const ETICHETTA_PERMESSO = { nessuno: "", importi: "serve «Venduto e importi»", costi: "serve «Costi»", margini: "serve «Margini»", fatturazione: "serve «Fatturazione»" } as const;
 
 /** Sceglie, per tutta l'azienda, i 4 riquadri del riepilogo commesse e cosa mostra il grafico accanto. */
-export function RiepilogoCommesseScelta({ open, onOpenChange, companyId, scelta }: {
+export function RiepilogoCommesseScelta({ open, onOpenChange, companyId, scelta, gruppi }: {
+  /** I gruppi delle commesse generali che l'azienda ha acceso: gli altri non si offrono. */
+  gruppi: { appalti: boolean; operazioni: boolean };
   open: boolean;
   onOpenChange: (open: boolean) => void;
   companyId: string;
@@ -24,6 +26,7 @@ export function RiepilogoCommesseScelta({ open, onOpenChange, companyId, scelta 
   const { toast } = useToast();
 
   const posti = [0, 1, 2, 3];
+  const gruppiOfferti: GruppoRiquadro[] = ["commesse", ...(gruppi.appalti ? ["appalti" as const] : []), ...(gruppi.operazioni ? ["operazioni" as const] : [])];
   const cambiaPosto = (indice: number, valore: string) => setBozza((b) => {
     const riquadri = [...b.riquadri];
     if (valore === "") riquadri.splice(indice, 1);
@@ -73,15 +76,25 @@ export function RiepilogoCommesseScelta({ open, onOpenChange, companyId, scelta 
                   className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 text-sm"
                 >
                   {indice > 0 && <option value="">— nessuno —</option>}
-                  {CATALOGO_RIQUADRI.map((v) => (
-                    <option key={v.id} value={v.id} disabled={v.id !== valore && bozza.riquadri.includes(v.id)}>
-                      {v.nome}{v.permesso !== "nessuno" ? ` (${ETICHETTA_PERMESSO[v.permesso]})` : ""}
-                    </option>
+                  {gruppiOfferti.map((g) => (
+                    <optgroup key={g} label={NOMI_GRUPPI[g]}>
+                      {CATALOGO_RIQUADRI.filter((v) => v.gruppo === g).map((v) => (
+                        <option key={v.id} value={v.id} title={v.spiegazione} disabled={v.id !== valore && bozza.riquadri.includes(v.id)}>
+                          {v.nome}{v.permesso !== "nessuno" ? ` (${ETICHETTA_PERMESSO[v.permesso]})` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
             );
           })}
+          <ul className="space-y-0.5 text-xs text-slate-500">
+            {bozza.riquadri.map((id) => {
+              const v = CATALOGO_RIQUADRI.find((c) => c.id === id);
+              return v ? <li key={id}><strong className="font-medium text-slate-700">{v.nome}</strong>: {v.spiegazione}</li> : null;
+            })}
+          </ul>
         </fieldset>
 
         <fieldset className="space-y-2">

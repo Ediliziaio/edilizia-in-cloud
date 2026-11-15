@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  commesseInRitardo, margineDelPeriodo, riquadriVisibili, sceltaDaRiga, serieVisibili, SCELTA_PREDEFINITA,
+  CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, usaGenerali, riquadriVisibili, sceltaDaRiga, serieVisibili, SCELTA_PREDEFINITA,
 } from "@/lib/orders/riepilogoCommesse";
 
 const tutto = { importi: true, costi: true, margini: true };
@@ -30,6 +30,29 @@ describe("riepilogo commesse scelto dall'azienda", () => {
     expect(riquadriVisibili(["venduto", "costi", "margine"], { importi: true, costi: true, margini: false }))
       .toEqual(["venduto", "costi", "commesse"]);
     expect(riquadriVisibili(["venduto", "costi", "margine"], tutto)).toEqual(["venduto", "costi", "margine"]);
+  });
+
+  it("i riquadri delle commesse generali compaiono solo se l'azienda ha acceso quel modello", () => {
+    const scelti = ["appalti_valore", "unita_vendute", "venduto"] as const;
+    expect(riquadriVisibili([...scelti], tutto)).toEqual(["commesse", "aperte", "venduto"]);
+    expect(riquadriVisibili([...scelti], { ...tutto, appalti: true, operazioni: true })).toEqual([...scelti]);
+    // Acceso ma senza permesso degli importi: le unità (un conteggio) sì, il valore degli appalti no.
+    expect(riquadriVisibili([...scelti], { ...nessuno, appalti: true, operazioni: true })).toEqual(["commesse", "unita_vendute", "aperte"]);
+  });
+
+  it("il fatturato vuole il permesso della fatturazione", () => {
+    expect(riquadriVisibili(["fatturato"], tutto)).toEqual(["commesse"]);
+    expect(riquadriVisibili(["fatturato"], { ...tutto, fatturazione: true })).toEqual(["fatturato"]);
+  });
+
+  it("i numeri delle generali si chiedono solo se servono", () => {
+    expect(usaGenerali(["commesse", "venduto"])).toBe(false);
+    expect(usaGenerali(["commesse", "capitale_impegnato"])).toBe(true);
+  });
+
+  it("ogni riquadro del catalogo è ammesso dal vincolo del database", () => {
+    const sql = readFileSync("supabase/migrations/20290329100100_riepilogo_commesse_indicatori_generali.sql", "utf8");
+    for (const v of CATALOGO_RIQUADRI) expect(sql).toContain(`'${v.id}'`);
   });
 
   it("il grafico è tutto importi: senza permesso nessuna serie", () => {
