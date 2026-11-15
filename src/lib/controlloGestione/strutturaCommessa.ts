@@ -84,6 +84,7 @@ export function isOperationalEmployee(employee: StructureEmployee, assignedToOrd
   const role = normalized(employee.role_type);
   const area = normalized(employee.area);
   const qualification = normalized(employee.qualifica);
+  if (role === "subappaltatore") return false;
   const officeRoles = ["staff_interno", "impiegato", "venditore", "commerciale", "amministrazione", "amministrativo"];
   if (officeRoles.includes(role) || ["ufficio", "amministrazione", "commerciale"].includes(area)) return false;
   if (["operaio", "employee", "capocantiere", "tecnico_cantiere"].includes(role) || area === "cantiere") return true;

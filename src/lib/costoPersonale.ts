@@ -65,13 +65,21 @@ export function oneriPercento(p: ParametriCosto, inpsPersona?: number | null): n
   return Math.round((inps + p.inail + p.cassa_edile + p.tfr + p.altri) * 100) / 100;
 }
 
+/**
+ * 15/11/2026, decisione del titolare: chi in anagrafica ha il ruolo «subappaltatore» non è un
+ * dipendente e resta fuori dal costo del personale (lo paga la sua fattura, non uno stipendio).
+ */
+export function eSubappaltatore(e: { role_type?: string | null }): boolean {
+  return (e.role_type ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "subappaltatore";
+}
+
 /** Costo vero di un mese medio: lordo × mensilità / 12 × (1 + oneri). Per i costi di struttura. */
 export function costoMensileVero(
   e: DatiProfilo & { gross_salary?: number | string | null; inps_rate?: number | string | null },
   azienda?: ParametriCostoAzienda | null,
 ): number {
   const lordo = Number(e.gross_salary);
-  if (!Number.isFinite(lordo) || lordo <= 0) return 0;
+  if (!Number.isFinite(lordo) || lordo <= 0 || eSubappaltatore(e)) return 0;
   const p = parametriDelProfilo(profiloCostoDipendente(e), azienda);
   const inps = e.inps_rate == null || e.inps_rate === "" ? null : Number(e.inps_rate);
   // In centesimi; toFixed toglie l'errore binario prima di arrotondare (240642,5 non diventa 240642,4999…).

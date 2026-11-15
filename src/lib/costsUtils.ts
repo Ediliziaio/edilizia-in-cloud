@@ -3,7 +3,7 @@
  * Extracted from useCompanyCostsData to improve maintainability.
  */
 import { format, startOfMonth, endOfMonth, addMonths, addDays, isBefore, isAfter } from "date-fns";
-import { costoMensileVero, type ParametriCostoAzienda } from "@/lib/costoPersonale";
+import { costoMensileVero, eSubappaltatore, type ParametriCostoAzienda } from "@/lib/costoPersonale";
 import { escapeCsvCell } from "./csvExport";
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
@@ -160,7 +160,7 @@ export function buildEmployeeCosts(activeEmployees: any[], futureMonths = 0, par
 
   activeEmployees.forEach((emp) => {
     const salary = Number(emp.gross_salary) || 0;
-    if (salary === 0) return;
+    if (salary === 0 || eSubappaltatore(emp)) return;
 
     // Oneri del mese medio: ratei delle mensilità aggiuntive, contributi, INAIL, Cassa Edile, TFR.
     const oneri = Math.max(0, Math.round((costoMensileVero(emp, parametri) - salary) * 100) / 100);

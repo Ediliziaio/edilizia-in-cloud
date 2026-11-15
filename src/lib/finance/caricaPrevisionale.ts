@@ -283,7 +283,7 @@ export async function loadForecastDataset(
       build: () =>
         scoped(
           "employees",
-          "id,first_name,last_name,net_salary,gross_salary,data_assunzione,data_inizio_lavoro,created_at,inps_rate",
+          "id,first_name,last_name,net_salary,gross_salary,data_assunzione,data_inizio_lavoro,created_at,inps_rate,role_type",
         ).eq("is_active", true),
     },
     {

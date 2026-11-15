@@ -193,6 +193,7 @@ export interface EmployeeRow {
   created_at?: string;
   /** Contributi a carico dell'azienda in % del lordo; vuoto = stima al 30%. */
   inps_rate?: Money;
+  role_type?: string | null;
 }
 export interface PayrollRow {
   id: string;
@@ -1760,6 +1761,8 @@ export function buildForecastLedger(
   };
   for (const e of s.employees) {
     if (toCents(e.net_salary) <= 0 && toCents(e.gross_salary) <= 0) continue;
+    // Il subappaltatore non ha stipendio: lo paga la sua fattura (decisione del 15/11/2026).
+    if ((e.role_type ?? "").trim().toLowerCase() === "subappaltatore") continue;
     for (let offset = 0; offset < 4; offset++) {
       const month = calendarDate(`${today.slice(0, 7)}-01`);
       month.setMonth(month.getMonth() + offset);

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { eSubappaltatore } from "@/lib/costoPersonale";
 import { partiPerCategoria } from "@/lib/costi/partiPerCategoria";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -85,7 +86,7 @@ export function useBreakEvenHistorical() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("gross_salary")
+        .select("gross_salary, role_type")
         .eq("company_id", companyId!)
         .eq("is_active", true);
       if (error) throw error;
@@ -110,7 +111,7 @@ export function useBreakEvenHistorical() {
   });
   const totalFixedCostsMonthly =
     Array.from(fixedCostsMonthlyByCat.values()).reduce((s, v) => s + v, 0) +
-    (employees || []).reduce((s, e) => s + (e.gross_salary || 0), 0);
+    (employees || []).filter((e) => !eSubappaltatore(e)).reduce((s, e) => s + (e.gross_salary || 0), 0);
   const fixedCostsAnnual = totalFixedCostsMonthly * 12;
 
   // Group orders by year

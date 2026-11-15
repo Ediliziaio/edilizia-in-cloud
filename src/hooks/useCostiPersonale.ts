@@ -21,7 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { costoOrarioDipendente, oreContrattualiMese } from "@/lib/costoOrarioDipendente";
-import { costoMensileVero } from "@/lib/costoPersonale";
+import { costoMensileVero, eSubappaltatore } from "@/lib/costoPersonale";
 import { useParametriCostoDi } from "@/hooks/useParametriCostoPersonale";
 import { reportParticipants } from "@/lib/campo/laborCostReview";
 
@@ -249,6 +249,7 @@ export function useCostiPersonale(companyId: string | undefined, month: Date) {
     // cessati, con le date della Panoramica (costsUtils): prima ogni dipendente attivo
     // costava in qualunque mese, anche prima dell'assunzione.
     const inForza = employees.filter((emp) => {
+      if (eSubappaltatore(emp)) return false;
       const e = emp as EmployeeRow & { created_at?: string | null; data_assunzione?: string | null; hr_profili?: Array<{ data_assunzione?: string | null; data_cessazione?: string | null }> | null };
       const hr = profiloHrPrincipale(e.hr_profili);
       const assunto = e.data_assunzione ?? hr?.data_assunzione ?? e.created_at ?? null;
