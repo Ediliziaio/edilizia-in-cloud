@@ -546,7 +546,7 @@ function SalesFocusPanel({
     {
       soloTelefono: true,
       label: "Velocity stimata",
-      value: velocity ? `${fmt(velocity.sales_velocity)}/giorno` : erroreVelocity ? "—" : "...",
+      value: velocity ? (velocity.sales_velocity == null ? "—" : `${fmt(velocity.sales_velocity)}/giorno`) : erroreVelocity ? "—" : "...",
       detail: erroreVelocity ? NON_ARRIVATO : `${velocity?.open_opportunities ?? 0} opportunità aperte`,
     },
     {
@@ -555,10 +555,11 @@ function SalesFocusPanel({
       value: quoteRevenue ? fmt(actualRevenue) : errorePreventivi ? "—" : "...",
       detail: errorePreventivi ? NON_ARRIVATO : `${quoteRevenue?.signed_quotes_count ?? 0} preventivi firmati`,
     },
+    // 15/11/2026: il forecast pesato sta già nella scheda «Proteggi forecast» qui sotto.
     {
-      label: "Forecast pesato",
-      value: forecast ? fmt(weightedForecast) : erroreForecast ? "—" : "...",
-      detail: erroreForecast ? NON_ARRIVATO : "questo mese e i due successivi",
+      label: "Opportunità aperte",
+      value: velocity ? String(velocity.open_opportunities) : erroreVelocity ? "—" : "...",
+      detail: erroreVelocity ? NON_ARRIVATO : "in tutte le fasi",
     },
     {
       label: "Preventivi aperti",

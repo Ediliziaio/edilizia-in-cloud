@@ -101,7 +101,9 @@ export function RiquadroNumero({
           {(to || onClick) && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition group-hover:text-primary motion-safe:group-hover:-translate-y-0.5 motion-safe:group-hover:translate-x-0.5" aria-hidden />}
         </div>
         <div className="mt-1.5 flex items-end justify-between gap-2">
-          <p className={cn("min-w-0 truncate text-xl font-bold leading-none tracking-tight tabular-nums md:text-2xl", stile.valore)}>{valore}</p>
+          {/* 15/11/2026: al telefono una cifra lunga («1.715.464,98 €») in due colonne si troncava:
+              più piccola, così si legge intera. */}
+          <p className={cn("min-w-0 truncate text-xl font-bold leading-none tracking-tight tabular-nums md:text-2xl", typeof valore === "string" && valore.length > 10 && "max-sm:text-base", stile.valore)} title={typeof valore === "string" ? valore : undefined}>{valore}</p>
           {tendenza && (
             <span className="hidden sm:block">
               <Tendenza valori={tendenza} colore={stile.linea} etichetta={etichettaTendenza ?? `Andamento di ${etichetta}`} />
