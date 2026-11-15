@@ -15,6 +15,10 @@ const m = vi.hoisted(() => ({
   listini: [] as Array<Record<string, unknown>>,
   voci: {} as Record<string, Array<Record<string, unknown>>>,
   aggiornamenti: [] as Array<Record<string, unknown>>,
+  // Quando e' acceso, le `update` restano in volo finche' non si chiama
+  // `sblocca`: serve a provare cosa succede a chi scrive nel frattempo.
+  trattieni: false,
+  sblocca: [] as Array<() => void>,
 }));
 
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "azienda-di-prova" }));
@@ -27,9 +31,14 @@ vi.mock("@/integrations/supabase/client", () => {
   const costruisci = (tabella: string) => {
     let listinoId = "";
     let soloAttivi = false;
+    let attesa: Promise<void> | null = null;
     const q: Record<string, unknown> = {
       select: () => q,
-      update: (patch: Record<string, unknown>) => { m.aggiornamenti.push(patch); return q; },
+      update: (patch: Record<string, unknown>) => {
+        m.aggiornamenti.push(patch);
+        if (m.trattieni) attesa = new Promise<void>((ok) => m.sblocca.push(ok));
+        return q;
+      },
       eq: (campo: string, valore: unknown) => {
         if (campo === "listino_id") listinoId = String(valore);
         if (campo === "attivo" && valore === true) soloAttivi = true;
@@ -40,7 +49,9 @@ vi.mock("@/integrations/supabase/client", () => {
         const dati = tabella === "listini_fornitore"
           ? (soloAttivi ? m.listini.filter((l) => l.attivo !== false) : m.listini)
           : (m.voci[listinoId] ?? []);
-        return Promise.resolve({ data: dati, error: null }).then(ok);
+        const pronta = attesa ?? Promise.resolve();
+        const esito: { data: unknown; error: null } = { data: dati, error: null };
+        return pronta.then(() => esito).then(ok);
       },
     };
     return q;
@@ -64,6 +75,8 @@ beforeEach(() => {
   m.listini = [];
   m.voci = {};
   m.aggiornamenti = [];
+  m.trattieni = false;
+  m.sblocca = [];
 });
 afterEach(() => { vi.useRealTimers(); cleanup(); });
 
@@ -153,11 +166,59 @@ describe("scheda Listino del fornitore", () => {
     expect(m.aggiornamenti).toEqual([]);
     fireEvent.blur(al);
     await waitFor(() => expect(m.aggiornamenti).toEqual([{ valido_al: "2027-12-31" }]));
+    // Una sola scrittura, non una per battuta.
+    expect(m.aggiornamenti).toHaveLength(1);
   });
 
-  it("date incrociate: non si salvano e il campo torna com'era", async () => {
-    // Il database non ha un CHECK su dal <= al: senza questa guardia il
-    // listino diventerebbe scaduto in silenzio appena salvato.
+  it("spostare il periodo in avanti funziona in un gesto solo, anche passando da rovesciato", async () => {
+    // Spostando l'inizio oltre la vecchia fine il periodo e' per forza
+    // rovesciato per un istante: finche' si passa da un campo all'altro non
+    // si salva niente, e non si viene fermati.
+    m.listini = [{ id: "l", nome: "Listino", sconto_default_pct: 0, valido_dal: "2026-01-01", valido_al: "2026-12-31", attivo: true }];
+    m.voci = { l: [] };
+    apri();
+    const dal = await screen.findByLabelText("In vigore dal");
+    const al = screen.getByLabelText("fino al");
+
+    fireEvent.change(dal, { target: { value: "2027-01-01" } });
+    fireEvent.blur(dal, { relatedTarget: al });   // passo all'altra data
+    expect(m.aggiornamenti).toEqual([]);
+    expect(screen.getByText(/La fine viene prima dell’inizio/)).toBeInTheDocument();
+
+    fireEvent.change(al, { target: { value: "2027-12-31" } });
+    fireEvent.blur(al);                            // ho finito
+    await waitFor(() => expect(m.aggiornamenti).toEqual([{ valido_dal: "2027-01-01", valido_al: "2027-12-31" }]));
+    expect(screen.queryByText(/La fine viene prima dell’inizio/)).not.toBeInTheDocument();
+  });
+
+  it("chi scrive mentre il salvataggio è in volo non perde la sua modifica", async () => {
+    // Prima: la seconda modifica restava solo a schermo — nessun errore,
+    // nessun avviso, e nel database non ci arrivava mai.
+    m.listini = [{ id: "l", nome: "Listino", sconto_default_pct: 0, valido_dal: "2026-01-01", valido_al: "2026-12-31", attivo: true }];
+    m.voci = { l: [] };
+    apri();
+    const dal = await screen.findByLabelText("In vigore dal");
+    m.trattieni = true;
+
+    fireEvent.change(dal, { target: { value: "2026-02-01" } });
+    fireEvent.blur(dal);                                    // parte la prima scrittura
+    await waitFor(() => expect(m.aggiornamenti).toEqual([{ valido_dal: "2026-02-01" }]));
+
+    const al = screen.getByLabelText("fino al");
+    fireEvent.change(al, { target: { value: "2027-06-30" } });
+    fireEvent.blur(al);                                     // mentre la prima è ancora in volo
+    expect(m.aggiornamenti).toHaveLength(1);                // non si scrive due volte insieme
+
+    m.trattieni = false;
+    m.sblocca.forEach((f) => f());                          // la prima arriva a destinazione
+    await waitFor(() => expect(m.aggiornamenti).toHaveLength(2));
+    // La seconda scrittura porta la data nuova. Puo' riportare anche la prima,
+    // se la rilettura non e' ancora tornata: riscrivere lo stesso valore e'
+    // innocuo, perderlo no.
+    expect(m.aggiornamenti[1]).toMatchObject({ valido_al: "2027-06-30" });
+  });
+
+  it("se si abbandona con le date rovesciate non si salva niente e tornano com'erano", async () => {
     m.listini = [{ id: "l", nome: "Listino", sconto_default_pct: 0, valido_dal: "2026-01-01", valido_al: "2026-12-31", attivo: true }];
     m.voci = { l: [] };
     apri();

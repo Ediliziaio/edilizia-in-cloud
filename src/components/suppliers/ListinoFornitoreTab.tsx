@@ -22,7 +22,7 @@
  * l'editor interno (con key) si inizializza dai props. Niente setState
  * negli effect.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -261,10 +261,16 @@ export function ListinoFornitoreTab({ supplierId }: { supplierId: string }) {
  * l'avviso «non e' in vigore» chiedeva una cosa che dall'interfaccia non si
  * poteva fare, e un contratto scaduto restava scaduto per sempre.
  *
- * Si salva quando si lascia il campo, non a ogni battuta: mentre si riscrive
- * una data il campo passa dal vuoto, e il vuoto qui vuol dire «senza scadenza»
- * — salvandolo subito si cancellerebbe la scadenza di un listino per il solo
- * fatto di averla voluta correggere, rimettendolo in corso senza accorgersene.
+ * Le due date si salvano INSIEME, e solo quando si lascia il gruppo: mentre si
+ * sposta un periodo in avanti il passaggio intermedio e' per forza rovesciato
+ * (la nuova partenza cade dopo la vecchia fine), e salvando un campo per volta
+ * quel passaggio verrebbe rifiutato — toccherebbe ricordarsi di spostare prima
+ * la fine e poi l'inizio. Finche' si va da un campo all'altro non si scrive
+ * niente; si scrive quando si ha finito, in una volta sola.
+ *
+ * Il vuoto di passaggio, poi, qui vuol dire «senza scadenza»: salvarlo subito
+ * cancellerebbe la scadenza di un listino per il solo fatto di averla voluta
+ * correggere.
  */
 function ValiditaListino({
   listino, puoModificare, onSalvato,
@@ -277,6 +283,20 @@ function ValiditaListino({
   // quando si cambia listino dalla tendina.
   const [dal, setDal] = useState(listino.valido_dal ?? "");
   const [al, setAl] = useState(listino.valido_al ?? "");
+  // Chi scrive mentre la `update` precedente e' ancora in volo non deve perdere
+  // la sua modifica: si segna che c'e' altro da salvare e si riprova appena la
+  // prima ha finito. Senza questo, la seconda modifica restava solo a schermo —
+  // nessun errore, nessun avviso, e il database non la vedeva mai.
+  const altroDaSalvare = useRef(false);
+  const chiudiRef = useRef<() => void>(() => {});
+  // Segnaposto nostro invece di `salva.isPending`: dentro `onSettled` quello di
+  // react-query e' ancora acceso, e il salvataggio rimandato non ripartirebbe.
+  const inVolo = useRef(false);
+  // Gli ultimi valori che il database ha confermato. Dopo un rifiuto i campi
+  // tornano QUI, non al prop `listino`: quello puo' essere ancora quello vecchio
+  // se la rilettura non e' arrivata, e lo schermo mostrerebbe meno di quanto e'
+  // stato salvato davvero.
+  const confermati = useRef({ dal: listino.valido_dal ?? "", al: listino.valido_al ?? "" });
 
   const salva = useMutation({
     mutationFn: async (patch: { valido_dal?: string | null; valido_al?: string | null }) => {
@@ -288,29 +308,70 @@ function ValiditaListino({
       return patch;
     },
     onSuccess: (patch) => {
+      if ("valido_dal" in patch) confermati.current.dal = patch.valido_dal ?? "";
+      if ("valido_al" in patch) confermati.current.al = patch.valido_al ?? "";
       onSalvato();
-      toast.success(patch.valido_al === null && "valido_al" in patch
-        ? "Il listino ora è senza scadenza"
+      const senzaScadenza = "valido_al" in patch && patch.valido_al === null;
+      const anche = Object.keys(patch).length > 1;
+      toast.success(senzaScadenza
+        ? (anche ? "Date aggiornate: il listino ora è senza scadenza" : "Il listino ora è senza scadenza")
         : "Date del listino aggiornate");
     },
-    onError: (e: Error, patch) => {
-      // Il database ha rifiutato: il campo deve tornare a dire la verita'.
-      if ("valido_dal" in patch) setDal(listino.valido_dal ?? "");
-      if ("valido_al" in patch) setAl(listino.valido_al ?? "");
+    onError: (e: Error) => {
+      // Il database ha rifiutato: i campi devono tornare a dire la verita'.
+      altroDaSalvare.current = false;
+      setDal(confermati.current.dal);
+      setAl(confermati.current.al);
       toast.error("Date non salvate", { description: e.message });
+    },
+    onSettled: () => {
+      inVolo.current = false;
+      if (!altroDaSalvare.current) return;
+      altroDaSalvare.current = false;
+      chiudiRef.current();
     },
   });
 
   /**
-   * Date incrociate («dal 2027 al 2026») renderebbero il listino scaduto in
-   * silenzio: il database non ha un CHECK che lo impedisca, quindi la guardia
-   * sta qui e il campo torna com'era.
+   * Si e' finito di scrivere: si salva quello che e' cambiato, in una `update`
+   * sola. Se il periodo e' rovesciato non si salva niente e i campi tornano
+   * com'erano — ma solo qui, dopo aver lasciato il gruppo, non mentre si scrive.
    */
-  const incrociate = (quale: "valido_dal" | "valido_al", nuovoValore: string | null) => {
-    const d = quale === "valido_dal" ? nuovoValore : dal || null;
-    const a = quale === "valido_al" ? nuovoValore : al || null;
-    return !!d && !!a && d > a;
+  const chiudi = () => {
+    if (!puoModificare) return;
+    // Una scrittura per volta, ma nessuna buttata via: questa si rifa' da sola
+    // in `onSettled`, con i valori che i campi avranno allora.
+    if (inVolo.current) { altroDaSalvare.current = true; return; }
+    const nuovoDal = dal || null;
+    const nuovoAl = al || null;
+    const patch: { valido_dal?: string | null; valido_al?: string | null } = {};
+    if (nuovoDal !== (listino.valido_dal ?? null)) patch.valido_dal = nuovoDal;
+    if (nuovoAl !== (listino.valido_al ?? null)) patch.valido_al = nuovoAl;
+    if (Object.keys(patch).length === 0) return;
+
+    if (nuovoDal && nuovoAl && nuovoDal > nuovoAl) {
+      setDal(confermati.current.dal);
+      setAl(confermati.current.al);
+      toast.error("La fine della validità viene prima dell'inizio", {
+        description: "Il listino risulterebbe scaduto appena salvato. Le date sono tornate com'erano.",
+      });
+      return;
+    }
+    inVolo.current = true;
+    salva.mutate(patch);
   };
+
+  // Dopo il commit, non durante il render: `onSettled` arriva comunque dopo, e
+  // cosi' nel ref non puo' finire la versione di un render buttato via.
+  useEffect(() => { chiudiRef.current = chiudi; });
+  // Quando il database cambia sotto (la rilettura, o un'altra scheda) e non c'e'
+  // niente in volo, la verita' confermata e' quella che arriva da li'.
+  useEffect(() => {
+    if (!inVolo.current) confermati.current = { dal: listino.valido_dal ?? "", al: listino.valido_al ?? "" };
+  }, [listino.valido_dal, listino.valido_al]);
+
+  const rovesciato = !!dal && !!al && dal > al;
+  const idSpiegazione = `validita-${listino.id}-nota`;
 
   const campo = (
     quale: "valido_dal" | "valido_al",
@@ -326,29 +387,26 @@ function ValiditaListino({
         className="h-8 w-[9.5rem] text-sm"
         value={valore}
         disabled={!puoModificare}
+        aria-invalid={rovesciato || undefined}
+        aria-describedby={rovesciato ? idSpiegazione : undefined}
         onChange={(e) => scrivi(e.target.value)}
-        onBlur={() => {
-          const nuovoValore = valore || null;
-          if (!puoModificare || nuovoValore === (listino[quale] ?? null)) return;
-          if (incrociate(quale, nuovoValore)) {
-            scrivi(listino[quale] ?? "");
-            toast.error("La fine della validità viene prima dell'inizio", {
-              description: "Il listino risulterebbe scaduto appena salvato. Controlla le due date.",
-            });
-            return;
-          }
-          salva.mutate({ [quale]: nuovoValore });
-        }}
       />
     </div>
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div
+      className="flex flex-wrap items-center gap-3"
+      // Passare da una data all'altra non e' «aver finito»: si salva solo quando
+      // il fuoco esce dal gruppo.
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) chiudi(); }}
+    >
       {campo("valido_dal", "In vigore dal", dal, setDal)}
       {campo("valido_al", "fino al", al, setAl)}
       {salva.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-      {!al && <span className="text-xs text-muted-foreground">senza scadenza</span>}
+      {rovesciato
+        ? <span id={idSpiegazione} className="text-xs text-destructive">La fine viene prima dell’inizio: correggi l’altra data.</span>
+        : !al && <span className="text-xs text-muted-foreground">senza scadenza</span>}
     </div>
   );
 }
