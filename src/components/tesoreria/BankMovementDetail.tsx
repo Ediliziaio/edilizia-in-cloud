@@ -481,7 +481,7 @@ function Detail({
             "Allegati",
             // Contabile del bonifico, ricevuta, F24 quietanzato: stessi allegati di fatture e costi.
             <div className="w-full min-w-0">
-              <AllegatiFattura companyId={company} madre={{ movimentoId: m.id }} titolo="" sola_lettura={!write} />
+              <AllegatiFattura companyId={company} madre={{ movimentoId: m.id }} titolo="" scegliTipo={false} sola_lettura={!write} />
             </div>,
           )}
           {riga(

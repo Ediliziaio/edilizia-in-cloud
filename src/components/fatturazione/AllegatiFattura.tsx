@@ -130,16 +130,19 @@ export function AllegatiFattura({
   invioSdi = false,
   sola_lettura = false,
   titolo = "Allegati",
+  /** false: nessun tipo da scegliere, si allega qualsiasi documento (es. sul movimento bancario). */
+  scegliTipo = true,
 }: {
   companyId: string | null | undefined;
   madre: MadreAllegato;
   invioSdi?: boolean;
   sola_lettura?: boolean;
   titolo?: string;
+  scegliTipo?: boolean;
 }) {
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
-  const [tipoNuovo, setTipoNuovo] = useState<string>("fatturaRicevutaId" in madre || "movimentoId" in madre ? "contabile_pagamento" : "altro");
+  const [tipoNuovo, setTipoNuovo] = useState<string>("fatturaRicevutaId" in madre ? "contabile_pagamento" : "altro");
   const [colonna, idMadre] = colonnaMadre(madre);
   const db = supabase as any;
 
@@ -205,13 +208,16 @@ export function AllegatiFattura({
       onDrop={(e) => { if (sola_lettura) return; e.preventDefault(); scegliFile(e.dataTransfer.files); }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4" /> {titolo}{allegati.length ? ` (${allegati.length})` : ""}</h3>
+        {/* Senza titolo (riga già intitolata, come sul movimento) l'intestazione sparisce: resta solo «Allega». */}
+        {titolo ? <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Paperclip className="h-4 w-4" /> {titolo}{allegati.length ? ` (${allegati.length})` : ""}</h3> : null}
         {!sola_lettura && (
-          <div className="flex items-center gap-1.5">
-            <Select value={tipoNuovo} onValueChange={setTipoNuovo}>
-              <SelectTrigger className="h-8 w-48 text-xs" aria-label="Tipo del file da allegare"><SelectValue /></SelectTrigger>
-              <SelectContent>{TIPI_ALLEGATO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-            </Select>
+          <div className="ml-auto flex items-center gap-1.5">
+            {scegliTipo && (
+              <Select value={tipoNuovo} onValueChange={setTipoNuovo}>
+                <SelectTrigger className="h-8 w-48 text-xs" aria-label="Tipo del file da allegare"><SelectValue /></SelectTrigger>
+                <SelectContent>{TIPI_ALLEGATO.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
             <Button size="sm" variant="outline" className="h-8" disabled={carica.isPending || !companyId} onClick={() => input.current?.click()}>
               {carica.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
               Allega
@@ -233,7 +239,7 @@ export function AllegatiFattura({
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => void apri(a)} title="Apri il file">
                 <span className="block truncate hover:underline underline-offset-2">{a.file_name}</span>
                 <span className="block text-[11px] text-muted-foreground">
-                  {TIPI_ALLEGATO.find((t) => t.value === a.tipo)?.label ?? "Altro"} · {dimensioneLeggibile(a.size_bytes)} · {formatDateShort(a.created_at)}
+                  {scegliTipo && `${TIPI_ALLEGATO.find((t) => t.value === a.tipo)?.label ?? "Altro"} · `}{dimensioneLeggibile(a.size_bytes)} · {formatDateShort(a.created_at)}
                 </span>
               </button>
               {invioSdi && !sola_lettura ? (
