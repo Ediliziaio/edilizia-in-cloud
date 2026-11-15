@@ -79,15 +79,38 @@ describe("PDF del rendiconto all'investitore", () => {
     expect(t).toContain("lavori al 40%");
     expect(t).toContain("Le spetta ancora a fine operazione");
     expect(t).toContain(`€ ${new Intl.NumberFormat("it-IT").format(Math.round(d.conto.spettaAFine))}`);
-    expect(t).toContain("1 su 2");
+    expect(t).toContain("1/2 Unità rogitate");
     expect(t).toContain("€ 120.000");
     expect(t).toContain("Margine");
     expect(t).toContain("Pro quota");
     expect(t).toContain("Rogito di A1 a maggio.");
     expect(t).toContain("Capitale massimo (settembre 2027)");
     expect(t).toContain("Rendimento annuo composto (TIR)");
-    // I costi voce per voce non ci sono, né i nomi degli altri investitori.
+    // I nomi degli altri investitori non ci sono.
     expect(t).not.toContain("Banca Locale");
+  });
+
+  it("col piano voce per voce porta la tabella per categoria, la torta dei costi e la cascata", async () => {
+    const conPiano: NumeriInvestitori = {
+      ...numeri,
+      righe: [
+        { tipo: "ricavo", categoria: "vendite", etichetta: "Vendita delle unità", previsto: 1_500_000, reale: 120_000, aFinire: 1_330_000, stima: 1_450_000, scostamento: -50_000 },
+        { tipo: "costo", categoria: "terreno", etichetta: "Acquisto del terreno", previsto: 400_000, reale: 400_000, aFinire: 0, stima: 400_000, scostamento: 0 },
+        { tipo: "costo", categoria: "materiali", etichetta: "Calcestruzzo", previsto: 300_000, reale: 100_000, aFinire: 210_000, stima: 310_000, scostamento: 10_000 },
+        { tipo: "costo", categoria: "materiali", etichetta: "Laterizi", previsto: 500_000, reale: 0, aFinire: 500_000, stima: 500_000, scostamento: 0 },
+      ],
+    };
+    const d = datiRendiconto({ oggi: "2027-06-30", riepilogo, numeri: conPiano, conti, fonteId: "M", azienda, unitaNome: "Unità", vendite: null })!;
+    expect(d.piano?.costi).toHaveLength(3);
+    const t = await testo(d);
+    expect(t).toContain("IL PIANO ECONOMICO");
+    expect(t).toContain("Materiali (2)");
+    expect(t).toContain("Calcestruzzo");
+    expect(t).toContain("Totale costi");
+    expect(t).toContain("DOVE VANNO I COSTI");
+    expect(t).toContain("DAI RICAVI AL MARGINE");
+    // Il segno meno vero (U+2212) l'Helvetica non lo ha: sparirebbe.
+    expect(t).not.toContain("\u2212");
   });
 
   it("per la banca parla di interessi, senza piano dice che le stime arriveranno", async () => {

@@ -178,6 +178,8 @@ export interface NumeroChiave {
 
 export interface RigaPianoDossier {
   etichetta: string;
+  /** La categoria del piano (materiali, vendite…): raggruppa la tabella e fa le fette della torta. */
+  categoria: string;
   previsto: number;
   reale: number;
   aFinire: number;
@@ -243,6 +245,8 @@ export interface DatiDossier {
   }[] | null;
   cassa: {
     mesi: { mese: string; entrate: number; uscite: number; netto: number; cumulato: number; passato: boolean }[];
+    /** La cassa cumulata del piano com'era scritto, per confrontarla con la stima nel grafico. */
+    previsti?: { mese: string; cumulato: number }[];
     capitaleMassimo: number;
     meseCapitaleMassimo: string | null;
     capitaleMassimoPrevisto: number;
@@ -334,7 +338,7 @@ export function presenzaDati(i: Omit<InputDossier, "oggi" | "periodo" | "modello
 }
 
 const rigaPiano = (r: RigaConfronto): RigaPianoDossier => ({
-  etichetta: r.etichetta, previsto: r.previsto, reale: r.reale, aFinire: r.aFinire, stima: r.stima, scostamento: r.scostamento,
+  etichetta: r.etichetta, categoria: r.categoria, previsto: r.previsto, reale: r.reale, aFinire: r.aFinire, stima: r.stima, scostamento: r.scostamento,
 });
 
 /** Mette insieme il dossier: solo le sezioni scelte, disponibili e permesse a chi lo genera. */
@@ -398,6 +402,7 @@ export function componiDossier(i: InputDossier): DatiDossier {
   const cassa: DatiDossier["cassa"] = c.has("cassa") && pc
     ? {
         mesi: pc.cassa.stima.map(({ mese, entrate, uscite, netto, cumulato, passato }) => ({ mese, entrate, uscite, netto, cumulato, passato })),
+        previsti: pc.cassa.previsto.map(({ mese, cumulato }) => ({ mese, cumulato })),
         capitaleMassimo: pc.capitale.massimoStima,
         meseCapitaleMassimo: pc.capitale.meseMassimoStima,
         capitaleMassimoPrevisto: pc.capitale.massimoPrevisto,

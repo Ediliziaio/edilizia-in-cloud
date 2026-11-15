@@ -1,14 +1,20 @@
 // src/components/orders/generali/rendiconto/DossierPDF.tsx
 // Il dossier di rendicontazione della commessa generale: copertina, sintesi con i semafori,
 // poi solo le sezioni scelte (DatiDossier.sezioni). Stessa carta del rendiconto all'investitore
-// e del rendiconto d'appalto: A4 verticale, Helvetica, blu e arancio. I grafici sono barre
-// disegnate con i riquadri di react-pdf: niente immagini, il testo resta testo.
+// e del rendiconto d'appalto: A4 verticale, Helvetica, blu e arancio. I grafici (anelli, torte,
+// cascata, linee) sono SVG vettoriali di components/orders/generali/pdf/GraficiPdf: niente
+// immagini, il testo resta testo.
 import type { ReactNode } from "react";
 import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import {
   NOMI_SEZIONE, giornoIt,
-  type DatiDossier, type NumeroChiave, type RigaPianoDossier, type Tono,
+  type DatiDossier, type NumeroChiave, type Tono,
 } from "@/lib/orders/generali/rendiconto";
+import { gruppiPerCategoria } from "@/lib/orders/generali/graficiPdf";
+import {
+  Anello, BarraImpilata, BarreConfronto, BarreMensili, Cascata, FilaGrafici, Linee, RiquadroGrafico, Torta,
+} from "@/components/orders/generali/pdf/GraficiPdf";
+import { LARGHEZZE_PIANO, TabellaPianoPdf } from "@/components/orders/generali/pdf/TabellaPianoPdf";
 
 // Le parole non si spezzano col trattino («giardi-no»): vanno a capo intere.
 Font.registerHyphenationCallback((word) => [word]);
@@ -178,39 +184,6 @@ function Barra({ quota, colore = C.navy }: { quota: number; colore?: string }) {
   );
 }
 
-/** Barre verticali con lo zero: sopra in un colore, sotto in un altro. */
-function GraficoBarre({ valori, etichette, alto = 90, colori }: {
-  valori: number[]; etichette: string[]; alto?: number; colori?: { su: string; giu: string; evidenzia?: number };
-}) {
-  const max = Math.max(1, ...valori.map((v) => Math.max(0, v)));
-  const min = Math.min(0, ...valori);
-  const campo = max - min || 1;
-  const hSu = (max / campo) * alto;
-  const hGiu = alto - hSu;
-  const n = valori.length;
-  const passo = Math.max(1, Math.ceil(n / 8));
-  return (
-    <View wrap={false} style={{ marginTop: 4, marginBottom: 2 }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", height: hSu, gap: n > 40 ? 0.5 : 1.5 }}>
-        {valori.map((v, i) => (
-          <View key={i} style={{ flex: 1, height: v > 0 ? Math.max(0.5, (v / campo) * alto) : 0, backgroundColor: i === colori?.evidenzia ? C.orange : colori?.su ?? C.navy }} />
-        ))}
-      </View>
-      <View style={{ height: 0.75, backgroundColor: C.gray700 }} />
-      <View style={{ flexDirection: "row", alignItems: "flex-start", height: hGiu, gap: n > 40 ? 0.5 : 1.5 }}>
-        {valori.map((v, i) => (
-          <View key={i} style={{ flex: 1, height: v < 0 ? Math.max(0.5, (-v / campo) * alto) : 0, backgroundColor: i === colori?.evidenzia ? C.orange : colori?.giu ?? C.red }} />
-        ))}
-      </View>
-      <View style={{ flexDirection: "row", marginTop: 2 }}>
-        {etichette.map((e, i) => (
-          <Text key={i} style={{ flex: 1, fontSize: 5.5, color: C.gray500, textAlign: "center" }}>{i % passo === 0 ? e : ""}</Text>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 /** Due barre orizzontali a confronto (previsto e stima) per una riga. */
 function Confronto({ etichetta, a, b, max }: { etichetta: string; a: number; b: number; max: number }) {
   const w = (v: number) => `${Math.max(0, Math.min(100, (Math.abs(v) / (max || 1)) * 100))}%`;
@@ -249,6 +222,7 @@ function Sintesi({ d }: { d: DatiDossier }) {
   return (
     <View style={s.sezione}>
       <Titolo sezione="sintesi" sotto={`Situazione al ${giornoIt(d.data)}`} />
+      <AnelliSintesi d={d} />
       <View style={s.numeri}>{d.sintesi.numeri.map((n) => <Numero key={n.etichetta} n={n} />)}</View>
       {d.sintesi.semafori.length > 0 ? (
         <View wrap={false}>
@@ -264,6 +238,33 @@ function Sintesi({ d }: { d: DatiDossier }) {
           <Text style={s.nota}>Verde: in linea. Giallo: da tenere d'occhio. Rosso: chiede un intervento.</Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** Il cruscotto in testa alla sintesi: lavori, vendite, incassi, spesa. Solo gli anelli con i dati. */
+function AnelliSintesi({ d }: { d: DatiDossier }) {
+  const anelli: { quota: number | null; valore: string; etichetta: string; sotto?: string; colore?: string }[] = [];
+  const a = d.avanzamento;
+  if (a && a.medio !== null) anelli.push({ quota: a.medio / 100, valore: `${a.medio}%`, etichetta: "Lavori", sotto: "avanzamento" });
+  const u = d.unita;
+  if (u && u.totale > 0) {
+    const vendute = u.conteggi.rogitata + u.conteggi.compromesso;
+    anelli.push({ quota: vendute / u.totale, valore: `${vendute}/${u.totale}`, etichetta: "Vendute", sotto: "compromessi e rogiti", colore: C.green });
+  }
+  const p = d.piano;
+  if (p && p.totali.ricavi.stima > 0 && a?.scala?.incassato !== null && a?.scala?.incassato !== undefined) {
+    const q = a.scala.incassato / p.totali.ricavi.stima;
+    anelli.push({ quota: q, valore: percento(q), etichetta: "Incassato", sotto: `${soldi(a.scala.incassato)} dei ricavi`, colore: C.orange });
+  }
+  if (p && p.totali.costi.stima > 0) {
+    const q = p.totali.costi.reale / p.totali.costi.stima;
+    anelli.push({ quota: q, valore: percento(q), etichetta: "Speso", sotto: `${soldi(p.totali.costi.reale)} dei costi`, colore: C.gray700 });
+  }
+  if (anelli.length < 2) return null;
+  return (
+    <View style={{ flexDirection: "row", gap: 6, marginBottom: 10, paddingVertical: 8, backgroundColor: C.gray50, borderRadius: 4 }} wrap={false}>
+      {anelli.map((x) => <Anello key={x.etichetta} {...x} />)}
     </View>
   );
 }
@@ -287,6 +288,16 @@ function Avanzamento({ d }: { d: DatiDossier }) {
           <Numero n={{ etichetta: "Incassato", valore: a.scala.incassato, formato: "euro" }} />
           <Numero n={{ etichetta: "Da incassare", valore: a.scala.daIncassare, formato: "euro", nota: "fatturato e non ancora pagato" }} />
         </View>
+      ) : null}
+      {a.scala && (a.scala.valore ?? a.scala.assegnato ?? 0) > 0 ? (
+        <RiquadroGrafico titolo="A che punto sono i soldi del valore">
+          <BarraImpilata parti={[
+            { nome: "Incassato", valore: a.scala.incassato ?? 0, colore: C.green },
+            { nome: "Fatturato da incassare", valore: Math.max(0, (a.scala.fatturato ?? 0) - (a.scala.incassato ?? 0)), colore: C.orange },
+            { nome: "Eseguito da fatturare", valore: Math.max(0, (a.scala.eseguito ?? 0) - Math.max(a.scala.fatturato ?? 0, a.scala.incassato ?? 0)), colore: C.navy },
+            { nome: "Da eseguire", valore: Math.max(0, (a.scala.valore ?? a.scala.assegnato ?? 0) - Math.max(a.scala.eseguito ?? 0, a.scala.fatturato ?? 0, a.scala.incassato ?? 0)), colore: C.gray200 },
+          ]} />
+        </RiquadroGrafico>
       ) : null}
       {a.figlie.length > 0 ? (
         <Tabella
@@ -326,46 +337,40 @@ function Foto({ d }: { d: DatiDossier }) {
   );
 }
 
-function righePiano(righe: RigaPianoDossier[], costi: boolean) {
-  return righe.map((r) => [
-    r.etichetta, soldi(r.previsto), soldi(r.reale), soldi(r.aFinire), soldi(r.stima),
-    <Text key="s" style={[s.td, s.destra, { color: Math.abs(r.scostamento) < 1 ? C.gray500 : (costi ? r.scostamento < 0 : r.scostamento > 0) ? C.green : C.red }]}>{conSegno(r.scostamento)}</Text>,
-  ]);
-}
-
-const COL_PIANO = (prima: string): Col[] => [
-  { titolo: prima, w: "28%" }, { titolo: "Previsto", w: "12%", destra: true }, { titolo: "Reale", w: "12%", destra: true },
-  { titolo: "A finire", w: "12%", destra: true }, { titolo: "Stima finale", w: "18%", destra: true }, { titolo: "Scostamento", w: "18%", destra: true },
-];
-
 function Piano({ d }: { d: DatiDossier }) {
   const p = d.piano;
   if (!p) return null;
   const t = p.totali;
-  const max = Math.max(t.ricavi.previsto, t.ricavi.stima, t.costi.previsto, t.costi.stima, Math.abs(t.margine.stima), 1);
+  const costiPerCategoria = gruppiPerCategoria(p.costi).map((g) => ({ nome: g.nome, valore: g.totali.stima, previsto: g.totali.previsto }));
   const tot = (x: typeof t.ricavi, nome: string) => [nome, soldi(x.previsto), soldi(x.reale), soldi(x.aFinire), soldi(x.stima), conSegno(x.scostamento)];
   return (
     <View style={s.sezione}>
       <View wrap={false}>
         <Titolo sezione="piano" sotto={`${p.versione ? `${p.versione} · ` : ""}importi al netto dell'IVA · stima finale = reale + a finire`} />
-        <Confronto etichetta="Ricavi" a={t.ricavi.previsto} b={t.ricavi.stima} max={max} />
-        <Confronto etichetta="Costi" a={t.costi.previsto} b={t.costi.stima} max={max} />
-        <Confronto etichetta="Margine" a={t.margine.previsto} b={t.margine.stima} max={max} />
-        <Legenda voci={[{ colore: C.gray400, testo: "Previsto" }, { colore: C.navy, testo: "Stima finale" }]} />
+        {t.ricavi.stima > 0 && costiPerCategoria.length > 0 ? (
+          <RiquadroGrafico titolo="Dai ricavi al margine" nota="Stima finale. Ogni barra rossa è una categoria di costi che scende dai ricavi; l'ultima è il margine che resta.">
+            <Cascata ricavi={t.ricavi.stima} costi={costiPerCategoria} />
+          </RiquadroGrafico>
+        ) : null}
       </View>
-      {p.ricavi.length > 0 ? (
-        <View>
-          <Tabella prima={<Text style={s.label}>Ricavi</Text>} col={COL_PIANO("Voce")} righe={righePiano(p.ricavi, false)} totale={tot(t.ricavi, "Totale ricavi")} />
-        </View>
+      {costiPerCategoria.length > 0 ? (
+        <FilaGrafici>
+          <RiquadroGrafico titolo="Dove vanno i costi" larghezza="44%">
+            <Torta voci={costiPerCategoria} diametro={86} compatta centro={{ valore: cifraBreve(t.costi.stima), etichetta: "costi" }} />
+          </RiquadroGrafico>
+          <RiquadroGrafico titolo="Previsto contro stima, per categoria" larghezza="54.5%">
+            <BarreConfronto righe={[
+              ...gruppiPerCategoria(p.ricavi).map((g) => ({ nome: g.nome, a: g.totali.previsto, b: g.totali.stima })),
+              ...costiPerCategoria.map((c) => ({ nome: c.nome, a: c.previsto, b: c.valore })),
+            ]} />
+          </RiquadroGrafico>
+        </FilaGrafici>
       ) : null}
-      {p.costi.length > 0 ? (
-        <View>
-          <Tabella prima={<Text style={s.label}>Costi</Text>} col={COL_PIANO("Voce")} righe={righePiano(p.costi, true)} totale={tot(t.costi, "Totale costi")} />
-        </View>
-      ) : null}
+      {p.ricavi.length > 0 ? <TabellaPianoPdf titolo="Ricavi" righe={p.ricavi} totale={t.ricavi} costi={false} /> : null}
+      {p.costi.length > 0 ? <View style={{ marginTop: 4 }}><TabellaPianoPdf titolo="Costi" righe={p.costi} totale={t.costi} costi /></View> : null}
       <View style={[s.trTot, { backgroundColor: C.navy, marginTop: 6 }]} wrap={false}>
         {tot(t.margine, "Margine").map((v, j) => (
-          <Text key={j} style={[s.td, s.bold, { color: j === 4 ? C.orange : C.white, width: COL_PIANO("")[j].w }, j > 0 ? s.destra : {}]}>{v}</Text>
+          <Text key={j} style={[s.td, s.bold, { color: j === 4 ? C.orange : C.white, width: LARGHEZZE_PIANO[j] }, j > 0 ? s.destra : {}]}>{v}</Text>
         ))}
       </View>
       <View style={[s.numeri, { marginTop: 8 }]} wrap={false}>
@@ -381,6 +386,15 @@ function Piano({ d }: { d: DatiDossier }) {
   );
 }
 
+/** «1,2 mln», «450k»: per il centro delle torte. */
+const cifraBreve = (n: number) => {
+  const a = Math.abs(n);
+  const segno = n < -0.5 ? "-" : "";
+  if (a >= 1_000_000) return `${segno}€ ${(a / 1_000_000).toLocaleString("it-IT", { maximumFractionDigits: 2 })} mln`;
+  if (a >= 1_000) return `${segno}€ ${Math.round(a / 1_000)}k`;
+  return soldi(n);
+};
+
 function Andamento({ d }: { d: DatiDossier }) {
   const a = d.andamento;
   if (!a || a.length === 0) return null;
@@ -391,7 +405,17 @@ function Andamento({ d }: { d: DatiDossier }) {
         <Titolo sezione="andamento" sotto="Margine stimato a fine operazione, come risultava a ogni fine mese" />
         {/* Con un mese solo una barra piena la larghezza non dice niente: basta la tabella. */}
         {a.length > 1 && (
-          <GraficoBarre valori={a.map((x) => x.margineStima)} etichette={a.map((x) => mese(x.mese))} alto={70} colori={{ su: C.navy, giu: C.red }} />
+          <RiquadroGrafico>
+            <Linee
+              etichette={a.map((x) => mese(x.mese))}
+              altezza={110}
+              serie={[
+                { nome: "Margine stimato", colore: C.navy, valori: a.map((x) => x.margineStima), area: true },
+                { nome: "Margine previsto", colore: C.gray400, valori: a.map((x) => x.marginePrevisto), tratteggio: true },
+                { nome: "Capitale investito", colore: C.orange, valori: a.map((x) => x.capitaleInvestito) },
+              ]}
+            />
+          </RiquadroGrafico>
         )}
       </View>
       <Tabella
@@ -421,8 +445,24 @@ function Cassa({ d }: { d: DatiDossier }) {
       </View>
       {c.mesi.length > 0 ? (
         <>
-          <GraficoBarre valori={c.mesi.map((m) => m.cumulato)} etichette={c.mesi.map((m) => mese(m.mese))} colori={{ su: C.green, giu: C.navy, evidenzia: picco >= 0 ? picco : undefined }} />
-          <Legenda voci={[{ colore: C.navy, testo: "Capitale impegnato" }, { colore: C.green, testo: "Cassa positiva" }, { colore: C.orange, testo: "Picco" }]} />
+          {c.mesi.length > 1 ? (
+            <RiquadroGrafico titolo="Cassa cumulata" nota="Sotto lo zero è il capitale che serve. Il punto arancio è il picco; la linea tratteggiata è il piano com'era scritto. La fascia grigia, se c'è, sono i mesi ancora da venire.">
+              <Linee
+                etichette={c.mesi.map((m) => mese(m.mese))}
+                serie={[
+                  { nome: "Stima", colore: C.navy, valori: c.mesi.map((m) => m.cumulato), area: true },
+                  ...(c.previsti && c.previsti.length > 0
+                    ? [{ nome: "Piano com'era scritto", colore: C.gray400, tratteggio: true, valori: allinea(c.mesi.map((m) => m.mese), c.previsti) }]
+                    : []),
+                ]}
+                evidenzia={picco >= 0 ? { indice: picco, testo: soldi(-c.capitaleMassimo) } : null}
+                oggi={c.mesi.findIndex((m) => !m.passato)}
+              />
+            </RiquadroGrafico>
+          ) : null}
+          <RiquadroGrafico titolo="Entrate e uscite, mese per mese">
+            <BarreMensili etichette={c.mesi.map((m) => mese(m.mese))} entrate={c.mesi.map((m) => m.entrate)} uscite={c.mesi.map((m) => m.uscite)} cumulato={c.mesi.map((m) => m.cumulato)} />
+          </RiquadroGrafico>
           <Tabella
             col={[{ titolo: "Mese", w: "20%" }, { titolo: "Entrate", w: "20%", destra: true }, { titolo: "Uscite", w: "20%", destra: true }, { titolo: "Netto", w: "20%", destra: true }, { titolo: "Cumulato", w: "20%", destra: true }]}
             righe={c.mesi.map((m) => [`${mese(m.mese)}${m.passato ? "" : " *"}`, soldi(m.entrate), soldi(m.uscite), soldi(m.netto), soldi(m.cumulato)])}
@@ -434,6 +474,17 @@ function Cassa({ d }: { d: DatiDossier }) {
   );
 }
 
+/** La serie del piano sui mesi della stima: prima che cominci vale zero, dopo che finisce resta all'ultimo valore. */
+function allinea(mesi: string[], serie: { mese: string; cumulato: number }[]): (number | null)[] {
+  const mappa = new Map(serie.map((x) => [x.mese, x.cumulato]));
+  let ultimo = 0;
+  return mesi.map((m) => {
+    if (mappa.has(m)) ultimo = mappa.get(m)!;
+    else if (serie.length > 0 && m < serie[0].mese) return 0;
+    return ultimo;
+  });
+}
+
 function Fonti({ d }: { d: DatiDossier }) {
   const f = d.fonti;
   if (!f) return null;
@@ -442,6 +493,11 @@ function Fonti({ d }: { d: DatiDossier }) {
     <View style={s.sezione}>
       <View wrap={false}>
         <Titolo sezione="fonti" />
+        {f.copertura.filter((x) => x.impegno > 0).length > 1 ? (
+          <RiquadroGrafico titolo="Da dove arriva il capitale">
+            <Torta voci={f.copertura.map((x) => ({ nome: x.nome, valore: x.impegno }))} centro={{ valore: cifraBreve(f.totali.impegno), etichetta: "impegni" }} />
+          </RiquadroGrafico>
+        ) : null}
         <Text style={s.label}>Chi copre il fabbisogno</Text>
         {f.copertura.map((x) => <Confronto key={x.nome} etichetta={x.nome} a={x.impegno} b={x.dentro} max={max} />)}
         <Legenda voci={[{ colore: C.gray400, testo: "Impegno" }, { colore: C.navy, testo: "Versato o erogato" }]} />
@@ -491,6 +547,13 @@ function Investitori({ d }: { d: DatiDossier }) {
         totale={["Totale", "", soldi(inv.reduce((t, x) => t + x.impegno, 0)), soldi(inv.reduce((t, x) => t + x.dentro, 0)), soldi(inv.reduce((t, x) => t + x.rendimentoStima, 0)), "", soldi(inv.reduce((t, x) => t + x.spettaAFine, 0))]}
       />
       <Text style={s.nota}>Rendimento: utile (a capitale) o interessi (a prestito) stimati a fine operazione. Spetta a fine: capitale da restituire più rendimento non ancora pagato.</Text>
+      {inv.filter((x) => x.rendimentoStima > 0).length > 1 ? (
+        <View style={{ marginTop: 6 }}>
+          <RiquadroGrafico titolo="Come si divide il rendimento">
+            <Torta voci={inv.map((x) => ({ nome: `${x.nome} (${x.rendimentoNome.toLowerCase()})`, valore: x.rendimentoStima }))} centro={{ valore: cifraBreve(inv.reduce((t, x) => t + x.rendimentoStima, 0)), etichetta: "rendimento" }} />
+          </RiquadroGrafico>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -522,6 +585,23 @@ function Unita({ d }: { d: DatiDossier }) {
           <Numero n={{ etichetta: "Incassato dagli acquirenti", valore: u.incassato, formato: "euro" }} />
           <Numero n={{ etichetta: "Da incassare sul venduto", valore: u.daIncassare, formato: "euro" }} />
         </View>
+      ) : null}
+      {conImporti && ((u.venduto ?? 0) + (u.prenotato ?? 0) + (u.inVendita ?? 0)) > 0 ? (
+        <FilaGrafici>
+          <RiquadroGrafico titolo="Il valore delle unità" larghezza="49.2%">
+            <Torta compatta diametro={80} voci={[
+              { nome: "Venduto", valore: u.venduto ?? 0, colore: C.green },
+              { nome: "Prenotato", valore: u.prenotato ?? 0, colore: C.orange },
+              { nome: "In vendita", valore: u.inVendita ?? 0, colore: C.gray400 },
+            ]} centro={{ valore: cifraBreve((u.venduto ?? 0) + (u.prenotato ?? 0) + (u.inVendita ?? 0)), etichetta: "listino" }} />
+          </RiquadroGrafico>
+          <RiquadroGrafico titolo="Il venduto: incassato e da incassare" larghezza="49.2%">
+            <Torta compatta diametro={80} voci={[
+              { nome: "Incassato", valore: u.incassato ?? 0, colore: C.navy },
+              { nome: "Da incassare", valore: u.daIncassare ?? 0, colore: C.orange },
+            ]} centro={{ valore: cifraBreve((u.incassato ?? 0) + (u.daIncassare ?? 0)), etichetta: "venduto" }} />
+          </RiquadroGrafico>
+        </FilaGrafici>
       ) : null}
       <Tabella
         col={conImporti

@@ -29,6 +29,13 @@ export interface DatiRendiconto {
     durataMesi: number | null;
   } | null;
   capitale: { massimo: number; meseMassimo: string | null; investitoOggi: number; raccolto: number; impegni: number } | null;
+  /**
+   * Il piano economico voce per voce (dal 15/11/2026: i soci e chi presta lo chiedono per capire
+   * da dove viene il loro numero). Facoltativo: i rendiconti salvati prima non lo hanno.
+   */
+  piano?: { ricavi: RigaPianoRendiconto[]; costi: RigaPianoRendiconto[] } | null;
+  /** La cassa dell'operazione mese per mese: stima e piano com'era scritto. */
+  flusso?: { mese: string; entrate: number; uscite: number; cumulato: number; previsto: number | null }[] | null;
   conto: {
     capitale: Colonne;
     rendimento: Colonne;
@@ -48,6 +55,35 @@ export interface DatiRendiconto {
   };
   regole: string[];
   note: string | null;
+}
+
+export interface RigaPianoRendiconto {
+  etichetta: string;
+  categoria: string;
+  previsto: number;
+  reale: number;
+  aFinire: number;
+  stima: number;
+  scostamento: number;
+}
+
+const rigaRendiconto = (x: NonNullable<NumeriInvestitori["righe"]>[number]): RigaPianoRendiconto => ({
+  etichetta: x.etichetta, categoria: x.categoria, previsto: x.previsto, reale: x.reale, aFinire: x.aFinire, stima: x.stima, scostamento: x.scostamento,
+});
+
+/** La cassa stimata con accanto quella del piano, sugli stessi mesi (il piano può cominciare prima o finire dopo). */
+function flussoConPrevisto(n: NumeriInvestitori): NonNullable<DatiRendiconto["flusso"]> {
+  const previsto = new Map((n.flussoPrevisto ?? []).map((m) => [m.mese, m.cumulato]));
+  const mesi = [...new Set([...n.flussoMensile.map((m) => m.mese), ...previsto.keys()])].sort();
+  const stima = new Map(n.flussoMensile.map((m) => [m.mese, m]));
+  let ultimoStima = 0;
+  let ultimoPrevisto: number | null = null;
+  return mesi.map((mese) => {
+    const s = stima.get(mese);
+    if (s) ultimoStima = s.cumulato;
+    if (previsto.has(mese)) ultimoPrevisto = previsto.get(mese)!;
+    return { mese, entrate: s?.entrate ?? 0, uscite: s?.uscite ?? 0, cumulato: ultimoStima, previsto: previsto.size ? ultimoPrevisto ?? 0 : null };
+  });
 }
 
 const NOMI_MOV: Record<string, string> = {
@@ -134,6 +170,13 @@ export function datiRendiconto(input: {
           impegni: conti.totali.impegno,
         }
       : null,
+    piano: numeri?.righe
+      ? {
+          ricavi: numeri.righe.filter((x) => x.tipo === "ricavo").map(rigaRendiconto),
+          costi: numeri.righe.filter((x) => x.tipo === "costo").map(rigaRendiconto),
+        }
+      : null,
+    flusso: numeri && numeri.flussoMensile.length > 0 ? flussoConPrevisto(numeri) : null,
     conto: {
       capitale: c.capitale,
       rendimento: c.rendimento,

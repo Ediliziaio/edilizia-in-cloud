@@ -1,11 +1,17 @@
 // src/components/orders/generali/investitori/RendicontoInvestitorePDF.tsx
 // Il rendiconto che riceve l'investitore: la sua posizione (capitale, utile o interessi,
 // quanto gli spetta a fine operazione), come va l'operazione (lavori, vendite, incassi,
-// previsto contro stima) e la regola con cui si divide l'utile. I costi voce per voce no:
-// riceve i totali che gli servono per capire il suo numero.
+// previsto contro stima, con anelli, cascata e la cassa in grafico), il piano economico voce per
+// voce raggruppato per categoria (dal 15/11/2026, richiesto dal titolare) e la regola con cui si
+// divide l'utile.
 // Palette e impaginazione come RendicontoAppaltoPDF (A4 verticale, Helvetica).
 import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DatiRendiconto } from "@/lib/orders/generali/investitoriRendiconto";
+import { gruppiPerCategoria } from "@/lib/orders/generali/graficiPdf";
+import {
+  Anello, BarreConfronto, BarreMensili, Cascata, FilaGrafici, Linee, RiquadroGrafico, Torta,
+} from "@/components/orders/generali/pdf/GraficiPdf";
+import { LARGHEZZE_PIANO, TabellaPianoPdf } from "@/components/orders/generali/pdf/TabellaPianoPdf";
 
 // Le parole non si spezzano col trattino («giardi-no»): vanno a capo intere.
 Font.registerHyphenationCallback((word) => [word]);
@@ -22,6 +28,7 @@ const C = {
   green: "#047857",
   red: "#b91c1c",
   white: "#ffffff",
+  gray400: "#9ca3af",
 };
 
 const s = StyleSheet.create({
@@ -69,12 +76,77 @@ const percento = (n: number | null | undefined) =>
 const giorno = (d: string | null | undefined) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "—");
 const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 const mese = (m: string | null | undefined) => (m && /^\d{4}-\d{2}/.test(m) ? `${MESI[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}` : null);
+const meseBreve = (m: string) => `${MESI[Number(m.slice(5, 7)) - 1].slice(0, 3)} ${m.slice(2, 4)}`;
+/** «€ 1,78 mln», «€ 450k»: per il centro delle torte. */
+const cifraBreve = (n: number) => {
+  const a = Math.abs(n);
+  const segno = n < -0.5 ? "-" : "";
+  if (a >= 1_000_000) return `${segno}€ ${(a / 1_000_000).toLocaleString("it-IT", { maximumFractionDigits: 2 })} mln`;
+  if (a >= 1_000) return `${segno}€ ${Math.round(a / 1_000)}k`;
+  return soldi(n);
+};
 
 function Numero({ etichetta, valore }: { etichetta: string; valore: string }) {
   return (
     <View style={s.numero}>
       <Text style={s.numeroLabel}>{etichetta}</Text>
       <Text style={s.numeroValore}>{valore}</Text>
+    </View>
+  );
+}
+
+/** Il punto più basso della cassa stimata: il capitale massimo che l'operazione chiede. */
+function picco(flusso: NonNullable<DatiRendiconto["flusso"]>): { indice: number; testo: string } | null {
+  let indice = -1;
+  let minimo = 0;
+  flusso.forEach((m, i) => {
+    if (m.cumulato < minimo) {
+      minimo = m.cumulato;
+      indice = i;
+    }
+  });
+  return indice >= 0 ? { indice, testo: soldi(minimo) } : null;
+}
+
+function PianoEconomico({ piano }: { piano: NonNullable<DatiRendiconto["piano"]> }) {
+  const somma = (righe: typeof piano.ricavi) => ({
+    previsto: righe.reduce((t, r) => t + r.previsto, 0), reale: righe.reduce((t, r) => t + r.reale, 0),
+    aFinire: righe.reduce((t, r) => t + r.aFinire, 0), stima: righe.reduce((t, r) => t + r.stima, 0),
+    scostamento: righe.reduce((t, r) => t + r.scostamento, 0),
+  });
+  const ricavi = somma(piano.ricavi);
+  const costi = somma(piano.costi);
+  const margine = {
+    previsto: ricavi.previsto - costi.previsto, reale: ricavi.reale - costi.reale, aFinire: ricavi.aFinire - costi.aFinire,
+    stima: ricavi.stima - costi.stima, scostamento: ricavi.scostamento - costi.scostamento,
+  };
+  const gruppiCosti = gruppiPerCategoria(piano.costi);
+  return (
+    <View style={s.sezione}>
+      <View wrap={false}>
+        <Text style={s.label}>Il piano economico</Text>
+        {gruppiCosti.length > 0 ? (
+          <FilaGrafici>
+            <RiquadroGrafico titolo="Dove vanno i costi" larghezza="44%">
+              <Torta voci={gruppiCosti.map((g) => ({ nome: g.nome, valore: g.totali.stima }))} diametro={86} compatta centro={{ valore: cifraBreve(costi.stima), etichetta: "costi" }} />
+            </RiquadroGrafico>
+            <RiquadroGrafico titolo="Previsto contro stima, per categoria" larghezza="54.5%">
+              <BarreConfronto righe={[
+                ...gruppiPerCategoria(piano.ricavi).map((g) => ({ nome: g.nome, a: g.totali.previsto, b: g.totali.stima })),
+                ...gruppiCosti.map((g) => ({ nome: g.nome, a: g.totali.previsto, b: g.totali.stima })),
+              ]} />
+            </RiquadroGrafico>
+          </FilaGrafici>
+        ) : null}
+      </View>
+      {piano.ricavi.length > 0 ? <TabellaPianoPdf titolo="Ricavi" righe={piano.ricavi} totale={ricavi} costi={false} /> : null}
+      {piano.costi.length > 0 ? <View style={{ marginTop: 4 }}><TabellaPianoPdf titolo="Costi" righe={piano.costi} totale={costi} costi /></View> : null}
+      <View style={{ flexDirection: "row", backgroundColor: C.navy, paddingVertical: 4, paddingHorizontal: 6, marginTop: 6 }} wrap={false}>
+        {["Margine", soldi(margine.previsto), soldi(margine.reale), soldi(margine.aFinire), soldi(margine.stima), Math.abs(margine.scostamento) < 1 ? "—" : `${margine.scostamento > 0 ? "+" : ""}${soldi(margine.scostamento)}`].map((v, j) => (
+          <Text key={j} style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: j === 4 ? C.orange : C.white, width: LARGHEZZE_PIANO[j], textAlign: j > 0 ? "right" : "left", paddingRight: j > 0 ? 4 : 0 }}>{v}</Text>
+        ))}
+      </View>
+      <Text style={s.nota}>Importi al netto dell'IVA. Reale: quanto già registrato. A finire: quanto resta da spendere o incassare secondo il piano. Stima finale = reale + a finire.</Text>
     </View>
   );
 }
@@ -165,15 +237,36 @@ export function RendicontoInvestitorePDF({ d, platformName = "Edilizia in Cloud"
             {c.quotaPct !== null ? ` Quota dell'utile: ${percento(c.quotaPct)}.` : ""} Conteggio fino al {giorno(c.fine)}.
           </Text>
         </View>
+        {c.capitale.stima > 0 ? (
+          <RiquadroGrafico titolo="Quello che le torna a fine operazione">
+            <Torta
+              voci={[
+                { nome: "Capitale restituito", valore: c.capitale.stima, colore: C.navy },
+                { nome: c.rendimentoNome, valore: Math.max(0, c.rendimento.stima), colore: C.orange },
+              ]}
+              centro={{ valore: cifraBreve(c.capitale.stima + Math.max(0, c.rendimento.stima)), etichetta: "in tutto" }}
+            />
+          </RiquadroGrafico>
+        ) : null}
 
         {/* L'operazione */}
         <View style={s.sezione} wrap={false}>
           <Text style={s.label}>Come va l'operazione</Text>
-          <View style={s.numeri}>
-            <Numero etichetta="Avanzamento lavori" valore={d.avanzamento !== null ? `${d.avanzamento}%` : "—"} />
-            {v ? <Numero etichetta={`${d.operazione.unitaNome} vendute`} valore={`${venduteRogitate} su ${v.totale}`} /> : null}
-            {v && impegnate > 0 ? <Numero etichetta="Prenotate o a compromesso" valore={String(impegnate)} /> : null}
-            {d.incassato !== null ? <Numero etichetta="Incassato" valore={soldi(d.incassato)} /> : null}
+          <View style={{ flexDirection: "row", gap: 6, marginBottom: 8, paddingVertical: 8, backgroundColor: C.gray50, borderRadius: 4 }}>
+            <Anello quota={d.avanzamento === null ? null : d.avanzamento / 100} valore={d.avanzamento !== null ? `${d.avanzamento}%` : "—"} etichetta="Avanzamento lavori" />
+            {v && v.totale > 0 ? (
+              <Anello quota={venduteRogitate / v.totale} valore={`${venduteRogitate}/${v.totale}`} etichetta={`${d.operazione.unitaNome} rogitate`} sotto={impegnate > 0 ? `${impegnate} prenotate o a compromesso` : undefined} colore={C.green} />
+            ) : null}
+            {d.incassato !== null ? (
+              <Anello
+                quota={d.economia && d.economia.ricavi.stima > 0 ? d.incassato / d.economia.ricavi.stima : null}
+                valore={d.economia && d.economia.ricavi.stima > 0 ? percento(d.incassato / d.economia.ricavi.stima) : "—"}
+                etichetta="Incassato" sotto={soldi(d.incassato)} colore={C.orange}
+              />
+            ) : null}
+            {d.economia?.tirAnnuo !== null && d.economia?.tirAnnuo !== undefined ? (
+              <Anello quota={Math.min(1, Math.max(0, d.economia.tirAnnuo))} valore={percento(d.economia.tirAnnuo)} etichetta="TIR dell'operazione" sotto={d.economia.durataMesi ? `in ${d.economia.durataMesi} mesi` : undefined} colore={C.gray700} />
+            ) : null}
           </View>
           {d.economia ? (
             <>
@@ -212,6 +305,35 @@ export function RendicontoInvestitorePDF({ d, platformName = "Edilizia in Cloud"
             <Text style={s.nota}>Il piano economico dell'operazione non è ancora pronto: le stime arriveranno nei prossimi rendiconti.</Text>
           )}
         </View>
+
+        {d.piano && d.economia && d.economia.ricavi.stima > 0 && d.piano.costi.length > 0 ? (
+          <RiquadroGrafico titolo="Dai ricavi al margine" nota="Stima finale. Ogni barra rossa è una categoria di costi che scende dai ricavi; l'ultima è il margine che resta da dividere.">
+            <Cascata ricavi={d.economia.ricavi.stima} costi={gruppiPerCategoria(d.piano.costi).map((g) => ({ nome: g.nome, valore: g.totali.stima }))} />
+          </RiquadroGrafico>
+        ) : null}
+
+        {d.piano && (d.piano.ricavi.length > 0 || d.piano.costi.length > 0) ? <PianoEconomico piano={d.piano} /> : null}
+
+        {d.flusso && d.flusso.length > 1 ? (
+          <View style={s.sezione}>
+            <View wrap={false}>
+              <Text style={s.label}>La cassa dell'operazione</Text>
+              <RiquadroGrafico nota="Cassa cumulata mese per mese: sotto lo zero è il capitale che soci, investitori e banca coprono. Il punto arancio è il picco.">
+                <Linee
+                  etichette={d.flusso.map((m) => meseBreve(m.mese))}
+                  serie={[
+                    { nome: "Stima", colore: C.navy, valori: d.flusso.map((m) => m.cumulato), area: true },
+                    ...(d.flusso.some((m) => m.previsto !== null) ? [{ nome: "Piano com'era scritto", colore: C.gray400, tratteggio: true, valori: d.flusso.map((m) => m.previsto) }] : []),
+                  ]}
+                  evidenzia={picco(d.flusso)}
+                />
+              </RiquadroGrafico>
+            </View>
+            <RiquadroGrafico titolo="Entrate e uscite, mese per mese">
+              <BarreMensili etichette={d.flusso.map((m) => meseBreve(m.mese))} entrate={d.flusso.map((m) => m.entrate)} uscite={d.flusso.map((m) => m.uscite)} />
+            </RiquadroGrafico>
+          </View>
+        ) : null}
 
         {d.capitale ? (
           <View style={s.sezione} wrap={false}>

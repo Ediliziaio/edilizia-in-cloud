@@ -816,6 +816,10 @@ export interface NumeriInvestitori {
   durataMesi: number | null;
   /** La cassa mese per mese della stima. */
   flussoMensile: { mese: Mese; entrate: number; uscite: number; netto: number; cumulato: number }[];
+  /** La cassa cumulata del piano com'era scritto: nel rendiconto, la linea tratteggiata. */
+  flussoPrevisto?: { mese: Mese; cumulato: number }[];
+  /** Il piano voce per voce, con la categoria: la tabella e i grafici del rendiconto. */
+  righe?: { tipo: TipoVoce; categoria: string; etichetta: string; previsto: number; reale: number; aFinire: number; stima: number; scostamento: number }[];
 }
 
 /** I numeri che servono a chi rende conto agli investitori (modulo Fonti e investitori). */
@@ -830,5 +834,10 @@ export function numeriPerInvestitori(p: PianoCalcolato): NumeriInvestitori {
     tirAnnuo: p.indicatori.stima.tir,
     durataMesi: p.indicatori.stima.durataMesi,
     flussoMensile: p.cassa.stima.map(({ mese, entrate, uscite, netto, cumulato }) => ({ mese, entrate, uscite, netto, cumulato })),
+    flussoPrevisto: p.cassa.previsto.map(({ mese, cumulato }) => ({ mese, cumulato })),
+    righe: [...p.confronto.ricavi, ...p.confronto.costi].map((r) => ({
+      tipo: r.tipo, categoria: r.categoria, etichetta: r.etichetta,
+      previsto: r.previsto, reale: r.reale, aFinire: r.aFinire, stima: r.stima, scostamento: r.scostamento,
+    })),
   };
 }
