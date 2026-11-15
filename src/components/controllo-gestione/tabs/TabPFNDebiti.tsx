@@ -31,7 +31,7 @@ import { percIt } from "@/lib/controlloGestione/formatoCG";
 import { erroreFinanziamento } from "@/lib/controlloGestione/finanziamenti";
 import { cn } from "@/lib/utils";
 import {
-  Building2, Plus, Trash2, AlertTriangle, TrendingDown, TrendingUp,
+  Building2, Plus, Trash2, TrendingDown, TrendingUp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -66,6 +66,7 @@ function PFNSection({ anno }: { anno: number }) {
   const indebitamento = componenti.mutui_mlt + componenti.banche_negative;
   const liquidita = componenti.cassa + componenti.banche_positive;
   const annoCorrente = new Date().getFullYear();
+  const dataRif = q.data.meta?.data_riferimento ? formatDate(q.data.meta.data_riferimento) : "oggi";
   // Il Previsionale parte dal disponibile dichiarato dalla banca (o dal saldo se manca).
   const disponibileTotale = conti.data?.reduce((s, c) => s + (c.disponibile ?? c.saldo), 0) ?? null;
   const saldoContabile = componenti.banche_positive - componenti.banche_negative;
@@ -75,48 +76,37 @@ function PFNSection({ anno }: { anno: number }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Posizione finanziaria netta (PFN)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Quanto devi alle banche meno i soldi che hai sui conti: (mutui e finanziamenti + conti in rosso) − (cassa + conti in attivo).
-          {" "}Se è <strong>negativa</strong> hai più liquidità che debiti finanziari; se è <strong>positiva</strong> sei indebitato per quella cifra.
-          {anno !== annoCorrente && ` È la posizione di oggi, non a fine ${anno}: i saldi storici dei conti non sono salvati.`}
+          Debiti finanziari meno liquidità, al {dataRif}. Negativa: hai più liquidità che debiti.
+          {q.data.meta?.mutui_di_oggi && " I mutui sono al capitale residuo di oggi."}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div
-            className={cn(
-              "min-w-0 rounded-2xl p-4",
-              pfn > 0 ? "bg-rose-50" : "bg-emerald-50",
-            )}
-          >
-            <p className="text-xs text-muted-foreground">PFN oggi</p>
-            <p
-              className={cn(
-                "mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tabular-nums",
-                pfn > 0 ? "text-rose-700" : "text-emerald-700",
-              )}
-            >
+          <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
+            <p className="text-xs text-muted-foreground">PFN al {dataRif}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tabular-nums">
               {pfn > 0 ? <TrendingDown className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
               {formatCurrency(pfn)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {pfn > 0
-                ? "Indebitamento netto: i debiti finanziari superano la liquidità"
-                : "Cassa netta: la liquidità copre tutti i debiti finanziari"}
+              {pfn > 0 ? "Indebitamento netto" : "Cassa netta"}
             </p>
           </div>
-          <div className="min-w-0 rounded-2xl bg-amber-50 p-4">
+          <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
             <p className="text-xs text-muted-foreground">Debiti finanziari</p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-amber-700">
+            <p className="mt-1 text-xl font-bold tabular-nums">
               {formatCurrency(indebitamento)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Mutui {formatCurrency(componenti.mutui_mlt)} + conti in rosso{" "}
-              {formatCurrency(componenti.banche_negative)}
+              {componenti.mutui_breve != null
+                ? <>Mutui entro 12 mesi {formatCurrency(componenti.mutui_breve)}, oltre {formatCurrency(componenti.mutui_oltre ?? componenti.mutui_mlt - componenti.mutui_breve)}</>
+                : <>Mutui {formatCurrency(componenti.mutui_mlt)}</>}
+              {componenti.banche_negative > 0 && <>, conti in rosso {formatCurrency(componenti.banche_negative)}</>}
             </p>
           </div>
-          <div className="min-w-0 rounded-2xl bg-blue-50 p-4">
+          <div className="min-w-0 rounded-2xl bg-muted/40 p-4">
             <p className="text-xs text-muted-foreground">Liquidità</p>
-            <p className="mt-1 text-xl font-bold tabular-nums text-blue-700">
+            <p className="mt-1 text-xl font-bold tabular-nums">
               {formatCurrency(liquidita)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -130,12 +120,13 @@ function PFNSection({ anno }: { anno: number }) {
               {indebitamento > 0 ? percIt((liquidita / indebitamento) * 100) : "—"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Liquidità ÷ debiti finanziari: sopra il 100% potresti estinguerli tutti oggi.
+              Liquidità ÷ debiti finanziari.
             </p>
           </div>
         </div>
 
-        {conti.data && conti.data.length > 0 && (
+        {/* I saldi dei singoli conti sono quelli di oggi: per un anno chiuso non si mostrano. */}
+        {anno === annoCorrente && conti.data && conti.data.length > 0 && (
           <details className="rounded-xl border p-3 text-sm">
             <summary className="cursor-pointer font-medium">Da quali conti viene (saldo contabile e disponibile)</summary>
             <div className="mt-2 overflow-x-auto">
@@ -152,7 +143,7 @@ function PFNSection({ anno }: { anno: number }) {
                   {conti.data.map((c) => (
                     <tr key={c.id} className="border-t">
                       <td className="py-1.5 pr-3">{c.nome}</td>
-                      <td className={cn("whitespace-nowrap py-1.5 pr-3 text-right tabular-nums", c.saldo < 0 && "font-medium text-rose-700")}>{formatCurrency(c.saldo)}</td>
+                      <td className={cn("whitespace-nowrap py-1.5 pr-3 text-right tabular-nums", c.saldo < 0 && "font-medium")}>{formatCurrency(c.saldo)}</td>
                       <td className="whitespace-nowrap py-1.5 text-right tabular-nums text-muted-foreground">
                         {c.disponibile == null ? <span title="La banca non dichiara un disponibile: si usa il saldo">{formatCurrency(c.saldo)}*</span> : formatCurrency(c.disponibile)}
                       </td>
@@ -167,9 +158,7 @@ function PFNSection({ anno }: { anno: number }) {
               </table>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              La PFN usa il <strong>saldo contabile</strong> (quello del bilancio); il Previsionale parte dal{" "}
-              <strong>disponibile</strong>, cioè i soldi che puoi spendere oggi. Se i due totali sono molto diversi,
-              aggiorna i saldi in <Link to="/azienda/tesoreria" className="font-medium text-primary underline">Tesoreria</Link>.
+              Saldi da aggiornare? <Link to="/azienda/tesoreria" className="font-medium text-primary underline">Tesoreria</Link>.
               {conti.data.some((c) => c.disponibile == null) && " * conto senza disponibile: vale il saldo."}
             </p>
           </details>
@@ -253,10 +242,7 @@ function LoansSection() {
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
         <div>
           <CardTitle className="text-base">Mutui & Finanziamenti MLT</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Capitale ancora da restituire e rata: entrano nella PFN, nello Stato patrimoniale e nella
-            copertura delle rate (DSCR). Le rate entrano nella previsione di cassa solo se sono nello scadenzario.
-          </p>
+          <p className="text-xs text-muted-foreground">Capitale ancora da restituire e rata di ogni finanziamento.</p>
         </div>
         <Button size="sm" onClick={handleNew} className="shrink-0">
           <Plus className="mr-2 h-4 w-4" />
@@ -505,11 +491,11 @@ const FASCE_LABELS: Record<keyof AgingFasce, string> = {
 };
 
 const FASCE_COLORS: Record<keyof AgingFasce, string> = {
-  a_scadere: "bg-emerald-50 text-emerald-700",
-  sc_30:     "bg-amber-50 text-amber-700",
-  sc_60:     "bg-orange-50 text-orange-700",
-  sc_90:     "bg-rose-50 text-rose-700",
-  sc_oltre:  "bg-rose-100 text-rose-800",
+  a_scadere: "bg-muted/40",
+  sc_30:     "bg-muted/40",
+  sc_60:     "bg-muted/40",
+  sc_90:     "bg-muted/40",
+  sc_oltre:  "bg-muted/40",
 };
 
 function AgingSection() {
@@ -524,8 +510,8 @@ function AgingSection() {
             <CardTitle className="text-base">Scadenze aperte per anzianità</CardTitle>
             <p className="text-xs text-muted-foreground">
               {direction === "out"
-                ? "Quanto devi ai fornitori secondo lo scadenzario, diviso per quanto è in ritardo."
-                : "Quanto ti devono i clienti secondo lo scadenzario, diviso per quanto è in ritardo."}
+                ? "Pagamenti aperti nello scadenzario, per ritardo."
+                : "Incassi aperti nello scadenzario, per ritardo."}
               {q.data && ` Totale aperto ${formatCurrency(q.data.totale)} su ${q.data.n_aperte} posizioni.`}
             </p>
           </div>
@@ -567,16 +553,9 @@ function AgingSection() {
             </div>
 
             {q.data.totale_scaduto > 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <p>
-                  Hai{" "}
-                  <strong className="tabular-nums">
-                    {formatCurrency(q.data.totale_scaduto)}
-                  </strong>{" "}
-                  di scaduto su {q.data.n_scadute} posizioni aperte.
-                </p>
-              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Scaduto: <strong className="tabular-nums text-foreground">{formatCurrency(q.data.totale_scaduto)}</strong> su {q.data.n_scadute} posizioni.
+              </p>
             )}
 
             {/* Lista righe */}

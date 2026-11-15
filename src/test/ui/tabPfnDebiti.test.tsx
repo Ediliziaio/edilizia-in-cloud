@@ -29,7 +29,8 @@ const apri = () => render(<MemoryRouter><TabPFNDebiti anno={new Date().getFullYe
 describe("PFN & Debiti", () => {
   it("spiega il segno della PFN e usa la virgola nelle percentuali", () => {
     apri();
-    expect(screen.getByText(/Cassa netta: la liquidità copre/)).toBeInTheDocument();
+    expect(screen.getByText("Cassa netta")).toBeInTheDocument();
+    expect(screen.getByText(/Negativa: hai più liquidità che debiti/)).toBeInTheDocument();
     expect(screen.getByText("100,9%")).toBeInTheDocument();
     expect(screen.getByText("3,90%")).toBeInTheDocument();
     expect(screen.getByText(/Totale aperto 164\.337,84/)).toBeInTheDocument();

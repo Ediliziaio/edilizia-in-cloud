@@ -11,10 +11,14 @@ export interface PFNComponenti {
   cassa: number;
   banche_positive: number;
   banche_negative: number;
+  /** Capitale residuo totale dei mutui attivi. */
   mutui_mlt: number;
+  /** Quota capitale delle prossime dodici rate (dalla migrazione 20290330160000). */
+  mutui_breve?: number;
+  mutui_oltre?: number;
 }
 export interface PFNResult {
-  meta: { company_id: string; anno: number; generato_il: string };
+  meta: { company_id: string; anno: number; generato_il: string; data_riferimento?: string; mutui_di_oggi?: boolean };
   pfn: number;
   componenti: PFNComponenti;
   serie: Array<{ label: string; pfn: number }>;
