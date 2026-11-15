@@ -69,10 +69,10 @@ export function indiziQuadratura(attivo: SPAttivo, passivo: SPPassivo, differenz
     if (passivo.debiti_tributari === 0) {
       out.push({ testo: "Debiti tributari a zero: IVA, ritenute e F24 ancora da versare non risultano." });
     }
-    const manualiPassivo = (["debiti_personale", "debiti_previdenziali"] as const)
-      .filter((k) => manuali.has(k) && passivo[k] === 0);
-    if (manualiPassivo.length > 0) {
-      out.push({ testo: "Stipendi e contributi del mese non ancora pagati: il gestionale non li calcola, vanno chiesti al consulente del lavoro." });
+    // Stipendi e contributi non pagati arrivano dai cedolini emessi (dal 22/10/2026):
+    // se mancano, è perché i cedolini del mese non sono stati caricati.
+    if (passivo.debiti_personale === 0 && passivo.debiti_previdenziali === 0 && !manuali.has("debiti_personale")) {
+      out.push({ testo: "Stipendi e contributi non pagati a zero: se il mese è chiuso ma non pagato, carica i cedolini.", href: "/azienda/personale", cta: "Apri il personale" });
     }
     if (passivo.fondo_tfr === 0) {
       out.push({ testo: "Fondo TFR a zero: se avete dipendenti, il TFR maturato è un debito." });
@@ -82,7 +82,9 @@ export function indiziQuadratura(attivo: SPAttivo, passivo: SPPassivo, differenz
       out.push({ testo: "Nessun cespite: mezzi, attrezzature e immobili non risultano tra gli impieghi." });
     }
     if (attivo.rimanenze === 0) {
-      out.push({ testo: "Magazzino a zero: materiale in giacenza e lavori in corso non risultano." });
+      out.push({ testo: (attivo.lavori_in_corso ?? 0) === 0
+        ? "Magazzino e lavori in corso a zero: materiale in giacenza e lavori eseguiti non fatturati non risultano. Il valore dei lavori in corso di fine anno si registra nel Riepilogo."
+        : "Magazzino a zero: il materiale in giacenza non risulta." });
     }
     if (attivo.crediti_clienti === 0) {
       out.push({ testo: "Crediti verso clienti a zero: le fatture emesse non ancora incassate dovrebbero comparire qui." });

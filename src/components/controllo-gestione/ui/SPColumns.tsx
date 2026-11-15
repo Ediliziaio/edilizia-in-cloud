@@ -26,6 +26,7 @@ function buildAttivo(a: SPAttivo): Riga[] {
     { chiave: "imm_finanziarie", label: "Immobilizzazioni finanziarie", valore: a.imm_finanziarie, livello: "voce" },
     { chiave: "attivo_fisso", label: "Attivo fisso", valore: a.attivo_fisso, livello: "subtot", spiegazione: "Quello che resta in azienda per più anni." },
     { chiave: "rimanenze", label: "Rimanenze di magazzino", valore: a.rimanenze, livello: "voce" },
+    { chiave: "lavori_in_corso", label: "Lavori in corso", valore: a.lavori_in_corso ?? 0, livello: "voce", spiegazione: "Lavori eseguiti e non ancora fatturati, con la stessa regola del conto economico." },
     { chiave: "crediti_clienti", label: "Crediti verso clienti", valore: a.crediti_clienti, livello: "voce", spiegazione: "Fatture emesse non ancora incassate, IVA compresa." },
     { chiave: "crediti_tributari", label: "Crediti tributari", valore: a.crediti_tributari, livello: "voce", spiegazione: "IVA a credito e acconti d'imposta." },
     { chiave: "anticipi_fornitori", label: "Anticipi a fornitori", valore: a.anticipi_fornitori, livello: "voce" },
@@ -93,7 +94,7 @@ function ColumnSP({
                   da inserire a mano
                 </span>
               ) : (
-                <span className={cn("shrink-0 tabular-nums", negativo && "text-destructive")}>
+                <span className={cn("shrink-0 tabular-nums", negativo && "font-medium")}>
                   {formatCurrency(r.valore)}
                 </span>
               )}
@@ -101,9 +102,9 @@ function ColumnSP({
           );
         })}
         {differenza != null && Math.abs(differenza) >= 1 && (
-          <div className="flex items-center justify-between gap-3 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-900">
+          <div className="flex items-center justify-between gap-3 border-t border-dashed px-4 py-2.5 text-sm text-muted-foreground">
             <span title="Impieghi meno fonti: quello che il gestionale non riesce ancora a spiegare.">
-              {differenza > 0 ? "Fonti mancanti (differenza)" : "Impieghi mancanti (differenza)"}
+              Differenza da spiegare
             </span>
             <span className="shrink-0 tabular-nums">{formatCurrency(Math.abs(differenza))}</span>
           </div>

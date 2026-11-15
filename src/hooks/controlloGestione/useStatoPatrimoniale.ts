@@ -17,6 +17,8 @@ export interface SPAttivo {
   imm_finanziarie: number;
   attivo_fisso: number;
   rimanenze: number;
+  /** Lavori in corso a fine anno (dalla migrazione 20290325160000), stessa regola della voce 02 del CE. */
+  lavori_in_corso?: number;
   crediti_clienti: number;
   crediti_tributari: number;
   anticipi_fornitori: number;
@@ -32,7 +34,8 @@ export interface SPPassivo {
   capitale_sociale: number;
   riserve: number;
   utile_esercizio: number;
-  rettifica_patrimoniale: number;
+  /** Non più calcolata dal 22/10/2026 (niente voce di quadratura): resta per le stampe vecchie. */
+  rettifica_patrimoniale?: number;
   mezzi_propri: number;
   fondo_tfr: number;
   fondi_rischi: number;

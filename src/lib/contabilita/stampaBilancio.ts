@@ -149,6 +149,7 @@ export function vociAttivo(a: Record<string, number>): VoceBilancio[] {
     { label: "Immobilizzazioni finanziarie", valore: a.imm_finanziarie ?? 0 },
     { label: "Attivo fisso", valore: a.attivo_fisso ?? 0, forte: true },
     { label: "Rimanenze di magazzino", valore: a.rimanenze ?? 0 },
+    ...(a.lavori_in_corso ? [{ label: "Lavori in corso", valore: a.lavori_in_corso }] : []),
     { label: "Crediti verso clienti", valore: a.crediti_clienti ?? 0 },
     { label: "Crediti tributari", valore: a.crediti_tributari ?? 0 },
     { label: "Anticipi a fornitori", valore: a.anticipi_fornitori ?? 0 },

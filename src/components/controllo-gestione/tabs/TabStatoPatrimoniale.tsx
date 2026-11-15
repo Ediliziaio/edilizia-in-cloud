@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle } from "lucide-react";
+import { CheckCircle2, Scale } from "lucide-react";
 import {
   useStatoPatrimoniale,
   useSPMultiAnno,
@@ -136,6 +135,7 @@ function SPExportButton({ anno }: { anno: number }) {
     rows.push({ codice: "03", label: "Imm. finanziarie", valore: attivo.imm_finanziarie, tipo: "voce" });
     rows.push({ codice: "AF", label: "Attivo fisso TOT", valore: attivo.attivo_fisso, tipo: "subtot" });
     rows.push({ codice: "04", label: "Rimanenze", valore: attivo.rimanenze, tipo: "voce" });
+    rows.push({ codice: "04b", label: "Lavori in corso", valore: attivo.lavori_in_corso ?? 0, tipo: "voce" });
     rows.push({ codice: "05", label: "Crediti clienti", valore: attivo.crediti_clienti, tipo: "voce" });
     rows.push({ codice: "06", label: "Crediti tributari", valore: attivo.crediti_tributari, tipo: "voce" });
     rows.push({ codice: "07", label: "Anticipi fornitori", valore: attivo.anticipi_fornitori, tipo: "voce" });
@@ -150,7 +150,6 @@ function SPExportButton({ anno }: { anno: number }) {
     rows.push({ codice: "10", label: "Capitale", valore: passivo.capitale_sociale, tipo: "voce" });
     rows.push({ codice: "11", label: "Riserve", valore: passivo.riserve, tipo: "voce" });
     rows.push({ codice: "12", label: "Utile esercizio", valore: passivo.utile_esercizio, tipo: "voce" });
-    rows.push({ codice: "12b", label: "Riserve/rettifiche di raccordo", valore: passivo.rettifica_patrimoniale ?? 0, tipo: "voce" });
     rows.push({ codice: "MP", label: "Mezzi propri TOT", valore: passivo.mezzi_propri, tipo: "subtot" });
     rows.push({ codice: "13", label: "TFR", valore: passivo.fondo_tfr, tipo: "voce" });
     rows.push({ codice: "14", label: "Fondi rischi", valore: passivo.fondi_rischi, tipo: "voce" });
@@ -225,39 +224,43 @@ function SPSingleAnnoView({ anno }: { anno: number }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
-        Situazione al {formatDate(sp.data.meta.data_riferimento)}.
-        {annoPassato && " Per un anno chiuso i saldi di banca sono quelli di oggi: per il bilancio vero fa fede il commercialista."}
-        {" "}Passa sopra una voce per sapere da dove viene il numero.
-      </p>
-      {!quadratura.quadrato && (
-        <Alert className="rounded-2xl border-amber-300 bg-amber-50">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-900">
-            Impieghi e fonti non coincidono: mancano {formatCurrency(Math.abs(quadratura.differenza))} {quadratura.differenza > 0 ? "di fonti" : "di impieghi"}
-          </AlertTitle>
-          <AlertDescription className="space-y-2 text-amber-900">
-            <p>
-              Il gestionale ricostruisce lo stato patrimoniale da fatture, scadenze, conti e cespiti:
-              quello che non è registrato qui manca. Dove guardare prima:
-            </p>
-            {indizi.length > 0 && (
-              <ul className="list-disc space-y-1 pl-5">
-                {indizi.map((i) => (
-                  <li key={i.testo}>
-                    {i.testo}
-                    {i.href && i.cta && (
-                      <>
-                        {" "}
-                        <Link to={i.href} className="font-medium underline underline-offset-2">{i.cta}</Link>
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </AlertDescription>
-        </Alert>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <span className="text-muted-foreground">
+          Al {formatDate(sp.data.meta.data_riferimento)}{annoPassato ? " · saldi di banca di oggi" : ""}
+        </span>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+            quadratura.quadrato
+              ? "bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:ring-emerald-800"
+              : "bg-muted text-foreground ring-border",
+          )}
+        >
+          {quadratura.quadrato ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> : <Scale className="h-3.5 w-3.5" aria-hidden />}
+          {quadratura.quadrato
+            ? "Impieghi e fonti quadrano"
+            : `Differenza da spiegare: ${formatCurrency(Math.abs(quadratura.differenza))}`}
+        </span>
+      </div>
+      {!quadratura.quadrato && indizi.length > 0 && (
+        <details className="rounded-lg border bg-card p-3 text-sm">
+          <summary className="cursor-pointer font-medium">
+            Cosa manca ({indizi.length}): {quadratura.differenza > 0 ? "fonti non registrate" : "impieghi non registrati"}
+          </summary>
+          <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs text-muted-foreground">
+            {indizi.map((i) => (
+              <li key={i.testo}>
+                {i.testo}
+                {i.href && i.cta && (
+                  <>
+                    {" "}
+                    <Link to={i.href} className="font-medium text-foreground underline underline-offset-2">{i.cta}</Link>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       <SPColumns attivo={attivo} passivo={passivo} vociManuali={manuali} differenza={quadratura.differenza} />
@@ -289,6 +292,7 @@ const RIGHE_ATTIVO: RigaConfronto[] = [
   { label: "Imm. finanziarie", livello: "voce", pick: (sp) => sp.attivo.imm_finanziarie },
   { label: "Attivo fisso TOT", livello: "subtot", pick: (sp) => sp.attivo.attivo_fisso },
   { label: "Rimanenze", livello: "voce", pick: (sp) => sp.attivo.rimanenze },
+  { label: "Lavori in corso", livello: "voce", pick: (sp) => sp.attivo.lavori_in_corso ?? 0 },
   { label: "Crediti clienti", livello: "voce", pick: (sp) => sp.attivo.crediti_clienti },
   { label: "Crediti tributari", livello: "voce", pick: (sp) => sp.attivo.crediti_tributari },
   { label: "Anticipi fornitori", livello: "voce", pick: (sp) => sp.attivo.anticipi_fornitori },
@@ -305,7 +309,6 @@ const RIGHE_PASSIVO: RigaConfronto[] = [
   { label: "Capitale", livello: "voce", pick: (sp) => sp.passivo.capitale_sociale },
   { label: "Riserve", livello: "voce", pick: (sp) => sp.passivo.riserve },
   { label: "Utile esercizio", livello: "voce", pick: (sp) => sp.passivo.utile_esercizio },
-  { label: "Riserve/rettifiche di raccordo", livello: "voce", pick: (sp) => sp.passivo.rettifica_patrimoniale ?? 0 },
   { label: "Mezzi propri TOT", livello: "subtot", pick: (sp) => sp.passivo.mezzi_propri },
   // Debiti/passività: aumento = negativo (rosso).
   { label: "TFR", livello: "voce", pick: (sp) => sp.passivo.fondo_tfr, higherIsWorse: true },

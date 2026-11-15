@@ -73,7 +73,7 @@ export function CETable({ voci, isVoceClickable, onVoceClick, spiegazioni }: CET
                 <TableCell
                   className={cn(
                     "text-right tabular-nums",
-                    negativo && "text-destructive",
+                    negativo && "font-medium",
                   )}
                 >
                   {formatCurrency(v.valore)}

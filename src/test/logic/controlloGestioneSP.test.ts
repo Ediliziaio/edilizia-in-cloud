@@ -40,7 +40,7 @@ describe("Stato patrimoniale: dove sta la differenza", () => {
     const attivo = { ...SP.attivo, attivo_fisso: 0, rimanenze: 0 };
     const testi = indiziQuadratura(attivo, SP.passivo, -500, new Set()).map((i) => i.testo).join(" | ");
     expect(testi).toContain("Nessun cespite");
-    expect(testi).toContain("Magazzino a zero");
+    expect(testi).toContain("Magazzino e lavori in corso a zero");
   });
 
   it("quadrato: nessun indizio", () => {
