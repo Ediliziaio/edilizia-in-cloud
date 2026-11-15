@@ -45,7 +45,7 @@ import {
   type TipoColonna,
 } from "@/lib/controlloGestione/rendicontoCassa";
 import { GRUPPI_CASSA, VOCE_PER_CHIAVE, type GruppoCassa, type VoceCassa } from "@/lib/controlloGestione/vociCassa";
-import { righeEsportazioneCategorie, vistaPerCategorie, type AreaCassa } from "@/lib/controlloGestione/rendicontoCategorie";
+import { qualitaClassificazione, righeEsportazioneCategorie, totaliPerChiave, vistaPerCategorie, type AreaCassa } from "@/lib/controlloGestione/rendicontoCategorie";
 import { useCatalogoCassa } from "@/lib/finance/cassaVoci";
 
 interface Props {
@@ -103,6 +103,8 @@ function vistaSalvata(): Vista {
 
 export function TabCashFlow({ anno }: Props) {
   const q = useRendicontoCassa(anno);
+  // L'anno prima, solo per il confronto nella vista per categorie (consuntivo, già in cache se aperto).
+  const qPrima = useRendicontoCassa(anno - 1);
   const companyId = useEffectiveCompanyId();
   const isMobile = useIsMobile();
   const [ipotesi, setIpotesi] = useState<IpotesiRendiconto>({
@@ -145,6 +147,24 @@ export function TabCashFlow({ anno }: Props) {
     () => (r && catalogo.data?.length ? vistaPerCategorie(r, catalogo.data) : null),
     [r, catalogo.data],
   );
+  const confronto = useMemo(() => {
+    if (!qPrima.data || !catalogo.data?.length) return null;
+    const rp = costruisciRendiconto({
+      anno: anno - 1,
+      today: qPrima.data.today,
+      saldoOggiCents: qPrima.data.saldoOggiCents,
+      saldoFonte: qPrima.data.saldoFonte,
+      registrati: qPrima.data.registrati,
+      flussoDopoAnnoCents: qPrima.data.flussoDopoAnnoCents,
+      previsti: null,
+      ipotesi,
+      sogliaCents: soglia,
+    });
+    // Un anno senza movimenti non è un confronto: colonna nascosta.
+    if (!rp.dettagli.size) return null;
+    return { anno: anno - 1, totali: totaliPerChiave(vistaPerCategorie(rp, catalogo.data)), netto: rp.flussoNetto.reduce((x, c) => x + c, 0) };
+  }, [qPrima.data, catalogo.data, anno, ipotesi, soglia]);
+  const qualita = useMemo(() => (r ? qualitaClassificazione(r) : null), [r]);
   // Senza catalogo (non ancora letto o non disponibile) resta il riassunto.
   const vistaAttiva: Vista = vista === "categorie" && perCategorie ? "categorie" : "riassunto";
 
@@ -314,7 +334,12 @@ export function TabCashFlow({ anno }: Props) {
       {isMobile ? (
         <VistaMese r={r} onApri={apri} />
       ) : vistaAttiva === "categorie" && perCategorie ? (
-        <TabellaCategorie r={r} aree={perCategorie} chiuse={aree} onToggle={toggleArea} onApri={apriRighe} />
+        <>
+          {qualita && qualita.totale > 0 && (
+            <QualitaClassificazione q={qualita} onClassifica={permessi.canViewTesoreria && companyId ? () => setClassifica(true) : undefined} />
+          )}
+          <TabellaCategorie r={r} aree={perCategorie} chiuse={aree} onToggle={toggleArea} onApri={apriRighe} confronto={confronto} />
+        </>
       ) : (
         <TabellaRendiconto r={r} chiusi={chiusi} onToggle={toggleGruppo} onApri={apri} />
       )}
@@ -600,13 +625,63 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
 
 // ── Tabella per categorie del catalogo ──────────────────────────────────────
 
-function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
+/** Quanto del consuntivo ha una voce precisa, quanto è stimato dalla prima nota, quanto è da classificare. */
+function QualitaClassificazione({ q, onClassifica }: { q: { precisa: number; stimata: number; daClassificare: number; totale: number }; onClassifica?: () => void }) {
+  const pct = (x: number) => Math.round((x / q.totale) * 100);
+  const parti = [
+    { k: "precisa", label: "con voce precisa", v: q.precisa, classe: "bg-emerald-500" },
+    { k: "stimata", label: "stimato dalla prima nota", v: q.stimata, classe: "bg-sky-400" },
+    { k: "da", label: "da classificare", v: q.daClassificare, classe: "bg-amber-400" },
+  ];
+  return (
+    <section aria-label="Qualità della classificazione del consuntivo" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card px-3 py-2 text-xs">
+      <span className="font-medium">Consuntivo classificato</span>
+      <div className="flex h-2 w-40 overflow-hidden rounded-full bg-muted" role="img" aria-label={parti.map((p) => `${pct(p.v)}% ${p.label}`).join(", ")}>
+        {parti.map((p) => p.v > 0 && <span key={p.k} className={p.classe} style={{ width: `${(p.v / q.totale) * 100}%` }} />)}
+      </div>
+      {parti.map((p) => (
+        <span key={p.k} className="inline-flex items-center gap-1 text-muted-foreground">
+          <span className={cn("h-2 w-2 rounded-full", p.classe)} aria-hidden />
+          <strong className="tabular-nums text-foreground">{pct(p.v)}%</strong> {p.label}
+        </span>
+      ))}
+      {onClassifica && q.daClassificare + q.stimata > 0 && (
+        <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={onClassifica}>
+          <Tags className="mr-1 h-3.5 w-3.5" /> Migliora la classificazione
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function TabellaCategorie({ r, aree, chiuse, onToggle, onApri, confronto = null }: {
   r: RendicontoCassa;
   aree: AreaCassa[];
   chiuse: Set<string>;
   onToggle: (chiave: string) => void;
   onApri: (titolo: string, righe: DettaglioCella[], mese: number | null, daClassificare?: boolean) => void;
+  /** Totali dell'anno prima per categoria (chiave) e area (`area:chiave`). */
+  confronto?: { anno: number; totali: Map<string, number>; netto: number } | null;
 }) {
+  const extra = confronto ? 2 : 0;
+  const colonneConfronto = (attuale: number, prima: number | null | undefined, forte = false) => {
+    if (!confronto) return null;
+    const p = prima ?? 0;
+    const variazione = p === 0 ? null : Math.round(((Math.abs(attuale) - Math.abs(p)) / Math.abs(p)) * 100);
+    return (
+      <>
+        <td className={cn("whitespace-nowrap border-l px-2 py-1.5 text-right text-xs tabular-nums text-muted-foreground", forte && "font-semibold", p < 0 && "text-rose-700/80")}>
+          {p === 0 ? "—" : euro(p)}
+        </td>
+        <td
+          className="whitespace-nowrap px-2 py-1.5 text-right text-xs tabular-nums text-muted-foreground"
+          title="Variazione dell'importo (in valore assoluto) rispetto all'anno prima"
+        >
+          {variazione == null ? (attuale === 0 ? "—" : "nuova") : `${variazione > 0 ? "+" : ""}${variazione}%`}
+        </td>
+      </>
+    );
+  };
   const [aperte, setAperte] = useState<Set<string>>(() => new Set());
   const totale = (a: number[]) => a.reduce((s, c) => s + c, 0);
   const td = (tipo: TipoColonna, extra?: string) => cn("whitespace-nowrap px-2 py-1.5 text-right text-xs", SFONDO_COLONNA[tipo], extra);
@@ -627,7 +702,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
       )}
     </span>
   );
-  const celle = (nome: string, valori: number[], righe: DettaglioCella[], daClassificare: boolean, forte = false) => (
+  const celle = (nome: string, valori: number[], righe: DettaglioCella[], daClassificare: boolean, forte = false, prima?: number | null | false) => (
     <>
       {r.colonne.map((c, i) => (
         <td key={c.mese} className={td(c.tipo, forte ? "font-semibold" : undefined)}>
@@ -637,6 +712,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
       <td className="whitespace-nowrap bg-muted/50 px-2 py-1.5 text-right text-xs font-semibold">
         {importo(totale(valori), `${nome} · ${r.anno}`, righe, null, daClassificare)}
       </td>
+      {confronto && (prima === false ? <><td className="border-l" /><td /></> : colonneConfronto(totale(valori), prima, forte))}
     </>
   );
   const saldo = (label: string, valori: (number | null)[], totaleAnno: number | null, fine = false) => (
@@ -655,6 +731,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
         );
       })}
       <td className={cn("whitespace-nowrap bg-muted px-2 py-1.5 text-right text-xs tabular-nums", totaleAnno != null && totaleAnno < 0 && "text-rose-700")}>{euro(totaleAnno)}</td>
+      {confronto && <><td className="border-l bg-muted/40" /><td className="bg-muted/40" /></>}
     </tr>
   );
   const tutte = aree.flatMap((a) => a.categorie.flatMap((c) => c.dettagli));
@@ -675,6 +752,12 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
               </th>
             ))}
             <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">Totale {r.anno}</th>
+            {confronto && (
+              <>
+                <th scope="col" className="min-w-[100px] border-l px-2 py-2 text-right text-xs font-semibold text-muted-foreground">Totale {confronto.anno}</th>
+                <th scope="col" className="min-w-[72px] px-2 py-2 text-right text-xs font-semibold text-muted-foreground">Variazione</th>
+              </>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -684,7 +767,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
             return (
               <Fragment key={a.chiave}>
                 <tr className="border-t bg-muted/20">
-                  <th scope="rowgroup" colSpan={r.colonne.length + 2} className="p-0 text-left">
+                  <th scope="rowgroup" colSpan={r.colonne.length + 2 + extra} className="p-0 text-left">
                     <button
                       type="button"
                       onClick={() => onToggle(a.chiave)}
@@ -722,7 +805,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
                               <span className="truncate" title={c.nome}>{c.daClassificare ? `⚠ ${c.nome}` : c.nome}</span>
                             </span>
                           </th>
-                          {celle(c.nome, c.valori, c.dettagli, c.daClassificare)}
+                          {celle(c.nome, c.valori, c.dettagli, c.daClassificare, false, confronto?.totali.get(c.chiave))}
                         </tr>
                         {espansa &&
                           c.voci.map((v) => (
@@ -733,7 +816,7 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
                                   <span className={cn("truncate", !v.codice && "italic")} title={v.nome}>{v.nome}</span>
                                 </span>
                               </th>
-                              {celle(`${c.nome} · ${v.nome}`, v.valori, v.dettagli, c.daClassificare)}
+                              {celle(`${c.nome} · ${v.nome}`, v.valori, v.dettagli, c.daClassificare, false, false)}
                             </tr>
                           ))}
                       </Fragment>
@@ -741,14 +824,14 @@ function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
                   })}
                 <tr className="border-t bg-muted/30">
                   <th scope="row" className={cn(prima, "bg-muted font-semibold")}>Totale {a.nome.toLocaleLowerCase("it-IT")}</th>
-                  {celle(`Totale ${a.nome}`, a.valori, a.categorie.flatMap((c) => c.dettagli), false, true)}
+                  {celle(`Totale ${a.nome}`, a.valori, a.categorie.flatMap((c) => c.dettagli), false, true, confronto?.totali.get(`area:${a.chiave}`))}
                 </tr>
               </Fragment>
             );
           })}
           <tr className="border-t-2 bg-primary/5">
             <th scope="row" className={cn(prima, "bg-muted font-bold")}>Flusso netto del mese</th>
-            {celle("Flusso netto del mese", r.flussoNetto, tutte, false, true)}
+            {celle("Flusso netto del mese", r.flussoNetto, tutte, false, true, confronto?.netto)}
           </tr>
           {saldo("Saldo di cassa a fine mese", r.saldoFine, r.saldoFine[11], true)}
         </tbody>

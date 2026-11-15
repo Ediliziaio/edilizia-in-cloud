@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({ query: vi.fn(), exported: vi.fn(), mobile: fal
 // Senza catalogo la tabella resta il «Riassunto» (i test qui sotto); con il
 // catalogo si legge per categorie (in fondo).
 vi.mock('@/lib/finance/cassaVoci', () => ({ useCatalogoCassa: () => ({ data: state.catalogo }) }));
-vi.mock('@/hooks/controlloGestione/useRendicontoCassa', () => ({ useRendicontoCassa: () => state.query() }));
+vi.mock('@/hooks/controlloGestione/useRendicontoCassa', () => ({ useRendicontoCassa: (anno: number) => state.query(anno) }));
 vi.mock('@/hooks/useEffectiveCompanyId', () => ({ useEffectiveCompanyId: () => 'azienda-1' }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => state.mobile }));
 vi.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ canViewTesoreria: true, canReconcileBankTransactions: true }) }));
@@ -206,5 +206,27 @@ describe('cash flow per le categorie del catalogo', () => {
     const foglio = state.exported.mock.calls[0][0].sheets[0];
     expect(foglio.columns[0].header).toBe('Categoria');
     expect(foglio.rows.some((r: { voce: string }) => r.voce === '  01 Incassi clienti')).toBe(true);
+  });
+
+  it("accanto al totale c'è l'anno prima, con la variazione", () => {
+    state.catalogo = catalogo;
+    state.query.mockImplementation((anno: number) => anno === 2025
+      ? { data: { ...dati(), registrati: [{ id: 'p', direction: 'entrata', amount: 50000, entry_date: '2025-05-10', category: 'Incassi fatture', invoiceId: 'f0' }], previsti: null }, isLoading: false, isError: false }
+      : { data: dati(), isLoading: false, isError: false });
+    apri();
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('columnheader', { name: 'Totale 2025' })).toBeInTheDocument();
+    const riga = within(table).getByText('Incassi clienti').closest('tr')!;
+    expect(within(riga).getByText('50.000 €')).toBeInTheDocument();
+    // 60.626 € di consuntivo + 5.000 € di rata prevista = 65.626 €: +31% sull'anno prima.
+    expect(within(riga).getByText('+31%')).toBeInTheDocument();
+  });
+
+  it('dice quanto del consuntivo è classificato con voce precisa', () => {
+    state.catalogo = catalogo;
+    apri();
+    const barra = screen.getByRole('region', { name: 'Qualità della classificazione del consuntivo' });
+    expect(within(barra).getByText(/stimato dalla prima nota/)).toBeInTheDocument();
+    expect(within(barra).getByRole('button', { name: /Migliora la classificazione/ })).toBeInTheDocument();
   });
 });

@@ -94,3 +94,23 @@ describe("il cash flow per categorie", () => {
     expect(vistaPerCategorie(r, rinominato).flatMap((a) => a.categorie).some((c) => c.nome === "Forniture di cantiere")).toBe(true);
   });
 });
+
+describe("qualità della classificazione e confronto con l'anno prima", () => {
+  it("divide il consuntivo in voce precisa, stimata dalla prima nota e da classificare", async () => {
+    const { qualitaClassificazione } = await import("@/lib/controlloGestione/rendicontoCategorie");
+    const r = rendiconto([
+      pn({ id: "a", amount: 100, codiceCassa: "04.06", voceCassa: "usc_materiali" }),
+      pn({ id: "b", amount: 300, category: "materiali" }),
+      pn({ id: "c", amount: 600, category: "boh" }),
+    ]);
+    expect(qualitaClassificazione(r)).toEqual({ precisa: 10000, stimata: 30000, daClassificare: 60000, totale: 100000 });
+  });
+
+  it("totali per categoria e per area, per la colonna dell'anno prima", async () => {
+    const { totaliPerChiave } = await import("@/lib/controlloGestione/rendicontoCategorie");
+    const r = rendiconto([pn({ id: "b", amount: 300, category: "materiali" }), pn({ id: "a", amount: 1000, direction: "entrata", category: "Incassi fatture" })]);
+    const t = totaliPerChiave(vistaPerCategorie(r, catalogo));
+    expect(t.get("c04")).toBe(-30000);
+    expect(t.get("area:op")).toBe(70000);
+  });
+});

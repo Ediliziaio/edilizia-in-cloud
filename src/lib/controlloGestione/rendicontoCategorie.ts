@@ -202,3 +202,39 @@ export function righeEsportazioneCategorie(
   out.push({ voce: "SALDO DI CASSA A FINE MESE", valori: r.saldoFine.map(euro), totale: euro(r.saldoFine[11]) });
   return out;
 }
+
+/**
+ * Quanto del CONSUNTIVO è classificato bene (in valore assoluto):
+ *  - `precisa`: con una voce scelta sul movimento (o da una regola, dalla
+ *    fattura confermata, da una ripartizione);
+ *  - `stimata`: messo in categoria dalla riga della prima nota o del tipo di
+ *    scadenza, senza una voce scelta;
+ *  - `daClassificare`: senza alcuna indicazione.
+ */
+export function qualitaClassificazione(r: RendicontoCassa): { precisa: number; stimata: number; daClassificare: number; totale: number } {
+  const q = { precisa: 0, stimata: 0, daClassificare: 0, totale: 0 };
+  for (const [k, lista] of r.dettagli) {
+    const riga = k.slice(0, k.lastIndexOf(":")) as VoceCassa;
+    const daClassificare = !!VOCE_PER_CHIAVE.get(riga)?.daClassificare;
+    for (const d of lista) {
+      if (d.tipo !== "registrato") continue;
+      const a = Math.abs(d.cents);
+      q.totale += a;
+      if (d.codiceCassa) q.precisa += a;
+      else if (daClassificare) q.daClassificare += a;
+      else q.stimata += a;
+    }
+  }
+  return q;
+}
+
+/** Totale dell'anno per categoria e per area, chiave come nella vista (id della voce del catalogo). */
+export function totaliPerChiave(aree: AreaCassa[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const somma = (a: number[]) => a.reduce((s, c) => s + c, 0);
+  for (const a of aree) {
+    out.set(`area:${a.chiave}`, somma(a.valori));
+    for (const c of a.categorie) out.set(c.chiave, somma(c.valori));
+  }
+  return out;
+}
