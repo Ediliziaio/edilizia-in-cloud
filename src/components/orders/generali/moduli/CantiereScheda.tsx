@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowRight,
   ClipboardList,
   HardHat,
   PackageCheck,
@@ -225,42 +224,6 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                 )}
               </p>
             </div>
-            <nav
-              className="generale-document-flow"
-              aria-label="Percorso documenti del cantiere"
-            >
-              <button type="button" onClick={() => setVista("forniture")}>
-                <PackageCheck aria-hidden="true" />
-                <span>
-                  Ordine <small>facoltativo</small>
-                </span>
-              </button>
-              <ArrowRight aria-hidden="true" />
-              <button type="button" onClick={() => setVista("forniture")}>
-                <ClipboardList aria-hidden="true" />
-                <span>
-                  DDT <small>anche senza ordine</small>
-                </span>
-              </button>
-              {riepilogo.permessi.costi && (
-                <>
-                  <ArrowRight aria-hidden="true" />
-                  <button type="button" onClick={() => setVista("fatture")}>
-                    <ReceiptText aria-hidden="true" />
-                    <span>
-                      Fattura <small>un solo costo</small>
-                    </span>
-                  </button>
-                  <ArrowRight aria-hidden="true" />
-                  <button type="button" onClick={() => setVista("pagamenti")}>
-                    <Wallet aria-hidden="true" />
-                    <span>
-                      Pagamento <small>saldo e residuo</small>
-                    </span>
-                  </button>
-                </>
-              )}
-            </nav>
 
             <Suspense fallback={<Skeleton className="mt-4 h-64 w-full" />}>
               {tutta ? (

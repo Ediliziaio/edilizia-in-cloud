@@ -160,6 +160,17 @@ describe("categorie e voci di partenza", () => {
     expect(indovinaCategoria("Interessi passivi mutuo")).toMatchObject({ categoria: "finanziari" });
     expect(indovinaCategoria("Provvigioni agenzia")).toMatchObject({ categoria: "commercializzazione" });
     expect(indovinaCategoria("Vendita box", "ricavo")).toMatchObject({ tipo: "ricavo", categoria: "vendite" });
+    // Business plan URBAN VISION (15/11/2026): parole che ingannavano la categoria.
+    expect(indovinaCategoria("Assicurazioni (R.C., decennale postuma, rischi di cantiere)", "costo").categoria).toBe("generali");
+    expect(indovinaCategoria("Locazione ufficio di cantiere / sede operativa", "costo").categoria).toBe("generali");
+    expect(indovinaCategoria("Software e licenze tecniche", "costo").categoria).toBe("generali");
+    expect(indovinaCategoria("Fondo imprevisti tecnici e amministrativi (3–5%)", "costo").categoria).toBe("imprevisti");
+    expect(indovinaCategoria("Fondo rischi generali di progetto", "costo").categoria).toBe("imprevisti");
+    expect(indovinaCategoria("Spese di manutenzione e imprevisti in corso d'opera", "costo").categoria).toBe("imprevisti");
+    expect(indovinaCategoria("Assistenza post-vendita e manutenzioni", "costo").categoria).toBe("commercializzazione");
+    expect(indovinaCategoria("Trasporto materiali e logistica", "costo").categoria).toBe("noli");
+    expect(indovinaCategoria("Utenze provvisorie (energia, acqua, telefono)", "costo").categoria).toBe("allacci");
+    expect(indovinaCategoria("Allacci e utenze", "costo").categoria).toBe("allacci");
     expect(indovinaCategoria("Vendita box", "costo")).toMatchObject({ tipo: "costo", categoria: "commercializzazione" });
     expect(indovinaCategoria("qualcosa", "ricavo")).toMatchObject({ categoria: "altri_ricavi", sicura: false });
   });

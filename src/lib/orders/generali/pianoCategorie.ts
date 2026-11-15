@@ -235,17 +235,22 @@ const INDIZI: { cerca: RegExp; tipo: TipoVoce; categoria: CategoriaPiano; soloCo
   { cerca: /vendit|ricav|rogit|incass|prezzo_di_vendita|cession/, tipo: "ricavo", categoria: "vendite" },
   { cerca: /contratt|lavori_a|sal(_|$)|corrispettiv|fatturat/, tipo: "ricavo", categoria: "lavori" },
   { cerca: /(^|_)iva(_|$)/, tipo: "costo", categoria: "iva" },
+  // Prima delle parole generiche: «Assicurazioni (… rischi di cantiere)» non è costruzione, «Fondo
+  // imprevisti tecnici» non è progettazione, «Locazione ufficio di cantiere» è una spesa generale.
+  { cerca: /assicuraz|locazion|affitt|software/, tipo: "costo", categoria: "generali" },
+  { cerca: /imprevist|contingenz|riserv|fondo_rischi/, tipo: "costo", categoria: "imprevisti" },
   { cerca: /terren|notai|acquisto_immobil|acquisto_dell|area(_|$)|lotto/, tipo: "costo", categoria: "terreno" },
   { cerca: /oneri_di_urb|urbanizz|permess|concession|oneri_comun|imu(_|$)|tass|tribut|catast/, tipo: "costo", categoria: "oneri" },
   { cerca: /progett|direzione_lavori|(^|_)dl(_|$)|tecnic|profession|geometr|architett|ingegner|collaud|pratich/, tipo: "costo", categoria: "progettazione" },
-  { cerca: /allacc|utenz|enel|acquedott|(^|_)gas(_|$)/, tipo: "costo", categoria: "allacci" },
+  // (^|_)utenz: «manutenzione» contiene «utenz» e non è un'utenza.
+  { cerca: /allacc|(^|_)utenz|(^|_)enel(_|$)|acquedott|(^|_)gas(_|$)/, tipo: "costo", categoria: "allacci" },
   { cerca: /commercializz|agenzi|pubblicit|marketing|provvigion|mediazion|vendit/, tipo: "costo", categoria: "commercializzazione" },
   { cerca: /interess|finanz|mutu|banc|fideiussion/, tipo: "costo", categoria: "finanziari" },
-  { cerca: /imprevist|contingenz|riserv/, tipo: "costo", categoria: "imprevisti" },
   { cerca: /subappalt|squadr|cottim/, tipo: "costo", categoria: "subappalti" },
   { cerca: /manodoper|personale|operai|stipend/, tipo: "costo", categoria: "manodopera" },
+  // Noli prima dei materiali: «Trasporto materiali e logistica» è un trasporto.
+  { cerca: /nolegg|(^|_)nol[io](_|$)|trasport|logistic|ponteggi|gru(_|$)|mezz/, tipo: "costo", categoria: "noli" },
   { cerca: /material|fornitur|calcestruzz|acciai|laterizi/, tipo: "costo", categoria: "materiali" },
-  { cerca: /nolegg|(^|_)nol[io](_|$)|trasport|ponteggi|gru(_|$)|mezz/, tipo: "costo", categoria: "noli" },
   { cerca: /sicurezz|(^|_)psc(_|$)|(^|_)dpi(_|$)/, tipo: "costo", categoria: "sicurezza" },
   { cerca: /costruz|ristruttur|edil|opere|cantier|lavori/, tipo: "costo", categoria: "costruzione" },
   { cerca: /spese_generali|generali|assicuraz|amministraz/, tipo: "costo", categoria: "generali" },

@@ -936,49 +936,6 @@ button.generale-indicator[aria-pressed="true"] {
   outline: none;
   filter: brightness(1.1);
 }
-.generale-document-flow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 16px 20px;
-  border: 1px solid hsl(var(--border));
-  border-radius: 12px;
-  background: rgb(var(--brand-navy-deep, 23 59 103) / 0.035);
-}
-.generale-document-flow > button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  text-align: left;
-  padding: 8px;
-  border-radius: 8px;
-}
-.generale-document-flow > button:hover {
-  background: hsl(var(--card));
-}
-.generale-document-flow > button > svg {
-  width: 20px;
-  height: 20px;
-  color: rgb(var(--brand-accent-dark, 217 94 11));
-}
-.generale-document-flow > button span {
-  font-size: 12px;
-  font-weight: 550;
-}
-.generale-document-flow small {
-  display: block;
-  margin-top: 3px;
-  color: hsl(var(--muted-foreground));
-  font-size: 10px;
-  font-weight: 400;
-}
-.generale-document-flow > svg {
-  width: 16px;
-  height: 16px;
-  color: hsl(var(--muted-foreground));
-}
 .generale-piano .generale-plan-group--costo > th {
   background: rgb(var(--brand-accent, 249 115 22) / 0.065);
   color: rgb(var(--brand-accent-dark, 217 94 11));
@@ -1042,16 +999,6 @@ button.generale-indicator[aria-pressed="true"] {
   }
   .generale-indicator > strong {
     font-size: 23px;
-  }
-  .generale-document-flow {
-    gap: 4px;
-    padding: 10px;
-  }
-  .generale-document-flow > svg {
-    display: none;
-  }
-  .generale-document-flow > button {
-    flex: 1 1 40%;
   }
   .generale-table-toolbar label {
     width: 100%;
