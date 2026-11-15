@@ -14,6 +14,8 @@ import {
 } from "@/hooks/useSalesOS";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfMonth } from "date-fns";
+import { it } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -1062,11 +1064,21 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
                 {s.stalled_threshold}gg
               </TableCell>
               <TableCell>
-                <div className="space-y-1">
-                  <Badge variant={severity.variant} className="text-xs">
+                {/* 15/11/2026: quella scritta sulla trattativa, se c'è; altrimenti il suggerimento. */}
+                {s.next_action ? (
+                  <div className="max-w-[220px]">
+                    <p className="truncate text-sm" title={s.next_action}>{s.next_action}</p>
+                    {s.next_action_date && (
+                      <p className={cn("text-xs", s.next_action_date < format(new Date(), "yyyy-MM-dd") ? "font-medium text-red-600" : "text-muted-foreground")}>
+                        entro {format(new Date(`${s.next_action_date}T12:00:00`), "d MMM", { locale: it })}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <Badge variant={severity.variant} className="text-xs" title="Suggerimento: nessuna prossima azione scritta">
                     {nextAction}
                   </Badge>
-                </div>
+                )}
               </TableCell>
               <TableCell className="text-right">
                 {fmt(s.value)}

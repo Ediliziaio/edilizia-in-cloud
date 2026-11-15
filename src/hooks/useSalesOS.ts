@@ -43,6 +43,9 @@ export interface StalledOpportunity {
   days_stalled: number;
   stalled_threshold: number;
   value: number;
+  /** La prossima azione scritta sulla trattativa (vuota se non c'è). */
+  next_action?: string | null;
+  next_action_date?: string | null;
 }
 
 export interface SalesVelocity {
