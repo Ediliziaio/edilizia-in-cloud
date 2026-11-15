@@ -252,7 +252,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
           </Popover>
         )}
         {/* Il perché di ogni aggancio, le proposte da confermare e l'annullamento (traccia dei collegamenti). */}
-        {ddt.length > 0 && <VerificaCollegamentiDialog companyId={companyId} fatturaId={fatturaId} puoModificare={puoModificare} />}
+        {/* Sempre: anche senza DDT ci possono essere proposte d'ordine (aggancio per importo) da confermare. */}
+        <VerificaCollegamentiDialog companyId={companyId} fatturaId={fatturaId} puoModificare={puoModificare} />
       </dd>
 
       <BollettaFattura fatturaId={fatturaId} companyId={companyId} />

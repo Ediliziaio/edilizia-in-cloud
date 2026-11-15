@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contabilitaOda, type RataOda } from "@/lib/orders/odaContabilita";
+import { consegnatoFatturatoOda, contabilitaOda, type RataOda } from "@/lib/orders/odaContabilita";
 
 const fattura = (totale: number, tipo = "TD01") => ({ totale_documento: totale, tipo_documento: tipo });
 
@@ -61,5 +61,25 @@ describe("Contabilità di un ordine d'acquisto", () => {
   it("tutte pagate: nessuna prossima uscita", () => {
     const rate: RataOda[] = [{ numero: 1, scadenza: "2026-10-31", importo: 100, metodo: "riba", stato: "pagata" }];
     expect(contabilitaOda(100, [fattura(100)], rate).prossima).toBeNull();
+  });
+});
+
+describe("consegnato contro fatturato (§7.7)", () => {
+  // 10 sacchi a 8 € netti, IVA 22%: 97,60 € ordinati.
+  const riga = (ricevuta: number, over = {}) => ({ quantity: 10, quantity_received: ricevuta, line_total: 80, vat_rate: 22, ...over });
+  it("consegna parziale: arrivato e non ancora fatturato", () => {
+    expect(consegnatoFatturatoOda([riga(4)], 0)).toEqual({ consegnato: 39.04, daFatturare: 39.04, fatturatoNonConsegnato: 0, righeSenzaPrezzo: 0 });
+  });
+  it("fattura arrivata prima della merce: fatturato non consegnato", () => {
+    expect(consegnatoFatturatoOda([riga(4)], 97.6)).toMatchObject({ consegnato: 39.04, fatturatoNonConsegnato: 58.56, daFatturare: 0 });
+  });
+  it("tutto arrivato e fatturato, anche in due fatture: combacia", () => {
+    expect(consegnatoFatturatoOda([riga(10)], 48.8 + 48.8)).toMatchObject({ daFatturare: 0, fatturatoNonConsegnato: 0 });
+  });
+  it("prezzo da definire: la riga non si valorizza e si dice", () => {
+    expect(consegnatoFatturatoOda([riga(10, { price_pending: true }), riga(5)], 0)).toMatchObject({ consegnato: 48.8, righeSenzaPrezzo: 1 });
+  });
+  it("niente arrivato: zero, qualunque sia il fatturato", () => {
+    expect(consegnatoFatturatoOda([riga(0)], 0)).toMatchObject({ consegnato: 0, daFatturare: 0 });
   });
 });

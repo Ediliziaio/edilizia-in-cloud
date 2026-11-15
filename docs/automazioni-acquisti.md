@@ -210,6 +210,46 @@ ordini solo se la fattura li cita; gli ordini annullati non contano. Tetto: 1000
 ordini per azienda (PostgREST), oltre restano fuori le più vecchie. Contratti: non ancora (lista vuota). La commessa resta una
 **proposta** come prima: assegnare il costo (`fattura_collega_commesse`) è un passo dell'utente.
 
+**Lotto 7 — misura in pagina** (Impostazioni → Automazioni, riquadro «Quanto lavorano da sole»,
+ultimi 30 giorni): quota di lavori chiusi senza AI per i flussi degli acquisti
+(`fattura_classifica`, `fattura_riconcilia_righe`, dalla `metriche_ai_azienda` della sessione A) e,
+per ogni regola di collegamento, quanti fatti da soli, confermati, in attesa e **corretti** da una
+persona (annullati o rifiutati) con la percentuale: `acquisti_misura_collegamenti(azienda, giorni)`,
+migrazione `20290404270000`. Un flusso nuovo degli acquisti si aggiunge a `FLUSSI_ACQUISTI` in
+`MisuraAutomazioni.tsx`.
+
+**Lotto 8 — fornitori dalle fatture** (migrazione `20290404280000`, pagina Fornitori →
+«Rivedi e crea»): delle 12.515 fatture senza fornitore solo 3 avevano il fornitore in rubrica; le
+altre vengono da 1.237 cedenti che in rubrica non ci sono. Anteprima del 15/11 (non scrive): 1.198
+creabili con P.IVA valida (~9.000 fatture), 1 da agganciare soltanto, 38 esteri o con
+identificativo non valido (a mano), 5 con un omonimo in rubrica (segnalati). La creazione la fa
+l'azienda scegliendo i fornitori, a blocchi da 200; nessuna creazione massiva fatta da noi.
+`acquisti_fornitori_dalle_fatture_anteprima` / `_crea`, `acquisti_nome_confrontabile`.
+
+**Lotto 9 — DDT nelle descrizioni** (migrazione `20290404290000`): se l'XML non ha `DatiDDT`, i DDT
+scritti nelle righe («Rif. DDT n. … del …», solo con la parola DDT/bolla davanti) diventano righe
+`fattura_ddt` con origine `descrizione` e si agganciano con le stesse regole. Stessa lettura del
+TypeScript (`ddtNelleDescrizioni`, parità provata). Storico del 15/11: anteprima 734 fatture /
+1.115 DDT (800 con data), poi lotti eseguiti: 1.115 righe scritte, 0 agganciate da sole (2 proposte
+in attesa perché l'interruttore è spento ovunque; per le altre la bolla non è nel gestionale: si
+agganceranno da sole quando la bolla arriva).
+
+**Lotto 10 — arrivato contro fatturato** (scheda dell'ordine → Contabilità, riga «Merce arrivata»):
+valore della merce ricevuta (prezzo netto dell'ordine × quantità ricevuta, IVA inclusa come il
+fatturato) contro il fatturato al netto delle note di credito: «arrivati e non ancora fatturati»
+oppure «fatturati in più dell'arrivato» (fattura prima della consegna); le righe a prezzo da
+definire sono contate a parte. È a valore perché le fatture sono agganciate all'ordine intero:
+il 15/11 solo 7 righe avevano la quantità fatturata riga per riga (`fattura_ddt_quantita`).
+`consegnatoFatturatoOda` in `lib/orders/odaContabilita.ts`; per riga resta `statoRigaOrdine`
+(shared/acquisti/righe.ts) per quando la quantità fatturata per riga ci sarà.
+
+**Lotto 11 — fattura ↔ ordine per importo** (decisione del titolare del 15/11, migrazione
+`20290404300000`): l'aggancio per solo importo uguale (stesso fornitore) è ora sempre una
+**proposta**; con importo **e** numero d'ordine citato nei `DatiOrdineAcquisto` vale l'interruttore.
+Confermare/annullare dal popup passa da `collega_fattura_a_ordini` (costi compresi; annullato =
+scollegato e mai più riagganciato da solo). Storico: le 147 fatture già agganciate senza conferma
+(144 di Demo Azienda 2) restano agganciate, costi intatti, e sono nel popup come «Da ricontrollare».
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 
@@ -219,17 +259,17 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
 
 | Flusso | Comportamento attuale | Dati disponibili/mancanti | Parser e regole proposti | AI residua | Eccezioni | Moduli | Priorità | Impegno | Criterio di accettazione |
 |---|---|---|---|---|---|---|---|---|---|
-| Fornitore della fattura | P.IVA/CF unico → `fornitore_id` (trigger); altrimenti a mano | P.IVA, CF, IdPaese in XML; 12.515 fatture senza fornitore in rubrica | `risolviAnagrafica`: identificativo valido, alias verificati, omonimi segnalati; proposta di creazione solo con P.IVA valida | nessuna | omonimi con P.IVA diversa; stessa P.IVA e CF discordante (conflitto) | Fatture ricevute, Fornitori | A | M | 0 anagrafiche unite per nome; ogni nuova anagrafica ha P.IVA/CF valido |
+| Fornitore della fattura | **fatto (lotto 8)**: P.IVA/CF unico → `fornitore_id` (trigger); i mancanti si creano da Fornitori → «Rivedi e crea» | P.IVA, CF, IdPaese in XML; 12.515 fatture senza fornitore in rubrica | `risolviAnagrafica`: identificativo valido, alias verificati, omonimi segnalati; proposta di creazione solo con P.IVA valida | nessuna | omonimi con P.IVA diversa; stessa P.IVA e CF discordante (conflitto) | Fatture ricevute, Fornitori | A | M | 0 anagrafiche unite per nome; ogni nuova anagrafica ha P.IVA/CF valido |
 | IBAN della fattura | `fornitori_iban_storico` registra, `confermato` a mano | IBAN in `DatiPagamento` | `ibanDaVerificare`: mai applicato ai pagamenti finché non confermato per altro canale | nessuna | IBAN cambiato dal fornitore (frode tipica) | Fornitori, Tesoreria (C) | A | S | un IBAN nuovo non entra in un bonifico senza conferma |
 | Fattura ↔ DDT (testata) | era: numero identico, solo all'arrivo (180/1.560) | `DatiDDT` + `RiferimentoNumeroLinea`; bolle registrate | **fatto**: numero normalizzato + fornitore + anno + data ±10 gg; trigger sulla bolla | nessuna | numero ripetuto in anni diversi (vincolo unico senza anno); bolla mai caricata | Fatture ricevute, DDT | A | — | fatto: casi PGlite verdi, anteprima senza scritture |
-| DDT nelle descrizioni | non letto | «Rif. DDT n. … del …» nelle righe | `ddtNelleDescrizioni` (solo con la parola DDT/bolla davanti) → stesse regole | nessuna | numeri nudi (prezzi, misure) esclusi di proposito | Fatture ricevute | B | S | nuove righe `fattura_ddt` con origine «descrizione» |
+| DDT nelle descrizioni | **fatto (lotto 9)** | «Rif. DDT n. … del …» nelle righe | `ddtNelleDescrizioni` (solo con la parola DDT/bolla davanti) → stesse regole | nessuna | numeri nudi (prezzi, misure) esclusi di proposito | Fatture ricevute | B | S | nuove righe `fattura_ddt` con origine «descrizione» |
 | Fattura ↔ ordine (DatiOrdineAcquisto) | non letto; solo `aggancia_fattura_a_oda` per importo | `IdDocumento`, `Data`, `NumItem`, righe; 3/570 citano nostri ordini | `abbinaOrdine`: nostro numero o conferma del fornitore, anno, fornitore essenziale; riferimenti vuoti ignorati | nessuna | ordine di un altro fornitore (conflitto); conferma d'ordine del fornitore non registrata | Fatture, ODA | B | M | percorso «ordine X» nella traccia; nessun ordine agganciato per solo importo senza proposta |
 | Fattura → commessa | `commessa_da_codici` (CUP/CIG/codice) → proposta; AI `riconcilia-fattura-ai` | catena DDT/ordine/contratto, codici, indirizzo | `costruisciCatena`: fonti forti in accordo → automatico; forte contro debole → conflitto; indirizzo da solo → proposta; per riga dove l'XML lo dice | AI solo per leggere un codice da un allegato scansionato, poi verificato | ordine e indirizzo in disaccordo; commessa chiusa; nessun elemento → «da attribuire» | Fatture, Commesse, CdG (C) | A | M | nessuna commessa forzata: le fatture senza elementi restano «da attribuire» con i dati mancanti |
 | Ripartizione su più commesse | a mano (`fattura_collega_commesse`) | righe con riferimenti diversi | allocazioni per riga; accessori in proporzione, criterio scritto | nessuna | righe senza riferimento → da attribuire | Fatture, Commesse | B | M | somma allocazioni = imponibile, criterio visibile |
 | Costi generali / da attribuire | categorie a mano | categoria fornitore, assenza di riferimenti | destinazione «da_attribuire» esplicita; costi generali per categoria del fornitore (regola dichiarata) | classificazione `fattura_classify` solo per la categoria contabile | fornitore misto (cantiere e sede) | Fatture, CdG (C) | B | S | nessun costo generale finisce su una commessa per default |
 | Righe fattura ↔ righe DDT | `fattura_riconciliazione_*` con AI (`fattura_riconcilia`, 41 chiamate) | `RiferimentoNumeroLinea`, `CodiceArticolo`, equivalenze | `abbinaRigheFattura`: codice (anche via equivalenze), descrizione uguale; quantità conferma; una riga DDT una volta | AI solo per le righe rimaste senza codice e senza descrizione uguale, sulle sole righe | codici fornitore diversi dai nostri (equivalenze); unità diverse (conversioni autorizzate) | Fatture, DDT, Magazzino | A | M | % righe chiuse senza AI misurata per azienda; `fattura_riconcilia` cala |
 | Differenze quantità/prezzo/unità | confronto nel popup | prezzi ordine, tolleranze | `confrontaRiga` con tolleranze per azienda; bolla senza prezzi → prezzo ordine | nessuna | tolleranze da decidere (§6) | Fatture, ODA | B | S | ogni differenza ha tipo e scarto, nessuna nascosta da arrotondamenti ≤ 2 cent |
-| Ordinato/consegnato/fatturato | `quantity_received` su ODA, `fattura_ddt_quantita` | consegne, resi, fatture, NC | `statoRigaOrdine` (somma, indipendente dall'ordine di arrivo) | nessuna | fattura prima della consegna; eccedenze | ODA, DDT, Fatture | B | M | per ogni riga ODA: da consegnare, da fatturare, fatturato non consegnato |
+| Ordinato/consegnato/fatturato | **fatto a valore (lotto 10)**; per riga quando la quantità fatturata c'è | consegne, resi, fatture, NC | `statoRigaOrdine` (somma, indipendente dall'ordine di arrivo) | nessuna | fattura prima della consegna; eccedenze | ODA, DDT, Fatture | B | M | per ogni riga ODA: da consegnare, da fatturare, fatturato non consegnato |
 | Stati del collegamento | un solo stato implicito | — | **fatto**: proposto/collegato/verificato/approvato/pagato distinti, storia col motivo | nessuna | pagato da tesoreria (C) | Fatture, Tesoreria | A | — | fatto |
 | Bolla ↔ ordine | `abbinaRigheOrdine`, `ddt_conferma_consegna`, AI `ddt_confronto_ai` | righe bolla e ordine | invariato; passare gli esiti al motore comune per la traccia | AI per le righe non chiare (già così) | bolla senza ordine (mai obbligatorio) | DDT, ODA | C | S | traccia anche per questi abbinamenti |
 | Lettura bolle scansionate | AI `pdf_vision_extract` (96/30 gg) | PDF scansionato | OCR locale + P.IVA → fornitore + numero/data confrontati coi `DatiDDT` delle fatture (metodo dell'11/11: 167/175 senza AI); AI solo se l'OCR non trova numero o P.IVA | AI sulle sole pagine illeggibili | scansioni storte, bolle multiple in un PDF (`dividiPdf`) | DDT | B | L | % bolle lette senza AI ≥ 90% sui lotti simili a quello dell'11/11 |
@@ -242,7 +282,7 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
 1. **Tolleranze**: quantità 0% e prezzo 0,5% (con 2 cent di arrotondamento) sono i default del
    codice. Per azienda o per fornitore? Si scrivono in `company_governance_settings` come le
    soglie dei rincari?
-2. **`aggancia_fattura_a_oda`**: oggi aggancia per importo uguale dello stesso fornitore, sempre.
+2. ~~`aggancia_fattura_a_oda`~~ — **deciso il 15/11** (lotto 11). Era: aggancia per importo uguale dello stesso fornitore, sempre.
    Con la regola dell'interruttore dovrebbe diventare una proposta quando è spento; ma da lì
    discende il costo sull'ordine (`fattura_ricevuta_porta_costo_su_ordine`), quindi si cambia
    con un'anteprima di cosa smetterebbe di collegarsi da solo. Da confermare.

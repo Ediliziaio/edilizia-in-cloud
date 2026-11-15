@@ -87,3 +87,61 @@ export function contabilitaOda(totaleOrdine: number, fatture: FatturaOda[], rate
         : null,
   };
 }
+
+/** Una riga d'ordine per il confronto col consegnato. */
+export interface RigaOdaConsegna {
+  quantity: number | string | null;
+  quantity_received: number | string | null;
+  line_total?: number | string | null;
+  unit_price?: number | string | null;
+  discount_percent?: number | string | null;
+  vat_rate?: number | string | null;
+  price_pending?: boolean | null;
+}
+
+export interface ConsegnatoFatturato {
+  /** Valore della merce arrivata, IVA inclusa come il fatturato (prezzo netto dell'ordine × quantità ricevuta). */
+  consegnato: number;
+  /** Arrivato e non ancora fatturato. */
+  daFatturare: number;
+  /** Fatturato più dell'arrivato: fattura prima della consegna, o merce non ancora registrata. */
+  fatturatoNonConsegnato: number;
+  /** Righe senza prezzo (prezzo da definire): il valore del consegnato non è completo. */
+  righeSenzaPrezzo: number;
+}
+
+/**
+ * Consegnato contro fatturato (§7.7, docs/automazioni-acquisti.md). Le fatture sono agganciate
+ * all'ordine intero, non alle righe: il confronto onesto è a valore, IVA inclusa come `fatturato`.
+ * Una somma, non una sequenza: vale con i documenti in qualunque ordine siano arrivati.
+ */
+export function consegnatoFatturatoOda(righe: RigaOdaConsegna[], fatturato: number): ConsegnatoFatturato {
+  let consegnato = 0;
+  let righeSenzaPrezzo = 0;
+  for (const r of righe) {
+    const q = num(r.quantity);
+    const ricevuta = num(r.quantity_received);
+    if (ricevuta <= 0) continue;
+    const totale = r.line_total != null ? num(r.line_total) : null;
+    const netto = r.price_pending
+      ? null
+      : totale != null && q > 0
+        ? totale / q
+        : r.unit_price != null
+          ? num(r.unit_price) * (1 - num(r.discount_percent) / 100)
+          : null;
+    if (netto == null) {
+      righeSenzaPrezzo++;
+      continue;
+    }
+    consegnato += netto * ricevuta * (1 + num(r.vat_rate) / 100);
+  }
+  const c = Math.round(consegnato * 100) / 100;
+  const diff = Math.round((fatturato - c) * 100) / 100;
+  return {
+    consegnato: c,
+    daFatturare: diff < -TOLLERANZA ? -diff : 0,
+    fatturatoNonConsegnato: diff > TOLLERANZA ? diff : 0,
+    righeSenzaPrezzo,
+  };
+}

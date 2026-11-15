@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { AUTOMATISMI, type Automatismo } from "@/components/settings/automazioni/registroAutomatismi";
+import { MisuraAutomazioni } from "@/components/settings/automazioni/MisuraAutomazioni";
 
 const TONO: Record<string, string> = {
   neutro: "text-muted-foreground",
@@ -103,6 +104,7 @@ export default function SettingsAutomazioni() {
         </ul>
       </div>
       {!puoModificare && <p className="text-xs text-muted-foreground">Gli interruttori li cambia l&apos;amministratore dell&apos;azienda.</p>}
+      <MisuraAutomazioni companyId={companyId} />
     </div>
   );
 }

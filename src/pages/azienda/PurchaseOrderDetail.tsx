@@ -814,7 +814,7 @@ function ContenutoPurchaseOrderDetail() {
 
           {/* Costo + fattura generati da questo ordine */}
           {permissions.canViewCosts && (
-            <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} />
+            <OdaAccountingCard odaId={order.id} totaleOrdine={Number(order.total)} stato={order.status} righe={items} />
           )}
 
       </section>

@@ -67,7 +67,18 @@ export const ETICHETTA_TIPO: Record<string, string> = {
 /** Nomi leggibili delle regole; una regola nuova senza nome si mostra col suo codice. */
 export const ETICHETTA_REGOLA: Record<string, string> = {
   xml_ddt_numero_data_fornitore: "Bolla citata nella fattura: stesso fornitore, stesso numero, data vicina",
+  oda_importo_fornitore: "Ordine dello stesso fornitore con lo stesso importo (la fattura non cita l'ordine)",
+  oda_numero_importo_fornitore: "Ordine citato nella fattura, stesso fornitore e stesso importo",
+  oda_importo_fornitore_storico: "Agganciata all'ordine prima del 15/11 senza conferma: da ricontrollare",
 };
+
+/**
+ * Collegamenti fatti in passato senza una conferma registrata (decisione del titolare, 15/11/2026):
+ * restano collegati, ma si mostrano a parte perché una persona li riveda uno per uno.
+ */
+export function daRicontrollare(r: Pick<RigaCollegamento, "regola" | "stato">): boolean {
+  return r.regola.endsWith("_storico") && r.stato === "collegato";
+}
 
 export function etichettaRegola(regola: string): string {
   return ETICHETTA_REGOLA[regola] ?? regola.replace(/_/g, " ");

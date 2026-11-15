@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { numeroDocumento } from "../../../shared/acquisti/normalizza.ts";
+import { ddtNelleDescrizioni, leggiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFattura.ts";
 
 const id = (n: number) => `00000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
 const [AZ, ALTRA, FORN, FORN2, UTENTE] = [1, 2, 3, 4, 5].map(id);
@@ -57,7 +58,17 @@ beforeAll(async () => {
     create function importo_legame_mezzo(a numeric, n integer, t numeric, nota boolean) returns numeric language sql immutable as $$select a$$;
     create table companies(id uuid primary key);
     create table mezzi(id uuid primary key, company_id uuid, targa text, matricola text, deleted_at timestamptz);
-    create table fatture_ricevute(id uuid primary key, company_id uuid, fornitore_id uuid, tipo_documento text, xml_raw text, righe jsonb, imponibile_totale numeric);
+    create table fatture_ricevute(id uuid primary key, company_id uuid, fornitore_id uuid, tipo_documento text, xml_raw text, righe jsonb, imponibile_totale numeric, data_fattura date,
+      cedente_piva text, cedente_cf text, totale_documento numeric, purchase_order_id uuid, aggancio_oda_manuale boolean default false, stato text);
+    create table suppliers(id uuid primary key default gen_random_uuid(), company_id uuid, vat_number text, fiscal_code text);
+    create table purchase_orders(id uuid primary key, company_id uuid, supplier_id uuid, oda_number text, status text, total numeric, subtotal numeric);
+    create table fattura_ricevuta_ordini(fattura_id uuid, purchase_order_id uuid);
+    create function partner_tax_key(v text) returns text language sql immutable as $$
+      select case when x ~ '^IT[0-9]{11}$' then substr(x,3) else x end from (select regexp_replace(upper(coalesce(v,'')), '[^A-Z0-9]', '', 'g') x) s $$;
+    -- Come in produzione, ridotta all'osso: collega (o scollega) e segna la scelta come manuale.
+    create function collega_fattura_a_ordini(p_fattura_id uuid, p_quote jsonb) returns jsonb language sql as $$
+      update fatture_ricevute set purchase_order_id = (p_quote->0->>'purchase_order_id')::uuid, aggancio_oda_manuale = true where id = p_fattura_id
+      returning jsonb_build_object('ordini', jsonb_array_length(p_quote)) $$;
     create table fattura_ricevuta_mezzi(id uuid primary key default gen_random_uuid(), company_id uuid, fattura_ricevuta_id uuid, mezzo_id uuid, importo numeric, origine text, created_by uuid, unique(fattura_ricevuta_id, mezzo_id));
     create table ddt_ricezione(id uuid primary key default gen_random_uuid(), company_id uuid, supplier_id uuid, numero_ddt text, data_ricezione date);
     create table fattura_ddt(id uuid primary key default gen_random_uuid(), company_id uuid, fattura_ricevuta_id uuid, numero_ddt text, data_ddt date, ddt_ricezione_id uuid, origine text, created_by uuid, created_at timestamptz default clock_timestamp());
@@ -75,10 +86,18 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20290404240000_collegamento_automatico_interruttore.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404250000_acquisti_collega_ddt_proposta_promossa.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404260000_acquisti_tipi_tesoreria.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404270000_acquisti_misura_collegamenti.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404290000_acquisti_ddt_nelle_descrizioni.sql", "utf8"));
+  // Il trigger di produzione su cui la migrazione 300000 cambia la funzione.
+  await db.exec(`create function aggancia_fattura_a_oda() returns trigger language plpgsql as $$ begin return new; end $$;
+    create trigger trg_fatture_ricevute_aggancia_oda before insert or update of cedente_piva, cedente_cf, totale_documento, imponibile_totale, tipo_documento
+      on fatture_ricevute for each row when (new.purchase_order_id is null and coalesce(new.aggancio_oda_manuale, false) = false) execute function aggancia_fattura_a_oda();`);
+  await db.exec(readFileSync("supabase/migrations/20290404300000_acquisti_ordine_da_importo.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404301000_aggancia_fattura_a_oda_definer.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
-  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings, invoices, scadenze, order_installments cascade;
+  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings, invoices, scadenze, order_installments, suppliers, purchase_orders, fattura_ricevuta_ordini cascade;
     select set_config('test.user','',false), set_config('test.company','',false), set_config('test.role','service_role',false), set_config('test.readonly','false',false);`);
   // I casi qui sotto provano le regole con l'interruttore ACCESO; quelli con l'interruttore spento sono in fondo.
   await db.query(`insert into company_governance_settings(company_id, collegamento_automatico) values ($1, true), ($2, true)`, [AZ, ALTRA]);
@@ -355,5 +374,137 @@ describe("tipi della tesoreria nella traccia comune", () => {
     expect(await dell("rata_commessa", RATA2)).toBe(false);
     expect(await dell("tipo_inventato", FATT)).toBe(false);
     void MOV;
+  });
+});
+
+describe("misura dei collegamenti per regola", () => {
+  it("da soli, confermati, in attesa, corretti e percentuale; solo a chi vede l'azienda", async () => {
+    await bolla(10, "1068", "2026-09-08");
+    await bolla(11, "1070", "2026-09-10");
+    await bolla(12, "1071", "2026-09-11");
+    await fattura(20, [["1068", "2026-09-07"]]); // da solo (interruttore acceso)
+    await fattura(21, [["1070", "2026-09-10"]]); // da solo, poi annullato
+    await db.query(`update company_governance_settings set collegamento_automatico = false where company_id = $1`, [AZ]);
+    await fattura(22, [["1071", "2026-09-11"]]); // proposto, resta in attesa
+    const annulla = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(21)])).rows[0].id;
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'annullato','sbagliata')`, [annulla]);
+    await db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${AZ}',false)`);
+    const { rows } = await db.query<{ m: { regole: Array<Record<string, unknown>> } }>(`select acquisti_misura_collegamenti($1) m`, [AZ]);
+    expect(rows[0].m.regole).toEqual([
+      { regola: "xml_ddt_numero_data_fornitore", totali: 3, da_soli: 2, confermati: 0, in_attesa: 1, corretti: 1, pct_corretti: 33.3, con_ai: 0 },
+    ]);
+    await expect(db.query(`select acquisti_misura_collegamenti($1)`, [ALTRA])).rejects.toThrow(/Non puoi vedere/);
+  });
+});
+
+describe("DDT scritti nelle descrizioni", () => {
+  const descrizioni = [
+    "Rif. DDT n. 1068 del 07/09/2026 - Cemento",
+    "DDT 9.363 del 16-10-26",
+    "Bolla nr. 001070",
+    "DOC. TRASP. N° 24-008383 DEL 2026-09-30 sabbia",
+    "Prezzo 1068 euro, misura 30x40",
+    "Consegna con DDT n. del",
+  ];
+  it("SQL legge gli stessi DDT del TypeScript", async () => {
+    const xml = `<FatturaElettronicaBody><DatiBeniServizi>${descrizioni.map((d, i) => `<DettaglioLinee><NumeroLinea>${i + 1}</NumeroLinea><Descrizione>${d}</Descrizione><PrezzoTotale>1</PrezzoTotale></DettaglioLinee>`).join("")}</DatiBeniServizi></FatturaElettronicaBody>`;
+    const ts = ddtNelleDescrizioni(leggiRiferimentiFattura(xml).righe).map((d) => `${d.numero!.chiave}|${d.data ?? ""}`).sort();
+    const { rows } = await db.query<{ numero: string; data: string | null }>(
+      `select numero, to_char(data, 'YYYY-MM-DD') data from acquisti_ddt_dalle_descrizioni($1::jsonb)`,
+      [JSON.stringify(descrizioni.map((d) => ({ descrizione: d })))],
+    );
+    const sql = rows.map((r) => `${numeroDocumento(r.numero)!.chiave}|${r.data ?? ""}`).sort();
+    expect(sql).toEqual(ts);
+    expect(sql).toEqual(["1068|2026-09-07", "1070|", "24008383|2026-09-30", "9363|2026-10-16"].sort());
+  });
+
+  it("fattura senza DatiDDT che cita la bolla nella riga: agganciata; storico con anteprima e lotto", async () => {
+    await bolla(10, "1068", "2026-09-08");
+    await db.query(`insert into fatture_ricevute(id, company_id, fornitore_id, tipo_documento, xml_raw, righe) values ($1,$2,$3,'TD01',null,$4)`, [
+      id(70), AZ, FORN, JSON.stringify([{ descrizione: "Rif. DDT n. 1068 del 07/09/2026 cemento" }]),
+    ]);
+    // Arrivata prima della modifica: nessuna riga fattura_ddt. L'anteprima la conta, non scrive.
+    const a = (await db.query<{ v: { fatture: number; ddt: number } }>(`select acquisti_ddt_descrizioni_anteprima($1) v`, [AZ])).rows[0].v;
+    expect(a).toMatchObject({ fatture: 1, ddt: 1 });
+    expect(await aggancio(70)).toEqual([]);
+    await db.query(`select acquisti_ddt_descrizioni_lotto($1)`, [AZ]);
+    expect(await aggancio(70)).toEqual([["1068", id(10)]]);
+    const o = (await db.query<{ origine: string }>(`select origine from fattura_ddt where fattura_ricevuta_id = $1`, [id(70)])).rows;
+    expect(o).toEqual([{ origine: "descrizione" }]);
+    // Rifarlo non aggiunge niente.
+    expect((await db.query<{ v: { fatture: number } }>(`select acquisti_ddt_descrizioni_lotto($1) v`, [AZ])).rows[0].v.fatture).toBe(0);
+  });
+
+  it("all'arrivo: se l'XML ha DatiDDT le descrizioni non si leggono", async () => {
+    await db.query(`insert into fatture_ricevute(id, company_id, fornitore_id, tipo_documento, xml_raw, righe) values ($1,$2,$3,'TD01',$4,$5)`, [
+      id(71), AZ, FORN, xml([["555", "2026-09-07"]]), JSON.stringify([{ descrizione: "DDT 1068 del 07/09/2026" }]),
+    ]);
+    await db.query(`select fattura_collega_ddt_e_mezzi($1)`, [id(71)]);
+    expect((await aggancio(71)).map((x) => x[0])).toEqual(["555"]);
+  });
+});
+
+describe("fattura ↔ ordine per importo uguale (decisione del 15/11)", () => {
+  const ODA = id(80), ODA2 = id(81);
+  const ordine = (oda: string, numero: string, totale: number) =>
+    db.query(`insert into purchase_orders values ($1,$2,(select id from suppliers where vat_number='00743110157'),$3,'ricevuto',$4,$4)`, [oda, AZ, numero, totale]);
+  const fatturaOda = (n: number, totale: number, xmlRaw: string | null = null) =>
+    db.query(`insert into fatture_ricevute(id, company_id, tipo_documento, cedente_piva, totale_documento, xml_raw) values ($1,$2,'TD01','IT00743110157',$3,$4)`, [id(n), AZ, totale, xmlRaw]);
+  const stato = async (n: number) => {
+    const f = (await db.query<{ po: string | null }>(`select purchase_order_id po from fatture_ricevute where id = $1`, [id(n)])).rows[0];
+    const t = (await db.query<{ regola: string; esito: string; stato: string }>(`select regola, esito, stato from acquisti_collegamenti where da_id = $1`, [id(n)])).rows;
+    return { po: f.po, traccia: t };
+  };
+  beforeEach(async () => {
+    await db.query(`insert into suppliers(company_id, vat_number) values ($1, '00743110157')`, [AZ]);
+  });
+
+  it("solo importo: proposta, anche con l'interruttore acceso; un clic la collega", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await fatturaOda(90, 122);
+    expect(await stato(90)).toEqual({ po: null, traccia: [{ regola: "oda_importo_fornitore", esito: "proposta", stato: "proposto" }] });
+    const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(90)])).rows[0].id;
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [c]);
+    expect((await stato(90)).po).toBe(ODA);
+  });
+
+  it("importo + numero d'ordine citato: acceso si collega da solo, spento resta proposta", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    const x = `<DatiOrdineAcquisto><IdDocumento>ODA-2026-0039</IdDocumento></DatiOrdineAcquisto>`;
+    await fatturaOda(91, 122, x);
+    expect(await stato(91)).toEqual({ po: ODA, traccia: [{ regola: "oda_numero_importo_fornitore", esito: "automatico", stato: "collegato" }] });
+    await db.query(`update company_governance_settings set collegamento_automatico = false where company_id = $1`, [AZ]);
+    await ordine(ODA2, "ODA-2026-0040", 50);
+    await fatturaOda(92, 50, x.replace("0039", "0040"));
+    expect(await stato(92)).toEqual({ po: null, traccia: [{ regola: "oda_numero_importo_fornitore", esito: "proposta", stato: "proposto" }] });
+  });
+
+  it("annullare un aggancio dal popup lo scollega e la scelta resta (non si riaggancia)", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await fatturaOda(93, 122, `<DatiOrdineAcquisto><IdDocumento>ODA-2026-0039</IdDocumento></DatiOrdineAcquisto>`);
+    const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(93)])).rows[0].id;
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'annullato','ordine sbagliato')`, [c]);
+    expect((await stato(93)).po).toBeNull();
+    await db.query(`update fatture_ricevute set totale_documento = 122 where id = $1`, [id(93)]);
+    expect((await stato(93)).po).toBeNull();
+  });
+
+  it("un utente del browser (ruolo authenticated) salva la fattura: i trigger non lo fermano", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await db.exec(`grant select, insert, update on fatture_ricevute to authenticated; grant usage on schema public to authenticated;`);
+    await db.exec(`set role authenticated`);
+    try {
+      await fatturaOda(95, 122);
+    } finally {
+      await db.exec(`reset role`);
+    }
+    expect(await stato(95)).toEqual({ po: null, traccia: [{ regola: "oda_importo_fornitore", esito: "proposta", stato: "proposto" }] });
+  });
+
+  it("due ordini dello stesso fornitore con lo stesso importo: niente, nemmeno una proposta", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await ordine(ODA2, "ODA-2026-0040", 122);
+    await fatturaOda(94, 122);
+    expect(await stato(94)).toEqual({ po: null, traccia: [] });
   });
 });

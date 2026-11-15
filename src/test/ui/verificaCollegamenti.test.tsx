@@ -134,6 +134,20 @@ describe("popup di verifica", () => {
     expect(screen.getByText(/per confermarli serve il permesso/)).toBeInTheDocument();
   });
 
+  it("collegati in passato senza conferma: a parte, «da ricontrollare», con annulla e verificato", () => {
+    state.righe = [
+      riga("st", { stato: "collegato", esito: "automatico", regola: "oda_importo_fornitore_storico", a_tipo: "ordine", prove: [{ campo: "storico", ruolo: "conferma", esito: "mancante", testo: "agganciata prima del 15/11 senza conferma" }] }),
+      riga("ok", { stato: "collegato", esito: "automatico" }),
+    ];
+    apri();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Collegati (2)" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Collegati (2)" }));
+    expect(screen.getByText(/Da ricontrollare \(1\)/)).toBeInTheDocument();
+    const r = document.querySelector('[data-collegamento="st"]') as HTMLElement;
+    expect(within(r).getByRole("button", { name: "Segna verificato" })).toBeInTheDocument();
+    expect(within(r).getByRole("button", { name: "Annulla" })).toBeInTheDocument();
+  });
+
   it("si apre dalla fattura ricevuta, accanto ai DDT", () => {
     expect(readFileSync("src/components/fatturazione/CollegamentiFattura.tsx", "utf8")).toContain("<VerificaCollegamentiDialog companyId={companyId} fatturaId={fatturaId}");
   });

@@ -1,4 +1,5 @@
 import { FornitoreEditor } from "@/components/suppliers/FornitoreEditor";
+import { FornitoriDalleFatture } from "@/components/suppliers/FornitoriDalleFatture";
 import {
   payloadFornitore,
   type Supplier,
@@ -753,6 +754,8 @@ export default function SettingsSuppliers() {
     // spazio sopra i numeri (lo stesso 24px tra i blocchi sul telefono).
     <div className="flex flex-col gap-6">
       {!puoModificare && <AvvisoSolaLetturaImpostazioni permesso="Fornitori" />}
+      {/* Fornitori che in rubrica non ci sono ma hanno fatture ricevute: si creano da qui, scegliendoli. */}
+      {tab === "anagrafica" && puoModificare && effectiveCompany?.id && <FornitoriDalleFatture companyId={effectiveCompany.id} />}
       {/* KPI quick */}
       {suppliersExportIsError && (
         <Alert variant="destructive">

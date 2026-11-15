@@ -26,14 +26,17 @@ async function nomi(righe: RigaCollegamento[]): Promise<Record<string, string>> 
   const fatture = ids("fattura_ricevuta");
   const bolle = ids("ddt");
   const commesse = ids("commessa");
-  const [f, d, c] = await Promise.all([
+  const ordini = ids("ordine");
+  const [f, d, c, o] = await Promise.all([
     fatture.length ? db.from("fatture_ricevute").select("id, numero_fattura, data_fattura, cedente_ragione_sociale").in("id", fatture) : { data: [] },
     bolle.length ? db.from("ddt_ricezione").select("id, numero_ddt, data_ricezione").in("id", bolle) : { data: [] },
     commesse.length ? db.from("orders").select("id, order_code, description").in("id", commesse) : { data: [] },
+    ordini.length ? db.from("purchase_orders").select("id, oda_number, issue_date").in("id", ordini) : { data: [] },
   ]);
   for (const x of f.data ?? [])
     out[x.id] = `Fattura ${x.numero_fattura ?? "—"}${x.data_fattura ? ` del ${formatDateShort(x.data_fattura)}` : ""}${x.cedente_ragione_sociale ? ` · ${x.cedente_ragione_sociale}` : ""}`;
   for (const x of d.data ?? []) out[x.id] = `Bolla ${x.numero_ddt ?? "—"}${x.data_ricezione ? ` del ${formatDateShort(x.data_ricezione)}` : ""}`;
+  for (const x of o.data ?? []) out[x.id] = `Ordine ${x.oda_number ?? "—"}${x.issue_date ? ` del ${formatDateShort(x.issue_date)}` : ""}`;
   for (const x of c.data ?? []) out[x.id] = `Commessa ${x.order_code ?? ""}${x.description ? ` · ${String(x.description).slice(0, 60)}` : ""}`.trim();
   return out;
 }

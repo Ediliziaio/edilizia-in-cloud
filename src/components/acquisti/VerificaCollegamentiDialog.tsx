@@ -21,6 +21,7 @@ import {
   ETICHETTA_TIPO,
   SIMBOLO_PROVA,
   azioniPossibili,
+  daRicontrollare,
   etichettaRegola,
   gruppoVerifica,
   schedaDi,
@@ -246,8 +247,21 @@ export function VerificaCollegamentiDialog({
                 {daGuardare.map((r) => riga(r))}
               </Elenco>
             </TabsContent>
-            <TabsContent value="collegati">
-              <Elenco vuoto="Nessun collegamento ancora.">{perScheda("collegati").map((r) => riga(r))}</Elenco>
+            <TabsContent value="collegati" className="space-y-4">
+              {perScheda("collegati").some(daRicontrollare) && (
+                <Elenco
+                  vuoto=""
+                  titolo={
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                      Da ricontrollare ({perScheda("collegati").filter(daRicontrollare).length}): collegati in passato senza conferma.
+                      Segna «verificato» quelli giusti, annulla quelli sbagliati.
+                    </p>
+                  }
+                >
+                  {perScheda("collegati").filter(daRicontrollare).map((r) => riga(r))}
+                </Elenco>
+              )}
+              <Elenco vuoto="Nessun collegamento ancora.">{perScheda("collegati").filter((r) => !daRicontrollare(r)).map((r) => riga(r))}</Elenco>
             </TabsContent>
             <TabsContent value="annullati">
               <Elenco vuoto="Nessun collegamento annullato o rifiutato.">{perScheda("annullati").map((r) => riga(r))}</Elenco>

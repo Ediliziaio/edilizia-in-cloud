@@ -16,7 +16,7 @@ import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import { etichettaMetodoCosto } from "@/lib/costi/metodiPagamento";
-import { contabilitaOda, type RataOda } from "@/lib/orders/odaContabilita";
+import { consegnatoFatturatoOda, contabilitaOda, type RataOda, type RigaOdaConsegna } from "@/lib/orders/odaContabilita";
 import { quotaIvata } from "@/lib/fatturazione/quoteOrdini";
 
 interface Costo {
@@ -42,10 +42,13 @@ export function OdaAccountingCard({
   odaId,
   totaleOrdine,
   stato,
+  righe,
 }: {
   odaId: string;
   totaleOrdine: number;
   stato: string;
+  /** Le righe dell'ordine, per il confronto fra arrivato e fatturato. */
+  righe?: RigaOdaConsegna[];
 }) {
   const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
   const { data, isLoading, isError, refetch } = useQuery({
@@ -116,6 +119,7 @@ export function OdaAccountingCard({
   const totaleCosti = costi.reduce((s, c) => s + Number(c.amount || 0), 0);
   const nonPagati = costi.filter((c) => !c.is_paid).length;
   const conto = contabilitaOda(totaleOrdine, fatture, data?.rate ?? []);
+  const arrivo = righe?.length ? consegnatoFatturatoOda(righe, conto.fatturato) : null;
 
   return (
     <>
@@ -185,6 +189,23 @@ export function OdaAccountingCard({
                   etichettaMetodoCosto(conto.prossima.rate[0]?.metodo),
                   conto.rateAperte.length > 1 ? `${conto.rateAperte.length} rate da pagare` : null,
                 ].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+          </div>
+        )}
+
+        {arrivo && arrivo.consegnato > 0 && (
+          <div className="flex items-start justify-between gap-3">
+            <span className="text-slate-500">Merce arrivata</span>
+            <span className="text-right">
+              <span className="font-semibold text-slate-900">{formatCurrency(arrivo.consegnato)}</span>
+              <span className="block text-[11px] text-slate-500">
+                {arrivo.fatturatoNonConsegnato > 0
+                  ? `fatturati ${formatCurrency(arrivo.fatturatoNonConsegnato)} in più dell'arrivato`
+                  : arrivo.daFatturare > 0
+                    ? `${formatCurrency(arrivo.daFatturare)} arrivati e non ancora fatturati`
+                    : "arrivato e fatturato combaciano"}
+                {arrivo.righeSenzaPrezzo > 0 ? ` · ${arrivo.righeSenzaPrezzo} righe senza prezzo` : ""}
               </span>
             </span>
           </div>
