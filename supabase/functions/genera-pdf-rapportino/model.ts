@@ -55,6 +55,8 @@ export interface PdfContext {
   revision: string;
   generatedAt: string;
   modelloPdf?: import("../_shared/modelliPdfOperativi.ts").ModelloPdf;
+  /** Sottofasi della commessa (id → nome e unità), per dire cosa è avanzato quel giorno. */
+  subphases?: ReadonlyMap<string, SottofaseNota>;
 }
 export function reportSummary(report: RecordData) {
   const crew = rows(report.presenze);
@@ -121,6 +123,31 @@ export interface FaseBlocco {
   foto: string[];
   /** I campi propri dell'azienda compilati per questa fase. */
   campi: ValoreCampo[];
+  /** Le sottofasi toccate quel giorno: fatta, avanzata di quanto, o solo lavorata (15/11/2026). */
+  sottofasi: { nome: string; esito: string; fatta: boolean }[];
+}
+
+/** Nome e unità di una sottofase, letti dalla commessa. */
+export interface SottofaseNota { nome: string; unita?: string | null; position?: number | null }
+
+const quantitaIt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 2 });
+/** `sottofasi_fatte`, `sottofasi_avanzate` [{id, quantita?, percentuale?}] e `sottofasi_lavorate` di una voce del rapportino. */
+export function sottofasiDellaVoce(v: RecordData, nomi: ReadonlyMap<string, SottofaseNota>): FaseBlocco["sottofasi"] {
+  const ids = (x: unknown) => (Array.isArray(x) ? x : []).map(i => text(i)).filter(Boolean);
+  const fatte = new Set(ids(v.sottofasi_fatte));
+  const avanzate = new Map(rows(v.sottofasi_avanzate).map(a => [text(a.id), a] as const).filter(([id]) => !!id));
+  const tutte = [...new Set([...fatte, ...avanzate.keys(), ...ids(v.sottofasi_lavorate)])];
+  return tutte
+    .map(id => {
+      const n = nomi.get(id);
+      const a = avanzate.get(id);
+      const q = a ? number(a.quantita) : null, pct = a ? number(a.percentuale) : null;
+      const avanzo = q != null && q > 0 ? `+${quantitaIt(q)}${n?.unita ? ` ${n.unita}` : ""}` : pct != null && pct > 0 ? `${quantitaIt(pct)}%` : "";
+      const esito = fatte.has(id) ? (avanzo ? `${avanzo} · completata` : "completata") : avanzo ? `avanzata ${avanzo}` : "lavorata";
+      return { nome: n?.nome || "Sottofase non più presente", esito, fatta: fatte.has(id), ordine: n?.position ?? 9999 };
+    })
+    .sort((x, y) => x.ordine - y.ordine)
+    .map(({ nome, esito, fatta }) => ({ nome, esito, fatta }));
 }
 
 const originiMateriale = (m: RecordData) => m.da_furgone === true ? "Dal furgone" : m.order_item_id ? "Articolo commessa" : "Dichiarato";
@@ -142,7 +169,7 @@ function materiale(m: RecordData): MaterialeBlocco {
  * `foto_urls`) e `materiali_usati[].fase_id`. Un rapportino senza collegamenti (vocale, WhatsApp,
  * storico) ha le fasi senza materiali né foto, e tutto il resto nelle liste generali: com'era.
  */
-export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, string>) {
+export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, string>, nomiSottofasi: ReadonlyMap<string, SottofaseNota> = new Map()) {
   const voci = rows(report.fasi_lavorate);
   const idsFasi = new Set(voci.map(v => text(v.phase_id)).filter(Boolean));
   const tutteLeFoto = Array.isArray(report.foto_urls) ? report.foto_urls.filter((u): u is string => typeof u === "string" && !!u) : [];
@@ -169,6 +196,7 @@ export function bloccoFasi(report: RecordData, nomiFasi: ReadonlyMap<string, str
       materiali,
       foto,
       campi: valori.filter(c => !!c.phase_id && c.phase_id === text(v.phase_id)),
+      sottofasi: sottofasiDellaVoce(v, nomiSottofasi),
     };
   });
   // Un materiale legato a una fase che il rapportino non elenca (fase cancellata o non dichiarata) resta tra gli altri.

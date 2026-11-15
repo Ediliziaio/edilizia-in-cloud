@@ -7,7 +7,7 @@ import { PDFDocument, rgb, setCharacterSpacing, StandardFonts, type PDFFont, typ
 import { fontPiedeBase64, misurePiede, personalizzazioneDocumento, testoRigaPiede } from "../_shared/personalizzazioneDocumenti.ts";
 // Lo stile unico dei documenti (10/11/2026): colori, testata, sezioni, tabelle, riquadri e piè vengono da lì.
 import { accentoDocumento, colore as C, pagina as PG, riquadro as RQ, rgb01, sezione as SZ, tabella as TB, testata as TS } from "../_shared/stileDocumenti.ts";
-import { compilatoDa, bloccoFasi, dayLabel, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
+import { compilatoDa, bloccoFasi, dayLabel, number, oraBreve, oreBrevi, record, reportSummary, rows, text, timestamp, type FaseBlocco, type PdfContext } from "./model.ts";
 
 /** Keep paragraph breaks; replace unsupported glyphs explicitly instead of crashing. */
 export function printable(value: string): string {
@@ -132,7 +132,7 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
   };
 
   const nomiFasi = new Map(ctx.phases.map(p => [text(p.id), text(p.name)]));
-  const blocchi = bloccoFasi(r, nomiFasi);
+  const blocchi = bloccoFasi(r, nomiFasi, ctx.subphases);
   const ordineFoto = [...blocchi.fasi.flatMap(f => f.foto), ...blocchi.altreFoto];
   const numeroFoto = new Map(ordineFoto.map((u, i) => [u, i + 1]));
   for (let i = 0; i < ordineFoto.length; i += 4) await Promise.all(ordineFoto.slice(i, i + 4).map(u => scarica(u, "photo")));
@@ -428,16 +428,18 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     T(String(n), x + 6 + (22 - larghezza(String(n), 7, bold)) / 2, yTop - 14.5, 7, bold, white);
   };
   /** Tre per riga anche quando sono poche: si vedono bene e il rapportino resta compatto. */
+  /** Tre per riga anche quando sono poche: si vedono bene e il rapportino resta compatto. */
   const impaginaFoto = (_n: number) => { const colonne = 3; return { colonne, w: (interno - gapFoto * (colonne - 1)) / colonne, h: 62 }; };
   const padFase = RQ.padding;
   const misureScheda = (f: FaseBlocco) => {
     const nomeRighe = wrap(f.nome, bold, 10.5, CW - padFase * 2 - 160).slice(0, 2);
     const testaH = padFase * 2 + nomeRighe.length * 14 - 3 + (f.percentuale !== null ? 11 : 0) + (f.ore !== null ? 12 : 0);
     const righeMateriali = f.materiali.map(m => Math.max(1, wrap(m.nome, regular, TB.corpo, interno - 70 - 56 - TB.paddingOrizzontale * 2).length));
+    const sottofasiH = f.sottofasi.length ? 20 + 18 + f.sottofasi.length * TB.altezzaRigaMin + 8 : 0;
     const materialiH = f.materiali.length ? 20 + 18 + righeMateriali.reduce((a, n) => a + Math.max(TB.altezzaRigaMin, n * 12 + 6), 0) + 8 : 0;
     const foto = impaginaFoto(f.foto.length);
     // Il minimo che deve stare insieme alla testata: il primo pezzo del corpo, al massimo 140 punti.
-    const minimo = testaH + Math.min(materialiH || (f.foto.length ? foto.h + 34 : 0), 140);
+    const minimo = testaH + Math.min(sottofasiH || materialiH || (f.foto.length ? foto.h + 34 : 0), 140);
     return { nomeRighe, testaH, minimo, foto };
   };
   const scheda = async (f: FaseBlocco, titolo?: string) => {
@@ -462,6 +464,13 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     y -= testaH + 2;
     // campi della fase
     etichetteFase(valoriDaStampare(f.campi, documentoPer), M, interno);
+    // sottofasi toccate quel giorno
+    if (f.sottofasi.length) {
+      ensure(18 + 30);
+      etichetta("Sottofasi", M, y - 14);
+      y -= 20;
+      tabella(["Sottofase", "Oggi"], [interno - 150, 150], f.sottofasi.map(s => [s.nome, s.esito]), ["l", "r"], M);
+    }
     // materiali della fase
     if (f.materiali.length) {
       ensure(18 + 30);
@@ -495,6 +504,16 @@ export async function renderRapportino(ctx: PdfContext, loadImage: (reference: s
     tabella(["Persona / impresa", "Inquadramento", "Ore"], [CW - 130 - 90, 130, 90],
       summary.crew.map(p => [text(p.nome) || "Nome non registrato", p.subappaltatore_id ? "Subappaltatore" : p.employee_id ? "Personale interno" : "Non specificato", oreBrevi(p.ore)]),
       ["l", "l", "r"], M, ["Totale presenze", "", oreBrevi(summary.total)]);
+  }
+
+  // ═════════ Mezzi (15/11/2026: mancavano, il rapportino li registra da ottobre) ═════════
+  const mezzi = rows(r.mezzi_usati).filter(m => text(m.nome) || text(m.mezzo_id));
+  if (mezzi.length) {
+    sezione("Mezzi e attrezzature", 100);
+    const oreMezzi = mezzi.map(m => number(m.ore));
+    tabella(["Mezzo", "Ore"], [CW - 90, 90],
+      mezzi.map((m, i) => [text(m.nome) || "Mezzo senza nome", oreMezzi[i] == null ? "non indicate" : oreBrevi(m.ore)]),
+      ["l", "r"], M, mezzi.length > 1 && oreMezzi.every(h => h != null) ? ["Totale ore mezzi", oreBrevi(oreMezzi.reduce<number>((t, h) => t + (h ?? 0), 0))] : undefined);
   }
 
   // ═════════ Tempi ═════════

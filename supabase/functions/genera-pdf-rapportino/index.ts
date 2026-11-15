@@ -6,6 +6,7 @@
 // 10/11/2026 (terzo giro): rapportino e fine lavori nello stile unico dei documenti (_shared/stileDocumenti.ts):
 // logo a sinistra su bianco senza fascia né riquadro, titolo a destra, filetto d'accento, sezioni, tabelle, riquadri e
 // piè uguali agli altri documenti. Vedi render.ts.
+// 15/11/2026: nuove sezioni «Mezzi e attrezzature» (mezzi_usati) e «Sottofasi» in ogni fase. Vedi render.ts.
 import { normalizzaModelloPdf } from "../_shared/modelliPdfOperativi.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
@@ -57,6 +58,19 @@ Deno.serve(async (req: Request) => {
       if (error) warnings.push("Nomi delle lavorazioni non disponibili: sono riportati i riferimenti registrati.");
       else phases = data ?? [];
     }
+    // Sottofasi: nome e unità (dalle voci della sottofase) di quelle che il rapportino tocca.
+    const subphases = new Map<string, { nome: string; unita: string | null; position: number | null }>();
+    // Solo le fasi già verificate su questa commessa (`phases`), mai gli id scritti nel rapportino.
+    const fasiVerificate = phases.map(p => text(p.id)).filter(Boolean);
+    if (fasiVerificate.length && rows(rap.fasi_lavorate).some(p => p.sottofasi_fatte || p.sottofasi_avanzate || p.sottofasi_lavorate)) {
+      const { data: sotto, error } = await admin.from("order_work_subphases").select("id, name, position").in("phase_id", fasiVerificate);
+      if (error) warnings.push("Nomi delle sottofasi non disponibili.");
+      const elenco = (sotto ?? []) as { id: string; name: string; position: number | null }[];
+      const ids = elenco.map(s => s.id);
+      const { data: voci } = ids.length ? await admin.from("order_work_phase_voci").select("subphase_id, unita").in("subphase_id", ids) : { data: [] };
+      const unita = new Map(((voci ?? []) as { subphase_id: string; unita: string | null }[]).filter(v => v.unita).map(v => [v.subphase_id, v.unita as string]));
+      for (const s of elenco) subphases.set(s.id, { nome: s.name, unita: unita.get(s.id) ?? null, position: s.position });
+    }
     let punches: RecordData[] = [];
     const bounds = dayBounds(text(rap.data_lavoro));
     if (bounds && rap.user_id && rap.order_id) {
@@ -91,7 +105,7 @@ Deno.serve(async (req: Request) => {
     if (modelloError) return errorResponse("Modello PDF non disponibile: riprova la generazione.", 500, cors);
     const generatedAt = new Date().toISOString();
     const revision = Date.now().toString(36) + "-" + crypto.randomUUID().slice(0, 8);
-    const result = await renderRapportino({ report: rap, company: { ...company, name: company.business_name || company.name }, branding: { ...branding, logoUrl: company.logo_url || undefined, primaryColor: company.brand_primary_color || branding.primaryColor }, phases, punches, warnings, revision, generatedAt, modelloPdf: normalizzaModelloPdf(tipoModello, modello?.config) }, loadImage);
+    const result = await renderRapportino({ report: rap, company: { ...company, name: company.business_name || company.name }, branding: { ...branding, logoUrl: company.logo_url || undefined, primaryColor: company.brand_primary_color || branding.primaryColor }, phases, punches, warnings, revision, generatedAt, modelloPdf: normalizzaModelloPdf(tipoModello, modello?.config), subphases }, loadImage);
     // Every edition has its own object; previous exports are never overwritten.
     // v4 = documento a blocchi (schede per fase). Cambiare il numero fa rigenerare, alla prima apertura, i PDF già fatti.
     const path = rap.company_id + "/" + id + "/rapportino-v4-" + revision + ".pdf";

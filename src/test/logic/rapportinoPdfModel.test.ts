@@ -80,7 +80,7 @@ describe("rapportino a blocchi: materiali e foto per fase", () => {
       materiali_usati: [{ nome: "Colla", quantita: 2, unita: "kg" }],
       foto_urls: ["f0"],
     }, nomi);
-    expect(b.fasi).toEqual([{ id: "ph-1", nome: "Demolizioni", percentuale: 40, ore: null, materiali: [], foto: [], campi: [] }]);
+    expect(b.fasi).toEqual([{ id: "ph-1", nome: "Demolizioni", percentuale: 40, ore: null, materiali: [], foto: [], campi: [], sottofasi: [] }]);
     expect(b.altriMateriali.map(m => m.nome)).toEqual(["Colla"]);
     expect(b.altreFoto).toEqual(["f0"]);
   });
@@ -154,3 +154,18 @@ describe("compilatoDa", () => {
   });
 });
 
+
+describe("sottofasi della voce (15/11/2026)", () => {
+  it("fatta, avanzata con l'unità, solo lavorata; in ordine di commessa; nomi sconosciuti dichiarati", async () => {
+    const { sottofasiDellaVoce } = await import(/* @vite-ignore */ "../../../supabase/functions/genera-pdf-rapportino/model");
+    const nomi = new Map([["a", { nome: "Scavo", unita: "m", position: 1 }], ["b", { nome: "Posa tubo", unita: "m", position: 2 }], ["c", { nome: "Rinterro", position: 3 }]]);
+    const r = sottofasiDellaVoce({ sottofasi_fatte: ["a"], sottofasi_avanzate: [{ id: "b", quantita: 18 }, { id: "a", quantita: 5 }], sottofasi_lavorate: ["c", "b", "zz"] }, nomi);
+    expect(r).toEqual([
+      { nome: "Scavo", esito: "+5 m · completata", fatta: true },
+      { nome: "Posa tubo", esito: "avanzata +18 m", fatta: false },
+      { nome: "Rinterro", esito: "lavorata", fatta: false },
+      { nome: "Sottofase non più presente", esito: "lavorata", fatta: false },
+    ]);
+    expect(sottofasiDellaVoce({ phase_id: "x", ore: 3 }, nomi)).toEqual([]);
+  });
+});

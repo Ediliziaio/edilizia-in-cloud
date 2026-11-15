@@ -539,3 +539,18 @@ describe("campi propri nel PDF", () => {
   });
 });
 
+
+describe("mezzi nel rapportino (15/11/2026)", () => {
+  it("i mezzi usati hanno la loro tabella, con le ore e il totale", async () => {
+    const { testi } = await disegna({ ...base, mezzi_usati: [{ nome: "BOBCAT E 80", ore: 6, mezzo_id: "m1" }, { nome: "DAF M4SN3 · FX679WZ", ore: 8, mezzo_id: "m2" }] });
+    expect(testi).toContain("MEZZI E ATTREZZATURE");
+    expect(testi).toContain("BOBCAT E 80");
+    expect(testi).toContain("Totale ore mezzi");
+    expect(valoreDopo(testi, "Totale ore mezzi")).toBe("14 h");
+  });
+  it("un mezzo senza ore lo dice, e senza mezzi la sezione non c'è", async () => {
+    const { testi } = await disegna({ ...base, mezzi_usati: [{ nome: "Gru", mezzo_id: "m1" }] });
+    expect(valoreDopo(testi, "Gru")).toBe("non indicate");
+    expect((await disegna(base)).testi).not.toContain("MEZZI E ATTREZZATURE");
+  });
+});
