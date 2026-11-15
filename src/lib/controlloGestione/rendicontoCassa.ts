@@ -350,7 +350,7 @@ export function costruisciRendiconto(input: {
   }
 
   // ── Riquadri ──────────────────────────────────────────────────────────────
-  const estremiMese: ({ min: number; max: number } | null)[] = Array.from({ length: 12 }, () => null);
+  const estremiMese: ({ min: number; max: number } | null)[] = Array.from({ length: 12 }, (): null => null);
   if (p && oggi != null)
     for (const d of p.days) {
       if (d.balance == null || d.date.slice(0, 4) !== String(anno)) continue;

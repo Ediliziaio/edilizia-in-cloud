@@ -226,7 +226,7 @@ function Detail({
   const apriContesti = puoContesti ? () => { setEditContexts(true); setContextDirty(false); } : undefined;
   const noteCambiata = note !== savedAnnotation.note;
   // L'ODA letto nella causale si collega con un clic, per l'intero importo, tenendo gli altri collegamenti.
-  const collegaOda = (odaId: string) =>
+  const collegaOda = (odaId: string): void =>
     void act(async () => {
       const righe = m.links.contexts.map((c) => ({ kind: c.kind, target_id: c.id, amount: c.amount, note: c.note ?? null }));
       righe.push({ kind: "oda", target_id: odaId, amount: Math.abs(m.amount), note: null });
