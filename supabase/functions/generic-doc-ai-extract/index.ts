@@ -206,8 +206,10 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "_regole_extra": "NON attribuire prestazioni assenti: se il documento dice 'Senza Montaggio' NON scrivere 'e posa' nella descrizione lavori. Sconto globale, imballaggio e trasporto vanno nei campi dedicati (sconto_globale_pct, altri_costi), NON tra le voci e NON ignorati",
   "modalita_pagamento": "string (es. Bonifico bancario / Assegno / Finanziamento) o null",
   "fasi_pagamento": [{ "descrizione": "string es. Acconto alla firma / SAL / Saldo", "percentuale": numero o null, "importo_eur": numero o null }],
-  "data_inizio_lavori": "YYYY-MM-DD o null",
-  "data_fine_lavori": "YYYY-MM-DD o null"
+  "data_inizio_lavori": "YYYY-MM-DD o null — solo se il documento la scrive (data di consegna o inizio lavori)",
+  "data_fine_lavori": "YYYY-MM-DD o null — solo se scritta; se il documento da' solo la durata, null e un warning con la durata",
+  "fasi_lavoro": [{ "nome": "string breve, max 60 caratteri", "giorni": "numero o null", "sottofasi": ["string"] }],
+  "_regole_fasi_lavoro": "Le LAVORAZIONI del cantiere nell'ordine in cui si eseguono, SOLO se il contratto, il computo, il capitolato o il cronoprogramma allegato le elencano (capitoli o categorie di lavoro: es. 'Demolizioni e rimozioni', 'Impianto idraulico', 'Massetti', 'Posa pavimenti', 'Tinteggiature'). Nome breve senza importi ne' quantita'. 'giorni': durata in giorni di lavoro SOLO se il documento la da' per quella lavorazione, altrimenti null. 'sottofasi': le voci di lavoro elencate dentro quel capitolo, al massimo 10, nomi brevi. Massimo 15 fasi. NON sono fasi: le rate o i SAL di pagamento (vanno in fasi_pagamento), le posizioni di fornitura (vanno in voci), gli adempimenti d'ufficio (permessi, pratiche). Per una sola fornitura senza lavorazioni, o se il documento non le elenca, lista vuota: non inventarle"
 }`,
 };
 
@@ -329,6 +331,9 @@ Deno.serve(async (req) => {
       doc_type,
       // Note diverse → estrazione diversa: l'hint entra nella chiave.
       hintPulito || null,
+      // Anche le istruzioni (15/11/2026): con lo schema nuovo (es. fasi_lavoro) un documento già letto
+      // tornava dalla cache coi campi di prima per 90 giorni. Si mette il prompt intero, che la chiave riduce a hash.
+      systemPrompt,
     ]);
     const aiResult = await aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

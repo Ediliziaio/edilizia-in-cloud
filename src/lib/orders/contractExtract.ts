@@ -17,6 +17,16 @@ export interface ContractExtractPhase {
   percentuale: number | null;
   importo_eur: number | null;
 }
+/**
+ * Una lavorazione del cantiere letta dal contratto (15/11/2026): i capitoli del computo o del capitolato,
+ * nell'ordine in cui si eseguono. Diventa una fase proposta della commessa, da confermare.
+ */
+export interface ContractExtractWorkPhase {
+  nome: string;
+  /** Durata della lavorazione in giorni di lavoro, solo se il documento la dice. */
+  giorni: number | null;
+  sottofasi: string[];
+}
 export interface ContractExtractItem {
   descrizione: string;
   quantita: number;
@@ -75,6 +85,8 @@ export interface ContractExtract {
   fasi_pagamento: ContractExtractPhase[];
   data_inizio_lavori: string | null;
   data_fine_lavori: string | null;
+  /** Facoltativo: i contratti letti prima del 15/11/2026 non lo hanno. */
+  fasi_lavoro?: ContractExtractWorkPhase[];
   summary: string;
   confidence: number;
   warnings: string[];
@@ -94,6 +106,33 @@ const toStr = (v: unknown): string | null => {
   const s = String(v).trim();
   return s && s.toLowerCase() !== "null" ? s : null;
 };
+
+/** Le rate non sono lavorazioni: l'AI a volte le ripete tra le fasi. */
+const NOME_DI_RATA = /^(acconto|anticipo|saldo|rata|sal\b|stato avanzamento|caparra|pagamento)/i;
+const MAX_FASI_CONTRATTO = 15;
+const MAX_SOTTOFASI_CONTRATTO = 10;
+
+/** Parsing difensivo delle lavorazioni: nomi corti, niente doppioni, niente rate, tetti al numero. */
+export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
+  if (!Array.isArray(raw)) return [];
+  const viste = new Set<string>();
+  const out: ContractExtractWorkPhase[] = [];
+  for (const f of raw) {
+    if (out.length >= MAX_FASI_CONTRATTO) break;
+    const o = (f && typeof f === "object" ? f : { nome: f }) as Record<string, unknown>;
+    const nome = (toStr(o.nome) ?? "").replace(/\s+/g, " ").slice(0, 80).trim();
+    const chiave = nome.toLowerCase();
+    if (!nome || NOME_DI_RATA.test(nome) || viste.has(chiave)) continue;
+    viste.add(chiave);
+    const g = toNum(o.giorni);
+    const sottofasi = (Array.isArray(o.sottofasi) ? o.sottofasi : [])
+      .map((x) => (toStr(x) ?? "").replace(/\s+/g, " ").slice(0, 160).trim())
+      .filter((x, i, a) => x && a.indexOf(x) === i)
+      .slice(0, MAX_SOTTOFASI_CONTRATTO);
+    out.push({ nome, giorni: g != null && g > 0 && g <= 365 ? Math.round(g) : null, sottofasi });
+  }
+  return out;
+}
 
 export function parseContractExtract(raw: unknown): ContractExtract {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -183,6 +222,7 @@ export function parseContractExtract(raw: unknown): ContractExtract {
       })),
     data_inizio_lavori: toStr(r.data_inizio_lavori),
     data_fine_lavori: toStr(r.data_fine_lavori),
+    fasi_lavoro: fasiLavoroDalTesto(r.fasi_lavoro),
     summary: toStr(r.summary) ?? "",
     confidence: toNum(r.confidence) ?? 0,
     warnings: Array.isArray(r.warnings) ? r.warnings.map((w) => String(w)) : [],

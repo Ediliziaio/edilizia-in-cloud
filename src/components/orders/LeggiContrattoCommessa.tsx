@@ -6,6 +6,9 @@
  * (`lib/orders/contrattoSuCommessa`). Si applica con `commessa_salva`, che controlla permessi, importi e versione;
  * le voci si aggiungono, il contratto originale va nei Documenti della commessa.
  *
+ * Dal 15/11/2026 anche le fasi di lavoro lette nel contratto, se la commessa non ne ha ancora: si creano con le date
+ * dei lavori, una dopo l'altra sui giorni di lavoro (stessa regola di «Nuova commessa»).
+ *
  * Vale per la commessa del cliente privato e per quella del committente. Lo vede chi può modificare le commesse e
  * vederne gli importi, come alla creazione.
  */
@@ -15,6 +18,10 @@ import { toast } from "sonner";
 import { Loader2, ScanText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCalendarioCantiere } from "@/hooks/useCalendarioCantiere";
+import { calendarioCantiere } from "@/lib/orders/sottofasi";
+import { fasiColPiano, pianificaFasi } from "@/lib/orders/pianoFasiNuovaCommessa";
+import { salvaFasiDiPartenza } from "@/lib/orders/pianificazioneAvvio";
 import { formatCurrency } from "@/lib/formatters";
 import type { ContractExtract } from "@/lib/orders/contractExtract";
 import type { StoredContractFile } from "@/lib/orders/contractPreparation";
@@ -56,7 +63,8 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
   const [lettore, setLettore] = useState(false);
   const [preparo, setPreparo] = useState(false);
   const [lettura, setLettura] = useState<Lettura | null>(null);
-  const [scelte, setScelte] = useState({ importi: true, voci: true, rate: true, documento: true });
+  const [scelte, setScelte] = useState({ importi: true, voci: true, rate: true, fasi: true, documento: true });
+  const { chiusure } = useCalendarioCantiere();
   const [salvo, setSalvo] = useState(false);
 
   /** Il contratto è letto: si legge com'è la commessa adesso e si prepara l'anteprima. */
@@ -66,22 +74,24 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
-      const [o, rate, voci] = await Promise.all([
+      const [o, rate, voci, fasiOra] = await Promise.all([
         db.from("orders").select("total_amount, vat_rate, work_start_date, work_end_date, order_type, tetto_importo, riferimento_committente, version")
           .eq("id", orderId).eq("company_id", companyId).maybeSingle(),
         db.from("order_installments").select("*").eq("order_id", orderId).order("position"),
         db.from("order_items").select("id", { count: "exact", head: true }).eq("order_id", orderId),
+        db.from("order_work_phases").select("id", { count: "exact", head: true }).eq("order_id", orderId),
       ]);
-      if (o.error || rate.error || voci.error) throw o.error ?? rate.error ?? voci.error;
+      if (o.error || rate.error || voci.error || fasiOra.error) throw o.error ?? rate.error ?? voci.error ?? fasiOra.error;
       if (!o.data) throw new Error("Commessa non trovata.");
       const commessa = o.data as Lettura["commessa"];
-      const piano = pianoContrattoSuCommessa(ex, commessa, (rate.data ?? []) as RataEsistente[]);
+      const piano = pianoContrattoSuCommessa(ex, commessa, (rate.data ?? []) as RataEsistente[], fasiOra.count ?? 0);
       const vociEsistenti = voci.count ?? 0;
       setScelte({
         importi: piano.campi.total_amount != null || piano.campi.vat_rate != null,
         // Se la commessa ha già voci, aggiungerne altre è una scelta da fare guardando.
         voci: piano.voci.length > 0 && vociEsistenti === 0,
         rate: !!piano.rateNuove,
+        fasi: piano.fasi.length > 0,
         documento: !!file && !(origine?.path?.startsWith(`${orderId}/`)),
       });
       const giaNeiDocumenti = !!origine?.path?.startsWith(`${orderId}/`);
@@ -115,6 +125,16 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         }
         if (scelte.importi && piano.campi.total_amount != null) fatti.push("importo");
         if (rate) fatti.push(`${piano.rateNuove?.length ?? 0} rate`);
+      }
+      if (scelte.fasi && piano.fasi.length > 0) {
+        // Le date: quelle della commessa, o quelle del contratto se si sono appena salvate.
+        const inizio = commessa.work_start_date ?? (typeof campi.work_start_date === "string" ? campi.work_start_date : null);
+        const fine = commessa.work_end_date ?? (typeof campi.work_end_date === "string" ? campi.work_end_date : null);
+        const pianoFasi = pianificaFasi(piano.fasi, { inizio, fine, lavorativo: calendarioCantiere({ sabato: false, chiusure }) });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errFasi = await salvaFasiDiPartenza(orderId, fasiColPiano(piano.fasi, pianoFasi), (nome, args) => (supabase as any).rpc(nome, args));
+        if (errFasi) throw new Error(`${fatti.length ? `${fatti.join(", ")} salvati, ma le fasi no` : "Fasi non create"}: ${errFasi}`);
+        fatti.push(`${piano.fasi.length} fasi`);
       }
       if (scelte.voci && piano.voci.length > 0) {
         // Come le altre pagine: la funzione controlla permesso e visibilità della commessa (un utente d'ufficio senza
@@ -242,6 +262,21 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
                   )}
                 </span>
               </label>
+
+              {p.fasi.length > 0 && (
+                <label className="flex items-start gap-2">
+                  <Checkbox checked={scelte.fasi} onCheckedChange={(v) => setScelte({ ...scelte, fasi: v === true })} aria-label="Fasi di lavoro del contratto" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">Crea {p.fasi.length} fasi di lavoro dal contratto</span>
+                    <span className="block text-muted-foreground">La commessa non ha ancora fasi. Prendono le date dall'inizio lavori, una dopo l'altra; si correggono poi nel Cantiere.</span>
+                    <ol className="mt-1 max-h-32 list-decimal overflow-y-auto rounded border py-1 pl-7 pr-2 text-xs">
+                      {p.fasi.map((f, i) => (
+                        <li key={i}>{f.nome}{f.giorni ? ` · ${f.giorni} gg` : ""}{f.sottofasi.length ? ` · ${f.sottofasi.length} sottofasi` : ""}</li>
+                      ))}
+                    </ol>
+                  </span>
+                </label>
+              )}
 
               <label className="flex items-start gap-2">
                 <Checkbox checked={scelte.documento || lettura.giaNeiDocumenti} disabled={!lettura.file || lettura.giaNeiDocumenti}

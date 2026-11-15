@@ -91,6 +91,36 @@ export function prepareContract(extract: ContractExtract, modelli: readonly Mode
   };
 }
 
+/**
+ * Le fasi di lavoro lette nel contratto (15/11/2026), nella forma delle fasi di un modello: nome, durata se
+ * il documento la dà, sottofasi a peso uguale. Nella nuova commessa sono una proposta: si correggono
+ * nell'anteprima e si possono sostituire con un modello dell'azienda.
+ */
+export function fasiDalContratto(ex: Pick<ContractExtract, "fasi_lavoro">): FaseModello[] {
+  return (ex.fasi_lavoro ?? []).map((f) => ({
+    nome: f.nome,
+    giorni: f.giorni,
+    sottofasi: f.sottofasi.map((nome) => ({ nome, peso: 1 })),
+  }));
+}
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const dataVera = (v: string | null | undefined): string | null => {
+  if (!v || !ISO.test(v)) return null;
+  const d = new Date(`${v}T12:00:00Z`);
+  return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : null;
+};
+
+/**
+ * Inizio e fine lavori scritti nel contratto (15/11/2026), solo se sono date vere. Una fine prima
+ * dell'inizio non si usa: è un errore di lettura, e la commessa nascerebbe con un piano impossibile.
+ */
+export function dateLavoriDalContratto(ex: Pick<ContractExtract, "data_inizio_lavori" | "data_fine_lavori">): { inizio: string | null; fine: string | null } {
+  const inizio = dataVera(ex.data_inizio_lavori);
+  const fine = dataVera(ex.data_fine_lavori);
+  return { inizio, fine: fine && inizio && fine < inizio ? null : fine };
+}
+
 export interface Confirmation { key: string; testo: string }
 export interface ConfirmedValues { cliente?: boolean; importo?: boolean; iva?: boolean; rate?: boolean }
 const fieldLabels: Record<string,string> = {
@@ -114,7 +144,9 @@ export function contractConfirmations(p: ContractPreparation, confermati: Confir
   if (confermati.importo === false || (confermati.importo === undefined && contractImponibile(ex) == null)) out.push({ key: "importo", testo: a?.presente ? "Confermare importo e lavorazioni spettanti all’azienda; il totale dell’appalto non è il suo ricavo" : "Confermare l’importo del lavoro" });
   if (confermati.iva === false || (confermati.iva === undefined && ex.iva_pct == null)) out.push({ key: "iva", testo: "Confermare aliquota e regime IVA: nessuna aliquota predefinita applicata" });
   if (confermati.rate === false || (confermati.rate === undefined && contractToInstallments(ex, contractImponibile(ex) ?? 0).length === 0)) out.push({ key: "rate", testo: "Confermare condizioni e piano dei pagamenti; nessuna rata o scadenza precompilata" });
-  if (!p.standardId) out.push({ key: "standard", testo: "Scegliere uno standard: nessuna corrispondenza univoca tra quelli dell’azienda" });
+  if (!p.standardId) out.push(ex.fasi_lavoro?.length
+    ? { key: "standard", testo: `Controllare le ${ex.fasi_lavoro.length} fasi di lavoro proposte dal contratto` }
+    : { key: "standard", testo: "Scegliere uno standard: nessuna corrispondenza univoca tra quelli dell’azienda" });
   if (a?.presente && a.importo_totale_appalto_eur != null) out.push({ key: "totale-appalto", testo: "Verificare il totale del raggruppamento, il ribasso e l’inclusione degli oneri di sicurezza: l’importo estratto dall’AI richiede controllo" });
   if (p.organizzazione === "interventi_su_ordine") out.push({ key: "interventi", testo: "Acquisire ordini di intervento e PED: tratti/km, quantità, date, squadre e mezzi si definiscono per ogni intervento" });
   if (!ex.data_fine_lavori || p.organizzazione === "interventi_su_ordine") out.push({ key: "date", testo: "Confermare date operative e fine lavori; la durata contrattuale non è la durata in giorni lavorativi del cantiere" });

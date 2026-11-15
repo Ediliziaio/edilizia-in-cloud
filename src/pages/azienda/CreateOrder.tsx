@@ -17,7 +17,7 @@ import { codiceNormalizzato, indirizzoCantiereDalContratto, trovaClienteDaContra
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
 import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
-import { prepareContract, contractPreparationNotes, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
+import { prepareContract, contractPreparationNotes, fasiDalContratto, dateLavoriDalContratto, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
 import { saveContractOfficeTasks } from "@/lib/orders/contractOfficeTasks";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -29,7 +29,7 @@ import { useOrderDraft, bozzaHaContenuto, type OrderDraftData } from "@/hooks/us
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { type BonusLine, serializeBonusLines } from "@/lib/orders/bonusFiscali";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useVertical } from "@/hooks/useVertical";
@@ -300,6 +300,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const standardApplicatoRef = useRef<ContractExtract | null>(null);
   const scegliModelloFasi = fasiDiPartenza.scegli;
   const [fasiPersonalizzate, setFasiPersonalizzate] = useState<FaseModello[] | null>(null);
+  // Le fasi in anteprima sono quelle lette dal contratto (15/11/2026): vale finché non si sceglie un modello.
+  const [fasiDalContrattoAttive, setFasiDalContrattoAttive] = useState(false);
   // Le fasi del modello: per una commessa nuova, e per un preventivo da cui il server non ne ricava
   // (soli materiali: senza, la commessa nascerebbe senza fasi). Finché il preventivo si legge, niente.
   const fasiDalModello = !selectedQuoteId || quotePrefill?.fasiDalServer === false;
@@ -344,6 +346,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setDraftRestored(false);
     fasiDiPartenza.scegli(null);
     setFasiPersonalizzate(null);
+    setFasiDalContrattoAttive(false);
     setDurataLavori("");
     setSettimanaLavorativa(5);
     setCantiereAddress("");
@@ -539,6 +542,20 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setValue("has_building_bonus", false);
     setValue("payment_type", "standard");
     for (const campo of ["work_start_date", "work_end_date", "expected_date", "warehouse_arrival_date"] as const) setValue(campo, undefined);
+    // Le date dei lavori scritte nel contratto (15/11/2026): prima si cancellavano anche quando c'erano.
+    const dateContratto = dateLavoriDalContratto(ex);
+    if (dateContratto.inizio) setValue("work_start_date", parseISO(dateContratto.inizio));
+    if (dateContratto.fine) setValue("work_end_date", parseISO(dateContratto.fine));
+    // Le fasi di lavoro lette nel contratto: una proposta nell'anteprima, che si corregge o si sostituisce
+    // con un modello. Solo per il lavoro singolo: i contratti su ordine hanno il loro standard (effetto sopra).
+    const fasiContratto = piano.profilo === "standard" ? fasiDalContratto(ex) : [];
+    if (fasiContratto.length) {
+      setFasiPersonalizzate(fasiContratto);
+      setFasiDalContrattoAttive(true);
+    } else if (fasiDalContrattoAttive) {
+      setFasiPersonalizzate(null);
+      setFasiDalContrattoAttive(false);
+    }
     setDurataLavori("");
     setOrderItems([]);
     const verifica = statuses.find(s => /da verificare|da confermare|bozza/i.test(s.name));
@@ -745,6 +762,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     lastCantiereCustomerRef.current = null;
     scegliModelloFasi(null);
     setFasiPersonalizzate(null);
+    setFasiDalContrattoAttive(false);
     setDurataLavori("");
     setSettimanaLavorativa(5);
     setBonusLines([]);
@@ -1993,8 +2011,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           />
           {/* Fasi di lavoro: facoltative, di partenza quelle scelte dall'azienda nelle Impostazioni. */}
           {fasiDalModello && <div className="min-w-0 border-t border-slate-100 pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-            <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); }} /></div>
-            <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => setFasiPersonalizzate(null)} piano={pianoFasi} />
+            <div className="max-w-md"><FasiDiPartenzaSelect offerti={fasiDiPartenza.offerti} valore={fasiDiPartenza.scelta} onChange={(id) => { fasiDiPartenza.scegli(id); setFasiPersonalizzate(null); setFasiDalContrattoAttive(false); }} /></div>
+            <AnteprimaFasiCommessa modello={fasiDiPartenza.modello} fasi={fasiDaCreare} personalizzate={fasiPersonalizzate !== null} onChange={setFasiPersonalizzate} onRipristina={() => { setFasiPersonalizzate(null); setFasiDalContrattoAttive(false); }} piano={pianoFasi} dalContratto={fasiDalContrattoAttive && fasiPersonalizzate !== null} />
           </div>}
           </div>
         </QuoteCard>

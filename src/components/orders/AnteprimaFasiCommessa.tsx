@@ -14,6 +14,8 @@ interface Props {
   onRipristina: () => void;
   /** Le date calcolate dalle date dei lavori (07/11/2026); senza, il riquadro mostra solo i nomi. */
   piano?: PianoFasi;
+  /** Le fasi vengono dal contratto letto con l'AI (15/11/2026): sono una proposta da controllare. */
+  dalContratto?: boolean;
 }
 
 const breve = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
@@ -32,7 +34,7 @@ function DateFase({ r }: { r: FasePianificata | undefined }) {
   );
 }
 
-export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange, onRipristina, piano }: Props) {
+export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange, onRipristina, piano, dalContratto = false }: Props) {
   const [modifica, setModifica] = useState(false);
   const [tutte, setTutte] = useState(false);
   const sottofasi = fasi.reduce((n, f) => n + f.sottofasi.length, 0);
@@ -50,6 +52,7 @@ export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange,
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-slate-800">
           <ListOrdered className="h-4 w-4 text-orange-500" />{fasi.length} {fasi.length === 1 ? "fase" : "fasi"}{sottofasi > 0 ? ` · ${sottofasi} ${sottofasi === 1 ? "sottofase" : "sottofasi"}` : ""}
+          {dalContratto && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-normal text-amber-900">dal contratto, da controllare</span>}
           {primo && ultimo && <span className="inline-flex items-center gap-1 text-xs font-normal text-slate-600"><CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />dal {breve(primo)} al {breve(ultimo)}</span>}
         </span>
         <Button type="button" variant="outline" size="sm" className="h-8 bg-white text-xs" aria-expanded={modifica} onClick={() => setModifica(!modifica)}>{modifica ? "Fine modifica" : "Adatta alla commessa"}</Button>
@@ -87,7 +90,7 @@ export function AnteprimaFasiCommessa({ modello, fasi, personalizzate, onChange,
       </div>}
       {/* Una riga sola, e solo con delle fasi: senza fasi non c'è niente da spiegare (14/11/2026). */}
       {fasi.length > 0 && (personalizzate || piano) && <p className={cn("border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500")}>
-        {personalizzate ? "Modifiche solo per questa commessa. " : ""}
+        {dalContratto ? "Lette dal contratto: controllale con «Adatta alla commessa» o scegli un modello. " : personalizzate ? "Modifiche solo per questa commessa. " : ""}
         {piano && !primo ? "Con l'inizio dei lavori le fasi prendono le date, una dopo l'altra." : piano ? "Le fasi partono una dopo l'altra sui giorni di lavoro." : ""}
       </p>}
     </div>

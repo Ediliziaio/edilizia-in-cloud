@@ -11,12 +11,15 @@
  *    resto: le prime rate del contratto si considerano già coperte da quelle tenute, nell'ordine, e una rata
  *    coperta a metà scende della parte già coperta;
  *  - le date dei lavori solo se la commessa non le ha;
+ *  - le fasi di lavoro del contratto solo se la commessa non ne ha ancora (15/11/2026);
  *  - per il committente, tetto e riferimento del contratto se il documento li dà.
  */
 import type { Installment } from "@/lib/orderUtils";
 import {
   contractImponibile, contractNeedsAllocation, contractToInstallments, deriveIvaPct, type ContractExtract,
 } from "@/lib/orders/contractExtract";
+import { dateLavoriDalContratto, fasiDalContratto } from "@/lib/orders/contractPreparation";
+import type { FaseModello } from "@/lib/orders/modelliFasi";
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -55,6 +58,8 @@ export interface PianoContrattoSuCommessa {
   rateTenute: RataEsistente[];
   /** Rate che oggi ci sono e che il piano del contratto sostituisce. */
   rateSostituite: RataEsistente[];
+  /** Le fasi di lavoro del contratto da creare: vuote se la commessa ne ha già. */
+  fasi: FaseModello[];
   avvisi: string[];
 }
 
@@ -85,6 +90,7 @@ export function pianoContrattoSuCommessa(
   ex: ContractExtract,
   commessa: CommessaPerContratto,
   rateEsistenti: readonly RataEsistente[],
+  fasiEsistenti = 0,
 ): PianoContrattoSuCommessa {
   const avvisi: string[] = [];
   const campi: Record<string, string | number | null> = {};
@@ -97,8 +103,17 @@ export function pianoContrattoSuCommessa(
   if (iva != null && !ripartire) campi.vat_rate = iva;
   if (ex.valuta && ex.valuta !== "EUR") avvisi.push(`Il documento è in ${ex.valuta}: controlla gli importi prima di applicarli.`);
 
-  if (!commessa.work_start_date && ex.data_inizio_lavori) campi.work_start_date = ex.data_inizio_lavori;
-  if (!commessa.work_end_date && ex.data_fine_lavori) campi.work_end_date = ex.data_fine_lavori;
+  // Solo date vere, e mai una fine prima dell'inizio (quello della commessa, se c'è già).
+  const date = dateLavoriDalContratto(ex);
+  if (!commessa.work_start_date && date.inizio) campi.work_start_date = date.inizio;
+  const inizio = commessa.work_start_date ?? date.inizio;
+  if (!commessa.work_end_date && date.fine && !(inizio && date.fine < inizio)) campi.work_end_date = date.fine;
+
+  const fasiContratto = fasiDalContratto(ex);
+  const fasi = fasiEsistenti > 0 ? [] : fasiContratto;
+  if (fasiEsistenti > 0 && fasiContratto.length > 0) {
+    avvisi.push(`La commessa ha già ${fasiEsistenti === 1 ? "una fase" : `${fasiEsistenti} fasi`}: le ${fasiContratto.length} del contratto non si aggiungono.`);
+  }
   if (commessa.order_type === "appaltatore_lavoro" && ex.dati_appalto) {
     if (ex.dati_appalto.tetto_eur != null && ex.dati_appalto.tetto_eur > 0) campi.tetto_importo = round2(ex.dati_appalto.tetto_eur);
     if ((ex.dati_appalto.riferimento ?? "").trim() && !(commessa.riferimento_committente ?? "").trim()) {
@@ -144,6 +159,7 @@ export function pianoContrattoSuCommessa(
   return {
     campi, imponibile, iva, voci, rateNuove, rateTenute,
     rateSostituite: rateNuove ? rateLibere : [],
+    fasi,
     avvisi,
   };
 }
