@@ -263,8 +263,9 @@ applicate e riallineate.
   importate restano manuali per il write-back verso il gestionale esterno) e `giroconto` (chiude
   le due gambe come «nessun costo»). Passa dalle funzioni di sempre (`bank_conferma_ripartizione`
   → `riconcilia_movimento_su_documenti`, `chiudi_movimento_senza_fattura`).
-- **Demo Azienda 2**: interruttore comune spento; non ha un titolare indicato, quindi anche
-  accendendolo il cron si fermerebbe e le conferme partirebbero solo da chi apre la tesoreria.
+- **Demo Azienda 2**: interruttore comune **acceso** il 15/11/2026 su richiesta del titolare
+  (vale anche per gli acquisti). Non ha un titolare indicato: il cron risponde «fermata» e le
+  conferme partono quando qualcuno con il permesso apre la tesoreria.
 - **Prova fatta su Demo Azienda 2**: bonifico simulato di 3.105,60 € «saldo fattura FT-2026-30204»
   sul conto «DEMO · 2026 · Conto simulato» → esito `automatico` → confermato: fattura pagata, una
   riga di prima nota, nessun costo creato, movimento riconciliato; secondo giro senza conferme.
