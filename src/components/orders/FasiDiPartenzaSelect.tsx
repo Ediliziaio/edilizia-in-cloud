@@ -15,13 +15,23 @@ interface Props {
   dalContratto?: boolean;
 }
 
+/**
+ * Cosa vuol dire un cambio della tendina: l'id del modello, "" per «Nessuna», null per niente da fare.
+ * Il valore vuoto non è una scelta: Radix lo manda da solo quando il valore passa a una voce appena comparsa
+ * («Dal contratto letto»), e trattarlo come «Nessuna» cancellava le fasi del contratto (collaudo del 15/11).
+ */
+export function sceltaFasiDiPartenza(v: string): string | null {
+  if (!v || v === CONTRATTO) return null;
+  return v === NESSUNA ? "" : v;
+}
+
 /** Nel modulo di nuova commessa: con quali fasi parte. Una riga, facoltativa. */
 export function FasiDiPartenzaSelect({ offerti, valore, onChange, dalContratto = false }: Props) {
   if (offerti.length === 0) return null;
   return (
     <div className="space-y-2">
       <Label htmlFor="fasi-di-partenza">Fasi di lavoro</Label>
-      <Select value={dalContratto ? CONTRATTO : valore || NESSUNA} onValueChange={(v) => { if (v !== CONTRATTO) onChange(v === NESSUNA ? "" : v); }}>
+      <Select value={dalContratto ? CONTRATTO : valore || NESSUNA} onValueChange={(v) => { const scelta = sceltaFasiDiPartenza(v); if (scelta !== null) onChange(scelta); }}>
         <SelectTrigger id="fasi-di-partenza" aria-label="Fasi di lavoro">
           <SelectValue />
         </SelectTrigger>
