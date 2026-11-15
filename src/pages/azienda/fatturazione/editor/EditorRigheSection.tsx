@@ -187,14 +187,16 @@ function SortableRowImpl({
                 {nome.trim() || "Articolo senza nome"}
               </span>
               <span className="block truncate text-[11px] text-muted-foreground">
+                {/* Al telefono l'importo sta sotto il nome: in colonna il nome restava di tre lettere. */}
+                <span className="font-semibold tabular-nums text-foreground sm:hidden">{formatCurrency(riga.imponibile ?? riga.totale_riga)} · </span>
                 {riga.codice_articolo ? `${riga.codice_articolo} · ` : ""}{dettaglio || "Nessuna descrizione"}
               </span>
             </span>
             <span className="hidden shrink-0 text-xs tabular-nums text-muted-foreground sm:block">
               {riga.quantita} {riga.unita_misura} × {formatCurrency(riga.prezzo_unitario)}
             </span>
-            <span className="w-14 shrink-0 text-right text-xs text-muted-foreground">{ivaDisplayLabel(riga)} IVA</span>
-            <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">{formatCurrency(riga.imponibile ?? riga.totale_riga)}</span>
+            <span className="hidden w-14 shrink-0 text-right text-xs text-muted-foreground sm:block">{ivaDisplayLabel(riga)} IVA</span>
+            <span className="hidden w-24 shrink-0 text-right text-sm font-semibold tabular-nums sm:block">{formatCurrency(riga.imponibile ?? riga.totale_riga)}</span>
           </button>
           {!disabled && (
             <div className="flex shrink-0 items-center">
@@ -757,17 +759,9 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
       </div>
 
       {righe.length === 0 ? (
-        <div className="border-2 border-dashed border-muted-foreground/20 rounded-lg py-8 text-center bg-muted/20">
-          <p className="text-sm text-muted-foreground mb-3">Aggiungi il primo articolo o prestazione</p>
-          {!disabled && (
-            <div className="flex gap-2 justify-center">
-              <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
-                <Plus className="h-3 w-3 mr-1" />
-                Aggiungi voce
-              </Button>
-            </div>
-          )}
-        </div>
+        <p className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Nessuna voce: aggiungi il primo articolo o prestazione{disabled ? "" : " qui sotto, o prendilo «Da catalogo»"}.
+        </p>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           {/* No grid header needed — each row is self-labelled */}
@@ -803,7 +797,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
           <div className="flex gap-2 flex-wrap items-center">
             <Button variant="default" size="sm" className="text-xs h-7" onClick={addBlankRow}>
               <Plus className="h-3 w-3 mr-1" />
-              Aggiungi nuova voce
+              Aggiungi voce
             </Button>
             <Button variant="outline" size="sm" className="text-xs h-7" onClick={addDescriptiveRow}>
               + Riga descrittiva
@@ -836,7 +830,7 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
               {state.bollo_virtuale ? "✓ Bollo a carico del cliente" : "+ Bollo a carico del cliente"}
             </Button>
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-wrap gap-3 items-center">
             {/* UX-04: Checkbox prezzi lordi */}
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <input

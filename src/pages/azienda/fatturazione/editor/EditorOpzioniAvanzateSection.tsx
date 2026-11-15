@@ -43,9 +43,10 @@ export function EditorOpzioniAvanzateSection({ state, dispatch, disabled }: Prop
       dispatch({ type: "SET_FIELD", field: "bollo_virtuale", value: false });
     }
   }, [disabled, tipoConBollo, azienda, bolloDovuto, state.bollo_virtuale, dispatch]);
-  const hasAdvancedActive = (state.bollo_virtuale ?? false)
+  // Booleano vero: con arrotondamento 0 l'espressione valeva 0 e React scriveva «0» accanto al titolo.
+  const hasAdvancedActive = !!(state.bollo_virtuale
     || (state.sconto_globale_percentuale && state.sconto_globale_percentuale > 0)
-    || (state.arrotondamento && state.arrotondamento !== 0);
+    || (state.arrotondamento && state.arrotondamento !== 0));
 
   return (
     <div className="rounded-lg border bg-card shadow-sm overflow-hidden">

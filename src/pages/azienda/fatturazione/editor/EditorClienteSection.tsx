@@ -47,13 +47,20 @@ function avatarColor(name: string): string {
 }
 
 const TIPO_BADGE: Record<string, { label: string; className: string }> = {
-  B2B: { label: "B2B", className: "bg-primary/10 text-primary" },
-  B2C: { label: "B2C", className: "bg-muted text-muted-foreground" },
+  B2B: { label: "Azienda", className: "bg-primary/10 text-primary" },
+  B2C: { label: "Privato", className: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
   PA: { label: "PA", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   Estero: { label: "Estero", className: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
 };
 
 type NewClientForm = NuovoClienteForm;
+
+/** Il tipo da mostrare: chi ha la nazione fuori dall'Italia è «Estero» anche se scritto come azienda. */
+function tipoMostrato(s: ClienteSnapshot): keyof typeof TIPO_BADGE {
+  if (s.tipo_cliente === "PA") return "PA";
+  if (s.tipo_cliente === "Estero" || (s.indirizzo_nazione && s.indirizzo_nazione.toUpperCase() !== "IT")) return "Estero";
+  return s.tipo_cliente === "B2C" ? "B2C" : "B2B";
+}
 
 const CAMPI_INDIRIZZO_CLIENTE = {
   via: "indirizzo_via", cap: "indirizzo_cap", citta: "indirizzo_comune", provincia: "indirizzo_provincia",
@@ -252,9 +259,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
   const problemiNuovo = showNewForm ? problemiNuovoCliente(newForm) : [];
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-primary/60 shadow-sm">
-      <div className="flex items-center justify-between">
-        <Label className="text-[11px] font-bold uppercase tracking-wider text-primary/80">
+    <div className="rounded-lg border bg-card p-3 space-y-2 border-l-[3px] border-l-primary/60 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <Label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-primary/80">
           {state.tipo === "reverse_charge_interno"
             ? "Fornitore"
             : ["integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"].includes(state.tipo)
@@ -262,22 +269,30 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
             : "Cliente / Committente"}
         </Label>
         {hasCliente && !disabled && (
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             {state.anagrafica_id && snapshot && (
-              <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={passaAManuale}>
-                <Pencil className="h-2.5 w-2.5 mr-0.5" />
+              <Button variant="ghost" size="sm" className="h-6 text-[11px] px-1.5 text-muted-foreground" onClick={passaAManuale}>
                 Inserisci a mano
               </Button>
             )}
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-5 text-[10px] px-1.5"
+              className="h-6 text-[11px] px-2"
+              onClick={() => { setDetailsOpen(true); setEditingSnapshot(true); }}
+            >
+              <Pencil className="h-3 w-3 mr-1" />
+              Modifica
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[11px] px-2"
               onClick={() => {
                 const tolti = riferimentiDelCliente(state);
                 if (tolti.length > 0) {
                   toast.info(`Tolti dalla fattura i dati del cliente precedente: ${tolti.join(", ")}`, {
-                    description: "Appartengono all'appalto di quel cliente. Se servono anche per il nuovo, riscrivili nella sezione Fatturazione elettronica.",
+                    description: "Appartengono all'appalto di quel cliente. Se servono anche per il nuovo, riscrivili nella sezione Commessa e riferimenti PA.",
                   });
                 }
                 dispatch({ type: "CLEAR_CLIENTE" });
@@ -285,7 +300,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                 setEditingSnapshot(false);
               }}
             >
-              <X className="h-2.5 w-2.5 mr-0.5" />
+              <X className="h-3 w-3 mr-1" />
               Cambia
             </Button>
           </div>
@@ -294,29 +309,43 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
 
       {hasCliente ? (
         <div>
-          {/* ─── Compact Client Card ─── */}
-          <div className="flex items-center gap-2.5">
-            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(nomeCliente(snapshot) || "?")}`}>
-              {getInitials(nomeCliente(snapshot) || "?")}
-            </div>
+          {/* ─── Scheda compatta: il tipo in evidenza e i dati che servono per fatturare ─── */}
+          <div className="flex items-start gap-2.5">
+            {(() => {
+              const t = tipoMostrato(snapshot!);
+              return (
+                <Badge variant="secondary" className={`mt-0.5 h-5 shrink-0 px-2 text-[10px] font-semibold ${TIPO_BADGE[t].className}`} data-testid="tipo-cliente">
+                  {TIPO_BADGE[t].label}
+                </Badge>
+              );
+            })()}
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-sm leading-tight truncate">
                 {nomeCliente(snapshot) || <span className="text-amber-600">Cliente senza nome</span>}
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {snapshot!.partita_iva && (
-                  <span className="text-[10px] font-mono text-muted-foreground">P.IVA {snapshot!.partita_iva}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                {snapshot!.partita_iva ? (
+                  <span><span className="text-muted-foreground/70">P.IVA</span> <span className="font-mono text-foreground">{snapshot!.partita_iva}</span></span>
+                ) : snapshot!.codice_fiscale ? (
+                  <span><span className="text-muted-foreground/70">CF</span> <span className="font-mono uppercase text-foreground">{snapshot!.codice_fiscale}</span></span>
+                ) : (
+                  <span className="text-amber-600">P.IVA o CF mancante</span>
                 )}
-                {snapshot!.codice_fiscale && !snapshot!.partita_iva && (
-                  <span className="text-[10px] font-mono text-muted-foreground">CF {snapshot!.codice_fiscale}</span>
-                )}
+                {snapshot!.tipo_cliente === "PA" ? (
+                  snapshot!.ufficio_pa ? (
+                    <span title={snapshot!.ufficio_pa.descrizione ?? undefined}><span className="text-muted-foreground/70">Ufficio</span> <span className="font-mono text-foreground">{snapshot!.ufficio_pa.codice}</span>{snapshot!.ufficio_pa.descrizione ? ` · ${snapshot!.ufficio_pa.descrizione}` : ""}</span>
+                  ) : snapshot!.codice_sdi ? (
+                    <span><span className="text-muted-foreground/70">Ufficio</span> <span className="font-mono text-foreground">{snapshot!.codice_sdi}</span></span>
+                  ) : (
+                    <span className="text-amber-600">Codice ufficio mancante</span>
+                  )
+                ) : snapshot!.codice_sdi ? (
+                  <span><span className="text-muted-foreground/70">Cod. destinatario</span> <span className="font-mono text-foreground">{snapshot!.codice_sdi}</span></span>
+                ) : null}
+                {snapshot!.pec && <span className="min-w-0 truncate"><span className="text-muted-foreground/70">PEC</span> <span className="text-foreground">{snapshot!.pec}</span></span>}
+                {state.esigibilita_iva === "S" && <span className="rounded bg-blue-50 px-1 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">Split payment</span>}
               </div>
             </div>
-            {snapshot!.tipo_cliente && (
-              <Badge variant="secondary" className={`text-[9px] px-1.5 h-4 shrink-0 ${TIPO_BADGE[snapshot!.tipo_cliente]?.className ?? ""}`}>
-                {TIPO_BADGE[snapshot!.tipo_cliente]?.label ?? snapshot!.tipo_cliente}
-              </Badge>
-            )}
           </div>
 
           {/* Cosa manca per poter fatturare a questo cliente. */}
@@ -335,9 +364,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
           {/* ─── Expandable Full Detail Panel ─── */}
           <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
             <CollapsibleTrigger asChild>
-              <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground mt-2 w-full justify-center transition-colors py-1 rounded hover:bg-muted/50">
+              <button className="mt-1 flex items-center gap-1 rounded px-1 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
                 <ChevronDown className={`h-2.5 w-2.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
-                {detailsOpen ? "Chiudi dettagli" : "Mostra dettagli cliente"}
+                {detailsOpen ? "Chiudi dettagli" : "Indirizzo e dettagli"}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2 space-y-3 animate-in fade-in-50">
@@ -517,26 +546,47 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
             </CollapsibleContent>
           </Collapsible>
 
-          {/* CIG, CUP, contratto e ufficio: sezione «Commessa e riferimenti PA» (lotto 4). */}
-          {snapshot?.tipo_cliente === "PA" && (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Ufficio destinatario, CIG, CUP e contratto: nella sezione <a href="#ed-riferimenti-pa" className="underline">Commessa e riferimenti PA</a>.
-            </p>
-          )}
         </div>
       ) : (
         !disabled && (
           <div className="relative space-y-2">
-            {/* Search input */}
-            <div className="relative">
-              <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Cerca cliente per nome, P.IVA o CF..."
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setIsOpen(true); }}
-                onFocus={() => setIsOpen(true)}
-                className="pl-7 h-8 text-xs"
-              />
+            {/* Una riga: cerca, oppure crea un cliente nuovo o occasionale. */}
+            <div className="flex flex-col gap-1.5 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca cliente per nome, P.IVA o CF..."
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setIsOpen(true); }}
+                  onFocus={() => setIsOpen(true)}
+                  className="pl-7 h-9 text-sm"
+                />
+              </div>
+              {!showNewForm && (
+                <div className="flex gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 flex-1 px-3 text-xs sm:flex-none"
+                    onClick={() => { setShowNewForm(true); setIsOpen(false); }}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Nuovo cliente
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 flex-1 px-3 text-xs sm:flex-none"
+                    onClick={() => {
+                      setNomeOccasionale("");
+                      setOccasionaleOpen(true);
+                      setIsOpen(false);
+                    }}
+                  >
+                    Occasionale
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Dropdown list */}
@@ -580,7 +630,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               </div>
             )}
 
-            {/* New client form or quick buttons */}
+            {/* Nuovo cliente */}
             {showNewForm ? (
               <div className="border rounded-md p-3 space-y-3 bg-muted/30 animate-in fade-in-50 slide-in-from-top-2">
                 <Tabs value={newClientTab} onValueChange={(v) => {
@@ -715,30 +765,7 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                   </Button>
                 </div>
               </div>
-            ) : (
-              <div className="flex gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-[10px] h-6 px-2 flex-1"
-                  onClick={() => setShowNewForm(true)}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Nuovo cliente
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-[10px] h-6 px-2 flex-1"
-                  onClick={() => {
-                    setNomeOccasionale("");
-                    setOccasionaleOpen(true);
-                  }}
-                >
-                  Occasionale
-                </Button>
-              </div>
-            )}
+            ) : null}
           </div>
         )
       )}

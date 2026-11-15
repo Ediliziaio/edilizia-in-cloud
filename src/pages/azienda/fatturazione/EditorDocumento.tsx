@@ -49,7 +49,7 @@ import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
 import { EditorDDTOpzioniCard } from "./editor/EditorDDTOpzioniCard";
 import { EditorDDTModelloCard } from "./editor/EditorDDTModelloCard";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
-import { EditorCommessaRiferimentiSection } from "./editor/EditorCommessaRiferimentiSection";
+import { APRI_RIFERIMENTI_PA, EditorCommessaRiferimentiSection } from "./editor/EditorCommessaRiferimentiSection";
 import { useContestoControlliPa } from "@/hooks/useContestoControlliPa";
 import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazioneElettronicaSection";
 import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
@@ -403,15 +403,25 @@ function EditorDelDocumento() {
     [state, contestoPa]
   );
   const criticalErrorCount = validationErrors.filter((e) => e.severity === "error").length;
+  // Mentre si compila le mancanze sono «da completare», in grigio; diventano rosse solo
+  // dopo aver premuto «Emetti». Il blocco resta lo stesso: con errori non si emette.
+  const [tentatoEmissione, setTentatoEmissione] = useState(false);
+  const vaiAlRiepilogo = useCallback(() => {
+    const el = document.getElementById("ed-totali");
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
 
   const vaiAlCampo = useCallback((campo: string) => {
     const sezione = campo.startsWith("righe") ? "ed-righe"
-      : campo === "cliente" ? "ed-cliente"
-      : campo === "scadenze" ? "ed-pagamento"
+      : campo === "cliente" || campo === "codice_sdi" ? "ed-cliente"
+      : campo === "scadenze" || campo === "scadenze_pagamento" ? "ed-pagamento"
       : campo === "sconto_globale" ? "ed-totali"
-      : ["cig", "esigibilita_iva", "bollo_virtuale"].includes(campo) ? "ed-fe"
+      : ["cig", "cup", "riferimenti_pa"].includes(campo) ? "ed-riferimenti-pa"
+      : ["esigibilita_iva", "bollo_virtuale"].includes(campo) ? "ed-fe"
+      : /^(cassa|ritenuta|rivalsa)/.test(campo) ? "ed-contributi"
       : "ed-dati";
     if (sezione === "ed-fe") window.dispatchEvent(new Event(APRI_FATTURAZIONE_ELETTRONICA));
+    if (sezione === "ed-riferimenti-pa") window.dispatchEvent(new Event(APRI_RIFERIMENTI_PA));
     const el = document.getElementById(sezione);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -419,13 +429,14 @@ function EditorDelDocumento() {
     window.setTimeout(() => el.classList.remove("ring-2", "ring-destructive/50", "rounded-lg"), 1800);
   }, []);
 
-  // Il foglio accanto al modulo, sugli schermi che ne hanno lo spazio. La scelta si ricorda.
+  // Il foglio accanto al modulo, sugli schermi che ne hanno lo spazio (da 1500px). La scelta
+  // si ricorda per chi la fa.
   const [anteprimaAccanto, setAnteprimaAccanto] = useState(() => {
     try {
       const salvata = localStorage.getItem("editor-fattura-anteprima");
       if (salvata !== null) return salvata === "1";
     } catch { /* senza memoria si usa la larghezza */ }
-    return typeof window !== "undefined" && window.innerWidth >= 1536;
+    return typeof window !== "undefined" && window.innerWidth >= 1500;
   });
   const cambiaAnteprima = useCallback(() => {
     setAnteprimaAccanto((prima) => {
@@ -481,8 +492,13 @@ function EditorDelDocumento() {
         }}
         onFieldChange={(field, value) => dispatch({ type: "SET_FIELD", field, value })}
         validationErrorCount={criticalErrorCount}
-        validationErrors={validationErrors}
-        onVaiAlCampo={vaiAlCampo}
+        erroriInEvidenza={tentatoEmissione}
+        onVaiAlRiepilogo={vaiAlRiepilogo}
+        onEmissioneBloccata={() => {
+          setTentatoEmissione(true);
+          vaiAlRiepilogo();
+          toast.error(criticalErrorCount === 1 ? "Manca ancora un dato per emettere" : `Mancano ancora ${criticalErrorCount} dati per emettere`, { description: "Li trovi nel riepilogo: un clic porta al campo." });
+        }}
         onPreview={() => setPreviewOpen(true)}
         onBack={handleBack}
         onInviaSDI={handleInviaSDI}
@@ -501,10 +517,10 @@ function EditorDelDocumento() {
       <div className="flex-1 overflow-auto bg-gradient-to-b from-muted/40 to-muted/20">
         <div className={anteprimaAccanto ? "mx-auto flex max-w-[1800px] items-start gap-4 px-4 sm:px-6" : undefined}>
         <div className={anteprimaAccanto ? "min-w-0 flex-1 py-6 space-y-5 pb-24" : "max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5 pb-24"}>
-          <div className="hidden justify-end xl:flex">
+          <div className="-mb-3 hidden justify-end xl:flex">
             <button type="button" onClick={cambiaAnteprima} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
               <PanelRight className="h-3.5 w-3.5" />
-              {anteprimaAccanto ? "Nascondi anteprima" : "Anteprima a lato"}
+              {anteprimaAccanto ? "Nascondi anteprima" : "Mostra anteprima"}
             </button>
           </div>
 
@@ -583,31 +599,23 @@ function EditorDelDocumento() {
               {(state.ordine_id || searchParams.get("ordine_link")) && (
                 <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
+                <div id="ed-righe" className="min-w-0"><EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+                <div id="ed-totali"><EditorTotaliSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+              </div>
             </>
           ) : (
+            // L'ordine segue il lavoro (15/11/2026): chi è il cliente, a quale commessa si
+            // riferisce, cosa si fattura, come si paga e quanto fa, poi note e allegati.
+            // Il resto (dati del documento a parte, impostazioni XML, contributi, opzioni,
+            // personalizzazione) resta a portata di mano, chiuso.
             <>
-              {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
-              <div className={`grid grid-cols-1 gap-4 ${anteprimaAccanto ? "2xl:grid-cols-2" : "lg:grid-cols-[1fr_1fr_280px]"}`}>
-                {/* LEFT: Cliente */}
-                <div id="ed-cliente" className="h-full [&>*]:h-full">
+              <div className={`grid grid-cols-1 gap-4 ${anteprimaAccanto ? "2xl:grid-cols-[1fr_300px]" : "lg:grid-cols-[1fr_300px]"}`}>
+                <div id="ed-cliente" className="min-w-0">
                   <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
                 </div>
-
-                {/* CENTER: Dati documento + Fatturazione Elettronica + Contributi e Ritenute */}
-                <div className="space-y-4">
-                  <div id="ed-dati"><EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} /></div>
-                  {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
-                    <div id="ed-fe"><EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-                  )}
-                  <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!modificabile} />
-                </div>
-
-                {/* RIGHT: Pagamento + Opzioni avanzate + Personalizzazione */}
-                <div className="space-y-4">
-                  <div id="ed-pagamento"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-                  <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!modificabile} />
-                  <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!modificabile} />
-                </div>
+                <div id="ed-dati"><EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} /></div>
               </div>
 
               {/* Commessa e riferimenti PA (fatture e note); per preventivi e proforma il solo collegamento. */}
@@ -616,37 +624,59 @@ function EditorDelDocumento() {
               ) : (state.ordine_id || searchParams.get("ordine_link")) && (
                 <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
+
+              <div id="ed-righe" className="min-w-0"><EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+
+              {/* Pagamento e riepilogo affiancati, sotto le righe. */}
+              <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+                <div id="ed-pagamento" className="min-w-0"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+                <div id="ed-totali" className="min-w-0">
+                  <EditorTotaliSection
+                    state={state}
+                    dispatch={dispatch}
+                    disabled={!modificabile}
+                    errori={validationErrors}
+                    errorePieno={tentatoEmissione || !isBozza}
+                    onVaiAlCampo={vaiAlCampo}
+                  />
+                </div>
+              </div>
             </>
           )}
 
-          {/* ═══ RIGHE + RIEPILOGO ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
-            <div id="ed-righe" className="min-w-0"><EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-            <div id="ed-totali"><EditorTotaliSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-          </div>
-
-          {/* ═══ NOTE ═══ */}
-          <EditorNoteSection state={state} dispatch={dispatch} disabled={!modificabile} />
-
-          {/* Allegati: stessi del dettaglio, ora anche mentre si prepara il documento.
-              Servono l'id, quindi la bozza già salvata (il salvataggio è automatico). */}
-          <div className="rounded-xl border bg-card p-4">
+          {/* ═══ NOTE E ALLEGATI ═══ */}
+          <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+            <EditorNoteSection state={state} dispatch={dispatch} disabled={!modificabile} />
+            {/* Allegati: stessi del dettaglio, ora anche mentre si prepara il documento.
+                Servono l'id, quindi la bozza già salvata (il salvataggio è automatico). */}
             {state.id ? (
               <AllegatiFattura
                 companyId={aziendaAllegati}
                 madre={{ documentoFiscaleId: state.id }}
                 invioSdi={modificabile && TIPI_SDI.includes(state.tipo) && !["preventivo", "proforma"].includes(state.tipo)}
                 sola_lettura={!modificabile}
+                compattaSeVuota
               />
             ) : (
               <p className="text-xs text-muted-foreground">Allegati: si possono aggiungere appena la bozza è salvata.</p>
             )}
           </div>
+
+          {state.tipo !== "ddt" && (
+            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+              {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
+                <div id="ed-fe"><EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+              )}
+              <div id="ed-contributi"><EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+              <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!modificabile} />
+              <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!modificabile} />
+            </div>
+          )}
         </div>
         {anteprimaAccanto && (
-          <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[460px] shrink-0 justify-center overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
+          <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[380px] shrink-0 justify-center overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
             <div className="shrink-0">
-              <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.55} />
+              <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.45} />
             </div>
           </aside>
         )}

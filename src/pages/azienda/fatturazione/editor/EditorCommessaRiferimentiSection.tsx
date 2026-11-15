@@ -42,6 +42,9 @@ interface Props {
   disabled?: boolean;
 }
 
+/** Evento che apre la sezione (dal riepilogo: «manca il CIG» porta qui). */
+export const APRI_RIFERIMENTI_PA = "editor-apri-riferimenti-pa";
+
 interface CommessaBreve { id: string; order_code: string | null; description: string | null; customer_id: string | null }
 
 const ETICHETTA_CAMPO: Record<string, string> = {
@@ -223,6 +226,15 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordineLink, companyId, disabled, state.ordine_id]);
 
+  // Si vede per intero quando serve: cliente PA, fattura su una commessa, riferimenti già
+  // scritti. Altrimenti resta un pulsante: chi fattura a un privato non deve scorrerla.
+  const [aperta, setAperta] = useState(false);
+  useEffect(() => {
+    const apri = () => setAperta(true);
+    window.addEventListener(APRI_RIFERIMENTI_PA, apri);
+    return () => window.removeEventListener(APRI_RIFERIMENTI_PA, apri);
+  }, []);
+
   const legacy = !riferimenti.length && (state.cig || state.cup || state.codice_commessa_convenzione || (Array.isArray(state.riferimenti_ordine) && state.riferimenti_ordine.length > 0));
   function convertiLegacy() {
     const ordini = (Array.isArray(state.riferimenti_ordine) ? state.riferimenti_ordine : []) as Array<Record<string, unknown>>;
@@ -261,8 +273,17 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
 
   if (!fatturaId) return null;
 
+  const serve = isPA || !!state.ordine_id || idsCommesse.length > 0 || riferimenti.length > 0 || !!legacy || !!ordineLink;
+  const compatta = !serve && !aperta;
+  if (compatta && disabled) return null;
+
   return (
-    <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm" id="ed-riferimenti-pa" data-testid="sezione-commessa-riferimenti">
+    <div className={compatta ? "" : "space-y-3 rounded-lg border bg-card p-4 shadow-sm"} id="ed-riferimenti-pa" data-testid="sezione-commessa-riferimenti">
+      {compatta ? (
+        <Button type="button" variant="outline" size="sm" className="h-8 border-dashed text-xs text-muted-foreground" onClick={() => setAperta(true)}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Collega commessa / riferimenti
+        </Button>
+      ) : (<>
       <div className="flex flex-wrap items-center gap-2">
         <FileSignature className="h-4 w-4 text-blue-500" />
         <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-400/80">Commessa e riferimenti PA</span>
@@ -350,6 +371,7 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
         disabled={disabled}
         vuoto={state.ordine_id ? "La commessa non ha riferimenti PA. Aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa, poi «Aggiorna dalla commessa»." : undefined}
       />
+      </>)}
 
       {/* Conflitti al collegamento */}
       <Dialog open={!!conflitti} onOpenChange={(o) => !o && setConflitti(null)}>

@@ -9,9 +9,10 @@ afterEach(cleanup);
 describe("La data della bozza non si confonde con quella definitiva",()=>{
   it("indica la data automatica e non offre un calendario che verrebbe ignorato",()=>{
     const dispatch=vi.fn();render(<EditorDatiDocumento state={state()} dispatch={dispatch}/>);
-    expect(screen.getByRole("button",{name:"All'emissione"})).toBeDisabled();
-    expect(screen.getByText(/non riserva numeri/)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("All'emissione")).toHaveAttribute("readonly");
+    // Una riga sola (15/11/2026): niente calendario disattivato né numero finto da leggere.
+    expect(screen.getByText("Data e numero si assegnano all'emissione")).toHaveAttribute("title", expect.stringMatching(/non riserva numeri/));
+    expect(screen.queryByRole("button",{name:/emissione/})).not.toBeInTheDocument();
+    expect(screen.queryByDisplayValue("All'emissione")).not.toBeInTheDocument();
     expect(dispatch).not.toHaveBeenCalled(); // nessuna scrittura all'apertura
   });
   it("un recupero già numerato continua a mostrare la sua data",()=>{

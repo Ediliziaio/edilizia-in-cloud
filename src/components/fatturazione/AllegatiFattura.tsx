@@ -132,6 +132,8 @@ export function AllegatiFattura({
   titolo = "Allegati",
   /** false: nessun tipo da scegliere, si allega qualsiasi documento (es. sul movimento bancario). */
   scegliTipo = true,
+  /** Senza allegati resta un pulsante compatto che apre il riquadro (editor fattura). */
+  compattaSeVuota = false,
 }: {
   companyId: string | null | undefined;
   madre: MadreAllegato;
@@ -139,7 +141,9 @@ export function AllegatiFattura({
   sola_lettura?: boolean;
   titolo?: string;
   scegliTipo?: boolean;
+  compattaSeVuota?: boolean;
 }) {
+  const [aperta, setAperta] = useState(false);
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [tipoNuovo, setTipoNuovo] = useState<string>("fatturaRicevutaId" in madre ? "contabile_pagamento" : "altro");
@@ -200,6 +204,15 @@ export function AllegatiFattura({
     if (files.length) carica.mutate(files);
     if (input.current) input.current.value = "";
   };
+
+  if (compattaSeVuota && !aperta && !isLoading && !isError && allegati.length === 0) {
+    if (sola_lettura) return null;
+    return (
+      <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setAperta(true)}>
+        <Paperclip className="mr-1 h-3 w-3" /> Allegati
+      </Button>
+    );
+  }
 
   return (
     <section

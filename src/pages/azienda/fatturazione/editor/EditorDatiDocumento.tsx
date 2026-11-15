@@ -1,6 +1,5 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -43,81 +42,74 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
   const isScaduta = dataScadenzaParsed && isBefore(dataScadenzaParsed, startOfDay(new Date()));
   const dataAutomatica = emissioneConDataOdierna(state);
 
-  return (
-    <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-amber-400/60 shadow-sm">
-      <Label className="text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">Dati documento</Label>
+  const td = state.tipo ? TIPO_TO_TD[state.tipo] : undefined;
 
-      {/* Data + Numero inline */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px] text-muted-foreground">{dataAutomatica ? "Data emissione automatica" : "Data"}</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "h-7 w-full justify-start text-left text-xs font-normal",
-                  !state.data_emissione && "text-muted-foreground"
-                )}
-                disabled={disabled || dataBloccata || dataAutomatica}
-                title={dataAutomatica ? "La data viene assegnata dal server al momento dell'emissione" : dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
-              >
-                <CalendarIcon className="mr-1 h-3 w-3 shrink-0" />
-                {dataAutomatica ? "All'emissione" : state.data_emissione
-                  ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: it })
-                  : "Seleziona"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={state.data_emissione ? parseISO(state.data_emissione) : undefined}
-                onSelect={(d) => d && setField("data_emissione", format(d, "yyyy-MM-dd"))}
-                disabled={{ after: new Date() }}
-                autoFocus
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-        <NumeroDocumentoField state={state} dispatch={dispatch} disabled={disabled} />
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-2 border-l-[3px] border-l-amber-400/60 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <Label className="whitespace-nowrap text-[11px] font-bold uppercase tracking-wider text-amber-600/80 dark:text-amber-400/80">Dati documento</Label>
+        {/* Tipo SDI e valuta: si leggono, non si scelgono. */}
+        <span className="truncate text-[10px] text-muted-foreground" title={td ? `Tipo SDI ${td} – ${TIPI_DOC[td as keyof typeof TIPI_DOC] ?? ""}` : undefined}>
+          Tipo SDI <span className="font-mono">{td ?? "—"}</span>{td && TIPI_DOC[td as keyof typeof TIPI_DOC] ? ` – ${TIPI_DOC[td as keyof typeof TIPI_DOC]}` : ""} · EUR
+        </span>
       </div>
 
-      {state.stato === "bozza" && TIPI_BOZZA_SENZA_NUMERO.includes(state.tipo) && (
-        <p className="text-[10px] leading-snug text-muted-foreground">
-          {haSegnapostoBozza(state.numero)
-            ? "Data di oggi e prossimo numero vengono assegnati quando emetti. Preparare una bozza non riserva numeri."
-            : "Questa bozza ha già il suo numero. Allo SDI parte quando la emetti e la invii."}
+      {dataAutomatica ? (
+        // Bozza senza numero: data e numero li dà l'emissione, qui non c'è niente da scegliere.
+        <p
+          className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground"
+          title="Data di oggi e prossimo numero vengono assegnati quando emetti. Preparare una bozza non riserva numeri."
+          data-testid="data-numero-emissione"
+        >
+          <CalendarIcon className="h-3 w-3 shrink-0" />
+          Data e numero si assegnano all'emissione
         </p>
+      ) : (
+        <>
+          {/* Data + Numero inline */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Data</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-7 w-full justify-start text-left text-xs font-normal",
+                      !state.data_emissione && "text-muted-foreground"
+                    )}
+                    disabled={disabled || dataBloccata}
+                    title={dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
+                  >
+                    <CalendarIcon className="mr-1 h-3 w-3 shrink-0" />
+                    {state.data_emissione
+                      ? format(parseISO(state.data_emissione), "dd/MM/yyyy", { locale: it })
+                      : "Seleziona"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={state.data_emissione ? parseISO(state.data_emissione) : undefined}
+                    onSelect={(d) => d && setField("data_emissione", format(d, "yyyy-MM-dd"))}
+                    disabled={{ after: new Date() }}
+                    autoFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <NumeroDocumentoField state={state} dispatch={dispatch} disabled={disabled} />
+          </div>
+          {state.stato === "bozza" && TIPI_BOZZA_SENZA_NUMERO.includes(state.tipo) && !haSegnapostoBozza(state.numero) && (
+            <p className="text-[10px] leading-snug text-muted-foreground">
+              Questa bozza ha già il suo numero. Allo SDI parte quando la emetti e la invii.
+            </p>
+          )}
+        </>
       )}
 
-      {/* Tipo SDI / Serie */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Tipo SDI</Label>
-          <div className="h-7 flex items-center px-2 rounded-md border bg-muted/50 text-[11px] font-mono text-muted-foreground select-none">
-            {state.tipo ? (TIPO_TO_TD[state.tipo] ?? "—") : "—"}
-            {state.tipo && TIPO_TO_TD[state.tipo] && (
-              <span className="ml-1 text-[10px] font-sans font-normal truncate">
-                – {TIPI_DOC[TIPO_TO_TD[state.tipo] as keyof typeof TIPI_DOC] ?? ""}
-              </span>
-            )}
-          </div>
-        </div>
-        <div>
-          <Label className="text-[10px] text-muted-foreground">Serie</Label>
-          <Input
-            value={state.serie ?? ""}
-            onChange={(e) => setField("serie", e.target.value.toUpperCase().slice(0, 3))}
-            className="h-7 text-xs uppercase"
-            placeholder="A"
-            maxLength={3}
-            disabled={disabled}
-          />
-        </div>
-      </div>
-
-      {/* Scadenza + Valuta */}
+      {/* Scadenza + Serie */}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className={cn("text-[10px]", isScaduta ? "text-destructive" : "text-muted-foreground")}>
@@ -152,15 +144,15 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
           </Popover>
         </div>
         <div>
-          <Label className="text-[10px] text-muted-foreground">Valuta</Label>
-          <Select value="EUR" disabled>
-            <SelectTrigger className="h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="EUR">EUR</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="text-[10px] text-muted-foreground">Serie</Label>
+          <Input
+            value={state.serie ?? ""}
+            onChange={(e) => setField("serie", e.target.value.toUpperCase().slice(0, 3))}
+            className="h-7 text-xs uppercase"
+            placeholder="A"
+            maxLength={3}
+            disabled={disabled}
+          />
         </div>
       </div>
 

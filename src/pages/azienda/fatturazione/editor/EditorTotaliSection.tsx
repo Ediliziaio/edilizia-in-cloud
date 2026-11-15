@@ -1,5 +1,5 @@
 import { Label } from "@/components/ui/label";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CircleDashed } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { validateDocumento, type ValidationError } from "@/lib/fatturazione/calcoli";
 import type { EditorState } from "./useEditorState";
@@ -9,10 +9,16 @@ interface Props {
   dispatch: React.Dispatch<any>;
   disabled?: boolean;
   onValidationErrors?: (errors: ValidationError[]) => void;
+  /** Le mancanze già calcolate dalla pagina (con i controlli PA del contesto). */
+  errori?: ValidationError[];
+  /** false: si sta ancora compilando, le mancanze sono «da completare» in grigio. */
+  errorePieno?: boolean;
+  /** Un clic su una mancanza porta al campo. */
+  onVaiAlCampo?: (campo: string) => void;
 }
 
-export function EditorTotaliSection({ state }: Props) {
-  const errors = validateDocumento(state);
+export function EditorTotaliSection({ state, errori, errorePieno = true, onVaiAlCampo }: Props) {
+  const errors = errori ?? validateDocumento(state);
   const criticalErrors = errors.filter((e) => e.severity === "error");
   const warnings = errors.filter((e) => e.severity === "warning");
 
@@ -22,7 +28,7 @@ export function EditorTotaliSection({ state }: Props) {
   const isDDT = state.tipo === "ddt";
 
   return (
-    <div className="rounded-lg border bg-card p-4 space-y-3 self-start sticky top-4 shadow-md border-t-[3px] border-t-primary">
+    <div className="rounded-lg border bg-card p-4 space-y-2 shadow-sm border-t-[3px] border-t-primary">
       <Label className="text-[11px] font-bold uppercase tracking-wider text-primary/80">Riepilogo</Label>
 
       {/* Competenze / Subtotale */}
@@ -122,20 +128,37 @@ export function EditorTotaliSection({ state }: Props) {
         </div>
       )}
 
-      {/* Validation errors */}
+      {/* Cosa manca per emettere: in grigio mentre si compila, in rosso dopo «Emetti». */}
       {(criticalErrors.length > 0 || warnings.length > 0) && (
-        <div className="space-y-1 pt-1">
+        <div className="space-y-1 border-t pt-2" data-testid="mancanze-riepilogo">
+          {criticalErrors.length > 0 && (
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${errorePieno ? "text-destructive" : "text-muted-foreground"}`}>
+              {errorePieno ? "Per emettere manca" : "Da completare"}
+            </p>
+          )}
           {criticalErrors.map((e, i) => (
-            <div key={`err-${i}`} className="flex items-start gap-1 text-[10px] text-destructive">
-              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
-              <span>{e.message}</span>
-            </div>
+            <button
+              type="button"
+              key={`err-${i}`}
+              onClick={() => onVaiAlCampo?.(e.field)}
+              disabled={!onVaiAlCampo}
+              className={`flex w-full items-start gap-1 text-left text-[11px] enabled:hover:underline ${errorePieno ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {errorePieno ? <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> : <CircleDashed className="h-3 w-3 shrink-0 mt-0.5" />}
+              <span>{errorePieno ? e.message : `Da completare: ${e.message}`}</span>
+            </button>
           ))}
           {warnings.map((e, i) => (
-            <div key={`warn-${i}`} className="flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+            <button
+              type="button"
+              key={`warn-${i}`}
+              onClick={() => onVaiAlCampo?.(e.field)}
+              disabled={!onVaiAlCampo}
+              className="flex w-full items-start gap-1 text-left text-[11px] text-amber-600 enabled:hover:underline dark:text-amber-400"
+            >
               <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
               <span>{e.message}</span>
-            </div>
+            </button>
           ))}
         </div>
       )}

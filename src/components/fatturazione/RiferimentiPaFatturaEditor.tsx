@@ -133,7 +133,7 @@ export function RiferimentiPaFatturaEditor({ value, onChange, righe, disabled, v
                   {righe.map((riga, n) => {
                     const scelta = r.righe_id.includes(riga.id);
                     return (
-                      <label key={riga.id} className="flex items-center gap-1.5">
+                      <label key={riga.id} className="flex min-w-0 items-center gap-1.5">
                         <Checkbox
                           checked={scelta}
                           disabled={disabled}

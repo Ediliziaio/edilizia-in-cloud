@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useState } from "react";
 import { formatRelativeTime } from "@/lib/formatters";
 import type { EditorState } from "./useEditorState";
 import type { TipoDocumento, StatoDocumento } from "@/types/fatturazione";
@@ -80,12 +80,6 @@ const TIPO_TO_TD: Record<string, string> = {
   fattura_differita_b: "TD25", autoconsumo: "TD27",
 };
 
-interface ValidationError {
-  field: string;
-  message: string;
-  severity: "error" | "warning" | "info";
-}
-
 interface Props {
   state: EditorState;
   isSaving: boolean;
@@ -96,8 +90,12 @@ interface Props {
   onDelete: () => void;
   onFieldChange: (field: string, value: unknown) => void;
   validationErrorCount?: number;
-  validationErrors?: ValidationError[];
-  onVaiAlCampo?: (campo: string) => void;
+  /** Dopo un tentativo di emissione le mancanze si mostrano in rosso. */
+  erroriInEvidenza?: boolean;
+  /** L'elenco delle mancanze sta nel riepilogo: l'indicatore in alto porta lì. */
+  onVaiAlRiepilogo?: () => void;
+  /** «Emetti» premuto con dati mancanti: non si emette, si mostrano le mancanze. */
+  onEmissioneBloccata?: () => void;
   onPreview?: () => void;
   onBack?: () => void;
   onInviaSDI?: () => void;
@@ -115,8 +113,8 @@ interface Props {
 }
 
 export function EditorTopBar({
-  state, isSaving, lastSaved, isDirty, onEmetti, onDelete, validationErrorCount, validationErrors,
-  onVaiAlCampo,
+  state, isSaving, lastSaved, isDirty, onEmetti, onDelete, validationErrorCount,
+  erroriInEvidenza, onVaiAlRiepilogo, onEmissioneBloccata,
   onPreview, onBack, onInviaSDI, onAggiornaStatoSdi, onDownloadPDF, onDownloadXML, onSendEmail, onDuplicate,
   onConvertToFattura, isInviaSDILoading, isAggiornaStatoLoading, isConvertLoading, isEmitting,
 }: Props) {
@@ -130,6 +128,7 @@ export function EditorTopBar({
   const fase = faseSdi(state);
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
   const companyLogo = (effectiveCompany as Company | null)?.logo_url;
+  const [confermaEmissione, setConfermaEmissione] = useState(false);
 
   return (
     <>
@@ -188,27 +187,16 @@ export function EditorTopBar({
 
         {/* Center spacer + autosave indicator */}
         <div className="ml-auto flex items-center gap-3">
-          {/* Validation error count pill with details popover */}
+          {/* Quante mancanze: l'elenco è nel riepilogo, il clic porta lì. */}
           {(validationErrorCount ?? 0) > 0 && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-xs font-medium hover:bg-destructive/20 transition-colors cursor-pointer">
-                  <AlertCircle className="h-3 w-3" />
-                  <span>{validationErrorCount} {validationErrorCount === 1 ? "errore" : "errori"}</span>
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-72 p-3" align="end">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">Clicca per andare al campo</p>
-                <div className="space-y-1.5 max-h-48 overflow-auto">
-                  {(validationErrors ?? []).map((e, i) => (
-                    <button type="button" onClick={() => onVaiAlCampo?.(e.field)} key={i} className={`flex w-full items-start gap-1.5 text-left text-xs hover:underline ${e.severity === "error" ? "text-destructive" : e.severity === "warning" ? "text-amber-600" : "text-muted-foreground"}`}>
-                      <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
-                      <span>{e.message}</span>
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <button
+              type="button"
+              onClick={onVaiAlRiepilogo}
+              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-colors ${erroriInEvidenza || !isBozza ? "bg-destructive/10 text-destructive hover:bg-destructive/20" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+            >
+              <AlertCircle className="h-3 w-3" />
+              <span>{validationErrorCount} da completare</span>
+            </button>
           )}
 
           {/* Autosave indicator */}
@@ -358,17 +346,20 @@ export function EditorTopBar({
                 </AlertDialogContent>
               </AlertDialog>
 
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="h-8 gap-1.5 shadow-sm"
-                    disabled={(validationErrorCount ?? 0) > 0 || isEmitting}
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    {isEmitting ? "Emissione…" : "Emetti"}
-                  </Button>
-                </AlertDialogTrigger>
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 shadow-sm"
+                disabled={isEmitting}
+                onClick={() => {
+                  // Le regole di blocco non cambiano: con dati mancanti non si emette.
+                  if ((validationErrorCount ?? 0) > 0) onEmissioneBloccata?.();
+                  else setConfermaEmissione(true);
+                }}
+              >
+                <Check className="h-3.5 w-3.5" />
+                {isEmitting ? "Emissione…" : "Emetti"}
+              </Button>
+              <AlertDialog open={confermaEmissione} onOpenChange={setConfermaEmissione}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Emetti documento</AlertDialogTitle>
@@ -378,7 +369,7 @@ export function EditorTopBar({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={onEmetti} disabled={isEmitting}>
+                    <AlertDialogAction onClick={onEmetti} disabled={isEmitting || (validationErrorCount ?? 0) > 0}>
                       {isEmitting ? "Emissione in corso…" : "Emetti documento"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
