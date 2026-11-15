@@ -13,6 +13,7 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { ScegliMezzoFattura } from "./ScegliMezzoFattura";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
+import { EsitoControlloSubappalto, useControlloSubappalto } from "./ControlloSubappaltoFattura";
 import { chiaveCollegamenti, esigiRigaSalvata, messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -113,9 +114,9 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     queryKey: ["fattura-collegamenti-sal", contrattoId],
     enabled: !!contrattoId,
     queryFn: async () => {
-      const { data: righe, error } = await db.from("sal_subappaltatori").select("id, numero_sal, importo_netto").eq("contratto_id", contrattoId).order("numero_sal");
+      const { data: righe, error } = await db.from("sal_subappaltatori").select("id, numero_sal, importo_netto, stato").eq("contratto_id", contrattoId).order("numero_sal");
       if (error) throw error;
-      return (righe ?? []) as Array<{ id: string; numero_sal: number | null; importo_netto: number | null }>;
+      return (righe ?? []) as Array<{ id: string; numero_sal: number | null; importo_netto: number | null; stato: string | null }>;
     },
   });
   const aggiorna = () => {
@@ -161,12 +162,20 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     mutationFn: async (id: string) => { esigiRigaSalvata(await db.from("fattura_ddt").delete().eq("id", id).eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).select("id").maybeSingle()); },
     onSuccess: aggiorna, onError: errore,
   });
+  // Dal 15/11/2026 passa da subappalto_collega_fattura, come dalla scheda del subappaltatore: P.IVA,
+  // azienda e SAL verificato li ricontrolla il database, e il costo va sulla commessa del contratto.
+  // Prima qui c'era un update diretto, che saltava tutti questi controlli.
   const salvaSubappalto = useMutation({
     mutationFn: async (campi: { contratto_subappalto_id?: string | null; sal_subappaltatore_id?: string | null }) => {
-      esigiRigaSalvata(await db.from("fatture_ricevute").update(campi).eq("id", fatturaId).eq("company_id", companyId).select("id").maybeSingle());
+      const contratto = campi.contratto_subappalto_id !== undefined ? campi.contratto_subappalto_id : contrattoId ?? null;
+      const sal = campi.contratto_subappalto_id === null ? null : campi.sal_subappaltatore_id !== undefined ? campi.sal_subappaltatore_id : null;
+      const { error } = await db.rpc("subappalto_collega_fattura", { p_fattura: fatturaId, p_contratto: contratto, p_sal: sal });
+      if (error) throw error;
     },
-    onSuccess: aggiorna, onError: errore,
+    onSuccess: () => { aggiorna(); void qc.invalidateQueries({ queryKey: ["fattura-controllo-subappalto", companyId, fatturaId] }); },
+    onError: errore,
   });
+  const { data: controllo } = useControlloSubappalto(fatturaId, companyId, cedentePiva);
   const collegati = new Set((data?.mezzi ?? []).map((m) => m.mezzo_id));
   const ddt = data?.ddt ?? [];
   const ddtVisti = tuttiDdt ? ddt : ddt.slice(0, DDT_A_VISTA);
@@ -221,7 +230,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
         )}
       </dd>
 
-      {(contrattoId || contratti.length > 0) && (
+      {(contrattoId || contratti.length > 0 || controllo) && (
         <>
           <dt className="text-muted-foreground">Subappalto</dt>
           <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -233,7 +242,11 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
                     <SelectTrigger className="h-7 w-44 text-xs" aria-label="SAL del contratto"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="nessuno">Nessun SAL</SelectItem>
-                      {salDelContratto.map((s) => <SelectItem key={s.id} value={s.id}>SAL {s.numero_sal ?? "?"}{s.importo_netto != null ? ` · ${formatCurrency(s.importo_netto)}` : ""}</SelectItem>)}
+                      {salDelContratto.map((s) => {
+                        // La fattura si collega a un SAL solo dopo il benestare (verificato o pagato).
+                        const daVerificare = s.stato !== "verificato" && s.stato !== "pagato";
+                        return <SelectItem key={s.id} value={s.id} disabled={daVerificare}>SAL {s.numero_sal ?? "?"}{s.importo_netto != null ? ` · ${formatCurrency(s.importo_netto)}` : ""}{daVerificare ? " · da verificare" : ""}</SelectItem>;
+                      })}
                     </SelectContent>
                   </Select>
                 )}
@@ -244,6 +257,11 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
                 <SelectTrigger className="h-7 w-56 text-xs" aria-label="Contratto di subappalto"><SelectValue placeholder="Collega a un contratto…" /></SelectTrigger>
                 <SelectContent>{contratti.map((c) => <SelectItem key={c.id} value={c.id}>{c.numero_contratto || "Senza numero"}{c.descrizione_lavori ? ` · ${c.descrizione_lavori.slice(0, 40)}` : ""}</SelectItem>)}</SelectContent>
               </Select>
+            )}
+            {controllo && (
+              <EsitoControlloSubappalto risultato={controllo.risultato} contratti={controllo.contratti} sal={controllo.sal}
+                giaCollegata={!!contrattoId} puoModificare={puoModificare} occupato={salvaSubappalto.isPending}
+                onCollega={(c, sal) => salvaSubappalto.mutate({ contratto_subappalto_id: c, sal_subappaltatore_id: sal })} />
             )}
           </dd>
         </>

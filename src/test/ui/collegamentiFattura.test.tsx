@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const selezioni: Record<string, string> = {};
+const chiamate: Array<{ nome: string; args: unknown }> = [];
 const righe: Record<string, unknown[]> = {
   fattura_ricevuta_mezzi: [{ id: "l1", mezzo_id: "m1", importo: 120, confermata: false, mezzi: { nome: "Gru", targa: "AB123CD" } }],
   fattura_ddt: Array.from({ length: 8 }, (_, i) => ({ id: `d${i}`, numero_ddt: `DDT-${i}`, data_ddt: null as string | null, ddt_ricezione_id: null as string | null })),
@@ -26,10 +27,12 @@ const righe: Record<string, unknown[]> = {
 };
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
+    rpc: async (nome: string, args: unknown) => { chiamate.push({ nome, args }); return { data: null as unknown, error: null as unknown }; },
     auth: { getUser: async () => ({ data: { user: null as { id: string } | null } }) },
     from: (t: string) => {
       const q: Record<string, unknown> = {};
-      for (const m of ["eq", "is", "not", "in", "or", "order", "limit"]) q[m] = () => q;
+      for (const m of ["eq", "neq", "is", "not", "in", "or", "order", "limit"]) q[m] = () => q;
+      q.maybeSingle = () => ({ then: (ok: (v: unknown) => unknown) => ok({ data: (righe[t] ?? [])[0] ?? null, error: null }) });
       q.select = (colonne: string) => { selezioni[t] = colonne; return q; };
       q.then = (ok: (v: unknown) => unknown) => ok({ data: righe[t] ?? [], error: null });
       return q;
@@ -79,5 +82,28 @@ describe("Collegamenti della fattura, come righe del riepilogo", () => {
     await screen.findByText(/Gru · AB123CD/);
     expect(screen.queryByRole("button", { name: "Collega un mezzo" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Togli/ })).toBeNull();
+  });
+
+  it("controllo del subappalto: riconosce contratto e SAL dal testo e collega passando dal database", async () => {
+    const prima = { f: righe.fatture_ricevute, c: righe.contratti_subappalto, s: righe.sal_subappaltatori };
+    righe.fatture_ricevute = [{ id: "f1", company_id: "c1", cedente_piva: "01234567890", tipo_documento: "TD01", imponibile_totale: 500, stato: "da_verificare", righe: [{ descrizione: "Lavori SAL n. 1" }], note: null }];
+    righe.contratti_subappalto = [{ id: "k1", company_id: "c1", numero_contratto: "K-1", importo_contrattuale: 5000, oneri_sicurezza: 0, stato: "attivo", descrizione_lavori: null, subappaltatori_sicurezza: { piva: "IT01234567890" } }];
+    righe.sal_subappaltatori = [{ id: "s1", company_id: "c1", contratto_id: "k1", numero_sal: 1, importo_lordo: 500, oneri_quota: 0, importo_netto: 475, stato: "verificato" }];
+    try {
+      monta(true, "01234567890");
+      expect(await screen.findByText(/Riconosciuta: contratto K-1 · SAL 1/)).toBeTruthy();
+      screen.getByRole("button", { name: "Collega" }).click();
+      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura", args: { p_fattura: "f1", p_contratto: "k1", p_sal: "s1" } }));
+      // SAL ancora da verificare: si propone il solo contratto, il SAL dopo la verifica.
+      cleanup();
+      chiamate.length = 0;
+      righe.sal_subappaltatori = [{ id: "s1", company_id: "c1", contratto_id: "k1", numero_sal: 1, importo_lordo: 500, oneri_quota: 0, importo_netto: 475, stato: "ricevuto" }];
+      monta(true, "01234567890");
+      expect(await screen.findByText(/Proposta: contratto K-1 \(il SAL si collega dopo la verifica\)/)).toBeTruthy();
+      screen.getByRole("button", { name: "Collega" }).click();
+      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura", args: { p_fattura: "f1", p_contratto: "k1", p_sal: null } }));
+    } finally {
+      righe.fatture_ricevute = prima.f; righe.contratti_subappalto = prima.c; righe.sal_subappaltatori = prima.s;
+    }
   });
 });

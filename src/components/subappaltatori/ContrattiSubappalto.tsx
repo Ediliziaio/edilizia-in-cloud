@@ -247,9 +247,9 @@ export function ContrattiSubappalto({
     queryKey: [...chiaviContratti.salTutti(sub.id), ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("sal_subappaltatori" as never)
-        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
+        .select("id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
+      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; oneri_quota?: number | null; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
     },
     enabled: ids.length > 0,
   });

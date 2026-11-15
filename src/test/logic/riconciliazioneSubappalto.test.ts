@@ -137,3 +137,13 @@ describe("riquadro economico del contratto", () => {
     expect(fatt(22)).toContain("IVA al 22%");
   });
 });
+
+describe("SAL fatturato due volte nel riepilogo del contratto", () => {
+  it("due fatture sullo stesso SAL oltre il suo importo del periodo: avviso", () => {
+    const r = riepilogoContratto({ importo_contrattuale: 10000 },
+      [{ id: "s1", numero_sal: 1, importo_lordo: 3000, ritenuta_importo: 150, importo_netto: 2850, stato: "verificato" }],
+      [{ imponibile_totale: 3000, sal_subappaltatore_id: "s1" }, { imponibile_totale: 3000, sal_subappaltatore_id: "s1" }],
+      [{ importo: 150, stato: "trattenuta" }]);
+    expect(r.avvisi.join(" ")).toMatch(/SAL n\. 1 .* è fatturato per/);
+  });
+});

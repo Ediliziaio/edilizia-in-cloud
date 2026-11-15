@@ -12,6 +12,9 @@ export interface ContrattoPerRiepilogo {
   oneri_sicurezza?: number | null;
 }
 export interface SalPerRiepilogo {
+  id?: string;
+  numero_sal?: number | null;
+  oneri_quota?: number | null;
   pagato_registrato?: number | null;
   importo_lordo: number;
   ritenuta_importo: number;
@@ -22,6 +25,7 @@ export interface FatturaPerRiepilogo {
   imponibile_totale: number | null;
   totale_documento?: number | null;
   tipo_documento?: string | null;
+  sal_subappaltatore_id?: string | null;
 }
 export interface RitenutaPerRiepilogo {
   importo: number;
@@ -70,6 +74,14 @@ export function riepilogoContratto(
   if (fatturato > approvato + 0.01) avvisi.push(`Fatturato ${euro(fatturato)} più dei SAL approvati (${euro(approvato)}): approva i SAL o verifica la fattura.`);
   if (pagato > 0 && fatture.length > 0 && pagato > fatturato + 0.01) avvisi.push(`Pagato ${euro(pagato)} più del fatturato (${euro(fatturato)}): manca una fattura.`);
   if (pagato > 0 && fatture.length === 0) avvisi.push("Ci sono SAL pagati ma nessuna fattura collegata: collega le fatture del subappaltatore.");
+  // SAL fatturato oltre il suo importo del periodo (due fatture sullo stesso SAL, o una sul cumulativo).
+  for (const s of validi) {
+    if (!s.id) continue;
+    const suSal = fatture.filter((f) => f.sal_subappaltatore_id === s.id);
+    const fatt = tondo(suSal.reduce((t, f) => t + imponibile(f), 0));
+    const periodo = tondo(n(s.importo_lordo) + n(s.oneri_quota));
+    if (suSal.length && fatt > periodo + 0.01) avvisi.push(`Il SAL n. ${s.numero_sal ?? "?"} (${euro(periodo)}) è fatturato per ${euro(fatt)}: una fattura è doppia o è sul cumulativo.`);
+  }
   // Le ritenute calcolate sui SAL devono stare nel registro (da lì si svincolano).
   const ritenuteDaSal = tondo(validi.reduce((t, s) => t + n(s.ritenuta_importo), 0));
   const ritenuteRegistrate = tondo(ritenute.filter((r) => r.stato !== "annullata").reduce((t, r) => t + n(r.importo), 0));
