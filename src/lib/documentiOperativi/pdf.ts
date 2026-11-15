@@ -337,44 +337,35 @@ export function creaPdfOperativo(
     );
   if (d.tipo === "economia") {
     // I numeri chiave del periodo: quattro riquadri; il totale ha il valore nell'accento.
-    const categorie = [
-      { titolo: "Manodopera", match: /manodopera|operaio/i },
-      { titolo: "Materiali", match: /material/i },
-      { titolo: "Mezzi e noli", match: /mezzo|mezzi|nolo|noli/i },
-    ];
-    const stats = categorie.map((c) => ({
-      titolo: c.titolo,
-      totale: d.righe
-        .filter((r) => c.match.test(r.descrizione))
-        .reduce((sum, r) => sum + importoRiga(r), 0),
-    }));
-    stats.push({
-      titolo: "Totale periodo",
-      totale: totaliDocumento(d).imponibile,
-    });
+    // Ogni riga in una sola categoria (15/11/2026): prima le ditte e la manodopera, poi mezzi e noli; tutto il
+    // resto (materiali, smaltimenti, voci extra) nel terzo riquadro, così i tre riquadri fanno il totale.
+    const categoria = (r: RigaDocumentoOperativo): number =>
+      /^(manodopera|ditta)\b|operaio/i.test(r.descrizione) ? 0 : /^material/i.test(r.descrizione) ? 1 : /^mezzo\b|mezzi|\bnol[oi]\b|noleggio/i.test(r.descrizione) ? 2 : 1;
+    const titoli = ["Manodopera", "Materiali e voci", "Mezzi e noli", "Totale periodo"];
+    const interventi = new Set(d.righe.map((r) => r.gruppo || "Intervento")).size;
     const w = (width - 9) / 4;
     const hNumero = passo(stileRiquadro.numeroCorpo, 1.2);
     const hStat = 2 * pad + altoEtichetta + hNumero + passo(pagina.nota, 1.3);
     ensure(hStat + 4);
-    stats.forEach((c, i) => {
+    titoli.forEach((titolo, i) => {
       const x = left + i * (w + 3);
       disegnaRiquadro(x, y, w, hStat);
-      etichetta(c.titolo, x + pad, y + pad + mm(stileRiquadro.etichettaCorpo) * 0.75);
+      etichetta(titolo, x + pad, y + pad + mm(stileRiquadro.etichettaCorpo) * 0.75);
       font(stileRiquadro.numeroCorpo, i === 3, i === 3 ? ACCENTO : INCHIOSTRO);
-      const entries =
-        i < 3
-          ? d.righe.filter((r) => categorie[i].match.test(r.descrizione))
-          : d.righe;
+      const entries = i < 3 ? d.righe.filter((r) => categoria(r) === i) : d.righe;
+      const totale = i < 3 ? entries.reduce((sum, r) => sum + importoRiga(r), 0) : totaliDocumento(d).imponibile;
       const valorizzate = entries.filter((r) => r.prezzo != null || r.importo != null);
       const parziale = valorizzate.length > 0 && valorizzate.length < entries.length;
-      pdf.text(!entries.length ? "—" : !valorizzate.length ? "Da definire" : euro(c.totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
-      const interventi = new Set(d.righe.map((r) => r.gruppo || "Intervento")).size;
+      pdf.text(!entries.length ? "—" : !valorizzate.length ? "Da definire" : euro(totale), x + pad, y + pad + altoEtichetta + hNumero * 0.75);
+      const somma = (u: RegExp) => entries.reduce((sum, r) => sum + (u.test(r.unita.toLowerCase()) ? r.quantita : 0), 0);
+      const ore = somma(/^(h|ore?)$/), giornate = somma(/^giorn/);
+      const tempo = [ore > 0 ? `${numeroIt(ore)} ore` : null, giornate > 0 ? `${numeroIt(giornate)} ${giornate === 1 ? "giornata" : "giornate"}` : null].filter(Boolean).join(" + ");
       const detail =
         i === 3
           ? `${interventi} ${interventi === 1 ? "intervento" : "interventi"}`
           : i === 0
-            ? `${numeroIt(entries.reduce((sum, r) => sum + (r.unita.toLowerCase() === "h" ? r.quantita : 0), 0))} ore`
-            : `${entries.length} voci`;
+            ? tempo || "0 ore"
+            : `${entries.length} ${entries.length === 1 ? "voce" : "voci"}`;
       font(pagina.nota, false, TENUE);
       pdf.text(`${detail}${parziale ? " · parziale" : ""}`, x + pad, y + hStat - pad);
     });

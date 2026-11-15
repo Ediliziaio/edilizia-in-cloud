@@ -99,7 +99,8 @@ export function documentoPerCommittente(q: QuadroDocumento, info: InfoRapportino
 
 export type VarianteInterna = "costi" | "margine";
 
-interface RigaInterna { gruppo: string; voce: string; dettaglio: string; costo: number | null; ricavo: number | null; nota?: string }
+/** `nonVenduto`: la riga non ha un prezzo perché non si vende a parte (commessa a corpo, mezzo senza nolo collegato). */
+interface RigaInterna { gruppo: string; voce: string; dettaglio: string; costo: number | null; ricavo: number | null; nota?: string; nonVenduto?: boolean }
 
 /** Le righe dei documenti interni: costo sempre, ricavo e margine solo nella variante «margine». */
 export function righeInterne(q: QuadroDocumento): RigaInterna[] {
@@ -111,6 +112,7 @@ export function righeInterne(q: QuadroDocumento): RigaInterna[] {
       dettaglio: p.ditta ? `${num(p.ore)} h · ditta esterna` : p.costo_orario != null ? `${num(p.ore)} h × ${euro(p.costo_orario)}/h` : `${num(p.ore)} h · manca il costo orario`,
       costo: p.ditta ? null : p.costo, ricavo: p.ricavo,
       nota: p.ditta ? "da contratto" : p.costo == null ? "da completare" : undefined,
+      nonVenduto: p.prezzo == null && p.ricavo == null && p.prezzo_fonte !== "mancante",
     });
   }
   for (const m of q.mezzi ?? []) {
@@ -119,16 +121,18 @@ export function righeInterne(q: QuadroDocumento): RigaInterna[] {
       dettaglio: m.noleggio ? `${num(m.ore)} h · noleggio` : m.costo_orario != null ? `${num(m.ore)} h × ${euro(m.costo_orario)}/h` : `${num(m.ore)} h · manca il costo orario`,
       costo: m.noleggio ? null : m.importo, ricavo: m.ricavo ?? null,
       nota: m.noleggio ? "da fattura" : m.importo == null ? "da completare" : undefined,
+      nonVenduto: m.prezzo == null && m.ricavo == null && m.prezzo_fonte !== "mancante",
     });
   }
   for (const v of q.voci ?? []) {
     const q2 = Number(v.quantita);
     righe.push({
       gruppo: "Voci", voce: v.codice ? `${v.codice} · ${v.descrizione}` : v.descrizione,
-      dettaglio: `${num(q2)} ${v.unita}${v.costo_unitario != null ? ` × ${euro(v.costo_unitario)}` : ""}`,
+      dettaglio: `${num(q2)} ${v.unita}${v.costo_unitario != null ? ` × ${euro(v.costo_unitario)}` : " · costo non indicato"}`,
       costo: v.costo_unitario == null ? null : Math.round(q2 * Number(v.costo_unitario) * 100) / 100,
       ricavo: v.vendita_unitaria == null ? null : Math.round(q2 * Number(v.vendita_unitaria) * 100) / 100,
       nota: v.prezzo_fonte === "mancante" && v.vendita_unitaria == null ? "prezzo da definire" : v.prezzo_a_mano && v.prezzo_fonte ? "prezzo a mano" : undefined,
+      nonVenduto: v.vendita_unitaria == null && v.prezzo_fonte !== "mancante",
     });
   }
   return righe;
@@ -152,6 +156,9 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
   const filetto = (tinta: Rgb, spessore: number, x1: number, y1: number, x2: number, y2: number) => { pdf.setDrawColor(...tinta); pdf.setLineWidth(mm(spessore)); pdf.line(x1, y1, x2, y2); };
   const e = (n: number | null | undefined) => (n == null ? "—" : safe(euro(n)));
   const tot = totaliQuadro({ persone: q.persone, mezzi: q.mezzi, voci: q.voci, personaleAggregato: q.personale_aggregato?.costo ?? null, costoDaCompletare: q.costo_da_completare });
+  const righeTabella = righeInterne(q);
+  // Commessa a corpo: niente si vende a parte, e un «margine» di -costo sarebbe falso.
+  const aCorpo = righeTabella.length > 0 && righeTabella.every((r) => r.nonVenduto || r.ricavo == null && r.nota !== "prezzo da definire") && tot.ricavo === 0;
   let y = mm(pagina.margineAlto);
 
   const testata = () => {
@@ -222,12 +229,18 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
 
   // Numeri: costo, ricavo, margine.
   const numeri: Array<[string, string, Rgb, string]> = conMargine
-    ? [["Costo sostenuto", e(tot.costo), tot.completo ? INCHIOSTRO : AVVISO, tot.completo ? "" : "parziale"],
-       ["Ricavo", e(tot.ricavo), tot.prezziDaDefinire ? AVVISO : INCHIOSTRO, tot.prezziDaDefinire ? "parziale" : ""],
-       ["Margine", tot.margine == null ? "incompleto" : e(tot.margine), tot.margine == null ? AVVISO : tot.margine < 0 ? NEGATIVO : POSITIVO,
-        tot.marginePct != null ? `${tot.marginePct.toLocaleString("it-IT")}% del ricavo` : ""]]
+    ? aCorpo
+      ? [["Costo sostenuto", e(tot.costo), tot.completo ? INCHIOSTRO : AVVISO, tot.completo ? "" : "parziale"],
+         ["Ricavo", "a corpo", TENUE, "nulla si vende a parte"],
+         ["Margine", "non sul giorno", TENUE, "si legge sulla commessa"]]
+      : [["Costo sostenuto", e(tot.costo), tot.completo ? INCHIOSTRO : AVVISO, tot.completo ? "" : "parziale"],
+         ["Ricavo", e(tot.ricavo), tot.prezziDaDefinire ? AVVISO : INCHIOSTRO, tot.prezziDaDefinire ? "parziale" : ""],
+         ["Margine", tot.margine == null ? "incompleto" : e(tot.margine), tot.margine == null ? AVVISO : tot.margine < 0 ? NEGATIVO : POSITIVO,
+          tot.marginePct != null ? `${tot.marginePct.toLocaleString("it-IT")}% del ricavo` : ""]]
     : [["Ore", `${num(q.persone.reduce((s, p) => s + Number(p.ore), 0))} h`, INCHIOSTRO, "persone e ditte"],
        ["Costo sostenuto", e(tot.costo), tot.completo ? INCHIOSTRO : AVVISO, tot.completo ? "completo" : "parziale: costi da completare"]];
+  // Rapportino vuoto: «0,00 € completo» o un margine verde direbbero il falso.
+  if (!righeTabella.length) numeri.forEach((n) => { n[1] = n[0] === "Ore" ? "0 h" : "—"; n[2] = TENUE; n[3] = "nessuna riga"; });
   const wN = (width - gap * (numeri.length - 1)) / numeri.length, h2 = 17;
   x = left;
   for (const [et, val, tinta, sotto] of numeri) {
@@ -261,8 +274,23 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
   };
   intestazione();
   let gruppo = "";
-  for (const r of righeInterne(q)) {
-    if (y + hRiga * 2 > bottom) { pdf.addPage(); testata(); intestazione(); }
+  const passoRiga = passo(stileTabella.corpo, 1.25);
+  if (!righeTabella.length) {
+    font(stileTabella.corpo, false, TENUE);
+    pdf.text("Nessuna ora, mezzo o voce registrata in questo rapportino.", left + 1.5, y + hRiga * 0.62);
+    filetto(LINEA, stileTabella.filetto, left, y + hRiga, left + width, y + hRiga);
+    y += hRiga;
+  }
+  for (const r of righeTabella) {
+    // Nomi e dettagli lunghi vanno a capo (al massimo due righe), non si tagliano a metà parola.
+    font(stileTabella.corpo);
+    const voce = (pdf.splitTextToSize(safe(r.voce), col[0].w - 3) as string[]).slice(0, 2);
+    const notaNelDettaglio = r.nota && r.costo != null ? ` · ${r.nota}` : "";
+    font(stileTabella.corpo - 1, false, TENUE);
+    const dettaglio = (pdf.splitTextToSize(safe(r.dettaglio + notaNelDettaglio), col[1].w - 3) as string[]).slice(0, 2);
+    const h = hRiga + (Math.max(voce.length, dettaglio.length) - 1) * passoRiga;
+    // A pagina nuova il gruppo si ripete: una riga senza «Manodopera» o «Mezzi» sopra non si sa cos'è.
+    if (y + h + hRiga * 1.8 > bottom) { pdf.addPage(); testata(); intestazione(); gruppo = ""; }
     if (r.gruppo !== gruppo) {
       gruppo = r.gruppo;
       font(stileTabella.intestazioneCorpo, true, ACCENTO);
@@ -271,21 +299,22 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
     }
     const base = y + hRiga * 0.62;
     font(stileTabella.corpo);
-    pdf.text((pdf.splitTextToSize(safe(r.voce), col[0].w - 3) as string[])[0], col[0].x + 1.5, base);
-    const notaNelDettaglio = r.nota && r.costo != null ? ` · ${r.nota}` : "";
+    voce.forEach((t, i) => pdf.text(t, col[0].x + 1.5, base + i * passoRiga));
     font(stileTabella.corpo - 1, false, TENUE);
-    pdf.text((pdf.splitTextToSize(safe(r.dettaglio + notaNelDettaglio), col[1].w - 3) as string[])[0], col[1].x + 1.5, base);
+    dettaglio.forEach((t, i) => pdf.text(t, col[1].x + 1.5, base + i * passoRiga));
     const destra = (c: { x: number; w: number }, v: string, tinta: Rgb = INCHIOSTRO, bold = false) => { font(stileTabella.corpo, bold, tinta); pdf.text(safe(v), c.x + c.w - 1.5, base, { align: "right" }); };
     destra(col[2], r.costo == null ? (r.nota ?? "—") : e(r.costo), r.costo == null && r.nota === "da completare" ? AVVISO : r.costo == null ? TENUE : INCHIOSTRO);
     if (conMargine) {
-      destra(col[3], r.ricavo == null ? (r.nota === "prezzo da definire" ? "da definire" : "—") : e(r.ricavo), r.ricavo == null ? TENUE : INCHIOSTRO);
+      const senzaRicavo = r.nota === "prezzo da definire" ? "da definire" : r.nonVenduto ? "non venduto" : "—";
+      destra(col[3], r.ricavo == null ? senzaRicavo : e(r.ricavo), r.ricavo == null ? (r.nota === "prezzo da definire" ? AVVISO : TENUE) : INCHIOSTRO);
       const m = r.costo != null && r.ricavo != null ? r.ricavo - r.costo : null;
       destra(col[4], m == null ? "—" : e(m), m == null ? TENUE : m < 0 ? NEGATIVO : POSITIVO, m != null);
     }
-    filetto(LINEA, stileTabella.filetto, left, y + hRiga, left + width, y + hRiga);
-    y += hRiga;
+    filetto(LINEA, stileTabella.filetto, left, y + h, left + width, y + h);
+    y += h;
   }
-  // Totale.
+  // Totale (non per un rapportino vuoto: «0,00 €» in verde non vuol dire niente).
+  if (righeTabella.length) {
   if (y + hRiga * 1.4 > bottom) { pdf.addPage(); testata(); }
   filetto(ACCENTO, stileTabella.filettoTotale, left, y + 0.6, left + width, y + 0.6);
   const baseT = y + hRiga * 0.75;
@@ -293,15 +322,20 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
   pdf.text(tot.completo ? "Totale" : "Totale (costo parziale)", left + 1.5, baseT);
   pdf.text(e(tot.costo), col[2].x + col[2].w - 1.5, baseT, { align: "right" });
   if (conMargine) {
-    pdf.text(e(tot.ricavo), col[3].x + col[3].w - 1.5, baseT, { align: "right" });
-    font(stileTabella.corpo, true, tot.margine == null ? AVVISO : tot.margine < 0 ? NEGATIVO : POSITIVO);
-    pdf.text(tot.margine == null ? "incompleto" : e(tot.margine), col[4].x + col[4].w - 1.5, baseT, { align: "right" });
+    pdf.text(aCorpo ? "—" : e(tot.ricavo), col[3].x + col[3].w - 1.5, baseT, { align: "right" });
+    font(stileTabella.corpo, true, aCorpo ? TENUE : tot.margine == null ? AVVISO : tot.margine < 0 ? NEGATIVO : POSITIVO);
+    pdf.text(aCorpo ? "—" : tot.margine == null ? "incompleto" : e(tot.margine), col[4].x + col[4].w - 1.5, baseT, { align: "right" });
   }
   y += hRiga * 1.3;
+  }
 
   // Avvisi.
   const avvisi: string[] = [];
   if (!tot.completo) avvisi.push(`Costo da completare: ${(q.costo_da_completare ?? []).map((m) => `${m.nome} (${m.motivo})`).join(", ") || `${tot.mancano} voci`}. Il totale è parziale${conMargine ? " e il margine non si calcola" : ""}.`);
+  if (conMargine && aCorpo) avvisi.push("Commessa a corpo: ore, mezzi e voci di questo giorno non si vendono a parte. Il margine si legge sulla commessa, confrontando il prezzo a corpo con tutti i costi.");
+  else if (conMargine && righeTabella.some((r) => r.nonVenduto)) avvisi.push("«Non venduto»: la riga non ha un prezzo proprio (mezzo senza nolo collegato al listino, ore non vendute a parte) ed entra solo nei costi.");
+  const costoAltrove = righeTabella.filter((r) => r.costo == null && (r.nota === "da contratto" || r.nota === "da fattura") && r.ricavo != null);
+  if (conMargine && !aCorpo && costoAltrove.length) avvisi.push(`${costoAltrove.map((r) => r.voce).join(", ")}: il costo arriva dal contratto o dalla fattura e non è nel totale del giorno, il ricavo sì. Il margine del giorno li conta solo come ricavo.`);
   if (conMargine && tot.prezziDaDefinire) avvisi.push(`${tot.prezziDaDefinire} ${tot.prezziDaDefinire === 1 ? "prezzo" : "prezzi"} da definire: il ricavo è parziale.`);
   avvisi.push(q.registrato ? "Costi e prezzi fissati all'approvazione del rapportino: un listino cambiato dopo non li tocca." : "Costi stimati: il rapportino non è ancora approvato.");
   font(pagina.nota, false, TENUE);
