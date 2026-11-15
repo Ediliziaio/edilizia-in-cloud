@@ -156,3 +156,25 @@ describe("Lotto C, il modulo", () => {
     expect(stato.upsert).toHaveBeenCalledWith("sal_certificati", expect.objectContaining({ sal_id: "nuovo-sal", netto: 2850, acconti_precedenti: 3800 }));
   });
 });
+
+describe("Acconto e ritenuta nel certificato (15/11/2026)", () => {
+  it("con un acconto incassato il certificato si accende da sé e ne recupera la parte dei lavori", async () => {
+    stato.sal = [];
+    const piano: Installment[] = [
+      { id: "a0", position: 0, label: "Acconto alla firma", type: "deposit", amount: 2200, is_paid: true, trigger_evento: "firma_contratto" },
+      ...rate(),
+    ];
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <SalTab orderId="o1" companyId="c1" orderTotalAmount={10000} vatRate={10} installments={piano} />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Crea verbale/ }));
+    // Voci: 4000 + 50% di 6000 = 7000. Acconto 2000 senza IVA su 10.000: recupero 1.400. Nessuna ritenuta concordata.
+    const cert = await screen.findByLabelText("Certificato di pagamento", { selector: "dl" });
+    await waitFor(() => expect(cert.textContent).toContain("5.600,00"));
+    expect(cert.textContent).toContain("Recupero anticipazione");
+    expect(screen.getByText(/Acconto già fatturato o incassato/)).toBeInTheDocument();
+    expect(screen.getByText(/non dice una ritenuta di garanzia/)).toBeInTheDocument();
+  });
+});

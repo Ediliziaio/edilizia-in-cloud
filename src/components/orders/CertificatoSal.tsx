@@ -13,6 +13,7 @@ import {
   leggiImportoItaliano as valore,
   lordoCertificato,
   nettoCertificato,
+  type OpzioniCertificato,
   type SalCertificato,
 } from "@/lib/orders/salCertificato";
 
@@ -47,9 +48,11 @@ interface Props {
   puoModificare: boolean;
   /** Perché non si può più cambiare (rata fatturata o incassata, certificato dopo): si mostra al posto del pulsante. */
   bloccato?: string | null;
+  /** Acconto da recuperare, contratto e ritenuta concordata: per proporre il certificato che manca. */
+  opzioni?: OpzioniCertificato;
 }
 
-export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, certificato, precedente, giaMaturato, puoModificare, bloccato }: Props) {
+export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, certificato, precedente, giaMaturato, puoModificare, bloccato, opzioni }: Props) {
   const queryClient = useQueryClient();
   const [bozza, setBozza] = useState<Bozza | null>(null);
 
@@ -85,7 +88,7 @@ export function CertificatoSal({ salId, orderId, companyId, numero, cumulativo, 
     onError: (e) => toast.error(e instanceof Error ? e.message : "Certificato non salvato"),
   });
 
-  const apri = () => setBozza(inBozza(certificato ?? certificatoProposto(cumulativo, precedente, giaMaturato)));
+  const apri = () => setBozza(inBozza(certificato ?? certificatoProposto(cumulativo, precedente, giaMaturato, opzioni)));
 
   return (
     <div className="mt-2">

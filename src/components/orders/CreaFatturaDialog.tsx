@@ -464,6 +464,23 @@ export function CreaFatturaDialog({
       return (data || []) as unknown as SalPerFattura[];
     },
   });
+  // Le ritenute di garanzia che il committente trattiene ancora sui SAL (15/11/2026): allo svincolo si
+  // fatturano con «Un importo». Il registro lo legge solo l'amministratore: per gli altri resta vuoto.
+  const { data: ritenuteTrattenute = [] } = useQuery({
+    queryKey: ["order-ritenute-for-invoice", orderId],
+    enabled: open && !!orderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ritenute_garanzia")
+        .select("id, importo, note")
+        .eq("order_id", orderId)
+        .eq("direzione", "attiva")
+        .eq("stato", "trattenuta");
+      if (error) return [];
+      return (data ?? []) as Array<{ id: string; importo: number; note: string | null }>;
+    },
+  });
+  const ritenutaDaSvincolare = Math.round(ritenuteTrattenute.reduce((t, r) => t + Number(r.importo || 0), 0) * 100) / 100;
   const { data: documentiCommessa = [], isLoading: documentiLoading, isError: documentiErrore } = useQuery({
     queryKey: ["order-documenti-for-invoice", orderId],
     enabled: open && !!orderId,
@@ -1275,7 +1292,7 @@ export function CreaFatturaDialog({
               {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA in fatture o bozze senza dettaglio per fase: {mode !== "fasi" ? "controlla che non comprendano già questo SAL." : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
+                  Su questa commessa ci sono già {fmt(fatturato.senzaDettaglio)} senza IVA in fatture o bozze senza dettaglio per fase: {mode !== "fasi" ? (salAttivo && certificatoDelSal(salAttivo.sal_certificati) ? "controlla che non comprendano già questo SAL." : "se è un acconto, questo SAL senza certificato di pagamento non lo toglie e lo fatturi una seconda volta: aggiungi il certificato al SAL (recupero acconto) prima di fatturare.") : Number.isFinite(residuoContratto) ? `le quote proposte si fermano ai ${fmt(residuoContratto)} che restano del contratto.` : "controlla le quote prima di creare la fattura."}
                 </p>
               )}
               {/* Le righe di un SAL non dicono quali fasi contenevano: dopo averlo fatturato,
@@ -1298,6 +1315,16 @@ export function CreaFatturaDialog({
               {/* Una riga a corpo: l'importo della rata, che si cambia in € o in %. */}
               {mode === "importo" && (
                 <div className="rounded-lg border p-3 space-y-2.5">
+                  {ritenutaDaSvincolare > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-[11px]">
+                      <span>Ritenuta di garanzia trattenuta sui SAL: <strong className="tabular-nums">{fmt(ritenutaDaSvincolare)}</strong> senza IVA. Si fattura allo svincolo (collaudo o scadenza).</span>
+                      <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => {
+                        setSelectedInstId(null);
+                        setImporto({ descrizione: `Svincolo della ritenuta di garanzia trattenuta sui SAL${orderCode ? ` — commessa ${orderCode}` : ""}`, lordo: scriviImporto(ritenutaDaSvincolare * (1 + defaultVat / 100)), aliquota: String(defaultVat) });
+                        dimenticaPrezzi((id) => id === "importo-rata");
+                      }}>Fattura lo svincolo</Button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-3 gap-2 items-end">
                     <div className="space-y-1">
                       <Label htmlFor="fatt-imp-lordo" className="text-[11px] text-muted-foreground">Importo IVA inclusa</Label>

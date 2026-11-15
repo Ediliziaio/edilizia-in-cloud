@@ -326,7 +326,14 @@ describe("rataPerServer", () => {
     expect(rataPerServer({ position: 0, label: "A", type: "deposit", amount: 10, is_paid: false })).toEqual({
       position: 0, label: "A", type: "deposit", amount: 10, is_paid: false, paid_date: null, expected_date: null,
       trigger_evento: "data_fissa", trigger_status_id: null, trigger_numero: null, giorni_preavviso: 7,
+      trigger_soglia: null, trigger_fase: null, termine_giorni: 0, termine_fine_mese: false, importo_da_misurare: false,
     });
+  });
+  it("non perde termine, soglia, fase e «a misura» (15/11/2026: il server li azzerava)", () => {
+    expect(rataPerServer({
+      id: "r1", position: 1, label: "SAL", type: "deposit", amount: 10, is_paid: false, trigger_evento: "sal_percentuale",
+      trigger_soglia: 30, trigger_fase: "Massetti", termine_giorni: 30, termine_fine_mese: true, importo_da_misurare: true,
+    })).toMatchObject({ trigger_soglia: 30, trigger_fase: "Massetti", termine_giorni: 30, termine_fine_mese: true, importo_da_misurare: true });
   });
   it("con l'id lo manda: la rata esistente si aggiorna al suo posto e tiene i suoi legami", () => {
     expect(rataPerServer({ id: "r1", position: 1, label: "A", type: "deposit", amount: 10, is_paid: false })).toMatchObject({ id: "r1", position: 1 });

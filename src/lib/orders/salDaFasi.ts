@@ -115,7 +115,11 @@ export function vociSalDaFasi(fasi: ReadonlyArray<FasePerSal>, precedenti: Perce
     .map((f) => {
       const cantiere = avanzamentoFase({ status: f.status ?? "", percentuale: f.percentuale });
       const certificata = f.id ? precedenti.perFase.get(f.id) ?? null : null;
-      const venduto = f.importo_venduto != null && f.importo_venduto > 0 ? f.importo_venduto : null;
+      // Senza venduto leggibile (chi non vede gli importi, 15/11/2026) vale l'importo del SAL precedente per
+      // la stessa fase: è già scritto sul verbale emesso, e senza il SAL n. 2 restava da riscrivere a mano.
+      const importoPrima = f.id ? precedenti.importoPerFase?.get(f.id) : undefined;
+      const venduto = f.importo_venduto != null && f.importo_venduto > 0 ? f.importo_venduto
+        : importoPrima != null && importoPrima > 0 ? importoPrima : null;
       const voce: VoceSalDraft = {
         descrizione: f.name.trim(),
         importo_contrattuale: venduto != null ? String(venduto) : "",

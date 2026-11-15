@@ -51,22 +51,78 @@ export function certificatoATuttoOggi(c: Pick<SalCertificato, "lavori_contrattua
 }
 
 /**
+ * Il recupero dell'anticipazione a tutto oggi (15/11/2026): l'acconto già fatturato o incassato si
+ * riprende in proporzione ai lavori, così all'ultimo SAL è recuperato tutto e non si fattura due volte.
+ * Esempio: acconto 20.000 su un contratto da 100.000, lavori a 30.000 → 6.000.
+ * Senza contratto o senza acconto: 0.
+ */
+export function recuperoAnticipazione(anticipazione: number, cumulativo: number, contratto: number): number {
+  const a = numero(anticipazione), c = numero(contratto), l = numero(cumulativo);
+  if (!(a > 0) || !(c > 0) || !(l > 0)) return 0;
+  return arrotonda(Math.min(a, (a * l) / c));
+}
+
+/** Gli eventi di una rata che vengono dopo i lavori: quelle rate non sono un'anticipazione. */
+const EVENTI_NON_ANTICIPO = new Set(["sal_numero", "sal_percentuale", "fase_completata", "fine_lavori", "collaudo", "fattura_saldo"]);
+
+/**
+ * L'anticipazione della commessa, senza IVA: le rate d'acconto (non legate a un SAL né alla fine dei lavori)
+ * già fatturate o incassate. Le rate sono IVA inclusa; il certificato lavora sull'imponibile.
+ */
+export function anticipazioneDalPiano(
+  rate: ReadonlyArray<{ type?: string | null; trigger_evento?: string | null; amount: number; is_paid?: boolean | null; documento_fiscale_id?: string | null; invoice_id?: string | null }>,
+  aliquotaIva: number,
+): number {
+  const iva = Number.isFinite(aliquotaIva) && aliquotaIva >= 0 ? aliquotaIva : 0;
+  const lordo = rate
+    .filter((r) => r.type === "deposit" && !EVENTI_NON_ANTICIPO.has(r.trigger_evento ?? ""))
+    .filter((r) => !!r.is_paid || !!r.documento_fiscale_id || !!r.invoice_id)
+    .reduce((t, r) => t + numero(r.amount), 0);
+  return arrotonda(lordo / (1 + iva / 100));
+}
+
+/** La percentuale di `orders.ritenuta_garanzia` ({percentuale: "5" | 5, …}); null se non c'è o non si legge. */
+export function percentualeRitenutaContratto(valore: unknown): number | null {
+  if (!valore || typeof valore !== "object") return null;
+  const grezza = (valore as { percentuale?: unknown }).percentuale;
+  const n = typeof grezza === "number" ? grezza : Number(String(grezza ?? "").trim().replace(",", "."));
+  return String(grezza ?? "").trim() !== "" && Number.isFinite(n) && n > 0 && n <= 100 ? n : null;
+}
+
+export interface OpzioniCertificato {
+  /** Anticipazione fatturata o incassata, senza IVA (anticipazioneDalPiano). */
+  anticipazione?: number;
+  /** Valore del contratto senza IVA, varianti comprese: la base del recupero. */
+  contratto?: number;
+  /** Ritenuta concordata nel contratto (orders.ritenuta_garanzia), se il certificato prima non la dice. */
+  ritenutaContratto?: number | null;
+}
+
+/**
  * Il certificato nuovo parte da quello prima: stessa ritenuta, acconti pari a ciò che era già maturato.
  * Senza un certificato prima, gli acconti sono il cumulativo dei SAL già emessi (giaMaturato):
  * con zero si riproporrebbe in fattura tutto il già fatturato.
  * Con SAL senza certificato fra quello prima e questo (06/11/2026): quei SAL hanno fatturato la differenza
  * dei cumulativi, quindi agli acconti si aggiunge quanto è maturato dopo il certificato (giaMaturato − il suo
  * lordo). Prima si ripartiva dal certificato e quei SAL si fatturavano due volte.
+ * La ritenuta (15/11/2026): quella del certificato prima, altrimenti quella del contratto, altrimenti
+ * nessuna. Prima era il 10% d'ufficio, anche dove il cliente non l'aveva mai chiesta.
+ * Il recupero dell'anticipazione (15/11/2026): in proporzione ai lavori quando c'è un acconto, altrimenti
+ * quello del certificato prima. Prima restava a zero e l'acconto si fatturava una seconda volta nei SAL.
  */
-export function certificatoProposto(cumulativo: number, precedente: SalCertificato | null, giaMaturato = 0): SalCertificato {
+export function certificatoProposto(cumulativo: number, precedente: SalCertificato | null, giaMaturato = 0, opzioni: OpzioniCertificato = {}): SalCertificato {
   const lavori = arrotonda(numero(cumulativo) - numero(precedente?.varianti));
-  const pct = precedente ? numero(precedente.ritenuta_pct) : 10;
+  const contrattuale = numero(opzioni.ritenutaContratto);
+  const pct = precedente ? numero(precedente.ritenuta_pct) : contrattuale > 0 && contrattuale <= 100 ? contrattuale : 0;
+  const recupero = numero(opzioni.anticipazione) > 0 && numero(opzioni.contratto) > 0
+    ? Math.max(recuperoAnticipazione(numero(opzioni.anticipazione), numero(cumulativo), numero(opzioni.contratto)), numero(precedente?.recupero_anticipazione))
+    : numero(precedente?.recupero_anticipazione);
   const bozza = {
     lavori_contrattuali: lavori,
     varianti: numero(precedente?.varianti),
     ritenuta_pct: pct,
     ritenuta: arrotonda(numero(cumulativo) * pct / 100),
-    recupero_anticipazione: numero(precedente?.recupero_anticipazione),
+    recupero_anticipazione: recupero,
     altre_detrazioni: numero(precedente?.altre_detrazioni),
     altre_detrazioni_nota: precedente?.altre_detrazioni_nota ?? null,
     // Il rinviato del certificato prima torna qui: gli acconti sono quanto certificato davvero.

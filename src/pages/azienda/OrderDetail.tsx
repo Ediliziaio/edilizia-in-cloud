@@ -599,6 +599,12 @@ function OrderDetailInner() {
         trigger_status_id: i.trigger_status_id,
         trigger_numero: i.trigger_numero,
         giorni_preavviso: i.giorni_preavviso,
+        // Termine, soglia, fase e «a misura» (15/11/2026): senza, cambiare una rata dalla scheda li azzerava a tutte.
+        trigger_soglia: i.trigger_soglia ?? null,
+        trigger_fase: i.trigger_fase ?? null,
+        termine_giorni: i.termine_giorni ?? null,
+        termine_fine_mese: i.termine_fine_mese ?? null,
+        importo_da_misurare: i.importo_da_misurare ?? null,
         documento_fiscale_id: i.documento_fiscale_id ?? null,
         fattura: i.fattura ?? null,
       }));

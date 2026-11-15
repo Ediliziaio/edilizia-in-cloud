@@ -32,10 +32,10 @@ import {saveSalDraft,SalSaveError} from "@/lib/orders/saveSalDraft";
 import {SalPlanInfo} from "./SalPlanInfo";
 import {VerbaleSalDialog} from "./VerbaleSalDialog";
 import {CertificatoSal} from "./CertificatoSal";
-import {certificatoDelSal,certificatoBloccato, certificatoPrecedente, leggiImportoItaliano} from "@/lib/orders/salCertificato";
+import {anticipazioneDalPiano,certificatoDelSal,certificatoBloccato, certificatoPrecedente, leggiImportoItaliano, percentualeRitenutaContratto} from "@/lib/orders/salCertificato";
 import {giornoLocale} from "@/lib/orders/cronoprogramma";
 import {leggiFasiPerSal} from "@/lib/orders/leggiFasiPerSal";
-import {arrotondamentoAbituale, certificatoNelModulo, rataProposta, vociCheCambiano, type Arrotondamento} from "@/lib/orders/salNuovoVerbale";
+import {arrotondamentoAbituale, certificatoNelModulo, rataProposta, rataSaldoPerSalFinale, vociCheCambiano, type Arrotondamento} from "@/lib/orders/salNuovoVerbale";
 import {conPercentuale, conQuantita, percentualeFaseDaSottofasi, type SottofaseSalDraft} from "@/lib/orders/salSottofasi";
 
 interface SalVoceSottofase {
@@ -157,6 +157,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const [conCertificato, setConCertificato] = useState(false);
   const [certRitenuta, setCertRitenuta] = useState("");
   const [certAltre, setCertAltre] = useState("");
+  const [certRecupero, setCertRecupero] = useState("");
   const [certNota, setCertNota] = useState("");
   // null = come il certificato prima (chi arrotonda a 100 € lo fa ogni volta).
   const [certArrotonda, setCertArrotonda] = useState<Arrotondamento | null>(null);
@@ -187,7 +188,42 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
 
   // Quando matura la rata di un SAL (lo sceglie l'azienda) e come si cambia una rata dal verbale.
   const salMatura = useSalMatura(companyId);
+  // La ritenuta concordata nel contratto (orders.ritenuta_garanzia, dal preventivo): il primo certificato parte da lì.
+  const { data: ritenutaContratto = null } = useQuery({
+    queryKey: ["order-ritenuta-garanzia", orderId, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("ritenuta_garanzia").eq("id", orderId).eq("company_id", companyId).maybeSingle();
+      if (error) return null;
+      return percentualeRitenutaContratto(data?.ritenuta_garanzia);
+    },
+    enabled: !!orderId && !!companyId,
+  });
+  // L'acconto già fatturato o incassato, senza IVA: ogni certificato ne recupera la sua parte.
+  const anticipazione = anticipazioneDalPiano(installments ?? [], vatRate);
   const sostituisciRate = useSostituisciRate(orderId);
+  // La ritenuta dei certificati nel registro delle ritenute (15/11/2026): la scrive l'emissione, se emette un
+  // amministratore; altrimenti resta fuori e qui si vede. Il registro lo legge solo l'amministratore.
+  const { data: salNelRegistro } = useQuery({
+    queryKey: ["sal-ritenute-registro", orderId, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("ritenute_garanzia").select("sal_record_id").eq("order_id", orderId).eq("company_id", companyId).not("sal_record_id", "is", null);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => r.sal_record_id as string));
+    },
+    enabled: !!orderId && !!companyId && permissions.isAdmin,
+  });
+  const registraRitenuta = useMutation({
+    mutationFn: async (salId: string) => {
+      const { data, error } = await supabase.rpc("sal_ritenuta_nel_registro", { p_sal: salId });
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Niente da registrare: la ritenuta di questo SAL è già tolta dai certificati prima.");
+    },
+    onSuccess: () => {
+      toast.success("Ritenuta registrata: la trovi in Ritenute a garanzia, da svincolare.");
+      void queryClient.invalidateQueries({ queryKey: ["sal-ritenute-registro", orderId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   // Fasi di lavorazione della commessa, con sottofasi e voci: per compilare il verbale
   // dall'avanzamento dichiarato in cantiere (src/lib/orders/leggiFasiPerSal.ts).
@@ -371,10 +407,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const arrotondamento: Arrotondamento = certArrotonda ?? arrotondamentoAbituale(certificatoPrima);
   const ritenutaScritta = certRitenuta.trim() ? leggiImportoItaliano(certRitenuta) : null;
   const altreScritte = certAltre.trim() ? leggiImportoItaliano(certAltre) : null;
+  const recuperoScritto = certRecupero.trim() ? leggiImportoItaliano(certRecupero) : null;
   const certificatoValido = (ritenutaScritta === null || (Number.isFinite(ritenutaScritta) && ritenutaScritta >= 0 && ritenutaScritta <= 100))
-    && (altreScritte === null || (Number.isFinite(altreScritte) && altreScritte >= 0));
+    && (altreScritte === null || (Number.isFinite(altreScritte) && altreScritte >= 0))
+    && (recuperoScritto === null || (Number.isFinite(recuperoScritto) && recuperoScritto >= 0));
   const certificatoCalcolato = certificatoValido
-    ? certificatoNelModulo({ cumulativo: totalDialogImporto, precedente: certificatoPrima, giaMaturato: precedenteNuovo, ritenutaPct: ritenutaScritta, altreDetrazioni: altreScritte, nota: certNota, arrotonda: arrotondamento })
+    ? certificatoNelModulo({ cumulativo: totalDialogImporto, precedente: certificatoPrima, giaMaturato: precedenteNuovo, ritenutaPct: ritenutaScritta, altreDetrazioni: altreScritte, recupero: recuperoScritto, nota: certNota, arrotonda: arrotondamento, anticipazione, contratto: orderTotalAmount, ritenutaContratto })
     : null;
   // Un netto negativo non è un certificato da pagare: il verbale abbassa il già certificato (rettifica).
   const certificatoNegativo = !!certificatoCalcolato && certificatoCalcolato.netto < 0;
@@ -387,6 +425,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const refreshSal=()=>{
     void queryClient.invalidateQueries({queryKey:["sal-records",orderId]});
     void queryClient.invalidateQueries({queryKey:["sal-legami",orderId]});
+    void queryClient.invalidateQueries({queryKey:["sal-ritenute-registro",orderId]});
     void queryClient.invalidateQueries({queryKey:queryKeys.orders.installments(orderId)});
     void queryClient.invalidateQueries({queryKey:["order-installments",orderId]});
   };
@@ -395,9 +434,10 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     if(saveBlocked){toast.error("Un salvataggio precedente resta da verificare: ricarica lo storico prima di creare un altro SAL.");return;}
     // Senza una rata scelta si propone la prima che il piano aspetta da un SAL: «Nessuna» resta una scelta.
     const rata=installmentId || rataProposta(installments??[],salList);
-    const haCertificati=salList.some(s=>certificatoDelSal(s.sal_certificati));
+    // Il certificato si propone da sé quando c'è da togliere qualcosa: acconto da recuperare o ritenuta del contratto.
+    const haCertificati=salList.some(s=>certificatoDelSal(s.sal_certificati)) || anticipazione>0 || (ritenutaContratto ?? 0)>0;
     draftRevision.current++;const apertura=draftRevision.current;setNote("");setVoci([emptyVoce()]);setRataCollegata(rata);setReview(false);setRettifica(false);setFormError("");
-    setFasiInvariate(new Set());setMostraTutte(false);setConCertificato(haCertificati);setCertRitenuta("");setCertAltre("");setCertNota("");setCertArrotonda(null);setDialogOpen(true);
+    setFasiInvariate(new Set());setMostraTutte(false);setConCertificato(haCertificati);setCertRitenuta("");setCertAltre("");setCertRecupero("");setCertNota("");setCertArrotonda(null);setDialogOpen(true);
     // Il verbale nasce dalle fasi della commessa: appena arrivano, la bozza ancora
     // intatta si compila (nome, venduto, % dal cantiere ma mai sotto il SAL
     // precedente). Se nel frattempo l'ufficio ha scritto qualcosa, non si tocca.
@@ -408,6 +448,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       const daFasi=vociSalDaFasi(fasi,prec);
       if(!daFasi.length)return;
       draftRevision.current++;setVoci(daFasi);setFasiInvariate(fasiSenzaCambi(daFasi,prec));
+      // Lavori al 100% del contratto: il verbale è il finale e certifica la rata di saldo.
+      if(!rata){
+        const cumulativo=daFasi.reduce((c,v)=>{const a=salNumber(v.importo_contrattuale),p=salNumber(v.percentuale_avanzamento);return c+(a!==null&&p!==null&&p<=100?Math.round(salLineAmount(a,p)*100):0);},0)/100;
+        const saldo=rataSaldoPerSalFinale(installments??[],salList,cumulativo,orderTotalAmount);
+        if(saldo)setRataCollegata(saldo);
+      }
     }).catch(()=>{/* fasi non disponibili: il modulo lo dice e si compila a mano */});
   };
   const reviewDraft=()=>{
@@ -653,7 +699,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       precedente={certificatoPrecedente(sal,salList)}
                       giaMaturato={maturatoPrecedente(sal,salList)}
                       bloccato={certificatoBloccato(sal,salList,installments ?? [])}
+                      opzioni={{anticipazione,contratto:orderTotalAmount,ritenutaContratto}}
                       puoModificare={permissions.canEditOrders && !blocked}/>
+                    {(() => {
+                      const cert = certificatoDelSal(sal.sal_certificati);
+                      if (!cert || sal.stato === "bozza" || !(Number(cert.ritenuta) > 0) || !permissions.isAdmin || !salNelRegistro) return null;
+                      if (salNelRegistro.has(sal.id)) return <p className="mt-0.5 text-xs text-muted-foreground">Ritenuta nel registro «Ritenute a garanzia»: torna allo svincolo.</p>;
+                      return (
+                        <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-amber-700">
+                          La ritenuta di questo SAL non è nel registro delle ritenute: senza, nessuno ricorda di farsela restituire.
+                          <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={registraRitenuta.isPending} onClick={() => registraRitenuta.mutate(sal.id)}>Registra la ritenuta</Button>
+                        </p>
+                      );
+                    })()}
                     {(() => {
                       const precedente = maturatoPrecedente(sal, salList);
                       if (precedente <= 0) return null;
@@ -701,7 +759,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                                   confirmLabel: "Cambia la rata",
                                 });
                                 if (ok) {
-                                  sostituisciRate.mutate((installments ?? []).map((r) => rataPerServer(r.id === rata.id ? { ...r, amount: proposta } : r)));
+                                  sostituisciRate.mutate((installments ?? []).map((r) => rataPerServer(r.id === rata.id ? { ...r, amount: proposta, importo_da_misurare: false } : r)));
                                 }
                               }}
                             >
@@ -1093,14 +1151,21 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                 <input type="checkbox" checked={conCertificato} onChange={(e) => {draftRevision.current++;setConCertificato(e.target.checked);}} />
                 Certificato di pagamento
               </label>
+              {!conCertificato && anticipazione > 0 && <p className="text-xs text-amber-700">C'è un acconto di {formatCurrency(anticipazione)} senza IVA già fatturato o incassato: senza certificato questo SAL lo fattura una seconda volta.</p>}
               {conCertificato && (
                 <>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     <div className="space-y-1">
                       <Label htmlFor="cert-nuovo-ritenuta" className="text-xs">Ritenuta di garanzia %</Label>
                       <Input id="cert-nuovo-ritenuta" inputMode="decimal" className="h-8 text-sm" value={certRitenuta}
-                        placeholder={String(certificatoNuovo?.ritenuta_pct ?? certificatoPrima?.ritenuta_pct ?? 10)}
+                        placeholder={String(certificatoNuovo?.ritenuta_pct ?? certificatoPrima?.ritenuta_pct ?? ritenutaContratto ?? 0)}
                         onChange={(e) => {draftRevision.current++;setCertRitenuta(e.target.value);}} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="cert-nuovo-recupero" className="text-xs">Recupero acconto (totale a oggi)</Label>
+                      <Input id="cert-nuovo-recupero" inputMode="decimal" className="h-8 text-sm" value={certRecupero}
+                        placeholder={String(certificatoNuovo?.recupero_anticipazione ?? 0)}
+                        onChange={(e) => {draftRevision.current++;setCertRecupero(e.target.value);}} />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="cert-nuovo-altre" className="text-xs">Altre detrazioni (totale a oggi)</Label>
@@ -1142,6 +1207,8 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                   ) : <p role="alert" className="text-xs text-destructive">{certificatoNegativo
                     ? `Il netto del certificato viene ${formatCurrency(certificatoCalcolato!.netto)}: ritenuta, detrazioni e acconti superano i lavori di questo verbale. Controlla le voci e le detrazioni, oppure togli il certificato se è una rettifica.`
                     : "Ritenuta tra 0 e 100%, detrazioni non negative."}</p>}
+                  {anticipazione > 0 && <p className="text-[11px] text-muted-foreground">Acconto già fatturato o incassato: {formatCurrency(anticipazione)} senza IVA. Si recupera in proporzione ai lavori, così all'ultimo SAL è tolto tutto.</p>}
+                  {!certificatoPrima && !(ritenutaContratto ?? 0) && !ritenutaScritta && <p className="text-[11px] text-muted-foreground">Il contratto non dice una ritenuta di garanzia: scrivila se l'avete concordata.</p>}
                   <p className="text-[11px] text-muted-foreground">Gli acconti sono il netto dei certificati prima{certificatoPrima ? "" : " (o il cumulativo dei SAL emessi)"}: non si riscrivono a mano. Quello che l'arrotondamento toglie torna nel certificato dopo.</p>
                 </>
               )}

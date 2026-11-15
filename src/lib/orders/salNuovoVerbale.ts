@@ -8,13 +8,33 @@
  * Modulo puro: niente React, niente Supabase.
  */
 import type { Installment } from "@/lib/orderUtils";
-import { certificatoProposto, nettoCertificato, type SalCertificato } from "./salCertificato";
+import { certificatoProposto, nettoCertificato, type OpzioniCertificato, type SalCertificato } from "./salCertificato";
 import { rateSalDaEmettere, type SalPerRata } from "./salRate";
 import type { PercentualiPrecedenti, VoceSalDraft } from "./salDaFasi";
 
 /** La rata proposta: la prima che il piano aspetta da un SAL e che nessun verbale certifica ancora. */
 export function rataProposta(rate: ReadonlyArray<Installment>, salList: ReadonlyArray<SalPerRata>): string {
   return rateSalDaEmettere(rate, salList)[0]?.id ?? "";
+}
+
+/**
+ * Il SAL finale certifica il saldo (15/11/2026): quando i lavori del verbale arrivano al valore del contratto
+ * e nessuna rata «al SAL» resta da certificare, la rata di saldo non incassata, non fatturata e senza verbale.
+ * Senza questo legame il saldo restava una rata a parte, e «Crea fattura» lo riproponeva dopo il SAL finale.
+ */
+export function rataSaldoPerSalFinale(
+  rate: ReadonlyArray<Installment>,
+  salList: ReadonlyArray<SalPerRata>,
+  cumulativo: number,
+  contratto: number | undefined,
+): string {
+  if (!(Number(contratto) > 0) || cumulativo < Number(contratto) - 0.01) return "";
+  if (rateSalDaEmettere(rate, salList).length > 0) return "";
+  const saldo = rate
+    .filter((r) => r.type === "balance" && !!r.id && !r.is_paid && !r.documento_fiscale_id)
+    .filter((r) => !salList.some((s) => s.installment_id === r.id))
+    .sort((a, b) => b.position - a.position)[0];
+  return saldo?.id ?? "";
 }
 
 const pct = (s: string) => Number(String(s ?? "").replace(",", "."));
@@ -65,10 +85,14 @@ export function certificatoNelModulo(p: {
   giaMaturato: number;
   ritenutaPct?: number | null;
   altreDetrazioni?: number | null;
+  /** Recupero dell'anticipazione a tutto oggi scritto a mano; senza, quello proposto. */
+  recupero?: number | null;
   nota?: string | null;
   arrotonda?: Arrotondamento;
-}): SalCertificato {
-  const base = certificatoProposto(p.cumulativo, p.precedente, p.giaMaturato);
+} & OpzioniCertificato): SalCertificato {
+  const base = certificatoProposto(p.cumulativo, p.precedente, p.giaMaturato, {
+    anticipazione: p.anticipazione, contratto: p.contratto, ritenutaContratto: p.ritenutaContratto,
+  });
   const ritenutaPct = p.ritenutaPct != null && Number.isFinite(p.ritenutaPct) ? p.ritenutaPct : base.ritenuta_pct;
   const altre = p.altreDetrazioni != null && Number.isFinite(p.altreDetrazioni) ? p.altreDetrazioni : base.altre_detrazioni;
   const c: SalCertificato = {
@@ -76,6 +100,7 @@ export function certificatoNelModulo(p: {
     ritenuta_pct: ritenutaPct,
     ritenuta: tondo((p.cumulativo * ritenutaPct) / 100),
     altre_detrazioni: tondo(altre),
+    recupero_anticipazione: p.recupero != null && Number.isFinite(p.recupero) ? tondo(p.recupero) : base.recupero_anticipazione,
     altre_detrazioni_nota: p.nota?.trim() || base.altre_detrazioni_nota || null,
   };
   const netto = nettoCertificato(c);

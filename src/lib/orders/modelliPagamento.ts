@@ -375,5 +375,11 @@ export function rataPerServer(r: Installment): Record<string, unknown> {
     paid_date: r.paid_date ?? null, expected_date: r.expected_date ?? null,
     trigger_evento: r.trigger_evento || "data_fissa", trigger_status_id: r.trigger_status_id ?? null,
     trigger_numero: r.trigger_numero ?? null, giorni_preavviso: r.giorni_preavviso ?? 7,
+    // order_rate_sostituisci riscrive ogni campo: quelli che mancano tornano al default (15/11/2026).
+    // Prima «Imposta la rata» e «Allinea il saldo» toglievano a tutte le rate termine di pagamento,
+    // soglia «al X% dei lavori», fase e «a misura».
+    trigger_soglia: r.trigger_soglia ?? null, trigger_fase: r.trigger_fase ?? null,
+    termine_giorni: r.termine_giorni ?? 0, termine_fine_mese: r.termine_fine_mese ?? false,
+    importo_da_misurare: r.importo_da_misurare ?? false,
   };
 }
