@@ -219,7 +219,7 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "voci": [{ "descrizione": "string", "quantita": "numero o null", "unita": "string o null (pz, m, mq, ore...)", "prezzo_unitario_eur": "numero o null, IVA esclusa", "segno": "'aggiunta' se il lavoro si aggiunge, 'tolta' se si toglie dal contratto" }],
   "_regole_voci": "Una voce per ogni lavoro chiesto, aggiunto o tolto. prezzo_unitario_eur SOLO se il documento scrive il prezzo di quella voce (mai stimarlo, mai dedurlo da un listino): se manca, null. quantita solo se scritta o evidente ('due punti luce' = 2). Il segno lo dice il testo ('togliere', 'non fare piu'', 'eliminare' = tolta), mai il prezzo: il prezzo resta positivo",
   "importo_a_corpo_eur": "numero o null: l'importo complessivo della variante IVA esclusa, solo se il documento lo scrive",
-  "giorni_aggiuntivi": "numero o null: giorni in piu' chiesti per i lavori, solo se scritti",
+  "giorni_aggiuntivi": "numero o null: giorni in piu' per i lavori, solo se il documento li chiede o li concorda; una domanda ('ci vorra' un giorno in piu'?') non e' un accordo: null e un warning",
   "richiesto_da": "string o null: chi chiede la variante (cliente, direttore lavori...), se il documento lo dice",
   "motivazione": "string o null: perche' si cambia, se il documento lo dice"
 }`,

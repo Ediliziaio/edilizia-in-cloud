@@ -59,9 +59,11 @@ export function leggiVarianteDaAi(raw: unknown): VarianteLetta {
       if (!descrizione) return null;
       const q = num(v.quantita);
       const p = num(v.prezzo_unitario_eur);
+      // Una voce col prezzo e senza quantità è un lavoro a corpo: «il controsoffitto (era 600 euro)» = 1 × 600.
+      const quantita = q != null && q > 0 ? q : p != null ? 1 : null;
       return {
         descrizione,
-        quantita: q != null && q > 0 ? q : null,
+        quantita,
         unita: testo(v.unita, 20),
         // Il segno lo dice «segno», non il prezzo: un prezzo negativo letto si tiene in valore assoluto.
         prezzo_unitario_eur: p != null ? Math.abs(p) : null,

@@ -22,6 +22,14 @@ describe("Lettura difensiva", () => {
     expect(l.giorni_aggiuntivi).toBeNull();
   });
 
+  it("una voce col prezzo e senza quantità vale 1 (la mail del 15/11: «il controsoffitto era 600 euro»)", () => {
+    const l = leggiVarianteDaAi({ voci: [
+      { descrizione: "Controsoffitto del bagno", quantita: null, prezzo_unitario_eur: 600, segno: "tolta" },
+      { descrizione: "Punto luce", quantita: null, prezzo_unitario_eur: null },
+    ] });
+    expect(l.voci.map((v) => v.quantita)).toEqual([1, null]);
+  });
+
   it("il tipo viene dalle voci", () => {
     expect(tipoVariante([{ segno: "aggiunta" }])).toBe("aggiunta");
     expect(tipoVariante([{ segno: "tolta" }, { segno: "tolta" }])).toBe("riduzione");
@@ -81,6 +89,20 @@ describe("Bozza dalla lettura", () => {
     }));
     expect(bozza).toMatchObject({ pricing: "corpo", amount: "3200" });
     expect(avvisi).toEqual([]);
+  });
+
+  it("la mail vera del collaudo: due punti luce e una presa in più, niente controsoffitto", () => {
+    const { bozza, avvisi } = bozzaVarianteDaDocumento(leggiVarianteDaAi({
+      titolo: "Aggiunta punti luce e presa, eliminazione controsoffitto", descrizione: "Si aggiungono due punti luce e una presa.", giorni_aggiuntivi: 1,
+      voci: [
+        { descrizione: "Punti luce in cucina", prezzo_unitario_eur: 85, quantita: 2, segno: "aggiunta", unita: "pz" },
+        { descrizione: "Presa in bagno", prezzo_unitario_eur: 40, quantita: 1, segno: "aggiunta", unita: "pz" },
+        { descrizione: "Controsoffitto del bagno", prezzo_unitario_eur: 600, quantita: null, segno: "tolta", unita: null },
+      ],
+    }));
+    expect(bozza).toMatchObject({ kind: "modifica", pricing: "voci", days: "1" });
+    expect(avvisi).toEqual([]);
+    expect(prepareVariation(bozza).impatto_economico).toBe(-390);
   });
 
   it("tiene i dati di impresa e cliente della base", () => {
