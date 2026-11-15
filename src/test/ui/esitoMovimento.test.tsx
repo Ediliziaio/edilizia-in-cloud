@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const mock = vi.hoisted(() => ({ rpc: vi.fn(), toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: mock.toast }));
 vi.mock("@/lib/finance/bankWorkspace", async (o) => ({ ...(await o<object>()), bankRpc: mock.rpc }));
-vi.mock("@/lib/finance/bankExternalPayments", () => ({ syncBankExternalPayments: async () => [] }));
+vi.mock("@/lib/finance/bankExternalPayments", () => ({ syncBankExternalPayments: async (): Promise<string[]> => [] }));
 import { AlternativeEsito, BadgeEsito, RigaEsitoMovimento, confermabile, type EsitoMovimentoDati } from "@/components/tesoreria/EsitoMovimento";
 
 const movimento = { id: "tx", amount: -7800, currency: "EUR", booking_date: "2026-11-13", links: { remaining: 7800 } } as never;
@@ -57,5 +57,24 @@ describe("esito del motore nel popup del movimento", () => {
     expect(container).toBeEmptyDOMElement();
     rerender(<BadgeEsito esito={{ ...esito, esito: "conflitto" }} />);
     expect(screen.getByText("Conflitto")).toBeInTheDocument();
+  });
+});
+
+import { erroreSenzaFattura } from "@/components/tesoreria/MovimentoSenzaFattura";
+describe("errore di «Senza fattura» detto chiaro", () => {
+  it("il debito già registrato dice cosa fare, con l'importo all'italiana", () => {
+    const r = erroreSenzaFattura({ code: "23505", message: "Questa uscita salda un debito già registrato («Bolletta ottobre», 1300.00 €): collegala alla scadenza invece di registrare una spesa nuova, così il costo non si conta due volte." });
+    expect(r.titolo).toBe("Questa uscita paga un debito che c'è già");
+    expect(r.testo).toContain("1.300,00 €");
+    expect(r.testo).toContain("scarta la proposta");
+  });
+  it("un errore tecnico non arriva grezzo", () => {
+    const spia = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = erroreSenzaFattura({ code: "23505", message: "duplicate key value violates unique constraint \"x_pkey\"" });
+    expect(r.testo).not.toMatch(/duplicate|constraint/);
+    spia.mockRestore();
+  });
+  it("le frasi del database restano com'erano", () => {
+    expect(erroreSenzaFattura({ code: "22023", message: "Scrivi di cosa si tratta." }).testo).toBe("Scrivi di cosa si tratta.");
   });
 });

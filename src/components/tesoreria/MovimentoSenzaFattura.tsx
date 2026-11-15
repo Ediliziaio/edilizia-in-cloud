@@ -78,7 +78,8 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
         p_mezzo: spesa && mezzo !== NESSUNO ? mezzo : null,
       });
       if (error) {
-        toast.error("Movimento non chiuso", { description: error.message });
+        const { titolo, testo } = erroreSenzaFattura(error);
+        toast.error(titolo, { description: testo, duration: 12_000 });
         return;
       }
       if (data?.costo_id) {
@@ -179,4 +180,30 @@ export function MovimentoSenzaFattura({ tx, companyId, onFatto }: {
       </div>
     </div>
   );
+}
+
+/**
+ * L'errore di «Senza fattura» detto in modo che si capisca cosa fare. Il
+ * database scrive già frasi in italiano; qui si sistemano gli importi
+ * («300.00 €» → «300,00 €») e si danno titolo e passo successivo. Un errore
+ * tecnico (vincoli, permessi, rete) non arriva mai grezzo all'utente.
+ */
+export function erroreSenzaFattura(e: { message?: string | null; code?: string | null }): { titolo: string; testo: string } {
+  const msg = (e.message ?? "").replace(/(\d+)\.(\d{2}) €/g, (_, i: string, d: string) => `${i.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${d} €`);
+  if (/salda un debito già registrato/i.test(msg)) {
+    return {
+      titolo: "Questa uscita paga un debito che c'è già",
+      testo: `${msg} Usa «Collega» in «Fatture e pagamenti»; se non è quel debito, scarta la proposta nella riga «Esito» e riprova.`,
+    };
+  }
+  if (/già abbinato/i.test(msg)) return { titolo: "Movimento già collegato", testo: "Questo movimento è già abbinato: ricarica la pagina per vedere a cosa." };
+  if (e.code === "42501" || /permission denied|non autorizzat/i.test(msg)) {
+    return { titolo: "Non hai il permesso", testo: "Per chiudere un movimento senza fattura serve il permesso di riconciliare la banca: chiedilo al titolare." };
+  }
+  const tecnico = !msg || /violates|duplicate key|constraint|syntax|function|relation|column|jwt|fetch|network|timeout/i.test(msg);
+  if (tecnico) {
+    console.error("chiudi_movimento_senza_fattura", e);
+    return { titolo: "Movimento non chiuso", testo: "Non è stato possibile chiudere il movimento. Riprova tra poco; se succede ancora, avvisa l'assistenza." };
+  }
+  return { titolo: "Movimento non chiuso", testo: msg };
 }
