@@ -8,6 +8,8 @@
  * sconto, fase e fornitore. Le commesse cancellate non contano.
  * Calcoli in `@/lib/controlloGestione/prodottiMargine`.
  */
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
+import type { Tabella } from "@/lib/controlloGestione/esportaTutto";
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -248,6 +250,18 @@ export function TabProdotti({ anno }: Props) {
               {FONTE_LABEL[f] ?? f}: {n}
             </Badge>
           ))}
+          <EsportaMenu anno={anno} sezioni={[]} titolo={vista === "marginalita" ? "Margine sui materiali" : "Costo di listino e costo reale"}
+            tabelleExtra={(): Tabella[] => [vista === "marginalita"
+              ? {
+                  titolo: `Margine sui materiali per ${colonna.toLowerCase()} · ${anno}`,
+                  colonne: [colonna, "N. righe", "Venduto (€)", "Costo materiali (€)", "Margine (€)", "Margine %", "Costi senza prezzo di vendita (€)"],
+                  righe: aggregati.map((a) => [a.label, a.n_righe, a.ricavo, a.costo_con_ricavo, a.margine, a.margine_perc ?? null, a.costo_senza_ricavo]),
+                }
+              : {
+                  titolo: `Costo di listino e costo reale per ${colonna.toLowerCase()} · ${anno}`,
+                  colonne: [colonna, "N. righe", "Righe con listino", "Costo listino (€)", "Costo reale (€)", "Differenza (€)", "Differenza %"],
+                  righe: aggregati.map((a) => [a.label, a.n_righe, a.con_baseline, a.costo_standard, a.costo_reale, a.scostamento, a.scostamento_perc ?? null]),
+                }]} />
           <ExportButton
             onExport={async () => {
               const isMarg = vista === "marginalita";

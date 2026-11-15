@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
+import { tabellePiano } from "@/lib/controlloGestione/esportaTutto";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -212,6 +214,10 @@ export function TabPianoIndustriale({ scenarioId, onClearScenarioFilter }: TabPi
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <EsportaMenu anno={annoPartenza ?? annoCorrente} sezioni={[]} titolo="Piano industriale"
+          tabelleExtra={() => tabellePiano(piano)} />
+      </div>
       <PianoHeader
         piano={piano}
         scenarioAttivo={scenarioSelezionato}

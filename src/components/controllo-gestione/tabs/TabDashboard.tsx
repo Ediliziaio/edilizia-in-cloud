@@ -6,6 +6,7 @@
  * Pensata per dare un colpo d'occhio "salute aziendale" all'imprenditore.
  */
 
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -496,6 +497,9 @@ export function TabDashboard({ anno }: Props) {
 
   return (
     <div className="space-y-3 sm:flex sm:flex-col sm:gap-3 sm:space-y-0">
+      <div className="flex justify-end">
+        <EsportaMenu anno={anno} sezioni={["ce", "sp", "pfn", "indici", "rating", "bep", "commesse"]} titolo="Riepilogo del controllo di gestione" />
+      </div>
       <div className="sm:order-5">
         <DashboardActionCenter
           // 14/11/2026: cassa sotto zero, commesse in perdita e budget stanno già negli

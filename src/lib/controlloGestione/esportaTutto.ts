@@ -161,6 +161,28 @@ function tabelleVersamenti(dati: unknown, titolo: string): Tabella[] {
   ];
 }
 
+/** Piano industriale come lo mostra la pagina (scenario scelto): conto economico e patrimonio per anno. */
+export function tabellePiano(piano: { meta: unknown; periodi: readonly unknown[] } | null): Tabella[] {
+  if (!piano) return [];
+  const p = piano.periodi as Record<string, unknown>[];
+  const riga = (voce: string, chiave: string): Cella[] => [voce, ...p.map((x) => cellaDa(x[chiave]))];
+  return [
+    {
+      titolo: "Piano industriale · previsioni per anno",
+      colonne: ["Voce", ...p.map((x) => `${x.anno} (${x.tipo === "consuntivo" ? "consuntivo" : "previsione"})`)],
+      righe: [
+        riga("Ricavi", "ricavi"), riga("Costi variabili", "costi_var"), riga("Costi fissi", "costi_fissi"),
+        riga("EBITDA", "ebitda"), riga("Ammortamenti", "ammortamenti"), riga("Oneri finanziari", "oneri_finanziari"),
+        riga("Utile", "utile"), riga("Cespiti", "cespiti"), riga("Patrimonio netto", "mezzi_propri"),
+        riga("Debito oltre 12 mesi", "debito_mlt"), riga("Investimento dell'anno", "investimento_anno"),
+        riga("Crescita dei ricavi %", "crescita_ricavi_pct"), riga("Punteggio rating", "rating_score"),
+        riga("Classe di rating", "rating_classe"),
+      ],
+    },
+    ...appiattisci(piano.meta, "Piano industriale · ipotesi"),
+  ];
+}
+
 export const SEZIONI: DefinizioneSezione[] = [
   { chiave: "ce", titolo: "Conto economico", rpc: "cg_get_ce_safe", args: (anno) => ({ p_anno: anno }), tabelle: tabelleCE },
   { chiave: "ce_mensile", titolo: "Conto economico mese per mese", rpc: "cg_get_ce_mensile", args: (anno) => ({ p_anno: anno }) },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appiattisci, etichetta, htmlEsportazione, nomeFoglio, tabellaInCsv } from "@/lib/controlloGestione/esportaTutto";
+import { appiattisci, etichetta, htmlEsportazione, nomeFoglio, tabellaInCsv, tabellePiano } from "@/lib/controlloGestione/esportaTutto";
 
 describe("esportazione del controllo di gestione", () => {
   it("dà nomi leggibili alle chiavi del database", () => {
@@ -34,5 +34,20 @@ describe("esportazione del controllo di gestione", () => {
     expect(html).toContain("&lt;script&gt;");
     expect(html).toContain("Ditta &amp; C");
     expect(html).not.toContain("<script>");
+  });
+
+  it("mette il piano industriale anno per anno, con le ipotesi a parte", () => {
+    const t = tabellePiano({
+      meta: { scenario: "base", tasso_debito_pct: 4.5 },
+      periodi: [
+        { tipo: "consuntivo", anno: 2026, ricavi: 1000, utile: 100, rating_classe: "B" },
+        { tipo: "proiezione", anno: 2027, ricavi: 1100, utile: 120, rating_classe: "BB" },
+      ],
+    });
+    expect(t[0].colonne).toEqual(["Voce", "2026 (consuntivo)", "2027 (previsione)"]);
+    expect(t[0].righe[0]).toEqual(["Ricavi", 1000, 1100]);
+    expect(t[0].righe.find((r) => r[0] === "Classe di rating")).toEqual(["Classe di rating", "B", "BB"]);
+    expect(t[1].righe).toEqual([["Scenario", "base"], ["Tasso debito %", 4.5]]);
+    expect(tabellePiano(null)).toEqual([]);
   });
 });
