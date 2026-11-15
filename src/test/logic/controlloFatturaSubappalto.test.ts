@@ -164,19 +164,27 @@ describe("acconto al subappaltatore", () => {
   });
 
   it("acconto fatturato due volte: blocco", () => {
-    const prima = fattura({ id: "fa", contratto_subappalto_id: "c1", imponibile_totale: 3100 });
+    const prima = fattura({ id: "fa", contratto_subappalto_id: "c1", imponibile_totale: 3100, subappalto_acconto: true });
     const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 3100, testo: "Acconto" }), { contratti: [conAcconto()], sal: [], altreFatture: [prima] });
     expect(r.esito).toBe("conflitto");
     expect(r.problemi.map((p) => p.codice)).toContain("acconto_oltre");
   });
 
   it("la fattura del SAL che scala l'acconto passa; quella che non lo scala si blocca", () => {
-    const accontoFatturato = fattura({ id: "fa", contratto_subappalto_id: "c1", imponibile_totale: 3100 });
+    const accontoFatturato = fattura({ id: "fa", contratto_subappalto_id: "c1", imponibile_totale: 3100, subappalto_acconto: true });
     const ok = controllaFatturaSubappalto(fattura({ imponibile_totale: 2800, testo: "SAL n. 1" }), { contratti: [conAcconto()], sal: salAcc, altreFatture: [accontoFatturato] });
     expect(ok).toMatchObject({ esito: "automatico", salId: "s1" });
     const doppia = controllaFatturaSubappalto(fattura({ imponibile_totale: 3800, testo: "SAL n. 1" }), { contratti: [conAcconto()], sal: salAcc, altreFatture: [accontoFatturato] });
     expect(doppia.esito).toBe("conflitto");
     expect(doppia.problemi.map((p) => p.codice)).toContain("acconto_non_scalato");
+  });
+
+  it("una fattura collegata al contratto senza SAL ma non dichiarata acconto non conta come acconto", () => {
+    // È la fattura di un SAL non ancora verificato, collegata al solo contratto.
+    const salNonVerificato = fattura({ id: "fs", contratto_subappalto_id: "c1", imponibile_totale: 3100 });
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 3100, testo: "Acconto" }), { contratti: [conAcconto()], sal: [], altreFatture: [salNonVerificato] });
+    expect(r.problemi.map((p) => p.codice)).not.toContain("acconto_oltre");
+    expect(r.acconto).toBe(true);
   });
 
   it("l'acconto non ancora recuperato non fa scattare «oltre i SAL approvati»", () => {

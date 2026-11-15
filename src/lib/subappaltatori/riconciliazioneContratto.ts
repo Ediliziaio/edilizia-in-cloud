@@ -30,6 +30,8 @@ export interface FatturaPerRiepilogo {
   totale_documento?: number | null;
   tipo_documento?: string | null;
   sal_subappaltatore_id?: string | null;
+  /** Fattura d'acconto dichiarata: la sola che conta come acconto fatturato. */
+  subappalto_acconto?: boolean | null;
 }
 export interface RitenutaPerRiepilogo {
   importo: number;
@@ -80,14 +82,15 @@ export function riepilogoContratto(
 
   // L'acconto: le fatture collegate al contratto senza SAL, recuperate nei SAL (il netto lo scala già).
   const acconto = tondo(n(c.acconto_importo));
-  const accontoFatturato = acconto > 0 ? tondo(fatture.filter((f) => !f.sal_subappaltatore_id).reduce((t, f) => t + imponibile(f), 0)) : 0;
+  // Solo le fatture d'acconto dichiarate: una fattura senza SAL può essere quella di un SAL non ancora verificato.
+  const accontoFatturato = acconto > 0 ? tondo(fatture.filter((f) => f.subappalto_acconto).reduce((t, f) => t + imponibile(f), 0)) : 0;
   const accontoRecuperato = tondo(validi.reduce((t, s) => t + n(s.acconto_recuperato), 0));
   const accontoDaRecuperare = tondo(Math.max(0, accontoFatturato - accontoRecuperato));
 
   const avvisi: string[] = [];
   if (valore > 0 && eseguito > valore + 0.01) avvisi.push(`I SAL (${euro(eseguito)}) superano il valore del contratto (${euro(valore)}): serve una variante o un SAL va corretto.`);
   if (fatturato > approvato + accontoDaRecuperare + 0.01) avvisi.push(`Fatturato ${euro(fatturato)} più dei SAL approvati (${euro(approvato)})${accontoDaRecuperare > 0 ? ` e dell'acconto da recuperare (${euro(accontoDaRecuperare)})` : ""}: approva i SAL o verifica la fattura.`);
-  if (acconto > 0 && accontoFatturato > acconto + 0.01) avvisi.push(`Le fatture senza SAL (${euro(accontoFatturato)}) superano l'acconto del contratto (${euro(acconto)}): una va collegata al suo SAL.`);
+  if (acconto > 0 && accontoFatturato > acconto + 0.01) avvisi.push(`Le fatture d'acconto (${euro(accontoFatturato)}) superano l'acconto del contratto (${euro(acconto)}).`);
   if (accontoDaRecuperare > 0.01 && valore > 0 && accontoDaRecuperare > tondo(Math.max(0, valore - eseguito)) + 0.01) avvisi.push(`Restano da recuperare ${euro(accontoDaRecuperare)} di acconto, più dei lavori che mancano (${euro(tondo(Math.max(0, valore - eseguito)))}).`);
   if (pagato > 0 && fatture.length > 0 && pagato > fatturato + 0.01) avvisi.push(`Pagato ${euro(pagato)} più del fatturato (${euro(fatturato)}): manca una fattura.`);
   if (pagato > 0 && fatture.length === 0) avvisi.push("Ci sono SAL pagati ma nessuna fattura collegata: collega le fatture del subappaltatore.");

@@ -59,6 +59,8 @@ export interface FatturaCtrl {
   totale_documento?: number | null;
   stato?: string | null;
   contratto_subappalto_id?: string | null;
+  /** Fattura d'acconto dichiarata (fatture_ricevute.subappalto_acconto): la sola che conta come acconto. */
+  subappalto_acconto?: boolean | null;
   sal_subappaltatore_id?: string | null;
   /** Descrizioni delle righe e note: da qui si leggono numero di contratto, SAL e periodo. */
   testo?: string | null;
@@ -85,6 +87,8 @@ export interface RisultatoControllo {
   alternative: Array<{ contrattoId: string; salId: string | null; motivo: string }>;
   problemi: Problema[];
   prove: Prova[];
+  /** Vero se è una fattura d'acconto: si collega al contratto con p_acconto, senza SAL. */
+  acconto: boolean;
 }
 
 const n = (v: unknown) => Number(v) || 0;
@@ -183,8 +187,9 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
   const contratti = ctx.contratti.filter((c) => c.company_id === fattura.company_id);
   const salAzienda = ctx.sal.filter((s) => s.company_id === fattura.company_id);
   const altre = ctx.altreFatture.filter((f) => f.company_id === fattura.company_id && f.id !== fattura.id && f.stato !== "rifiutata");
+  let eAcconto = false;
   const fine = (esito: EsitoControllo, regola: string, contrattoId: string | null, salId: string | null): RisultatoControllo =>
-    ({ esito: problemi.some((p) => p.blocca) ? "conflitto" : esito, regola: problemi.find((p) => p.blocca)?.testo ?? regola, contrattoId, salId, alternative, problemi, prove });
+    ({ esito: problemi.some((p) => p.blocca) ? "conflitto" : esito, regola: problemi.find((p) => p.blocca)?.testo ?? regola, contrattoId, salId, alternative, problemi, prove, acconto: eAcconto });
 
   if (fattura.stato === "rifiutata") {
     problemi.push({ codice: "fattura_rifiutata", blocca: true, testo: "La fattura è rifiutata: non si collega." });
@@ -279,15 +284,15 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
     }
   }
 
-  // 2b. Fattura d'acconto: collegata al contratto senza SAL, entro l'acconto previsto.
+  // 2b. Fattura d'acconto: dichiarata come tale (non basta essere senza SAL: lo è anche la fattura
+  // di un SAL non ancora verificato), entro l'acconto previsto.
   const acconto = tondo(n(contratto.acconto_importo));
-  const accontoFatturatoAltre = tondo(altre.filter((f) => f.contratto_subappalto_id === contratto!.id && !f.sal_subappaltatore_id)
+  const accontoFatturatoAltre = tondo(altre.filter((f) => f.contratto_subappalto_id === contratto!.id && f.subappalto_acconto)
     .reduce((t, f) => t + imponibileFattura(f), 0));
   const accontoDaFatturare = tondo(acconto - accontoFatturatoAltre);
   const citaAcconto = /\b(acconto|anticipazion)/i.test(testo);
-  let eAcconto = false;
   if (!sal && !fattura.sal_subappaltatore_id && !eNotaCredito(fattura) && acconto > 0
-      && (citaAcconto || (!alternative.length && uguale(imp, accontoDaFatturare)))) {
+      && (fattura.subappalto_acconto || citaAcconto || (!alternative.length && uguale(imp, accontoDaFatturare)))) {
     eAcconto = true;
     alternative.length = 0;
     prove.push({ dato: "Fattura d'acconto", valore: `${euro(imp)} su un acconto di ${euro(acconto)}` });
@@ -428,7 +433,7 @@ export function decidiGiro(libere: FatturaCtrl[], ctx: ContestoControllo): { aut
     const risultato = controllaFatturaSubappalto(f, { ...ctx, altreFatture: giaDecise });
     if (risultato.esito === "automatico" && risultato.contrattoId) {
       automatiche.push({ fattura: f, risultato });
-      giaDecise.push({ ...f, contratto_subappalto_id: risultato.contrattoId, sal_subappaltatore_id: risultato.salId });
+      giaDecise.push({ ...f, contratto_subappalto_id: risultato.contrattoId, sal_subappaltatore_id: risultato.salId, subappalto_acconto: risultato.acconto });
     } else {
       altre[risultato.esito]++;
     }

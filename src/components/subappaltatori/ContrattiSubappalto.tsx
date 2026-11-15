@@ -299,7 +299,7 @@ export function ContrattiSubappalto({
       const filtri = [ids.length ? `contratto_subappalto_id.in.(${ids.join(",")})` : null, sub.piva ? `cedente_piva.eq.${sub.piva.replace(/\s/g, "")}` : null].filter(Boolean).join(",");
       if (!filtri) return [];
       const { data, error } = await supabase.from("fatture_ricevute")
-        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, cedente_ragione_sociale, stato")
+        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, subappalto_acconto, cedente_ragione_sociale, stato")
         .eq("company_id", companyId).or(filtri).order("data_fattura", { ascending: false }).limit(200);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{ id: string; numero_fattura: string | null; data_fattura: string | null; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null; cedente_ragione_sociale: string | null; stato: string | null }>;
@@ -1118,10 +1118,10 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
     queryKey: ["fatture-sub-lavori", subId, ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("fatture_ricevute" as never)
-        .select("id, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id")
+        .select("id, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, subappalto_acconto")
         .in("contratto_subappalto_id" as never, ids as never);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null }>;
+      return (data ?? []) as unknown as Array<{ id: string; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null; subappalto_acconto: boolean | null }>;
     },
     enabled: ids.length > 0,
   });

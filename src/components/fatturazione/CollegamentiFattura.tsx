@@ -173,12 +173,13 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     // La traccia (acquisti_collegamenti) la scrive la funzione: «manuale» quando decide una persona,
     // «automatico» quando decide il controllo, e allora vale l'interruttore dell'azienda.
     mutationFn: async (campi: { contratto_subappalto_id?: string | null; sal_subappaltatore_id?: string | null;
-      esito?: "manuale" | "automatico"; prove?: unknown[] }) => {
+      esito?: "manuale" | "automatico"; prove?: unknown[]; acconto?: boolean }) => {
       const contratto = campi.contratto_subappalto_id !== undefined ? campi.contratto_subappalto_id : contrattoId ?? null;
       const sal = campi.contratto_subappalto_id === null ? null : campi.sal_subappaltatore_id !== undefined ? campi.sal_subappaltatore_id : null;
       const { error } = await db.rpc("subappalto_collega_fattura", {
         p_fattura: fatturaId, p_contratto: contratto, p_sal: sal,
         p_esito: campi.esito ?? "manuale", p_regola: "subappalto_controllo_fattura", p_prove: campi.prove ?? [],
+        p_acconto: campi.acconto === true,
       });
       if (error) throw error;
     },
@@ -197,7 +198,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
     if (!daCollegareDaSola?.contrattoId || tentatoAutomatico.current === fatturaId || salvaSubappalto.isPending) return;
     tentatoAutomatico.current = fatturaId;
     salvaSubappalto.mutate({ contratto_subappalto_id: daCollegareDaSola.contrattoId, sal_subappaltatore_id: daCollegareDaSola.salId,
-      esito: "automatico", prove: proveTraccia(daCollegareDaSola) });
+      esito: "automatico", prove: proveTraccia(daCollegareDaSola), acconto: daCollegareDaSola.acconto && !daCollegareDaSola.salId });
   }, [daCollegareDaSola, fatturaId, salvaSubappalto]);
   const collegati = new Set((data?.mezzi ?? []).map((m) => m.mezzo_id));
   const ddt = data?.ddt ?? [];
@@ -289,7 +290,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
             {controllo && (
               <EsitoControlloSubappalto risultato={controllo.risultato} contratti={controllo.contratti} sal={controllo.sal}
                 giaCollegata={!!contrattoId} puoModificare={puoModificare} occupato={salvaSubappalto.isPending}
-                onCollega={(c, sal) => salvaSubappalto.mutate({ contratto_subappalto_id: c, sal_subappaltatore_id: sal, prove: proveTraccia(controllo.risultato) })} />
+                onCollega={(c, sal, acconto) => salvaSubappalto.mutate({ contratto_subappalto_id: c, sal_subappaltatore_id: sal, prove: proveTraccia(controllo.risultato), acconto })} />
             )}
           </dd>
         </>

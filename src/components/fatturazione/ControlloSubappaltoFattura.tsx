@@ -14,7 +14,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-const COLONNE_FATTURA = "id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, imponibile_totale, totale_documento, stato, contratto_subappalto_id, sal_subappaltatore_id, righe, note";
+const COLONNE_FATTURA = "id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, imponibile_totale, totale_documento, stato, contratto_subappalto_id, sal_subappaltatore_id, subappalto_acconto, righe, note";
 
 type FatturaRiga = Omit<FatturaCtrl, "testo"> & { righe?: unknown; note?: string | null };
 const aCtrl = (f: FatturaRiga): FatturaCtrl => ({ ...f, testo: testoFattura(f) });
@@ -63,7 +63,7 @@ const COLORE: Record<RisultatoControllo["esito"], string> = {
 /** Una riga con l'esito, i problemi e, se c'è, la proposta da confermare con un clic. */
 export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollegata, puoModificare, occupato, onCollega }: {
   risultato: RisultatoControllo; contratti: ContrattoCtrl[]; sal: SalCtrl[]; giaCollegata: boolean;
-  puoModificare: boolean; occupato: boolean; onCollega: (contrattoId: string, salId: string | null) => void;
+  puoModificare: boolean; occupato: boolean; onCollega: (contrattoId: string, salId: string | null, acconto: boolean) => void;
 }) {
   const { esito, problemi, contrattoId, salId } = risultato;
   const c = contratti.find((x) => x.id === contrattoId);
@@ -71,7 +71,7 @@ export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollega
   // il solo contratto, e il SAL si aggiunge dopo la verifica.
   const salDaVerificare = problemi.some((p) => p.codice === "sal_non_verificato");
   const s = salDaVerificare ? undefined : sal.find((x) => x.id === salId);
-  const acconto = risultato.prove.some((p) => p.dato === "Fattura d'acconto");
+  const acconto = risultato.acconto;
   const nomeProposta = c ? `contratto ${c.numero_contratto || "senza numero"}${s ? ` · SAL ${s.numero_sal}` : acconto ? " · fattura d'acconto, senza SAL" : ""}` : "";
   const proponibile = !giaCollegata && !!c && (esito === "automatico" || esito === "proposta");
   return (
@@ -81,7 +81,7 @@ export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollega
         <span className={COLORE[esito]}>
           {esito === "automatico" ? "Riconosciuta" : "Proposta"}: {nomeProposta}{salDaVerificare ? " (il SAL si collega dopo la verifica)" : ""}.{" "}
           {puoModificare && (
-            <button type="button" className="underline underline-offset-2" disabled={occupato} onClick={() => onCollega(c!.id, s?.id ?? null)}>Collega</button>
+            <button type="button" className="underline underline-offset-2" disabled={occupato} onClick={() => onCollega(c!.id, s?.id ?? null, acconto && !s)}>Collega</button>
           )}
         </span>
       )}

@@ -32,7 +32,8 @@ const COSTO: Record<string, string> = {
   misto: "da ripartire a mano", sospesa: "sospesa",
 };
 const Icona = ({ tipo }: { tipo: string }) => (tipo === "luce" ? <Zap className="h-4 w-4 text-amber-500" /> : tipo === "gas" ? <Flame className="h-4 w-4 text-orange-600" /> : <Plug className="h-4 w-4 text-muted-foreground" />);
-const oggi = () => new Date().toISOString().slice(0, 10);
+// La data di oggi in Italia, non in UTC: dopo mezzanotte italiana UTC è ancora «ieri».
+const oggi = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
 /** La destinazione che vale oggi (l'ultima aperta). */
 export function destinazioneAttuale(dest: Destinazione[], utenzaId: string, data = oggi()): Destinazione | null {
@@ -47,7 +48,7 @@ export default function UtenzeTab() {
   const qc = useQueryClient();
   const puoDecidere = permessi.canViewCosts && !permessi.solaLettura;
   // Le date di riferimento si fissano all'apertura della scheda.
-  const [annoFa] = useState(() => new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10));
+  const [annoFa] = useState(() => new Date(Date.now() - 365 * 86_400_000).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }));
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["utenze-bollette", companyId],

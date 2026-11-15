@@ -218,3 +218,24 @@ fornitura (oggi si mostra l'indirizzo, la scelta è della persona).
    dell'azienda (§3).
 2. ~~Gli acconti ai subappaltatori sono previsti dai contratti?~~ Sì, a volte: fatto (§5.3).
 3. Le 241 fatture storiche: si collegano a lotti quelle «Riconosciute», azienda per azienda?
+
+## 7. Correzioni della revisione finale (15/11/2026, migrazioni 20290415210000 e 20290415220000)
+
+- **Acconto esplicito**: conta come acconto solo la fattura dichiarata tale
+  (`fatture_ricevute.subappalto_acconto`, scritto da `subappalto_collega_fattura(…, p_acconto)` e
+  solo se il contratto prevede un acconto). Una fattura collegata al solo contratto (per esempio
+  quella di un SAL non ancora verificato) non fa più recuperare un acconto inesistente. Stessa
+  regola nel recupero SQL, nel controllo della fattura e nel riepilogo.
+- **SAL contestato**: il suo `acconto_recuperato` torna a 0 quando diventa contestato; un
+  controllo per contratto impedisce che la somma dei recuperi superi l'acconto.
+- **Bollette sospese**: una fattura con bolletta «doppione sospetto» o «scartata» non si
+  contabilizza (lo rifiuta il database). Lo scarto mette la fattura in «rifiutata», lo stato che
+  i conti economici escludono, con traccia nella bolletta. **Non fatto**: lo storno del costo già
+  registrato. `company_costs` non ha `deleted_at` e un costo ha scadenze, prima nota e rate
+  collegate: cancellarlo da qui non è sicuro. L'avviso della bolletta dice di annullarlo dalla
+  fattura.
+- **Ripartizione col segno**: un rimborso resta un rimborso; segni diversi su commesse diverse o
+  totale zero = «misto», da ripartire a mano.
+- **Senza XML**: la fattura non si segna «non bolletta» e torna in coda quando l'XML arriva.
+- **Periodi senza data di fine**: la sovrapposizione si controlla con la data d'inizio.
+- **Data di oggi** nella scheda Utenze in ora italiana.

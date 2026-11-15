@@ -36,7 +36,7 @@ export const PER_AZIENDA = 500;
 /** Gli id in una richiesta: oltre, l'URL della GET diventa troppo lungo. */
 const BLOCCO_ID = 150;
 export const GIORNI = 120;
-const COLONNE_FATTURA = "id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, imponibile_totale, totale_documento, stato, contratto_subappalto_id, sal_subappaltatore_id, righe, note, created_at";
+const COLONNE_FATTURA = "id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, imponibile_totale, totale_documento, stato, contratto_subappalto_id, sal_subappaltatore_id, subappalto_acconto, righe, note, created_at";
 
 // deno-lint-ignore no-explicit-any
 type Db = { from: (t: string) => any; rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: any; error: any }> };
@@ -125,6 +125,7 @@ export async function giroSubappalti(db: Db, opz: { oggi?: Date; tetto?: number;
         const { data, error } = await db.rpc("subappalto_collega_fattura", {
           p_fattura: fattura.id, p_contratto: risultato.contrattoId, p_sal: risultato.salId,
           p_esito: "automatico", p_regola: "subappalto_controllo_fattura", p_prove: proveTraccia(risultato),
+          p_acconto: risultato.acconto && !risultato.salId,
         });
         if (error) { esito.errori.push(`${fattura.id}: ${error.message}`); continue; }
         if ((data as { esito?: string } | null)?.esito === "proposta") { esito.proposte++; continue; }
