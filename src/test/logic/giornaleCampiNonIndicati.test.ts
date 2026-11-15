@@ -3,13 +3,13 @@
  * la temperatura scritta come numero ha l'unità; il totale dice «giornate uomo».
  */
 import { describe, expect, it } from "vitest";
-import { buildGiornaleHtml, type GiornataDocumento } from "../../../supabase/functions/_shared/documentoGiornale";
+import { buildGiornaleHtml, type AziendaDocumentoGiornale, type GiornataDocumento } from "../../../supabase/functions/_shared/documentoGiornale";
 
 const g = (data: string, extra: Partial<GiornataDocumento> = {}): GiornataDocumento => ({
   id: data, data_lavori: data, stato: "bozza", condizioni_meteo: "soleggiato", lavorazioni_eseguite: "MURATURE IN YTONG", materiali_utilizzati: null,
   personale_presente: 2, note: null, avanzamento_percentuale: 0, temperatura: "", firmato_da: null, firmato_il: null, ...extra,
 });
-const azienda = { ragione_sociale: "Prova S.r.l.", partita_iva: null, colore_primario: null, logo_url: null };
+const azienda: AziendaDocumentoGiornale = { ragione_sociale: "Prova S.r.l.", partita_iva: null, colore_primario: null, logo_url: null };
 const html = (giornate: GiornataDocumento[]) => buildGiornaleHtml(giornate, { description: "Villa", order_code: "25000068" }, azienda, "EiC", "00000000-0000-0000-0000-000000000001");
 
 describe("giornale: campi non indicati", () => {
