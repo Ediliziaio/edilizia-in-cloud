@@ -8,11 +8,10 @@
  * (anche tramite le equivalenze confermate), descrizione uguale, quantità con
  * le sole conversioni autorizzate, una riga di bolla usata una volta.
  *
- * Tutto o niente: se anche UNA riga non si chiude con certezza la proposta
- * delle regole non vale e decide l'AI, sull'intero documento come prima.
- * Una proposta a metà con l'altra metà all'AI richiederebbe di cambiare il
- * formato della risposta e la sua convalida: lo si farà se le misure diranno
- * che conviene.
+ * Se tutte le righe si chiudono con certezza l'AI non si chiama. Altrimenti
+ * all'AI vanno SOLO le righe in dubbio (`chiuseRighe` → `pianificaLotti`), senza
+ * le righe di bolla e d'ordine già usate dalle regole, e l'unione dei lotti
+ * rimette insieme le due parti (15/11/2026).
  *
  * Prudenze in più rispetto all'AI:
  *   - una riga di bolla già fatturata in parte, o con un residuo incerto, non si
@@ -49,6 +48,8 @@ function conversioni(c: ContestoRiconciliazione): ConversioneAutorizzata[] {
 export interface EsitoRegole {
   /** La proposta, se TUTTE le righe si chiudono con le regole; altrimenti null. */
   proposta: PropostaRiconciliazione | null;
+  /** Le righe chiuse dalle regole, anche quando non sono tutte: all'AI vanno solo le altre. */
+  chiuseRighe: PropostaRiconciliazione["righe"];
   righe: number;
   chiuse: number;
   /** Perché non si è chiuso tutto (per il registro dei lavori senza AI). */
@@ -72,7 +73,7 @@ export function propostaDaRegole(c: ContestoRiconciliazione): EsitoRegole {
     altriDati: [],
   }));
   const totale = righe.length;
-  if (!totale) return { proposta: null, righe: 0, chiuse: 0, motivo: "fattura senza righe leggibili" };
+  if (!totale) return { proposta: null, chiuseRighe: [], righe: 0, chiuse: 0, motivo: "fattura senza righe leggibili" };
 
   const opz = { equivalenze: equivalenze(c), conversioni: conversioni(c) };
   const bolle: RigaDocumento[] = d.bolle
@@ -116,6 +117,6 @@ export function propostaDaRegole(c: ContestoRiconciliazione): EsitoRegole {
       motivo = `riga ${n}: ${d0?.esito ?? "nessuno"} (${d0?.motivo ?? "nessun candidato"})`;
     }
   });
-  if (chiuse < totale) return { proposta: null, righe: totale, chiuse, motivo };
-  return { proposta: { righe: out, avvisi: [] }, righe: totale, chiuse, motivo: null };
+  if (chiuse < totale) return { proposta: null, chiuseRighe: out, righe: totale, chiuse, motivo };
+  return { proposta: { righe: out, avvisi: [] }, chiuseRighe: out, righe: totale, chiuse, motivo: null };
 }

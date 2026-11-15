@@ -1,8 +1,9 @@
 // Confronto righe fattura ↔ DDT/ordine: le regole chiudono da sole i casi chiari,
-// e lasciano all'AI (tutto il documento) ogni volta che una riga resta in dubbio.
+// e lasciano all'AI solo le righe rimaste in dubbio (le altre rientrano nell'unione dei lotti).
 import { describe, expect, it } from "vitest";
 import { propostaDaRegole } from "../../../supabase/functions/_shared/riconciliazioneRegole.ts";
-import { esitiRiconciliazione, validaPropostaRiconciliazione, type ContestoRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
+import { esitiRiconciliazione, validaPropostaRiconciliazione, type ContestoRiconciliazione, type PropostaRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
+import { contestoLotto, pianificaLotti, unisciLotti } from "../../../supabase/functions/_shared/lottiRiconciliazione.ts";
 
 const rigaF = (n: number, descrizione: string, q: number, um = "PZ", codice?: string, prezzo = 10) => ({
   numero_linea: n,
@@ -100,5 +101,26 @@ describe("regole prima dell'AI nel confronto righe", () => {
       ddt: [{ id: "d1", righe: [rigaD("r2", "Sabbia lavata", 3, "MC")] }],
     });
     expect(propostaDaRegole(c).proposta).toBeNull();
+  });
+
+  it("una riga in dubbio su due: all'AI va solo quella, senza la riga di bolla già usata; poi l'unione le rimette insieme", () => {
+    const c = contesto({ ddt: [{ id: "d1", righe: [rigaD("r1", "x", 10, "SAC", "CEM325"), rigaD("r2", "Sabbia lavata", 2, "MC")] }] });
+    const r = propostaDaRegole(c);
+    expect(r.chiuseRighe.map((x) => [x.fattura, x.ddt])).toEqual([["1", ["r1"]]]);
+    const piano = pianificaLotti(c, r.chiuseRighe);
+    expect(piano).toEqual([{ fattura: ["2"], ddt: ["r2"], oda: [] }]);
+    const lotto = contestoLotto(c, piano[0]);
+    expect((lotto.fattura.righe as unknown[]).length).toBe(1);
+    // Quello che risponderebbe l'AI per la sola riga 2.
+    const ai: PropostaRiconciliazione = { righe: [{ fattura: "2", ddt: ["r2"], oda: [], affidabilita: "media", motivo: "quantità diversa: 3 contro 2" }], avvisi: [] };
+    const unita = unisciLotti(c, [validaPropostaRiconciliazione(ai, lotto)], r.chiuseRighe);
+    expect(unita.righe.map((x) => [x.fattura, x.ddt, x.affidabilita])).toEqual([["1", ["r1"], "alta"], ["2", ["r2"], "media"]]);
+    expect(unita.righe[0].motivo).toMatch(/Regola, senza AI/);
+    expect(() => esitiRiconciliazione(c, unita)).not.toThrow();
+  });
+
+  it("senza righe chiuse il piano è quello di sempre", () => {
+    const c = contesto({ ddt: [{ id: "d1", righe: [rigaD("r1", "x", 9, "SAC"), rigaD("r2", "y", 2, "MC")] }] });
+    expect(pianificaLotti(c, propostaDaRegole(c).chiuseRighe)).toEqual(pianificaLotti(c));
   });
 });

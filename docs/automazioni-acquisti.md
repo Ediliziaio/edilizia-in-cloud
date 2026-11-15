@@ -279,6 +279,12 @@ controlli, permesso «Costi»; se serve contabilizza, come il popup della fattur
 un'altra commessa o diviso non si tocca: la conferma lo dice. Provato in produzione su Demo
 Azienda 2 in una transazione annullata.
 
+**Lotto 14 — all'AI solo le righe in dubbio** (`riconcilia-fattura-ai`): prima, se le regole
+chiudevano 8 righe su 10, all'AI andava l'intero documento. Ora le righe chiuse dalle regole
+(`chiuseRighe`) restano fuori dai lotti insieme alle righe di bolla/ordine che hanno usato, e
+rientrano nell'unione finale con «Regola, senza AI». Il registro conta una chiamata per lotto
+(30 righe), non una per fattura.
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 

@@ -10,6 +10,7 @@ import {
   validaPropostaRiconciliazione,
   type ContestoRiconciliazione,
   type PropostaRiconciliazione,
+  type PropostaRigaAI,
 } from "./riconciliazioneFattureAI.ts";
 export async function eseguiLottoRiconciliazione({
   db,
@@ -17,17 +18,20 @@ export async function eseguiLottoRiconciliazione({
   impronta,
   userId,
   verifica,
+  chiuse = [],
 }: {
   db: SupabaseClient;
   c: ContestoRiconciliazione;
   impronta: string;
   userId: string;
   verifica: () => Promise<boolean>;
+  /** Righe già chiuse dalle regole: all'AI vanno solo le altre, e nell'unione rientrano queste. */
+  chiuse?: PropostaRigaAI[];
 }) {
-  const piano = pianificaLotti(c),
+  const piano = pianificaLotti(c, chiuse),
     companyId = c.fattura.company_id;
   if (!piano.length)
-    return { proposta: unisciLotti(c, []), modello: "equivalenze-confermate" };
+    return { proposta: unisciLotti(c, [], chiuse), modello: "equivalenze-confermate" };
   const { error: creazione } = await db
     .from("fattura_riconciliazione_lotti")
     .upsert(
@@ -60,7 +64,7 @@ export async function eseguiLottoRiconciliazione({
   });
   if (job.indice >= piano.length)
     return {
-      proposta: unisciLotti(c, job.parti as PropostaRiconciliazione[]),
+      proposta: unisciLotti(c, job.parti as PropostaRiconciliazione[], chiuse),
       modello: (job.modelli as string[]).join(", "),
     };
   const token = crypto.randomUUID(),
@@ -149,7 +153,7 @@ export async function eseguiLottoRiconciliazione({
           attendi: false,
         },
       };
-    return { proposta: unisciLotti(c, parti), modello: modelli.join(", ") };
+    return { proposta: unisciLotti(c, parti, chiuse), modello: modelli.join(", ") };
   } catch (e) {
     await db
       .from("fattura_riconciliazione_lotti")

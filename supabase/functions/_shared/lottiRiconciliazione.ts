@@ -11,8 +11,13 @@ export interface LottoRiconciliazione {
   ddt: string[];
   oda: string[];
 }
+/**
+ * `chiuse`: righe già chiuse dalle regole (riconciliazioneRegole.ts). Non vanno all'AI, e nemmeno le
+ * righe di bolla e d'ordine che hanno usato: una riga di bolla si abbina una volta sola.
+ */
 export function pianificaLotti(
   c: ContestoRiconciliazione,
+  chiuse: PropostaRigaAI[] = [],
 ): LottoRiconciliazione[] {
   const d = datiRiconciliazione(c),
     note = equivalenzeConfermate(c);
@@ -32,11 +37,14 @@ export function pianificaLotti(
       "La selezione supera 800 voci fattura o 6.000 righe di confronto. Suddividi i documenti in due confronti.",
     );
   if (tutteFontiNote && d.fattura.every((f) => noteIds.has(f.id))) return [];
-  const fattura = d.fattura;
+  const chiuseIds = new Set(chiuse.map((r) => r.fattura)),
+    usate = new Set(chiuse.flatMap((r) => [...r.ddt, ...r.oda]));
+  const fattura = d.fattura.filter((f) => !chiuseIds.has(f.id));
+  if (!fattura.length) return [];
   const fonti = [
     ...d.bolle.map((r) => ({ id: r.id, tipo: "ddt" })),
     ...d.ordini.map((r) => ({ id: r.id, tipo: "oda" })),
-  ];
+  ].filter((r) => !usate.has(r.id));
   const lotti: LottoRiconciliazione[] = [];
   for (let f = 0; f < fattura.length; f += 30)
     for (let r = 0; r < Math.max(1, fonti.length); r += 200) {
@@ -81,6 +89,7 @@ export function contestoLotto(
 export function unisciLotti(
   c: ContestoRiconciliazione,
   parti: PropostaRiconciliazione[],
+  chiuse: PropostaRigaAI[] = [],
 ): PropostaRiconciliazione {
   const note = equivalenzeConfermate(c);
   const tutteFontiNote = [
@@ -96,6 +105,8 @@ export function unisciLotti(
   );
   const righe = datiRiconciliazione(c).fattura.map((f): PropostaRigaAI => {
     if (idsNote.has(f.id)) return note.righe.find((r) => r.fattura === f.id)!;
+    const regola = chiuse.find((r) => r.fattura === f.id);
+    if (regola) return regola;
     const tutte = parti.flatMap((p) =>
       p.righe.filter((r) => r.fattura === f.id),
     );
