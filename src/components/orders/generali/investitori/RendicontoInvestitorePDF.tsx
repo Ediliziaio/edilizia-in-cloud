@@ -4,8 +4,11 @@
 // previsto contro stima) e la regola con cui si divide l'utile. I costi voce per voce no:
 // riceve i totali che gli servono per capire il suo numero.
 // Palette e impaginazione come RendicontoAppaltoPDF (A4 verticale, Helvetica).
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import type { DatiRendiconto } from "@/lib/orders/generali/investitoriRendiconto";
+
+// Le parole non si spezzano col trattino («giardi-no»): vanno a capo intere.
+Font.registerHyphenationCallback((word) => [word]);
 
 const C = {
   navy: "#1E3A5F",
@@ -58,9 +61,9 @@ const s = StyleSheet.create({
 
 // «always»: in italiano Intl non mette il punto nelle cifre a quattro (3000 invece di 3.000).
 const EURO = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0, useGrouping: "always" });
-/** «€ 1.250.000», «− € 3.500». */
+/** «€ 1.250.000», «-€ 3.500»: trattino normale, l'Helvetica del PDF non ha il segno meno «−» (spariva). */
 const soldi = (n: number | null | undefined) =>
-  n === null || n === undefined || !Number.isFinite(n) ? "—" : `${n < -0.5 ? "− " : ""}€ ${EURO.format(Math.abs(n))}`;
+  n === null || n === undefined || !Number.isFinite(n) ? "—" : `${n < -0.5 ? "-" : ""}€ ${EURO.format(Math.abs(n))}`;
 const percento = (n: number | null | undefined) =>
   n === null || n === undefined || !Number.isFinite(n) ? "—" : `${(n * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
 const giorno = (d: string | null | undefined) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "—");

@@ -117,6 +117,11 @@ export interface RiepilogoGenerale {
     inizio?: string | null;
     fine?: string | null;
     dati?: DatiSezioni;
+    /**
+     * Avanzamento della generale (orders.percentuale_avanzamento, 20290401120000): lo calcola
+     * recompute_order_progress dalle fasi della generale e delle commesse dentro.
+     */
+    avanzamento?: number | null;
   };
   figlie: FigliaGenerale[];
   /** Fatture registrate sulla generale stessa (es. SAL di contratto fatturato sul contratto). */
@@ -152,6 +157,7 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
       fine: testo(g.fine),
       dati: leggiDatiSezioni(g.dati),
       valore: numero(g.valore),
+      avanzamento: numero(g.avanzamento),
     },
     figlie: figlie
       .filter((f) => typeof f?.id === "string")

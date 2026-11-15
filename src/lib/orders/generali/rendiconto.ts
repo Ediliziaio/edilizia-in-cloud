@@ -18,11 +18,11 @@ import {
   NOMI_FONTE, NOMI_FORMA, aCapitale, aDebito,
   type ContiInvestitori,
 } from "@/lib/orders/generali/investitoriConti";
-import { avanzamentoMedio } from "@/lib/orders/generali/investitoriRendiconto";
+import { avanzamentoOperazione } from "@/lib/orders/generali/investitoriRendiconto";
 import { moduliDelModello, type ModuloGenerale } from "@/lib/orders/generali/moduli";
 import type { PianoCalcolato, RigaConfronto, TotaliColonne } from "@/lib/orders/generali/pianoConti";
 import type { FotografiaPiano, VersionePiano } from "@/lib/orders/generali/pianoLettura";
-import { NOMI_STATO, prezzoCorrente, unitaVive, type ElencoUnita, type StatoVendita } from "@/lib/orders/generali/unita";
+import { NOMI_STATO, isStatoVendita, prezzoCorrente, unitaVive, type ElencoUnita, type StatoVendita } from "@/lib/orders/generali/unita";
 import { pagamentiUnita, riepilogoVendite } from "@/lib/orders/generali/unitaConti";
 
 // ── Sezioni e modelli ───────────────────────────────────────────────────────
@@ -349,9 +349,11 @@ export function componiDossier(i: InputDossier): DatiDossier {
 
   const avanzamento: DatiDossier["avanzamento"] = c.has("avanzamento") || c.has("sintesi")
     ? {
-        medio: avanzamentoMedio(r.figlie),
+        medio: avanzamentoOperazione(r),
         figlie: r.figlie.map((f) => ({
-          nome: f.nome, codice: f.codice, stato: f.statoNome, avanzamento: Math.round(f.avanzamento),
+          // Un'unità in vendita dice dove è arrivata la vendita, se la commessa non ha uno stato suo.
+          nome: f.nome, codice: f.codice, stato: f.statoNome ?? (isStatoVendita(f.statoVendita) ? NOMI_STATO[f.statoVendita].una : null),
+          avanzamento: Math.round(f.avanzamento),
           importo: p.importi ? f.importo : null, eseguito: p.importi ? f.eseguito : null,
           fatturato: p.importi ? f.fatturato : null, incassato: p.importi ? f.incassato : null,
         })),

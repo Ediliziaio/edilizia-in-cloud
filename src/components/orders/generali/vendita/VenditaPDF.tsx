@@ -3,12 +3,15 @@
 // dell'operazione. Stessa carta del rendiconto (DossierPDF): A4 verticale, Helvetica, blu e
 // arancio, testata dell'azienda col logo e piede coi contatti. Le immagini arrivano già
 // ridotte in JPEG (data URL): le planimetrie in PDF diventano la loro prima pagina.
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { giornoIt } from "@/lib/orders/generali/rendiconto";
 import {
   NOMI_STATO_LISTINO, contattiAzienda, descrizioneUnita,
   type AziendaVendita, type DatiListino, type DatiSchedaVendita, type StatoListino,
 } from "@/lib/orders/generali/vendita";
+
+// Le parole non si spezzano col trattino («giardi-no»): vanno a capo intere.
+Font.registerHyphenationCallback((word) => [word]);
 
 const C = {
   navy: "#1E3A5F",

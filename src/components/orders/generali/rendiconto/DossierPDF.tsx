@@ -4,11 +4,14 @@
 // e del rendiconto d'appalto: A4 verticale, Helvetica, blu e arancio. I grafici sono barre
 // disegnate con i riquadri di react-pdf: niente immagini, il testo resta testo.
 import type { ReactNode } from "react";
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import {
   NOMI_SEZIONE, giornoIt,
   type DatiDossier, type NumeroChiave, type RigaPianoDossier, type Tono,
 } from "@/lib/orders/generali/rendiconto";
+
+// Le parole non si spezzano col trattino («giardi-no»): vanno a capo intere.
+Font.registerHyphenationCallback((word) => [word]);
 
 const C = {
   navy: "#1E3A5F",
@@ -147,13 +150,12 @@ function Tabella({ col, righe, totale, prima }: { col: Col[]; righe: (string | R
   );
   return (
     <View>
-      <View wrap={false}>
-        {prima}
-        <View style={s.thead}>
-          {col.map((c, i) => <Text key={i} style={[s.th, { width: c.w }, c.destra ? s.destra : {}]}>{c.titolo}</Text>)}
-        </View>
-        {righe.length > 0 ? riga(righe[0], 0) : null}
+      {prima ? <View wrap={false}>{prima}</View> : null}
+      {/* fixed: l'intestazione si ripete su ogni pagina in cui la tabella continua. */}
+      <View style={s.thead} fixed>
+        {col.map((c, i) => <Text key={i} style={[s.th, { width: c.w }, c.destra ? s.destra : {}]}>{c.titolo}</Text>)}
       </View>
+      {righe.length > 0 ? riga(righe[0], 0) : null}
       {righe.slice(1).map((r, i) => riga(r, i + 1))}
       {totale ? (
         <View style={s.trTot} wrap={false}>
@@ -384,7 +386,10 @@ function Andamento({ d }: { d: DatiDossier }) {
     <View style={s.sezione}>
       <View wrap={false}>
         <Titolo sezione="andamento" sotto="Margine stimato a fine operazione, come risultava a ogni fine mese" />
-        <GraficoBarre valori={a.map((x) => x.margineStima)} etichette={a.map((x) => mese(x.mese))} alto={70} colori={{ su: C.navy, giu: C.red }} />
+        {/* Con un mese solo una barra piena la larghezza non dice niente: basta la tabella. */}
+        {a.length > 1 && (
+          <GraficoBarre valori={a.map((x) => x.margineStima)} etichette={a.map((x) => mese(x.mese))} alto={70} colori={{ su: C.navy, giu: C.red }} />
+        )}
       </View>
       <Tabella
         col={[{ titolo: "Mese", w: "16%" }, { titolo: "Ricavi stimati", w: "18%", destra: true }, { titolo: "Costi stimati", w: "18%", destra: true }, { titolo: "Margine stimato", w: "16%", destra: true }, { titolo: "Margine previsto", w: "16%", destra: true }, { titolo: "Capitale investito", w: "16%", destra: true }]}

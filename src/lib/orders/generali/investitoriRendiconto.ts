@@ -59,6 +59,20 @@ const NOMI_MOV: Record<string, string> = {
   accollo: "Accollo all'acquirente",
 };
 
+/**
+ * Avanzamento dell'operazione: quello della generale, che comprende le sue fasi e quelle delle
+ * commesse dentro, o la media delle figlie se è più alta (figlie avanzate a mano, senza fasi).
+ * Prima contava solo la media delle figlie: lavori fatti sulla generale, con le fasi al 100%,
+ * risultavano «al 0%» nel Dossier e nel rendiconto ai soci (simulazione del 15/11/2026).
+ */
+export function avanzamentoOperazione(r: Pick<RiepilogoGenerale, "generale" | "figlie">): number | null {
+  const media = avanzamentoMedio(r.figlie);
+  const propria = r.generale.avanzamento ?? null;
+  if (propria === null) return media;
+  if (media === null) return Math.round(propria);
+  return Math.round(Math.max(propria, media));
+}
+
 /** Avanzamento medio delle figlie, pesato sull'importo quando chi guarda lo vede. */
 export function avanzamentoMedio(figlie: RiepilogoGenerale["figlie"]): number | null {
   if (figlie.length === 0) return null;
@@ -98,7 +112,7 @@ export function datiRendiconto(input: {
     },
     azienda: input.azienda,
     investitore: { nome: c.fonte.nome, tipo: c.fonte.tipo, tipoNome: NOMI_FONTE[c.fonte.tipo].nome, email: c.fonte.email },
-    avanzamento: avanzamentoMedio(riepilogo.figlie),
+    avanzamento: avanzamentoOperazione(riepilogo),
     figlie: riepilogo.figlie.length,
     vendite: input.vendite,
     incassato,
