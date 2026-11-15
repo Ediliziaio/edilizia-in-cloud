@@ -159853,6 +159853,10 @@ export type Database = {
         Args: { p_company: string; p_limite?: number }
         Returns: Json
       }
+      tesoreria_conferma_esito: {
+        Args: { p_company: string; p_tx: string }
+        Returns: Json
+      }
       tesoreria_esito_movimento: {
         Args: { p_company: string; p_tx: string }
         Returns: Json

@@ -81,6 +81,8 @@ Era:
 
 Migrazioni `20290410200000_anagrafica_tipo_cliente_pa`, `20290410210000_anagrafica_uffici_pa` e `20290410220000_uffici_pa_ente_fisso_telefono_profilo`, applicate e riallineate. La terza impedisce di spostare un ufficio su un altro ente e concede `fish_customer_phone` ad `authenticated`: l'indice `fish_customer_phone_lookup_idx` su `profiles` la calcola, e senza il permesso le modifiche del profilo dal browser che toccano l'indice (telefono, P.IVA, CF…) fallivano dall'11/11.
 
+Dopo (stesso giorno): `20290410230000` chiave esterna `order_riferimenti_pa.ufficio_id` → `anagrafica_uffici_pa` (on delete set null); `20290410240000` un ente PA con codice di 6 caratteri e nessun ufficio riceve da solo l'ufficio predefinito (trigger + recupero), e le regole degli uffici ammettono anche `e_amministratore_di` e il super admin, come i riferimenti PA.
+
 Controllo accessi (guardiano, 17 prove): nessun accesso tra aziende, utenti esterni, «solo campo» e subappaltatori esclusi; la RPC rifiuta profili non clienti e di altre aziende.
 
 Dati di prova su Demo Azienda 2: «PROVA Comune di Demolandia» (PA, uffici UFTST1 e UFTST2 predefinito, split no), «PROVA Mario Privato», «PROVA Costruzioni S.r.l.» (codice destinatario ABC1234), anagrafica senza cliente «PROVA Comune di Fintavilla» (confermata PA dall'elenco, ufficio UFFNT1).
