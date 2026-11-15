@@ -201,22 +201,3 @@ create policy blocco_utente_bloccato on public.order_riferimenti_pa
 revoke all on public.order_riferimenti_pa from anon;
 grant select, insert, update, delete on public.order_riferimenti_pa to authenticated;
 grant all on public.order_riferimenti_pa to service_role;
-
--- Aggiunto il 15/11/2026 (ricostruzione da zero): la chiave esterna verso l'ufficio PA.
--- In produzione l'ha messa 20290410230000, applicata dopo questa; ricostruendo in ordine
--- di versione quella gira prima che la tabella esista e non fa niente, quindi la si
--- rimette qui. Idempotente: in produzione questo file non si riapplica.
-do $fk_ufficio$
-begin
-  if to_regclass('public.anagrafica_uffici_pa') is not null
-     and not exists (select 1 from pg_constraint
-                      where conrelid = 'public.order_riferimenti_pa'::regclass
-                        and conname = 'order_riferimenti_pa_ufficio_fk') then
-    alter table public.order_riferimenti_pa
-      add constraint order_riferimenti_pa_ufficio_fk
-      foreign key (ufficio_id) references public.anagrafica_uffici_pa(id) on delete set null;
-  end if;
-end
-$fk_ufficio$;
-create index if not exists order_riferimenti_pa_ufficio_idx
-  on public.order_riferimenti_pa (ufficio_id) where ufficio_id is not null;
