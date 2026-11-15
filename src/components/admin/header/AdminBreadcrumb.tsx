@@ -40,6 +40,7 @@ const ROUTE_MAP: Record<string, string> = {
   "/admin/prezzari-regionali": "Prezzari regionali",
   "/admin/template-articoli": "Libreria listino",
   "/admin/manodopera-tariffe": "Manodopera (costo orario)",
+  "/admin/coefficienti-tfr": "Coefficienti TFR (ISTAT)",
   "/admin/salute": "Salute piattaforma",
   "/admin/sito": "Traffico sito",
   "/admin/siti": "Siti e Google",

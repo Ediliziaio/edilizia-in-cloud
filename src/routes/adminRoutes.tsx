@@ -73,6 +73,7 @@ const PrezzariRegionali = lazy(() => import("@/pages/admin/PrezzariRegionali"));
 const AdminArticleTemplates = lazy(() => import("@/pages/admin/AdminArticleTemplates"));
 // Manodopera (costo orario) — UI super-admin: tariffe orarie edili ufficiali.
 const ManodoperaTariffe = lazy(() => import("@/pages/admin/ManodoperaTariffe"));
+const CoefficientiTfr = lazy(() => import("@/pages/admin/CoefficientiTfr"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 // AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
@@ -334,6 +335,7 @@ export default function AdminRoutesContainer() {
         {/* Manodopera (costo orario) — tariffe orarie edili ufficiali, gestite
             dal super-admin (regione/provincia/anno/qualifica). */}
         <Route path="manodopera-tariffe" element={<RequireSuperAdmin><ManodoperaTariffe /></RequireSuperAdmin>} />
+        <Route path="coefficienti-tfr" element={<RequireSuperAdmin><CoefficientiTfr /></RequireSuperAdmin>} />
         {/* Hub Customer Success — 5 tab in alto. */}
         <Route path="cs" element={<RequireAdminPermission permission="can_manage_companies"><AdminCustomerSuccessHub /></RequireAdminPermission>} />
         {/* Hub Operazioni: dentro le Impostazioni (prima, aprendolo dal loro

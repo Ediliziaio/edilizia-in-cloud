@@ -45,6 +45,7 @@ import {
   Receipt,
   Library,
   HardHat,
+  Percent,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -175,6 +176,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "Libreria listino", url: "/admin/template-articoli", icon: Library, permission: "super_admin", subcategory: "sa_listini" },
   // Manodopera (costo orario) — tariffe orarie edili ufficiali, curate dal super-admin.
   { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "super_admin", subcategory: "sa_listini" },
+  // Coefficienti ISTAT della rivalutazione del TFR: li usa il controllo di gestione di tutte le aziende.
+  { title: "Coefficienti TFR (ISTAT)", url: "/admin/coefficienti-tfr", icon: Percent, permission: "super_admin", subcategory: "sa_listini" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   // Salute piattaforma: job falliti, errori ed elementi che richiedono
   // attenzione. Prima un guasto si scopriva quando chiamava il cliente.
