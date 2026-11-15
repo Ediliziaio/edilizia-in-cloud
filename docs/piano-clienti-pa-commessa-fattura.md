@@ -71,6 +71,45 @@ Test: `fatturaPaXml.test.ts` copre solo un cliente azienda; `invioSdiFlussoCompl
 - Le commesse generali e il computo diventano fonti di queste righe, invece di quattro posti separati.
 - Riquadro in Panoramica: codici in evidenza, pulsante copia, valori lunghi leggibili, cosa manca, «Modifica» secondo i permessi.
 
+#### Stato del lotto 3 — FATTO il 15/11/2026
+Migrazioni applicate e riallineate: `20290410300000_order_riferimenti_pa`, `20290410300100_orders_visibili_riferimenti_pa`.
+
+**Contratto dello schema (per i lotti 4-5)** — tabella `public.order_riferimenti_pa`, una riga per affidamento / lotto / progetto:
+
+| Colonna | Tipo | Note |
+|---|---|---|
+| `id` | uuid | |
+| `company_id` | uuid | lo scrive il trigger dalla commessa: qualunque valore mandato viene sostituito |
+| `order_id` | uuid → `orders` on delete cascade | |
+| `tipo` | text | `contratto` → `DatiContratto`, `ordine_acquisto` → `DatiOrdineAcquisto`, `convenzione` → `DatiConvenzione` |
+| `numero`, `data` | text, date | → `IdDocumento`, `Data` |
+| `cig` | text | `^[A-Z0-9]{10}$` (anche SmartCIG); → `CodiceCIG` |
+| `cig_non_dovuto`, `cig_motivo_esclusione` | boolean, text | mai insieme a `cig` (CHECK); il motivo resta solo se la spunta c'è |
+| `cup` | text | `^[A-Z][A-Z0-9]{14}$`; → `CodiceCUP` |
+| `cup_non_dovuto` | boolean | mai insieme a `cup` (CHECK) |
+| `lotto`, `determina`, `impegno_spesa` | text | `determina` = atto di affidamento; `impegno_spesa` va di norma nella Causale o in `CodiceCommessaConvenzione`, da decidere nel lotto 5 |
+| `ufficio_id` | uuid | **senza chiave esterna**: `anagrafica_uffici_pa` (lotto 2) non c'era quando è stata applicata. Va aggiunta con una migrazione del lotto 2 o 4 (`references anagrafica_uffici_pa(id) on delete set null`) |
+| `codice_univoco_ufficio` | text | copia del codice (`^[A-Z0-9]{6}$`) per quando l'ufficio cambia o non c'è: oggi lo scrive l'utente, nessun trigger lo copia dall'ufficio |
+| `note_fatturazione` | text | |
+| `fonte`, `fonte_id` | text, uuid | `manuale` / `contratto_generale` (fonte_id = `generale_contratti.generale_id`) / `computo` (fonte_id = `computo_uploads.id`); indice unico `(order_id, fonte, fonte_id)` per non importare due volte |
+| `ordinamento` | integer | ordine di stampa; i lotti 4-5 leggono le righe in questo ordine |
+| `created_at`, `updated_at`, `created_by` | | |
+
+I codici si salvano in maiuscolo e senza spazi (trigger `order_riferimenti_pa_normalizza`).
+`orders.riferimenti_pa_attivi` boolean default false: lo accende da solo il trigger `orders_riferimenti_pa_da_cliente` quando la commessa nasce o cambia cliente e l'anagrafica del cliente è PA (`tipo_cliente = 'PA'` o `tipo_soggetto = 'pa'`); lo accende anche il primo riferimento inserito; a mano dall'interruttore per privati e aziende. Non si spegne mai da solo. È esposto anche in `orders_visibili`.
+Accessi: come `order_work_phases` (vede chi ha «Vedere commesse» e vede la commessa; scrive chi ha «Modificare commesse»; titolare; super admin; utente bloccato fuori). Provato: un amministratore di un'altra azienda legge 0 righe e non scrive. Il backup la prende da sé (ha `company_id`).
+
+**Codice**
+- Regole e formati: `src/lib/orders/riferimentiPa.ts` (`cigValido`, `cupValido`, `codiceUfficioValido`, `controllaRiferimento` → errori che bloccano / mancanze che avvisano, `pianoSalvataggio`, `anagraficaEPa`).
+- Hook per la fattura: `useRiferimentiPaCommessa(orderId)` in `src/hooks/useRiferimentiPaCommessa.ts` → `{ righe, fonti, attivi, clientePa, customerId }` più `salva`. Senza React: `leggiRiferimentiPa(orderId)`, `salvaRiferimentiPa(orderId, bozze, salvate, attivi?)`. Le `righe` sono già in ordine; le `fonti` sono i CIG/CUP di contratto generale e computo con `giaPresente` e `problemi` (formato sbagliato).
+- Interfaccia: `SezioneRiferimentiPa` in `CreateOrder.tsx` (dopo i dettagli) e `EditOrder.tsx` (dopo i dettagli; si salva dopo `commessa_salva`, prima di rileggere la versione); `RiquadroRiferimentiPa` in Panoramica (`OrderDetail.tsx`), con «Modifica» e «Importa» per chi può modificare la commessa.
+- Le colonne `cig`/`cup` di `generale_contratti`, `computo_uploads`, `anagrafiche_native` restano dove sono: il riquadro le propone da importare, non le copia da solo.
+- Test: `src/test/logic/riferimentiPaCommessa.test.ts`, `src/test/ui/riquadroRiferimentiPa.test.tsx`.
+
+**Dati di prova su Demo Azienda 2** (descrizione «PROVA LOTTO 3 — …»): cliente «Comune di Prova (PA DEMO lotto 3)» (profilo `d2000000-0000-4000-a000-0000000a3001`, anagrafica PA, codice ufficio UFXYZ1); DEMO2-0013 (PA, contratto Rep. 1234/2026 con CIG 1234567ABC + CUP J51B21000140006, ordine d'acquisto OdA 77/2026 con SmartCIG Z1A2B3C4D5); DEMO2-0014 (privato «Famiglia DEMO 2026 1», interruttore acceso a mano, solo CUP B12C34000560007); DEMO2-0015 (PA, convenzione con CIG non dovuto «affidamento in house» + CUP C33D21000780001).
+
+**Resta per i lotti successivi**: chiave esterna e selettore dell'ufficio (`SelettoreUfficioPa`) nella riga, al posto del codice scritto a mano; un trigger che copi `codice_univoco_ufficio` dall'ufficio scelto.
+
 ### Lotto 4 — Dalla commessa alla fattura (e dal modulo Fatturazione)
 - La fattura copia cliente, ufficio e riferimenti dalla commessa, con l'origine scritta accanto: «dall'anagrafica», «dalla commessa», «modificato qui».
 - Modifiche sulla fattura non toccano commessa e anagrafica.

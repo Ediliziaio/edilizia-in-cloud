@@ -55,6 +55,9 @@ import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
 import { usePermissions } from "@/hooks/usePermissions";
+import { salvaRiferimentiPa, useClientePa, useRiferimentiPaCommessa } from "@/hooks/useRiferimentiPaCommessa";
+import { SezioneRiferimentiPa } from "@/components/orders/riferimentiPa/SezioneRiferimentiPa";
+import { bozzaDaRiga, bozzaHaErrori, type BozzaRiferimentoPa } from "@/lib/orders/riferimentiPa";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import {
   type OrderCustomer as Customer,
@@ -158,6 +161,17 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const [valorizzazione, setValorizzazione] = useState<"a_corpo" | "a_misura">("a_corpo");
   const [tettoImporto, setTettoImporto] = useState("");
   const [riferimentoCommittente, setRiferimentoCommittente] = useState("");
+  // Dati appalto e fatturazione PA (righe di order_riferimenti_pa): si caricano una volta e si
+  // salvano col modulo, dopo commessa_salva.
+  const riferimentiPa = useRiferimentiPaCommessa(id);
+  const [bozzeRiferimentiPa, setBozzeRiferimentiPa] = useState<BozzaRiferimentoPa[] | null>(null);
+  const [riferimentiPaAttivi, setRiferimentiPaAttivi] = useState<boolean | null>(null);
+  const { data: clientePaModifica } = useClientePa(customerId || null);
+  // Prima lettura: le bozze partono dalle righe salvate (stato aggiornato durante il render, una volta sola).
+  if (riferimentiPa.data && bozzeRiferimentiPa === null) {
+    setBozzeRiferimentiPa(riferimentiPa.data.righe.map(bozzaDaRiga));
+    setRiferimentiPaAttivi(riferimentiPa.data.attivi);
+  }
 
   // Financial state
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
@@ -812,6 +826,18 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
             .replace(/^commessa_salva:\s*/, ""),
         );
       }
+      // Dati appalto e fatturazione PA: prima di rileggere la versione, perché accendere la
+      // sezione aggiorna la riga della commessa.
+      if (bozzeRiferimentiPa && riferimentiPa.data) {
+        try {
+          await salvaRiferimentiPa(id!, bozzeRiferimentiPa, riferimentiPa.data.righe,
+            riferimentiPaAttivi !== riferimentiPa.data.attivi ? !!riferimentiPaAttivi : undefined);
+        } catch (e) {
+          toast.error("Commessa salvata, dati appalto no", { description: e instanceof Error ? e.message : String(e), duration: 12000 });
+        }
+        queryClient.invalidateQueries({ queryKey: ["order-riferimenti-pa", id] });
+      }
+
       // La versione va riletta, non incrementata di uno: un solo salvataggio
       // ne consuma parecchie, perche' i trigger che riallineano i totali dalle
       // rate e dalle voci aggiornano a loro volta la riga della commessa.
@@ -930,6 +956,11 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         toast.error("Articoli non validi", { description: "Verifica che tutti gli articoli abbiano un nome, quantità ≥ 1 e prezzo d'acquisto non negativo." });
         return;
       }
+    }
+
+    if ((bozzeRiferimentiPa ?? []).some(bozzaHaErrori)) {
+      toast.error("Dati appalto da correggere", { description: "Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo." });
+      return;
     }
 
     updateOrderMutation.mutate({ customerId: effectiveCustomerId });
@@ -1108,6 +1139,18 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               </div>
             </div>
           </QuoteCard>
+
+          {bozzeRiferimentiPa && (
+            <SezioneRiferimentiPa
+              clientePa={!!clientePaModifica}
+              attivo={!!riferimentiPaAttivi}
+              onAttivoChange={setRiferimentiPaAttivi}
+              bozze={bozzeRiferimentiPa}
+              onChange={setBozzeRiferimentiPa}
+              fonti={riferimentiPa.data?.fonti}
+              disabilitato={updateOrderMutation.isPending}
+            />
+          )}
 
           {/* A misura l'importo e' una STIMA e le rate non esistono: il wizard
               di creazione lo dice e le toglie, la modifica invece mostrava

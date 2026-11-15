@@ -74,6 +74,9 @@ import { useTrack, ANALYTICS_EVENTS } from "@/hooks/useTrack";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { AssignedToSelect } from "@/components/orders/AssignedToSelect";
 import { usePermissions } from "@/hooks/usePermissions";
+import { salvaRiferimentiPa, useClientePa } from "@/hooks/useRiferimentiPaCommessa";
+import { SezioneRiferimentiPa } from "@/components/orders/riferimentiPa/SezioneRiferimentiPa";
+import { bozzaHaErrori, type BozzaRiferimentoPa } from "@/lib/orders/riferimentiPa";
 import {
   type OrderStatus,
   type Installment,
@@ -193,6 +196,11 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     destination_warehouse_id: destinationWarehouseId,
     sede_id: sedeId,
   } = watch();
+
+  // Dati appalto e fatturazione PA: si scrivono qui e si salvano appena nasce la commessa.
+  const [bozzeRiferimentiPa, setBozzeRiferimentiPa] = useState<BozzaRiferimentoPa[]>([]);
+  const [riferimentiPaAttivi, setRiferimentiPaAttivi] = useState(false);
+  const { data: clientePa = false } = useClientePa(customerId || null);
   const paymentType = _paymentTypeRaw as PaymentType;
 
   // ── Non-form state (arrays / UI) ────────────────────────────
@@ -1401,6 +1409,14 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           queryClient.invalidateQueries({ queryKey: ["commessa-generale-riepilogo", generaleDaUrl] });
         }
       }
+      if (bozzeRiferimentiPa.length || riferimentiPaAttivi) {
+        try {
+          // Il cliente PA accende la sezione da sé (trigger sul database): qui solo l'interruttore a mano.
+          await salvaRiferimentiPa(order.id, bozzeRiferimentiPa, [], riferimentiPaAttivi ? true : undefined);
+        } catch (e) {
+          toast.error("Commessa creata, dati appalto da completare", { description: `Non creare un'altra commessa: inseriscili dalla Panoramica. ${e instanceof Error ? e.message : ""}`, duration: 15000 });
+        }
+      }
       if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) clearDraft();
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
@@ -1527,6 +1543,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const onSubmit = (values: OrderFormValues) => {
     // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
     if (createOrderMutation.isPending || createdOrderIdRef.current) return;
+    if ((clientePa || riferimentiPaAttivi) && bozzeRiferimentiPa.some(bozzaHaErrori)) {
+      toast.error("Dati appalto da correggere", { description: "Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo." });
+      return;
+    }
     if (contrattoImportato && !installments.length) {
       toast.error("Pagamenti da confermare", { description: "Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare." });
       return;
@@ -2000,6 +2020,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         </div>
 
         {/* Customer Dates Card */}
+        <SezioneRiferimentiPa
+          clientePa={clientePa}
+          attivo={riferimentiPaAttivi}
+          onAttivoChange={setRiferimentiPaAttivi}
+          bozze={bozzeRiferimentiPa}
+          onChange={setBozzeRiferimentiPa}
+          disabilitato={createOrderMutation.isPending}
+        />
+
         <QuoteCard
           title="Pianificazione lavori"
           icon={<CalendarIcon className="h-4 w-4" />}

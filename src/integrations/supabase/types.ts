@@ -896,6 +896,202 @@ export type Database = {
           },
         ]
       }
+      acquisti_collegamenti: {
+        Row: {
+          a_id: string
+          a_riga: string | null
+          a_tipo: string
+          autore_id: string | null
+          autore_processo: string | null
+          autore_tipo: string
+          chiave: string
+          company_id: string
+          con_ai: boolean
+          created_at: string
+          da_id: string
+          da_riga: string | null
+          da_tipo: string
+          esito: string
+          id: string
+          importo: number | null
+          percorso: Json | null
+          prove: Json
+          quantita: number | null
+          regola: string
+          stato: string
+          unita: string | null
+          updated_at: string
+          versione_regola: number
+        }
+        Insert: {
+          a_id: string
+          a_riga?: string | null
+          a_tipo: string
+          autore_id?: string | null
+          autore_processo?: string | null
+          autore_tipo: string
+          chiave: string
+          company_id: string
+          con_ai?: boolean
+          created_at?: string
+          da_id: string
+          da_riga?: string | null
+          da_tipo: string
+          esito: string
+          id?: string
+          importo?: number | null
+          percorso?: Json | null
+          prove?: Json
+          quantita?: number | null
+          regola: string
+          stato: string
+          unita?: string | null
+          updated_at?: string
+          versione_regola?: number
+        }
+        Update: {
+          a_id?: string
+          a_riga?: string | null
+          a_tipo?: string
+          autore_id?: string | null
+          autore_processo?: string | null
+          autore_tipo?: string
+          chiave?: string
+          company_id?: string
+          con_ai?: boolean
+          created_at?: string
+          da_id?: string
+          da_riga?: string | null
+          da_tipo?: string
+          esito?: string
+          id?: string
+          importo?: number | null
+          percorso?: Json | null
+          prove?: Json
+          quantita?: number | null
+          regola?: string
+          stato?: string
+          unita?: string | null
+          updated_at?: string
+          versione_regola?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acquisti_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      acquisti_collegamenti_storia: {
+        Row: {
+          autore_id: string | null
+          collegamento_id: string
+          company_id: string
+          creato_il: string
+          id: string
+          motivo: string | null
+          processo: string | null
+          stato_dopo: string
+          stato_prima: string | null
+        }
+        Insert: {
+          autore_id?: string | null
+          collegamento_id: string
+          company_id: string
+          creato_il?: string
+          id?: string
+          motivo?: string | null
+          processo?: string | null
+          stato_dopo: string
+          stato_prima?: string | null
+        }
+        Update: {
+          autore_id?: string | null
+          collegamento_id?: string
+          company_id?: string
+          creato_il?: string
+          id?: string
+          motivo?: string | null
+          processo?: string | null
+          stato_dopo?: string
+          stato_prima?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acquisti_collegamenti_storia_collegamento_id_fkey"
+            columns: ["collegamento_id"]
+            isOneToOne: false
+            referencedRelation: "acquisti_collegamenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "acquisti_collegamenti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       action_proposals_audit_log: {
         Row: {
           company_id: string
@@ -10091,6 +10287,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "anagrafica_reconciliation_log_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_pa_da_confermare"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "anagrafica_reconciliation_log_cliente_id_fkey"
             columns: ["cliente_id"]
             isOneToOne: false
@@ -10148,6 +10351,95 @@ export type Database = {
           },
         ]
       }
+      anagrafica_uffici_pa: {
+        Row: {
+          anagrafica_id: string
+          attivo: boolean
+          codice_univoco_ufficio: string
+          company_id: string
+          created_at: string
+          descrizione: string
+          id: string
+          note: string | null
+          predefinito: boolean
+          updated_at: string
+        }
+        Insert: {
+          anagrafica_id: string
+          attivo?: boolean
+          codice_univoco_ufficio?: string
+          company_id?: string
+          created_at?: string
+          descrizione?: string
+          id?: string
+          note?: string | null
+          predefinito?: boolean
+          updated_at?: string
+        }
+        Update: {
+          anagrafica_id?: string
+          attivo?: boolean
+          codice_univoco_ufficio?: string
+          company_id?: string
+          created_at?: string
+          descrizione?: string
+          id?: string
+          note?: string | null
+          predefinito?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anagrafica_uffici_pa_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_native"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafica_uffici_pa_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_pa_da_confermare"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafica_uffici_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "anagrafica_uffici_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafica_uffici_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "anagrafica_uffici_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "anagrafica_uffici_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       anagrafiche_native: {
         Row: {
           aliquota_iva_default: string | null
@@ -10157,6 +10449,7 @@ export type Database = {
           cig: string | null
           cliente_id: string | null
           codice_fiscale: string | null
+          codice_ipa: string | null
           codice_sdi: string | null
           cognome: string | null
           company_id: string
@@ -10186,13 +10479,16 @@ export type Database = {
           partita_iva: string | null
           pec: string | null
           ragione_sociale: string | null
+          referente_amministrativo: string | null
           sconto_default: number | null
           sito_web: string | null
+          split_payment: boolean | null
           sync_from_cliente: boolean
           tags: string[] | null
           telefono: string | null
           tipo: string
           tipo_cliente: string | null
+          tipo_confermato_at: string | null
           tipo_soggetto: string
           ultima_fattura_at: string | null
           updated_at: string | null
@@ -10205,6 +10501,7 @@ export type Database = {
           cig?: string | null
           cliente_id?: string | null
           codice_fiscale?: string | null
+          codice_ipa?: string | null
           codice_sdi?: string | null
           cognome?: string | null
           company_id: string
@@ -10234,13 +10531,16 @@ export type Database = {
           partita_iva?: string | null
           pec?: string | null
           ragione_sociale?: string | null
+          referente_amministrativo?: string | null
           sconto_default?: number | null
           sito_web?: string | null
+          split_payment?: boolean | null
           sync_from_cliente?: boolean
           tags?: string[] | null
           telefono?: string | null
           tipo?: string
           tipo_cliente?: string | null
+          tipo_confermato_at?: string | null
           tipo_soggetto?: string
           ultima_fattura_at?: string | null
           updated_at?: string | null
@@ -10253,6 +10553,7 @@ export type Database = {
           cig?: string | null
           cliente_id?: string | null
           codice_fiscale?: string | null
+          codice_ipa?: string | null
           codice_sdi?: string | null
           cognome?: string | null
           company_id?: string
@@ -10282,13 +10583,16 @@ export type Database = {
           partita_iva?: string | null
           pec?: string | null
           ragione_sociale?: string | null
+          referente_amministrativo?: string | null
           sconto_default?: number | null
           sito_web?: string | null
+          split_payment?: boolean | null
           sync_from_cliente?: boolean
           tags?: string[] | null
           telefono?: string | null
           tipo?: string
           tipo_cliente?: string | null
+          tipo_confermato_at?: string | null
           tipo_soggetto?: string
           ultima_fattura_at?: string | null
           updated_at?: string | null
@@ -16635,6 +16939,8 @@ export type Database = {
           notes: string | null
           payment_source: Json | null
           prima_nota_id: string | null
+          prove: Json | null
+          regola: string | null
           ripartita: boolean
           scadenza_id: string | null
           transaction_id: string
@@ -16656,6 +16962,8 @@ export type Database = {
           notes?: string | null
           payment_source?: Json | null
           prima_nota_id?: string | null
+          prove?: Json | null
+          regola?: string | null
           ripartita?: boolean
           scadenza_id?: string | null
           transaction_id: string
@@ -16677,6 +16985,8 @@ export type Database = {
           notes?: string | null
           payment_source?: Json | null
           prima_nota_id?: string | null
+          prove?: Json | null
+          regola?: string | null
           ripartita?: boolean
           scadenza_id?: string | null
           transaction_id?: string
@@ -38385,6 +38695,13 @@ export type Database = {
             columns: ["anagrafica_id"]
             isOneToOne: false
             referencedRelation: "anagrafiche_native"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_pa_da_confermare"
             referencedColumns: ["id"]
           },
           {
@@ -81871,6 +82188,169 @@ export type Database = {
           },
         ]
       }
+      order_riferimenti_pa: {
+        Row: {
+          cig: string | null
+          cig_motivo_esclusione: string | null
+          cig_non_dovuto: boolean
+          codice_univoco_ufficio: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          cup: string | null
+          cup_non_dovuto: boolean
+          data: string | null
+          determina: string | null
+          fonte: string
+          fonte_id: string | null
+          id: string
+          impegno_spesa: string | null
+          lotto: string | null
+          note_fatturazione: string | null
+          numero: string | null
+          order_id: string
+          ordinamento: number
+          tipo: string
+          ufficio_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cig?: string | null
+          cig_motivo_esclusione?: string | null
+          cig_non_dovuto?: boolean
+          codice_univoco_ufficio?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          cup?: string | null
+          cup_non_dovuto?: boolean
+          data?: string | null
+          determina?: string | null
+          fonte?: string
+          fonte_id?: string | null
+          id?: string
+          impegno_spesa?: string | null
+          lotto?: string | null
+          note_fatturazione?: string | null
+          numero?: string | null
+          order_id: string
+          ordinamento?: number
+          tipo?: string
+          ufficio_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cig?: string | null
+          cig_motivo_esclusione?: string | null
+          cig_non_dovuto?: boolean
+          codice_univoco_ufficio?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          cup?: string | null
+          cup_non_dovuto?: boolean
+          data?: string | null
+          determina?: string | null
+          fonte?: string
+          fonte_id?: string | null
+          id?: string
+          impegno_spesa?: string | null
+          lotto?: string | null
+          note_fatturazione?: string | null
+          numero?: string | null
+          order_id?: string
+          ordinamento?: number
+          tipo?: string
+          ufficio_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_riferimenti_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "commesse_valore_pattuito"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "order_riferimenti_pa_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_salespeople: {
         Row: {
           commission_amount: number
@@ -83637,6 +84117,7 @@ export type Database = {
           percentuale_avanzamento: number | null
           quote_id: string | null
           quote_number: string | null
+          riferimenti_pa_attivi: boolean
           riferimento_committente: string | null
           ritenuta_garanzia: Json | null
           rst_progetto_id: string | null
@@ -83726,6 +84207,7 @@ export type Database = {
           percentuale_avanzamento?: number | null
           quote_id?: string | null
           quote_number?: string | null
+          riferimenti_pa_attivi?: boolean
           riferimento_committente?: string | null
           ritenuta_garanzia?: Json | null
           rst_progetto_id?: string | null
@@ -83815,6 +84297,7 @@ export type Database = {
           percentuale_avanzamento?: number | null
           quote_id?: string | null
           quote_number?: string | null
+          riferimenti_pa_attivi?: boolean
           riferimento_committente?: string | null
           ritenuta_garanzia?: Json | null
           rst_progetto_id?: string | null
@@ -105675,6 +106158,101 @@ export type Database = {
           },
         ]
       }
+      scadenze_sostituzioni: {
+        Row: {
+          annullato_at: string | null
+          annullato_da: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          importo_coperto: number
+          importo_previsto_prima: number
+          previsione_id: string
+          reale_id: string
+          regola: string
+          stato_prima: string
+        }
+        Insert: {
+          annullato_at?: string | null
+          annullato_da?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          importo_coperto: number
+          importo_previsto_prima: number
+          previsione_id: string
+          reale_id: string
+          regola: string
+          stato_prima: string
+        }
+        Update: {
+          annullato_at?: string | null
+          annullato_da?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          importo_coperto?: number
+          importo_previsto_prima?: number
+          previsione_id?: string
+          reale_id?: string
+          regola?: string
+          stato_prima?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scadenze_sostituzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "scadenze_sostituzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_sostituzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "scadenze_sostituzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "scadenze_sostituzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "scadenze_sostituzioni_previsione_id_fkey"
+            columns: ["previsione_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_sostituzioni_reale_id_fkey"
+            columns: ["reale_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scomposizioni_voce: {
         Row: {
           approvata_da: string | null
@@ -125720,6 +126298,271 @@ export type Database = {
         }
         Relationships: []
       }
+      tesoreria_esiti: {
+        Row: {
+          calcolato_at: string
+          company_id: string
+          esito: string
+          impronta: string
+          natura: string
+          regola: string
+          risultato: Json
+          scartato_at: string | null
+          scartato_da: string | null
+          scartato_motivo: string | null
+          transaction_id: string
+          versione: number
+        }
+        Insert: {
+          calcolato_at?: string
+          company_id: string
+          esito: string
+          impronta: string
+          natura: string
+          regola: string
+          risultato: Json
+          scartato_at?: string | null
+          scartato_da?: string | null
+          scartato_motivo?: string | null
+          transaction_id: string
+          versione: number
+        }
+        Update: {
+          calcolato_at?: string
+          company_id?: string
+          esito?: string
+          impronta?: string
+          natura?: string
+          regola?: string
+          risultato?: Json
+          scartato_at?: string | null
+          scartato_da?: string | null
+          scartato_motivo?: string | null
+          transaction_id?: string
+          versione?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tesoreria_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "bank_transactions_operativi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tesoreria_esiti_storia: {
+        Row: {
+          company_id: string
+          da: string | null
+          esito: string
+          evento: string
+          id: number
+          il: string
+          impronta: string
+          natura: string
+          regola: string
+          risultato: Json
+          transaction_id: string
+          versione: number
+        }
+        Insert: {
+          company_id: string
+          da?: string | null
+          esito: string
+          evento?: string
+          id?: number
+          il?: string
+          impronta: string
+          natura: string
+          regola: string
+          risultato: Json
+          transaction_id: string
+          versione: number
+        }
+        Update: {
+          company_id?: string
+          da?: string | null
+          esito?: string
+          evento?: string
+          id?: number
+          il?: string
+          impronta?: string
+          natura?: string
+          regola?: string
+          risultato?: Json
+          transaction_id?: string
+          versione?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tesoreria_esiti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_storia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_storia_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_esiti_storia_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions_operativi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tesoreria_paganti_autorizzati: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          pagante_iban: string | null
+          pagante_nome: string | null
+          prova: string
+          revocato_at: string | null
+          soggetto_id: string | null
+          soggetto_nome: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pagante_iban?: string | null
+          pagante_nome?: string | null
+          prova: string
+          revocato_at?: string | null
+          soggetto_id?: string | null
+          soggetto_nome: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pagante_iban?: string | null
+          pagante_nome?: string | null
+          prova?: string
+          revocato_at?: string | null
+          soggetto_id?: string | null
+          soggetto_nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tesoreria_paganti_autorizzati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_paganti_autorizzati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_paganti_autorizzati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_paganti_autorizzati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_paganti_autorizzati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       tet_computo_voci: {
         Row: {
           ambiente: string | null
@@ -134356,6 +135199,85 @@ export type Database = {
           },
         ]
       }
+      anagrafiche_pa_da_confermare: {
+        Row: {
+          cliente_id: string | null
+          codice_fiscale: string | null
+          codice_sdi: string | null
+          company_id: string | null
+          denominazione: string | null
+          id: string | null
+          motivo: string | null
+          partita_iva: string | null
+          tipo_cliente: string | null
+        }
+        Insert: {
+          cliente_id?: string | null
+          codice_fiscale?: string | null
+          codice_sdi?: string | null
+          company_id?: string | null
+          denominazione?: never
+          id?: string | null
+          motivo?: never
+          partita_iva?: string | null
+          tipo_cliente?: string | null
+        }
+        Update: {
+          cliente_id?: string | null
+          codice_fiscale?: string | null
+          codice_sdi?: string | null
+          company_id?: string | null
+          denominazione?: never
+          id?: string | null
+          motivo?: never
+          partita_iva?: string | null
+          tipo_cliente?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anagrafiche_native_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       azienda_documenti_stato: {
         Row: {
           alert_destinatari: string[] | null
@@ -136060,6 +136982,13 @@ export type Database = {
             columns: ["anagrafica_id"]
             isOneToOne: false
             referencedRelation: "anagrafiche_native"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_anagrafica_id_fkey"
+            columns: ["anagrafica_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafiche_pa_da_confermare"
             referencedColumns: ["id"]
           },
           {
@@ -138375,6 +139304,7 @@ export type Database = {
           percentuale_avanzamento: number | null
           quote_id: string | null
           quote_number: string | null
+          riferimenti_pa_attivi: boolean | null
           riferimento_committente: string | null
           ritenuta_garanzia: Json | null
           rst_progetto_id: string | null
@@ -144097,9 +145027,45 @@ export type Database = {
         Args: { p_company: string; p_modo: string }
         Returns: undefined
       }
+      acquisti_collega_ddt: {
+        Args: {
+          p_company: string
+          p_ddt?: string
+          p_fattura?: string
+          p_limite?: number
+          p_scrivi?: boolean
+        }
+        Returns: {
+          data_ddt: string
+          ddt_id: string
+          esito: string
+          fattura_ddt_id: string
+          fattura_id: string
+          motivo: string
+          numero_ddt: string
+        }[]
+      }
+      acquisti_collegamento_cambia_stato: {
+        Args: { p_id: string; p_motivo?: string; p_stato: string }
+        Returns: Json
+      }
       acquisti_conferma_impostazioni_salva: {
         Args: { p_company: string; p_giorni: number; p_tolleranza: number }
         Returns: undefined
+      }
+      acquisti_ddt_candidati: {
+        Args: {
+          p_company: string
+          p_data: string
+          p_fornitore: string
+          p_numero: string
+        }
+        Returns: {
+          data: string
+          ddt_id: string
+          numero: string
+          vicina: boolean
+        }[]
       }
       acquisti_impostazioni_salva: {
         Args: {
@@ -144169,6 +145135,11 @@ export type Database = {
           vat_rate: number
         }[]
       }
+      acquisti_numero_documento: {
+        Args: { p: string }
+        Returns: Record<string, unknown>
+      }
+      acquisti_puo_collegare: { Args: { p_company: string }; Returns: boolean }
       acquisti_richiedi_offerta: {
         Args: {
           p_fornitori?: string[]
@@ -144177,6 +145148,18 @@ export type Database = {
           p_titolo: string
         }
         Returns: string
+      }
+      acquisti_ricollega_ddt_anteprima: {
+        Args: { p_company: string; p_esempi?: number }
+        Returns: Json
+      }
+      acquisti_ricollega_ddt_lotto: {
+        Args: { p_company: string; p_limite?: number }
+        Returns: Json
+      }
+      acquisti_transizione_ammessa: {
+        Args: { p_a: string; p_da: string }
+        Returns: boolean
       }
       activity_category_for_event: {
         Args: { p_event_type: string; p_target_table: string }
@@ -146170,6 +147153,7 @@ export type Database = {
       }
       catalogo_immagini_valide: { Args: { v: Json }; Returns: boolean }
       categoria_storage: { Args: { p_bucket: string }; Returns: string }
+      cdg_controllo_doppi: { Args: { p_company: string }; Returns: Json }
       cedenti_fatture_ricevute: {
         Args: { p_company_id: string }
         Returns: {
@@ -154943,6 +155927,10 @@ export type Database = {
         Args: { p_company: string; p_connection: string; p_iban: string }
         Returns: boolean
       }
+      salva_anagrafica_cliente: {
+        Args: { p_cliente_id: string; p_dati: Json }
+        Returns: string
+      }
       salva_commessa_come_modello: {
         Args: { p_nome: string; p_order_id: string }
         Returns: string
@@ -158728,6 +159716,30 @@ export type Database = {
       }
       telefono_chiave: { Args: { p_telefono: string }; Returns: string }
       telegram_generate_verification_code: { Args: never; Returns: Json }
+      tesoreria_annulla_sostituzione: {
+        Args: { p_company: string; p_id: string }
+        Returns: undefined
+      }
+      tesoreria_classifica_movimenti: {
+        Args: { p_anteprima?: boolean; p_company: string; p_limite?: number }
+        Returns: Json
+      }
+      tesoreria_classifica_movimento: {
+        Args: { p_company: string; p_tx: string }
+        Returns: Json
+      }
+      tesoreria_esito_movimento: {
+        Args: { p_company: string; p_tx: string }
+        Returns: Json
+      }
+      tesoreria_scarta_esito: {
+        Args: { p_company: string; p_motivo: string; p_tx: string }
+        Returns: undefined
+      }
+      tesoreria_sostituisci_previsione: {
+        Args: { p_company: string; p_previsione: string; p_reale: string }
+        Returns: Json
+      }
       ticket_segna_richiamo: {
         Args: { p_nota?: string; p_ticket_id: string }
         Returns: {
