@@ -147,6 +147,46 @@ export interface SalExtra {
   importoContratto?: number | null;
   foto?: FotoVerbale[] | null;
   allegati?: string[] | null;
+  /** Il certificato di pagamento del SAL (sal_certificati, importi a tutto oggi tranne il netto), se c'è. */
+  certificato?: CertificatoPdf | null;
+}
+
+/** Il certificato come sta in sal_certificati (15/11/2026): nel PDF prende il posto della «quota nuova». */
+export interface CertificatoPdf {
+  lavori_contrattuali: number;
+  varianti: number;
+  ritenuta_pct: number;
+  ritenuta: number;
+  recupero_anticipazione: number;
+  altre_detrazioni: number;
+  altre_detrazioni_nota?: string | null;
+  acconti_precedenti: number;
+  rinviato?: number | null;
+  netto: number;
+}
+
+/** Il blocco del certificato: dai lavori a tutto oggi al netto da pagare con questo SAL, IVA compresa. */
+export function buildCertificatoHtml(c: CertificatoPdf, aliquota: number | null): string {
+  const n = (v: unknown) => Number(v) || 0;
+  const lordo = Math.round((n(c.lavori_contrattuali) + n(c.varianti)) * 100) / 100;
+  const atteso = Math.round((lordo - n(c.ritenuta) - n(c.recupero_anticipazione) - n(c.altre_detrazioni) - n(c.acconti_precedenti) - n(c.rinviato)) * 100) / 100;
+  if (Math.abs(atteso - n(c.netto)) > 0.01) throw new Error("Certificato di pagamento non coerente: verificare ritenuta, detrazioni e acconti");
+  const riga = (t: string, v: number, classe = "") => `<tr${classe ? ` class="${classe}"` : ""}><td>${t}</td><td class="num">${fmtEur(v)}</td></tr>`;
+  const iva = aliquota != null ? Math.round(n(c.netto) * aliquota) / 100 : null;
+  return `
+    <table class="doc-tabella" style="flex:1.3;">
+      <tbody>
+        ${riga("Lavori eseguiti a tutto il presente SAL", lordo, "forte")}
+        ${n(c.varianti) ? riga("di cui varianti ed extra", n(c.varianti)) : ""}
+        ${riga(`A dedurre: ritenuta di garanzia ${fmtPct(n(c.ritenuta_pct))} (a tutto oggi)`, -n(c.ritenuta))}
+        ${n(c.recupero_anticipazione) ? riga("A dedurre: recupero dell'acconto (a tutto oggi)", -n(c.recupero_anticipazione)) : ""}
+        ${n(c.altre_detrazioni) ? riga(`A dedurre: altre detrazioni${c.altre_detrazioni_nota ? ` — ${escHtml(c.altre_detrazioni_nota)}` : ""}`, -n(c.altre_detrazioni)) : ""}
+        ${riga("A dedurre: certificati dei SAL precedenti", -n(c.acconti_precedenti))}
+        ${n(c.rinviato) ? riga("Rinviato al prossimo certificato (arrotondamento)", -n(c.rinviato)) : ""}
+        ${riga("Netto di questo certificato", n(c.netto), iva != null ? "forte" : "totale")}
+        ${iva != null ? riga(`IVA ${aliquota!.toLocaleString("it-IT")}%`, iva) + riga("Da pagare con questo SAL, IVA inclusa", Math.round((n(c.netto) + iva) * 100) / 100, "totale") : ""}
+      </tbody>
+    </table>`;
 }
 
 export interface FotoVerbale { url: string; data: string | null; didascalia: string | null }
@@ -258,8 +298,11 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     </tr>${righeSottofasi(r.v)}`).join("");
 
   const statoLabel = STATO_LABELS[sal.stato] || sal.stato.toUpperCase();
+  // Il certificato vale solo per i SAL di commessa: quelli di contratto della generale hanno il loro blocco.
+  const certificato = !contratto && extra.certificato ? extra.certificato : null;
   const statoOk = ["approvato","firmato"].includes(sal.stato);
   const aliquota = Number.isFinite(Number(extra.aliquotaIva)) && extra.aliquotaIva != null ? Number(extra.aliquotaIva) : null;
+  const certificatoHtml = certificato ? buildCertificatoHtml(certificato, aliquota) : "";
   const ivaQuota = aliquota != null && !contratto?.reverse_charge ? Math.round(economic.daFatturare * aliquota) / 100 : null;
   const contrattoTot = Number(extra.importoContratto) > 0 ? Number(extra.importoContratto) : null;
   // Sulle voci del verbale, non sull'importo della commessa: le varianti approvate entrano come voci e l'importo della commessa non le comprende.
@@ -336,7 +379,9 @@ ${veste.apri}<div class="page">
   <div style="display:flex;gap:8pt;margin-bottom:6pt;">
     <div class="doc-riquadro" style="flex:1;">${etichetta("Lavori a tutto il presente SAL")}<div class="numero">${fmtEur(economic.totale)}</div><div class="nota">${pct(percMedia)} delle voci</div></div>
     <div class="doc-riquadro" style="flex:1;">${etichetta("SAL precedenti")}<div class="numero">${fmtEur(economic.precedente)}</div></div>
-    <div class="doc-riquadro" style="flex:1;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(economic.daFatturare)}</div><div class="nota">IVA esclusa</div></div>
+    ${certificato
+      ? `<div class="doc-riquadro" style="flex:1;">${etichetta("Netto da pagare con questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(Number(certificato.netto))}</div><div class="nota">IVA esclusa · dopo ritenuta${Number(certificato.recupero_anticipazione) ? " e acconto" : ""}</div></div>`
+      : `<div class="doc-riquadro" style="flex:1;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(economic.daFatturare)}</div><div class="nota">IVA esclusa</div></div>`}
   </div>
 
   <!-- Voci -->
@@ -364,21 +409,21 @@ ${veste.apri}<div class="page">
 
   <!-- Riepilogo economico -->
   <div style="display:flex;gap:14pt;align-items:flex-start;margin-bottom:10pt;">
-    <table class="doc-tabella" style="flex:1.3;">
+    ${certificato ? certificatoHtml : `<table class="doc-tabella" style="flex:1.3;">
       <tbody>
         ${rigaRiep("Lavori eseguiti a tutto il presente SAL", economic.totale)}
         ${rigaRiep("A dedurre: SAL precedenti", -economic.precedente)}
         ${rigaRiep(economic.daFatturare<0 ? "Rettifica da verificare" : "Quota nuova di questo SAL", economic.daFatturare, ivaQuota != null ? "forte" : "totale")}
         ${ivaQuota != null ? rigaRiep(`IVA ${aliquota!.toLocaleString("it-IT")}%`, ivaQuota) + rigaRiep("Totale della quota, IVA inclusa", Math.round((economic.daFatturare + ivaQuota) * 100) / 100, "totale") : ""}
       </tbody>
-    </table>
+    </table>`}
     <div class="doc-riquadro" style="flex:1;">
       ${etichetta("Resta da eseguire")}
       <div class="numero">${fmtEur(restaDaEseguire)}</div>
       <div class="nota" style="margin-top:2px;">su ${fmtEur(totaleContrattuale)} di voci del contratto</div>
     </div>
   </div>
-  <p class="nota" style="margin:0 0 14pt;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento. Acconti e fatture già emesse si verificano prima della fatturazione.</p>
+  <p class="nota" style="margin:0 0 14pt;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento.${certificato ? " La ritenuta di garanzia si restituisce allo svincolo, come da contratto." : " Acconti e fatture già emesse si verificano prima della fatturazione."}</p>
   ${sal.stato === "bozza" ? '<p style="margin:0 0 14pt;color:var(--warn);font-weight:bold;">BOZZA - Non emessa. Nessun link di approvazione attivo.</p>' : ""}
   ${contrattoHtml}
   ${sal.note ? `

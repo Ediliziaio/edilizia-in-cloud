@@ -93,6 +93,10 @@ Deno.serve(async (req) => {
     // Se non si leggono il verbale resta completo, col solo cumulativo.
     const ultimoPrecedente=(prior??[]).find(p=>p.id!==sal.id);
     const extra:SalExtra={aliquotaIva:(order as {vat_rate?:number|null}).vat_rate ?? null,importoContratto:Number(order.total_amount)||null,dettaglioSottofasi:dettaglio_sottofasi!==false};
+    // Il certificato di pagamento (15/11/2026): con il certificato il verbale dice il netto da pagare, come la fattura.
+    const {data:certificato,error:certificatoError}=await supabase.from("sal_certificati").select("lavori_contrattuali,varianti,ritenuta_pct,ritenuta,recupero_anticipazione,altre_detrazioni,altre_detrazioni_nota,acconti_precedenti,rinviato,netto").eq("sal_id",sal.id).eq("company_id",company_id).maybeSingle();
+    if(certificatoError)throw new Error("Certificato di pagamento non leggibile: riprova");
+    extra.certificato=(certificato ?? null) as SalExtra["certificato"];
     if(ultimoPrecedente){
       const {data:vociPrec,error:vociPrecError}=await supabase.from("sal_voci").select("descrizione,importo_sal,sal_voci_sottofasi(sottofase_id,percentuale_avanzamento)").eq("sal_id",ultimoPrecedente.id);
       if(!vociPrecError && Array.isArray(vociPrec)){

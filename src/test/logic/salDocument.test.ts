@@ -12,6 +12,14 @@ describe("Documento SAL progressivo",()=>{
     expect(html).toContain("Quota nuova di questo SAL");expect(html).toContain("10.000,00");expect(html).toContain("30.000,00");expect(html).toContain("non è una fattura");expect(html).not.toContain("/firma-sal/");
     if(process.env.SAL_HTML_PROOF)writeFileSync(process.env.SAL_HTML_PROOF,html);
   });
+  it("con il certificato dice il netto da pagare: ritenuta, acconto e certificati prima (15/11/2026)",()=>{
+    // 30.000 di lavori, ritenuta 5% (1.500), acconto recuperato 6.000, certificati prima 14.000 → netto 8.500, con IVA 10% 9.350.
+    const certificato={lavori_contrattuali:30000,varianti:0,ritenuta_pct:5,ritenuta:1500,recupero_anticipazione:6000,altre_detrazioni:0,acconti_precedenti:14000,rinviato:0,netto:8500};
+    const html=buildSalHtml(record(),{description:"Lavori",order_code:"DEMO",total_amount:40000},company,null,undefined,20000,null,{aliquotaIva:10,certificato});
+    expect(html).toContain("Netto da pagare con questo SAL");expect(html).toContain("recupero dell'acconto");expect(html).toContain("8.500,00");expect(html).toContain("9.350,00");
+    expect(html).not.toContain("Quota nuova di questo SAL");
+    expect(()=>buildSalHtml(record(),null,company,null,undefined,20000,null,{certificato:{...certificato,netto:9000}})).toThrow(/Certificato/);
+  });
   it("blocca voci assenti o incoerenti prima di produrre un documento",()=>{
     expect(()=>buildSalHtml({...record(),sal_voci:[]},null,company)).toThrow();expect(()=>buildSalHtml({...record(),importo_totale:29999},null,company)).toThrow();
     expect(()=>buildSalHtml({...record(),sal_voci:[{...record().sal_voci[0],percentuale_avanzamento:50}]},null,company)).toThrow();
