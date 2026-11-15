@@ -9,6 +9,7 @@
  * non quadra, come il Rating.
  */
 
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,6 +130,9 @@ export function TabIndiciAvanzati({ anno }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <EsportaMenu anno={anno} sezioni={["indici", "bep", "imposte"]} titolo="Indici avanzati" />
+      </div>
       {spNonQuadra && (
         <div role="alert" className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

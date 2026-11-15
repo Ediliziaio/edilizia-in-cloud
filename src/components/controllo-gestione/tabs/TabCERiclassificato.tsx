@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -298,6 +299,7 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
           <Button variant="outline" size="sm" onClick={() => setStampaCE(htmlCE())}>
             <Printer className="mr-2 h-4 w-4" />Stampa
           </Button>
+          <EsportaMenu anno={anno} sezioni={["ce", "ce_mensile", "bep", "imposte", "ricavi", "lavori_in_corso"]} titolo="Conto economico" />
           <ExportButton
             onExport={async () => {
               await exportXlsx({

@@ -9,6 +9,7 @@
  *   D. Riconciliazione con il bilancio del commercialista
  */
 
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,6 +110,9 @@ export function TabHealthCheck({ anno }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <EsportaMenu anno={anno} sezioni={["controllo_dati", "versamenti", "riconciliazione"]} titolo="Controllo dei dati" />
+      </div>
       {/* A. Punteggio */}
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">

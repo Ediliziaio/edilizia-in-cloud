@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Scale } from "lucide-react";
 import {
@@ -55,6 +56,7 @@ export function TabStatoPatrimoniale({ anno }: TabStatoPatrimonialeProps) {
         <div className="flex items-center gap-2">
           <SPStampaButton anno={anno} />
           <SPExportButton anno={anno} />
+          <EsportaMenu anno={anno} sezioni={["sp"]} titolo="Stato patrimoniale" />
         </div>
       </div>
       {vista === "anno" ? (

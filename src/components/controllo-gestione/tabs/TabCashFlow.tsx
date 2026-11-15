@@ -11,6 +11,8 @@
  * (lo standard dell'Excel, modificabile in Configurazione e in Tesoreria):
  * area → categoria → voce. La vista «Riassunto» mostra le righe di prima.
  */
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
+import type { Tabella } from "@/lib/controlloGestione/esportaTutto";
 import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -216,6 +218,17 @@ export function TabCashFlow({ anno }: Props) {
       return next;
     });
 
+  // Lo stesso prospetto per «Scarica» (CSV, PDF, JSON), come lo si vede.
+  const tabelleCassa = (): Tabella[] => {
+    const righe = vistaAttiva === "categorie" && perCategorie ? righeEsportazioneCategorie(r, perCategorie) : righeEsportazione(r);
+    return [{
+      titolo: `Rendiconto di cassa ${anno}`,
+      colonne: [vistaAttiva === "categorie" ? "Categoria" : "Voce",
+        ...r.colonne.map((c) => `${MESI[c.mese - 1]} (${ETICHETTA_COLONNA[c.tipo]})`), `Totale ${anno}`],
+      righe: righe.map((riga) => [riga.voce, ...riga.valori, riga.totale]),
+    }];
+  };
+
   const esporta = async () => {
     const righe = vistaAttiva === "categorie" && perCategorie ? righeEsportazioneCategorie(r, perCategorie) : righeEsportazione(r);
     await exportXlsx({
@@ -320,6 +333,7 @@ export function TabCashFlow({ anno }: Props) {
           </Button>
           <span className="max-sm:hidden">
             <ExportButton onExport={esporta} />
+            <EsportaMenu anno={anno} sezioni={[]} titolo="Rendiconto di cassa" tabelleExtra={tabelleCassa} />
           </span>
           {haPrevisione && (
             <Button size="sm" variant="outline" onClick={() => setEditorOpen(true)} className="max-sm:hidden">

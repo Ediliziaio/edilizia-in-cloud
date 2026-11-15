@@ -7,6 +7,7 @@
  *  C. Aging crediti / debiti (scadenze open per fascia)
  */
 
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,6 +44,9 @@ interface Props {
 export function TabPFNDebiti({ anno }: Props) {
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <EsportaMenu anno={anno} sezioni={["pfn", "aging_crediti", "aging_debiti"]} titolo="Posizione finanziaria e scadenzario" />
+      </div>
       <PFNSection anno={anno} />
       <LoansSection />
       <AgingSection />

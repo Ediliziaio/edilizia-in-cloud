@@ -20,6 +20,8 @@
  *  - permessi: canViewControlloGestione
  *  - feature flag: controllo_gestione_v1
  */
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
+import { SEZIONI, SEZIONI_CON_SALDI } from "@/lib/controlloGestione/esportaTutto";
 import { useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -176,6 +178,10 @@ export default function ControlloGestione() {
 
   const tabVisibile: CGTab = isMobile && !TAB_MOBILE.includes(activeTab) ? "dash" : activeTab;
   const anniDisponibili = [0, 1, 2, 3].map((d) => new Date().getFullYear() - 2 + d);
+  // «Scarica tutto»: le sezioni che le schede mostrano a questo utente (senza il permesso sui
+  // saldi bancari restano fuori quelle che li contengono, come nelle schede).
+  const sezioniScaricabili = SEZIONI.map((x) => x.chiave).filter(
+    (k) => permissions.canViewBankBalances || !SEZIONI_CON_SALDI.includes(k));
   // «Altro» si accende (e prende il nome della scheda) quando la scheda aperta
   // è fra quelle che a questa larghezza stanno nel menu.
   const schedaAttiva = SCHEDE_DESKTOP.find((s) => s.tab === tabVisibile);
@@ -188,12 +194,15 @@ export default function ControlloGestione() {
         title="Controllo gestione"
         // Mobile: l'anno sta sulla riga del titolo invece di una riga sua.
         actions={
-          <Select value={String(filters.anno)} onValueChange={(v) => setFilters({ ...filters, anno: Number(v) })}>
-            <SelectTrigger className="h-8 w-[84px] text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {anniDisponibili.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-1.5">
+            <Select value={String(filters.anno)} onValueChange={(v) => setFilters({ ...filters, anno: Number(v) })}>
+              <SelectTrigger className="h-8 w-[84px] text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {anniDisponibili.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <EsportaMenu anno={filters.anno} sezioni={sezioniScaricabili} titolo="Controllo di gestione" label="" />
+          </div>
         }
       />
       ) : (
@@ -212,6 +221,7 @@ export default function ControlloGestione() {
             // controlli morti. Li mostriamo solo dove filtrano davvero.
             showPeriodo={activeTab === "ce"}
           />
+          <EsportaMenu anno={filters.anno} sezioni={sezioniScaricabili} titolo="Controllo di gestione" label="Scarica tutto" />
         </div>
       )}
 

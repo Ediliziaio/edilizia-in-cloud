@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { EsportaMenu } from "@/components/controllo-gestione/ui/EsportaMenu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRating } from "@/hooks/controlloGestione/useStatoPatrimoniale";
@@ -51,6 +52,9 @@ export function TabRatingBancario({ anno }: TabRatingBancarioProps) {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="flex justify-end lg:col-span-3">
+        <EsportaMenu anno={anno} sezioni={["rating"]} titolo="Rating bancario" />
+      </div>
       <Card className="rounded-2xl lg:col-span-1">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Rating bancario {data.anno}</CardTitle>
