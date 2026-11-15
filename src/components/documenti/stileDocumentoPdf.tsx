@@ -6,7 +6,7 @@
  * Lo usano rendiconto, contratti (cliente e subappalto) e riepilogo commessa. NON i preventivi.
  */
 import type { ReactNode } from "react";
-import { Image, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Font, Image, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { PieSocietario } from "@/components/preventivi/pdf/FoglioCondizioniPDF";
 import {
   accentoDocumento, colore, pagina, riquadro, sezione, tabella, testata,
@@ -73,6 +73,9 @@ export const st = StyleSheet.create({
 });
 
 /** Il logo della testata: quello della veste (Vulcano: grande) o quello di serie; proporzioni conservate. */
+// Niente sillabazione automatica: spezzava titoli e nomi a metà parola («ap-palto», «Stac-chetti», 15/11/2026).
+Font.registerHyphenationCallback((word) => [word]);
+
 function misureLogo(companyId: string | null | undefined): { altezza: number; larghezza: number } {
   const veste = personalizzazioneDocumento(companyId);
   return {

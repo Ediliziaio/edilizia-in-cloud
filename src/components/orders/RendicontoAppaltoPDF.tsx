@@ -383,15 +383,16 @@ export function RendicontoAppaltoPDF({
           <Text style={[st.nota, { marginTop: 3 }]}>{NOTA_TOTALE_RENDICONTO}</Text>
         </View>
 
-        {/* 6. Note e firme */}
-        {note ? (
-          <View style={styles.note} wrap={false}>
-            <Text style={st.rEtichetta}>Note</Text>
-            <Text style={styles.noteTesto}>{note}</Text>
-          </View>
-        ) : null}
-
-        <Firme voci={[azienda.name, `${committente.ragione_sociale} — per accettazione`]} style={{ marginTop: 40 }} />
+        {/* 6. Note e firme: insieme, e le firme mai da sole su un foglio (15/11/2026: finivano sole a pagina 3). */}
+        <View wrap={false} minPresenceAhead={120}>
+          {note ? (
+            <View style={styles.note}>
+              <Text style={st.rEtichetta}>Note</Text>
+              <Text style={styles.noteTesto}>{note}</Text>
+            </View>
+          ) : null}
+          <Firme voci={[azienda.name, `${committente.ragione_sociale} — per accettazione`]} style={{ marginTop: 32 }} />
+        </View>
       </Page>
 
       {/* Allegato: le pagine firmate del giornale dei giorni rendicontati. Niente importi. */}

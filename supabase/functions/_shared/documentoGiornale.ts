@@ -111,6 +111,10 @@ const blocco = (titolo: string, corpo: string) => `<div style="margin-bottom:8pt
 const oreTesto = (ore: number) => (ore > 0 ? ` (${(Math.round(ore * 100) / 100).toLocaleString("it-IT")} h)` : "");
 
 export const firmata = (g: Pick<GiornataDocumento, "stato">) => g.stato === "firmata";
+/** 0% è il valore di partenza della scheda, non un avanzamento dichiarato: «Avanzamento: 0%» su ogni giornata non diceva niente (15/11/2026). */
+const avanzamentoIndicato = (g: Pick<GiornataDocumento, "avanzamento_percentuale">) => g.avanzamento_percentuale != null && Number(g.avanzamento_percentuale) > 0;
+/** «12» diventa «12 °C»; quello che c'è già scritto («14°C», «mite») resta com'è. */
+const temperatura = (t: string) => (/^-?\d+([.,]\d+)?$/.test(t.trim()) ? `${t.trim()} °C` : t.trim());
 
 function statoHtml(g: GiornataDocumento): string {
   if (!firmata(g)) {
@@ -189,6 +193,8 @@ function htmlGiornale(
     ? `Giornale dei Lavori — ${order.order_code ? `#${order.order_code} ` : ""}${order.description}`
     : "Giornale dei Lavori";
   const inBozza = entries.filter((e) => !firmata(e)).length;
+  // Il più recente avanzamento davvero indicato (le giornate sono dalla più recente).
+  const ultimoAvanzamento = entries.find(avanzamentoIndicato)?.avanzamento_percentuale ?? null;
 
   const entriesHtml = entries.map((e, i) => {
     const persone = e.persone ?? [];
@@ -196,13 +202,13 @@ function htmlGiornale(
     <div class="giornata">
       <div class="giornata-testa">
         <span>${fmtData(e.data_lavori)} <span style="font-weight:400;color:var(--muted);">· Giornata ${i + 1} di ${entries.length}</span></span>
-        <span style="font-weight:400;">${e.avanzamento_percentuale != null ? `Avanzamento: ${e.avanzamento_percentuale}%` : ""}</span>
+        <span style="font-weight:400;">${avanzamentoIndicato(e) ? `Avanzamento: ${e.avanzamento_percentuale}%` : ""}</span>
       </div>
       <div class="giornata-corpo">
           ${statoHtml(e)}
           <div class="nota" style="display:flex;flex-wrap:wrap;gap:16pt;margin-bottom:8pt;">
             ${e.condizioni_meteo ? `<span>${METEO_LABEL[e.condizioni_meteo] || escHtml(e.condizioni_meteo)}</span>` : ""}
-            ${e.temperatura ? `<span>Temperatura: ${escHtml(e.temperatura)}</span>` : ""}
+            ${e.temperatura?.trim() ? `<span>Temperatura: ${escHtml(temperatura(e.temperatura))}</span>` : ""}
             ${e.personale_presente != null ? `<span>${e.personale_presente} ${e.personale_presente === 1 ? "operaio" : "operai"}</span>` : ""}
           </div>
           ${persone.length ? blocco("Presenti", `<div>${persone.map((p) => `${escHtml(p.nome)}${oreTesto(p.ore)}`).join(", ")}</div>`) : ""}
@@ -273,8 +279,8 @@ ${veste.apri}<div class="page">
   ${entries.length > 0
     ? `<div class="doc-riquadro" style="margin-bottom:14pt;display:flex;flex-wrap:wrap;gap:24pt;">
     <span>Dal <strong>${fmtData(entries[entries.length - 1].data_lavori)}</strong> al <strong>${fmtData(entries[0].data_lavori)}</strong></span>
-    <span>Tot. operai: <strong>${entries.reduce((s, e) => s + (e.personale_presente ?? 0), 0)}</strong> giornate</span>
-    ${entries[0].avanzamento_percentuale != null ? `<span>Ultimo avanzamento: <strong>${entries[0].avanzamento_percentuale}%</strong></span>` : ""}
+    <span>Presenze: <strong>${entries.reduce((s, e) => s + (e.personale_presente ?? 0), 0)}</strong> giornate uomo</span>
+    ${ultimoAvanzamento != null ? `<span>Ultimo avanzamento: <strong>${ultimoAvanzamento}%</strong></span>` : ""}
   </div>`
     : ""}
 
