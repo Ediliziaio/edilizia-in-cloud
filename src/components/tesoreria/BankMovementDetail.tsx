@@ -59,6 +59,7 @@ import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovimento } from "./MovimentoSuggerimenti";
+import { AlternativeEsito, BadgeEsito, RigaEsitoMovimento, useEsitoMovimento } from "./EsitoMovimento";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -194,7 +195,12 @@ function Detail({
       ),
     [note, category, savedAnnotation, contextDirty, onDirtyChange],
   );
-  const refresh = () => refreshFinancialQueries(client);
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: ["tesoreria-esito", company] });
+    return refreshFinancialQueries(client);
+  };
+  const esito = useEsitoMovimento(company, m.id);
+  const conEsito = !!esito.data && esito.data.natura !== "gia_riconciliato";
   async function act(action: () => Promise<void>, message: string) {
     if (busy) return;
     setBusy(true);
@@ -263,6 +269,7 @@ function Detail({
             <Badge variant="outline" className={state.className}>
               {state.label}
             </Badge>
+            <BadgeEsito esito={esito.data} />
           </div>
         </div>
         <p className="mt-3 whitespace-pre-wrap break-words font-medium">
@@ -299,6 +306,7 @@ function Detail({
           <Link2 className="h-4 w-4" /> A cosa è collegato
         </h3>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
+          {conEsito && riga("Esito", <RigaEsitoMovimento company={company} movement={m} esito={esito.data!} puoScrivere={write} onCambiato={refresh} />)}
           {riga("Controparte", <ControparteRiconosciuta s={s} onCollegaOda={puoContesti && !editContexts ? collegaOda : undefined} odaCollegate={contesti(["oda"]).map((c) => c.id)} />)}
           {riga(
             "Categoria",
@@ -373,7 +381,10 @@ function Detail({
                   )}
                 </p>
               )}
-              {!m.chiuso_senza_documento && !mode && <SuggerimentiAbbinamento s={s} resto={m.links.remaining} />}
+              {/* Le alternative del motore degli esiti; i suggerimenti calcolati qui solo se il motore non risponde. */}
+              {!m.chiuso_senza_documento && !mode && (esito.isError
+                ? <SuggerimentiAbbinamento s={s} resto={m.links.remaining} />
+                : conEsito && <AlternativeEsito company={company} movement={m} esito={esito.data!} puoAbbinare={validMatch} onAbbinato={refresh} />)}
               {write && !validMatch && !m.chiuso_senza_documento && m.links.remaining > 0 && (
                 <p className="basis-full text-xs text-muted-foreground">
                   {m.status !== "booked"
