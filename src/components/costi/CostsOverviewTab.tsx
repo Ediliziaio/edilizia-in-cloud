@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ciambella } from "@/components/charts/grafici/Ciambella";
+import { voceCosto } from "@/lib/costi/voceCosto";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
@@ -62,20 +63,7 @@ const NEUTRAL_FILTERS = {
 
 // Normalizzazione categoria → macro-voce leggibile
 function macroVoce(cost: UnifiedCost): string {
-  const cat = (cost.category || "").trim();
-  if (!cat) return "Altro";
-  const lower = cat.toLowerCase();
-  if (lower === "personale") return "Personale";
-  if (lower === "fornitori" || lower === "materiali") return "Materiali & fornitori";
-  // 14/11/2026: la stessa spesa scritta in modi diversi finiva in voci separate
-  // («subappalti» fuori da Squadre esterne, «affitti» e «Immobili», «assicurazioni»
-  // e «Assicurazioni»). Sinonimi noti e poi maiuscola iniziale, senza trattini bassi.
-  if (["squadre esterne", "squadre_esterne", "subappalti", "subappalto", "squadre"].includes(lower)) return "Squadre esterne";
-  if (lower === "provvigioni") return "Provvigioni";
-  if (["affitti", "affitto", "immobili"].includes(lower)) return "Immobili e affitti";
-  if (["veicoli", "mezzi", "noleggio_mezzi_attrezzature", "noleggio mezzi e attrezzature"].includes(lower)) return "Veicoli e mezzi";
-  const pulita = lower.replace(/_/g, " ").replace(/\s+/g, " ");
-  return pulita.charAt(0).toUpperCase() + pulita.slice(1);
+  return voceCosto(cost.category);
 }
 
 const VOCE_COLORS = [

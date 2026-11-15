@@ -98,7 +98,8 @@ export function NavyStatCard({
 }) {
   const inner = (
     <div className="flex items-center gap-2 sm:gap-3">
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10", tone)}>
+      {/* L'icona solo da 1024 px: sotto, i tre riquadri affiancati non avevano spazio per la cifra. */}
+      <span className={cn("hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 lg:flex", tone)}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0">

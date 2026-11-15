@@ -4,6 +4,7 @@
  */
 import { format, startOfMonth, endOfMonth, addMonths, addDays, isBefore, isAfter } from "date-fns";
 import { costoMensileVero, eSubappaltatore, type ParametriCostoAzienda } from "@/lib/costoPersonale";
+import { voceCosto } from "@/lib/costi/voceCosto";
 import { escapeCsvCell } from "./csvExport";
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
@@ -373,17 +374,19 @@ export function sortCostsByPriority(costs: any[]): any[] {
 /** Category distribution for PieChart */
 export function buildCategoryDistribution(allCostsSorted: any[]): { name: string; value: number }[] {
   const catMap = new Map<string, number>();
+  // 15/11/2026: la stessa voce della Panoramica («stipendi» e «Personale» insieme, niente
+  // nomi con il trattino basso), e un solo «Altro».
   allCostsSorted.forEach((c: any) => {
-    const cat = c.category || "Altro";
+    const cat = voceCosto(c.category);
     catMap.set(cat, (catMap.get(cat) || 0) + Number(c.amount));
   });
   const sorted = Array.from(catMap.entries())
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
   if (sorted.length <= 7) return sorted;
-  const top6 = sorted.slice(0, 6);
-  const otherValue = sorted.slice(6).reduce((s, c) => s + c.value, 0);
-  return [...top6, { name: "Altro", value: otherValue }];
+  const tenute = sorted.filter((c) => c.name !== "Altro").slice(0, 6);
+  const otherValue = sorted.filter((c) => !tenute.includes(c)).reduce((s, c) => s + c.value, 0);
+  return [...tenute, { name: "Altro", value: otherValue }];
 }
 
 /** Export costs to CSV */

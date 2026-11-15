@@ -24,6 +24,8 @@ const VALID_TABS = ["panoramica", "personale", "spese-fisse", "spese-variabili",
 type CostsTab = (typeof VALID_TABS)[number];
 // Mobile: tre schede su cinque (costo del personale e pianificazione restano
 // al desktop: sono analisi da scrivania).
+// 15/11/2026: le linguette nascoste sotto i 768 px (max-md), come useIsMobile: con max-sm
+// tra 640 e 767 px si vedevano, ma un clic riportava alla panoramica.
 const TABS_MOBILE: CostsTab[] = ["panoramica", "spese-fisse", "spese-variabili"];
 
 export default function CompanyCosts() {
@@ -77,7 +79,7 @@ export default function CompanyCosts() {
           <TabsTrigger value="panoramica" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
             <PieChart className="h-4 w-4" /> Panoramica
           </TabsTrigger>
-          <TabsTrigger value="personale" className="gap-1.5 rounded-lg max-sm:hidden">
+          <TabsTrigger value="personale" className="gap-1.5 rounded-lg max-md:hidden">
             <HardHat className="h-4 w-4" /> Personale
           </TabsTrigger>
           <TabsTrigger value="spese-fisse" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
@@ -86,7 +88,7 @@ export default function CompanyCosts() {
           <TabsTrigger value="spese-variabili" className="tap-compact gap-1.5 rounded-lg max-sm:h-8 max-sm:rounded-md max-sm:text-xs">
             <ReceiptText className="h-4 w-4" /> <span className="max-sm:hidden">Spese variabili</span><span className="sm:hidden">Variabili</span>
           </TabsTrigger>
-          <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg max-sm:hidden">
+          <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg max-md:hidden">
             <Target className="h-4 w-4" /> Pianificazione
           </TabsTrigger>
         </TabsList>
