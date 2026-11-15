@@ -61,15 +61,22 @@ beforeAll(async () => {
     create table fattura_ricevuta_mezzi(id uuid primary key default gen_random_uuid(), company_id uuid, fattura_ricevuta_id uuid, mezzo_id uuid, importo numeric, origine text, created_by uuid, unique(fattura_ricevuta_id, mezzo_id));
     create table ddt_ricezione(id uuid primary key default gen_random_uuid(), company_id uuid, supplier_id uuid, numero_ddt text, data_ricezione date);
     create table fattura_ddt(id uuid primary key default gen_random_uuid(), company_id uuid, fattura_ricevuta_id uuid, numero_ddt text, data_ddt date, ddt_ricezione_id uuid, origine text, created_by uuid, created_at timestamptz default clock_timestamp());
+    create table orders(id uuid primary key, company_id uuid, deleted_at timestamptz);
+    create table company_governance_settings(company_id uuid primary key);
+    create function user_can_access_company(c uuid) returns boolean language sql stable as $$select c=nullif(current_setting('test.company',true),'')::uuid$$;
     create unique index fattura_ddt_unico on fattura_ddt(fattura_ricevuta_id, numero_ddt, coalesce(data_ddt, '0001-01-01'::date));
   `);
   await db.query(`insert into companies values ($1),($2)`, [AZ, ALTRA]);
   await db.exec(readFileSync("supabase/migrations/20290404210000_acquisti_collegamenti_traccia.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404220000_acquisti_collegamento_registra.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404240000_collegamento_automatico_interruttore.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
-  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute cascade;
+  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings cascade;
     select set_config('test.user','',false), set_config('test.company','',false), set_config('test.role','service_role',false), set_config('test.readonly','false',false);`);
+  // I casi qui sotto provano le regole con l'interruttore ACCESO; quelli con l'interruttore spento sono in fondo.
+  await db.query(`insert into company_governance_settings(company_id, collegamento_automatico) values ($1, true), ($2, true)`, [AZ, ALTRA]);
 });
 
 describe("numero di documento: SQL uguale al TypeScript", () => {
@@ -213,5 +220,106 @@ describe("fattura ↔ bolla senza AI", () => {
       `select has_table_privilege('authenticated','acquisti_collegamenti','insert') ins, has_table_privilege('authenticated','acquisti_collegamenti','update') upd, has_table_privilege('authenticated','acquisti_collegamenti','select') sel`,
     );
     expect(rows[0]).toEqual({ ins: false, upd: false, sel: true });
+  });
+});
+
+describe("acquisti_collegamento_registra: la porta comune per B, C e D", () => {
+  const COMM = id(30), COMM_ALTRA = id(31);
+  const registra = (esito: string, a = COMM, regola = "prova_regola") =>
+    db.query<{ id: string }>(
+      `select acquisti_collegamento_registra($1,'fattura_ricevuta',$2,'3','commessa',$3,null,$4,$5,'[{"campo":"codice","ruolo":"identifica","esito":"uguale","testo":"codice"}]'::jsonb) id`,
+      [AZ, id(20), a, regola, esito],
+    );
+  beforeEach(async () => {
+    await db.query(`insert into orders(id, company_id) values ($1,$2),($3,$4)`, [COMM, AZ, COMM_ALTRA, ALTRA]);
+    await fattura(20, []);
+  });
+
+  it("proposta, poi automatico: stessa riga, passa a collegato, storia di due passi", async () => {
+    const a = (await registra("proposta")).rows[0].id;
+    const b = (await registra("automatico")).rows[0].id;
+    expect(b).toBe(a);
+    const { rows } = await db.query<{ stato: string; da_riga: string; n: number }>(
+      `select stato, da_riga, (select count(*)::int from acquisti_collegamenti_storia where collegamento_id=c.id) n from acquisti_collegamenti c`,
+    );
+    expect(rows).toEqual([{ stato: "collegato", da_riga: "3", n: 2 }]);
+  });
+
+  it("isolamento: la commessa di un'altra azienda è rifiutata", async () => {
+    await expect(registra("automatico", COMM_ALTRA)).rejects.toThrow(/non è di questa azienda/);
+  });
+
+  it("esiti non registrabili e regola mancante", async () => {
+    await expect(registra("conflitto")).rejects.toThrow(/Esito non valido/);
+    await expect(registra("automatico", COMM, "")).rejects.toThrow(/regola/);
+    await expect(registra("manuale")).rejects.toThrow(/persona/);
+  });
+
+  it("una regola non rifà ciò che una persona ha annullato; una persona sì", async () => {
+    const c = (await registra("automatico")).rows[0].id;
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'annullato','commessa sbagliata')`, [c]);
+    await registra("automatico");
+    expect((await db.query<{ stato: string }>(`select stato from acquisti_collegamenti`)).rows[0].stato).toBe("annullato");
+    await db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${AZ}',false)`);
+    await registra("manuale");
+    const r = await db.query<{ stato: string; autore_tipo: string }>(`select stato, autore_tipo from acquisti_collegamenti`);
+    expect(r.rows[0]).toEqual({ stato: "collegato", autore_tipo: "utente" });
+  });
+
+  it("chi non può collegare non registra", async () => {
+    await db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${ALTRA}',false)`);
+    await expect(registra("automatico")).rejects.toThrow(/permesso/);
+  });
+});
+
+describe("interruttore del collegamento automatico (spento di base)", () => {
+  beforeEach(async () => {
+    await db.query(`update company_governance_settings set collegamento_automatico = false where company_id = $1`, [AZ]);
+  });
+
+  it("spento: l'aggancio unico e verificato diventa una proposta; un clic lo collega", async () => {
+    await bolla(10, "1068", "2026-09-08");
+    await fattura(20, [["1068", "2026-09-07"]]);
+    expect(await aggancio(20)).toEqual([["1068", null]]);
+    const c = await db.query<{ id: string; stato: string; esito: string }>(`select id, stato, esito from acquisti_collegamenti`);
+    expect(c.rows).toEqual([{ id: c.rows[0].id, stato: "proposto", esito: "proposta" }]);
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [c.rows[0].id]);
+    expect(await aggancio(20)).toEqual([["1068", id(10)]]);
+  });
+
+  it("riga mancante nelle impostazioni = spento", async () => {
+    await db.query(`delete from company_governance_settings where company_id = $1`, [AZ]);
+    await bolla(10, "1068", "2026-09-08");
+    await fattura(20, [["1068", "2026-09-07"]]);
+    expect(await aggancio(20)).toEqual([["1068", null]]);
+  });
+
+  it("spento: la registrazione comune trasforma «automatico» in proposta; acceso lo collega e lo segna automatico", async () => {
+    const COMM = id(40);
+    await db.query(`insert into orders(id, company_id) values ($1,$2)`, [COMM, AZ]);
+    await fattura(20, []);
+    const reg = () =>
+      db.query<{ id: string }>(`select acquisti_collegamento_registra($1,'fattura_ricevuta',$2,null,'commessa',$3,null,'prova','automatico','[]'::jsonb) id`, [AZ, id(20), COMM]);
+    await reg();
+    expect((await db.query(`select stato, esito from acquisti_collegamenti`)).rows).toEqual([{ stato: "proposto", esito: "proposta" }]);
+    await db.query(`update company_governance_settings set collegamento_automatico = true where company_id = $1`, [AZ]);
+    await reg();
+    expect((await db.query(`select stato, esito from acquisti_collegamenti`)).rows).toEqual([{ stato: "collegato", esito: "automatico" }]);
+  });
+
+  it("gli altri esiti non cambiano: più bolle candidate restano una scelta anche ad interruttore acceso", async () => {
+    await db.query(`update company_governance_settings set collegamento_automatico = true where company_id = $1`, [AZ]);
+    await bolla(10, "1068", "2026-09-08");
+    await bolla(11, "1068/26", "2026-09-09");
+    await fattura(20, [["1068", "2026-09-07"]]);
+    expect(await aggancio(20)).toEqual([["1068", null]]);
+    const { rows } = await db.query<{ esito: string }>(`select esito from acquisti_collega_ddt($1, $2, null, false)`, [AZ, id(20)]);
+    expect(rows[0].esito).toBe("scelta");
+  });
+
+  it("l'interruttore di un'azienda non vale per un'altra, e chi non vede l'azienda legge «spento»", async () => {
+    await db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${AZ}',false)`);
+    const { rows } = await db.query<{ a: boolean; b: boolean }>(`select azienda_collegamento_automatico($1) a, azienda_collegamento_automatico($2) b`, [AZ, ALTRA]);
+    expect(rows[0]).toEqual({ a: false, b: false });
   });
 });

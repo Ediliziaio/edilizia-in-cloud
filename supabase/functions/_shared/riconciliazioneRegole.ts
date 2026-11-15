@@ -1,0 +1,121 @@
+/**
+ * Confronto righe fattura ↔ righe DDT/ordine: prima le regole, poi l'AI
+ * (docs/automazioni-acquisti.md, lotto 3).
+ *
+ * `riconcilia-fattura-ai` chiedeva all'AI di abbinare ogni riga anche quando
+ * il codice articolo o la descrizione erano identici e la quantità tornava.
+ * Qui si prova con le regole comuni (`shared/acquisti/righe.ts`): codice
+ * (anche tramite le equivalenze confermate), descrizione uguale, quantità con
+ * le sole conversioni autorizzate, una riga di bolla usata una volta.
+ *
+ * Tutto o niente: se anche UNA riga non si chiude con certezza la proposta
+ * delle regole non vale e decide l'AI, sull'intero documento come prima.
+ * Una proposta a metà con l'altra metà all'AI richiederebbe di cambiare il
+ * formato della risposta e la sua convalida: lo si farà se le misure diranno
+ * che conviene.
+ *
+ * Prudenze in più rispetto all'AI:
+ *   - una riga di bolla già fatturata in parte, o con un residuo incerto, non si
+ *     abbina da sola (la quantità residua la valuta chi conosce le altre fatture);
+ *   - se sono stati scelti ordini, ogni riga deve trovare anche la riga d'ordine.
+ */
+import { abbinaRigheFattura, type EquivalenzaCodice, type RigaDocumento } from "../../../shared/acquisti/righe.ts";
+import type { ConversioneAutorizzata } from "../../../shared/acquisti/normalizza.ts";
+import { unitaCanonica } from "../../../shared/acquisti/normalizza.ts";
+import type { RigaFatturaLetta } from "../../../shared/acquisti/riferimentiFattura.ts";
+import { datiRiconciliazione, type ContestoRiconciliazione, type PropostaRiconciliazione } from "./riconciliazioneFattureAI.ts";
+
+export const MODELLO_REGOLE = "regole";
+
+const testo = (v: unknown) => (v == null ? "" : String(v));
+
+function equivalenze(c: ContestoRiconciliazione): EquivalenzaCodice[] {
+  return (c.equivalenze ?? [])
+    .filter((e) => e.attiva !== false && e.fattura_codice && e.documento_codice)
+    .map((e) => ({ codiceFornitore: testo(e.fattura_codice), codiceNostro: testo(e.documento_codice) }));
+}
+
+function conversioni(c: ContestoRiconciliazione): ConversioneAutorizzata[] {
+  return (c.conversioni ?? [])
+    .filter((e) => Number(e.fattore) > 0 && e.unita_fattura && e.unita_ddt)
+    .map((e) => ({
+      da: testo(e.unita_fattura),
+      a: testo(e.unita_ddt),
+      fattore: Number(e.fattore),
+      codiceArticolo: e.codice_articolo ? testo(e.codice_articolo) : null,
+    }));
+}
+
+export interface EsitoRegole {
+  /** La proposta, se TUTTE le righe si chiudono con le regole; altrimenti null. */
+  proposta: PropostaRiconciliazione | null;
+  righe: number;
+  chiuse: number;
+  /** Perché non si è chiuso tutto (per il registro dei lavori senza AI). */
+  motivo: string | null;
+}
+
+export function propostaDaRegole(c: ContestoRiconciliazione): EsitoRegole {
+  const d = datiRiconciliazione(c);
+  const righe: RigaFatturaLetta[] = d.fattura.map((f, i): RigaFatturaLetta => ({
+    numeroLinea: i + 1,
+    codici: f.codice ? [{ tipo: "", valore: f.codice }] : [],
+    descrizione: f.descrizione,
+    quantita: f.quantita,
+    unitaLetta: f.um,
+    unita: unitaCanonica(f.um),
+    prezzoUnitario: f.prezzo,
+    totale: f.importo ?? 0,
+    tipoCessione: null,
+    dataInizio: null,
+    dataFine: null,
+    altriDati: [],
+  }));
+  const totale = righe.length;
+  if (!totale) return { proposta: null, righe: 0, chiuse: 0, motivo: "fattura senza righe leggibili" };
+
+  const opz = { equivalenze: equivalenze(c), conversioni: conversioni(c) };
+  const bolle: RigaDocumento[] = d.bolle
+    .filter((b) => !b.residuoIncerto && b.giaFatturata === 0)
+    .map((b) => ({ id: b.id, documentoId: b.documentoId, codice: b.codice, descrizione: b.descrizione, quantita: b.quantita, unita: b.um, prezzoUnitario: b.prezzo }));
+  const ordini: RigaDocumento[] = d.ordini.map((o) => ({
+    id: o.id,
+    documentoId: "",
+    codice: o.codice,
+    descrizione: o.descrizione,
+    quantita: o.quantita,
+    unita: o.um,
+    prezzoUnitario: o.prezzo,
+  }));
+
+  const conDdt = d.bolle.length > 0;
+  const conOda = d.ordini.length > 0;
+  const perDdt = conDdt ? abbinaRigheFattura(righe, () => bolle, opz) : [];
+  const perOda = conOda ? abbinaRigheFattura(righe, () => ordini, opz) : [];
+
+  const out: PropostaRiconciliazione["righe"] = [];
+  let chiuse = 0;
+  let motivo: string | null = null;
+  d.fattura.forEach((f, i) => {
+    const n = i + 1;
+    const dd = perDdt.find((x) => x.numeroLinea === n)?.decisione;
+    const od = perOda.find((x) => x.numeroLinea === n)?.decisione;
+    const okDdt = !conDdt || (dd?.esito === "automatico" && !!dd.sceltoId);
+    const okOda = !conOda || (od?.esito === "automatico" && !!od.sceltoId);
+    if (okDdt && okOda) {
+      chiuse++;
+      out.push({
+        fattura: f.id,
+        ddt: conDdt && dd?.sceltoId ? [dd.sceltoId] : [],
+        oda: conOda && od?.sceltoId ? [od.sceltoId] : [],
+        affidabilita: "alta",
+        motivo: `Regola, senza AI: ${[dd?.motivo, od?.motivo].filter(Boolean).join(" · ")}`.slice(0, 700),
+      });
+    } else if (!motivo) {
+      const d0 = !okDdt ? dd : od;
+      motivo = `riga ${n}: ${d0?.esito ?? "nessuno"} (${d0?.motivo ?? "nessun candidato"})`;
+    }
+  });
+  if (chiuse < totale) return { proposta: null, righe: totale, chiuse, motivo };
+  return { proposta: { righe: out, avvisi: [] }, righe: totale, chiuse, motivo: null };
+}

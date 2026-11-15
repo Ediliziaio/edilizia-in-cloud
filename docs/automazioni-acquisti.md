@@ -64,6 +64,33 @@ estensione: `import { decidi } from "../../shared/acquisti/riconciliazione.ts"`.
 | `righe.ts` | ordinato/consegnato/fatturato | `abbinaRigheFattura`, `confrontaRiga` (quantità, prezzo, unità, tolleranze), `prezzoRigaDdt` (bolla senza prezzi → prezzo dell'ordine), `statoRigaOrdine` |
 | `traccia.ts` | formato della traccia | `Collegamento`, `chiaveCollegamento` (idempotenza), `statoDaEsito`, `transizioneAmmessa` |
 
+**Interruttore del collegamento automatico** (decisione del titolare, 15/11/2026; migrazione
+`20290404240000_collegamento_automatico_interruttore`). Vale per **tutti** i collegamenti:
+acquisti, tesoreria, subappalti.
+
+| Interruttore | «unico e verificato» | Altri esiti (plausibile, più candidati, conflitto, nessuno) |
+|---|---|---|
+| spento (di base, anche se manca la riga) | proposta, stato `proposto`, si conferma con un clic | invariati |
+| acceso | collegato da solo, esito `automatico` nella traccia | invariati |
+
+- Dove sta: `company_governance_settings.collegamento_automatico` (boolean, default false). La
+  voce è in Impostazioni → Approvazioni e avvisi («Collegamento automatico dei documenti»); la
+  cambia solo l'amministratore dell'azienda (policy `cgs_write`).
+- Lettura, solo lato server: SQL `azienda_collegamento_automatico(azienda) → boolean` (false a
+  chi non vede l'azienda); edge function `leggiCollegamentoAutomatico(db, companyId)` in
+  `_shared/collegamentoAutomatico.ts` (false se la lettura fallisce: nel dubbio si propone).
+- Chi scrive con `acquisti_collegamento_registra(…, esito => 'automatico', …)` **non deve
+  leggerlo**: lo applica la funzione (spento → la riga nasce `proposto` con esito `proposta`).
+  Così è impossibile dimenticarlo.
+- Chi mostra un esito prima di scriverlo usa `conInterruttore(decisione, acceso)`
+  (`shared/acquisti/riconciliazione.ts`).
+- Conferma con un clic: `acquisti_collegamento_cambia_stato(id, 'collegato')` (per fattura↔bolla
+  mette anche la bolla sulla riga `fattura_ddt`).
+- I collegamenti fatti prima del 15/11 non si toccano. Restano automatici, senza passare
+  dall'interruttore: `aggancia_fattura_a_oda` (ordine per importo uguale) e
+  `fornitore_unico_per_cedente` (fornitore dalla P.IVA). Il primo è un collegamento fra
+  documenti e va portato sotto l'interruttore (§6).
+
 **Regole del motore, da rispettare in ogni area:**
 1. Le prove hanno un **ruolo**, non un peso: `identifica` (basta da sola), `conferma`, `indizio`.
    Niente punteggi da sommare.
@@ -80,8 +107,16 @@ estensione: `import { decidi } from "../../shared/acquisti/riconciliazione.ts"`.
   (tipo, id, riga), quantità, unità, importo, regola e versione, esito, prove (jsonb, stesso
   formato di `Prova`), percorso, stato, autore (utente o processo), `con_ai`, chiave unica.
   Lettura: chi ha `can_view_costs` o `can_manage_purchasing`. Scrittura: solo dalle funzioni.
-  Le aree C e D scrivono qui le loro righe (regole loro, stesse colonne): serve una funzione
-  `acquisti_collegamento_registra` generica — da fare al primo che ne ha bisogno (§7, lotto 3).
+  Le aree C e D scrivono qui le loro righe con **`acquisti_collegamento_registra`** (lotto 3):
+  `(azienda, da_tipo, da_id, da_riga, a_tipo, a_id, a_riga, regola, esito, prove, percorso,
+  quantità, unità, importo, versione_regola, con_ai, motivo)` → id. Esiti registrabili:
+  `automatico` e `manuale` (→ collegato), `proposta` (→ proposto); scelta, conflitto e nessuno
+  restano all'utente e non si scrivono. Entrambi i documenti devono essere dell'azienda (tipi:
+  fattura_ricevuta, ddt, riga_ddt, ordine, riga_ordine, commessa, fase, magazzino, anagrafica,
+  contratto = `contratti_subappalto`, sal = `sal_subappaltatori`, rapportino, movimento_banca =
+  `bank_transactions`, costo = `company_costs`). Idempotente sulla chiave; una regola non rifà
+  ciò che una persona ha annullato o rifiutato, una persona sì (esito `manuale`). Dal service
+  role l'autore è il processo scritto in `acquisti.processo`.
 - Stati: `proposto → collegato → verificato → approvato_pagamento → pagato`, più `rifiutato`
   e `annullato`; `acquisti_collegamento_cambia_stato(id, stato, motivo)` controlla le
   transizioni e chiede il motivo per annullare/rifiutare.
@@ -111,7 +146,19 @@ parziali, resi, note di credito, fattura prima della consegna, eccedenze.
   `acquisti_ricollega_ddt_lotto(azienda, limite)` (lock_timeout 3 s; il tempo massimo del comando lo dà chi chiama: un `set_config` dentro la funzione non vale per la chiamata in corso). Anteprima sui dati
   veri: 2 righe agganciabili su 1.380, 1.378 senza bolla.
 
-**Senza AI**: nessuno dei due lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
+**Lotto 3** (migrazione `20290404220000_acquisti_collegamento_registra`, applicata):
+- `acquisti_collegamento_registra` (sopra), 5 casi in più su PGlite;
+- **regole prima dell'AI nel confronto righe** (`riconcilia-fattura-ai`): `_shared/riconciliazioneRegole.ts`
+  abbina con codice (anche via equivalenze confermate), descrizione uguale, quantità con le sole
+  conversioni autorizzate, una riga di bolla una volta, e righe d'ordine quando sono scelti ordini.
+  Se TUTTE le righe si chiudono, la proposta si salva con modello «regole» e l'AI non si chiama;
+  se ne resta anche una, decide l'AI su tutto il documento come prima. Righe di bolla già
+  fatturate in parte o con residuo incerto non si abbinano da sole. L'esito va nel contatore della
+  sessione A (`registraEsitoLavoroAi`, flusso `fattura_riconcilia_righe`, `senza_ai`/`con_ai`):
+  la pagina «Consumo AI del team» dirà quante analisi si chiudono senza AI. 7 casi in
+  `riconciliazioneRegole.test.ts`.
+
+**Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 
 ## 5. Matrice dei flussi
@@ -143,16 +190,23 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
 1. **Tolleranze**: quantità 0% e prezzo 0,5% (con 2 cent di arrotondamento) sono i default del
    codice. Per azienda o per fornitore? Si scrivono in `company_governance_settings` come le
    soglie dei rincari?
-2. **`aggancia_fattura_a_oda`**: oggi aggancia per importo uguale dello stesso fornitore. Si
-   trasforma in proposta (più prudente) o resta automatico?
+2. **`aggancia_fattura_a_oda`**: oggi aggancia per importo uguale dello stesso fornitore, sempre.
+   Con la regola dell'interruttore dovrebbe diventare una proposta quando è spento; ma da lì
+   discende il costo sull'ordine (`fattura_ricevuta_porta_costo_su_ordine`), quindi si cambia
+   con un'anteprima di cosa smetterebbe di collegarsi da solo. Da confermare.
 3. **Bolle con lo stesso numero in anni diversi**: il vincolo unico non lo permette. Si allarga
    all'anno (migrazione sul vincolo, da fare con anteprima dei doppioni)?
 4. **Automatico per l'indirizzo del cantiere**: oggi mai (solo proposta). Confermato?
 
 ## 7. Prossimi lotti
 
-3. `acquisti_collegamento_registra` generica (per C e D), traccia anche per `fattura_collega_commesse`,
-   `commessa_da_codici` e gli abbinamenti bolla↔ordine.
+**Sicurezza, chiusa il 15/11**: `oda_copertura_righe(uuid)` era eseguibile da anon, e senza utente
+il suo filtro (`auth.uid() is null`) lasciava passare tutte le aziende. Migrazione
+`20290404230000_oda_copertura_chiusa_ad_anon` (applicata col via del titolare): `REVOKE` da
+public e anon, `GRANT` ad authenticated e service_role. Dopo: 0 funzioni non classificate in
+`v_funzioni_aperte_ad_anon`.
+
+3b. Traccia anche per `fattura_collega_commesse`, `commessa_da_codici` e gli abbinamenti bolla↔ordine.
 4. Edge function `acquisti-catena-fattura`: carica i documenti dell'azienda (dal record, non dal
    browser), esegue `costruisciCatena`, scrive le proposte; aggancio a `ricevi-sdi` e
    `openapi-fatture-ricevute` prima di `riconcilia-fattura-ai`, che parte solo per ciò che resta.

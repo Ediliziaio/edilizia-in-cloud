@@ -228,3 +228,17 @@ export function decidiTraFonti<T>(
     return { esito: "proposta", sceltoId: candidati[0].id, candidati, motivo: candidati[0].motivo, mancanti: [] };
   return { esito: "scelta", sceltoId: null, candidati, motivo: `${candidati.length} valori possibili`, mancanti: [] };
 }
+
+/**
+ * L'interruttore del collegamento automatico dell'azienda (decisione del titolare, 15/11/2026).
+ * Acceso: «unico e verificato» resta automatico. Spento (di base): diventa una proposta da
+ * confermare con un clic. Gli altri esiti non cambiano mai.
+ *
+ * Il valore si legge SOLO lato server (`azienda_collegamento_automatico(azienda)`; nelle edge
+ * function `leggiCollegamentoAutomatico`). Chi scrive con `acquisti_collegamento_registra` non
+ * deve applicarlo da sé: lo fa il database. Serve a chi MOSTRA un esito prima di scriverlo.
+ */
+export function conInterruttore<T>(d: Decisione<T>, automaticoAcceso: boolean): Decisione<T> {
+  if (d.esito !== "automatico" || automaticoAcceso) return d;
+  return { ...d, esito: "proposta", motivo: `${d.motivo} — da confermare: il collegamento automatico è spento` };
+}

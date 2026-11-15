@@ -12,6 +12,8 @@ import {
 import { eseguiLottoRiconciliazione } from "../_shared/eseguiLottoRiconciliazione.ts";
 import type { PropostaRiconciliazione } from "../_shared/riconciliazioneFattureAI.ts";
 import { scenarioRiconciliazione } from "../_shared/riconciliazioneFattureScenari.ts";
+import { MODELLO_REGOLE, propostaDaRegole } from "../_shared/riconciliazioneRegole.ts";
+import { registraEsitoLavoroAi } from "../_shared/esitoLavoroAi.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -118,7 +120,17 @@ Deno.serve(async (req) => {
     if (cached && !esempio)
       return json({ analisi: cached, riutilizzata: true });
     let proposta: PropostaRiconciliazione, modello: string;
-    if (!esempio || input.simulazione === "fattura-lunga") {
+    // Prima le regole (codice, descrizione, quantità, equivalenze e conversioni confermate):
+    // se chiudono TUTTE le righe, l'AI non si chiama e non si paga.
+    const regole = esempio ? null : propostaDaRegole(c);
+    if (regole?.proposta) {
+      proposta = validaPropostaRiconciliazione(regole.proposta, c);
+      modello = MODELLO_REGOLE;
+      await registraEsitoLavoroAi(supabaseAdmin, {
+        companyId, flusso: "fattura_riconcilia_righe", chiave: `${input.fattura_id}:${impronta}`, esito: "senza_ai",
+        motivo: `${regole.chiuse}/${regole.righe} righe chiuse dalle regole`,
+      });
+    } else if (!esempio || input.simulazione === "fattura-lunga") {
       const lotto = await eseguiLottoRiconciliazione({
         db: supabaseAdmin,
         c,
@@ -129,6 +141,11 @@ Deno.serve(async (req) => {
       if (lotto.avanzamento) return json(lotto);
       proposta = lotto.proposta!;
       modello = lotto.modello!;
+      if (!esempio)
+        await registraEsitoLavoroAi(supabaseAdmin, {
+          companyId, flusso: "fattura_riconcilia_righe", chiave: `${input.fattura_id}:${impronta}`, esito: "con_ai", chiamateAi: 1,
+          motivo: regole ? `regole: ${regole.chiuse}/${regole.righe} righe; ${regole.motivo ?? ""}`.slice(0, 300) : null,
+        });
     } else {
       const messages = preparaRichiestaRiconciliazione(c);
       const result = await aiRouterComplete({

@@ -1,0 +1,104 @@
+// Confronto righe fattura ↔ DDT/ordine: le regole chiudono da sole i casi chiari,
+// e lasciano all'AI (tutto il documento) ogni volta che una riga resta in dubbio.
+import { describe, expect, it } from "vitest";
+import { propostaDaRegole } from "../../../supabase/functions/_shared/riconciliazioneRegole.ts";
+import { esitiRiconciliazione, validaPropostaRiconciliazione, type ContestoRiconciliazione } from "../../../supabase/functions/_shared/riconciliazioneFattureAI.ts";
+
+const rigaF = (n: number, descrizione: string, q: number, um = "PZ", codice?: string, prezzo = 10) => ({
+  numero_linea: n,
+  descrizione,
+  quantita: q,
+  unita_misura: um,
+  prezzo_unitario: prezzo,
+  imponibile: prezzo * q,
+  ...(codice ? { codice_articolo: codice } : {}),
+});
+const rigaD = (id: string, descrizione: string, q: number, um = "PZ", codice: string | null = null) => ({
+  id,
+  descrizione,
+  quantita: q,
+  unita_misura: um,
+  codice_articolo: codice,
+  prezzo_unitario: null as number | null,
+  importo: null as number | null,
+});
+
+function contesto(over: Partial<ContestoRiconciliazione> = {}): ContestoRiconciliazione {
+  return {
+    fattura: {
+      id: "f",
+      company_id: "a",
+      fornitore_id: "s",
+      tipo_documento: "TD01",
+      righe: [rigaF(1, "Cemento 32,5 R", 10, "SAC", "CEM325"), rigaF(2, "Sabbia lavata", 3, "MC")],
+    },
+    ddt: [{ id: "d1", righe: [rigaD("r1", "CEMENTO 32.5R SACCHI", 10, "SAC", "CEM325"), rigaD("r2", "Sabbia lavata", 3, "MC")] }],
+    oda: [],
+    valorizzazioni: [],
+    altre_fatture: [],
+    consumi: [],
+    equivalenze: [],
+    conversioni: [],
+    ...over,
+  };
+}
+
+describe("regole prima dell'AI nel confronto righe", () => {
+  it("codice e descrizione uguali, quantità che torna: chiuso senza AI, e la proposta passa la convalida", () => {
+    const c = contesto();
+    const r = propostaDaRegole(c);
+    expect(r).toMatchObject({ righe: 2, chiuse: 2, motivo: null });
+    expect(r.proposta!.righe.map((x) => x.ddt)).toEqual([["r1"], ["r2"]]);
+    expect(() => validaPropostaRiconciliazione(r.proposta, c)).not.toThrow();
+    expect(() => esitiRiconciliazione(c, r.proposta!)).not.toThrow();
+  });
+
+  it("una riga in dubbio (quantità diversa) → niente proposta: decide l'AI su tutto", () => {
+    const c = contesto({ ddt: [{ id: "d1", righe: [rigaD("r1", "x", 10, "SAC", "CEM325"), rigaD("r2", "Sabbia lavata", 2, "MC")] }] });
+    const r = propostaDaRegole(c);
+    expect(r.proposta).toBeNull();
+    expect(r.chiuse).toBe(1);
+    expect(r.motivo).toMatch(/riga 2/);
+  });
+
+  it("codice del fornitore tramite equivalenza confermata", () => {
+    const c = contesto({
+      fattura: { id: "f", company_id: "a", fornitore_id: "s", tipo_documento: "TD01", righe: [rigaF(1, "CEMENTO TIPO II", 10, "SAC", "F-998")] },
+      ddt: [{ id: "d1", righe: [rigaD("r1", "Cemento 32,5", 10, "SAC", "CEM325")] }],
+      equivalenze: [{ attiva: true, fattura_codice: "F998", documento_codice: "CEM325" }],
+    });
+    expect(propostaDaRegole(c).proposta?.righe[0].ddt).toEqual(["r1"]);
+  });
+
+  it("conversione autorizzata: 1 bancale = 60 sacchi", () => {
+    const c = contesto({
+      fattura: { id: "f", company_id: "a", fornitore_id: "s", tipo_documento: "TD01", righe: [rigaF(1, "Cemento", 1, "PAL", "CEM325", 480)] },
+      ddt: [{ id: "d1", righe: [rigaD("r1", "Cemento", 60, "SAC", "CEM325")] }],
+      conversioni: [{ unita_fattura: "PAL", unita_ddt: "SAC", fattore: 60, codice_articolo: "CEM325" }],
+    });
+    expect(propostaDaRegole(c).proposta?.righe[0].ddt).toEqual(["r1"]);
+  });
+
+  it("riga di bolla già fatturata in parte: non si abbina da sola", () => {
+    const c = contesto({ consumi: [{ ddt_id: "d1", riga_id: "r1", quantita: 4, fattura_id: "altra" }] });
+    expect(propostaDaRegole(c).proposta).toBeNull();
+  });
+
+  it("con gli ordini scelti, ogni riga deve trovare anche la riga d'ordine", () => {
+    const oda = [{ id: "o1", righe: [{ id: "p1", sku: "CEM325", description: "Cemento", unit_of_measure: "SAC", quantity: 10, unit_price: 8 }] }];
+    expect(propostaDaRegole(contesto({ oda })).proposta).toBeNull(); // la sabbia non è nell'ordine
+    const soloCemento = contesto({
+      oda,
+      fattura: { id: "f", company_id: "a", fornitore_id: "s", tipo_documento: "TD01", righe: [rigaF(1, "Cemento 32,5 R", 10, "SAC", "CEM325")] },
+    });
+    expect(propostaDaRegole(soloCemento).proposta?.righe[0]).toMatchObject({ ddt: ["r1"], oda: ["p1"], affidabilita: "alta" });
+  });
+
+  it("due righe uguali in fattura, una sola in bolla: la seconda resta all'AI", () => {
+    const c = contesto({
+      fattura: { id: "f", company_id: "a", fornitore_id: "s", tipo_documento: "TD01", righe: [rigaF(1, "Sabbia lavata", 3, "MC"), rigaF(2, "Sabbia lavata", 3, "MC")] },
+      ddt: [{ id: "d1", righe: [rigaD("r2", "Sabbia lavata", 3, "MC")] }],
+    });
+    expect(propostaDaRegole(c).proposta).toBeNull();
+  });
+});

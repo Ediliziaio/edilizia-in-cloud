@@ -16,18 +16,19 @@ import type { Percorso } from "./catena.ts";
 
 export type TipoDocumento =
   | "fattura_ricevuta"
-  | "riga_fattura"
   | "ddt"
   | "riga_ddt"
   | "ordine"
   | "riga_ordine"
   | "contratto"
   | "commessa"
+  | "fase"
   | "magazzino"
   | "anagrafica"
   | "movimento_banca"
   | "rapportino"
-  | "sal";
+  | "sal"
+  | "costo";
 
 export type StatoCollegamento =
   | "proposto"
@@ -38,6 +39,7 @@ export type StatoCollegamento =
   | "rifiutato"
   | "annullato";
 
+/** Tipi che il database riconosce (`acquisti_documento_dell_azienda`). Una riga si indica con `riga`. */
 export interface RiferimentoTraccia {
   tipo: TipoDocumento;
   id: string;

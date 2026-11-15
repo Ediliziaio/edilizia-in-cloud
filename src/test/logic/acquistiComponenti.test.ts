@@ -17,7 +17,7 @@ import {
   unitaCanonica,
 } from "../../../shared/acquisti/normalizza.ts";
 import { risolviAnagrafica, type AnagraficaNota } from "../../../shared/acquisti/anagrafiche.ts";
-import { decidi, decidiTraFonti } from "../../../shared/acquisti/riconciliazione.ts";
+import { conInterruttore, decidi, decidiTraFonti } from "../../../shared/acquisti/riconciliazione.ts";
 import { chiaveCollegamento, transizioneAmmessa } from "../../../shared/acquisti/traccia.ts";
 
 describe("identificativi fiscali", () => {
@@ -207,10 +207,23 @@ describe("anagrafiche senza doppioni", () => {
 
 describe("traccia", () => {
   it("chiave di idempotenza stabile, transizioni distinte", () => {
-    const c = { companyId: "c", da: { tipo: "riga_fattura" as const, id: "f", riga: "3" }, a: { tipo: "ddt" as const, id: "d" }, regola: "r" };
-    expect(chiaveCollegamento(c)).toBe("c|riga_fattura:f#3|ddt:d|r");
+    const c = { companyId: "c", da: { tipo: "fattura_ricevuta" as const, id: "f", riga: "3" }, a: { tipo: "ddt" as const, id: "d" }, regola: "r" };
+    expect(chiaveCollegamento(c)).toBe("c|fattura_ricevuta:f#3|ddt:d|r");
     expect(transizioneAmmessa("collegato", "pagato")).toBe(false);
     expect(transizioneAmmessa("approvato_pagamento", "pagato")).toBe(true);
     expect(transizioneAmmessa("pagato", "annullato")).toBe(false);
+  });
+});
+
+describe("interruttore del collegamento automatico", () => {
+  const verificato = decidi([{ id: "a", prove: [{ campo: "n", ruolo: "identifica", esito: "uguale", testo: "n" }] }], { automaticoConsentito: true });
+  it("spento: l'automatico diventa proposta col motivo; acceso resta automatico", () => {
+    expect(conInterruttore(verificato, false)).toMatchObject({ esito: "proposta", sceltoId: "a" });
+    expect(conInterruttore(verificato, false).motivo).toMatch(/spento/);
+    expect(conInterruttore(verificato, true).esito).toBe("automatico");
+  });
+  it("gli altri esiti non cambiano mai", () => {
+    for (const d of [decidi([]), decidi([{ id: "a", prove: [{ campo: "x", ruolo: "indizio", esito: "uguale", testo: "x" }] }])])
+      for (const acceso of [true, false]) expect(conInterruttore(d, acceso)).toBe(d);
   });
 });
