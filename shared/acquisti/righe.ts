@@ -110,7 +110,15 @@ export function abbinaRigaFattura(
     // Solo codice o descrizione uguali fanno un candidato: la sola quantità uguale è una coincidenza.
     if (prove.some((p) => p.ruolo === "identifica" && p.esito === "uguale")) candidati.push({ id: d.id, dato: d, prove });
   }
-  return decidi(candidati, { automaticoConsentito: true, datiUtili: ["codice articolo"] });
+  const dec = decidi(candidati, { automaticoConsentito: true, datiUtili: ["codice articolo"] });
+  // La riga si chiude da sola solo con la quantità uguale: con unità non convertibili (250 M contro
+  // 1 PZ) il codice dice l'articolo, non quanto ne è arrivato. Resta una proposta.
+  if (dec.esito === "automatico") {
+    const scelto = dec.candidati.find((c) => c.id === dec.sceltoId);
+    if (!scelto?.prove.some((p) => p.campo === "quantita" && p.esito === "uguale"))
+      return { ...dec, esito: "proposta", mancanti: [...new Set([...dec.mancanti, "quantità confrontabile"])] };
+  }
+  return dec;
 }
 
 /**

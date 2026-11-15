@@ -61,7 +61,7 @@ beforeAll(async () => {
     create table fatture_ricevute(id uuid primary key, company_id uuid, fornitore_id uuid, tipo_documento text, xml_raw text, righe jsonb, imponibile_totale numeric, data_fattura date,
       cedente_piva text, cedente_cf text, totale_documento numeric, purchase_order_id uuid, aggancio_oda_manuale boolean default false, stato text);
     create table suppliers(id uuid primary key default gen_random_uuid(), company_id uuid, vat_number text, fiscal_code text);
-    create table purchase_orders(id uuid primary key, company_id uuid, supplier_id uuid, oda_number text, status text, total numeric, subtotal numeric);
+    create table purchase_orders(id uuid primary key, company_id uuid, supplier_id uuid, oda_number text, status text, total numeric, subtotal numeric, issue_date date);
     create table fattura_ricevuta_ordini(fattura_id uuid, purchase_order_id uuid);
     create function partner_tax_key(v text) returns text language sql immutable as $$
       select case when x ~ '^IT[0-9]{11}$' then substr(x,3) else x end from (select regexp_replace(upper(coalesce(v,'')), '[^A-Z0-9]', '', 'g') x) s $$;
@@ -78,6 +78,9 @@ beforeAll(async () => {
     create table scadenze(id uuid primary key, company_id uuid);
     create table order_installments(id uuid primary key, order_id uuid);
     create function user_can_access_company(c uuid) returns boolean language sql stable as $$select c=nullif(current_setting('test.company',true),'')::uuid$$;
+    create function get_my_company_id() returns uuid language sql stable as $$select nullif(current_setting('test.company',true),'')::uuid$$;
+    create function puo_vedere_documenti_fornitore() returns boolean language sql stable as $$select auth.uid() is not null and coalesce(current_setting('test.documenti',true),'') <> 'no'$$;
+    create function puo_registrare_costi(c uuid) returns boolean language sql stable as $$select auth.uid() is not null and c = nullif(current_setting('test.company',true),'')::uuid$$;
     create unique index fattura_ddt_unico on fattura_ddt(fattura_ricevuta_id, numero_ddt, coalesce(data_ddt, '0001-01-01'::date));
   `);
   await db.query(`insert into companies values ($1),($2)`, [AZ, ALTRA]);
@@ -94,10 +97,36 @@ beforeAll(async () => {
       on fatture_ricevute for each row when (new.purchase_order_id is null and coalesce(new.aggancio_oda_manuale, false) = false) execute function aggancia_fattura_a_oda();`);
   await db.exec(readFileSync("supabase/migrations/20290404300000_acquisti_ordine_da_importo.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404301000_aggancia_fattura_a_oda_definer.sql", "utf8"));
+  // Fattura → commessa (306000) e correzioni della revisione (309000).
+  await db.exec(`
+      alter table fatture_ricevute add column if not exists company_cost_id uuid, add column if not exists order_id_suggerito uuid,
+        add column if not exists updated_at timestamptz;
+      create table if not exists company_costs(id uuid primary key default gen_random_uuid(), company_id uuid, order_id uuid,
+        allocations jsonb default '[]', quota_magazzino numeric, purchase_order_id uuid, order_external_team_id uuid, updated_at timestamptz);
+      -- Come in produzione, ridotta all'osso: serve una persona col permesso, contabilizza se manca il costo,
+      -- una commessa intera va in order_id, una quota in allocations; segna la scelta come manuale.
+      create or replace function fattura_collega_commesse(p_fattura_id uuid, p_quote jsonb, p_magazzino numeric default 0, p_magazzino_righe jsonb default null)
+      returns jsonb language plpgsql as $$
+      declare v uuid; b numeric; n int := jsonb_array_length(p_quote); intera boolean;
+      begin
+        if auth.uid() is null then raise exception 'Il tuo ruolo non permette di registrare i costi delle commesse.'; end if;
+        select company_cost_id, abs(coalesce(imponibile_totale, totale_documento, 0)) into v, b from fatture_ricevute where id = p_fattura_id;
+        if v is null then
+          insert into company_costs(company_id) select company_id from fatture_ricevute where id = p_fattura_id returning id into v;
+          update fatture_ricevute set company_cost_id = v where id = p_fattura_id;
+        end if;
+        intera := n = 1 and (p_quote->0->>'importo')::numeric >= b - 0.01;
+        update company_costs set order_id = case when intera then (p_quote->0->>'order_id')::uuid end,
+               allocations = case when n = 0 or intera then '[]'::jsonb else p_quote end where id = v;
+        update fatture_ricevute set order_id_suggerito = case when n = 1 then (p_quote->0->>'order_id')::uuid end, aggancio_oda_manuale = true where id = p_fattura_id;
+        return '{}'::jsonb;
+      end $$;`);
+    await db.exec(readFileSync("supabase/migrations/20290404306000_acquisti_commessa_costo_alla_conferma.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404309000_acquisti_ordini_revisione.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
-  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings, invoices, scadenze, order_installments, suppliers, purchase_orders, fattura_ricevuta_ordini cascade;
+  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings, invoices, scadenze, order_installments, suppliers, purchase_orders, fattura_ricevuta_ordini, company_costs cascade;
     select set_config('test.user','',false), set_config('test.company','',false), set_config('test.role','service_role',false), set_config('test.readonly','false',false);`);
   // I casi qui sotto provano le regole con l'interruttore ACCESO; quelli con l'interruttore spento sono in fondo.
   await db.query(`insert into company_governance_settings(company_id, collegamento_automatico) values ($1, true), ($2, true)`, [AZ, ALTRA]);
@@ -458,12 +487,17 @@ describe("fattura ↔ ordine per importo uguale (decisione del 15/11)", () => {
   beforeEach(async () => {
     await db.query(`insert into suppliers(company_id, vat_number) values ($1, '00743110157')`, [AZ]);
   });
+  // Chi conferma dal popup: una persona dell'azienda che vede fatture, costi o fornitori.
+  const persona = () =>
+    db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${AZ}',false)`);
+  const servizio = () => db.exec(`select set_config('test.role','service_role',false), set_config('test.user','',false)`);
 
   it("solo importo: proposta, anche con l'interruttore acceso; un clic la collega", async () => {
     await ordine(ODA, "ODA-2026-0039", 122);
     await fatturaOda(90, 122);
     expect(await stato(90)).toEqual({ po: null, traccia: [{ regola: "oda_importo_fornitore", esito: "proposta", stato: "proposto" }] });
     const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(90)])).rows[0].id;
+    await persona();
     await db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [c]);
     expect((await stato(90)).po).toBe(ODA);
   });
@@ -483,6 +517,7 @@ describe("fattura ↔ ordine per importo uguale (decisione del 15/11)", () => {
     await ordine(ODA, "ODA-2026-0039", 122);
     await fatturaOda(93, 122, `<DatiOrdineAcquisto><IdDocumento>ODA-2026-0039</IdDocumento></DatiOrdineAcquisto>`);
     const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(93)])).rows[0].id;
+    await persona();
     await db.query(`select acquisti_collegamento_cambia_stato($1,'annullato','ordine sbagliato')`, [c]);
     expect((await stato(93)).po).toBeNull();
     await db.query(`update fatture_ricevute set totale_documento = 122 where id = $1`, [id(93)]);
@@ -507,36 +542,76 @@ describe("fattura ↔ ordine per importo uguale (decisione del 15/11)", () => {
     await fatturaOda(94, 122);
     expect(await stato(94)).toEqual({ po: null, traccia: [] });
   });
+
+  // ── Revisione finale del 15/11 (migrazione 20290404309000) ─────────────────────────────────────
+  const blocco = (numero: string, data?: string) =>
+    `<DatiOrdineAcquisto><IdDocumento>${numero}</IdDocumento>${data ? `<Data>${data}</Data>` : ""}</DatiOrdineAcquisto>`;
+
+  it("il numero si legge dal suo blocco, non dall'ultimo IdDocumento del file; anche più ordini citati", async () => {
+    const x = `<p:FatturaElettronica>${blocco("ODA-2026-0039")}${blocco("ODA-2026-0040")}<DatiContratto><IdDocumento>C-7</IdDocumento></DatiContratto><DatiFattureCollegate><IdDocumento>FT 12</IdDocumento></DatiFattureCollegate></p:FatturaElettronica>`;
+    const r = await db.query<{ testo: string }>(`select testo from acquisti_ordini_citati($1)`, [x]);
+    expect(r.rows.map((x) => x.testo)).toEqual(["ODA-2026-0039", "ODA-2026-0040"]);
+    await ordine(ODA, "ODA-2026-0040", 122);
+    await fatturaOda(96, 122, x);
+    expect(await stato(96)).toEqual({ po: ODA, traccia: [{ regola: "oda_numero_importo_fornitore", esito: "automatico", stato: "collegato" }] });
+  });
+
+  it("cita un altro ordine e l'importo coincide con questo: conflitto, nessuna proposta", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await fatturaOda(97, 122, blocco("ODA-2026-0051"));
+    expect(await stato(97)).toEqual({ po: null, traccia: [] });
+  });
+
+  it("numero senza anno: vale l'anno della data citata contro quello dell'ordine", async () => {
+    await ordine(ODA, "39", 122);
+    await db.query(`update purchase_orders set issue_date = '2025-03-01' where id = $1`, [ODA]);
+    await fatturaOda(98, 122, blocco("39", "2026-03-04"));
+    expect(await stato(98)).toEqual({ po: null, traccia: [] });
+    await fatturaOda(99, 122, blocco("39", "2025-03-04"));
+    expect((await stato(99)).po).toBe(ODA);
+  });
+
+  it("rifiutato resta rifiutato: cambiano gli importi, il trigger non lo riaggancia", async () => {
+    await db.query(`update company_governance_settings set collegamento_automatico = false where company_id = $1`, [AZ]);
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await fatturaOda(100, 122, blocco("ODA-2026-0039"));
+    const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(100)])).rows[0].id;
+    await persona();
+    await db.query(`select acquisti_collegamento_cambia_stato($1,'rifiutato','non è quell''ordine')`, [c]);
+    await servizio();
+    await db.query(`update company_governance_settings set collegamento_automatico = true where company_id = $1`, [AZ]);
+    await db.query(`update fatture_ricevute set totale_documento = 122.00 where id = $1`, [id(100)]);
+    expect((await stato(100)).po).toBeNull();
+  });
+
+  it("fattura già contabilizzata e ordine col costo della merce arrivata: né da sola né col clic (costo doppio)", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await db.query(`insert into company_costs(id, company_id, purchase_order_id) values ($1,$2,$3)`, [id(110), AZ, ODA]);
+    await db.query(`insert into company_costs(id, company_id) values ($1,$2)`, [id(111), AZ]);
+    await db.query(`insert into fatture_ricevute(id, company_id, tipo_documento, cedente_piva, totale_documento, xml_raw, company_cost_id) values ($1,$2,'TD01','IT00743110157',122,$3,$4)`,
+      [id(101), AZ, blocco("ODA-2026-0039"), id(111)]);
+    expect((await stato(101)).po).toBeNull();
+    const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(101)])).rows[0].id;
+    await persona();
+    await expect(db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [c])).rejects.toThrow(/costo due volte/);
+  });
+
+  it("chi gestisce solo gli acquisti non conferma un ordine: lo dice in chiaro", async () => {
+    await ordine(ODA, "ODA-2026-0039", 122);
+    await fatturaOda(102, 122);
+    const c = (await db.query<{ id: string }>(`select id from acquisti_collegamenti where da_id = $1`, [id(102)])).rows[0].id;
+    await persona();
+    await db.exec(`select set_config('test.documenti','no',false)`);
+    try {
+      await expect(db.query(`select acquisti_collegamento_cambia_stato($1,'collegato')`, [c])).rejects.toThrow(/fatture, costi o fornitori/);
+    } finally {
+      await db.exec(`select set_config('test.documenti','',false)`);
+    }
+  });
 });
 
 describe("fattura → commessa: il costo segue il collegamento (migrazione 20290404306000)", () => {
   const COMM = id(60), COMM2 = id(61), COSTO = id(62);
-  beforeAll(async () => {
-    await db.exec(`
-      alter table fatture_ricevute add column if not exists company_cost_id uuid, add column if not exists order_id_suggerito uuid,
-        add column if not exists updated_at timestamptz;
-      create table if not exists company_costs(id uuid primary key default gen_random_uuid(), company_id uuid, order_id uuid,
-        allocations jsonb default '[]', quota_magazzino numeric, purchase_order_id uuid, order_external_team_id uuid, updated_at timestamptz);
-      -- Come in produzione, ridotta all'osso: serve una persona col permesso, contabilizza se manca il costo,
-      -- una commessa intera va in order_id, una quota in allocations; segna la scelta come manuale.
-      create or replace function fattura_collega_commesse(p_fattura_id uuid, p_quote jsonb, p_magazzino numeric default 0, p_magazzino_righe jsonb default null)
-      returns jsonb language plpgsql as $$
-      declare v uuid; b numeric; n int := jsonb_array_length(p_quote); intera boolean;
-      begin
-        if auth.uid() is null then raise exception 'Il tuo ruolo non permette di registrare i costi delle commesse.'; end if;
-        select company_cost_id, abs(coalesce(imponibile_totale, totale_documento, 0)) into v, b from fatture_ricevute where id = p_fattura_id;
-        if v is null then
-          insert into company_costs(company_id) select company_id from fatture_ricevute where id = p_fattura_id returning id into v;
-          update fatture_ricevute set company_cost_id = v where id = p_fattura_id;
-        end if;
-        intera := n = 1 and (p_quote->0->>'importo')::numeric >= b - 0.01;
-        update company_costs set order_id = case when intera then (p_quote->0->>'order_id')::uuid end,
-               allocations = case when n = 0 or intera then '[]'::jsonb else p_quote end where id = v;
-        update fatture_ricevute set order_id_suggerito = case when n = 1 then (p_quote->0->>'order_id')::uuid end, aggancio_oda_manuale = true where id = p_fattura_id;
-        return '{}'::jsonb;
-      end $$;`);
-    await db.exec(readFileSync("supabase/migrations/20290404306000_acquisti_commessa_costo_alla_conferma.sql", "utf8"));
-  });
   beforeEach(async () => {
     await db.exec(`truncate company_costs`);
     await db.query(`insert into orders(id, company_id) values ($1,$2),($3,$2)`, [COMM, AZ, COMM2]);

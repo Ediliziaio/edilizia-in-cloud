@@ -49,20 +49,46 @@ export async function catenaDellaFattura(db: Db, f: FatturaPerCatenaServer): Pro
   // Le commesse servono sempre (codice e indirizzo nel testo); bolle e ordini solo se la fattura li cita.
   // Contratti di subappalto solo se la fattura cita un contratto e il fornitore è un subappaltatore.
   const citaContratto = riferimenti.contratti.some((c) => c.numero) && !!f.fornitore_id;
-  const [comm, bolle, ordini, legami, contrattiRighe] = await Promise.all([
+  // Solo ordini emessi: una bozza non è un ordine che il fornitore può citare.
+  const EMESSI = ["inviato", "confermato", "parziale", "ricevuto"];
+  const COLONNE_ORDINE = "id, company_id, supplier_id, oda_number, supplier_reference, issue_date, order_id, delivery_warehouse_id";
+  const [comm, bolle, contrattiRighe] = await Promise.all([
     db.from("orders").select("id, company_id, order_code, indirizzo_lavori, work_address").eq("company_id", f.company_id).is("deleted_at", null).limit(LIMITE),
     haDocumenti && f.fornitore_id
       ? db.from("ddt_ricezione").select("id, company_id, supplier_id, numero_ddt, data_ricezione, purchase_order_id, order_id, warehouse_id").eq("company_id", f.company_id).eq("supplier_id", f.fornitore_id).limit(LIMITE)
       : { data: [] },
-    haDocumenti
-      ? db.from("purchase_orders").select("id, company_id, supplier_id, oda_number, supplier_reference, issue_date, order_id, delivery_warehouse_id").eq("company_id", f.company_id).neq("status", "annullato").limit(LIMITE)
-      : { data: [] },
-    haDocumenti && f.fornitore_id ? db.from("ddt_ordini_acquisto").select("ddt_id, purchase_order_id").eq("company_id", f.company_id).limit(LIMITE) : { data: [] },
     citaContratto
       ? db.from("contratti_subappalto").select("id, company_id, subappaltatore_id, numero_contratto, data_stipula, order_id, stato").eq("company_id", f.company_id).neq("stato", "bozza").not("numero_contratto", "is", null).limit(LIMITE)
       : { data: [] },
   ]);
-  for (const r of [comm, bolle, ordini, legami, contrattiRighe]) if (r.error) throw r.error;
+  for (const r of [comm, bolle, contrattiRighe]) if (r.error) throw r.error;
+  // I legami bolla ↔ ordine delle sole bolle di questo fornitore; gli ordini di questo fornitore più
+  // quelli a cui portano le sue bolle. Un ordine di un altro fornitore citato per numero non cambierebbe
+  // l'esito: il fornitore è una prova essenziale e lo esclude.
+  const idsBolle = (bolle.data ?? []).map((d: { id: string }) => d.id);
+  const legami = idsBolle.length
+    ? await db.from("ddt_ordini_acquisto").select("ddt_id, purchase_order_id").eq("company_id", f.company_id).in("ddt_id", idsBolle).limit(LIMITE)
+    : { data: [] };
+  if (legami.error) throw legami.error;
+  const idsOrdiniBolle = [...new Set([
+    ...(bolle.data ?? []).map((d: { purchase_order_id: string | null }) => d.purchase_order_id),
+    ...(legami.data ?? []).map((l: { purchase_order_id: string }) => l.purchase_order_id),
+  ].filter(Boolean))] as string[];
+  const [delFornitore, dalleBolle] = await Promise.all([
+    !haDocumenti
+      ? { data: [] }
+      : f.fornitore_id
+        ? db.from("purchase_orders").select(COLONNE_ORDINE).eq("company_id", f.company_id).eq("supplier_id", f.fornitore_id).in("status", EMESSI).limit(LIMITE)
+        : db.from("purchase_orders").select(COLONNE_ORDINE).eq("company_id", f.company_id).in("status", EMESSI).limit(LIMITE),
+    idsOrdiniBolle.length
+      ? db.from("purchase_orders").select(COLONNE_ORDINE).eq("company_id", f.company_id).in("id", idsOrdiniBolle).in("status", EMESSI).limit(LIMITE)
+      : { data: [] },
+  ]);
+  for (const r of [delFornitore, dalleBolle]) if (r.error) throw r.error;
+  const ordini = { data: [...new Map([...(delFornitore.data ?? []), ...(dalleBolle.data ?? [])].map((o: { id: string }) => [o.id, o])).values()] };
+  // Una lettura arrivata al limite può aver lasciato fuori proprio il documento che contraddice:
+  // in quel caso niente commessa «certa» dalla catena (resta la proposta, decide una persona).
+  const troncata = [comm, bolle, contrattiRighe, legami, delFornitore, dalleBolle].some((r) => (r.data ?? []).length >= LIMITE);
   // Il fornitore di un contratto è un subappaltatore: è «questo fornitore» solo se la sua scheda è collegata.
   let subDelFornitore: string | null = null;
   if ((contrattiRighe.data ?? []).length) {
@@ -119,6 +145,9 @@ export async function catenaDellaFattura(db: Db, f: FatturaPerCatenaServer): Pro
   const destinazioni = catena.allocazioni.filter((a) => a.destinazione.tipo !== "da_attribuire");
   const tutteCommessa = destinazioni.length > 0 && destinazioni.every((a) => a.destinazione.tipo === "commessa" && a.destinazione.id === destinazioni[0].destinazione.id);
   const daAttribuire = catena.allocazioni.some((a) => a.destinazione.tipo === "da_attribuire");
+  if (catena.esito === "automatico" && tutteCommessa && !daAttribuire && troncata) {
+    return { catena, commessa: null, conflitto: null, saltata: `troppi documenti (oltre ${LIMITE} letti): la commessa la conferma una persona` };
+  }
   if (catena.esito === "automatico" && tutteCommessa && !daAttribuire) {
     const percorso = destinazioni.flatMap((a) => a.percorsi).map((p) => p.passi.join(" → "));
     return {

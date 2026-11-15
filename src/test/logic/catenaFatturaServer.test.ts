@@ -20,6 +20,7 @@ function dbFinto(tabelle: Tabelle) {
         is: (c: string, v: unknown) => ((righe = righe.filter((r) => (r[c] ?? null) === v)), q),
         neq: (c: string, v: unknown) => ((righe = righe.filter((r) => r[c] !== v)), q),
         not: (c: string, _op: string, v: unknown) => ((righe = righe.filter((r) => (r[c] ?? null) !== v)), q),
+        in: (c: string, vs: unknown[]) => ((righe = righe.filter((r) => vs.includes(r[c]))), q),
         limit: () => q,
         maybeSingle: () => ({ then: (ok: (x: { data: unknown; error: null }) => unknown) => ok({ data: righe[0] ?? null, error: null }) }),
         then: (ok: (x: { data: unknown[]; error: null }) => unknown) => ok({ data: righe, error: null }),
@@ -42,7 +43,7 @@ const tabelle: Tabelle = {
     { id: "d1", company_id: AZ, supplier_id: FORN, numero_ddt: "1068", data_ricezione: "2026-09-08", purchase_order_id: "o1", order_id: null, warehouse_id: null },
     { id: "dx", company_id: ALTRA, supplier_id: FORN, numero_ddt: "1068", data_ricezione: "2026-09-08", purchase_order_id: null, order_id: "c-X", warehouse_id: null },
   ],
-  purchase_orders: [{ id: "o1", company_id: AZ, supplier_id: FORN, oda_number: "ODA-2026-0039", supplier_reference: null, issue_date: "2026-09-01", order_id: "c-A", delivery_warehouse_id: null }],
+  purchase_orders: [{ id: "o1", company_id: AZ, supplier_id: FORN, oda_number: "ODA-2026-0039", supplier_reference: null, issue_date: "2026-09-01", order_id: "c-A", delivery_warehouse_id: null, status: "inviato" }],
   ddt_ordini_acquisto: [],
 };
 const fattura = (x: string, over = {}) => ({ id: "f", company_id: AZ, fornitore_id: FORN, data_fattura: "2026-09-30", xml_raw: x, ...over });
@@ -115,6 +116,24 @@ describe("catena della fattura lato server", () => {
       const db = dbFinto(conContratti);
       await catenaDellaFattura(db, fattura(xml("<DatiDDT><NumeroDDT>1068</NumeroDDT><DataDDT>2026-09-07</DataDDT></DatiDDT>")));
       expect(db.lette).not.toContain("contratti_subappalto");
+    });
+  });
+
+  describe("letture filtrate e limite (revisione del 15/11)", () => {
+    const citaOda = xml("<DatiOrdineAcquisto><IdDocumento>ODA-2026-0039</IdDocumento></DatiOrdineAcquisto>");
+    it("un ordine in bozza non conta", async () => {
+      const bozza = { ...tabelle, purchase_orders: [{ ...tabelle.purchase_orders[0], status: "bozza" }] };
+      expect((await catenaDellaFattura(dbFinto(bozza), fattura(citaOda))).commessa).toBeNull();
+    });
+
+    it("una lettura arrivata al limite: niente commessa certa, la conferma una persona", async () => {
+      const tante = Array.from({ length: 1000 }, (_, i) => ({
+        id: `dz${i}`, company_id: AZ, supplier_id: FORN, numero_ddt: `Z${i}`, data_ricezione: "2026-01-01", purchase_order_id: null as string | null, order_id: null as string | null, warehouse_id: null as string | null,
+      }));
+      const piene = { ...tabelle, ddt_ricezione: [...tabelle.ddt_ricezione, ...tante] };
+      const r = await catenaDellaFattura(dbFinto(piene), fattura(xml("<DatiDDT><NumeroDDT>1068</NumeroDDT><DataDDT>2026-09-07</DataDDT></DatiDDT>")));
+      expect(r.commessa).toBeNull();
+      expect(r.saltata).toMatch(/troppi documenti/);
     });
   });
 });

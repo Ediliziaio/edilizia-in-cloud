@@ -235,9 +235,16 @@ describe("§7.7 — righe: quantità, prezzi, unità", () => {
   });
 
   it("una riga di DDT si fattura una volta sola", () => {
-    const f = leggiRiferimentiFattura(xml({ righe: [{ n: 1, descr: "Cemento 32,5 R", q: 10, tot: 80 }, { n: 2, descr: "Cemento 32,5 R", q: 10, tot: 80 }] })).righe;
+    const f = leggiRiferimentiFattura(xml({ righe: [{ n: 1, descr: "Cemento 32,5 R", q: 10, um: "SAC", tot: 80 }, { n: 2, descr: "Cemento 32,5 R", q: 10, um: "SAC", tot: 80 }] })).righe;
     const out = abbinaRigheFattura(f, () => [r({ codice: null })]);
     expect(out.map((o) => o.decisione.esito)).toEqual(["automatico", "nessuno"]);
+  });
+
+  it("senza una quantità confrontabile la riga non si chiude da sola: unità mancante o non convertibile", () => {
+    const senzaUnita = leggiRiferimentiFattura(xml({ righe: [{ n: 1, descr: "Cemento 32,5 R", q: 10, tot: 80 }] })).righe;
+    expect(abbinaRigheFattura(senzaUnita, () => [r({ codice: null })])[0].decisione).toMatchObject({ esito: "proposta", mancanti: expect.arrayContaining(["quantità confrontabile"]) });
+    const metri = leggiRiferimentiFattura(xml({ righe: [{ n: 1, descr: "Cemento 32,5 R", cod: "CEM325", q: 250, um: "M", tot: 80 }] })).righe;
+    expect(abbinaRigheFattura(metri, () => [r({ quantita: 1, unita: "PZ" })])[0].decisione.esito).toBe("proposta");
   });
 
   it("differenze: quantità, prezzo, unità non convertibile; tolleranza sul prezzo", () => {

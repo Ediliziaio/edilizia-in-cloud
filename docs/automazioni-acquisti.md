@@ -298,6 +298,20 @@ solo importo da ricontrollare, fornitori senza tipo, fatture senza fornitore div
 identificativo ma non si è potuto creare» e «senza P.IVA né codice fiscale». Un numero per cosa,
 col link alla pagina dove si fa; gli zeri non si mostrano.
 
+**Revisione finale del 15/11** (migrazione `20290404309000`, catena e righe):
+- fattura già contabilizzata e ordine col costo della merce arrivata: non si collegano né da soli né
+  col clic (sarebbe un costo doppio), il popup dice perché;
+- il numero d'ordine si legge dal suo blocco `DatiOrdineAcquisto` (`acquisti_ordini_citati`, anche
+  più ordini): prima la regex prendeva l'ultimo `IdDocumento` del file; se la fattura cita un altro
+  ordine leggibile è un conflitto, niente proposta per importo; l'anno senza numero viene dalle date;
+- un ordine rifiutato o annullato nella traccia non si riaggancia da solo;
+- una riga di fattura si chiude senza AI solo con la quantità uguale (unità non convertibili →
+  proposta);
+- la catena lato server legge solo ordini emessi, del fornitore o legati alle sue bolle, e se una
+  lettura arriva al limite non dà una commessa «certa»;
+- il fornitore creato dalle fatture ricollega le loro bolle (storico: anteprima 0 da collegare);
+- conferma di ordine e commessa: il permesso mancante è detto in chiaro.
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 

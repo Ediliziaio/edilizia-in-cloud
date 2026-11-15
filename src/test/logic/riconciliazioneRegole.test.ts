@@ -123,4 +123,15 @@ describe("regole prima dell'AI nel confronto righe", () => {
     const c = contesto({ ddt: [{ id: "d1", righe: [rigaD("r1", "x", 9, "SAC"), rigaD("r2", "y", 2, "MC")] }] });
     expect(pianificaLotti(c, propostaDaRegole(c).chiuseRighe)).toEqual(pianificaLotti(c));
   });
+
+  it("unità non convertibili (250 M contro 1 PZ): il solo codice non chiude la riga", () => {
+    const c = contesto({
+      fattura: { id: "f", company_id: "a", fornitore_id: "s", tipo_documento: "TD01", righe: [rigaF(1, "Cavo FG16", 250, "M", "CAVO16")] },
+      ddt: [{ id: "d1", righe: [rigaD("r1", "Cavo FG16 matassa", 1, "PZ", "CAVO16")] }],
+    });
+    const r = propostaDaRegole(c);
+    expect(r.proposta).toBeNull();
+    expect(r.chiuseRighe).toEqual([]);
+  });
 });
+
