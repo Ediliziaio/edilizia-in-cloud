@@ -136,11 +136,12 @@ export async function loadForecastDataset(
     {
       key: "installments",
       label: "Rate delle commesse",
+      // 15/11/2026: da una funzione, non da order_installments con l'embed delle commesse: dal
+      // browser passavano dalle viste dei diritti per riga (3,2 s) e la lettura andava in timeout.
       build: () =>
-        jobScoped(
-          "order_installments",
-          `id,order_id,amount,label,type,expected_date,is_paid,paid_date,invoice_id,documento_fiscale_id,${job}`,
-        ),
+        client
+          .rpc("previsionale_rate_commesse", { p_company_id: companyId })
+          .order("id"),
     },
     {
       // La regola della scheda commessa: residuo per rata, piani storici e parte non pianificata.
@@ -524,6 +525,22 @@ export async function loadForecastDataset(
           origin: "esterna",
         }),
       ),
+  );
+  // Le righe della funzione sono piatte: la commessa torna nell'oggetto `order` come prima.
+  s.installments = (s.installments as unknown as Array<Record<string, unknown>>).map((r) =>
+    r.order
+      ? (r as unknown as ForecastSources["installments"][number])
+      : ({
+          ...r,
+          order: {
+            id: r.order_id,
+            order_code: r.order_code ?? null,
+            company_id: companyId,
+            deleted_at: r.order_deleted_at ?? null,
+            client_name: r.client_name ?? null,
+            client_company: r.client_company ?? null,
+          },
+        } as unknown as ForecastSources["installments"][number]),
   );
   let opening = portaSaldoAOggi(resolveOpeningBalance(s.banks, []), s.notes, today);
   // The full server aggregate, not the 12 months of detail used for collections.

@@ -19,6 +19,8 @@ import type { RendicontoCassa } from "@/lib/controlloGestione/rendicontoCassa";
 import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { euroIntero } from "@/lib/controlloGestione/formatoCG";
+import { VOCI_CASSA } from "@/lib/controlloGestione/vociCassa";
+import { Ciambella } from "@/components/charts/grafici/Ciambella";
 
 const MESI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const VERDE = "hsl(142 64% 40%)";
@@ -92,7 +94,8 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
   const datiFlussi = righe.map((x) => ({ ...x, incassiE: x.incassi / 100, usciteE: -x.uscite / 100, nettoE: x.netto / 100 }));
 
   return (
-    <div className="grid gap-3 max-sm:hidden xl:grid-cols-2">
+    <div className="space-y-3 max-sm:hidden">
+    <div className="grid gap-3 xl:grid-cols-2">
       <Scheda titolo={`Saldo di cassa mese per mese · ${r.anno}`}>
         {conSaldo ? (
           <>
@@ -109,6 +112,9 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
                   <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
                   <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={64} tickFormatter={euroAsse} domain={["auto", "auto"]} />
                   <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.5} />
+                  {r.sogliaCents > 0 && (
+                    <ReferenceLine y={r.sogliaCents / 100} stroke="hsl(38 92% 50%)" strokeDasharray="5 4" label={{ value: "soglia", position: "insideTopRight", fontSize: 10, fill: "hsl(38 92% 40%)" }} />
+                  )}
                   <RechartsTooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<TooltipMese />} />
                   <Bar dataKey="corpo" radius={3} minPointSize={2} isAnimationActive={!fermo} animationDuration={700}>
                     {righe.map((x, i) => (
@@ -157,5 +163,82 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
         </p>
       </Scheda>
     </div>
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <CascataAnno r={r} />
+      <Scheda titolo={`Dove vanno le uscite · ${r.anno}`}>
+        <Ciambella
+          titolo="Uscite dell'anno"
+          etichettaCentro="Uscite"
+          dimensione={160}
+          fette={VOCI_CASSA
+            .filter((v) => v.gruppo !== "incassi" && !v.daClassificare && !v.key.includes("giroconti"))
+            .map((v) => ({ nome: v.label.split(" (")[0], valore: -(r.righe[v.key] ?? []).reduce((a, c) => a + c, 0) / 100 }))
+            .filter((f) => f.valore > 0)
+            .sort((a, b) => b.valore - a.valore)}
+        />
+      </Scheda>
+    </div>
+    </div>
+  );
+}
+
+/**
+ * L'anno a cascata: saldo di inizio, più gli incassi, meno le uscite della gestione, gli
+ * investimenti e i finanziamenti, e il saldo di fine. Dice in un colpo d'occhio cosa ha mosso la
+ * cassa nell'anno; i numeri sono le righe «Totale» della tabella.
+ */
+function CascataAnno({ r }: { r: RendicontoCassa }) {
+  const id = idSvg(useId());
+  const fermo = usePreferisceMenoMovimento();
+  const somma = (v: number[]) => v.reduce((a, c) => a + c, 0);
+  const inizio = r.saldoInizio[0];
+  if (inizio == null) return <Scheda titolo={`La cassa nell'anno · ${r.anno}`}><p className="py-10 text-center text-sm text-muted-foreground">Manca il saldo dei conti.</p></Scheda>;
+  const passi = [
+    { nome: "Inizio anno", delta: inizio, totale: true },
+    { nome: "Incassi", delta: somma(r.gruppi.incassi) },
+    { nome: "Uscite gestione", delta: somma(r.gruppi.uscite) },
+    { nome: "Investimenti", delta: somma(r.gruppi.investimenti) },
+    { nome: "Finanziamenti", delta: somma(r.gruppi.finanziamenti) },
+    { nome: "Altro", delta: somma(r.gruppi.altri) },
+  ].filter((p) => p.totale || p.delta !== 0);
+  let corrente = 0;
+  const dati = passi.map((p) => {
+    const da = p.totale ? 0 : corrente;
+    const a = p.totale ? p.delta : corrente + p.delta;
+    corrente = a;
+    return { nome: p.nome, barra: [Math.min(da, a) / 100, Math.max(da, a) / 100] as [number, number], delta: p.delta, colore: p.totale ? COLORI_GRAFICO.blu : p.delta >= 0 ? VERDE : ROSSO };
+  });
+  const fine = r.saldoFine[11];
+  dati.push({ nome: "Fine anno", barra: [Math.min(0, fine ?? 0) / 100, Math.max(0, fine ?? 0) / 100], delta: fine ?? 0, colore: COLORI_GRAFICO.blu });
+  return (
+    <Scheda titolo={`La cassa nell'anno · ${r.anno}`}>
+      <div className="h-[230px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={dati} margin={{ top: 16, right: 4, left: 0, bottom: 0 }} barCategoryGap="22%">
+            {defsGrafico(id, {})}
+            <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
+            <XAxis dataKey="nome" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} interval={0} />
+            <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={64} tickFormatter={euroAsse} />
+            <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.5} />
+            <RechartsTooltip
+              cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }}
+              content={({ active, payload }) => {
+                const x = payload?.[0]?.payload as { nome: string; delta: number } | undefined;
+                if (!active || !x) return null;
+                return (
+                  <div className="rounded-xl border bg-popover/95 px-3 py-2 text-xs shadow-lg">
+                    <p className="font-semibold">{x.nome}</p>
+                    <p className="tabular-nums">{eur(x.delta)}</p>
+                  </div>
+                );
+              }}
+            />
+            <Bar dataKey="barra" radius={3} minPointSize={2} isAnimationActive={!fermo} animationDuration={700}>
+              {dati.map((x) => <Cell key={x.nome} fill={x.colore} fillOpacity={0.85} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Scheda>
   );
 }
