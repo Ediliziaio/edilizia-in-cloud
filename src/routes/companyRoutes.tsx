@@ -247,6 +247,7 @@ const MatriceListiniPage = lazy(() =>
 );
 const SettingsMargini = lazy(() => import("@/pages/azienda/settings/SettingsMargini"));
 const SettingsApprovazioni = lazy(() => import("@/pages/azienda/settings/SettingsApprovazioni"));
+const SettingsAutomazioni = lazy(() => import("@/pages/azienda/settings/SettingsAutomazioni"));
 const SettingsScontistica = lazy(() => import("@/pages/azienda/settings/SettingsScontistica"));
 const SettingsApiKeys = lazy(() => import("@/pages/azienda/settings/SettingsApiKeys"));
 const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWebhooks"));
@@ -1354,6 +1355,8 @@ export default function CompanyRoutesContainer() {
           <Route path="margini" element={withCompanyPermission("canViewCosts", <SettingsMargini />)} />
           <Route path="scontistica" element={withCompanyPermission("canViewSettingsScontistica", <SettingsScontistica />)} />
           <Route path="approvazioni" element={withCompanyPermission("canViewCosts", <SettingsApprovazioni />)} />
+          {/* Tutti gli automatismi dell'azienda in un posto solo (15/11/2026): una riga per automatismo. */}
+          <Route path="automazioni" element={withCompanyPermission("canViewCosts", <SettingsAutomazioni />)} />
           {/* Clausole contrattuali + testi mostrati al cliente quando firma */}
           <Route path="contratti-e-condizioni" element={withCompanyPermission("canViewCondizioni", <SettingsCondizioni />)} />
           {/* Un modello a pagina intera (07/11/2026): al posto del popup. */}

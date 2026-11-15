@@ -15,7 +15,7 @@ describe("Navigazione condivisa delle impostazioni", () => {
     expect(groups.map(g => g.label).slice(0, 3)).toEqual(["Il mio account", "Azienda", "Persone e sicurezza"]);
     const entries = groups.flatMap(g => g.items).filter(i => i.visible).map(i => i.to);
     expect(new Set(entries).size).toBe(entries.length);
-    expect(entries).toHaveLength(44);
+    expect(entries).toHaveLength(45); // 15/11/2026: + «Automazioni»
     expect(entries).toContain(url("fornitori"));
   });
   it("una sola scheda concessa resta nel gruppo giusto, senza concedere le altre", () => {

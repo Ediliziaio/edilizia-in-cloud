@@ -10,7 +10,7 @@ const accountingSettings = new Set([
   'mio-profilo','profilo','sedi','documenti-azienda','branding','abbonamento',
   'persone','utenti','notifiche','sicurezza-privacy','esporta-dati',
   'listino','tariffe','bundle','fornitori','categorie-costi','modelli-pagamento',
-  'automazioni-finanza','finanziamenti','modelli-pdf','template-preventivi',
+  'automazioni-finanza','automazioni','finanziamenti','modelli-pdf','template-preventivi',
   'contratti-e-condizioni','integrazioni','api','webhook','dominio-email',
   'fatturazione','banca',
 ]);

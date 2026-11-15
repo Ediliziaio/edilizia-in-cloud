@@ -86,6 +86,8 @@ export const IMPOSTAZIONI_PER_TUTTI_I_PIANI = [
   "sicurezza-privacy", "sicurezza", "privacy", "security-dashboard", "attivita", "esporta-dati",
   // L'archivio dei contratti e delle condizioni: un'impresa ha contratti in ogni piano
   "contratti-e-condizioni",
+  // Gli automatismi dell'azienda: ognuno vale solo dove c'è il suo modulo, la pagina per tutti
+  "automazioni",
   // CRM e marketing: li hanno tutti i piani
   "tag", "campi-personalizzati", "sequenze", "motivi-perdita", "form-builder", "calendari", "lead-forms",
   // Integrazioni e canali (le parti legate al piano si filtrano dentro la pagina)

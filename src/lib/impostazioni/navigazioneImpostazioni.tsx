@@ -4,7 +4,7 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { GRUPPI_IMPOSTAZIONI, percorsoNelGruppo, schedeVisibili, sezioneDaPercorso, type GruppoImpostazioni } from "./gruppiImpostazioni";
 import { impostazioneNelPiano, type StatoPiano } from "./pianoImpostazioni";
-import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark, Layers, FileCheck } from "lucide-react";
+import { Users, Building2, MapPin, Paintbrush, Wallet, Brain, Bell, ImagePlus, ListOrdered, FolderOpen, HardHat, ClipboardList, ListChecks, Banknote, Truck, QrCode, RefreshCw, Package, FileSignature, Tag, SlidersHorizontal, GitBranch, ThumbsDown, FileText, CalendarDays, FormInput, Shield, Plug, Key, Globe, AtSign, Phone, Landmark, Layers, FileCheck, Workflow } from "lucide-react";
 
 /** I parametri dopo il «?» di un indirizzo («…/persone?tab=team#x» → tab=team). */
 function parametriDa(url: string): URLSearchParams {
@@ -165,6 +165,13 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
       ],
     },
     {
+      // 15/11/2026: tutti gli automatismi in una sezione (collegamenti, poi tesoreria, subappalti…).
+      label: "Automazioni",
+      items: [
+        { to: "/azienda/impostazioni/automazioni", label: "Automazioni", icon: <Workflow className="h-4 w-4" />, visible: isAdmin || permissions.canViewCosts },
+      ],
+    },
+    {
       label: "Cantieri & Costi",
       items: [
         { to: "/azienda/impostazioni/stati-ordine",        label: "Stati commessa",        icon: <ListOrdered className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
@@ -263,6 +270,7 @@ export function buildSettingsGroups(isAdmin: boolean, permissions: Permissions, 
     { label: "Vendite e documenti", sezioni: ["sequenze", "motivi-perdita", "listino", "template-preventivi", "modelli-pdf", "contratti-e-condizioni", "condizioni-firma", "modelli-pagamento", "sopralluoghi", "finanziamenti", "fornitori", "catalogo-render", "tag"] },
     { label: "Comunicazioni e collegamenti", sezioni: ["ai-memoria", "integrazioni", "dominio-email", "numeri-telefono", "calendari", "form-builder", "lead-forms"] },
     { label: "Amministrazione", sezioni: ["fatturazione", "banca", "categorie-costi", "automazioni-finanza", "abbonamento"] },
+    { label: "Automazioni", sezioni: ["automazioni"] },
     { label: "Avanzate", sezioni: ["campi-personalizzati", "api", "webhook", "esporta-dati"] },
   ];
   const assegnate = new Set<string>();

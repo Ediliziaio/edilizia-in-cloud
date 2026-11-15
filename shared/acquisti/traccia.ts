@@ -28,7 +28,15 @@ export type TipoDocumento =
   | "movimento_banca"
   | "rapportino"
   | "sal"
-  | "costo";
+  | "costo"
+  // Tesoreria (20290404260000)
+  | "fattura_emessa"
+  | "documento_fiscale"
+  | "scadenza"
+  | "movimento_cassa"
+  | "prima_nota"
+  | "rata_fornitore"
+  | "rata_commessa";
 
 export type StatoCollegamento =
   | "proposto"

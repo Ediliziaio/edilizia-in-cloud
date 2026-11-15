@@ -45,6 +45,7 @@ export const TITOLI_IMPOSTAZIONI: Record<string, TitoloImpostazione> = {
   "modelli-pagamento":    { title: "Modelli di pagamento",     description: "Le rate con cui si incassa una commessa, e quando matura la rata di un SAL" },
   fornitori:              { title: "Fornitori",                description: "Fornitori, ordini d'acquisto, pagamenti e acquisti in un posto solo" },
   "categorie-costi":      { title: "Categorie costi",          description: "Le categorie con cui dividi i costi: affitto, utenze, marketing…" },
+  automazioni:            { title: "Automazioni",              description: "Cosa fa il gestionale da solo: acceso o spento, e l'ultima volta che ha lavorato" },
   "automazioni-finanza":  { title: "Automazioni finanza",      description: "Preferenze degli avvisi finanziari e disponibilità degli invii automatici" },
   sopralluoghi:           { title: "Modelli di sopralluogo",     description: "I modelli con cui si fa un sopralluogo: campi da compilare e foto da scattare. Attiva quelli che usi" },
   "qr-codici":            { title: "QR & Codici",              description: "Codici a barre e QR del magazzino: controlla le scansioni, prova un codice, crea QR che aprono una commessa o un documento" },

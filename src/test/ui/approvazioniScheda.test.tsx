@@ -11,8 +11,6 @@ import SettingsApprovazioni from "@/pages/azienda/settings/SettingsApprovazioni"
 const state = vi.hoisted(() => ({
   role: "company_admin" as string,
   permissions: { isAdmin: true, canEditSettingsPricing: true } as Record<string, boolean>,
-  automatico: false,
-  salvati: [] as boolean[],
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
@@ -21,17 +19,13 @@ vi.mock("@/hooks/useGovernanceThresholds", async (importOriginal) => ({
   useGovernanceThresholds: () => ({ data: undefined as unknown, isLoading: false }),
   useSaveGovernanceThresholds: () => ({ mutate: vi.fn(), isPending: false }),
 }));
-vi.mock("@/hooks/useCollegamentoAutomatico", () => ({
-  useCollegamentoAutomatico: () => ({ data: state.automatico, isLoading: false }),
-  useSalvaCollegamentoAutomatico: () => ({ mutate: (v: boolean) => state.salvati.push(v), isPending: false }),
-}));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null as unknown, error: null as unknown }) }) }) }) } }));
 
 function open() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><SettingsApprovazioni /></QueryClientProvider>);
 }
-afterEach(() => { cleanup(); state.role = "company_admin"; state.permissions = { isAdmin: true, canEditSettingsPricing: true }; state.automatico = false; state.salvati = []; });
+afterEach(() => { cleanup(); state.role = "company_admin"; state.permissions = { isAdmin: true, canEditSettingsPricing: true }; });
 
 describe("scheda Approvazioni", () => {
   it("parla in italiano semplice: doppia approvazione, avviso sui costi, margine minimo delle commesse", async () => {
@@ -55,20 +49,5 @@ describe("scheda Approvazioni", () => {
     const rotte = readFileSync("src/routes/companyRoutes.tsx", "utf8");
     expect(rotte).toContain('<Route path="approvazioni" element={withCompanyPermission("canViewCosts", <SettingsApprovazioni />)} />');
     expect(readFileSync("src/lib/impostazioni/pianoImpostazioni.ts", "utf8")).toContain("approvazioni: PREVENTIVI,");
-  });
-
-  it("collegamento automatico: spento di base, si accende con un clic, lo cambia solo l'amministratore", async () => {
-    open();
-    const voce = await screen.findByRole("switch", { name: "Collegamento automatico dei documenti" });
-    expect(voce).not.toBeChecked();
-    expect(screen.getByText(/Spento: i collegamenti certi si propongono/)).toBeInTheDocument();
-    voce.click();
-    expect(state.salvati).toEqual([true]);
-    cleanup();
-    state.role = "staff";
-    state.permissions = { isAdmin: false, canEditSettingsPricing: true };
-    open();
-    expect(await screen.findByRole("switch", { name: "Collegamento automatico dei documenti" })).toBeDisabled();
-    expect(screen.getByText(/Lo può cambiare solo l'amministratore/)).toBeInTheDocument();
   });
 });

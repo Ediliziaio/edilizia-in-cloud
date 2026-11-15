@@ -74,8 +74,8 @@ acquisti, tesoreria, subappalti.
 | acceso | collegato da solo, esito `automatico` nella traccia | invariati |
 
 - Dove sta: `company_governance_settings.collegamento_automatico` (boolean, default false). La
-  voce è in Impostazioni → Approvazioni e avvisi («Collegamento automatico dei documenti»); la
-  cambia solo l'amministratore dell'azienda (policy `cgs_write`).
+  voce è in **Impostazioni → Automazioni** (`/azienda/impostazioni/automazioni`), prima riga;
+  la cambia solo l'amministratore dell'azienda (policy `cgs_write`).
 - Lettura, solo lato server: SQL `azienda_collegamento_automatico(azienda) → boolean` (false a
   chi non vede l'azienda); edge function `leggiCollegamentoAutomatico(db, companyId)` in
   `_shared/collegamentoAutomatico.ts` (false se la lettura fallisce: nel dubbio si propone).
@@ -90,6 +90,30 @@ acquisti, tesoreria, subappalti.
   dall'interruttore: `aggancia_fattura_a_oda` (ordine per importo uguale) e
   `fornitore_unico_per_cedente` (fornitore dalla P.IVA). Il primo è un collegamento fra
   documenti e va portato sotto l'interruttore (§6).
+
+**Impostazioni → Automazioni: come si aggiunge una riga** (richiesta del titolare, 15/11/2026).
+Tutti gli automatismi dell'azienda stanno in una sezione sola, una riga ciascuno: cosa fa, acceso
+o spento, ultimo controllo o esito. Niente interruttori sparsi in altre pagine. Per aggiungerne uno:
+
+1. **Dove si salva l'interruttore**: una colonna boolean in `company_governance_settings`
+   (`ALTER TABLE … ADD COLUMN IF NOT EXISTS <nome> boolean NOT NULL DEFAULT false`: spento di
+   base, salvo decisione diversa del titolare). La policy `cgs_write` la riserva già
+   all'amministratore. Se serve leggerla lato server, una funzione come
+   `azienda_collegamento_automatico` (`STABLE SECURITY DEFINER`, `REVOKE … FROM public, anon`,
+   `GRANT` ad authenticated e service_role).
+2. **Due hook** nel tuo modulo: uno che restituisce `StatoAutomatismo` (`acceso`, `caricamento`,
+   `cambia(v)`, `salvataggio`; esempio: `useStatoCollegamento` in `registroAutomatismi.ts`, che
+   usa `src/hooks/useCollegamentoAutomatico.ts`), e uno, facoltativo, per l'ultimo esito:
+   `UltimoEsito | null` con `quando` (ISO), `testo` (una frase), `tono` (`neutro`, `ok`,
+   `attenzione`, `errore`). Esempio: `src/hooks/useUltimoCollegamento.ts` (proposte in attesa,
+   poi ultimo collegamento). Per un lavoro a giri, l'ultimo giro con il suo esito.
+3. **Un elemento** in `AUTOMATISMI` (`src/components/settings/automazioni/registroAutomatismi.ts`):
+   `{ id, area, titolo, cosaFa, daSpento, useStato, useUltimoEsito }`. `id` in minuscolo col
+   trattino (diventa l'ancora `#id`); `cosaFa` e `daSpento` in una o due frasi da cantiere.
+4. **Test**: aggiungi i tuoi casi in `src/test/ui/impostazioniAutomazioni.test.tsx` (lì c'è già
+   il controllo che ogni riga abbia id unico e tutti i testi).
+
+La pagina (`SettingsAutomazioni.tsx`) non va toccata: mostra da sé ogni riga del registro.
 
 **Regole del motore, da rispettare in ogni area:**
 1. Le prove hanno un **ruolo**, non un peso: `identifica` (basta da sola), `conferma`, `indizio`.
@@ -114,7 +138,10 @@ acquisti, tesoreria, subappalti.
   restano all'utente e non si scrivono. Entrambi i documenti devono essere dell'azienda (tipi:
   fattura_ricevuta, ddt, riga_ddt, ordine, riga_ordine, commessa, fase, magazzino, anagrafica,
   contratto = `contratti_subappalto`, sal = `sal_subappaltatori`, rapportino, movimento_banca =
-  `bank_transactions`, costo = `company_costs`). Idempotente sulla chiave; una regola non rifà
+  `bank_transactions`, costo = `company_costs`; per la tesoreria, dal 15/11: fattura_emessa =
+  `invoices`, documento_fiscale = `documenti_fiscali`, scadenza = `scadenze`, movimento_cassa =
+  `movimenti_cassa_native`, prima_nota = `prima_nota_entries`, rata_fornitore = `rate_fornitori`,
+  rata_commessa = `order_installments`, la cui azienda si verifica attraverso la commessa). Idempotente sulla chiave; una regola non rifà
   ciò che una persona ha annullato o rifiutato, una persona sì (esito `manuale`). Dal service
   role l'autore è il processo scritto in `acquisti.processo`.
 - Stati: `proposto → collegato → verificato → approvato_pagamento → pagato`, più `rifiutato`
@@ -157,6 +184,12 @@ parziali, resi, note di credito, fattura prima della consegna, eccedenze.
   sessione A (`registraEsitoLavoroAi`, flusso `fattura_riconcilia_righe`, `senza_ai`/`con_ai`):
   la pagina «Consumo AI del team» dirà quante analisi si chiudono senza AI. 7 casi in
   `riconciliazioneRegole.test.ts`.
+
+**Lotto 4**: sezione Impostazioni → Automazioni (sopra); `20290404250000_acquisti_collega_ddt_proposta_promossa`
+(applicata): una proposta scritta a interruttore spento diventa «collegato/automatico» quando, a
+interruttore acceso, la bolla si aggancia (prima restava «proposto» nella traccia).
+Da sapere: per una fattura lunga analizzata a lotti, `riconcilia-fattura-ai` registra `chiamateAi: 1`
+anche se le chiamate sono di più (il contatore della A sottostima).
 
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).

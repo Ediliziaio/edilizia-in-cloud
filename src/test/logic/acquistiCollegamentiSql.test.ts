@@ -63,6 +63,9 @@ beforeAll(async () => {
     create table fattura_ddt(id uuid primary key default gen_random_uuid(), company_id uuid, fattura_ricevuta_id uuid, numero_ddt text, data_ddt date, ddt_ricezione_id uuid, origine text, created_by uuid, created_at timestamptz default clock_timestamp());
     create table orders(id uuid primary key, company_id uuid, deleted_at timestamptz);
     create table company_governance_settings(company_id uuid primary key);
+    create table invoices(id uuid primary key, company_id uuid);
+    create table scadenze(id uuid primary key, company_id uuid);
+    create table order_installments(id uuid primary key, order_id uuid);
     create function user_can_access_company(c uuid) returns boolean language sql stable as $$select c=nullif(current_setting('test.company',true),'')::uuid$$;
     create unique index fattura_ddt_unico on fattura_ddt(fattura_ricevuta_id, numero_ddt, coalesce(data_ddt, '0001-01-01'::date));
   `);
@@ -70,10 +73,12 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20290404210000_acquisti_collegamenti_traccia.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404220000_acquisti_collegamento_registra.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404240000_collegamento_automatico_interruttore.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404250000_acquisti_collega_ddt_proposta_promossa.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404260000_acquisti_tipi_tesoreria.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
-  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings cascade;
+  await db.exec(`truncate acquisti_collegamenti, acquisti_collegamenti_storia, fattura_ddt, ddt_ricezione, fatture_ricevute, orders, company_governance_settings, invoices, scadenze, order_installments cascade;
     select set_config('test.user','',false), set_config('test.company','',false), set_config('test.role','service_role',false), set_config('test.readonly','false',false);`);
   // I casi qui sotto provano le regole con l'interruttore ACCESO; quelli con l'interruttore spento sono in fondo.
   await db.query(`insert into company_governance_settings(company_id, collegamento_automatico) values ($1, true), ($2, true)`, [AZ, ALTRA]);
@@ -287,6 +292,16 @@ describe("interruttore del collegamento automatico (spento di base)", () => {
     expect(await aggancio(20)).toEqual([["1068", id(10)]]);
   });
 
+  it("proposta scritta da spento, poi l'interruttore si accende: al giro dopo è collegata e la traccia lo dice", async () => {
+    await bolla(10, "1068", "2026-09-08");
+    await fattura(20, [["1068", "2026-09-07"]]);
+    await db.query(`update company_governance_settings set collegamento_automatico = true where company_id = $1`, [AZ]);
+    await db.query(`select acquisti_ricollega_ddt_lotto($1)`, [AZ]);
+    expect(await aggancio(20)).toEqual([["1068", id(10)]]);
+    const t = await db.query(`select stato, esito, (select count(*)::int from acquisti_collegamenti_storia) passi from acquisti_collegamenti`);
+    expect(t.rows).toEqual([{ stato: "collegato", esito: "automatico", passi: 2 }]);
+  });
+
   it("riga mancante nelle impostazioni = spento", async () => {
     await db.query(`delete from company_governance_settings where company_id = $1`, [AZ]);
     await bolla(10, "1068", "2026-09-08");
@@ -321,5 +336,24 @@ describe("interruttore del collegamento automatico (spento di base)", () => {
     await db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${AZ}',false)`);
     const { rows } = await db.query<{ a: boolean; b: boolean }>(`select azienda_collegamento_automatico($1) a, azienda_collegamento_automatico($2) b`, [AZ, ALTRA]);
     expect(rows[0]).toEqual({ a: false, b: false });
+  });
+});
+
+describe("tipi della tesoreria nella traccia comune", () => {
+  it("fattura emessa, scadenza e rata di commessa: dell'azienda sì, di un'altra no", async () => {
+    const [FATT, SCAD, COMM, COMM2, RATA, RATA2, MOV] = [50, 51, 52, 53, 54, 55, 56].map(id);
+    await db.query(`insert into orders(id, company_id) values ($1,$2),($3,$4)`, [COMM, AZ, COMM2, ALTRA]);
+    await db.query(`insert into invoices values ($1,$2)`, [FATT, AZ]);
+    await db.query(`insert into scadenze values ($1,$2)`, [SCAD, AZ]);
+    await db.query(`insert into order_installments values ($1,$2),($3,$4)`, [RATA, COMM, RATA2, COMM2]);
+    const dell = async (tipo: string, x: string, az = AZ) =>
+      (await db.query<{ ok: boolean }>(`select acquisti_documento_dell_azienda($1,$2,$3) ok`, [tipo, x, az])).rows[0].ok;
+    expect(await dell("fattura_emessa", FATT)).toBe(true);
+    expect(await dell("fattura_emessa", FATT, ALTRA)).toBe(false);
+    expect(await dell("scadenza", SCAD)).toBe(true);
+    expect(await dell("rata_commessa", RATA)).toBe(true);
+    expect(await dell("rata_commessa", RATA2)).toBe(false);
+    expect(await dell("tipo_inventato", FATT)).toBe(false);
+    void MOV;
   });
 });
