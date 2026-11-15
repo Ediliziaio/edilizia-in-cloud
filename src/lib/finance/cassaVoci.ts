@@ -67,6 +67,7 @@ export const ORIGINE_VOCE: Record<string, string> = {
   regola: "Da una regola",
   documento: "Dalla fattura collegata",
   controparte: "Dalla controparte",
+  giroconto: "Giroconto tra i tuoi conti, da confermare",
   proposta: "Proposta, da confermare",
   storico: "Dalla vecchia categoria, da confermare",
 };
@@ -218,6 +219,33 @@ export async function salvaRipartizioneMovimento(args: {
     p_revision: args.revision,
     p_motivo: args.motivo ?? null,
   });
+}
+
+/**
+ * Una regola della Tesoreria da una scelta fatta nel popup di classificazione:
+ * «quando compare questa controparte, nel verso scelto, è questa voce».
+ * Priorità 10 come le regole fatte a mano; si cambia in Tesoreria → Impostazioni.
+ */
+export async function creaRegolaCassa(args: {
+  company: string;
+  testo: string;
+  voce: { id: string; nome: string };
+  verso: "entrata" | "uscita";
+}): Promise<void> {
+  const { error } = await db.from("bank_categorization_rules").insert({
+    company_id: args.company,
+    match_field: "any",
+    match_type: "contains",
+    match_value: args.testo.trim(),
+    category: args.voce.nome,
+    category_icon: "Tags",
+    cassa_voce_id: args.voce.id,
+    verso: args.verso,
+    priority: 10,
+    auto_apply: true,
+    is_case_sensitive: false,
+  });
+  if (error) throw error;
 }
 
 /** «1.000,50» o «1000.5» → 100050 centesimi; null se non è un importo. */

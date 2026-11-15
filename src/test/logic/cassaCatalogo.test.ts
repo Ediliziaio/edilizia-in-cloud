@@ -18,6 +18,7 @@ const B = "00000000-0000-0000-0000-00000000000b";
 const UTENTE = "00000000-0000-0000-0000-0000000000u1".replace("u", "f");
 const CONTO_A = "00000000-0000-0000-0000-0000000000c1";
 const CONTO_B = "00000000-0000-0000-0000-0000000000c2";
+const CONTO_A2 = "00000000-0000-0000-0000-0000000000c3";
 
 let db: PGlite;
 
@@ -56,8 +57,12 @@ beforeAll(async () => {
       end if;
     end $$;
 
-    create table bank_accounts (id uuid primary key, company_id uuid, is_manual boolean default false);
-    insert into bank_accounts values ('${CONTO_A}', '${A}', false), ('${CONTO_B}', '${B}', false);
+    create table bank_accounts (id uuid primary key, company_id uuid, is_manual boolean default false, iban text);
+    insert into bank_accounts values ('${CONTO_A}', '${A}', false, 'IT11A0000000000000000000001'), ('${CONTO_B}', '${B}', false, null),
+      ('${CONTO_A2}', '${A}', false, 'IT22B0000000000000000000002');
+    create table bank_categorization_rules (id uuid primary key default gen_random_uuid(), company_id uuid, priority integer default 10,
+      match_field text default 'any', match_value text, match_type text default 'contains', category text, category_icon text,
+      auto_apply boolean default true, created_at timestamptz default now(), is_case_sensitive boolean default false);
     create table bank_transactions (
       id uuid primary key default gen_random_uuid(),
       company_id uuid not null, account_id uuid,
@@ -87,6 +92,7 @@ beforeAll(async () => {
   await db.exec(migrazione("_cassa_ripartizione_documento.sql"));
   await db.exec(migrazione("_cassa_catalogo_standard_per_tutti.sql"));
   await db.exec(migrazione("_cassa_categorie_anche_da_tesoreria.sql"));
+  await db.exec(migrazione("_cassa_regole_giroconti.sql"));
   await db.exec(`
     create trigger bank_transaction_operator_guard before insert or delete or update on bank_transactions
       for each row execute function bank_transaction_operator_guard();
@@ -637,5 +643,100 @@ describe("la categoria dalla fattura collegata", () => {
     await comeUtente();
     await categoria(tx, (await voce("09.01")).id);
     expect(await proposta(tx)).toMatchObject({ codice: "09.01", confermata: true, origine: "manuale" });
+  });
+});
+
+describe("regole che assegnano una voce", () => {
+  beforeEach(async () => { await prepara(); });
+  const regola = async (testo: string, codice: string, extra: Record<string, unknown> = {}) =>
+    (await uno<{ id: string }>(
+      `insert into bank_categorization_rules (company_id, match_value, category, cassa_voce_id, verso, priority)
+       values ($1, $2, 'x', $3, $4, $5) returning id`,
+      [A, testo, (await voce(codice)).id, extra.verso ?? "entrambi", extra.priority ?? 10])).id;
+  const proposta = async (tx: string) =>
+    (await uno<{ r: Record<string, { codice: string; origine: string; confermata: boolean }> }>("select public.cassa_voci_movimenti($1, $2) r", [A, [tx]])).r[tx];
+
+  it("«ENEL» → Energia elettrica: la regola propone la voce, prima della fattura", async () => {
+    const tx = await movimento({ amount: -230, controparte: "ENEL ENERGIA SPA" });
+    // La fattura collegata direbbe «Materiali edili»: la regola scritta dall'azienda vince.
+    const c = await uno<{ id: string }>("insert into company_costs (company_id, category) values ($1, 'materiali_edili') returning id", [A]);
+    const s = await uno<{ id: string }>("insert into scadenze (company_id, cost_id) values ($1, $2) returning id", [A, c.id]);
+    await db.query("insert into bank_reconciliations (company_id, transaction_id, matched_amount, scadenza_id) values ($1, $2, 230, $3)", [A, tx, s.id]);
+    await regola("enel", "08.05");
+    expect(await proposta(tx)).toMatchObject({ codice: "08.05", origine: "regola", confermata: false });
+  });
+
+  it("rispetta verso e priorità", async () => {
+    const entrata = await movimento({ amount: 50, controparte: "ENEL" });
+    const uscita = await movimento({ amount: -50, controparte: "ENEL" });
+    await regola("enel", "08.05", { verso: "uscita", priority: 5 });
+    await regola("enel", "08.06", { verso: "uscita", priority: 20 });
+    expect(await proposta(entrata)).toBeUndefined();
+    expect(await proposta(uscita)).toMatchObject({ codice: "08.05" });
+  });
+
+  it("anteprima senza scrivere, poi applicazione con origine «regola» e storico", async () => {
+    const a = await movimento({ amount: -100, controparte: "ENEL" });
+    const b = await movimento({ amount: -200, controparte: "Enel Energia" });
+    await movimento({ amount: -300, controparte: "Altro fornitore" });
+    await regola("enel", "08.05");
+    await comeUtente();
+    const ante = await uno<{ r: { movimenti: number; regole: Array<{ testo: string; movimenti: number; cents: number }> } }>("select public.cassa_regole_applica($1, true) r", [A]);
+    expect(ante.r.movimenti).toBe(2);
+    expect(ante.r.regole[0]).toMatchObject({ testo: "enel", movimenti: 2, cents: -30000 });
+    expect((await uno<{ n: number }>("select count(*)::int n from bank_transactions where cassa_voce_id is not null")).n).toBe(0);
+    const fatto = await uno<{ r: { aggiornati: number } }>("select public.cassa_regole_applica($1, false) r", [A]);
+    expect(fatto.r.aggiornati).toBe(2);
+    expect(await proposta(a)).toMatchObject({ origine: "regola", confermata: true });
+    expect((await uno<{ motivo: string }>("select motivo from cassa_voce_storico where bank_transaction_id = $1", [b])).motivo).toBe("Regola: enel");
+  });
+
+  it("applicare richiede il permesso di riconciliare; l'anteprima no", async () => {
+    await movimento({ amount: -100, controparte: "ENEL" });
+    await regola("enel", "08.05");
+    await db.exec(`delete from permessi where permesso = 'can_reconcile_bank_transactions'`);
+    await comeUtente();
+    await uno("select public.cassa_regole_applica($1, true) r", [A]);
+    await expect(db.query("select public.cassa_regole_applica($1, false)", [A])).rejects.toThrow(/permesso/);
+  });
+
+  it("una regola non punta alla voce di un'altra azienda, né a una categoria intera", async () => {
+    await prepara(B);
+    await db.exec("savepoint r");
+    await expect(db.query("insert into bank_categorization_rules (company_id, match_value, cassa_voce_id) values ($1, 'x', $2)", [A, (await voce("08.05", B)).id]))
+      .rejects.toThrow(/non è di questa azienda/);
+    await db.exec("rollback to savepoint r");
+    await expect(db.query("insert into bank_categorization_rules (company_id, match_value, cassa_voce_id) values ($1, 'x', $2)", [A, (await voce("08")).id]))
+      .rejects.toThrow(/non una categoria/);
+  });
+});
+
+describe("giroconti tra i conti dell'azienda", () => {
+  beforeEach(async () => { await prepara(); });
+  const proposta = async (tx: string) =>
+    (await uno<{ r: Record<string, { codice: string; origine: string }> }>("select public.cassa_voci_movimenti($1, $2) r", [A, [tx]])).r[tx];
+  const suConto = async (amount: number, conto: string, data = "2026-11-13", iban: string | null = null) =>
+    (await uno<{ id: string }>(
+      "insert into bank_transactions (company_id, account_id, booking_date, amount, counterparty_iban) values ($1, $2, $3, $4, $5) returning id",
+      [A, conto, data, amount, iban])).id;
+
+  it("−1.000 su un conto e +1.000 sull'altro entro 3 giorni: tutti e due giroconto", async () => {
+    const esce = await suConto(-1000, CONTO_A, "2026-11-12");
+    const entra = await suConto(1000, CONTO_A2, "2026-11-14");
+    expect(await proposta(esce)).toMatchObject({ codice: "21.01", origine: "giroconto" });
+    expect(await proposta(entra)).toMatchObject({ codice: "21.01", origine: "giroconto" });
+  });
+
+  it("stesso conto, importo diverso o troppo lontano: non è un giroconto", async () => {
+    const a = await suConto(-1000, CONTO_A);
+    await suConto(1000, CONTO_A);
+    await suConto(999, CONTO_A2);
+    await suConto(1000, CONTO_A2, "2026-11-20");
+    expect(await proposta(a)).toBeUndefined();
+  });
+
+  it("l'IBAN della controparte è un altro conto dell'azienda", async () => {
+    const tx = await suConto(-500, CONTO_A, "2026-11-13", "IT22 B000 0000 0000 0000 0000 002");
+    expect(await proposta(tx)).toMatchObject({ codice: "21.01", origine: "giroconto" });
   });
 });

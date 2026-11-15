@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { bankRpc } from "@/lib/finance/bankWorkspace";
-import { ORIGINE_VOCE, useAggiornaDopoCategoria, useCatalogoCassa, type VoceCatalogo, type QuotaVoce } from "@/lib/finance/cassaVoci";
+import { ORIGINE_VOCE, creaRegolaCassa, useAggiornaDopoCategoria, useCatalogoCassa, type VoceCatalogo, type QuotaVoce } from "@/lib/finance/cassaVoci";
 import { etichettaVoce } from "@/lib/controlloGestione/rendicontoCassa";
 import { ScegliVoceCassa } from "@/components/tesoreria/ScegliVoceCassa";
 import { euroIntero } from "@/lib/controlloGestione/formatoCG";
@@ -170,8 +170,21 @@ export function ClassificaMovimentiDialog({
         p_motivo: motivo.trim() || null,
         p_anche_confermati: ancheConfermati,
       });
+      // Tutti della stessa controparte: si può farne una regola, così i prossimi si classificano da soli.
+      const controparti = new Set(selezionati.map((m) => (m.controparte ?? "").trim()).filter(Boolean));
+      const unica = controparti.size === 1 && selezionati.every((m) => (m.controparte ?? "").trim()) ? [...controparti][0] : null;
+      const versoRegola = verso === "in" ? "entrata" : "uscita";
       toast.success(`${r.aggiornati} ${r.aggiornati === 1 ? "movimento" : "movimenti"} in «${voce.nome}»`, {
-        description: r.saltati ? `${r.saltati} già confermati in un'altra voce non sono stati toccati.` : undefined,
+        description: r.saltati ? `${r.saltati} già confermati in un'altra voce non sono stati toccati.` : unica ? `Vuoi che i prossimi di «${unica}» vadano qui da soli?` : undefined,
+        action: unica
+          ? {
+              label: "Crea una regola",
+              onClick: () =>
+                void creaRegolaCassa({ company, testo: unica, voce: { id: voce.id, nome: voce.nome }, verso: versoRegola })
+                  .then(() => toast.success(`Regola creata: «${unica}» → ${voce.nome}`, { description: "La trovi in Tesoreria → Impostazioni." }))
+                  .catch((e: unknown) => toast.error("Regola non creata", { description: e instanceof Error ? e.message : String(e) })),
+            }
+          : undefined,
       });
       setScelti(new Set());
       aggiorna();
@@ -355,6 +368,8 @@ export function ClassificaMovimentiDialog({
                                     <span className="text-amber-800 dark:text-amber-300">Senza categoria</span>
                                   )}
                                   {!m.voce?.confermata && m.voce?.origine === "controparte" && <span className="text-muted-foreground">come l'ultima volta</span>}
+                                  {!m.voce?.confermata && m.voce?.origine === "regola" && <span className="text-muted-foreground">da una vostra regola</span>}
+                                  {!m.voce?.confermata && m.voce?.origine === "giroconto" && <span className="text-muted-foreground">c'è il movimento opposto su un altro vostro conto</span>}
                                   {!m.voce?.confermata && m.voce?.origine === "documento" && (
                                     <span className="text-muted-foreground">
                                       dalla fattura collegata

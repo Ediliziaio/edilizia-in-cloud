@@ -12,20 +12,21 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tags, Plus, Trash2, Pencil, Wand2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useCatalogoCassa } from "@/lib/finance/cassaVoci";
+import { ScegliVoceCassa } from "./ScegliVoceCassa";
+import { euroIntero } from "@/lib/controlloGestione/formatoCG";
 
-const CATEGORIES = [
-  { value: "Stipendi", icon: "Users" },
-  { value: "Affitti", icon: "Home" },
-  { value: "Fornitori", icon: "Package" },
-  { value: "Tasse & Tributi", icon: "FileText" },
-  { value: "Utenze", icon: "Zap" },
-  { value: "Assicurazioni", icon: "Shield" },
-  { value: "Ristorazione", icon: "UtensilsCrossed" },
-  { value: "Trasferte", icon: "Plane" },
-  { value: "Bancario", icon: "Landmark" },
-  { value: "Clienti", icon: "TrendingUp" },
-  { value: "Entrata", icon: "ArrowDownLeft" },
+// Colonne nuove (voce di cassa e verso, 15/11/2026) non ancora nei tipi generati.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
+type Verso = "entrata" | "uscita" | "entrambi";
+const VERSI: { value: Verso; label: string }[] = [
+  { value: "uscita", label: "Solo uscite" },
+  { value: "entrata", label: "Solo entrate" },
+  { value: "entrambi", label: "Entrate e uscite" },
 ];
+interface Anteprima { movimenti: number; regole: { regola: string; testo: string; voce: string; codice: string; movimenti: number; cents: number }[]; aggiornati?: number }
 
 const MATCH_FIELDS = [
   { value: "any", label: "Ovunque (descrizione, creditore, debitore)" },
@@ -47,6 +48,7 @@ const EMPTY_FORM = {
   match_value: "", match_field: "any", match_type: "contains",
   category: "Fornitori", category_icon: "Package",
   is_case_sensitive: false, priority: 10, auto_apply: true,
+  cassa_voce_id: null as string | null, verso: "uscita" as Verso,
 };
 
 export default function CategorizationRules({ companyId }: Props) {
@@ -60,6 +62,10 @@ export default function CategorizationRules({ companyId }: Props) {
   const [applying, setApplying] = useState(false);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [sceltaVoce, setSceltaVoce] = useState(false);
+  const [anteprima, setAnteprima] = useState<Anteprima | null>(null);
+  const catalogo = useCatalogoCassa(companyId || null);
+  const nomeVoce = (id: string | null | undefined) => (id ? catalogo.data?.find((v) => v.id === id)?.nome ?? null : null);
 
   useEffect(() => {
     if (companyId) void loadRules();
@@ -102,6 +108,8 @@ export default function CategorizationRules({ companyId }: Props) {
       is_case_sensitive: rule.is_case_sensitive || false,
       priority: rule.priority || 10,
       auto_apply: rule.auto_apply !== false,
+      cassa_voce_id: rule.cassa_voce_id ?? null,
+      verso: (rule.verso as Verso) ?? "entrambi",
     });
     setShowAdd(true);
   }
@@ -111,6 +119,7 @@ export default function CategorizationRules({ companyId }: Props) {
     if (!value) { toast.error("Il testo da cercare è obbligatorio"); return; }
     if (!companyId) { toast.error("Azienda non disponibile"); return; }
     if (!Number.isFinite(form.priority) || form.priority < 1) { toast.error("La priorità deve essere almeno 1"); return; }
+    if (!form.cassa_voce_id && !editRule) { toast.error("Scegli la voce del cash flow da assegnare"); return; }
 
     const duplicated = rules.some((rule) =>
       rule.id !== editRule?.id
@@ -124,13 +133,14 @@ export default function CategorizationRules({ companyId }: Props) {
       match_value: value, match_field: form.match_field, match_type: form.match_type,
       category: form.category, category_icon: form.category_icon,
       is_case_sensitive: form.is_case_sensitive, priority: form.priority, auto_apply: form.auto_apply,
+      cassa_voce_id: form.cassa_voce_id, verso: form.verso,
     };
 
     setSaving(true);
     try {
       const { error } = editRule
-        ? await supabase.from("bank_categorization_rules").update(payload).eq("id", editRule.id).eq("company_id", companyId)
-        : await supabase.from("bank_categorization_rules").insert(payload);
+        ? await db.from("bank_categorization_rules").update(payload).eq("id", editRule.id).eq("company_id", companyId)
+        : await db.from("bank_categorization_rules").insert(payload);
       if (error) throw error;
       toast.success(editRule ? "Regola aggiornata" : "Regola creata");
       setShowAdd(false);
@@ -176,13 +186,30 @@ export default function CategorizationRules({ companyId }: Props) {
     }
   }
 
+  /** Prima l'anteprima: quanti movimenti senza categoria prenderebbero quale voce. */
   async function applyNow() {
     setApplying(true);
     try {
-      const { data, error } = await supabase.rpc("apply_bank_categorization_rules", { p_company_id: companyId });
+      const { data, error } = await db.rpc("cassa_regole_applica", { p_company: companyId, p_anteprima: true });
       if (error) throw error;
-      const n = (data as number) ?? 0;
-      toast.success(n > 0 ? `${n} transazion${n === 1 ? "e" : "i"} categorizzat${n === 1 ? "a" : "e"}` : "Nessuna transazione da categorizzare con le regole attuali");
+      setAnteprima(data as Anteprima);
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  async function confermaApplica() {
+    setApplying(true);
+    try {
+      const { data, error } = await db.rpc("cassa_regole_applica", { p_company: companyId, p_anteprima: false });
+      if (error) throw error;
+      // Le regole solo testuali (senza voce) continuano a scrivere il vecchio testo.
+      await supabase.rpc("apply_bank_categorization_rules", { p_company_id: companyId });
+      const n = (data as Anteprima).aggiornati ?? 0;
+      toast.success(n > 0 ? `${n} moviment${n === 1 ? "o classificato" : "i classificati"} con le regole` : "Nessun movimento da classificare con le regole attuali");
+      setAnteprima(null);
     } catch (e: any) {
       toast.error("Errore: " + e.message);
     } finally {
@@ -211,8 +238,8 @@ export default function CategorizationRules({ companyId }: Props) {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Crea regole per categorizzare automaticamente le transazioni in base al testo di descrizione, creditore o debitore.
-        Le regole si applicano a ogni sincronizzazione; con "Applica ora" le riapplichi subito ai movimenti non categorizzati.
+        Una regola riconosce i movimenti dal testo (descrizione, creditore, debitore) e assegna una voce del cash flow.
+        Nelle proposte vale prima di tutto il resto; con «Applica ora» vedi quanti movimenti senza categoria classificherebbe e la applichi.
       </p>
 
       {loadError && (
@@ -239,7 +266,9 @@ export default function CategorizationRules({ companyId }: Props) {
                   <span className="text-xs text-muted-foreground">{fieldLabel(rule.match_field)} {typeLabel(rule.match_type).toLowerCase()}</span>
                   <Badge variant="secondary" className="font-mono text-xs">{rule.match_value}</Badge>
                   <span className="text-sm">→</span>
-                  <Badge>{rule.category}</Badge>
+                  <Badge>{nomeVoce(rule.cassa_voce_id) ?? rule.category}</Badge>
+                  {!rule.cassa_voce_id && <Badge variant="outline" className="text-xs" title="Scegli una voce del cash flow per farla contare nel cash flow">solo testo</Badge>}
+                  {rule.verso && rule.verso !== "entrambi" && <span className="text-xs text-muted-foreground">{rule.verso === "uscita" ? "uscite" : "entrate"}</span>}
                   {rule.is_case_sensitive && <Badge variant="outline" className="text-xs">Aa</Badge>}
                   <span className="text-xs text-muted-foreground">P{rule.priority}</span>
                 </div>
@@ -286,15 +315,35 @@ export default function CategorizationRules({ companyId }: Props) {
               <Input placeholder="Es: ENEL ENERGIA, AGENZIA ENTRATE" value={form.match_value}
                 onChange={(e) => setForm({ ...form, match_value: e.target.value })} />
             </div>
-            <div>
-              <Label>Categoria</Label>
-              <Select value={form.category} onValueChange={(v) => {
-                const cat = CATEGORIES.find((c) => c.value === v);
-                setForm({ ...form, category: v, category_icon: cat?.icon || "HelpCircle" });
-              }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.value}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Movimenti</Label>
+                <Select value={form.verso} onValueChange={(v) => setForm({ ...form, verso: v as Verso })}>
+                  <SelectTrigger aria-label="Verso dei movimenti"><SelectValue /></SelectTrigger>
+                  <SelectContent>{VERSI.map((x) => <SelectItem key={x.value} value={x.value}>{x.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Voce del cash flow</Label>
+                <Popover open={sceltaVoce} onOpenChange={setSceltaVoce}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start truncate font-normal" aria-label={`Voce del cash flow: ${nomeVoce(form.cassa_voce_id) ?? "da scegliere"}`}>
+                      {nomeVoce(form.cassa_voce_id) ?? <span className="text-muted-foreground">Scegli la voce</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[26rem] max-w-[calc(100vw-2rem)] p-3">
+                    <ScegliVoceCassa
+                      catalogo={catalogo.data}
+                      importo={form.verso === "entrata" ? 1 : -1}
+                      selezionata={form.cassa_voce_id}
+                      onScegli={(v) => {
+                        setForm({ ...form, cassa_voce_id: v.id, category: v.nome, category_icon: "Tags" });
+                        setSceltaVoce(false);
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 items-end">
               <div>
@@ -318,6 +367,36 @@ export default function CategorizationRules({ companyId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Anteprima di «Applica ora» */}
+      <AlertDialog open={!!anteprima} onOpenChange={(o) => !o && setAnteprima(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Applica le regole</AlertDialogTitle>
+            <AlertDialogDescription>
+              {anteprima?.movimenti
+                ? `${anteprima.movimenti} moviment${anteprima.movimenti === 1 ? "o" : "i"} ancora senza categoria prenderanno la voce della prima regola che li riconosce. Quelli già classificati non si toccano.`
+                : "Nessun movimento senza categoria corrisponde alle regole con una voce."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {!!anteprima?.regole.length && (
+            <ul className="max-h-60 space-y-1 overflow-y-auto text-sm">
+              {anteprima.regole.map((r) => (
+                <li key={r.regola} className="flex items-center justify-between gap-3 rounded border px-2 py-1">
+                  <span className="min-w-0 truncate"><span className="font-mono text-xs">{r.testo}</span> → {r.voce}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{r.movimenti} · {euroIntero(r.cents / 100)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); void confermaApplica(); }} disabled={applying}>
+              {applying ? "Applicazione..." : anteprima?.movimenti ? `Applica a ${anteprima.movimenti}` : "Applica comunque le regole di solo testo"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirm */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>

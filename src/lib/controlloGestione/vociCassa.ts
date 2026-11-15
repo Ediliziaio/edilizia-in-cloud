@@ -75,7 +75,7 @@ export const VOCI_CASSA: DefinizioneVoce[] = [
   { key: "inc_incentivi", gruppo: "incassi", label: "Incentivi e bonus (blocca prezzo, sconto in fattura)", sempre: true },
   { key: "inc_altri", gruppo: "incassi", label: "Altri incassi", sempre: true },
   { key: "inc_fiscali", gruppo: "incassi", label: "Rimborsi fiscali ricevuti", sempre: false },
-  { key: "inc_giroconti", gruppo: "incassi", label: "Giroconti in entrata (tra i tuoi conti)", sempre: false, aiuto: "Soldi spostati da un tuo conto all'altro: si compensano con i giroconti in uscita." },
+  { key: "inc_giroconti", gruppo: "altri", label: "Giroconti in entrata (tra i tuoi conti)", sempre: false, aiuto: "Soldi spostati da un tuo conto all'altro: si compensano con i giroconti in uscita." },
   { key: "inc_manuali", gruppo: "incassi", label: "Voci manuali (solo Controllo di gestione)", sempre: false },
   { key: "inc_da_classificare", gruppo: "incassi", label: "Da classificare", sempre: false, daClassificare: true, aiuto: "Incassi veri, già nel saldo, a cui manca la categoria. Aprili e scegline una: non spariscono, cambiano riga." },
   { key: "usc_materiali", gruppo: "uscite", label: "Fornitori di materiali", sempre: true },
@@ -92,7 +92,7 @@ export const VOCI_CASSA: DefinizioneVoce[] = [
   { key: "usc_rimborsi_clienti", gruppo: "uscite", label: "Rimborsi e storni ai clienti", sempre: false },
   { key: "usc_blocca_prezzo", gruppo: "uscite", label: "Blocca prezzo da restituire", sempre: false },
   { key: "usc_altre", gruppo: "uscite", label: "Altre uscite", sempre: true },
-  { key: "usc_giroconti", gruppo: "uscite", label: "Giroconti in uscita (tra i tuoi conti)", sempre: false, aiuto: "Soldi spostati da un tuo conto all'altro: si compensano con i giroconti in entrata." },
+  { key: "usc_giroconti", gruppo: "altri", label: "Giroconti in uscita (tra i tuoi conti)", sempre: false, aiuto: "Soldi spostati da un tuo conto all'altro: si compensano con i giroconti in entrata." },
   { key: "usc_manuali", gruppo: "uscite", label: "Voci manuali (solo Controllo di gestione)", sempre: false },
   { key: "usc_da_classificare", gruppo: "uscite", label: "Da classificare", sempre: false, daClassificare: true, aiuto: "Uscite vere, già nel saldo, a cui manca la categoria. Aprile e scegline una: non spariscono, cambiano riga." },
   { key: "inv_cespiti", gruppo: "investimenti", label: "Acquisti di beni durevoli (attrezzature, mezzi, impianti)", sempre: true },
@@ -115,7 +115,7 @@ export const GRUPPI_CASSA: { key: GruppoCassa; label: string; totale: string }[]
   { key: "uscite", label: "Uscite della gestione", totale: "Totale uscite della gestione" },
   { key: "investimenti", label: "Investimenti", totale: "Totale investimenti" },
   { key: "finanziamenti", label: "Finanziamenti", totale: "Totale finanziamenti" },
-  { key: "altri", label: "Cauzioni e depositi", totale: "Totale cauzioni e depositi" },
+  { key: "altri", label: "Giroconti, cauzioni e depositi", totale: "Totale giroconti, cauzioni e depositi" },
 ];
 
 export const VOCE_PER_CHIAVE = new Map(VOCI_CASSA.map((v) => [v.key, v]));

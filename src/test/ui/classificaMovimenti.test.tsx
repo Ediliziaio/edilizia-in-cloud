@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MovimentoDaClassificare } from "@/components/controllo-gestione/ClassificaMovimentiDialog";
 import type { VoceCatalogo } from "@/lib/finance/cassaVoci";
 
-const m = vi.hoisted(() => ({ rpc: vi.fn(), toast: { success: vi.fn(), error: vi.fn() } }));
+const m = vi.hoisted(() => ({ rpc: vi.fn(), regola: vi.fn(), toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/finance/bankWorkspace", () => ({ bankRpc: m.rpc }));
 vi.mock("sonner", () => ({ toast: m.toast }));
 
@@ -30,6 +30,7 @@ vi.mock("@/lib/finance/cassaVoci", async (orig): Promise<Record<string, unknown>
   ...(await orig<typeof import("@/lib/finance/cassaVoci")>()),
   useCatalogoCassa: () => ({ data: catalogo, isError: false }),
   useAggiornaDopoCategoria: () => (): void => undefined,
+  creaRegolaCassa: m.regola,
 }));
 import { ClassificaMovimentiDialog } from "@/components/controllo-gestione/ClassificaMovimentiDialog";
 
@@ -81,6 +82,18 @@ describe("classifica i movimenti", () => {
         p_company: "az", p_tx: ["a", "b"], p_voce: "v0412", p_motivo: null, p_anche_confermati: false,
       }),
     );
+  });
+
+  it("dopo aver classificato una controparte propone di farne una regola", async () => {
+    m.regola.mockResolvedValue(undefined);
+    apri();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Seleziona tutti i movimenti di Ferramenta Rossi" }));
+    fireEvent.click(screen.getByRole("option", { name: /Minuteria e ferramenta/ }));
+    await waitFor(() => expect(m.toast.success).toHaveBeenCalled());
+    const opzioni = m.toast.success.mock.calls[0][1] as { action: { label: string; onClick: () => void } };
+    expect(opzioni.action.label).toBe("Crea una regola");
+    opzioni.action.onClick();
+    expect(m.regola).toHaveBeenCalledWith({ company: "az", testo: "Ferramenta Rossi", voce: { id: "v0412", nome: "Minuteria e ferramenta" }, verso: "uscita" });
   });
 
   it("per le uscite non offre le voci di sole entrate", async () => {
