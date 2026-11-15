@@ -142,6 +142,16 @@ describe("identità e riferimenti", () => {
   });
 });
 
+describe("periodo del SAL dalle date di emissione", () => {
+  it("una fattura con lavori dopo la data del SAL che cita: avviso, forse è del SAL successivo", () => {
+    const conDate = [sal(1, 10000, "pagato", { data_emissione: "2026-08-31" }), sal(2, 8000, "verificato", { data_emissione: "2026-09-30" })];
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 8000, testo: "SAL n. 2 lavori dal 01/10/2026 al 31/10/2026" }), { contratti: [contratto()], sal: conDate, altreFatture: [] });
+    expect(r.problemi.find((p) => p.codice === "periodo_fuori_sal")?.blocca).toBe(false);
+    const ok = controllaFatturaSubappalto(fattura({ imponibile_totale: 8000, testo: "SAL n. 2 lavori dal 01/09/2026 al 30/09/2026" }), { contratti: [contratto()], sal: conDate, altreFatture: [] });
+    expect(ok.problemi.map((p) => p.codice)).not.toContain("periodo_fuori_sal");
+  });
+});
+
 describe("acconto al subappaltatore", () => {
   // Contratto da 12.400 con acconto 3.100: il SAL 2 da 4.000 recupera 1.000 (netto 4.000 − 200 − 1.000 = 2.800).
   const conAcconto = () => contratto({ importo_contrattuale: 12400, acconto_importo: 3100 });

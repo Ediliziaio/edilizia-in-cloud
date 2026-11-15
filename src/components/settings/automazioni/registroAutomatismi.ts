@@ -11,6 +11,7 @@ import { useCollegamentoAutomatico, useSalvaCollegamentoAutomatico } from "@/hoo
 import { VerificaCollegamentiDialog } from "@/components/acquisti/VerificaCollegamentiDialog";
 import { useUltimoCollegamento } from "@/hooks/useUltimoCollegamento";
 import { useUltimoCollegamentoSubappalti } from "@/hooks/useUltimoCollegamentoSubappalti";
+import { useUltimoEsitoBollette } from "@/hooks/useUltimoEsitoBollette";
 import { useUltimoEsitoTesoreria } from "@/hooks/useUltimoEsitoTesoreria";
 
 /** Lo stato dell'interruttore, letto dal server. */
@@ -77,7 +78,7 @@ export const AUTOMATISMI: Automatismo[] = [
     area: "Subappalti",
     titolo: "Fattura del subappaltatore al suo contratto e SAL",
     cosaFa:
-      "Quando arriva la fattura di un subappaltatore la collega al suo contratto e al SAL, se è certo: stessa partita IVA, SAL citato in fattura e già verificato, importo uguale al netto del SAL (acconto già scalato). Ogni 15 minuti, senza AI. Segue l'interruttore del collegamento automatico.",
+      "Quando arriva la fattura di un subappaltatore la collega al suo contratto e al SAL, se è certo: stessa partita IVA, SAL citato in fattura e già verificato, importo uguale al SAL (al periodo o al netto, con l'acconto già scalato). Lo fa un giro del server, senza AI. Segue l'interruttore del collegamento automatico.",
     daSpento:
       "Da spento la fattura ti viene proposta nella sua scheda e la colleghi con un clic. Una fattura sul cumulativo, oltre il contratto o su un SAL già fatturato non si collega mai da sola.",
     useStato: useStatoCollegamento,
@@ -92,5 +93,16 @@ export const AUTOMATISMI: Automatismo[] = [
     daSpento: "Da spento il movimento certo ti viene proposto in tesoreria e lo confermi con un clic. Parziali, cumulativi e casi dubbi li decidi sempre tu.",
     useStato: useStatoCollegamento,
     useUltimoEsito: useUltimoEsitoTesoreria,
+  },
+  {
+    id: "bollette-utenze",
+    area: "Bollette",
+    titolo: "Bollette di luce e gas: utenza e commessa",
+    cosaFa:
+      "Un giro del server legge le bollette arrivate: riconosce l'utenza dal POD o dal PDR (non dall'indirizzo), il periodo e l'importo, e distingue un doppione da un conguaglio o da una nota di credito. Se l'utenza è collegata a una commessa, ci mette il costo. Senza AI. Segue l'interruttore del collegamento automatico.",
+    daSpento:
+      "Da spento le bollette si leggono lo stesso, ma la commessa ti viene proposta e la confermi con un clic. Un possibile doppione non va mai sui costi finché non decidi tu (Costi → Utenze).",
+    useStato: useStatoCollegamento,
+    useUltimoEsito: useUltimoEsitoBollette,
   },
 ];

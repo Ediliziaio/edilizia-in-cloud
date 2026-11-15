@@ -553,8 +553,18 @@ export function ContrattiSubappalto({
   // pagamento del SAL paga proprio quella fattura.
   const collegaFattura = useMutation({
     mutationFn: async ({ fatturaId, contrattoId, salId = null }: { fatturaId: string; contrattoId: string | null; salId?: string | null }) => {
+      // Nella traccia comune resta la scelta della persona, con quello che ha scelto.
+      const salScelto = salId ? sal.find((x) => x.id === salId) : null;
+      const contratto = contrattoId ? contratti.find((c) => c.id === contrattoId) : null;
+      const prove = contrattoId ? [{
+        campo: "scelta_dalla_scheda_subappaltatore", ruolo: "conferma", esito: "uguale",
+        trovato: [contratto?.numero_contratto ?? "contratto senza numero", salScelto ? `SAL n. ${salScelto.numero_sal}` : null].filter(Boolean).join(" · "),
+        testo: `Scelto dalla scheda del subappaltatore: ${contratto?.numero_contratto ?? "contratto senza numero"}${salScelto ? `, SAL n. ${salScelto.numero_sal}` : ""}`,
+      }] : [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("subappalto_collega_fattura", { p_fattura: fatturaId, p_contratto: contrattoId, p_sal: salId });
+      const { data, error } = await (supabase as any).rpc("subappalto_collega_fattura", {
+        p_fattura: fatturaId, p_contratto: contrattoId, p_sal: salId, p_esito: "manuale", p_regola: "subappalto_controllo_fattura", p_prove: prove,
+      });
       if (error) throw new Error(error.message || "Collegamento non riuscito. Riprova.");
       return data as { esito?: string } | null;
     },

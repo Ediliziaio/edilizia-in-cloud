@@ -569,6 +569,9 @@ verify_jwt = false
 [functions.subappalti-collega-fatture]
 verify_jwt = false
 
+[functions.bollette-riconosci]
+verify_jwt = false
+
 [functions.bank-categorize-ai]
 verify_jwt = false
 

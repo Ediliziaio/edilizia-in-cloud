@@ -126,12 +126,36 @@ describe("giro del server: fatture dei subappaltatori collegate da sole", () => 
     expect(esito).toMatchObject({ collegate: 0, proposte: 1 });
   });
 
-  it("fatture vecchie fuori dalla finestra e tetto per giro", async () => {
+  it("fatture vecchie fuori dalla finestra; le proposte non tolgono il posto: si controllano tutte", async () => {
     const molte = Array.from({ length: TETTO + 5 }, (_, i) => fattura(`f${i}`, { imponibile_totale: 100 + i, righe: [] }));
     const db = new DbFinto(seme({ fatture_ricevute: [...molte, fattura("vecchia", { created_at: "2026-01-01T00:00:00Z" })] }));
     const { c } = cliente(db);
     const esito = await giroSubappalti(c, { oggi: OGGI });
-    expect(esito.controllate).toBe(TETTO);
+    expect(esito.controllate).toBe(TETTO + 5);
+  });
+
+  it("il tetto vale sui collegamenti scritti: il resto si collega al giro dopo, senza rivedere sempre le stesse", async () => {
+    const sal = Array.from({ length: 5 }, (_, i) => ({ id: `sx${i}`, company_id: A, contratto_id: "c1", numero_sal: 10 + i, importo_lordo: 1000 + i, oneri_quota: 0, ritenuta_importo: 0, acconto_recuperato: 0, importo_netto: 1000 + i, stato: "verificato" }));
+    const fatture = sal.map((x, i) => fattura(`fx${i}`, { imponibile_totale: 1000 + i, righe: [{ descrizione: `SAL n. ${10 + i}` }] }));
+    const db = new DbFinto(seme({ sal_subappaltatori: sal, fatture_ricevute: fatture }));
+    const { c, chiamate } = cliente(db);
+    const primo = await giroSubappalti(c, { oggi: OGGI, tetto: 3 });
+    expect(primo).toMatchObject({ collegate: 3, rimandate: 2 });
+    const secondo = await giroSubappalti(c, { oggi: OGGI, tetto: 3 });
+    expect(secondo.collegate).toBe(2);
+    expect(new Set(chiamate.map((x) => x.p_fattura)).size).toBe(5);
+  });
+
+  it("tutte le aziende accese sono guardate: la prima, piena di proposte, non ferma la seconda", async () => {
+    const proposteA = Array.from({ length: 60 }, (_, i) => fattura(`pa${i}`, { imponibile_totale: 50 + i, righe: [] }));
+    const db = new DbFinto(seme({
+      company_governance_settings: [{ company_id: A, collegamento_automatico: true }, { company_id: B, collegamento_automatico: true }],
+      fatture_ricevute: [...proposteA, fattura("fb", { company_id: B, righe: [{ descrizione: "SAL n. 1" }] })],
+    }));
+    const { c, chiamate } = cliente(db);
+    const esito = await giroSubappalti(c, { oggi: OGGI });
+    expect(esito.aziende).toBe(2);
+    expect(chiamate.map((x) => x.p_fattura)).toEqual(["fb"]);
   });
 
   it("nessuna chiamata a servizi esterni: niente AI nel giro", async () => {

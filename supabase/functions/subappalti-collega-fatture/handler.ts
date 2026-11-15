@@ -12,7 +12,10 @@
  *    ricontrolla interruttore, P.IVA, azienda e SAL e scrive la traccia. Le altre restano
  *    proposte nella scheda della fattura, all'utente.
  *
- * Un tetto di TETTO fatture per giro (la CPU del worker è il limite vero), le più recenti prima.
+ * Il tetto (TETTO) vale sui collegamenti SCRITTI in un giro, non sulle fatture controllate: il
+ * controllo è tutto in memoria e costa poco, mentre ogni collegamento è una chiamata al database.
+ * Così le fatture che restano proposte non tolgono il posto alle altre, e tutte le aziende con
+ * l'interruttore acceso vengono guardate a ogni giro (le PER_AZIENDA più recenti ciascuna).
  * Rilanciato, non fa niente di nuovo: la funzione SQL è idempotente e le fatture collegate
  * escono dalla lista.
  */
@@ -24,6 +27,14 @@ import { chiaveFiscale } from "../../../shared/acquisti/normalizza.ts";
 import { registraEsitoLavoroAi } from "../_shared/esitoLavoroAi.ts";
 
 export const TETTO = 40;
+/**
+ * Fatture controllate al massimo per azienda in un giro: le 500 più recenti degli ultimi 120 giorni.
+ * Le più vecchie non tornano finché ce ne sono di più recenti ancora proposte: con i soli
+ * subappaltatori sono poche (sull'anteprima del 15/11, 125 in un'azienda su tutto lo storico).
+ */
+export const PER_AZIENDA = 500;
+/** Gli id in una richiesta: oltre, l'URL della GET diventa troppo lungo. */
+const BLOCCO_ID = 150;
 export const GIORNI = 120;
 const COLONNE_FATTURA = "id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, imponibile_totale, totale_documento, stato, contratto_subappalto_id, sal_subappaltatore_id, righe, note, created_at";
 
@@ -38,6 +49,8 @@ export interface EsitoGiro {
   /** L'interruttore si è spento fra la lettura e la scrittura: la funzione ha registrato la proposta. */
   proposte: number;
   lasciate: Record<string, number>;
+  /** Automatiche oltre il tetto del giro: si collegano al giro dopo. */
+  rimandate?: number;
   errori: string[];
 }
 
@@ -45,15 +58,15 @@ function soglia(oggi: Date): string {
   return new Date(oggi.getTime() - GIORNI * 86_400_000).toISOString();
 }
 
-export async function giroSubappalti(db: Db, opz: { oggi?: Date; tetto?: number } = {}): Promise<EsitoGiro> {
+export async function giroSubappalti(db: Db, opz: { oggi?: Date; tetto?: number; perAzienda?: number } = {}): Promise<EsitoGiro> {
   const esito: EsitoGiro = { aziende: 0, controllate: 0, collegate: 0, proposte: 0, lasciate: {}, errori: [] };
   let budget = opz.tetto ?? TETTO;
+  const perAzienda = opz.perAzienda ?? PER_AZIENDA;
 
   const { data: accese, error: eAz } = await db.from("company_governance_settings").select("company_id").eq("collegamento_automatico", true);
   if (eAz) { esito.errori.push(`aziende: ${eAz.message}`); return esito; }
 
   for (const { company_id: azienda } of (accese ?? []) as Array<{ company_id: string }>) {
-    if (budget <= 0) break;
     esito.aziende++;
     try {
       const { data: righeContratti, error: eC } = await db.from("contratti_subappalto")
@@ -79,13 +92,16 @@ export async function giroSubappalti(db: Db, opz: { oggi?: Date; tetto?: number 
       if (!libere.length) continue;
 
       // Già nella traccia (decise da una persona o già passate): non si ripassano.
-      const { data: tracciate, error: eT } = await db.from("acquisti_collegamenti").select("da_id")
-        .eq("company_id", azienda).eq("da_tipo", "fattura_ricevuta").in("a_tipo", ["contratto", "sal"]).in("da_id", libere.map((f) => f.id));
-      if (eT) throw new Error(`traccia: ${eT.message}`);
-      const viste = new Set(((tracciate ?? []) as Array<{ da_id: string }>).map((t) => t.da_id));
-      libere = libere.filter((f) => !viste.has(f.id)).slice(0, budget);
+      const viste = new Set<string>();
+      for (let i = 0; i < libere.length; i += BLOCCO_ID) {
+        const { data: tracciate, error: eT } = await db.from("acquisti_collegamenti").select("da_id")
+          .eq("company_id", azienda).eq("da_tipo", "fattura_ricevuta").in("a_tipo", ["contratto", "sal"])
+          .in("da_id", libere.slice(i, i + BLOCCO_ID).map((f) => f.id));
+        if (eT) throw new Error(`traccia: ${eT.message}`);
+        for (const t of (tracciate ?? []) as Array<{ da_id: string }>) viste.add(t.da_id);
+      }
+      libere = libere.filter((f) => !viste.has(f.id)).slice(0, perAzienda);
       if (!libere.length) continue;
-      budget -= libere.length;
       esito.controllate += libere.length;
 
       const ids = contratti.map((c) => c.id);
@@ -104,6 +120,8 @@ export async function giroSubappalti(db: Db, opz: { oggi?: Date; tetto?: number 
       for (const [k, n] of Object.entries(altre)) if (n) esito.lasciate[k] = (esito.lasciate[k] ?? 0) + n;
 
       for (const { fattura, risultato } of automatiche) {
+        if (budget <= 0) { esito.rimandate = (esito.rimandate ?? 0) + 1; continue; }
+        budget--;
         const { data, error } = await db.rpc("subappalto_collega_fattura", {
           p_fattura: fattura.id, p_contratto: risultato.contrattoId, p_sal: risultato.salId,
           p_esito: "automatico", p_regola: "subappalto_controllo_fattura", p_prove: proveTraccia(risultato),

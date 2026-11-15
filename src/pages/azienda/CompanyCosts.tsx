@@ -6,21 +6,23 @@
 //   Spese fisse      → la struttura: affitti, leasing, utenze, ricorrenti
 //   Spese variabili  → i cantieri: materiali, subappalti, provvigioni
 //   Pianificazione   → regia integrazioni, statistiche, budget
+//   Utenze           → contatori luce/gas dalle bollette e dove va il loro costo (15/11/2026)
 // La tab attiva è sincronizzata in URL (?tab=) per link condivisibili.
 // ============================================================================
 
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { startOfMonth } from "date-fns";
-import { HardHat, Landmark, PieChart, ReceiptText, Target, TrendingDown } from "lucide-react";
+import { HardHat, Landmark, PieChart, Plug, ReceiptText, Target, TrendingDown } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CompanyCostsManager from "@/components/forecast/CompanyCostsManager";
 import CostsOverviewTab from "@/components/costi/CostsOverviewTab";
 import PersonnelCostsTab from "@/components/costi/PersonnelCostsTab";
+import UtenzeTab from "@/components/costi/UtenzeTab";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const VALID_TABS = ["panoramica", "personale", "spese-fisse", "spese-variabili", "pianificazione"] as const;
+const VALID_TABS = ["panoramica", "personale", "spese-fisse", "spese-variabili", "pianificazione", "utenze"] as const;
 type CostsTab = (typeof VALID_TABS)[number];
 // Mobile: tre schede su cinque (costo del personale e pianificazione restano
 // al desktop: sono analisi da scrivania).
@@ -91,6 +93,9 @@ export default function CompanyCosts() {
           <TabsTrigger value="pianificazione" className="gap-1.5 rounded-lg max-md:hidden">
             <Target className="h-4 w-4" /> Pianificazione
           </TabsTrigger>
+          <TabsTrigger value="utenze" className="gap-1.5 rounded-lg max-md:hidden">
+            <Plug className="h-4 w-4" /> Utenze
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica" className="mt-4 max-sm:mt-3">
@@ -107,6 +112,9 @@ export default function CompanyCosts() {
         </TabsContent>
         <TabsContent value="pianificazione" className="mt-4">
           <CompanyCostsManager view="pianificazione" />
+        </TabsContent>
+        <TabsContent value="utenze" className="mt-4">
+          <UtenzeTab />
         </TabsContent>
       </Tabs>
     </div>

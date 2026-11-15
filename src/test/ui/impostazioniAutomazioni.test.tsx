@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   esito: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
   esitoTesoreria: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
   esitoSubappalti: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
+  esitoBollette: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true }) }));
@@ -35,6 +36,10 @@ vi.mock("@/hooks/useUltimoEsitoTesoreria", async (importOriginal) => ({
   useUltimoEsitoTesoreria: () => state.esitoTesoreria,
 }));
 vi.mock("@/hooks/useUltimoCollegamentoSubappalti", () => ({ useUltimoCollegamentoSubappalti: () => state.esitoSubappalti }));
+vi.mock("@/hooks/useUltimoEsitoBollette", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useUltimoEsitoBollette")>()),
+  useUltimoEsitoBollette: () => state.esitoBollette,
+}));
 
 import SettingsAutomazioni from "@/pages/azienda/settings/SettingsAutomazioni";
 import { testoUltimoEsitoTesoreria, type StatoTesoreria } from "@/hooks/useUltimoEsitoTesoreria";
@@ -53,6 +58,7 @@ afterEach(() => {
   state.esito = null;
   state.esitoTesoreria = null;
   state.esitoSubappalti = null;
+  state.esitoBollette = null;
 });
 
 describe("Impostazioni → Automazioni", () => {
@@ -101,6 +107,23 @@ describe("Impostazioni → Automazioni", () => {
     expect(within(riga).getByText("Ultimo collegamento fatto da solo")).toBeInTheDocument();
     fireEvent.click(interruttore);
     expect(state.salvati).toEqual([false]);
+  });
+
+  it("Bollette: la riga dice cosa fa, segue lo stesso interruttore e mostra cosa aspetta", () => {
+    state.esitoBollette = { quando: null, testo: "2 bollette da decidere: possibili doppioni", tono: "attenzione" };
+    open();
+    const riga = document.getElementById("bollette-utenze")!;
+    expect(within(riga).getByText(/dal POD o dal PDR/)).toBeInTheDocument();
+    expect(within(riga).getByRole("switch", { name: "Bollette di luce e gas: utenza e commessa" })).not.toBeChecked();
+    expect(within(riga).getByText("2 bollette da decidere: possibili doppioni")).toBeInTheDocument();
+  });
+
+  it("testo dell'ultimo esito delle bollette: prima i doppioni, poi le utenze da collegare", async () => {
+    const { testoUltimoEsitoBollette } = await import("@/hooks/useUltimoEsitoBollette");
+    expect(testoUltimoEsitoBollette(1, 5, null)?.testo).toMatch(/doppione/);
+    expect(testoUltimoEsitoBollette(0, 5, null)?.testo).toMatch(/5 bollette con l'utenza da collegare/);
+    expect(testoUltimoEsitoBollette(0, 0, "2026-11-15T10:00:00Z")).toMatchObject({ tono: "ok" });
+    expect(testoUltimoEsitoBollette(0, 0, null)).toBeNull();
   });
 
   it("ogni automatismo del registro ha un id unico e i testi che la riga mostra", () => {

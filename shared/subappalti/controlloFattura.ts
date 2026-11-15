@@ -69,7 +69,7 @@ export interface Problema {
     | "piva_diversa" | "contratto_diverso" | "sal_diverso" | "importo_cumulativo" | "sal_gia_fatturato"
     | "oltre_contratto" | "oltre_approvato" | "sal_non_verificato" | "sal_mancante" | "periodo_sovrapposto"
     | "importo_diverso" | "altra_azienda" | "fattura_rifiutata" | "contratto_senza_numero"
-    | "acconto_oltre" | "acconto_non_scalato";
+    | "acconto_oltre" | "acconto_non_scalato" | "periodo_fuori_sal";
   blocca: boolean;
   testo: string;
 }
@@ -352,6 +352,12 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
       if (q && q.dal <= periodo.al && periodo.dal <= q.al) {
         problemi.push({ codice: "periodo_sovrapposto", blocca: false, testo: `Il periodo si sovrappone a quello della fattura ${f.numero_fattura ?? ""} (${q.dal} → ${q.al}).` });
       }
+    }
+    // Il periodo del SAL si ricava dalle date di emissione: dal giorno dopo il SAL precedente
+    // alla data di questo. Una fattura che dichiara lavori dopo il SAL che cita non torna.
+    if (sal?.data_emissione && periodo.dal > sal.data_emissione) {
+      problemi.push({ codice: "periodo_fuori_sal", blocca: false,
+        testo: `La fattura dichiara lavori dal ${periodo.dal}, dopo la data del SAL n. ${sal.numero_sal} (${sal.data_emissione}): forse è del SAL successivo.` });
     }
   }
 

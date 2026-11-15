@@ -15,6 +15,7 @@ import { ScegliMezzoFattura } from "./ScegliMezzoFattura";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
 import { VerificaCollegamentiDialog } from "@/components/acquisti/VerificaCollegamentiDialog";
 import { EsitoControlloSubappalto, useControlloSubappalto } from "./ControlloSubappaltoFattura";
+import { BollettaFattura } from "./BollettaFattura";
 import { useCollegamentoAutomatico } from "@/hooks/useCollegamentoAutomatico";
 import { conInterruttoreSubappalto, proveTraccia } from "@/lib/subappaltatori/controlloFatturaSubappalto";
 import { chiaveCollegamenti, esigiRigaSalvata, messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
@@ -253,6 +254,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
         {/* Il perché di ogni aggancio, le proposte da confermare e l'annullamento (traccia dei collegamenti). */}
         {ddt.length > 0 && <VerificaCollegamentiDialog companyId={companyId} fatturaId={fatturaId} puoModificare={puoModificare} />}
       </dd>
+
+      <BollettaFattura fatturaId={fatturaId} companyId={companyId} />
 
       {(contrattoId || contratti.length > 0 || controllo) && (
         <>

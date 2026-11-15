@@ -41,7 +41,7 @@ e cosa resta.
 | **Rapportino: mezzo e tariffa** | `rapportino_mezzi_costi_trg`, costo orario del mezzo | Mezzo, ore; storico del costo manuale e delle ore previste | Costo alla data del lavoro: fatto (lotto 2); il calcolato sulle spese resta senza storia | Nessuna | Mezzo a noleggio: costo dalla fattura del noleggio (B) | Campo, Mezzi | Bassa | Fatto | — |
 | **Rapportino: listino e prezzo** | `prezzo_voce_commessa`: cantiere → committente → generale | Tariffe, eccezioni per commessa | Esistente; il prezzo del committente **non** sostituisce il costo (campi separati) | Nessuna | Unità diverse fra listino committente e generale: segnalate (`unita_diverse`) | Campo, Listini | — | Esistente | Test in `src/test/logic/rapportiniPrezzoListino.test.ts` |
 | **Materiali: magazzino → cantiere** | Scarico al costo medio, quota «a magazzino» sulla fattura | Movimenti, costo medio | La fattura a magazzino non va sulla commessa; lo scarico sì: un costo solo | Nessuna | Rientro dal cantiere al costo d'uscita | Magazzino (B) | — | Area B | Test dell'area B |
-| **Bollette e utenze** | Non esiste | — | Vedi §4 | Lettura del PDF quando manca l'XML | Conguagli, note di credito, più utenze, doppioni | Nuovo modulo | Media | 3–4 lotti | Vedi §4 |
+| **Bollette e utenze** | Modulo fatto il 15/11 (§4) | POD/PDR, periodo, importi dall'XML | Lettura strutturata, regola doppione/conguaglio nel database | Nessuna (l'XML basta; PDF solo se un giorno arriva senza XML) | Conguagli, note di credito, più utenze, doppioni | Costi, Fatture ricevute | Media | Fatto | 92/93 bollette vere lette e quadrate |
 | **Documento approvato immutabile** | Verbale SAL con impronta (`pdf_sha256`), contratto firmato, preventivo firmato = contratto | — | Già così per SAL, contratti, preventivi; il controllo fattura non scrive niente senza un clic | — | — | — | — | Esistente | — |
 
 ## 3. Lotto 1 — fatto il 15/11/2026
@@ -78,8 +78,10 @@ spento di base; docs/automazioni-acquisti.md §3).
   una riga nella traccia (una persona ha deciso: una regola non la contraddice). Le controlla
   col motore (`shared/subappalti/controlloFattura.ts`, lo stesso della scheda; `decidiGiro`
   considera già collegate le fatture decise prima nello stesso giro) e collega solo le
-  «unico e verificato» con `subappalto_collega_fattura(…, 'automatico')`. Tetto di 40 fatture
-  per giro, le più recenti prima; nessuna AI (l'esito `senza_ai` va in «Consumo AI del team»).
+  «unico e verificato» con `subappalto_collega_fattura(…, 'automatico')`. Tetto di 40
+  collegamenti scritti per giro (le automatiche in più passano al giro dopo); le fatture che
+  restano proposte non tolgono il posto, e ogni giro guarda tutte le aziende accese (fino a 500
+  fatture ciascuna); nessuna AI (l'esito `senza_ai` va in «Consumo AI del team»).
   Dal service role la funzione SQL accetta solo `automatico`, non scollega, e nella traccia
   l'autore è il processo `subappalti-collega-fatture` (migrazione
   `20290415140000_subappalto_collega_fattura_dal_servizio`). Test: `subappaltiCollegaFattureGiro.test.ts`.
@@ -108,47 +110,63 @@ anteprima 4 fatture risultavano in conflitto perché citavano «contratto n. 07�
 archivio non ha numero: ora è una proposta con avviso (`contratto_senza_numero`), e il numero
 breve («02 del 15/09/2025 — commessa 06/2025») si riconosce dalla fattura che scrive «n. 02».
 
-## 4. Bollette e utenze — proposta (il modulo non esiste)
+## 4. Bollette e utenze — fatto il 15/11/2026
 
-Tabelle (tutte con `company_id`, RLS per azienda, nate con `REVOKE ALL … FROM PUBLIC, anon`):
+Una bolletta **è** una fattura ricevuta: nessun secondo registro di costi. Il modulo aggiunge
+quello che la fattura non sa.
 
-- `utenze`: fornitore (`fornitore_id`), tipo (luce, gas, acqua, telefono), **POD** (luce) / **PDR**
-  (gas) / codice cliente, intestatario, numero contratto, indirizzo di fornitura (solo supporto),
-  collegamento verificato a sede / immobile (`unita` di sviluppo immobiliare) / commessa
-  (cantiere), con `collegato_da`, `collegato_il`, `regola`, `valido_dal`/`valido_al`
-  (un contatore di cantiere passa da una commessa all'altra). Unico: `(company_id, pod_pdr)`.
-- `bollette`: la fattura ricevuta (`fattura_ricevuta_id`, una bolletta **è** una fattura
-  ricevuta: niente secondo registro di costi), numero, emissione, scadenza, tipo (ordinaria,
-  conguaglio, nota di credito, rettifica).
-- `bollette_utenze`: una riga per utenza dentro la bolletta (più POD nello stesso documento):
-  periodo `dal`/`al`, consumi, importo, componenti (energia, trasporto, oneri, imposte, canone)
-  in `jsonb`, letture effettive o stimate.
+**Tabelle** (migrazione `20290415160000_bollette_utenze`; lettura per chi vede i costi, scrittura
+solo dalle funzioni):
+- `utenze`: una per POD (luce) / PDR (gas) per azienda, unica su `(company_id, codice_chiave)`.
+  Il codice identifica il contatore anche quando cambia il fornitore; indirizzo di fornitura
+  (`Ind.POD` nell'XML) solo come aiuto.
+- `utenze_destinazioni`: sede (`sedi`), immobile (`unita_immobiliari`, il costo va alla sua
+  commessa) o commessa, con `valido_dal`/`valido_al`: un contatore di cantiere passa da una
+  commessa all'altra. La decide una persona (`utenza_collega_destinazione`): l'indirizzo non
+  basta mai da solo.
+- `bollette` (una per fattura) e `bollette_righe` (una per utenza: più utenze nello stesso
+  documento), con periodo, consumo, importo, letture stimate/effettive, righe della fattura.
 
-Riconoscimento, in quest'ordine, senza AI:
+**Lettura senza AI** (`shared/bollette/lettura.ts`, sul lettore `leggiRiferimentiFattura` della
+B): `CodiceArticolo` POD/PDR in ogni riga, oppure nel testo (PDR solo se etichettato), oppure
+nella causale o al posto del numero di contratto; periodo dalle date della riga o dal mese
+scritto («consumi gennaio 2025»); righe senza codice (bollo, canone) all'unica utenza o in
+proporzione. Sulle 93 fatture vere: 92 con utenze e tutte con la somma uguale all'imponibile.
 
-1. XML FatturaPA: il POD/PDR sta quasi sempre in `AltriDatiGestionali` o nelle descrizioni;
-   parser per `IT\d{3}E\d{8}` (POD) e 14 cifre (PDR). Periodo e letture dalle descrizioni.
-2. Utenza già registrata con quel POD/PDR → collegamento automatico (unico e verificato).
-3. POD/PDR nuovo, stesso fornitore e intestatario → proposta di nuova utenza; indirizzo di
-   fornitura confrontato con sedi, immobili e cantieri come supporto, mai da solo.
-4. AI solo se manca l'XML e il PDF non ha testo, e solo sulla pagina del riepilogo.
+**Regola doppione / conguaglio** (`bolletta_registra`, nel database, sotto un lock per azienda):
+- stesso fornitore, numero e anno → stesso documento, doppione;
+- stessa utenza, periodo sovrapposto, stesso importo, entrambe ordinarie → doppione sospetto:
+  niente costo finché una persona non decide (`bolletta_decidi`: «non è un doppione» / «scarta»);
+- conguaglio (dichiarato, o letture effettive su un periodo con letture stimate) → rettifica
+  legittima delle bollette coperte, che restano;
+- nota di credito → storna le bollette che cita;
+- periodi sovrapposti con importi diversi → avviso.
 
-Doppione o conguaglio:
+**Costo** (`bolletta_applica_costo`): tutte le righe con destinazione → la fattura va sulla
+commessa, o in `allocations` fra più commesse in proporzione; tutto su sedi → costo generale;
+parte e parte → da ripartire a mano; costo già assegnato da una persona → non si tocca; fattura
+non contabilizzata → `order_id_suggerito`. Una scrittura della regola segue l'interruttore del
+collegamento automatico; ogni collegamento va nella traccia (`bolletta_utenza_destinazione`).
 
-- **Doppione**: stesso fornitore, stesso numero documento e anno → è la stessa fattura (lo
-  scarta già l'impronta dell'XML); stesso POD, **stesso periodo** e stesso importo con numero
-  diverso → doppione probabile, si blocca e si chiede.
-- **Conguaglio legittimo**: tipo conguaglio o letture effettive dopo stimate, periodo che
-  copre periodi già fatturati: l'importo del conguaglio è la differenza, i periodi stimati non
-  si annullano. Si mostra il periodo coperto e le bollette che rettifica.
-- **Nota di credito** (TD04): riduce la bolletta che cita; periodi sovrapposti ammessi.
-- Periodi sovrapposti fra bollette ordinarie della stessa utenza → avviso.
+**Giro del server** `bollette-riconosci` (`bollette_da_leggere`: ogni fattura ricevuta degli ultimi
+120 giorni si esamina una volta sola e si segna in `bollette_viste`, 200 nuove per giro; quelle
+con POD/PDR non ancora lette tornano al giro, 30 alla volta. Misurato: da 4,8 s a 65 ms per giro).
+Un valore non leggibile nella lettura non ferma il giro: diventa vuoto, con l'avviso
+`valore_non_valido` (20290415190000). **Interfaccia**: Costi → Utenze
+(elenco, collegamento con data, bollette da decidere), riga «Bolletta» nella fattura ricevuta,
+riga in Impostazioni → Automazioni.
 
-Conseguenze: costo sulla commessa (contatore di cantiere) o costo generale della sede, ripartito
-per giorni del periodo se l'utenza ha cambiato commessa a metà; scadenza nello scadenzario (C).
+**Storico**: anteprima in una transazione annullata, poi scrittura a lotti di 30 con
+`lock_timeout`/`statement_timeout`. 93 fatture in 2 aziende: 92 riconosciute, 1 senza utenze,
+0 doppioni, 1 nota di credito con la sua bolletta, 3 periodi sovrapposti (avviso), 6 utenze.
+Nessun costo toccato: le utenze aspettano la destinazione («da collegare»).
 
-Criterio di accettazione: una bolletta con POD già associato si collega senza AI e senza clic;
-un conguaglio non viene scambiato per doppione; un doppione non entra due volte nei costi.
+Test: `bolletteSql.test.ts` (18 casi su PGlite, migrazione vera), `bolletteLettura.test.ts`
+(lettura e giro), `utenzeTab.test.tsx`, `impostazioniAutomazioni.test.tsx`.
+
+Restano fuori: acqua e telefono (il codice cliente non ha un formato riconoscibile: si possono
+aggiungere a mano quando servirà la riga), la proposta di destinazione dall'indirizzo di
+fornitura (oggi si mostra l'indirizzo, la scelta è della persona).
 
 ## 5. Lacune trovate, non ancora corrette
 
@@ -170,8 +188,11 @@ un conguaglio non viene scambiato per doppione; un doppione non entra due volte 
      restano come sono, e la scheda dice quanti hanno ancora il costo di prima. Aggiornarli è un
      passaggio esplicito ancora da costruire;
    - `rapportino_costo_recupera` (il costo che mancava e arriva dopo) usa il primo costo noto.
-2. **Periodo del SAL del subappaltatore**: c'è solo `data_emissione`. Con `periodo_dal`/`periodo_al`
-   sul SAL la sovrapposizione si controlla anche quando la fattura non scrive il periodo.
+2. ~~**Periodo del SAL del subappaltatore**~~ — **fatto il 15/11/2026** senza colonne nuove: il
+   periodo del SAL si ricava dalle date di emissione (dal giorno dopo il SAL precedente alla data
+   di questo), e una fattura che dichiara lavori dopo la data del SAL che cita ha l'avviso
+   `periodo_fuori_sal` («forse è del SAL successivo»). Il collegamento fatto dalla scheda del
+   subappaltatore lascia ora nella traccia la prova della scelta.
 3. ~~**Acconto al subappaltatore**~~ — **fatto il 15/11/2026** (migrazione
    `20290415120000_subappalto_acconto`):
    - sul contratto `acconto_importo` (campo «Acconto» nella scheda) e `acconto_recupero_pct`
