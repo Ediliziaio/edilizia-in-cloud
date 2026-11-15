@@ -155,6 +155,7 @@ const CATEGORIE = [
 ];
 
 export function CespitiEditor() {
+  const annoCorrente = new Date().getFullYear();
   const q = useCespiti();
   const aggiungi = useAggiungiCespite();
   const dismetti = useDismettiCespite();
@@ -166,18 +167,28 @@ export function CespitiEditor() {
     costo: "",
     aliquota: "20",
     fondo: "",
+    annoFondo: String(annoCorrente),
   });
 
   const handleAggiungi = async () => {
     const costo = parseImportoIt(nuovo.costo);
     const fondo = parseImportoIt(nuovo.fondo) ?? 0;
     const aliquota = Number(nuovo.aliquota.replace(",", "."));
+    const annoFondo = Number(nuovo.annoFondo);
     if (!nuovo.descrizione.trim() || !nuovo.data_acquisto || costo === null || Number.isNaN(costo) || costo < 0) {
       toast({ title: "Mancano dati", description: "Servono descrizione, data di acquisto e costo.", variant: "destructive" });
       return;
     }
-    if (!Number.isFinite(aliquota) || aliquota < 0 || aliquota > 100 || Number.isNaN(fondo) || fondo < 0) {
-      toast({ title: "Valori non validi", description: "L'aliquota va da 0 a 100, il fondo non può essere negativo.", variant: "destructive" });
+    if (!Number.isFinite(aliquota) || aliquota < 0 || aliquota > 100 || Number.isNaN(fondo) || fondo < 0 || fondo > costo) {
+      toast({ title: "Valori non validi", description: "L'aliquota va da 0 a 100; il già ammortizzato non può essere negativo né superare il costo.", variant: "destructive" });
+      return;
+    }
+    if (fondo > 0 && (!Number.isInteger(annoFondo) || annoFondo <= Number(nuovo.data_acquisto.slice(0, 4)) || annoFondo > annoCorrente + 1)) {
+      toast({
+        title: "Anno del già ammortizzato",
+        description: "Il già ammortizzato è quello al 1° gennaio di un anno successivo all'acquisto (al più il prossimo).",
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -188,8 +199,11 @@ export function CespitiEditor() {
         costo_storico: costo,
         aliquota_amm: aliquota,
         fondo_amm: fondo,
+        // Il calcolo degli ammortamenti parte dal fondo noto a quella data (stesso dato del registro cespiti).
+        fondo_iniziale: fondo > 0 ? fondo : null,
+        fondo_iniziale_anno: fondo > 0 ? annoFondo : null,
       });
-      setNuovo({ descrizione: "", categoria: "materiale", data_acquisto: "", costo: "", aliquota: "20", fondo: "" });
+      setNuovo({ descrizione: "", categoria: "materiale", data_acquisto: "", costo: "", aliquota: "20", fondo: "", annoFondo: String(annoCorrente) });
       toast({ title: "Bene aggiunto" });
     } catch (e) {
       toast({ title: "Bene non aggiunto", description: e instanceof Error ? e.message : "Riprova.", variant: "destructive" });
@@ -199,7 +213,7 @@ export function CespitiEditor() {
   const handleDismetti = async (id: string, descrizione: string) => {
     try {
       await dismetti.mutateAsync(id);
-      toast({ title: `«${descrizione}» tolto dal calcolo` });
+      toast({ title: `«${descrizione}» dismesso da oggi`, description: "Gli anni in cui c'era restano invariati." });
     } catch (e) {
       toast({ title: "Operazione non riuscita", description: e instanceof Error ? e.message : "Riprova.", variant: "destructive" });
     }
@@ -281,7 +295,15 @@ export function CespitiEditor() {
             <Input id="ces-fondo" inputMode="decimal" placeholder="0" value={nuovo.fondo}
               onChange={(e) => setNuovo((n) => ({ ...n, fondo: e.target.value }))} />
           </div>
-          <div className="flex items-end sm:col-span-2 lg:col-span-4">
+          <div>
+            <Label className="text-xs" htmlFor="ces-fondo-anno" title="Il fondo ammortamento del bene a quella data, per esempio dal bilancio dell'anno prima.">
+              al 1° gennaio del
+            </Label>
+            <Input id="ces-fondo-anno" inputMode="numeric" value={nuovo.annoFondo}
+              disabled={!nuovo.fondo.trim()}
+              onChange={(e) => setNuovo((n) => ({ ...n, annoFondo: e.target.value.replace(/\D/g, "").slice(0, 4) }))} />
+          </div>
+          <div className="flex items-end sm:col-span-2 lg:col-span-3">
             <Button size="sm" className="gap-1.5" onClick={handleAggiungi} disabled={aggiungi.isPending}>
               <Plus className="h-4 w-4" /> Aggiungi bene
             </Button>

@@ -127,6 +127,9 @@ export interface NuovoCespite {
   costo_storico: number;
   aliquota_amm: number;
   fondo_amm: number;
+  /** Fondo noto al 1° gennaio di `fondo_iniziale_anno`: da lì gli ammortamenti partono da questo. */
+  fondo_iniziale: number | null;
+  fondo_iniziale_anno: number | null;
 }
 
 export function useAggiungiCespite() {
@@ -142,7 +145,10 @@ export function useAggiungiCespite() {
   });
 }
 
-/** Toglie un cespite dal calcolo (non lo cancella: resta in archivio). */
+/**
+ * Segna il cespite come dismesso oggi (non lo cancella). Gli ammortamenti e il valore
+ * degli anni in cui c'era restano: conta fino alla data di dismissione.
+ */
 export function useDismettiCespite() {
   const qc = useQueryClient();
   return useMutation({

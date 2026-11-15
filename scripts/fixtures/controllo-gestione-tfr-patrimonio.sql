@@ -38,6 +38,12 @@ insert into cg_tfr_movimenti(company_id, employee_id, tipo, data, importo)
   values ('c9000000-0000-4000-a000-000000000001', 'c9000000-0000-4000-a000-00000000000a', 'liquidazione', '2025-06-30', 1000);
 insert into cg_tfr_destinazioni(employee_id, company_id, destinazione, dal)
   values ('c9000000-0000-4000-a000-00000000000b', 'c9000000-0000-4000-a000-000000000001', 'fondo_pensione', '2025-07-01');
+-- Ammortamenti (20290401240000): 12.000 al 20% = 200 al mese dal 1/3/2024; fondo noto al 1/1/2025
+-- 2.500 (la stima dava 2.000); dismesso il 30/6/2025.
+insert into cespiti(company_id, descrizione, categoria, data_acquisto, costo_storico, aliquota_amm,
+                    fondo_iniziale, fondo_iniziale_anno, is_active, data_dismissione)
+  values ('c9000000-0000-4000-a000-000000000001', 'Autocarro di prova', 'materiale', '2024-03-01', 12000, 20,
+          2500, 2025, false, '2025-06-30');
 set local session_replication_role = origin;
 
 set local request.jwt.claims = '{"role":"authenticated","sub":"c9000000-0000-4000-a000-000000000002"}';
@@ -60,8 +66,30 @@ begin
   v_det := (public.cg_get_dettaglio_voce_mese(c, 2025, null, '06') -> 'meta' ->> 'totale')::numeric;
   if v_det is distinct from v_ce then raise exception 'Dettaglio 06 2025: % diverso dal CE %', v_det, v_ce; end if;
 
+  -- Ammortamenti: 2024 dieci quote stimate, 2025 sei quote fino alla dismissione; dettaglio e mesi uguali.
+  select (v ->> 'valore')::numeric into v_ce
+    from jsonb_array_elements(public.cg_get_conto_economico_riclassificato(c, 2024) -> 'voci') v where v ->> 'codice' = '09';
+  if v_ce is distinct from 2000.00 then raise exception 'CE 09 2024: atteso 2000.00, trovato %', v_ce; end if;
+  select (v ->> 'valore')::numeric into v_ce
+    from jsonb_array_elements(public.cg_get_conto_economico_riclassificato(c, 2025) -> 'voci') v where v ->> 'codice' = '09';
+  if v_ce is distinct from 1200.00 then raise exception 'CE 09 2025: atteso 1200.00, trovato %', v_ce; end if;
+  v_det := (public.cg_get_dettaglio_voce_mese(c, 2025, null, '09') -> 'meta' ->> 'totale')::numeric;
+  if v_det is distinct from v_ce then raise exception 'Dettaglio 09 2025: % diverso dal CE %', v_det, v_ce; end if;
+  select sum((v ->> 'valore')::numeric) into v_mesi
+    from generate_series(1, 12) m, jsonb_array_elements(public.cg_get_conto_economico_riclassificato(c, 2025, m, m) -> 'voci') v
+   where v ->> 'codice' = '09';
+  if v_mesi is distinct from v_ce then raise exception 'CE 09 2025: somma dei mesi % diversa dall''anno %', v_mesi, v_ce; end if;
+  -- Al 31/12/2024 vale già il fondo noto al 1/1/2025; a fine 2025 il bene non c'è più.
+  sp := public.cg_get_stato_patrimoniale_riclassificato(c, 2024, '2024-12-31');
+  if (sp -> 'attivo' ->> 'imm_materiali')::numeric is distinct from 9500.00 then
+    raise exception 'Immobilizzazioni al 31/12/2024: attese 9500, trovate %', sp -> 'attivo' ->> 'imm_materiali';
+  end if;
+
   -- Stato patrimoniale al 31/12/2025.
   sp := public.cg_get_stato_patrimoniale_riclassificato(c, 2025, '2025-12-31');
+  if (sp -> 'attivo' ->> 'imm_materiali')::numeric is distinct from 0 then
+    raise exception 'Immobilizzazioni al 31/12/2025 (bene dismesso): attese 0, trovate %', sp -> 'attivo' ->> 'imm_materiali';
+  end if;
   p := sp -> 'meta' -> 'patrimonio';
   if (p ->> 'tfr_maturato')::numeric is distinct from 3000.00 then raise exception 'TFR maturato in azienda: atteso 3000, trovato %', p ->> 'tfr_maturato'; end if;
   if (p ->> 'tfr_ai_fondi')::numeric is distinct from 600.00 then raise exception 'TFR ai fondi: atteso 600, trovato %', p ->> 'tfr_ai_fondi'; end if;
