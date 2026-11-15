@@ -15,6 +15,8 @@ DO $do$
 DECLARE src text; pairs text[][]; a text; b text;
 BEGIN
  SELECT prosrc INTO src FROM pg_proc WHERE oid='private.tes_classifica(uuid,uuid)'::regprocedure;
+ -- Rilanciata a mano non deve applicare due volte le sostituzioni: se c'è già il testo nuovo, non fa niente.
+ IF position('nota_ricevuta' IN src)>0 THEN RETURN; END IF;
  pairs:=ARRAY[
   -- nota di credito ricevuta fra i candidati delle uscite
   ARRAY[$a$  UNION ALL

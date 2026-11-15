@@ -16,7 +16,8 @@ import { FormPagante } from "@/components/tesoreria/RiferimentiVerificati";
  * movimento dice com'è messo (pronto, proposta, scelta, conflitto, da gestire),
  * di che natura è, perché, cosa manca, e le alternative di abbinamento. Le righe
  * delle alternative si confermano con la conferma di sempre
- * (bank_conferma_ripartizione), che ricontrolla residui e concorrenza.
+ * (bank_conferma_ripartizione, via tesoreria_conferma_alternativa che registra anche le fatture
+ * importate), che ricontrolla residui e concorrenza.
  */
 
 export type EsitoCodice = "automatico" | "proposta" | "scelta" | "conflitto" | "da_gestire";
@@ -87,6 +88,12 @@ const EVENTO_STORIA: Record<string, string> = {
 const testoConflitto = (c: string | { titolo?: string; motivi?: string[] }) =>
   typeof c === "string" ? c : [c.titolo, ...(c.motivi ?? [])].filter(Boolean).join(": ");
 
+/** Il gestionale esterno non ha risposto: lo ritenta il giro della banca (tesoreria_riallineo_esterno). */
+async function segnaDaRiallineare(company: string, m: BankMovement, esterne: { invoice_id: string }[]) {
+  for (const e of esterne)
+    await bankRpc("tesoreria_riallineo_segna", { p_company: company, p_invoice: e.invoice_id, p_tx: m.id, p_paid_date: m.booking_date, p_errore: "aggiornamento dall'interfaccia non riuscito" }).catch((): undefined => undefined);
+}
+
 /** Si conferma da qui solo un'alternativa fatta di fatture e scadenze con quota positiva. */
 export const confermabile = (c: CandidatoEsito) =>
   c.righe.length > 0 && c.righe.every((r) => ["documento", "invoice", "scadenza"].includes(r.tipo) && Number(r.quota) > 0);
@@ -135,12 +142,14 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
   // Conflitto «pagante diverso»: si risolve registrando il rapporto, con la prova.
   const [rapporto, setRapporto] = useState<{ intestatario: string; pagante: string } | null>(null);
   const paganteDiverso = (testo: string) => {
-    const x = /Il pagante «(.+?)» non è l'intestatario «(.+?)»/.exec(testo);
+    const x = /Il (?:pagante|beneficiario) «(.+?)» non è (?:l'intestatario|il fornitore) «(.+?)»/.exec(testo);
     return x ? { pagante: x[1], intestatario: x[2] } : null;
   };
   // «Unico e verificato» su una fattura o un giroconto: si conferma con un clic, a nome di chi clicca.
   // Il database ricontrolla tutto e rifiuta se l'esito non è più quello (messaggio mostrato così com'è).
-  const confermaClic = puoScrivere && !esito.scartato_at && esito.esito === "automatico" && ["documento", "giroconto"].includes(esito.natura);
+  // Si confermano da qui gli incassi e i giroconti: un'uscita «certa» passa dalla conferma delle alternative.
+  const confermaClic = puoScrivere && !esito.scartato_at && esito.esito === "automatico"
+    && (esito.natura === "giroconto" || (esito.natura === "documento" && Number(m.amount) > 0));
   async function confermaEsito() {
     if (inCorso) return;
     setInCorso(true);
@@ -152,6 +161,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
       salvato = true;
       // Fattura importata: il gestionale esterno si allinea dopo il salvataggio, mai prima.
       const falliti = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result: result ?? {} }]);
+      if (falliti.length) await segnaDaRiallineare(company, m, result?.esterne ?? []);
       toast.success(esito.natura === "giroconto" ? "Giroconto confermato" : "Collegamento confermato");
       if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
       onCambiato();
@@ -199,7 +209,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
         );
       })}
       {rapporto && (
-        <FormPagante companyId={company} iniziale={{ ...rapporto, iban: m.debtor_iban }}
+        <FormPagante companyId={company} iniziale={{ ...rapporto, iban: Number(m.amount) > 0 ? (m.debtor_iban || m.counterparty_iban) : (m.creditor_iban || m.counterparty_iban) }}
           onFatto={() => { setRapporto(null); onCambiato(); }} onAnnulla={() => setRapporto(null)} />
       )}
       {(esito.mancanti ?? []).map((c, i) => (
@@ -266,10 +276,11 @@ export function AlternativeEsito({ company, movement: m, esito, puoAbbinare, onA
     try {
       const righe = c.righe.map((r) => ({ tipo: r.tipo, id: r.id, importo: Math.round(Number(r.quota) * 100) / 100 }));
       const result = await bankRpc<{ esterne?: { invoice_id: string; provider: string; saldata: boolean; importo: number; numero: string }[] }>(
-        "bank_conferma_ripartizione", { p_company: company, p_tx: m.id, p_rows: righe, p_note: null },
+        "tesoreria_conferma_alternativa", { p_company: company, p_tx: m.id, p_rows: righe, p_note: null },
       );
       salvato = true;
       const falliti = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result }]);
+      if (falliti.length) await segnaDaRiallineare(company, m, result?.esterne ?? []);
       toast.success(c.righe.length === 1 ? `Collegato a ${c.righe[0].titolo}` : `Collegato a ${c.righe.length} documenti`);
       if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
     } catch (err) {

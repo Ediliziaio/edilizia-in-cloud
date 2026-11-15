@@ -9,6 +9,8 @@ DO $do$
 DECLARE src text; a text; b text;
 BEGIN
  SELECT prosrc INTO src FROM pg_proc WHERE oid='public.cdg_controllo_doppi(uuid)'::regprocedure;
+ -- Rilanciata a mano non deve applicare due volte le sostituzioni: se c'è già il testo nuovo, non fa niente.
+ IF position('Incassato il lordo' IN src)>0 THEN RETURN; END IF;
  a:=$a$'descrizione',format('Fattura %s: incassati %s € su %s €',d.numero,d.importo_pagato,d.totale_da_pagare),'cosa_fare','Controllare gli incassi doppi della fattura'))
   FROM public.documenti_fiscali_elenco_operativo d WHERE d.company_id=p_company AND d.deleted_at IS NULL AND d.tipo<>'nota_credito' AND d.totale_da_pagare>0 AND coalesce(d.importo_pagato,0)>d.totale_da_pagare+0.005),'[]');$a$;
  b:=$b$'descrizione',format('Fattura %s: incassati %s € su %s €',d.numero,d.importo_pagato,d.totale_da_pagare),

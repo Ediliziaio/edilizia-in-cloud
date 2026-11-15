@@ -373,6 +373,45 @@ Tesoreria» ha lasciato le schermate a questa area.
   (`ControlliDoppiCard.tsx`): i rilievi di `cdg_controllo_doppi` con titolo, importo e cosa fare.
 - Test: `src/test/ui/tesoreriaRiferimentiVerificati.test.tsx`.
 
+### Revisione finale (15/11/2026)
+
+Migrazione `20290404324000_tesoreria_revisione_finale`: ogni funzione toccata è ridefinita per
+intero, quindi si può rilanciare. Undici difetti trovati in revisione, tutti verificati veri:
+
+1. **Scarto legato al candidato**: `tesoreria_esiti.scartato_chiavi` ricorda i candidati scartati.
+   Il ricalcolo toglie lo scarto solo se compare un candidato nuovo; un candidato scartato non si
+   conferma mai, né dal cron né col clic.
+2. **R-DOC automatico solo senza conflitti**: se un altro candidato è in conflitto (per esempio un
+   IBAN verificato di un altro cliente) l'esito è «proposta»; la conferma rifiuta esiti con conflitti.
+3. **Le uscite «automatico» non si confermano da qui**: giro, «in attesa» e pulsante «Conferma»
+   considerano solo incassi e giroconti. R-GIRO non propone gambe già chiuse, riconciliate o con quote.
+4. **Guardia sul costo doppio**: blocca il caso verificato (residuo esatto + IBAN confermato o numero
+   in causale); se il fornitore, scelto o riconosciuto dall'IBAN del movimento, ha un debito aperto
+   con residuo ≥ importo, **avvisa senza bloccare**. Il controllo 3 di `cdg_controllo_doppi` trova
+   anche i pagamenti parziali e le spese senza fornitore (dall'IBAN).
+5. **Previsioni**: a interruttore spento la sostituzione resta una proposta (`scadenze_sostituzioni.stato
+   = 'proposta'`, previsione invariata) e il controllo 4 dice di confermarla. Se la scadenza reale
+   viene annullata o cancellata, la previsione torna com'era (trigger `tes_reale_sparita`, FK
+   `ON DELETE SET NULL`); non scatta durante la purga di un'azienda.
+6. **Fatture importate**: il motore emette righe `invoice`; dal Dettaglio movimento le alternative si
+   confermano con `tesoreria_conferma_alternativa` (conferma + `bank_record_imported`).
+7. **Gestionale esterno non allineato**: un write-back fallito si segna in
+   `tesoreria_riallineo_esterno` (`tesoreria_riallineo_segna`) e il cron `bank-auto-reconcile` lo
+   ritenta a ogni giro (fino a 20 volte), poi lo chiude con `tesoreria_riallineo_risolto`.
+8. **Migrazioni a sostituzione di testo** (312, 318, 319, 322): rilanciate a mano non applicano due
+   volte le sostituzioni (controllo sul testo già presente).
+9. `payment_source` letto con `tes_uuid` (un valore non uuid non rompe più); IBAN della controparte
+   anche da `counterparty_iban`, nel motore e in «Ricorda questo IBAN»; il pannello CdG tace solo
+   senza permesso (42501) e mostra gli altri errori; i moduli del pagante hanno id distinti.
+10. **Uscite**: il conflitto parla di «beneficiario» e il modulo si precompila con l'IBAN del
+    beneficiario, non con quello dell'azienda.
+11. **Pagante senza doppioni** (indice unico, la seconda registrazione restituisce la prima);
+    l'anteprima della classificazione è riservata a chi può riconciliare.
+
+Verifica: 22 funzioni in produzione con impronta uguale al file; classificazione di tutti i 1.566
+movimenti di Demo Azienda 2 senza errori. Test: `tesoreriaEsitiRiconciliazione.test.ts`
+(«Revisione finale»), `esitoMovimento.test.tsx`, `tesoreriaRiferimentiVerificati.test.tsx`.
+
 ### Copertura del §7.10, §7.15 e §7.18 (15/11/2026)
 
 | Caso | Dove | Test |

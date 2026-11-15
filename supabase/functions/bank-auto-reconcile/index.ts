@@ -35,8 +35,8 @@ serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
    if(esiti.error)errors.push(`${id}: esiti ${esiti.error.message}`);else classified.push({company_id:id,...(esiti.data as Record<string,unknown>)});
    // Conferma automatica: solo dove l'azienda l'ha accesa, per conto di chi l'ha autorizzata.
    const conferme=await client.rpc("tesoreria_conferma_automatica",{p_company:id,p_limite:50});
-   if(conferme.error){errors.push(`${id}: conferme ${conferme.error.message}`);continue;}
-   confirmed.push({company_id:id,...(conferme.data as Record<string,unknown>)});
+   // Un errore delle conferme non salta i riallineamenti arretrati qui sotto.
+   if(conferme.error)errors.push(`${id}: conferme ${conferme.error.message}`);else confirmed.push({company_id:id,...(conferme.data as Record<string,unknown>)});
    const confermatiEsterne=((conferme.data as {confermati?:{transaction_id?:string;esterne?:{invoice_id?:string}[]}[]}|null)?.confermati??[]).filter(c=>(c.esterne??[]).length>0);
    // La data del pagamento su Fatture in Cloud è quella del movimento in banca, non quella del giro.
    const date=new Map<string,string>();
@@ -44,14 +44,22 @@ serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
     const {data:righe}=await admin.from("bank_transactions").select("id,booking_date").in("id",confermatiEsterne.map(c=>c.transaction_id!).filter(Boolean));
     for(const r of righe??[])if(r.booking_date)date.set(r.id,r.booking_date);
    }
-   const esterne=confermatiEsterne.flatMap(c=>(c.esterne??[]).map(e=>({...e,paid_date:c.transaction_id?date.get(c.transaction_id):undefined})));
-   for(const e of esterne){
-    if(!e.invoice_id)continue;
+   const nuove=confermatiEsterne.flatMap(c=>(c.esterne??[]).map(e=>({invoice_id:e.invoice_id,transaction_id:c.transaction_id,paid_date:c.transaction_id?date.get(c.transaction_id):undefined})));
+   // Più quelle rimaste indietro nei giri precedenti: il gestionale si allinea al valore assoluto del
+   // server, quindi riprovare non somma due volte.
+   const {data:arretrate}=await admin.rpc("tesoreria_riallineo_da_fare",{p_company:id,p_limite:20});
+   const daFare=new Map<string,{invoice_id:string;transaction_id?:string;paid_date?:string}>();
+   for(const a of (arretrate as {invoice_id:string;paid_date?:string|null}[]|null)??[])daFare.set(a.invoice_id,{invoice_id:a.invoice_id,paid_date:a.paid_date??undefined});
+   for(const e of nuove)if(e.invoice_id)daFare.set(e.invoice_id,{invoice_id:e.invoice_id,transaction_id:e.transaction_id,paid_date:e.paid_date});
+   for(const e of daFare.values()){
     const r=await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/billing-payment-push`,{method:"POST",
      headers:{"Content-Type":"application/json",Authorization:`Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`},
      body:JSON.stringify({invoice_id:e.invoice_id,azione:"allinea_banca",...(e.paid_date?{paid_date:e.paid_date}:{})})}).catch(()=>null);
     const esito=r?await r.json().catch(()=>null) as {ok?:boolean;skipped?:boolean;messaggio?:string}|null:null;
-    if(!esito||!(esito.ok||esito.skipped))errors.push(`${id}: gestionale esterno da riallineare per la fattura ${e.invoice_id}${esito?.messaggio?` (${esito.messaggio})`:""}`);
+    if(esito&&(esito.ok||esito.skipped)){await admin.rpc("tesoreria_riallineo_risolto",{p_company:id,p_invoice:e.invoice_id});continue;}
+    const messaggio=esito?.messaggio??"gestionale esterno non raggiungibile";
+    await admin.rpc("tesoreria_riallineo_segna",{p_company:id,p_invoice:e.invoice_id,p_tx:e.transaction_id??null,p_paid_date:e.paid_date??null,p_errore:messaggio});
+    errors.push(`${id}: gestionale esterno da riallineare per la fattura ${e.invoice_id} (${messaggio})`);
    }
   }
   return jsonResponse({success:errors.length===0,review_required:true,auto_matched:0,costs_matched:0,pending_review:proposals,proposals_created:proposals,esiti:classified,conferme:confirmed,errors},200,headers);

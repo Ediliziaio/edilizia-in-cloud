@@ -12,7 +12,7 @@ vi.mock("@/lib/finance/bankExternalPayments", () => ({ syncBankExternalPayments:
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mock.sbRpc } }));
 
-import { RiferimentiVerificati } from "@/components/tesoreria/RiferimentiVerificati";
+import { FormPagante, RiferimentiVerificati } from "@/components/tesoreria/RiferimentiVerificati";
 import { RigaEsitoMovimento, type EsitoMovimentoDati } from "@/components/tesoreria/EsitoMovimento";
 import { ControlliDoppiCard } from "@/components/controllo-gestione/ui/ControlliDoppiCard";
 
@@ -81,5 +81,36 @@ describe("Controllo di gestione: niente contato due volte", () => {
     mock.sbRpc.mockResolvedValueOnce({ data: [], error: null });
     render(conClient(<ControlliDoppiCard />));
     expect(await screen.findByText("Nessun doppio conteggio trovato.")).toBeInTheDocument();
+  });
+});
+
+describe("Revisione finale nell'interfaccia", () => {
+  it("sulle uscite il rapporto si precompila con l'IBAN del beneficiario, non con quello dell'azienda", () => {
+    const esito: EsitoMovimentoDati = { esito: "conflitto", natura: "documento", motivi: [], mancanti: [], candidati: [],
+      conflitti: [{ titolo: "Fattura 515", motivi: ["Il beneficiario «Factor Spa» non è il fornitore «Lambda Srl» e non c'è un rapporto documentato"] }] };
+    const uscita = { id: "u", amount: -300, currency: "EUR", debtor_iban: "IT00AZIENDA00000000000000001", creditor_iban: "IT99F0000000000000000000099", links: { remaining: 300 } } as never;
+    render(<RigaEsitoMovimento company="c" movement={uscita} esito={esito} puoScrivere onCambiato={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "Registra il rapporto" }));
+    expect(screen.getByLabelText("Intestatario delle fatture")).toHaveValue("Lambda Srl");
+    expect(screen.getByLabelText("Chi paga")).toHaveValue("Factor Spa");
+    expect(screen.getByLabelText("IBAN di chi paga (facoltativo)")).toHaveValue("IT99F0000000000000000000099");
+  });
+
+  it("il pannello CdG tace solo senza permesso; gli altri errori li mostra", async () => {
+    mock.sbRpc.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "Non hai il permesso" } });
+    const { container, unmount } = render(conClient(<ControlliDoppiCard />));
+    await waitFor(() => expect(mock.sbRpc).toHaveBeenCalled());
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    unmount();
+    mock.sbRpc.mockResolvedValueOnce({ data: null, error: { code: "57014", message: "statement timeout" } });
+    render(conClient(<ControlliDoppiCard />));
+    expect(await screen.findByText(/Controllo non riuscito: statement timeout/)).toBeInTheDocument();
+  });
+
+  it("due moduli del pagante nella stessa pagina hanno etichette distinte", () => {
+    render(<><FormPagante companyId="c" onFatto={() => undefined} /><FormPagante companyId="c" onFatto={() => undefined} /></>);
+    const campi = screen.getAllByLabelText("Chi paga");
+    expect(campi).toHaveLength(2);
+    expect(campi[0].id).not.toBe(campi[1].id);
   });
 });

@@ -111,6 +111,8 @@ DO $do$
 DECLARE src text; pairs text[][]; a text; b text;
 BEGIN
  SELECT prosrc INTO src FROM pg_proc WHERE oid='private.tes_classifica(uuid,uuid)'::regprocedure;
+ -- Rilanciata a mano non deve applicare due volte le sostituzioni: se c'è già il testo nuovo, non fa niente.
+ IF position('chiave_cli' IN src)>0 THEN RETURN; END IF;
  pairs:=ARRAY[
   ARRAY[$a$intermediario boolean:=false; n_soggetto int;$a$,$b$intermediario boolean:=false; n_soggetto int; chiave_cli text;$b$],
   ARRAY[$a$  verified:=false;

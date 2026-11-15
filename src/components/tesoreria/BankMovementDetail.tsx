@@ -362,7 +362,7 @@ function Detail({
                       <span className="shrink-0 font-semibold tabular-nums">{monetary(f.amount)}</span>
                       {/* Su un incasso già collegato a una fattura: l'IBAN dell'ordinante diventa la prova
                           che identifica quel cliente negli incassi futuri (tesoreria_ricorda_iban_da_quota). */}
-                      {write && f.id && m.amount > 0 && m.debtor_iban && (f.kind === "documento" || f.kind === "invoice") && (
+                      {write && f.id && m.amount > 0 && (m.debtor_iban || m.counterparty_iban) && (f.kind === "documento" || f.kind === "invoice") && (
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" disabled={busy}
                           title="Ricorda questo IBAN per il cliente della fattura" aria-label="Ricorda questo IBAN per il cliente della fattura"
                           onClick={() => void act(async () => {

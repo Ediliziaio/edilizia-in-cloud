@@ -44,6 +44,8 @@ DECLARE src text; a text:=$a$'\m(banca|bank|banco|bancaria|poste|qonto|unicredit
  b text:=$b$'^(banca|banco) |\m(bank|bancaria|poste italiane|bancoposta|qonto|unicredit|intesa sanpaolo|bnl|bper|credem|fineco|mediolanum|paypal|stripe|satispay|nexi|sumup|revolut|n26)\M'$b$;
 BEGIN
  SELECT prosrc INTO src FROM pg_proc WHERE oid='private.tes_classifica(uuid,uuid)'::regprocedure;
+ -- Rilanciata a mano non deve applicare due volte le sostituzioni: se c'è già il testo nuovo, non fa niente.
+ IF position('intesa sanpaolo' IN src)>0 THEN RETURN; END IF;
  IF (length(src)-length(replace(src,a,'')))/length(a)<>1 THEN RAISE EXCEPTION 'elenco intermediari non trovato'; END IF;
  src:=replace(src,a,b);
  EXECUTE 'CREATE OR REPLACE FUNCTION private.tes_classifica(p_company uuid,p_tx uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='''' AS '||quote_literal(src);

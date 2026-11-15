@@ -6,7 +6,7 @@
  *   della fattura vale solo con un rapporto scritto, con la prova (delega, contratto, mail).
  * docs/automazioni-tesoreria-cdg.md, lotto 4.
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Landmark, Plus, Trash2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +36,7 @@ export function FormPagante({ companyId, iniziale, onFatto, onAnnulla }: {
   const [iban, setIban] = useState(iniziale?.iban ?? "");
   const [prova, setProva] = useState("");
   const [salvo, setSalvo] = useState(false);
+  const uid = useId();
   const pronto = intestatario.trim().length >= 2 && (pagante.trim() || iban.trim()) && prova.trim().length >= 3;
   async function salva() {
     if (!pronto || salvo) return;
@@ -56,20 +57,20 @@ export function FormPagante({ companyId, iniziale, onFatto, onAnnulla }: {
   return (
     <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
       <div className="space-y-1">
-        <Label htmlFor="pagante-intestatario" className="text-xs">Intestatario delle fatture</Label>
-        <Input id="pagante-intestatario" value={intestatario} onChange={(e) => setIntestatario(e.target.value)} className="h-8" />
+        <Label htmlFor={`${uid}-pagante-intestatario`} className="text-xs">Intestatario delle fatture</Label>
+        <Input id={`${uid}-pagante-intestatario`} value={intestatario} onChange={(e) => setIntestatario(e.target.value)} className="h-8" />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="pagante-nome" className="text-xs">Chi paga</Label>
-        <Input id="pagante-nome" value={pagante} onChange={(e) => setPagante(e.target.value)} className="h-8" />
+        <Label htmlFor={`${uid}-pagante-nome`} className="text-xs">Chi paga</Label>
+        <Input id={`${uid}-pagante-nome`} value={pagante} onChange={(e) => setPagante(e.target.value)} className="h-8" />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="pagante-iban" className="text-xs">IBAN di chi paga (facoltativo)</Label>
-        <Input id="pagante-iban" value={iban ?? ""} onChange={(e) => setIban(e.target.value)} className="h-8 font-mono text-xs" />
+        <Label htmlFor={`${uid}-pagante-iban`} className="text-xs">IBAN di chi paga (facoltativo)</Label>
+        <Input id={`${uid}-pagante-iban`} value={iban ?? ""} onChange={(e) => setIban(e.target.value)} className="h-8 font-mono text-xs" />
       </div>
       <div className="space-y-1">
-        <Label htmlFor="pagante-prova" className="text-xs">Prova del rapporto</Label>
-        <Input id="pagante-prova" value={prova} onChange={(e) => setProva(e.target.value)} placeholder="Delega del 01/11, contratto, mail del cliente…" className="h-8" />
+        <Label htmlFor={`${uid}-pagante-prova`} className="text-xs">Prova del rapporto</Label>
+        <Input id={`${uid}-pagante-prova`} value={prova} onChange={(e) => setProva(e.target.value)} placeholder="Delega del 01/11, contratto, mail del cliente…" className="h-8" />
       </div>
       <div className="flex justify-end gap-2 sm:col-span-2">
         {onAnnulla && <Button size="sm" variant="ghost" onClick={onAnnulla}>Annulla</Button>}

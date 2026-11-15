@@ -55,6 +55,7 @@ async function scad(o: { amount: number; supplier?: string; desc: string; tipo?:
   return s;
 }
 const classifica = (t: string) => rpc("tesoreria_classifica_movimento", [company, t]);
+let rilancioUguale = false;
 
 beforeAll(async () => {
   await pg.exec(await readFile("src/test/fixtures/bankWorkspace.sql", "utf8"));
@@ -159,11 +160,19 @@ beforeAll(async () => {
   await pg.exec(await readFile("supabase/migrations/20290404321000_cdg_controllo_doppi_ordini_e_rate.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404322000_cdg_incassi_oltre_totale_affinato.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404323000_tesoreria_ricorda_iban_dalla_quota.sql", "utf8"));
+  await pg.exec(`alter table bank_transactions add column if not exists counterparty_iban text; alter table companies add column if not exists deleted_at timestamptz;`);
+  await pg.exec(await readFile("supabase/migrations/20290404324000_tesoreria_revisione_finale.sql", "utf8"));
+  // Rilanciare le migrazioni con sostituzioni di testo non deve cambiare niente (guardie sul testo nuovo).
+  const firme = async () => JSON.stringify((await pg.query<any>(`select proname, md5(prosrc) h from pg_proc where proname in ('tes_classifica','cdg_controllo_doppi','tes_spesa_da_banca_non_doppia') order by proname`)).rows);
+  const prima = await firme();
+  for (const f of ["20290404312000_tesoreria_guardia_solo_se_verificato","20290404318000_tesoreria_iban_clienti_e_paganti","20290404319000_tesoreria_note_ricevute_e_f24_multiple","20290404321000_cdg_controllo_doppi_ordini_e_rate","20290404322000_cdg_incassi_oltre_totale_affinato","20290404324000_tesoreria_revisione_finale"])
+    await pg.exec(await readFile(`supabase/migrations/${f}.sql`, "utf8"));
+  rilancioUguale = (await firme()) === prima;
 }, 60000);
 
 beforeEach(async () => {
   await pg.exec(`reset role;select set_config('test.user','${user}',false);select set_config('test.role','service_role',false);
-   truncate fattura_ricevuta_ordini,rate_fornitori,invoices,fatture_ricevute,note_credito_storni,tesoreria_iban_verificati,test_traccia,company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
+   truncate fattura_ricevuta_ordini,rate_fornitori,invoices,fatture_ricevute,note_credito_storni,tesoreria_riallineo_esterno,tesoreria_iban_verificati,test_traccia,company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
      documenti_fiscali,scadenze,suppliers,company_costs,fattura_ordine,orders,order_installments,fornitori_iban_storico,prima_nota_entries,test_permissions,companies cascade;
    insert into companies values('${company}'),('${other}');
    insert into test_permissions values('${company}',true,true,true);
@@ -453,6 +462,7 @@ describe("Controllo di gestione: niente doppi conteggi", () => {
   });
 
   it("la fattura sostituisce la previsione: 1.000 previsti + 800 reali = 1.000 di cassa", async () => {
+    await service(`insert into company_governance_settings values($1,true)`, [company]);
     const s = await supplier("Pi Forniture");
     const o = nid();
     const p = await scad({ amount: 1000, supplier: s, desc: "Previsione forniture", previsionale: true, order: o });
@@ -789,5 +799,135 @@ describe("Ricorda l'IBAN dalla quota del movimento", () => {
     const q2 = (await service(`insert into bank_reconciliations(company_id,transaction_id,invoice_id,matched_amount,regola) values($1,$2,$3,300,'manuale') returning id`, [company, t2, inv])).rows[0].id;
     // l'importata del test non ha P.IVA nello snapshot: arriva alla fattura e lo dice
     await expect(rpc("tesoreria_ricorda_iban_da_quota", [company, q2])).rejects.toThrow(/partita IVA/);
+  });
+});
+
+describe("Revisione finale", () => {
+  it("8. rilanciare le migrazioni con sostituzioni di testo non cambia le funzioni", () => {
+    expect(rilancioUguale).toBe(true);
+  });
+
+  it("1. lo scarto resta se cambia l'impronta ma non i candidati; un candidato scartato non si conferma mai", async () => {
+    const d = await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    await rpc("tesoreria_scarta_esito", [company, t, "Non è questa"]);
+    await service(`update documenti_fiscali set data_scadenza='2026-01-01' where id=$1`, [d]); // cambia i motivi, non i candidati
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    const e1 = (await service(`select scartato_at, scartato_chiavi from tesoreria_esiti where transaction_id=$1`, [t])).rows[0];
+    expect(e1.scartato_at).not.toBeNull();
+    const d2 = await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" }); // candidato nuovo, altrettanto forte
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    const e2 = (await service(`select scartato_at, scartato_chiavi from tesoreria_esiti where transaction_id=$1`, [t])).rows[0];
+    expect(e2.scartato_at).toBeNull(); // l'insieme è cambiato: lo scarto si toglie...
+    expect(e2.scartato_chiavi).toContain(`documento:${d}`); // ...ma il candidato scartato resta scartato
+    await service(`update documenti_fiscali set deleted_at=now() where id=$1`, [d2]);
+    expect((await classifica(t)).esito).toBe("automatico"); // torna «unico e verificato» proprio su quello scartato
+    await expect(rpc("tesoreria_conferma_esito", [company, t])).rejects.toThrow(/unico e verificato/);
+    expect((await service(`select count(*)::int n from bank_reconciliations where transaction_id=$1`, [t])).rows[0].n).toBe(0);
+  });
+
+  it("2. un altro candidato in conflitto toglie l'«automatico»", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    await doc({ numero: "12", anno: 2025, totale: 1000, cliente: "Alfa Costruzioni" });
+    const r = await classifica(await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" }));
+    expect(r.conflitti.length).toBeGreaterThan(0);
+    expect(r.esito).toBe("proposta");
+  });
+
+  it("3. le uscite «automatico» non bloccano il giro né contano in attesa; la gamba già chiusa non è un giroconto", async () => {
+    const f = await supplier("Omicron Srl");
+    await service(`insert into fornitori_iban_storico(company_id,fornitore_id,iban,confermato) values($1,$2,'IT33O0000000000000000000033',true)`, [company, f]);
+    await scad({ amount: 300, supplier: f, desc: "Fattura 88 Omicron" });
+    const u = await tx({ amount: 300, type: "debit", desc: "bonifico", name: "Omicron Srl", iban: "IT33O0000000000000000000033", date: "2026-11-01" });
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const i = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    expect((await classifica(u)).esito).toBe("automatico");
+    expect(await rpc("tesoreria_stato_automatismo", [company])).toMatchObject({ in_attesa: 1 });
+    await service(`update companies set titolare_user_id=$2 where id=$1`, [company, id(8)]);
+    await service(`insert into company_governance_settings values($1,true) on conflict(company_id) do update set collegamento_automatico=true`, [company]);
+    const giro = (await service(`select public.tesoreria_conferma_automatica($1,1) v`, [company])).rows[0].v; // LIMIT 1: deve arrivare all'incasso
+    expect(giro.confermati).toEqual([expect.objectContaining({ transaction_id: i })]);
+    const out = await tx({ amount: 5000, type: "debit", desc: "trasferimento", iban: IBAN_B, account: accA, date: "2026-11-10" });
+    const inn = await tx({ amount: 5000, type: "credit", desc: "trasferimento", iban: IBAN_A, account: accB, date: "2026-11-11" });
+    await service(`update bank_transactions set chiuso_senza_documento='nessun_costo', reconciliation_status='reconciled' where id=$1`, [inn]);
+    const g = await classifica(out);
+    expect(g.natura).toBe("giroconto");
+    expect(g.candidati).toEqual([]);
+  });
+
+  it("4. guardia: un parziale avvisa senza bloccare; il controllo 3 trova parziali e spese senza fornitore", async () => {
+    const f = await supplier("Phi Ponteggi", "IT88P0000000000000000000088");
+    await scad({ amount: 450, supplier: f, desc: "Fattura 123 Phi" });
+    const t1 = await tx({ amount: 200, type: "debit", desc: "acconto fattura 123", name: "Phi Ponteggi" });
+    await expect(service(`insert into company_costs(id,company_id,name,amount,supplier_id,senza_fattura,notes) values($1,$2,'Spesa',200,$3,true,$4)`, [nid(), company, f, `[BANCA:${t1}]`])).resolves.toBeTruthy();
+    const t2 = await tx({ amount: 100, type: "debit", desc: "bonifico", name: "Phi", iban: "IT88P0000000000000000000088" });
+    await service(`insert into company_costs(id,company_id,name,amount,senza_fattura,notes) values($1,$2,'Senza fornitore',100,true,$3)`, [nid(), company, `[BANCA:${t2}]`]);
+    const tre = (await rpc<any[]>("cdg_controllo_doppi", [company])).filter((x) => x.controllo === "spesa_da_banca_su_debito_aperto");
+    expect(tre.map((x) => Number(x.importo)).sort((a, b) => a - b)).toEqual([100, 200]);
+  });
+
+  it("5. interruttore spento: solo la proposta; la scadenza reale annullata o cancellata rimette la previsione", async () => {
+    const s = await supplier("Pi Forniture");
+    const o = nid();
+    const p = await scad({ amount: 1000, supplier: s, desc: "Previsione", previsionale: true, order: o });
+    const r1 = await scad({ amount: 800, supplier: s, desc: "Fattura 5 Pi", order: o });
+    expect(Number((await service(`select amount from scadenze where id=$1`, [p])).rows[0].amount)).toBe(1000);
+    expect((await service(`select stato from scadenze_sostituzioni where previsione_id=$1`, [p])).rows[0].stato).toBe("proposta");
+    expect((await rpc<any[]>("cdg_controllo_doppi", [company])).find((x) => x.controllo === "previsione_non_sostituita").cosa_fare).toMatch(/proposta/);
+    await rpc("tesoreria_sostituisci_previsione", [company, p, r1]); // conferma della proposta
+    expect(Number((await service(`select amount from scadenze where id=$1`, [p])).rows[0].amount)).toBe(200);
+    await service(`update scadenze set status='annullata' where id=$1`, [r1]);
+    expect(Number((await service(`select amount from scadenze where id=$1`, [p])).rows[0].amount)).toBe(1000);
+    await service(`insert into company_governance_settings values($1,true)`, [company]);
+    const r2 = await scad({ amount: 300, supplier: s, desc: "Fattura 6 Pi", order: o });
+    expect(Number((await service(`select amount from scadenze where id=$1`, [p])).rows[0].amount)).toBe(700);
+    await service(`delete from scadenze where id=$1`, [r2]);
+    expect(Number((await service(`select amount from scadenze where id=$1`, [p])).rows[0].amount)).toBe(1000);
+    expect((await service(`select count(*)::int n from scadenze_sostituzioni where previsione_id=$1`, [p])).rows[0].n).toBe(2);
+  });
+
+  it("6. fattura importata: riga 'invoice', e la conferma dell'alternativa passa dal registro delle importate", async () => {
+    const inv = nid();
+    await service(`insert into invoices(id,company_id,invoice_number,total,client_name,external_provider) values($1,$2,'FT-2026-0901',1200,'Kappa Costruzioni','fattureincloud')`, [inv, company]);
+    const t = await tx({ amount: 1200, type: "credit", desc: "bonifico", name: "Kappa Costruzioni" });
+    const r = await classifica(t);
+    expect(r.candidati[0].righe[0]).toMatchObject({ tipo: "invoice", id: inv });
+    const out = await rpc("tesoreria_conferma_alternativa", [company, t, [{ tipo: "invoice", id: inv, importo: 1200 }], null]);
+    expect(out.esterne).toEqual([expect.objectContaining({ invoice_id: inv, allinea: true })]);
+  });
+
+  it("7. gestionale esterno da riallineare: si segna, si ritenta, si chiude", async () => {
+    const inv = nid();
+    await service(`insert into invoices(id,company_id,invoice_number,total) values($1,$2,'FT-1',100)`, [inv, company]);
+    await rpc("tesoreria_riallineo_segna", [company, inv, null, "2026-11-12", "timeout"]);
+    await rpc("tesoreria_riallineo_segna", [company, inv, null, null, "timeout"]);
+    const da = (await service(`select public.tesoreria_riallineo_da_fare($1,20) v`, [company])).rows[0].v;
+    expect(da).toEqual([{ invoice_id: inv, paid_date: "2026-11-12", tentativi: 2 }]);
+    await service(`select public.tesoreria_riallineo_risolto($1,$2)`, [company, inv]);
+    expect((await service(`select public.tesoreria_riallineo_da_fare($1,20) v`, [company])).rows[0].v).toEqual([]);
+    await expect(rpc("tesoreria_riallineo_segna", [company, id(4040), null, null, "x"])).rejects.toThrow(/non di questa azienda/);
+  });
+
+  it("9-10. IBAN dalla controparte e dal payment_source; sulle uscite è il beneficiario", async () => {
+    const d = await doc({ numero: "FT-2026-0801", totale: 400, cliente: "Rho Srl", piva: "01111111111" });
+    const t = await tx({ amount: 400, type: "credit", desc: "bonifico", name: "Rho" });
+    await service(`update bank_transactions set counterparty_iban='IT55Q0000000000000000000055' where id=$1`, [t]);
+    const pn = (await service(`insert into prima_nota_entries(company_id,amount,direction,description) values($1,400,'entrata','Incasso') returning id`, [company])).rows[0].id;
+    const q = (await service(`insert into bank_reconciliations(company_id,transaction_id,matched_amount,regola,prima_nota_id,payment_source) values($1,$2,400,'manuale',$3,$4) returning id`, [company, t, pn, JSON.stringify({ documento_id: d })])).rows[0].id;
+    expect(await rpc("tesoreria_ricorda_iban_da_quota", [company, q])).toMatchObject({ iban: "IT55Q0000000000000000000055" });
+    const f = await supplier("Lambda Srl");
+    await scad({ amount: 300, supplier: f, desc: "Fattura 515 Lambda" });
+    const r = await classifica(await tx({ amount: 300, type: "debit", desc: "pagamento fattura 515", name: "Factor Spa" }));
+    expect(JSON.stringify(r.conflitti)).toMatch(/Il beneficiario «Factor Spa» non è il fornitore «Lambda Srl»/);
+  });
+
+  it("11. pagante senza doppioni; l'anteprima serve a chi riconcilia", async () => {
+    const a = await rpc("tesoreria_registra_pagante", [company, "Mario Bianchi", "Immobiliare Verdi", null, "Delega", null]);
+    const b = await rpc("tesoreria_registra_pagante", [company, "mario bianchi", "IMMOBILIARE VERDI", null, "Delega bis", null]);
+    expect(b).toBe(a);
+    await service(`update test_permissions set write=false where company_id=$1`, [company]);
+    await expect(rpc("tesoreria_classifica_movimenti", [company, 500, true])).rejects.toThrow(/permesso/);
   });
 });

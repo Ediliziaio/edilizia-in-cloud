@@ -26,7 +26,7 @@ describe("esito del motore nel popup del movimento", () => {
     expect(screen.getByText("a mano")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Conferma Manodopera e ponteggio" }));
     await waitFor(() => expect(fatto).toHaveBeenCalled());
-    expect(mock.rpc).toHaveBeenCalledWith("bank_conferma_ripartizione", {
+    expect(mock.rpc).toHaveBeenCalledWith("tesoreria_conferma_alternativa", {
       p_company: "c", p_tx: "tx", p_rows: [{ tipo: "scadenza", id: "s1", importo: 7800 }], p_note: null,
     });
   });
@@ -83,11 +83,13 @@ describe("conferma con un clic degli esiti unici e verificati", () => {
   it("compare solo per fattura o giroconto «automatico» e chiama tesoreria_conferma_esito", async () => {
     const cambiato = vi.fn();
     const pronto: EsitoMovimentoDati = { ...esito, esito: "automatico", natura: "documento" };
-    const { rerender } = render(<RigaEsitoMovimento company="c" movement={movimento} esito={pronto} puoScrivere onCambiato={cambiato} />);
+    // un incasso: le uscite «certe» non si confermano da qui (revisione finale, punto 3)
+    const incasso = { ...(movimento as object), amount: 7800 } as never;
+    const { rerender } = render(<RigaEsitoMovimento company="c" movement={incasso} esito={pronto} puoScrivere onCambiato={cambiato} />);
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
     await waitFor(() => expect(cambiato).toHaveBeenCalled());
     expect(mock.rpc).toHaveBeenCalledWith("tesoreria_conferma_esito", { p_company: "c", p_tx: "tx" });
-    rerender(<RigaEsitoMovimento company="c" movement={movimento} esito={{ ...pronto, natura: "parziale" }} puoScrivere onCambiato={cambiato} />);
+    rerender(<RigaEsitoMovimento company="c" movement={incasso} esito={{ ...pronto, natura: "parziale" }} puoScrivere onCambiato={cambiato} />);
     expect(screen.queryByRole("button", { name: "Conferma" })).not.toBeInTheDocument();
   });
   it("se il database rifiuta, il suo messaggio arriva così com'è", async () => {
@@ -95,5 +97,15 @@ describe("conferma con un clic degli esiti unici e verificati", () => {
     render(<RigaEsitoMovimento company="c" movement={movimento} esito={{ ...esito, esito: "automatico", natura: "giroconto" }} puoScrivere onCambiato={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
     await waitFor(() => expect(mock.toast.error).toHaveBeenCalledWith("Non confermato", { description: "Il movimento non ha più un esito «unico e verificato»: aprilo e collegalo a mano" }));
+  });
+});
+
+describe("conferma con un clic: solo incassi e giroconti", () => {
+  const certo: EsitoMovimentoDati = { esito: "automatico", natura: "documento", motivi: [], mancanti: [], conflitti: [], candidati: [] };
+  it("su un'uscita «certa» il pulsante non c'è; su un incasso sì", () => {
+    const { rerender } = render(<RigaEsitoMovimento company="c" movement={{ id: "u", amount: -300, currency: "EUR", links: { remaining: 300 } } as never} esito={certo} puoScrivere onCambiato={() => undefined} />);
+    expect(screen.queryByRole("button", { name: "Conferma" })).toBeNull();
+    rerender(<RigaEsitoMovimento company="c" movement={{ id: "i", amount: 300, currency: "EUR", links: { remaining: 300 } } as never} esito={certo} puoScrivere onCambiato={() => undefined} />);
+    expect(screen.getByRole("button", { name: "Conferma" })).toBeInTheDocument();
   });
 });

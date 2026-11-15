@@ -39,7 +39,9 @@ export function ControlliDoppiCard() {
       return (data ?? []) as unknown as RilievoDoppio[];
     },
   });
-  if (q.isError) return null; // senza permesso: la scheda non mostra niente di questo
+  // Senza permesso (42501) la scheda non mostra niente di questo; gli altri errori si vedono.
+  const codice = (q.error as { code?: string } | null)?.code;
+  if (q.isError && codice === "42501") return null;
   const rilievi = q.data ?? [];
   return (
     <Card className="rounded-2xl" id="doppi-conteggi">
@@ -48,7 +50,9 @@ export function ControlliDoppiCard() {
         <p className="text-sm text-muted-foreground">Budget, consuntivo e cassa: dove lo stesso denaro o lo stesso costo rischia di contare due volte.</p>
       </CardHeader>
       <CardContent>
-        {q.isLoading ? <Skeleton className="h-16 w-full" /> : rilievi.length === 0 ? (
+        {q.isLoading ? <Skeleton className="h-16 w-full" /> : q.isError ? (
+          <p className="text-sm text-destructive">Controllo non riuscito: {(q.error as Error | null)?.message ?? "errore sconosciuto"}</p>
+        ) : rilievi.length === 0 ? (
           <p className="flex items-center gap-2 text-sm text-emerald-700"><CheckCircle2 className="h-4 w-4" /> Nessun doppio conteggio trovato.</p>
         ) : (
           <ul className="divide-y rounded-lg border">

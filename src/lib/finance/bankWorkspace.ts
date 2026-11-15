@@ -61,6 +61,8 @@ export interface BankMovement {
   debtor_name: string | null;
   creditor_iban: string | null;
   debtor_iban: string | null;
+  /** IBAN della controparte come lo dà la banca, quando debtor/creditor sono vuoti. */
+  counterparty_iban?: string | null;
   reference: string | null;
   transaction_type: "credit" | "debit";
   status: string;
