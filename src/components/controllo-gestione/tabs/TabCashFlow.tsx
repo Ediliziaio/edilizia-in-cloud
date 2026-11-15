@@ -233,7 +233,7 @@ export function TabCashFlow({ anno }: Props) {
 
       <Riquadri r={r} haPrevisione={haPrevisione} dopo={q.data.saldoDopoMovimenti ? { cents: q.data.saldoDopoCents ?? 0, n: q.data.saldoDopoMovimenti, banca: q.data.saldoBancaCents ?? null } : null} />
 
-      <GraficiCassa r={r} />
+      <GraficiCassa r={r} onApriMese={(mese) => apri(`Movimenti di ${MESI_LUNGHI[mese - 1]} ${r.anno}`, r.vociVisibili, mese)} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {haPrevisione ? (

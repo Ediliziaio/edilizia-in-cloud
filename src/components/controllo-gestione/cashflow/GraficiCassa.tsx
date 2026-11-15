@@ -65,7 +65,7 @@ function TooltipMese({ active, payload }: { active?: boolean; payload?: Array<{ 
   );
 }
 
-export function GraficiCassa({ r }: { r: RendicontoCassa }) {
+export function GraficiCassa({ r, onApriMese }: { r: RendicontoCassa; onApriMese?: (mese: number) => void }) {
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
   const etichettaTipo: Record<string, string> = { consuntivo: "consuntivo", "in-corso": "in corso", previsione: "previsione" };
@@ -86,6 +86,18 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
     };
   });
   const previsto = (i: number) => r.colonne[i]?.tipo === "previsione";
+  // La colonna «in corso» è oggi: una linea la separa da consuntivo e previsione.
+  const meseOggi = r.colonne.find((c) => c.tipo === "in-corso")?.mese;
+  const lineaOggi = meseOggi ? (
+    <ReferenceLine x={MESI[meseOggi - 1]} stroke="hsl(var(--primary))" strokeDasharray="2 3" label={{ value: "oggi", position: "top", fontSize: 10, fill: "hsl(var(--primary))" }} />
+  ) : null;
+  // Clic su un mese: i movimenti di quel mese, come un clic nella tabella.
+  const clicMese = onApriMese
+    ? (state: { activeTooltipIndex?: number | string | null } | null) => {
+        const i = Number(state?.activeTooltipIndex);
+        if (Number.isInteger(i) && i >= 0 && i < 12) onApriMese(i + 1);
+      }
+    : undefined;
   const conSaldo = righe.some((x) => x.corpo);
   const mesiSu = righe.filter((x) => x.corpo && x.sale && x.netto !== 0).length;
   const mesiGiu = righe.filter((x) => x.corpo && !x.sale).length;
@@ -106,12 +118,13 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
             </div>
             <div className="h-[230px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={righe} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap="28%">
+                <BarChart data={righe} margin={{ top: 14, right: 4, left: 0, bottom: 0 }} barCategoryGap="28%" onClick={clicMese} className={onApriMese ? "cursor-pointer" : undefined}>
                   {defsGrafico(id, {})}
                   <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
                   <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
                   <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={64} tickFormatter={euroAsse} domain={["auto", "auto"]} />
                   <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.5} />
+                  {lineaOggi}
                   {r.sogliaCents > 0 && (
                     <ReferenceLine y={r.sogliaCents / 100} stroke="hsl(38 92% 50%)" strokeDasharray="5 4" label={{ value: "soglia", position: "insideTopRight", fontSize: 10, fill: "hsl(38 92% 40%)" }} />
                   )}
@@ -124,7 +137,7 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">Ogni candela va dal saldo di inizio a quello di fine mese · tratteggiate le previste</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Dal saldo di inizio a quello di fine mese · tratteggiate le previste{onApriMese ? " · clic per i movimenti" : ""}</p>
           </>
         ) : (
           <p className="py-10 text-center text-sm text-muted-foreground">Manca il saldo dei conti: inseriscilo in Tesoreria per vedere le candele.</p>
@@ -139,12 +152,13 @@ export function GraficiCassa({ r }: { r: RendicontoCassa }) {
         </div>
         <div className="h-[230px]">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={datiFlussi} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barGap={2}>
+            <ComposedChart data={datiFlussi} margin={{ top: 14, right: 4, left: 0, bottom: 0 }} barGap={2} onClick={clicMese} className={onApriMese ? "cursor-pointer" : undefined}>
               {defsGrafico(`${id}f`, { verde: COLORI_GRAFICO.verde, rosso: COLORI_GRAFICO.rosso })}
               <CartesianGrid fill={`url(#${id}f-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
               <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
               <YAxis tickLine={false} axisLine={false} tick={TESTO_ASSE} width={64} tickFormatter={euroAsse} />
               <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.5} />
+              {lineaOggi}
               <RechartsTooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<TooltipMese />} />
               <Bar dataKey="incassiE" name="Incassi" maxBarSize={16} radius={[4, 4, 0, 0]} isAnimationActive={!fermo}>
                 {datiFlussi.map((x, i) => <Cell key={x.mese} fill={`url(#${id}f-barra-verde)`} fillOpacity={previsto(i) ? 0.45 : 1} />)}
