@@ -111,6 +111,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
       indirizzo_provincia: a.indirizzo_provincia as string | undefined,
       indirizzo_nazione: (a.indirizzo_nazione as string) ?? "IT",
       tipo_cliente: tipoCliente,
+      // Ente che non applica lo split (anagrafica, lotto 1): decide il valore di partenza.
+      ...(typeof a.split_payment === "boolean" ? { split_payment: a.split_payment } : {}),
     };
     dispatch({ type: "SET_CLIENTE", anagrafica_id: a.id as string, snapshot: snap });
     setSearch("");
