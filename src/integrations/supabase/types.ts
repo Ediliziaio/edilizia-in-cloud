@@ -23484,6 +23484,30 @@ export type Database = {
           },
         ]
       }
+      cg_tfr_coefficienti_istat: {
+        Row: {
+          anno: number
+          coefficiente_pct: number
+          fonte: string | null
+          mese: number
+          updated_at: string
+        }
+        Insert: {
+          anno: number
+          coefficiente_pct: number
+          fonte?: string | null
+          mese: number
+          updated_at?: string
+        }
+        Update: {
+          anno?: number
+          coefficiente_pct?: number
+          fonte?: string | null
+          mese?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cg_tfr_destinazioni: {
         Row: {
           company_id: string
@@ -96549,6 +96573,7 @@ export type Database = {
           render_session_id: string | null
           render_url: string | null
           revision_number: number | null
+          ritenuta_garanzia: Json | null
           salesperson_id: string | null
           sconto_autorizzato_pct: number | null
           sconto_richiesto_pct: number | null
@@ -96657,6 +96682,7 @@ export type Database = {
           render_session_id?: string | null
           render_url?: string | null
           revision_number?: number | null
+          ritenuta_garanzia?: Json | null
           salesperson_id?: string | null
           sconto_autorizzato_pct?: number | null
           sconto_richiesto_pct?: number | null
@@ -96765,6 +96791,7 @@ export type Database = {
           render_session_id?: string | null
           render_url?: string | null
           revision_number?: number | null
+          ritenuta_garanzia?: Json | null
           salesperson_id?: string | null
           sconto_autorizzato_pct?: number | null
           sconto_richiesto_pct?: number | null

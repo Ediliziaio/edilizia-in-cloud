@@ -221,3 +221,25 @@ export function orderDetailLocation(
     hash: destination.section ? `#${destination.section}` : "",
   };
 }
+
+/**
+ * Quando la vista «SAL al cliente» serve (15/11/2026). Prima compariva su ogni commessa, anche a chi viene
+ * pagato ad acconto e saldo (serramenti) e sui lavori in appalto, dove il documento al committente è il
+ * Rendiconto: due «SAL» nella stessa commessa e il rischio di fatturare due volte.
+ *  - SAL già fatti: sempre (non si nasconde niente che esiste);
+ *  - lavoro in appalto o figlia di una commessa generale: no (Rendiconto, o SAL di contratto della generale);
+ *  - rate legate a un SAL, o un'azienda che i SAL li usa già: sì;
+ *  - altrimenti no: si paga a rate. Mettere nel piano una rata «al SAL» fa comparire la vista.
+ */
+export function mostraSalAlCliente(p: {
+  salEsistenti: number;
+  inAppalto: boolean;
+  figliaDiGenerale: boolean;
+  rate: ReadonlyArray<{ trigger_evento?: string | null }>;
+  aziendaUsaSal: boolean;
+}): boolean {
+  if (p.salEsistenti > 0) return true;
+  if (p.inAppalto || p.figliaDiGenerale) return false;
+  if (p.rate.some((r) => r.trigger_evento === "sal_numero" || r.trigger_evento === "sal_percentuale")) return true;
+  return p.aziendaUsaSal;
+}

@@ -109,6 +109,16 @@ export function prezzoConcordatoComputo(d: Pick<DatiCommessaComputo, "subtotal" 
   };
 }
 
+/**
+ * La ritenuta del piano come la legge la commessa (orders.ritenuta_garanzia, 15/11/2026): passa dal preventivo
+ * (quotes.ritenuta_garanzia) alla commessa quando la commessa riceve il preventivo. Vuota = nessuna ritenuta.
+ */
+export function ritenutaPerCommessa(r: { percentuale?: string; su?: string; svincolo?: string; mesi?: number } | null | undefined) {
+  const pct = Number(String(r?.percentuale ?? "").trim().replace(",", "."));
+  if (!r || !(pct > 0) || pct > 100) return null;
+  return { percentuale: pct, su: r.su === "tutte" ? "tutte" : "sal", svincolo: r.svincolo === "mesi" ? "mesi" : "collaudo", mesi: Number.isFinite(r.mesi) ? r.mesi : 12 };
+}
+
 export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<string> {
   const prezzoConcordato = prezzoConcordatoComputo(d);
   const esistente = await getModuleQuote(d.companyId, MODULO_COMPUTO, d.draftId);
@@ -134,7 +144,7 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     if (error) throw new Error(`Righe del preventivo non salvate: ${error.message}`);
   }
   if (!deciso) {
-    const patch: Record<string, unknown> = { ...prezzoConcordato, payment_phases: fasiDaRate(d.rate) };
+    const patch: Record<string, unknown> = { ...prezzoConcordato, payment_phases: fasiDaRate(d.rate), ritenuta_garanzia: ritenutaPerCommessa(d.bozza.pianoPagamenti?.ritenuta) };
     if (d.bozza.clienteId) patch.contact_id = d.bozza.clienteId;
     if (d.bozza.clienteAnagraficaId) patch.customer_id = d.bozza.clienteAnagraficaId;
     if (d.bozza.indirizzo.trim()) patch.client_address = d.bozza.indirizzo.trim();

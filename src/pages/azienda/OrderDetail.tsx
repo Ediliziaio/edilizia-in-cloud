@@ -101,7 +101,7 @@ import { useOrderDetailNavigation } from "@/hooks/useOrderDetailNavigation";
 import { CantiereViewNav, VISTE_SOLO_SCHERMO_GRANDE } from "@/components/orders/CantiereViewNav";
 import { OrderWorkspaceNav } from "@/components/orders/OrderWorkspaceNav";
 import { OrderDisclosure } from "@/components/orders/OrderDisclosure";
-import { ECONOMIA_VIEWS, MATERIALI_VIEWS, COSTI_VIEWS, isOrderDetailTab, type CantiereView, type OrderDetailSection } from "@/lib/orders/detailNavigation";
+import { mostraSalAlCliente, ECONOMIA_VIEWS, MATERIALI_VIEWS, COSTI_VIEWS, isOrderDetailTab, type CantiereView, type OrderDetailSection } from "@/lib/orders/detailNavigation";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { OrderAssistenzaTab, OrderAssistenzaAlert } from "@/components/orders/OrderAssistenzaTab";
 // ── New sub-components ──────────────────────────────────────────
@@ -517,10 +517,6 @@ function OrderDetailInner() {
     [righeAppalto.data],
   );
 
-  const visteEconomiche = useMemo(
-    () => (inAppalto ? ECONOMIA_VIEWS : ECONOMIA_VIEWS.filter(v => v.value !== "rendiconto")),
-    [inAppalto],
-  );
 
   /**
    * Il nome del contratto d'appalto. Query a parte invece di un join nel
@@ -582,6 +578,36 @@ function OrderDetailInner() {
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
   });
+
+  // «SAL al cliente» solo dove serve (15/11/2026): vedi mostraSalAlCliente.
+  const salDellaCommessa = useQuery({
+    queryKey: ["sal-presenza", id, companyId],
+    enabled: !!id && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const [qui, azienda] = await Promise.all([
+        supabase.from("sal_records").select("id", { count: "exact", head: true }).eq("order_id", id!),
+        supabase.from("sal_records").select("id").eq("company_id", companyId!).limit(1),
+      ]);
+      // Se non si legge, la vista resta: meglio una vista in più che un SAL che non si trova.
+      if (qui.error || azienda.error) return { qui: 1, azienda: true };
+      return { qui: qui.count ?? 0, azienda: (azienda.data ?? []).length > 0 };
+    },
+  });
+  const visteEconomiche = useMemo(
+    () => ECONOMIA_VIEWS.filter(v => {
+      if (v.value === "rendiconto") return inAppalto;
+      if (v.value === "sal") return mostraSalAlCliente({
+        salEsistenti: salDellaCommessa.data?.qui ?? 1,
+        inAppalto,
+        figliaDiGenerale: !!(order as { commessa_generale_id?: string | null } | undefined)?.commessa_generale_id,
+        rate: dbInstallments,
+        aziendaUsaSal: salDellaCommessa.data?.azienda ?? true,
+      });
+      return true;
+    }),
+    [inAppalto, salDellaCommessa.data, order, dbInstallments],
+  );
 
   // Build installments for display
   const displayInstallments: Installment[] = useMemo(() => {
