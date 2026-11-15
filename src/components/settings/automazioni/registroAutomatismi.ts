@@ -13,6 +13,7 @@ import { useUltimoCollegamento } from "@/hooks/useUltimoCollegamento";
 import { useUltimoCollegamentoSubappalti } from "@/hooks/useUltimoCollegamentoSubappalti";
 import { useUltimoEsitoBollette } from "@/hooks/useUltimoEsitoBollette";
 import { useUltimoEsitoTesoreria } from "@/hooks/useUltimoEsitoTesoreria";
+import { useUltimoEsitoFornitoriDalleFatture } from "@/hooks/useUltimoEsitoFornitoriDalleFatture";
 
 /** Lo stato dell'interruttore, letto dal server. */
 export interface StatoAutomatismo {
@@ -72,6 +73,16 @@ export const AUTOMATISMI: Automatismo[] = [
     useStato: useStatoCollegamento,
     useUltimoEsito: useUltimoCollegamento,
     Azione: VerificaCollegamentiDialog,
+  },
+  {
+    id: "fornitori-dalle-fatture",
+    area: "Fornitori",
+    titolo: "Fornitori dalle fatture",
+    cosaFa:
+      "Quando arriva una fattura di un cedente che non è in rubrica, crea il fornitore da solo: una volta per partita IVA, anche se il nome è scritto in modi diversi, e mai per l'azienda stessa, un estero o un identificativo non valido. Il tipo lo mette solo se è certo (subappaltatore, luce e gas, banche…); il subappaltatore entra anche nel suo elenco. Segue l'interruttore del collegamento automatico.",
+    daSpento: "Da spento non crea niente: il cedente compare in Fornitori → «Rivedi e crea», dove scegli tu quali creare.",
+    useStato: useStatoCollegamento,
+    useUltimoEsito: useUltimoEsitoFornitoriDalleFatture,
   },
   {
     id: "subappalti-fattura-contratto-sal",

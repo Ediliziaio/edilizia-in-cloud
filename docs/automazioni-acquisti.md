@@ -312,6 +312,16 @@ col link alla pagina dove si fa; gli zeri non si mostrano.
 - il fornitore creato dalle fatture ricollega le loro bolle (storico: anteprima 0 da collegare);
 - conferma di ordine e commessa: il permesso mancante è detto in chiaro.
 
+**Fornitori dalle fatture e interruttore** (decisione del titolare del 15/11, migrazione
+`20290404309500`): la creazione all'arrivo della fattura segue l'interruttore comune del
+collegamento automatico (`azienda_collegamento_automatico`, letto dal trigger lato server).
+Acceso: il fornitore nasce da solo come nel lotto 12 e ricorda la fattura da cui è nato
+(`suppliers.creato_dalla_fattura_id`). Spento, cioè di base: non nasce niente e il cedente resta
+in Fornitori → «Rivedi e crea». I 1.198 fornitori dello storico restano come sono. In Impostazioni
+→ Automazioni c'è la riga «Fornitori dalle fatture» (`acquisti_fornitori_automatici_stato`).
+Provato in produzione su Demo Azienda 2 col ruolo `authenticated`, acceso e spento, in una
+transazione annullata.
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 

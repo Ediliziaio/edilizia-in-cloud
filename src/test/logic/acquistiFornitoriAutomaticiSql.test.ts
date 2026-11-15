@@ -13,10 +13,12 @@ beforeAll(async () => {
   db = new PGlite();
   await db.waitReady;
   await db.exec(`
-    create role anon; create role authenticated; create schema auth;
+    create role anon; create role authenticated; create role service_role; create schema auth;
     create function auth.jwt() returns jsonb language sql stable as $$select jsonb_build_object('role', coalesce(nullif(current_setting('test.role',true),''),'service_role'))$$;
     create function e_super_admin_dentro(c uuid) returns boolean language sql stable as $$select false$$;
     create function acquisti_puo_collegare(c uuid) returns boolean language sql stable as $$select true$$;
+    -- L'interruttore comune: acceso di base nei casi qui sotto, spento dove il caso lo dice.
+    create function azienda_collegamento_automatico(c uuid) returns boolean language sql stable as $$select coalesce(nullif(current_setting('test.acceso',true),''),'true')='true'$$;
     create function partner_tax_key(v text) returns text language sql immutable as $$
       select case when x ~ '^IT[0-9]{11}$' then substr(x,3) else x end from (select regexp_replace(upper(coalesce(v,'')), '[^A-Z0-9]', '', 'g') x) s $$;
     create function piva_valida(v text) returns boolean language plpgsql immutable as $$
@@ -28,7 +30,7 @@ beforeAll(async () => {
     create table companies(id uuid primary key, vat_number text, fiscal_code text);
     create table subappaltatori(id uuid primary key default gen_random_uuid(), company_id uuid, ragione_sociale text, piva text);
     create table suppliers(id uuid primary key default gen_random_uuid(), company_id uuid, name text, vat_number text, fiscal_code text,
-      address text, city text, postal_code text, province text, country text, is_active boolean, tipo text, subappaltatore_id uuid,
+      address text, city text, postal_code text, province text, country text, is_active boolean, tipo text, subappaltatore_id uuid, created_at timestamptz default now(),
       unique (company_id, name));
     -- Come in produzione: un fornitore «subappalto» entra da sé nell'elenco dei subappaltatori.
     create function collega_fornitore_subappaltatore() returns trigger language plpgsql as $$
@@ -51,10 +53,11 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20290404303000_acquisti_fornitori_automatici.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404304000_acquisti_fornitori_automatici_veloci.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20290404305000_fornitori_indice_chiave_fiscale.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20290404309500_fornitori_dalle_fatture_interruttore.sql", "utf8"));
 }, 60_000);
 afterAll(async () => db?.close());
 beforeEach(async () => {
-  await db.exec(`truncate suppliers, fatture_ricevute, subappaltatori; select set_config('test.role','service_role',false);`);
+  await db.exec(`truncate suppliers, fatture_ricevute, subappaltatori; select set_config('test.role','service_role',false), set_config('test.acceso','true',false);`);
 });
 
 const fattura = (az: string, piva: string | null, nome: string, over: { paese?: string; righe?: unknown[]; data?: string } = {}) =>
@@ -123,6 +126,45 @@ describe("fornitori creati da soli dalle fatture", () => {
     expect((await db.query<{ r: { creati: number } }>(`select acquisti_fornitori_automatici_lotto($1) r`, [AZ])).rows[0].r.creati).toBe(0);
     await db.exec(`select set_config('test.role','authenticated',false)`);
     await expect(db.query(`select acquisti_fornitori_automatici_lotto($1)`, [AZ])).rejects.toThrow(/servizio/);
+  });
+});
+
+describe("interruttore del collegamento automatico (decisione del 15/11)", () => {
+  // Come dal browser: chi salva la fattura è un utente (ruolo authenticated), non il servizio.
+  async function comeUtente<T>(f: () => Promise<T>): Promise<T> {
+    await db.exec(`grant usage on schema public to authenticated; grant select, insert on fatture_ricevute to authenticated;
+      select set_config('test.role','authenticated',false)`);
+    await db.exec(`set role authenticated`);
+    try {
+      return await f();
+    } finally {
+      await db.exec(`reset role`);
+      await db.exec(`select set_config('test.role','service_role',false)`);
+    }
+  }
+
+  it("spento: la fattura si salva, nessun fornitore nasce; il cedente resta tra i mancanti", async () => {
+    await db.exec(`select set_config('test.acceso','false',false)`);
+    await comeUtente(() => fattura(AZ, "00743110157", "Edil Rossi"));
+    expect(await fornitori()).toEqual([]);
+    expect(await senzaFornitore()).toBe(1);
+    const st = (await db.query<{ r: Record<string, unknown> }>(`select acquisti_fornitori_automatici_stato($1) r`, [AZ])).rows[0].r;
+    expect(st).toMatchObject({ ultimo_creato: null, creati_30_giorni: 0, cedenti_mancanti: 1 });
+    // L'azienda sceglie: «Rivedi e crea» lo crea, senza il segno di «creato automaticamente».
+    await db.query(`select acquisti_fornitori_dalle_fatture_crea($1, array['00743110157'])`, [AZ]);
+    const r = await db.query<{ auto: boolean }>(`select creato_dalla_fattura_id is not null auto from suppliers`);
+    expect(r.rows).toEqual([{ auto: false }]);
+  });
+
+  it("acceso: salvata dal browser, il fornitore nasce e ricorda la fattura da cui è nato", async () => {
+    await comeUtente(() => fattura(AZ, "00743110157", "Edil Rossi"));
+    const r = await db.query<{ ok: boolean }>(
+      `select s.creato_dalla_fattura_id = f.id ok from suppliers s, fatture_ricevute f where f.fornitore_id = s.id`);
+    expect(r.rows).toEqual([{ ok: true }]);
+    const st = (await db.query<{ r: { creati_30_giorni: number; cedenti_mancanti: number; ultimo_creato: string | null } }>(`select acquisti_fornitori_automatici_stato($1) r`, [AZ])).rows[0].r;
+    expect(st.creati_30_giorni).toBe(1);
+    expect(st.cedenti_mancanti).toBe(0);
+    expect(st.ultimo_creato).not.toBeNull();
   });
 });
 

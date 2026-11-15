@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   esitoTesoreria: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
   esitoSubappalti: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
   esitoBollette: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
+  esitoFornitori: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
 // La misura ha il suo test (misuraAutomazioni.test.tsx).
@@ -40,6 +41,10 @@ vi.mock("@/hooks/useUltimoEsitoTesoreria", async (importOriginal) => ({
   useUltimoEsitoTesoreria: () => state.esitoTesoreria,
 }));
 vi.mock("@/hooks/useUltimoCollegamentoSubappalti", () => ({ useUltimoCollegamentoSubappalti: () => state.esitoSubappalti }));
+vi.mock("@/hooks/useUltimoEsitoFornitoriDalleFatture", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useUltimoEsitoFornitoriDalleFatture")>()),
+  useUltimoEsitoFornitoriDalleFatture: () => state.esitoFornitori,
+}));
 vi.mock("@/hooks/useUltimoEsitoBollette", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useUltimoEsitoBollette")>()),
   useUltimoEsitoBollette: () => state.esitoBollette,
@@ -63,6 +68,7 @@ afterEach(() => {
   state.esitoTesoreria = null;
   state.esitoSubappalti = null;
   state.esitoBollette = null;
+  state.esitoFornitori = null;
 });
 
 describe("Impostazioni → Automazioni", () => {
@@ -128,6 +134,24 @@ describe("Impostazioni → Automazioni", () => {
     expect(testoUltimoEsitoBollette(0, 5, null)?.testo).toMatch(/5 bollette con l'utenza da collegare/);
     expect(testoUltimoEsitoBollette(0, 0, "2026-11-15T10:00:00Z")).toMatchObject({ tono: "ok" });
     expect(testoUltimoEsitoBollette(0, 0, null)).toBeNull();
+  });
+
+  it("Fornitori dalle fatture: segue lo stesso interruttore, da spento rimanda a «Rivedi e crea»", () => {
+    state.esitoFornitori = { quando: null, testo: "3 cedenti delle fatture non sono in rubrica: rivedili in Fornitori → «Rivedi e crea»", tono: "attenzione" };
+    open();
+    const riga = document.getElementById("fornitori-dalle-fatture")!;
+    expect(within(riga).getByRole("switch", { name: "Fornitori dalle fatture" })).not.toBeChecked();
+    expect(within(riga).getByText(/Da spento non crea niente/)).toBeInTheDocument();
+    expect(within(riga).getByText(/3 cedenti delle fatture/)).toBeInTheDocument();
+    fireEvent.click(within(riga).getByRole("switch", { name: "Fornitori dalle fatture" }));
+    expect(state.salvati).toEqual([true]);
+  });
+
+  it("testo dell'ultimo esito dei fornitori: prima i cedenti che aspettano, poi quanti ne ha creati", async () => {
+    const { testoUltimoEsitoFornitori } = await import("@/hooks/useUltimoEsitoFornitoriDalleFatture");
+    expect(testoUltimoEsitoFornitori({ ultimo_creato: null, creati_30_giorni: 0, cedenti_mancanti: 1 })?.testo).toMatch(/^1 cedente/);
+    expect(testoUltimoEsitoFornitori({ ultimo_creato: "2026-11-15T10:00:00Z", creati_30_giorni: 4, cedenti_mancanti: 0 })).toMatchObject({ tono: "ok", testo: "4 fornitori creati dalle fatture negli ultimi 30 giorni" });
+    expect(testoUltimoEsitoFornitori({ ultimo_creato: null, creati_30_giorni: 0, cedenti_mancanti: 0 })).toBeNull();
   });
 
   it("ogni automatismo del registro ha un id unico e i testi che la riga mostra", () => {
