@@ -625,21 +625,22 @@ function EditorDelDocumento() {
                 <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
 
+              {/* Come si paga si decide prima di scrivere le righe (15/11/2026): quando si
+                  arriva agli articoli non si torna più indietro. */}
+              <div id="ed-pagamento" className="min-w-0 md:w-[26rem]"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+
               <div id="ed-righe" className="min-w-0"><EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
 
-              {/* Pagamento e riepilogo affiancati, sotto le righe. */}
-              <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-                <div id="ed-pagamento" className="min-w-0"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-                <div id="ed-totali" className="min-w-0">
-                  <EditorTotaliSection
-                    state={state}
-                    dispatch={dispatch}
-                    disabled={!modificabile}
-                    errori={validationErrors}
-                    errorePieno={tentatoEmissione || !isBozza}
-                    onVaiAlCampo={vaiAlCampo}
-                  />
-                </div>
+              {/* Il riepilogo chiude il conto, sotto le righe. */}
+              <div id="ed-totali" className="min-w-0 md:ml-auto md:w-[26rem]">
+                <EditorTotaliSection
+                  state={state}
+                  dispatch={dispatch}
+                  disabled={!modificabile}
+                  errori={validationErrors}
+                  errorePieno={tentatoEmissione || !isBozza}
+                  onVaiAlCampo={vaiAlCampo}
+                />
               </div>
             </>
           )}
