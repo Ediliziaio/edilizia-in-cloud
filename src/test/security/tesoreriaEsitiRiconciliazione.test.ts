@@ -106,11 +106,18 @@ beforeAll(async () => {
   await pg.exec(await readFile("supabase/migrations/20290404313000_tesoreria_conferma_automatica.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404314000_tesoreria_prove_dal_movimento_di_cassa.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404315000_tesoreria_conferma_in_attesa_interruttore_comune.sql", "utf8"));
+  // Interruttore comune del collegamento automatico (sessione Acquisti, 20290404240000), ridotto.
+  await pg.exec(`
+   alter table companies add column titolare_user_id uuid;
+   create table company_governance_settings(company_id uuid primary key,collegamento_automatico boolean not null default false);
+   create function public.azienda_collegamento_automatico(p_company uuid) returns boolean language sql stable security definer as $$
+    select coalesce((select g.collegamento_automatico from public.company_governance_settings g where g.company_id=p_company),false)$$;`);
+  await pg.exec(await readFile("supabase/migrations/20290404316000_tesoreria_conferma_con_interruttore_comune.sql", "utf8"));
 }, 60000);
 
 beforeEach(async () => {
   await pg.exec(`reset role;select set_config('test.user','${user}',false);select set_config('test.role','service_role',false);
-   truncate movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
+   truncate company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
      documenti_fiscali,scadenze,suppliers,company_costs,fattura_ordine,orders,order_installments,fornitori_iban_storico,prima_nota_entries,test_permissions,companies cascade;
    insert into companies values('${company}'),('${other}');
    insert into test_permissions values('${company}',true,true,true);
@@ -442,7 +449,7 @@ describe("Controllo di gestione: niente doppi conteggi", () => {
   });
 });
 
-describe("Conferma automatica (in attesa dell'interruttore comune)", () => {
+describe("Conferma automatica con l'interruttore comune", () => {
   const delegato = id(9);
   // La conferma di un singolo esito, come la farà il giro quando l'interruttore comune è acceso:
   // per conto della persona indicata, con i suoi permessi.
@@ -461,13 +468,59 @@ describe("Conferma automatica (in attesa dell'interruttore comune)", () => {
     }
   };
 
-  it("il giro è spento finché non c'è l'interruttore comune", async () => {
+  const titolare = id(8);
+  const interruttore = async (acceso: boolean) => {
+    await service(`update companies set titolare_user_id=$2 where id=$1`, [company, titolare]);
+    await service(`insert into company_governance_settings values($1,$2) on conflict(company_id) do update set collegamento_automatico=excluded.collegamento_automatico`, [company, acceso]);
+  };
+  const giroDalCron = async () => (await service(`select public.tesoreria_conferma_automatica($1,50) v`, [company])).rows[0].v;
+
+  it("interruttore comune spento: il giro non conferma, l'esito resta una proposta", async () => {
     await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
     await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
     await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
-    expect(await rpc("tesoreria_conferma_automatica", [company, 50])).toMatchObject({ attiva: false, confermati: [] });
+    expect(await giroDalCron()).toMatchObject({ attiva: false, confermati: [] });
+    await interruttore(false);
+    expect(await rpc("tesoreria_conferma_automatica", [company, 50])).toMatchObject({ attiva: false });
     expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(0);
-    await expect(pg.query(`select * from tesoreria_conferma_automatica`)).rejects.toThrow(/does not exist/);
+  });
+
+  it("acceso, dal cron: conferma a nome del titolare; lanciato da una persona: a nome suo", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t1 = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    await interruttore(true);
+    const r = await giroDalCron();
+    expect(r).toMatchObject({ attiva: true, per_conto_di: titolare, errori: [] });
+    expect(r.confermati).toEqual([{ transaction_id: t1, natura: "documento", importo: 1000 }]);
+    expect((await service(`select matched_by,match_type from bank_reconciliations where transaction_id=$1`, [t1])).rows).toEqual([{ matched_by: titolare, match_type: "auto" }]);
+    await doc({ numero: "FT-2026-0013", totale: 500, cliente: "Beta Impianti" });
+    const t2 = await tx({ amount: 500, type: "credit", desc: "Saldo fattura 13/2026", name: "Beta Impianti" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    const r2 = await rpc("tesoreria_conferma_automatica", [company, 50]);
+    expect(r2.per_conto_di).toBe(user);
+    expect((await service(`select matched_by from bank_reconciliations where transaction_id=$1`, [t2])).rows[0].matched_by).toBe(user);
+  });
+
+  it("spento: conferma con un clic, a nome di chi clicca, non marcata automatica", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    const parz = await tx({ amount: 300, type: "credit", desc: "acconto", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    expect(await rpc("tesoreria_conferma_esito", [company, t])).toMatchObject({ natura: "documento", importo: 1000 });
+    expect((await service(`select matched_by,match_type from bank_reconciliations where transaction_id=$1`, [t])).rows).toEqual([{ matched_by: user, match_type: "manual" }]);
+    expect((await rpc("tesoreria_esito_movimento", [company, t])).storia.map((x: any) => x.evento)).toContain("confermato_clic");
+    await expect(rpc("tesoreria_conferma_esito", [company, parz])).rejects.toThrow(/unico e verificato/);
+  });
+
+  it("acceso ma il titolare non può riconciliare: il cron si ferma e lo dice", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    await interruttore(true);
+    await service(`update test_permissions set write=false where company_id=$1`, [company]);
+    expect((await giroDalCron()).fermata).toMatch(/permesso/);
+    expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(0);
   });
 
   it("conferma l'unico verificato per conto del delegato, una volta sola; non un parziale", async () => {
