@@ -264,6 +264,8 @@ export interface ClaudeBillingCtx {
   /** Stima prudente per il blocco pre-chiamata. */
   estimatedTokensTotal?: number;
   metadata?: Record<string, unknown>;
+  /** Chiave del lavoro (richiesta, documento, batch): un retry non addebita due volte. */
+  idempotencyKey?: string | null;
 }
 
 export async function claudeMessagesBilled(
@@ -327,6 +329,7 @@ export async function claudeMessagesBilled(
       cost_is_estimated: costoVero === null,
       tokens_prompt: tokensIn,
       tokens_completion: tokensOut,
+      idempotency_key: billing.idempotencyKey ?? null,
       metadata: {
         latency_ms: Date.now() - t0,
         via: "claudeMessagesBilled",

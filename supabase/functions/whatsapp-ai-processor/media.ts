@@ -12,6 +12,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callOpenAI, transcribeAudioWhisper } from "./openai.ts";
 import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { chargeAndLogDirect, estimateWhisperCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { normalizzaDdtLetto, sembraDdtDallaDidascalia, testoDdtPerAssistente } from "../_shared/ddtLetto.ts";
 import { tipoDocumento } from "../_shared/documentoInGingresso.ts";
@@ -134,12 +135,27 @@ export async function transcribeAudio(
   supabase: SupabaseClient,
   storagePath: string,
   prompt?: string,
+  addebito?: { companyId: string | null; messageId: string },
 ): Promise<string> {
   const bucket = "whatsapp-media";
   const { data, error } = await supabase.storage.from(bucket).download(storagePath);
   if (error || !data) throw new Error(`Audio download failed: ${error?.message}`);
   const bytes = new Uint8Array(await data.arrayBuffer());
-  return transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg", prompt);
+  let durata: number | null = null;
+  const testo = await transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg", prompt, (s) => { durata = s; });
+  // Whisper si paga a minuto: prima i vocali WhatsApp non si addebitavano
+  // (15/11/2026). Durata misurata dal provider; se manca, stima prudente dai
+  // byte (Opus ~16 kbit/s). Nessuna chiave: ogni trascrizione è una chiamata pagata.
+  if (addebito) {
+    const secondi = durata ?? Math.max(1, (bytes.byteLength * 8) / 16000);
+    await chargeAndLogDirect({
+      supabase, company_id: addebito.companyId, task_kind: "audio_transcription",
+      model_used: "openai/whisper-1", cost_usd_real: estimateWhisperCostUsd(secondi),
+      cost_is_estimated: durata === null,
+      metadata: { duration_sec: secondi, canale: "whatsapp", message_id: addebito.messageId },
+    });
+  }
+  return testo;
 }
 
 export async function analyzeImage(

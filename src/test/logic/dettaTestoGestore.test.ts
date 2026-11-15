@@ -62,7 +62,8 @@ function popola(m: Mondo, { pagamento = "stripe", saldoOk = true, limite = true 
   m.rpcs.check_ai_router_rate_limit = (a) => (limite || a.p_function_name !== "detta-testo:giorno"
     ? { allowed: true }
     : { allowed: false, retry_after_seconds: 86_400 });
-  m.rpcs.deduct_ai_credits_with_markup = () => [{ ok: true, reason: "ok", usage_log_id: "log-1" }];
+  // Dal 15/11/2026 l'addebito diretto passa dalla porta unica addebita_ai_diretta.
+  m.rpcs.addebita_ai_diretta = () => ({ ok: true, charged: true, reason: "success", usage_log_id: "log-1" });
 }
 
 beforeEach(() => {
@@ -97,7 +98,7 @@ async function detta(corpo: Record<string, unknown> = {}, jwt = "jwt-valido") {
 }
 
 const chiamateWhisper = () => whisper.mock.calls.filter((c) => String(c[0]).includes("audio/transcriptions")).length;
-const addebiti = () => mondo.rpcChiamate.filter((c) => c.nome === "deduct_ai_credits_with_markup");
+const addebiti = () => mondo.rpcChiamate.filter((c) => c.nome === "addebita_ai_diretta");
 
 describe("detta-testo: gestore vero", () => {
   it("trascrive, ripulisce e restituisce testo pulito e grezzo, poi toglie l'audio", async () => {

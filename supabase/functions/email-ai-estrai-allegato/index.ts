@@ -29,7 +29,7 @@ import {
   isValidIban,
   ibanEquivalenti,
 } from "../_shared/doc-validation.ts";
-import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
+import { callOpenRouterAddebitato, CreditoAiInsufficiente } from "../_shared/ai-provider/openrouterAddebitato.ts";
 import { jsonDalModello } from "./jsonDalModello.ts";
 import { bytesToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
@@ -154,7 +154,8 @@ Deno.serve(async (req) => {
     let visText = "{}";
     let troncatoDalTetto = false;
     try {
-      const vis = await callOpenRouter({
+      // Addebitato all'azienda dell'allegato (15/11/2026: prima a carico nostro).
+      const vis = await callOpenRouterAddebitato({
         model: SONNET_MODEL,
         // Lo schema chiesto nel prompt (un oggetto valore/conf per campo, più
         // l'array delle righe) in bella copia supera i 1500 token: la risposta
@@ -170,10 +171,16 @@ Deno.serve(async (req) => {
             { type: "file", file: { filename: att.filename || "documento.pdf", file_data: `data:application/pdf;base64,${base64}` } },
           ] },
         ],
-      }, { task_kind: "email_estrai_allegato", company_id: att.company_id });
+      }, { supabase, task_kind: "email_estrai_allegato", company_id: att.company_id,
+           idempotency_key: `email_allegato_${att.inbox_id}_${attIdx}`, estimated_tokens_total: 12000 });
       visText = vis.content || "{}";
       troncatoDalTetto = vis.finish_reason === "length";
     } catch (e) {
+      if (e instanceof CreditoAiInsufficiente) {
+        // Credito dell'AZIENDA finito: come per la carta, si ritenta più tardi.
+        await segnaTentativo(supabase, att.inbox_id, "credito", `credito AI azienda: ${e.messaggio}`);
+        return json({ error: "insufficient_credits", message: e.messaggio }, 402, cors);
+      }
       const detail = e instanceof Error ? e.message : String(e);
       // Credito OpenRouter esaurito (402 «requires at least $0.50 in balance for files»):
       // non è un errore del documento. Prima il dispatcher (ogni 7 minuti) rifaceva la

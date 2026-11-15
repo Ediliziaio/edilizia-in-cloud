@@ -132,6 +132,8 @@ export async function transcribeAudioWhisper(
   audioBytes: Uint8Array,
   filename = "audio.ogg",
   prompt?: string,
+  /** Riceve la durata dell'audio misurata da Whisper (secondi), per l'addebito. */
+  onDurata?: (secondi: number) => void,
 ): Promise<string> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY non configurata");
@@ -146,6 +148,8 @@ export async function transcribeAudioWhisper(
   if (prompt && prompt.trim()) form.append("prompt", prompt.trim());
   // Determinismo: stessa traccia → stessa trascrizione.
   form.append("temperature", "0");
+  // verbose_json: la durata VERA dell'audio, che è l'unità che Whisper fa pagare.
+  form.append("response_format", "verbose_json");
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25_000);
@@ -167,7 +171,13 @@ export async function transcribeAudioWhisper(
         `Whisper ${resp.status}: ${(await resp.text()).substring(0, 200)}`,
       );
     }
-    const json = (await resp.json()) as { text?: string };
+    const grezzo = await resp.text();
+    let json: { text?: string; duration?: number } = { text: grezzo };
+    try {
+      const j = JSON.parse(grezzo);
+      if (j && typeof j === "object" && typeof j.text === "string") json = j;
+    } catch { /* formato testo */ }
+    if (typeof json.duration === "number" && json.duration > 0) onDurata?.(json.duration);
     return json.text ?? "";
   } catch (e) {
     clearTimeout(timeoutId);

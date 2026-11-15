@@ -9,7 +9,7 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_TIMEOUT_MS = 25_000;
 const DEFAULT_RETRIES = 2;
 
-interface OpenRouterParams {
+export interface OpenRouterParams {
   model: string;
   messages: unknown[];
   tools?: unknown[];

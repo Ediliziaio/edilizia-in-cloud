@@ -301,7 +301,9 @@ Deno.serve(async (req) => {
   const expectedSecret = Deno.env.get("PROACTIVE_CRON_SECRET");
   const authHeader = req.headers.get("Authorization") ?? "";
   const isAuthorizedCron = cronSecret && expectedSecret && cronSecret === expectedSecret;
-  const isServiceRole = authHeader.includes(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "_no_match_");
+  // Confronto esatto: prima bastava che l'intestazione CONTENESSE la chiave.
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const isServiceRole = !!serviceKey && authHeader === `Bearer ${serviceKey}`;
   if (!isAuthorizedCron && !isServiceRole) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401, headers: { ...cors, "Content-Type": "application/json" },

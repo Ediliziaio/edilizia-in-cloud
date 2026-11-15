@@ -89,7 +89,7 @@ REGOLE CRITICHE:
 - Rispondi SOLO con il JSON, senza markdown, senza testo extra
 - Se un campo non è chiaro nella trascrizione, usa null (non ometter la chiave)`;
 
-async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promise<string> {
+async function transcribeAudio(audioBytes: Uint8Array, mimeType: string, misura?: { durata: number | null }): Promise<string> {
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY non configurata");
   }
@@ -104,7 +104,9 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
   form.append("file", blob, `audio.${ext}`);
   form.append("model", "whisper-1");
   form.append("language", "it");
-  form.append("response_format", "text");
+  // verbose_json: la durata la misura Whisper (15/11/2026: prima si addebitava
+  // sulla durata mandata dal client).
+  form.append("response_format", "verbose_json");
 
   // P2-5: Whisper può essere lento (file audio lunghi). Timeout 60s.
   const response = await fetchWithTimeout("https://api.openai.com/v1/audio/transcriptions", {
@@ -121,8 +123,14 @@ async function transcribeAudio(audioBytes: Uint8Array, mimeType: string): Promis
     throw new Error(`Whisper error ${response.status}: ${errText}`);
   }
 
-  const text = await response.text();
-  return text.trim();
+  const grezzo = await response.text();
+  let corpo: { text?: string; duration?: number } = { text: grezzo };
+  try {
+    const j = JSON.parse(grezzo);
+    if (j && typeof j === "object" && typeof j.text === "string") corpo = j;
+  } catch { /* formato testo */ }
+  if (misura && typeof corpo.duration === "number" && corpo.duration > 0) misura.durata = corpo.duration;
+  return (corpo.text ?? "").trim();
 }
 
 async function extractStructuredData(
@@ -293,8 +301,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ─── Trascrizione ──
   let trascrizione = "";
+  const misura: { durata: number | null } = { durata: null };
   try {
-    trascrizione = await transcribeAudio(audioBytes, mimeType);
+    trascrizione = await transcribeAudio(audioBytes, mimeType, misura);
   } catch (err) {
     console.error("Trascrizione fallita", err);
     // Non bloccante: salva comunque il rapportino in bozza
@@ -306,13 +315,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       company_id: companyId,
       task_kind: "parse_rapportino",
       model_used: "openai/whisper-1",
-      cost_usd_real: estimateWhisperCostUsd(payload.duration_sec),
-      cost_is_estimated: true,
+      cost_usd_real: estimateWhisperCostUsd(Math.max(misura.durata ?? 0, Number(payload.duration_sec) || 0) || null),
+      cost_is_estimated: misura.durata === null,
       metadata: {
         user_id: user.id,
         persona_key: "capocantiere",
         audio_path: payload.audio_path,
-        audio_seconds: payload.duration_sec,
+        audio_seconds: misura.durata ?? payload.duration_sec,
+        audio_seconds_dichiarati: payload.duration_sec,
         file_size_bytes: audioBytes.byteLength,
         operation: "rapportino_audio_transcription",
       },

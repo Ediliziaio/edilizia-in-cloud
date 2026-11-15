@@ -28,6 +28,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 
 interface SearchBody {
   query: string;
@@ -97,7 +98,34 @@ Deno.serve(async (req) => {
     });
   }
 
+  // Prima bastava il prefisso «Bearer»: con la chiave anonima pubblica chiunque
+  // faceva partire un embedding a pagamento (15/11/2026). Ora serve un utente
+  // vero, e l'azienda è la sua: quella del corpo vale solo per il super admin.
+  const supaAuth = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: authData } = await supaAuth.auth.getUser(authHeader.replace("Bearer ", ""));
+  const user = authData?.user;
+  if (!user) {
+    return new Response(JSON.stringify({ error: "auth_required" }), {
+      status: 401, headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const [{ data: profilo }, { data: ruoli }] = await Promise.all([
+    admin.from("profiles").select("company_id").eq("id", user.id).maybeSingle(),
+    admin.from("user_roles").select("role").eq("user_id", user.id),
+  ]);
+  const superAdmin = (ruoli ?? []).some((r: { role: string }) => r.role === "super_admin");
+
   const body = await req.json().catch(() => ({})) as SearchBody;
+  const companyId: string | null = superAdmin ? (body.company_id ?? profilo?.company_id ?? null) : (profilo?.company_id ?? null);
+  if (!companyId && !superAdmin) {
+    return new Response(JSON.stringify({ error: "company_required" }), {
+      status: 403, headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+  body.company_id = companyId ?? undefined;
   const query = (body.query ?? "").trim();
   if (query.length < 3) {
     return new Response(JSON.stringify({
@@ -112,6 +140,16 @@ Deno.serve(async (req) => {
   const tEmbStart = Date.now();
   const queryEmbedding = await generateEmbedding(query);
   const queryEmbMs = Date.now() - tEmbStart;
+
+  if (queryEmbedding) {
+    // Embedding addebitato all'azienda che cerca (strada diretta, ai_pricing_markup).
+    const uso = estimateEmbeddingUsage(query.substring(0, 8000));
+    await chargeAndLogDirect({
+      supabase: admin, company_id: companyId, task_kind: "semantic_search_embedding",
+      model_used: `openai/${EMBED_MODEL}`, cost_usd_real: uso.costUsd, cost_is_estimated: true,
+      tokens_prompt: uso.tokens, metadata: { user_id: user.id },
+    });
+  }
 
   if (!queryEmbedding) {
     return new Response(JSON.stringify({

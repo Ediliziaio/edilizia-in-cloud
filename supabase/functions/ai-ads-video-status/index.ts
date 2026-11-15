@@ -15,6 +15,7 @@ interface StatusRequest {
   company_id: string;
   job_id: string;
   replicate_id: string;
+  /** Ignorato: l'URL lo costruisce il server (vedi sotto). */
   replicate_get_url?: string;
   // Per salvare in ad_media quando done
   effect_id?: string;
@@ -59,11 +60,29 @@ Deno.serve(async (req) => {
       return fn({ error: "invalid_json" }, 400, corsHeaders);
     }
 
-    if (!body.replicate_id) return fn({ error: "replicate_id_required" }, 400, corsHeaders);
+    if (!body.replicate_id || !/^[a-z0-9]{8,64}$/i.test(body.replicate_id)) {
+      return fn({ error: "replicate_id_required" }, 400, corsHeaders);
+    }
 
-    // Poll Replicate
-    const getUrl = body.replicate_get_url
-      ?? `https://api.replicate.com/v1/predictions/${body.replicate_id}`;
+    // L'azienda la decide il server (15/11/2026). Prima bastava un utente
+    // qualunque: company_id dal corpo, e `replicate_get_url` dal corpo veniva
+    // chiamato col token Replicate nell'intestazione — chi passava un suo URL
+    // si prendeva il token. Ora: l'utente deve appartenere all'azienda, e la
+    // previsione deve essere stata addebitata a quell'azienda.
+    // Stessa regola del database (user_can_access_company): profilo, accesso
+    // multi-azienda attivo, commercialista, super admin.
+    const { data: puo } = await userClient.rpc("user_can_access_company", { p_company_id: body.company_id });
+    if (puo !== true) return fn({ error: "forbidden" }, 403, corsHeaders);
+    const { data: addebito } = await admin
+      .from("ai_call_ledger")
+      .select("id")
+      .eq("idempotency_key", `video_replicate_${body.replicate_id}`)
+      .eq("company_id", body.company_id)
+      .maybeSingle();
+    if (!addebito) return fn({ error: "job_not_found" }, 404, corsHeaders);
+
+    // Poll Replicate: l'URL lo costruisce il server, mai dal corpo.
+    const getUrl = `https://api.replicate.com/v1/predictions/${body.replicate_id}`;
 
     const replicateRes = await fetch(getUrl, {
       headers: { Authorization: `Token ${replicateToken}` },

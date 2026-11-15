@@ -106,7 +106,7 @@ async function limiteSuperato(db: Db, userId: string, companyId: string): Promis
   return null;
 }
 
-async function trascrivi(blob: Blob, mime: string, companyId: string): Promise<{ testo: string } | { errore: Response }> {
+async function trascrivi(blob: Blob, mime: string, companyId: string): Promise<{ testo: string; durata: number | null } | { errore: Response }> {
   const chiave = Deno.env.get("OPENAI_API_KEY") ?? "";
   if (!chiave) return { errore: new Response(null, { status: 503 }) };
   const form = new FormData();
@@ -114,7 +114,9 @@ async function trascrivi(blob: Blob, mime: string, companyId: string): Promise<{
   form.append("file", blob, `audio.${ext}`);
   form.append("model", "whisper-1");
   form.append("language", "it");
-  form.append("response_format", "text");
+  // verbose_json: la durata la misura Whisper, non il browser (15/11/2026: prima
+  // si addebitava sulla durata dichiarata dal client).
+  form.append("response_format", "verbose_json");
   const contesto = { funzione: "detta-testo", modello: "openai/whisper-1", companyId };
   let res: Response;
   try {
@@ -134,7 +136,17 @@ async function trascrivi(blob: Blob, mime: string, companyId: string): Promise<{
     segnalaErroreAI({ provider: "openai", stato: res.status, messaggio: testo.slice(0, 500) }, contesto);
     return { errore: new Response(null, { status: 502 }) };
   }
-  return { testo: (await res.text()).trim() };
+  const corpo = corpoWhisper(await res.text());
+  return { testo: (corpo.text ?? "").trim(), durata: typeof corpo.duration === "number" && corpo.duration > 0 ? corpo.duration : null };
+}
+
+/** verbose_json → { text, duration }; se il corpo non è JSON (formato testo) vale come testo. */
+function corpoWhisper(grezzo: string): { text?: string; duration?: number } {
+  try {
+    const j = JSON.parse(grezzo);
+    if (j && typeof j === "object" && typeof j.text === "string") return j;
+  } catch { /* non è JSON */ }
+  return { text: grezzo };
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -203,14 +215,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return jsonResponse({ error: "Trascrizione non riuscita. Riprova tra poco o scrivi il testo: nessun addebito." }, esito.errore.status, cors);
     }
     const trascrizione = esito.testo;
+    const durataVera = Math.max(esito.durata ?? 0, Number(durata) || 0) || null;
     await chargeAndLogDirect({
       supabase: db,
       company_id: companyId,
       task_kind: "audio_transcription",
       model_used: "openai/whisper-1",
-      cost_usd_real: estimateWhisperCostUsd(durata),
-      cost_is_estimated: true,
-      metadata: { user_id: userId, audio_seconds: durata, file_size_bytes: blob.size, operation: "detta_testo", contesto, campo },
+      cost_usd_real: estimateWhisperCostUsd(durataVera),
+      cost_is_estimated: esito.durata === null,
+      metadata: { user_id: userId, audio_seconds: durataVera, audio_seconds_dichiarati: durata, file_size_bytes: blob.size, operation: "detta_testo", contesto, campo },
     }).catch((e: unknown) => console.warn("[detta-testo] addebito Whisper non registrato:", e instanceof Error ? e.message : e));
 
     // L'audio serviva solo a questo: non resta nel bucket.

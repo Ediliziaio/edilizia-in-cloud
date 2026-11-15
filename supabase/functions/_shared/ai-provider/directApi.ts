@@ -32,6 +32,13 @@ export interface DirectChargeArgs {
   tokens_completion?: number;
   /** Metadata libera (latency_ms, file_size, duration_sec, ecc.). */
   metadata?: Record<string, unknown>;
+  /**
+   * Chiave di idempotenza della chiamata al provider (richiesta, documento +
+   * versione, messaggio). Un retry con la stessa chiave non addebita due volte.
+   * Se manca e c'è `metadata.generation_id` (OpenRouter), si usa quella: una
+   * generazione = un addebito.
+   */
+  idempotency_key?: string | null;
 }
 
 export interface DirectChargeResult {
@@ -42,99 +49,92 @@ export interface DirectChargeResult {
   cost_billed_eur?: number;
   margin_eur?: number;
   usage_log_id?: string;
+  idempotent_replay?: boolean;
 }
 
 /**
- * Scala crediti + log unificato in `ai_model_usage_log` per chiamate AI dirette.
- *
- * Mirrors `chargeAndLog` di billing.ts ma esposto al di fuori del flusso chat()
- * — pensato per Whisper, embeddings, image generation, vision diretto.
+ * Chiave effettiva dell'addebito. Deve identificare la CHIAMATA al provider,
+ * non il lavoro: se un lavoro ripetuto richiama il provider, il provider ci fa
+ * pagare due volte e la seconda chiamata va addebitata (stesso difetto chiuso
+ * nel router il 15/11/2026). Quindi:
+ *   - chiave del lavoro + id generazione → la stessa generazione non si paga due volte;
+ *   - solo chiave del lavoro (provider senza id, es. Whisper) → il chiamante
+ *     deve evitare di richiamare il provider per un lavoro già fatto;
+ *   - solo id generazione → una generazione = un addebito.
  */
+export function chiaveAddebitoDiretto(args: Pick<DirectChargeArgs, "idempotency_key" | "metadata" | "task_kind">): string | null {
+  const gen = typeof args.metadata?.generation_id === "string" && args.metadata.generation_id.trim()
+    ? args.metadata.generation_id.trim()
+    : null;
+  const data = args.idempotency_key?.trim() || null;
+  if (data && gen) return `${data}~gen~${gen}`;
+  if (data) return data.length >= 8 ? data : `${args.task_kind}:${data}`;
+  if (gen) return `gen:${gen}`;
+  return null;
+}
+
 export async function chargeAndLogDirect(
   args: DirectChargeArgs,
 ): Promise<DirectChargeResult> {
   const tokensPrompt = Math.max(0, Math.floor(args.tokens_prompt ?? 0));
   const tokensCompletion = Math.max(0, Math.floor(args.tokens_completion ?? 0));
 
-  // Modalità SuperAdmin/platform (no company): log diretto, no scalo.
-  if (!args.company_id) {
-    const { error } = await args.supabase.from("ai_model_usage_log").insert({
-      task_kind: args.task_kind,
-      model_requested: args.model_used,
-      model_used: args.model_used,
-      provider_used: args.model_used.split("/")[0] ?? "unknown",
-      tokens_prompt: tokensPrompt,
-      tokens_completion: tokensCompletion,
-      tokens_total: tokensPrompt + tokensCompletion,
-      cost_usd: args.cost_usd_real,
-      cost_is_estimated: args.cost_is_estimated ?? true,
-      ok: true,
-      credits_deducted: false,
-      metadata: args.metadata ?? {},
-    });
-    if (error) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          fn: "chargeAndLogDirect",
-          msg: "platform insert failed",
-          error: error.message,
-        }),
-      );
-      return { charged: false, reason: "log_error" };
-    }
-    return { charged: false, reason: "no_company" };
-  }
+  const chiave = chiaveAddebitoDiretto(args);
+  const metadata = {
+    ...(args.metadata ?? {}),
+    cost_is_estimated: args.cost_is_estimated ?? true,
+    direct_api: true,
+  };
 
-  const { data, error } = await args.supabase.rpc(
-    "deduct_ai_credits_with_markup",
-    {
-      p_company_id: args.company_id,
-      p_task_kind: args.task_kind,
-      p_model_used: args.model_used,
-      p_cost_usd_real: args.cost_usd_real,
-      p_tokens_prompt: tokensPrompt,
-      p_tokens_completion: tokensCompletion,
-      p_wa_message_id: null,
-      p_metadata: {
-        ...(args.metadata ?? {}),
-        cost_is_estimated: args.cost_is_estimated ?? true,
-        direct_api: true,
-      },
-    },
-  );
+  // Porta unica (migrazione 20290403150000): chiave + lock, addebito, e se
+  // l'addebito non passa il consumo resta registrato col motivo. Anche senza
+  // azienda la riga si scrive, marcata come costo interno della piattaforma.
+  const { data, error } = await args.supabase.rpc("addebita_ai_diretta", {
+    p_idempotency_key: chiave,
+    p_company_id: args.company_id ?? null,
+    p_task_kind: args.task_kind,
+    p_model_used: args.model_used,
+    p_cost_usd_real: args.cost_usd_real,
+    p_tokens_prompt: tokensPrompt,
+    p_tokens_completion: tokensCompletion,
+    p_metadata: metadata,
+  });
 
-  if (error || !data || (data as Array<unknown>).length === 0) {
+  if (error || !data) {
     console.error(
       JSON.stringify({
         level: "error",
         fn: "chargeAndLogDirect",
-        msg: "deduct_ai_credits_with_markup failed",
+        msg: "addebita_ai_diretta failed",
+        task_kind: args.task_kind,
+        company_id: args.company_id ?? null,
         error: error?.message,
       }),
     );
     return { charged: false, reason: "rpc_error" };
   }
 
-  const row = (data as Array<{
-    ok: boolean;
-    reason: string;
-    cost_real_eur: number;
-    cost_billed_eur: number;
-    margin_eur: number;
-    balance_before: number;
-    balance_after: number;
-    usage_log_id: string;
-  }>)[0];
+  const row = data as {
+    ok?: boolean; charged?: boolean; reason?: string; idempotent_replay?: boolean;
+    balance_before?: number; balance_after?: number; cost_billed_eur?: number;
+    margin_eur?: number; usage_log_id?: string;
+  };
+  if (row.charged !== true && row.reason !== "idempotent_replay" && row.reason !== "no_company") {
+    console.warn(JSON.stringify({
+      level: "warn", fn: "chargeAndLogDirect", msg: "consumo registrato ma non addebitato",
+      task_kind: args.task_kind, company_id: args.company_id, reason: row.reason,
+    }));
+  }
 
   return {
-    charged: row.ok === true,
-    reason: row.reason,
+    charged: row.charged === true,
+    reason: row.reason ?? "unknown",
     balance_before: Number(row.balance_before ?? 0),
     balance_after: Number(row.balance_after ?? 0),
     cost_billed_eur: Number(row.cost_billed_eur ?? 0),
     margin_eur: Number(row.margin_eur ?? 0),
     usage_log_id: row.usage_log_id,
+    idempotent_replay: row.idempotent_replay === true,
   };
 }
 

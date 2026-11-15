@@ -16,6 +16,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, jsonResponse } from "../_shared/headers.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { addebitaUnitario, controllaCreditoUnitario } from "../_shared/addebitoAiUnitario.ts";
 
 // ─── Replicate models ─────────────────────────────────────────────────────────
 
@@ -166,6 +167,14 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Credito PRIMA della chiamata (15/11/2026): il video era l'unità più cara
+    // e non si addebitava. Costo = la stima già scritta in MODELS (EUR → USD).
+    const modello = body.mode === "img2vid" ? "replicate/stable-video-diffusion" : "replicate/minimax-video-01";
+    const costoEurStimato = (body.mode === "img2vid" ? MODELS.img2vid.cost_eur_cents_est : MODELS.txt2vid.cost_eur_cents_est) / 100;
+    const costoUsdStimato = costoEurStimato / Number(Deno.env.get("AI_FX_USD_EUR") ?? "0.92");
+    const credito = await controllaCreditoUnitario(admin, { companyId: body.company_id, costoUsdStimato });
+    if (!credito.ok) return fn({ error: "insufficient_credits", message: credito.messaggio }, 402, corsHeaders);
+
     // Start Replicate prediction
     const replicateRes = await fetch(predictionUrl, {
       method: "POST",
@@ -184,6 +193,21 @@ Deno.serve(async (req) => {
     }
 
     const prediction = await replicateRes.json() as { id: string; status: string; urls?: { get: string } };
+
+    // Addebito appena Replicate ha accettato il lavoro: da qui il costo corre
+    // anche se il video poi fallisce (politica scritta nel censimento). La
+    // chiave è l'id della previsione: un retry dell'addebito non conta doppio,
+    // e ai-ads-video-status la usa per sapere di quale azienda è il video.
+    const addebito = await addebitaUnitario(admin, {
+      chiave: `video_replicate_${prediction.id}`,
+      companyId: body.company_id,
+      userId: user.id,
+      taskKey: "ads_video_genera",
+      modello,
+      costoUsd: costoUsdStimato,
+      metadata: { replicate_id: prediction.id, mode: body.mode, costo_stimato: true },
+    });
+    if (!addebito.ok) console.error("[ai-ads-video-generate] addebito non registrato:", addebito.errore, prediction.id);
 
     // Store job in ad_video_jobs (best-effort — table might not exist yet)
     const jobData = {

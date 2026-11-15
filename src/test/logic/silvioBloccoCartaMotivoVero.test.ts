@@ -162,7 +162,7 @@ describe("email-ai-estrai-allegato: niente AI senza carta", () => {
   it("controlla la carta prima della visione e risponde 402 col codice", () => {
     const controllo = s.indexOf("await checkPaymentMethod(supabase, att.company_id)");
     expect(controllo).toBeGreaterThan(0);
-    expect(controllo).toBeLessThan(s.indexOf("await callOpenRouter("));
+    expect(controllo).toBeLessThan(s.indexOf("await callOpenRouterAddebitato("));
     expect(controllo).toBeLessThan(s.indexOf(".download(att.storage_path)"));
     expect(s).toMatch(/json\(\{ error: motivo, code: "payment_method_required" \}, 402, cors\)/);
     // Il dispatcher riprova fra un'ora e non abbandona la mail dopo 6 giri.

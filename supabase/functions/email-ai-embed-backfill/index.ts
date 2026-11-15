@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -37,12 +38,17 @@ serveConMetricheRapida("email-ai-embed-backfill", async (req) => {
       if (!authHeader) return json({ error: "Auth required" }, 401, cors);
       const { data: u } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
       if (!u.user) return json({ error: "Invalid token" }, 401, cors);
+      // L'intestazione dice «cron o super_admin», ma bastava un utente
+      // qualunque per lanciare embedding a pagamento su tutte le aziende (15/11/2026).
+      const { data: sa } = await supabase.from("user_roles").select("role")
+        .eq("user_id", u.user.id).eq("role", "super_admin").maybeSingle();
+      if (!sa) return json({ error: "forbidden" }, 403, cors);
     }
 
     const limit = Math.min(body.limit || 50, 100);
     let q = supabase
       .from("email_inbox")
-      .select("id, subject, raw_text, raw_html")
+      .select("id, company_id, subject, raw_text, raw_html")
       .is("embedding", null)
       .eq("is_personale", false)
       .order("received_at", { ascending: false })
@@ -59,6 +65,13 @@ serveConMetricheRapida("email-ai-embed-backfill", async (req) => {
       if (text.length < 10) continue;
       const emb = await generateEmbedding(text);
       if (!emb) continue;
+      // Embedding addebitato all'azienda della email (15/11/2026).
+      const uso = estimateEmbeddingUsage(text);
+      await chargeAndLogDirect({
+        supabase, company_id: (e as any).company_id ?? null, task_kind: "email_embedding",
+        model_used: "openai/text-embedding-3-small", cost_usd_real: uso.costUsd, cost_is_estimated: true,
+        tokens_prompt: uso.tokens, metadata: { email_id: e.id },
+      });
       // pgvector: salva come STRING literal "[1,2,3]" (l'array raw non viene castato a vector)
       await supabase
         .from("email_inbox")

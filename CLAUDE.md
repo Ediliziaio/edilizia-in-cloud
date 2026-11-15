@@ -339,3 +339,19 @@ Regole:
 - Le funzioni SQL `ai_allarme_*` sono chiuse (solo service role). L'idempotenza
   e la cadenza dei promemoria stanno nel database, non nel codice: due controlli
   in parallelo non mandano due email.
+
+## Ogni chiamata AI a pagamento ha un'azienda che la paga
+
+Censimento del 15/11/2026: `docs/ai-addebiti-censimento.md`. Un punto nuovo che
+chiama un provider passa da una di queste strade, mai da un `fetch` nudo:
+`aiRouterComplete` (router), `claudeMessagesBilled` o `callOpenRouterAddebitato`
+(diretta, `ai_pricing_markup`), `addebitaUnitario` per video e immagini (credito
+prima con `controllaCreditoUnitario`). Senza azienda il costo resta registrato
+come interno (`platform_ai_usage_log`, `interno_piattaforma`): va bene solo se è
+scritto nel censimento.
+- L'azienda la decide il server (profilo, appartenenza, record), mai il solo corpo.
+- La chiave di idempotenza identifica la **chiamata al provider**, non il lavoro:
+  se un lavoro ripetuto richiama il provider, si paga di nuovo. Per non far pagare
+  un retry, non si richiama il provider (cache, `runGuardedAiRequest`, dato già letto).
+- Un flusso che sa chiudere un lavoro senza AI lo dice con `registraEsitoLavoroAi`:
+  è il numero che il titolare vede in «Consumo AI del team».

@@ -107,7 +107,12 @@ describe("claudeProxy: il triage email e gli altri registrano il costo vero", ()
     return {
       righe,
       // deno-lint-ignore no-explicit-any
-      client: { from: () => ({ insert: async (r: Record<string, unknown>): Promise<{ error: null }> => { righe.push(r); return { error: null }; } }) } as any,
+      // Dal 15/11/2026 il registro diretto passa da addebita_ai_diretta (chiave, lock, consumo
+      // non addebitato): la riga che finisce nel registro è quella che riceve la funzione.
+      client: { rpc: async (_fn: string, a: Record<string, unknown>) => {
+        righe.push({ cost_usd: a.p_cost_usd_real, cost_is_estimated: (a.p_metadata as Record<string, unknown>).cost_is_estimated, metadata: a.p_metadata, idempotency_key: a.p_idempotency_key });
+        return { data: { ok: true, charged: false, reason: "no_company" }, error: null as unknown };
+      } } as any,
     };
   }
 
@@ -120,6 +125,8 @@ describe("claudeProxy: il triage email e gli altri registrano il costo vero", ()
     expect(righe[0].cost_usd).toBeCloseTo(0.00123, 8);
     expect(righe[0].cost_is_estimated).toBe(false);
     expect((righe[0].metadata as Record<string, unknown>).generation_id).toBe("gen-xyz");
+    // una generazione = un addebito
+    expect(righe[0].idempotency_key).toBe("gen:gen-xyz");
     // la risposta resta nella forma Anthropic
     const json = await r.json() as { content: Array<{ text: string }>; usage: { input_tokens: number } };
     expect(json.content[0].text).toBe("riassunto");

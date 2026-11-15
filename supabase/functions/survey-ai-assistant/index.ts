@@ -8,45 +8,50 @@
  * Usa Claude Haiku 4.5 via OpenRouter (veloce + economico).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
+import { claudeMessagesBilled } from "../_shared/claudeProxy.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const OPENROUTER_KEY = Deno.env.get("OPENROUTER_API_KEY")!;
-const MODEL_ID = "anthropic/claude-haiku-4.5";
+const MODEL_ID = "claude-haiku-4-5";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function callClaude(systemPrompt: string, userPrompt: string, jsonMode = true): Promise<string> {
-  const res = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://edilizia-in-cloud",
-      "X-Title": "Survey AI Assistant",
-    },
-    body: JSON.stringify({
-      model: MODEL_ID,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 2500,
-      temperature: 0.3,
-      response_format: jsonMode ? { type: "json_object" } : undefined,
-    }),
+// Chiamata addebitata all'azienda del sopralluogo (15/11/2026): prima andava
+// diretta a OpenRouter senza controllo del credito né addebito.
+async function callClaude(
+  systemPrompt: string,
+  userPrompt: string,
+  billing: { supabase: unknown; companyId: string; surveyId: string; azione: string; userId: string },
+): Promise<string> {
+  const res = await claudeMessagesBilled({
+    model: MODEL_ID,
+    max_tokens: 2500,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+    temperature: 0.3,
+  }, {
+    supabase: billing.supabase,
+    companyId: billing.companyId,
+    taskKind: "survey_ai_assistant",
+    estimatedTokensTotal: 6000,
+    metadata: { survey_id: billing.surveyId, azione: billing.azione, user_id: billing.userId },
   });
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`openrouter_${res.status}: ${err.slice(0, 300)}`);
+    if (res.status === 402) throw new CreditoFinito(err);
+    throw new Error(`ai_${res.status}: ${err.slice(0, 300)}`);
   }
-  const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return json.choices?.[0]?.message?.content ?? "";
+  const json = await res.json() as { content?: Array<{ text?: string }> };
+  const testo = json.content?.[0]?.text ?? "";
+  // Il modello a volte racchiude il JSON in un blocco di codice.
+  return testo.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
 }
+
+class CreditoFinito extends Error {}
 
 function formatSurveyForAI(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,6 +134,16 @@ Deno.serve(async (req) => {
   ]);
 
   if (!survey) return jsonRes({ ok: false, error: "Survey not found" }, 404);
+  // Il sopralluogo si legge col service role: senza questo controllo chiunque
+  // fosse autenticato leggeva (e faceva analizzare a nostre spese) il
+  // sopralluogo di un'altra azienda conoscendone l'id (15/11/2026).
+  try {
+    await requireCompanyAccess(supabase, userId, survey.company_id, CORS);
+  } catch (r) {
+    if (r instanceof Response) return r;
+    throw r;
+  }
+  const billing = { supabase, companyId: survey.company_id as string, surveyId: body.survey_id, azione: body.action, userId };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: template } = await (supabase as any)
@@ -153,7 +168,7 @@ Output JSON OBBLIGATORIO:
 }
 
 Lingua: italiano. Sii conciso.`;
-      const raw = await callClaude(sys, `Sopralluogo da analizzare:\n\n${surveyText}`);
+      const raw = await callClaude(sys, `Sopralluogo da analizzare:\n\n${surveyText}`, billing);
       let parsed;
       try { parsed = JSON.parse(raw); } catch { parsed = { summary: raw }; }
       return jsonRes({ ok: true, ...parsed });
@@ -181,11 +196,14 @@ Output JSON OBBLIGATORIO:
 }
 
 Lingua: italiano. Sii preciso nei codici tecnici.`;
-    const raw = await callClaude(sys, `Sopralluogo da convertire in righe preventivo:\n\n${surveyText}`);
+    const raw = await callClaude(sys, `Sopralluogo da convertire in righe preventivo:\n\n${surveyText}`, billing);
     let parsed;
     try { parsed = JSON.parse(raw); } catch { parsed = { lines: [], warnings: ["Parse JSON fallito"] }; }
     return jsonRes({ ok: true, ...parsed });
   } catch (e) {
+    if (e instanceof CreditoFinito) {
+      return jsonRes({ ok: false, error: "Credito AI esaurito: ricarica il borsellino per usare l'assistente del sopralluogo." }, 402);
+    }
     return jsonRes({ ok: false, error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });

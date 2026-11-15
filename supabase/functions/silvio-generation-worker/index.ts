@@ -14,7 +14,7 @@
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { isInternalRequest, requireInternalSecret, requireAuth } from "../_shared/auth.ts";
+import { isInternalRequest, requireInternalSecret, requireAuth, requireRole } from "../_shared/auth.ts";
 import {
   buildBrandedImagePrompt,
   aspectToOpenAiSize,
@@ -44,7 +44,10 @@ serveConMetriche("silvio-generation-worker", async (req: Request) => {
     if (isInternalRequest(req)) {
       requireInternalSecret(req, cors);
     } else {
-      await requireAuth(req, cors); // super_admin debug
+      // Il commento diceva «super_admin debug» ma bastava un utente qualunque
+      // per far girare i job di tutte le aziende (15/11/2026).
+      const auth = await requireAuth(req, cors);
+      await requireRole(auth.supabaseAdmin, auth.userId, ["super_admin"], cors);
     }
 
     // Basta una delle due chiavi: la catena è OpenRouter → OpenAI diretto.

@@ -16,7 +16,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
+import { callOpenRouterAddebitato, CreditoAiInsufficiente } from "../_shared/ai-provider/openrouterAddebitato.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -92,7 +92,8 @@ Deno.serve(async (req) => {
     // ── Estrazione richiesta (Haiku via OpenRouter) ─────────────────────────
     let aiText = "{}";
     try {
-      const ai = await callOpenRouter({
+      // Addebitato all'azienda della email (15/11/2026: prima a carico nostro).
+      const ai = await callOpenRouterAddebitato({
         model: HAIKU_MODEL,
         max_tokens: 600,
         temperature: 0,
@@ -100,9 +101,11 @@ Deno.serve(async (req) => {
           { role: "system", content: SYSTEM_OPP },
           { role: "user", content: `Mittente: ${email.from_name || ""} <${email.from_email || ""}>\n\n${corpo}` },
         ],
-      }, { task_kind: "email_opportunita", company_id: email.company_id });
+      }, { supabase, task_kind: "email_opportunita", company_id: email.company_id,
+           idempotency_key: `email_opportunita_${email.id}`, estimated_tokens_total: 3000 });
       aiText = ai.content || "{}";
     } catch (e) {
+      if (e instanceof CreditoAiInsufficiente) return json({ error: "insufficient_credits", message: e.messaggio }, 402, cors);
       return json({ error: "ai_error", detail: e instanceof Error ? e.message : String(e) }, 502, cors);
     }
     let ext: any = {};

@@ -413,6 +413,19 @@ function generateIdempotencyKey(taskKey: string): string {
 }
 
 /**
+ * Chiave di addebito per una chiamata al provider fatta di nuovo con una chiave
+ * già registrata. L'id della generazione OpenRouter identifica la chiamata
+ * vera: rilanciare l'addebito della stessa generazione resta idempotente.
+ * Senza id (provider che non lo dà) ogni ripetizione è una chiamata a sé.
+ */
+export function chiaveAddebitoChiamataRipetuta(chiave: string, generationId: string | null): string {
+  const suffisso = generationId && generationId.trim()
+    ? generationId.trim()
+    : `${Date.now().toString(36)}${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
+  return `${chiave}~gen~${suffisso}`;
+}
+
+/**
  * Charge atomico al wallet azienda. Best-effort: se fallisce non blocca la risposta
  * (la chiamata AI è già avvenuta), ma logga error per audit.
  */
@@ -442,6 +455,7 @@ async function chargeAiCall(
   costRealEur: number;
   costBilledEur: number;
   marginEur: number;
+  idempotentReplay?: boolean;
 } | null> {
   if (!args.companyId) return null; // task senza tenant: nessun charge
 
@@ -478,6 +492,7 @@ async function chargeAiCall(
       costRealEur: Number(r?.cost_real_eur ?? 0),
       costBilledEur: Number(r?.cost_billed_eur ?? 0),
       marginEur: Number(r?.margin_eur ?? 0),
+      idempotentReplay: r?.idempotent_replay === true,
     };
   } catch (e) {
     console.error("[aiRouter] charge_ai_call threw:", e);
@@ -1430,7 +1445,8 @@ export async function aiRouterComplete(
       let chargeSkipped = skipCharge || !opts.companyId;
 
       if (!skipCharge && opts.companyId) {
-        const charge = await chargeAiCall(opts.supabase, {
+        const generationId = (data as { id?: string })?.id ?? null;
+        const chargeArgs = {
           idempotencyKey: billingKey,
           companyId: opts.companyId,
           userId: opts.userId ?? null,
@@ -1444,7 +1460,7 @@ export async function aiRouterComplete(
           tokensOut: completionTokens,
           costRealUsd: costUsd,
           fxUsdToEur,
-          status: "success",
+          status: "success" as const,
           durationMs,
           // generation_id: l'id OpenRouter della chiamata, per unire il registro all'export per generazione
           metadata: { task: opts.taskKey, ...(opts.motivo ? { motivo: opts.motivo } : {}), generation_id: (data as { id?: string })?.id ?? null,
@@ -1452,7 +1468,20 @@ export async function aiRouterComplete(
             provider_request_key: guard?.key ?? null, cost_source: costSource,
             provider_cost_complete: hasProviderCost,
             usage_complete: usageComplete },
-        });
+        };
+        let charge = await chargeAiCall(opts.supabase, chargeArgs);
+        // Chiave già registrata ma provider chiamato DI NUOVO adesso (stessa
+        // richiesta ripetuta senza cache): la chiave stabile protegge dal
+        // doppio addebito della STESSA chiamata, non nasconde una chiamata
+        // nuova che il provider ci fa pagare. Misura del 15/11/2026: 60
+        // chiamate in 30 giorni rimaste così senza addebito.
+        if (charge?.idempotentReplay) {
+          charge = await chargeAiCall(opts.supabase, {
+            ...chargeArgs,
+            idempotencyKey: chiaveAddebitoChiamataRipetuta(billingKey, generationId),
+            metadata: { ...chargeArgs.metadata, ripetizione_di: billingKey },
+          });
+        }
         if (charge) {
           ledgerId = charge.ledgerId;
           costRealEur = charge.costRealEur;
@@ -1503,6 +1532,27 @@ export async function aiRouterComplete(
             console.error("[aiRouter] direct ledger insert threw:", directInsThrow);
           }
           chargeSkipped = true;
+        }
+      } else if (!opts.companyId) {
+        // Nessuna azienda (Silvio dei super admin, diagnostica, outreach della
+        // piattaforma): costo NOSTRO, dichiarato come tale nel registro della
+        // piattaforma, con il suo costo vero. Best-effort: la risposta è già pagata.
+        try {
+          await opts.supabase.from("platform_ai_usage_log").insert({
+            operation_key: opts.taskKey,
+            provider: "openrouter",
+            model_used: model,
+            tokens_in: promptTokens,
+            tokens_out: completionTokens,
+            cost_real_usd: costUsd,
+            duration_ms: durationMs,
+            status: "success",
+            user_id: opts.userId ?? null,
+            metadata: { interno: true, origine: "ai_router", generation_id: (data as { id?: string })?.id ?? null,
+              ...(opts.motivo ? { motivo: opts.motivo } : {}) },
+          });
+        } catch (internoErr) {
+          console.warn("[aiRouter] platform_ai_usage_log (non-blocking):", internoErr);
         }
       } else if (skipCharge && opts.companyId) {
         // FIX 17 (A1): skipCharge=true ma c'è un companyId → log informazionale

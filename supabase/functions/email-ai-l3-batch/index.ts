@@ -185,109 +185,112 @@ serveConMetricheRapida("email-ai-l3-batch", async (req) => {
       return json({ batched: 0, classified: 0, da_rivedere: 0, message: "Nessuna email da classificare" }, 200, corsHeaders);
     }
 
-    // ─── Costruzione user message (batch JSON compact) ─────────────────────
-    const userBatchInput = rows.map((r) => ({
-      id: r.id,
-      from: normalizeEmail(r.from_email || ""),
-      subject: (r.subject || "").slice(0, 200),
-      snippet: extractSnippet(r.raw_text, r.raw_html),
-    }));
-
-    // ─── Chiamata Haiku con prompt cache ───────────────────────────────────
-    const apiStart = Date.now();
-    const response = await claudeMessagesBilled({
-      model: HAIKU_MODEL,
-      max_tokens: 4096,
-      system: [
-        {
-          type: "text",
-          text: SYSTEM_PROMPT,
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: JSON.stringify(userBatchInput),
-        },
-      ],
-      temperature: 0,
-    }, { supabase, companyId: body.company_id ?? null, taskKind: "email_ai_l3_batch" });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return json({ error: `Anthropic API error ${response.status}: ${errText}` }, 500, corsHeaders);
+    // ─── Un batch per azienda ──────────────────────────────────────────────
+    // Prima un batch mescolava le email di aziende diverse e la chiamata
+    // partiva con companyId null: 218 batch in 30 giorni pagati dalla
+    // piattaforma e mai addebitati (misura del 15/11/2026). Ora ogni azienda
+    // ha la sua chiamata, il suo controllo del credito e il suo addebito.
+    const perAzienda = new Map<string, any[]>();
+    for (const r of rows) {
+      if (!r.company_id) continue;
+      const g = perAzienda.get(r.company_id) ?? [];
+      g.push(r);
+      perAzienda.set(r.company_id, g);
     }
 
-    const data = await response.json();
-    const elapsedMs = Date.now() - apiStart;
-    const content = data.content?.[0]?.text || "[]";
-    const usage = data.usage || {};
-
-    // ─── Parse JSON output ─────────────────────────────────────────────────
-    let parsed: Array<{ id: string; categoria: string; confidenza: number }>;
-    try {
-      // Robust JSON: trova prima array nel testo
-      const arrayMatch = content.match(/\[[\s\S]*\]/);
-      if (!arrayMatch) throw new Error("No JSON array in response");
-      parsed = JSON.parse(arrayMatch[0]);
-    } catch (e) {
-      console.error("[email-ai-l3-batch] Parse error", content);
-      return json({
-        error: "JSON parse failed",
-        detail: e instanceof Error ? e.message : String(e),
-        raw: content.slice(0, 500),
-      }, 500, corsHeaders);
-    }
-
-    // ─── Validazione + persistenza ─────────────────────────────────────────
     let classified = 0;
     let da_rivedere_count = 0;
     const results: Array<{ id: string; categoria: EmailCategoria; confidenza: number; da_rivedere: boolean }> = [];
+    const usages: Record<string, unknown> = {};
+    const saltate: Array<{ company_id: string; motivo: string }> = [];
+    const apiStart = Date.now();
 
-    for (const item of parsed) {
-      if (!item.id) continue;
-      const row = rows.find((r) => r.id === item.id);
-      if (!row) continue;
+    for (const [companyId, righe] of perAzienda) {
+      const userBatchInput = righe.map((r) => ({
+        id: r.id,
+        from: normalizeEmail(r.from_email || ""),
+        subject: (r.subject || "").slice(0, 200),
+        snippet: extractSnippet(r.raw_text, r.raw_html),
+      }));
 
-      // Sanitize categoria
-      const categoria: EmailCategoria = VALID_CATEGORIE.includes(item.categoria as EmailCategoria)
-        ? (item.categoria as EmailCategoria)
-        : "altro";
+      const response = await claudeMessagesBilled({
+        model: HAIKU_MODEL,
+        max_tokens: 4096,
+        system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: JSON.stringify(userBatchInput) }],
+        temperature: 0,
+      }, {
+        // Nessuna chiave del lavoro: un batch ripassato richiama il provider e va
+        // pagato; la chiave la dà l'id della generazione (una generazione = un addebito).
+        supabase, companyId, taskKind: "email_ai_l3_batch",
+      });
 
-      const confidenza = Math.max(0, Math.min(1, Number(item.confidenza) || 0));
-      const da_rivedere = confidenza < SOGLIA_CONFIDENZA;
-
-      const result: ClassificationResult = {
-        categoria: da_rivedere ? "altro" : categoria,
-        entita_tipo: null,
-        entita_id: null,
-        confidenza,
-        classificato_da: "haiku",
-        da_rivedere,
-      };
-
-      if (body.dry_run !== true) {
-        await persistClassification(supabase, row.id, result);
-        // Cache mittente solo se confidenza alta
-        if (!da_rivedere) {
-          await learnSender(supabase, row.company_id, row.from_email, result);
-        }
+      if (!response.ok) {
+        // Credito finito (402) o errore del provider: si salta l'azienda, le
+        // sue email restano senza categoria e ripassano al prossimo giro.
+        saltate.push({ company_id: companyId, motivo: `HTTP ${response.status}: ${(await response.text()).slice(0, 200)}` });
+        continue;
       }
 
-      results.push({ id: row.id, categoria: result.categoria, confidenza, da_rivedere });
-      if (da_rivedere) da_rivedere_count++;
-      else classified++;
+      const data = await response.json();
+      const content = data.content?.[0]?.text || "[]";
+      usages[companyId] = data.usage || {};
+
+      let parsed: Array<{ id: string; categoria: string; confidenza: number }>;
+      try {
+        const arrayMatch = content.match(/\[[\s\S]*\]/);
+        if (!arrayMatch) throw new Error("No JSON array in response");
+        parsed = JSON.parse(arrayMatch[0]);
+      } catch (e) {
+        console.error("[email-ai-l3-batch] Parse error", content);
+        saltate.push({ company_id: companyId, motivo: `JSON non leggibile: ${e instanceof Error ? e.message : String(e)}` });
+        continue;
+      }
+
+      for (const item of parsed) {
+        if (!item.id) continue;
+        const row = righe.find((r) => r.id === item.id);
+        if (!row) continue;
+
+        const categoria: EmailCategoria = VALID_CATEGORIE.includes(item.categoria as EmailCategoria)
+          ? (item.categoria as EmailCategoria)
+          : "altro";
+
+        const confidenza = Math.max(0, Math.min(1, Number(item.confidenza) || 0));
+        const da_rivedere = confidenza < SOGLIA_CONFIDENZA;
+
+        const result: ClassificationResult = {
+          categoria: da_rivedere ? "altro" : categoria,
+          entita_tipo: null,
+          entita_id: null,
+          confidenza,
+          classificato_da: "haiku",
+          da_rivedere,
+        };
+
+        if (body.dry_run !== true) {
+          await persistClassification(supabase, row.id, result);
+          if (!da_rivedere) {
+            await learnSender(supabase, row.company_id, row.from_email, result);
+          }
+        }
+
+        results.push({ id: row.id, categoria: result.categoria, confidenza, da_rivedere });
+        if (da_rivedere) da_rivedere_count++;
+        else classified++;
+      }
     }
 
     return json({
       batched: rows.length,
+      aziende: perAzienda.size,
       classified,
       da_rivedere: da_rivedere_count,
       processed: results.length,
       results,
-      anthropic_usage: usage,
-      elapsed_ms: elapsedMs,
+      saltate,
+      anthropic_usage: usages,
+      elapsed_ms: Date.now() - apiStart,
       model: HAIKU_MODEL,
       dry_run: body.dry_run === true,
     }, 200, corsHeaders);

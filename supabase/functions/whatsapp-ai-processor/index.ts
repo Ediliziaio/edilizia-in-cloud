@@ -367,7 +367,7 @@ Deno.serve(async (req) => {
         "DDT, bolla, fornitore, commessa, cantiere, operai, ore, cappotto, ponteggio, " +
         "massetto, getto, armatura, intonaco, posa, mq, ml, mc.";
       try {
-        const transcript = (await transcribeAudio(supabase, msg.media_storage_path, promptCantiere)).trim();
+        const transcript = (await transcribeAudio(supabase, msg.media_storage_path, promptCantiere, { companyId: msg.company_id ?? null, messageId: body.message_id })).trim();
         // Vocale vuoto/incomprensibile: rispondo subito invece di passare testo vuoto all'AI.
         if (transcript.length < 2) {
           await sendReply(

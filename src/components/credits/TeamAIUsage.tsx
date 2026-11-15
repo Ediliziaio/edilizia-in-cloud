@@ -1,6 +1,8 @@
 /**
  * TeamAIUsage — Dashboard per il titolare azienda: chi del team sta consumando AI,
- * per quali task/personas, quanto sta spendendo. Aggrega da ai_call_ledger.
+ * per quali task/personas, quanto sta spendendo. Aggrega da consumi_ai_azienda: le due strade
+ * di addebito (router → ai_call_ledger, chiamate dirette → ai_model_usage_log) in un posto solo
+ * (15/11/2026: prima le dirette, es. qualificazione dei lead, qui non comparivano).
  *
  * Layout:
  *   - Periodo selector (7/30/90 giorni)
@@ -31,15 +33,18 @@ interface LedgerRow {
   id: string;
   user_id: string | null;
   task_key: string;
-  tier_key: string;
   persona_key: string | null;
   tokens_in: number;
   tokens_out: number;
   cost_billed_eur: number;
-  cost_real_eur: number;
   model_used: string;
   status: string;
   created_at: string;
+}
+
+interface MetricheAi {
+  lavori?: { totali: number; senza_ai: number; con_ai: number; eccezioni: number; pct_senza_ai: number | null; chiamate_ai: number };
+  flussi?: Array<{ flusso: string; totali: number; senza_ai: number; pct_senza_ai: number | null; chiamate_ai: number }>;
 }
 
 interface ProfileMini {
@@ -66,6 +71,7 @@ const TASK_LABELS: Record<string, string> = {
   rapportino_parse: "Parsing rapportino",
   computo_extract: "Estrazione computo",
   vision_cantiere: "Analisi foto cantiere",
+  fattura_classifica: "Classificazione fatture ricevute",
 };
 
 function periodLabel(days: number) {
@@ -102,18 +108,40 @@ export default function TeamAIUsage() {
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
-        .from("ai_call_ledger" as never)
-        .select("id, user_id, task_key, tier_key, persona_key, tokens_in, tokens_out, cost_billed_eur, cost_real_eur, model_used, status, created_at")
+        .from("consumi_ai_azienda")
+        .select("id, user_id, compito, persona_key, tokens_in, tokens_out, addebitato_eur, modello, stato, created_at")
         .eq("company_id", companyId)
         .gte("created_at", sinceDate)
         .order("created_at", { ascending: false })
         .limit(2000);
       if (error) throw error;
-      return (data ?? []) as unknown as LedgerRow[];
+      return (data ?? []).map((r) => ({
+        id: r.id ?? "",
+        user_id: r.user_id,
+        task_key: r.compito ?? "",
+        persona_key: r.persona_key,
+        tokens_in: Number(r.tokens_in ?? 0),
+        tokens_out: Number(r.tokens_out ?? 0),
+        cost_billed_eur: Number(r.addebitato_eur ?? 0),
+        model_used: r.modello ?? "",
+        status: r.stato ?? "",
+        created_at: r.created_at ?? "",
+      })) satisfies LedgerRow[];
     },
     enabled: !!companyId,
   });
 
+  // ─── Lavori chiusi senza AI (registro lavori_ai_esiti) ───────────────
+  const { data: metriche } = useQuery({
+    queryKey: ["metriche_ai_azienda", companyId, days],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase.rpc("metriche_ai_azienda", { p_company_id: companyId, p_giorni: days });
+      if (error) throw error;
+      return (data ?? null) as MetricheAi | null;
+    },
+    enabled: !!companyId,
+  });
   // ─── Profili dell'azienda ─────────────────────────────────────────────
   const { data: profiles } = useQuery({
     queryKey: ["company_profiles_mini", companyId],
@@ -282,6 +310,43 @@ export default function TeamAIUsage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Lavori chiusi senza AI: regole, dati già presenti, XML */}
+      {metriche?.lavori && metriche.lavori.totali > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4" /> Lavori chiusi senza AI
+            </CardTitle>
+            <CardDescription>
+              {metriche.lavori.pct_senza_ai ?? 0}% di {metriche.lavori.totali.toLocaleString("it-IT")} lavori automatici
+              chiusi con regole o dati già presenti, senza pagare l'AI. {metriche.lavori.chiamate_ai.toLocaleString("it-IT")} chiamate AI in tutto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Flusso</TableHead>
+                  <TableHead className="text-right">Lavori</TableHead>
+                  <TableHead className="text-right">Senza AI</TableHead>
+                  <TableHead className="text-right">Chiamate AI</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(metriche.flussi ?? []).map((f) => (
+                  <TableRow key={f.flusso}>
+                    <TableCell>{TASK_LABELS[f.flusso] ?? f.flusso}</TableCell>
+                    <TableCell className="text-right">{f.totali}</TableCell>
+                    <TableCell className="text-right">{f.pct_senza_ai ?? 0}%</TableCell>
+                    <TableCell className="text-right">{f.chiamate_ai}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Top utenti */}
       <Card>

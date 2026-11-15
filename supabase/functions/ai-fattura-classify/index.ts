@@ -34,6 +34,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { commessaFinale, decidiClassificazione, type CommessaDaRegole } from "../_shared/regolePrimaDellAi.ts";
+import { esitoDaRisultatoRouter, registraEsitoLavoroAi } from "../_shared/esitoLavoroAi.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
@@ -132,6 +133,9 @@ async function classifyOne(
       .from("fatture_ricevute")
       .update({ order_id_suggerito: regola.order_id, order_match_confidenza: 1, order_suggerito_motivo: regola.motivo })
       .eq("id", fattura.id);
+    await registraEsitoLavoroAi(supabase, {
+      companyId, flusso: "fattura_classifica", chiave: fattura.id, esito: "senza_ai", motivo: regola.motivo,
+    });
     return {
       result: {
         fattura_id: fattura.id,
@@ -197,6 +201,12 @@ async function classifyOne(
     // seconda chiamata a pagamento (audit AI 2026-06).
     cacheTtlDays: 90,
     motivo: decisione.motivo ?? undefined,
+  });
+
+  const esitoAi = esitoDaRisultatoRouter(aiResult);
+  await registraEsitoLavoroAi(supabase, {
+    companyId, flusso: "fattura_classifica", chiave: fattura.id, esito: esitoAi,
+    chiamateAi: esitoAi === "con_ai" ? 1 : 0, motivo: decisione.motivo,
   });
 
   let parsed: AnyObj;
