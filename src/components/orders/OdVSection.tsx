@@ -20,6 +20,7 @@ import { caricaDatiSocietari, righeSocietarie } from "../../../supabase/function
 import { useCompanyAnagraficaForTemplate } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { PendingVariationPdf } from "./PendingVariationPdf";
 import { VariationLifecycleDialog } from "./VariationLifecycleDialog";
+import { VarianteDaDocumento } from "./VarianteDaDocumento";
 import type { WorkflowVariation } from "@/hooks/useVariationWorkflow";
 
 interface OdVSectionProps {
@@ -52,6 +53,8 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<{id:string;existing:boolean}|null>(() => bozzaIniziale ? { id: bozzaIniziale.id, existing: false } : null);
+  // La variante scritta dall'AI da un documento (15/11/2026): si apre come una nuova, da salvare.
+  const [bozzaAi, setBozzaAi] = useState<{ id: string; bozza: VariationDraft } | null>(null);
   const sending = useRef(new Set<string>());
   const [campiDi, setCampiDi] = useState<string | null>(null);
   const [invioEmailLoading, setInvioEmailLoading] = useState<string | null>(null);
@@ -163,9 +166,13 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
   return (
     <>
       <RiquadroCommessa icona={<GitBranch className="h-4 w-4 shrink-0 text-primary" aria-hidden />} titolo="Lavori extra e varianti" conteggio={odvList.length}
-        azioni={permissions.canEditOrders ? <Button size="sm" disabled={isLoading || isError} onClick={() => setEditing({id:crypto.randomUUID(),existing:false})} aria-label="Nuova variante">
-          <Plus className="h-4 w-4" /><span className="ml-1.5 hidden sm:inline">Nuova variante</span>
-        </Button> : undefined}
+        azioni={permissions.canEditOrders ? <div className="flex gap-2">
+          {!isLoading && !isError && <VarianteDaDocumento companyId={companyId} context={context}
+            onBozza={(bozza) => { const id = crypto.randomUUID(); setBozzaAi({ id, bozza }); setEditing({ id, existing: false }); }} />}
+          <Button size="sm" disabled={isLoading || isError} onClick={() => setEditing({id:crypto.randomUUID(),existing:false})} aria-label="Nuova variante">
+            <Plus className="h-4 w-4" /><span className="ml-1.5 hidden sm:inline">Nuova variante</span>
+          </Button>
+        </div> : undefined}
         numeri={!isLoading && !isError ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Riepilogo varianti">
             <RiepilogoVoce titolo="Contratto iniziale" valore={contrattoIniziale == null ? "—" : formatCurrency(contrattoIniziale)} />
@@ -198,8 +205,8 @@ export function OdVSection({ orderId, companyId, context: contestoCommessa = {},
         </DialogContent>
       </Dialog>
       {editing && <VariationLifecycleDialog key={`${companyId}:${orderId}:${editing.id}`} id={editing.id} existing={editing.existing} order={orderId} company={companyId} context={context} canEdit={permissions.canEditOrders}
-        bozzaIniziale={editing.id === bozzaIniziale?.id ? bozzaIniziale.bozza : undefined}
-        onClose={() => { const daBozza = editing.id === bozzaIniziale?.id; setEditing(null); if (daBozza) onBozzaChiusa?.(); }} />}
+        bozzaIniziale={editing.id === bozzaIniziale?.id ? bozzaIniziale.bozza : editing.id === bozzaAi?.id ? bozzaAi.bozza : undefined}
+        onClose={() => { const daBozza = editing.id === bozzaIniziale?.id; setEditing(null); setBozzaAi(null); if (daBozza) onBozzaChiusa?.(); }} />}
     </>
   );
 }

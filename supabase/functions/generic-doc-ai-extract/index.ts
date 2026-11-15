@@ -211,6 +211,18 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "fasi_lavoro": [{ "nome": "string breve, max 60 caratteri", "giorni": "numero o null", "sottofasi": ["string"] }],
   "_regole_fasi_lavoro": "Le LAVORAZIONI del cantiere nell'ordine in cui si eseguono, SOLO se il contratto, il computo, il capitolato o il cronoprogramma allegato le elencano (capitoli o categorie di lavoro: es. 'Demolizioni e rimozioni', 'Impianto idraulico', 'Massetti', 'Posa pavimenti', 'Tinteggiature'). Nome breve senza importi ne' quantita'. 'giorni': durata in giorni di lavoro SOLO se il documento la da' per quella lavorazione, altrimenti null. 'sottofasi': le voci di lavoro elencate dentro quel capitolo, al massimo 10, nomi brevi. Massimo 15 fasi. NON sono fasi: le rate o i SAL di pagamento (vanno in fasi_pagamento), le posizioni di fornitura (vanno in voci), gli adempimenti d'ufficio (permessi, pratiche). Per una sola fornitura senza lavorazioni, o se il documento non le elenca, lista vuota: non inventarle"
 }`,
+  // 15/11/2026: un lavoro extra o una variante chiesti dal cliente (PDF, foto, testo di una mail).
+  variante_commessa: `{
+  "titolo": "string breve (max 80 caratteri) che dice il lavoro: es. 'Due punti luce in cucina e niente controsoffitto in bagno'",
+  "descrizione": "cosa cambia rispetto ai lavori gia' concordati, in italiano semplice, con le parole del documento",
+  "fase_riferimento": "string o null: la lavorazione o la stanza a cui si riferisce, solo se il documento la dice",
+  "voci": [{ "descrizione": "string", "quantita": "numero o null", "unita": "string o null (pz, m, mq, ore...)", "prezzo_unitario_eur": "numero o null, IVA esclusa", "segno": "'aggiunta' se il lavoro si aggiunge, 'tolta' se si toglie dal contratto" }],
+  "_regole_voci": "Una voce per ogni lavoro chiesto, aggiunto o tolto. prezzo_unitario_eur SOLO se il documento scrive il prezzo di quella voce (mai stimarlo, mai dedurlo da un listino): se manca, null. quantita solo se scritta o evidente ('due punti luce' = 2). Il segno lo dice il testo ('togliere', 'non fare piu'', 'eliminare' = tolta), mai il prezzo: il prezzo resta positivo",
+  "importo_a_corpo_eur": "numero o null: l'importo complessivo della variante IVA esclusa, solo se il documento lo scrive",
+  "giorni_aggiuntivi": "numero o null: giorni in piu' chiesti per i lavori, solo se scritti",
+  "richiesto_da": "string o null: chi chiede la variante (cliente, direttore lavori...), se il documento lo dice",
+  "motivazione": "string o null: perche' si cambia, se il documento lo dice"
+}`,
 };
 
 const PROMPT_TEMPLATE = (docType: string, schema: string) => `Sei un assistente esperto in documenti tecnici, amministrativi e legali per l'edilizia italiana.
@@ -314,7 +326,11 @@ Deno.serve(async (req) => {
             : ""),
       },
     ];
-    if (isImage) {
+    if ((mime_type ?? "").startsWith("text/")) {
+      // Il testo incollato (una mail, un messaggio): si legge come testo, non come file (15/11/2026).
+      const scritto = new TextDecoder().decode(buffer).slice(0, 30000);
+      userContent.push({ type: "text", text: `TESTO DEL DOCUMENTO (incollato da chi carica):\n${scritto}` });
+    } else if (isImage) {
       userContent.push({ type: "image_url", image_url: { url: dataUrl } });
     } else {
       userContent.push({ type: "file", file: { filename: file_name, file_data: dataUrl } });
