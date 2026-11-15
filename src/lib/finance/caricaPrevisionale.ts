@@ -22,6 +22,7 @@ import {
   emptyForecastSources,
   moveDay,
   resolveOpeningBalance,
+  portaSaldoAOggi,
   toCents,
   type ForecastMovement,
   type ForecastSources,
@@ -524,7 +525,7 @@ export async function loadForecastDataset(
         }),
       ),
   );
-  let opening = resolveOpeningBalance(s.banks, []);
+  let opening = portaSaldoAOggi(resolveOpeningBalance(s.banks, []), s.notes, today);
   // The full server aggregate, not the 12 months of detail used for collections.
   const pn = primaNota as { saldo?: number; entry_count?: number } | null;
   if (!s.banks.length && pn && Number(pn.entry_count) > 0)

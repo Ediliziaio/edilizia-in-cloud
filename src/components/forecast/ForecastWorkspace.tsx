@@ -1130,7 +1130,10 @@ export function ForecastWorkspace({
               // 14/11/2026: il disponibile della banca può comprendere il fido; la Tesoreria
               // somma il saldo contabile. Se i due differiscono, si dice quanto.
               contesto={
-                data.opening.source === "banca" && data.opening.contabileCents != null && data.opening.cents != null
+                data.opening.dopoMovimenti && data.opening.bancaCents != null
+                  // 15/11/2026: saldo dei conti vecchio, portato a oggi coi movimenti registrati dopo
+                  ? `Conti ${money(data.opening.bancaCents)} + ${data.opening.dopoMovimenti} movimenti registrati dopo (${money(data.opening.dopoCents ?? 0)})`
+                  : data.opening.source === "banca" && data.opening.contabileCents != null && data.opening.cents != null
                   && Math.abs(data.opening.contabileCents - data.opening.cents) >= 100
                   ? `Saldo contabile ${money(data.opening.contabileCents)} · il disponibile comprende fidi e somme bloccate`
                   : undefined

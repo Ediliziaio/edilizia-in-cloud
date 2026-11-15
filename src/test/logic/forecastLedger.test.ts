@@ -7,6 +7,7 @@ import {
   moveDay,
   projectForecast,
   resolveOpeningBalance,
+  portaSaldoAOggi,
   validDay,
   type ForecastMovement,
   type ForecastScenario,
@@ -963,6 +964,20 @@ describe("giro 1: numeri giusti", () => {
     // Stime spente: la stima IVA esce dal piano.
     const p = projectForecast(buildForecastLedger(s, "2026-08-01").movements, 0, "2026-08-01", 30, 0, { ...scenario, includeEstimates: false });
     expect(p.excludedEstimates).toHaveLength(1);
+  });
+  it("porta a oggi un saldo dei conti vecchio coi movimenti registrati dopo (15/11/2026)", () => {
+    const vecchio = resolveOpeningBalance([{ id: "a", current_balance: 1000, available_balance: 1000, balance_updated_at: "2026-09-13T08:00:00Z" }], []);
+    const note = [
+      { id: "prima", direction: "entrata", amount: 500, entry_date: "2026-09-13" },
+      { id: "dopo1", direction: "entrata", amount: 300, entry_date: "2026-10-01" },
+      { id: "dopo2", direction: "uscita", amount: 100, entry_date: "2026-11-11" },
+      { id: "futuro", direction: "uscita", amount: 999, entry_date: "2026-12-01" },
+    ];
+    const oggi = portaSaldoAOggi(vecchio, note, "2026-11-15");
+    expect(oggi).toEqual(expect.objectContaining({ cents: 120000, bancaCents: 100000, dopoCents: 20000, dopoMovimenti: 2 }));
+    // Saldo aggiornato oggi: niente da aggiungere.
+    const fresco = { ...vecchio, updatedAt: "2026-11-15T07:00:00Z" };
+    expect(portaSaldoAOggi(fresco, note, "2026-11-15")).toBe(fresco);
   });
   it("stima anche una spesa mensile senza generazione automatica (15/11/2026)", () => {
     const s = emptyForecastSources();

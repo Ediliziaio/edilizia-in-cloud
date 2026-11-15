@@ -33,6 +33,10 @@ export interface DatiRendicontoCassa {
   saldoOggiCents: number | null;
   saldoFonte: "banca" | "prima-nota" | "nessuna";
   saldoAggiornatoAl: string | null;
+  /** Saldo dei conti alla sua data, se è vecchio: `saldoOggiCents` è questo più i movimenti registrati dopo. */
+  saldoBancaCents?: number | null;
+  saldoDopoCents?: number;
+  saldoDopoMovimenti?: number;
   registrati: MovimentoRegistrato[];
   flussoDopoAnnoCents: number | null;
   previsti: ForecastMovement[] | null;
@@ -136,6 +140,16 @@ export function useRendicontoCassa(anno: number) {
               }, null as { dopo: number; totale: number; righe: number } | null),
             ]);
             let opening = resolveOpeningBalance(banche, []);
+            // 15/11/2026: un saldo dei conti vecchio si porta a oggi coi movimenti registrati dopo
+            // la sua data (come nel Previsionale, vedi portaSaldoAOggi).
+            if (opening.source === "banca" && opening.cents != null && opening.updatedAt && opening.updatedAt.slice(0, 10) < today) {
+              const dal = new Date(`${opening.updatedAt.slice(0, 10)}T12:00:00`);
+              dal.setDate(dal.getDate() + 1);
+              const { data: d3 } = await db.rpc("get_prima_nota_saldo", { p_company_id: companyId, p_from_date: dal.toISOString().slice(0, 10), p_to_date: today });
+              const dopoCents = toCents(d3?.saldo);
+              if (Number(d3?.entry_count) > 0)
+                opening = { ...opening, bancaCents: opening.cents, cents: opening.cents + dopoCents, dopoCents, dopoMovimenti: Number(d3.entry_count) };
+            }
             // Senza conti, come il Previsionale: il saldo è quello della prima nota.
             if (!banche.length && dopo && dopo.righe > 0)
               opening = { cents: dopo.totale, source: "prima-nota", updatedAt: today };
@@ -211,6 +225,9 @@ export function useRendicontoCassa(anno: number) {
         saldoOggiCents: opening.cents,
         saldoFonte: opening.source,
         saldoAggiornatoAl: opening.updatedAt,
+        saldoBancaCents: opening.bancaCents ?? null,
+        saldoDopoCents: opening.dopoCents ?? 0,
+        saldoDopoMovimenti: opening.dopoMovimenti ?? 0,
         registrati: unione.registrati,
         // Il saldo degli anni passati si ricostruisce anche coi movimenti di banca dopo l'anno.
         flussoDopoAnnoCents: storico && storico.dopo != null ? storico.dopo + Number(movimentiBanca.dopo_anno_cents ?? 0) : null,

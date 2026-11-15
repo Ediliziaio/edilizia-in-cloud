@@ -575,7 +575,39 @@ export interface OpeningBalance {
   undatedAccounts?: number;
   /** Somma dei saldi contabili (quella della Tesoreria): il disponibile può comprendere il fido. */
   contabileCents?: number | null;
+  /** Saldo dei conti alla loro data, prima dei movimenti registrati dopo (vedi portaSaldoAOggi). */
+  bancaCents?: number | null;
+  /** Movimenti di prima nota registrati dopo la data del saldo dei conti, già sommati in `cents`. */
+  dopoCents?: number;
+  dopoMovimenti?: number;
   warning?: string;
+}
+/**
+ * 15/11/2026: un saldo dei conti vecchio (aggiornato il 13/09) non è il saldo di oggi. I movimenti
+ * registrati in prima nota DOPO quella data non ci sono dentro: si sommano, e si dice quanti sono.
+ * Prima il saldo del 13/09 era trattato come quello di oggi, e il rendiconto del Controllo di
+ * gestione, togliendo i movimenti dell'anno, metteva i mesi passati in negativo e un salto a dicembre.
+ */
+export function portaSaldoAOggi(opening: OpeningBalance, notes: NoteRow[], today: string): OpeningBalance {
+  if (opening.source !== "banca" || opening.cents == null || !opening.updatedAt) return opening;
+  const dal = opening.updatedAt.slice(0, 10);
+  if (dal >= today) return opening;
+  let dopo = 0;
+  let n = 0;
+  for (const r of notes) {
+    if (r.entry_date <= dal || r.entry_date > today) continue;
+    dopo += toCents(r.amount) * (r.direction === "entrata" ? 1 : -1);
+    n += 1;
+  }
+  if (n === 0) return opening;
+  return {
+    ...opening,
+    bancaCents: opening.cents,
+    cents: opening.cents + dopo,
+    contabileCents: opening.contabileCents == null ? opening.contabileCents : opening.contabileCents + dopo,
+    dopoCents: dopo,
+    dopoMovimenti: n,
+  };
 }
 export function resolveOpeningBalance(
   banks: BankRow[],

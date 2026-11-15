@@ -27,6 +27,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ClassificaMovimentiDialog } from "@/components/controllo-gestione/ClassificaMovimentiDialog";
+import { GraficiCassa } from "@/components/controllo-gestione/cashflow/GraficiCassa";
 import { cn } from "@/lib/utils";
 import {
   costruisciRendiconto,
@@ -189,7 +190,9 @@ export function TabCashFlow({ anno }: Props) {
         </p>
       )}
 
-      <Riquadri r={r} haPrevisione={haPrevisione} />
+      <Riquadri r={r} haPrevisione={haPrevisione} dopo={q.data.saldoDopoMovimenti ? { cents: q.data.saldoDopoCents ?? 0, n: q.data.saldoDopoMovimenti, banca: q.data.saldoBancaCents ?? null } : null} />
+
+      <GraficiCassa r={r} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {haPrevisione ? (
@@ -289,11 +292,14 @@ function Interruttore({ id, label, checked, onChange }: { id: string; label: str
 
 // ── Riquadri ────────────────────────────────────────────────────────────────
 
-function Riquadri({ r, haPrevisione }: { r: RendicontoCassa; haPrevisione: boolean }) {
+function Riquadri({ r, haPrevisione, dopo }: { r: RendicontoCassa; haPrevisione: boolean; dopo: { cents: number; n: number; banca: number | null } | null }) {
   const { kpi, saldo } = r;
   const fonte =
     saldo.fonte === "banca"
-      ? `Conti in Tesoreria${saldo.aggiornatoAl ? ` · al ${data(saldo.aggiornatoAl.slice(0, 10))}` : ""}`
+      ? dopo && saldo.aggiornatoAl
+        // 15/11/2026: il saldo dei conti è vecchio: si dice da dove viene il numero di oggi.
+        ? `Conti al ${data(saldo.aggiornatoAl.slice(0, 10))} ${euro(dopo.banca)} ${dopo.cents >= 0 ? "+" : "−"} ${euro(Math.abs(dopo.cents))} registrati dopo (${dopo.n})`
+        : `Conti in Tesoreria${saldo.aggiornatoAl ? ` · al ${data(saldo.aggiornatoAl.slice(0, 10))}` : ""}`
       : saldo.fonte === "prima-nota"
         ? "Dalla prima nota (nessun conto)"
         : "Manca il saldo dei conti";
