@@ -357,8 +357,46 @@ due calendari (335,40 €), 10 costi ripartiti su una commessa per meno del 100%
 sono ripartizioni parziali volute su una sola commessa, il resto resta spese generali; uno è un
 arrotondamento da 0,82 €). Nessuna correzione automatica: sono dati da sistemare a mano.
 
-### Da fare (lotti successivi)
+### Copertura del §7.10, §7.15 e §7.18 (15/11/2026)
 
-1. **Schermate** (sessione «Fatture, Scadenzario e Tesoreria»): mostrare esito, motivi,
-   conflitti e mancanti nel Dettaglio movimento; «Scarta» con motivo → `tesoreria_scarta_esito`;
-   «Conferma» con un clic sugli esiti `automatico` → `tesoreria_conferma_esito`.
+| Caso | Dove | Test |
+|---|---|---|
+| Pagamento cumulativo e parziale | R-CUMULO, R-PARZIALE | cumulativo; parziale poi saldo |
+| Acconto prima della fattura | R-ACCONTO (rata della commessa) | acconto, poi fatturato |
+| Nota di credito emessa / ricevuta | R-NC (lotti 1 e 5) | compensazione emessa e ricevuta |
+| Commissioni e differenze | R-DIFF (≤ 1 €), poi parziale | commissione sotto e sopra 1 € |
+| Rimborsi e storni | R-STORNO | storno |
+| Giroconti | R-GIRO, conferma delle due gambe | giroconto; IBAN di un'altra azienda |
+| F24 e movimenti senza fattura | R-F24 (una o più scadenze fiscali), spesa bancaria, carta | F24 singolo e multiplo; spesa bancaria; carta |
+| Pagante diverso | rapporto documentato (lotto 4) | pagante con e senza rapporto, revoca |
+| IBAN verificati | fornitori (esistente) e clienti (lotto 4) | IBAN di un altro fornitore/cliente; conferma e revoca |
+| Ripartizione su più commesse | `tes_commesse_riga` | due commesse; ripartizione da completare |
+| Movimento che chiude un debito non crea un costo | guardia su `company_costs` | numero in causale blocca, plausibile passa e si segnala |
+| Previsione sostituita dalla fattura | `tes_sostituisci_previsione`, trigger | sostituita, annullata, chiusa; due previsioni |
+| Budget, consuntivo e cassa senza doppi | `cdg_controllo_doppi` (8 controlli) | controlli 1–8 |
+| Retry e simultaneità | impronta, lock aziendale, chiave della traccia | anteprima/retry; giro ripetuto; conferma ripetuta |
+| Annullamento | coppie annullate escluse; sostituzione annullabile | abbinamento annullato |
+| Isolamento fra aziende | `bank_operativa_access`, documenti dell'azienda | isolamento |
+| Conferma automatica e con un clic | interruttore comune, `tesoreria_conferma_esito` | spento/acceso, cron/persona, clic, permesso perso |
+| Fatture importate | conferma + `allinea_banca` | importata con «esterne» |
+
+### Cosa resta, e perché
+
+1. **Codici di cantiere del cliente nelle causali** («rif MMxxx»): l'azienda cliente con la banca
+   collegata li usa negli incassi, ma nel gestionale non esistono. Finché non c'è un campo dove
+   scriverli sulla commessa, il motore non può usarli. Serve una decisione: aggiungerli come
+   riferimento esterno della commessa.
+2. **Acconti versati ai fornitori prima della fattura**: oggi non c'è dove registrarli (né sul
+   costo né sull'ordine), quindi un'uscita di acconto resta «da gestire». Va deciso dove vive
+   l'anticipo al fornitore (sull'ordine d'acquisto, area Acquisti).
+3. **Rilievi sui dati veri** (`cdg_controllo_doppi`): una fattura incassata per il lordo
+   (7.333,37 €), un costo con due calendari (335,40 €), nove ripartizioni parziali su una commessa
+   da confermare come volute. Si sistemano a mano, nessuna correzione automatica.
+4. **Titolare di Demo Azienda 2**: non indicato, quindi il cron non conferma da solo lì;
+   conferma chi apre la tesoreria.
+5. **Schermate**: esito, motivi, «Conferma» e «Scarta» ci sono (`EsitoMovimento.tsx`). Mancano le
+   schermate per gli IBAN verificati dei clienti e per i rapporti col pagante terzo (le funzioni ci
+   sono: `tesoreria_riferimenti_verificati`, `tesoreria_ricorda_iban_cliente`,
+   `tesoreria_registra_pagante`), e il pannello dei controlli di gestione (`cdg_controllo_doppi`).
+   Specifiche passate il 15/11 alla sessione «Fatture, Scadenzario e Tesoreria», che possiede
+   quelle schermate.
