@@ -127,6 +127,11 @@ export interface Confronto {
 }
 
 export interface Rettifiche {
+  /**
+   * Operazione chiusa (20290402110000): niente più «a finire», la stima finale è il registrato,
+   * anche dove l'a finire era scritto a mano.
+   */
+  chiusa?: boolean;
   /** Ricavi a finire: −x% (prezzo più basso di quanto previsto). */
   prezzoPct?: number;
   /** Costi a finire: +y%. */
@@ -177,7 +182,7 @@ export function confrontoVoci(
     .map((v): RigaConfronto => {
       const sue = perVoce.get(v.id) ?? [];
       const reale = somma(sue.map((r) => r.importo));
-      const aFinire = arrotonda(aFinireVoce(v.importo, reale, v.aFinire) * fattore(v.tipo));
+      const aFinire = rettifiche.chiusa ? 0 : arrotonda(aFinireVoce(v.importo, reale, v.aFinire) * fattore(v.tipo));
       const stima = arrotonda(reale + aFinire);
       const origine = approvate ? approvatePerId.get(v.origineId ?? "") ?? approvatePerId.get(v.id) ?? null : null;
       return {
@@ -625,10 +630,14 @@ export interface InputPiano {
   scenario?: Scenario | null;
   /** Varianti accettate dagli acquirenti delle unità (varianti.ts): ricavo e costo previsto. */
   varianti?: { ricavo: number; costo: number } | null;
+  /** Operazione chiusa: la stima finale è il registrato, niente più «a finire». */
+  chiusa?: boolean;
 }
 
 export interface PianoCalcolato {
   oggi: Mese;
+  /** Operazione chiusa: stima = registrato. */
+  chiusa?: boolean;
   /** False when a positive budget row has no month: funding and timed returns are incomplete. */
   calendarioCompleto?: boolean;
   budgetCompleto?: boolean;
@@ -692,7 +701,9 @@ export const avvisoSenzaMese = (voci: Pick<VocePiano, "descrizione" | "categoria
 
 export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   const oggi = meseDi(input.oggi, input.oggi.slice(0, 7));
-  const confronto = conVariantiAcquirenti(confrontoVoci(input.voci, input.righe, input.approvate ?? null), input.varianti);
+  const chiusa = input.chiusa === true;
+  // Da chiusa le varianti non entrano più «a finire»: quello che c'era è già nel registrato.
+  const confronto = conVariantiAcquirenti(confrontoVoci(input.voci, input.righe, input.approvate ?? null, { chiusa }), chiusa ? null : input.varianti);
   const mqTotali = (() => {
     if (!input.unita) return null;
     const valori = input.figlie.map((f) => input.unita!.get(f.id)?.mq ?? null);
@@ -717,7 +728,7 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   if (!scenarioNeutro(input.scenario)) {
     const s = input.scenario!;
     confrontoScenario = conVariantiAcquirenti(
-      confrontoVoci(input.voci, input.righe, input.approvate ?? null, { prezzoPct: s.prezzoPct, costiPct: s.costiPct }),
+      confrontoVoci(input.voci, input.righe, input.approvate ?? null, { prezzoPct: s.prezzoPct, costiPct: s.costiPct, chiusa }),
       input.varianti,
     );
     cassaScenario = flussoStima(confrontoScenario, input.righe, input.incassi, oggi, { ritardoMesi: s.ritardoMesi });
@@ -748,8 +759,10 @@ export function calcolaPianoEconomico(input: InputPiano): PianoCalcolato {
   const picco = capitaleMassimo(cassaStima);
   return {
     oggi,
-    calendarioCompleto: senzaMese.length === 0 && senzaStima.length === 0,
-    budgetCompleto: senzaStima.length === 0,
+    // Da chiusa i numeri sono definitivi: le stime mancanti non contano più.
+    calendarioCompleto: chiusa || (senzaMese.length === 0 && senzaStima.length === 0),
+    budgetCompleto: chiusa || senzaStima.length === 0,
+    chiusa,
     confronto,
     cassa: { previsto: cassaPrevista, stima: cassaStima, scenario: cassaScenario },
     indicatori: { previsto: indPrevisto, stima: indStima, scenario: indScenario },

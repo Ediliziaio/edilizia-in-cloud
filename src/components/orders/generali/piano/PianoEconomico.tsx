@@ -14,10 +14,12 @@ import {
   ClipboardList,
   ClipboardPaste,
   FileSpreadsheet,
+  Flag,
   GitBranch,
   History,
   Loader2,
   Lock,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   Wallet,
@@ -33,6 +35,18 @@ import {
 } from "@/lib/orders/generali/pianoCategorie";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useChiusuraGenerale } from "@/hooks/useCommesseGenerali";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -430,6 +444,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                   </Button>
                 </>
               )}
+              <ChiusuraOperazione generaleId={g.id} chiusa={!!piano.chiusa} />
               {v.stato !== "bozza" && n.bozza && (
                 <Button
                   variant="outline"
@@ -497,7 +512,8 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           <p className="generale-plan-context">
             Importi del piano al netto dell’IVA <span aria-hidden="true">·</span> Capitale investito a oggi <strong>{euro(piano.capitale.investitoOggi)}</strong>
             {conApprovato && t.approvato !== null && <> <span aria-hidden="true">·</span> Margine approvato {euro(t.approvato)}</>}
-            {!g.inizio && <> <span aria-hidden="true">·</span> Inizio lavori non indicato, i mesi sono ipotesi{" "}
+            {piano.chiusa && <> <span aria-hidden="true">·</span> <strong>Operazione chiusa</strong>: la stima finale è il registrato, niente più «a finire»</>}
+            {!g.inizio && !piano.chiusa && <> <span aria-hidden="true">·</span> Inizio lavori non indicato, i mesi sono ipotesi{" "}
               <button type="button" className="generale-plan-context-link" onClick={apriDati}>Indicalo</button></>}
           </p>
         </>}
@@ -725,6 +741,45 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
         />
       )}
     </div>
+  );
+}
+
+/** «Chiudi l'operazione» / «Riapri», con conferma: da chiusa il piano non prevede più nulla «a finire». */
+function ChiusuraOperazione({ generaleId, chiusa }: { generaleId: string; chiusa: boolean }) {
+  const chiusura = useChiusuraGenerale(generaleId);
+  const cambia = (valore: boolean) =>
+    chiusura.mutate(valore, {
+      onSuccess: () => toast.success(valore ? "Operazione chiusa: la stima finale è il registrato" : "Operazione riaperta"),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Non riesco a cambiare lo stato dell'operazione"),
+    });
+  if (chiusa) {
+    return (
+      <Button variant="ghost" size="sm" disabled={chiusura.isPending} onClick={() => cambia(false)}>
+        <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Riapri l'operazione
+      </Button>
+    );
+  }
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" size="sm" disabled={chiusura.isPending}>
+          <Flag className="mr-1.5 h-3.5 w-3.5" /> Chiudi l'operazione
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Chiudere l'operazione?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Il piano smette di prevedere costi e ricavi «a finire»: la stima finale diventa quello che è
+            registrato, e così il margine nel Dossier e nei rendiconti. Si può riaprire in ogni momento.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Annulla</AlertDialogCancel>
+          <AlertDialogAction onClick={() => cambia(true)}>Chiudi l'operazione</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

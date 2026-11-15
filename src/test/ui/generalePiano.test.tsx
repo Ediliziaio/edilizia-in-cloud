@@ -10,6 +10,7 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
  * Panoramica. I conti sono in generalePianoConti.test.ts; qui i dati arrivano finti.
  */
 const m = vi.hoisted(() => ({
+  chiudi: vi.fn(),
   numeri: null as unknown,
   crea: vi.fn(),
   mutazione: () => ({ mutate: vi.fn(), isPending: false }),
@@ -20,6 +21,10 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: {
 vi.mock("@/components/orders/generali/piano/StoricoBusinessPlan", () => ({ StoricoBusinessPlan: () => <p>Archivio Excel</p> }));
 vi.mock("@/components/orders/generali/piano/CassaScadenze", () => ({ CassaScadenze: () => <p>Scadenze IVA inclusa</p> }));
 vi.mock("@/hooks/useUnitaDalPiano", () => ({ useUnitaDalPiano: (): null => null }));
+vi.mock("@/hooks/useCommesseGenerali", async (originale) => ({
+  ...(await originale<object>()),
+  useChiusuraGenerale: () => ({ mutate: m.chiudi, isPending: false }),
+}));
 vi.mock("@/hooks/useGeneralePiano", () => ({
   useGeneralePianoNumeri: () => m.numeri,
   useNuovaVersionePiano: () => ({ mutate: m.crea, isPending: false }),
@@ -179,6 +184,23 @@ describe("la scheda del piano economico", () => {
     m.numeri = numeri("bozza");
     disegna();
     expect(screen.getByText(/Caparre e acconti delle unità sono incassi/)).toBeVisible();
+  });
+
+  it("chiudere l'operazione chiede conferma e passa dal database", () => {
+    m.numeri = numeri("approvata");
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi l'operazione" }));
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Chiudi l'operazione" }));
+    expect(m.chiudi.mock.calls[0][0]).toBe(true);
+  });
+
+  it("da chiusa: niente più «a finire», si dice, e si può riaprire", () => {
+    const n = numeri("approvata");
+    n.piano = calcolaPianoEconomico({ oggi: "2026-10-30", generaleId: "G", voci, righe, incassi: [], figlie: [], chiusa: true });
+    m.numeri = n;
+    disegna();
+    expect(screen.getByText(/la stima finale è il registrato, niente più «a finire»/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /Riapri l'operazione/ })).toBeVisible();
   });
 
   it("ogni numero del reale apre le righe da cui viene", () => {

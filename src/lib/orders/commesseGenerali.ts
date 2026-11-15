@@ -122,6 +122,8 @@ export interface RiepilogoGenerale {
      * recompute_order_progress dalle fasi della generale e delle commesse dentro.
      */
     avanzamento?: number | null;
+    /** orders.status della generale: «completato» = operazione chiusa (commessa_generale_chiusura). */
+    stato?: string | null;
   };
   figlie: FigliaGenerale[];
   /** Fatture registrate sulla generale stessa (es. SAL di contratto fatturato sul contratto). */
@@ -158,6 +160,7 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
       dati: leggiDatiSezioni(g.dati),
       valore: numero(g.valore),
       avanzamento: numero(g.avanzamento),
+      stato: testo(g.stato),
     },
     figlie: figlie
       .filter((f) => typeof f?.id === "string")
@@ -220,6 +223,11 @@ const somma = (valori: (number | null)[]): number | null =>
   valori.some((v) => v === null) ? null : arrotonda(valori.reduce<number>((t, v) => t + (v ?? 0), 0));
 
 /** I numeri della generale. Un totale è null se chi guarda non può vedere anche una sola delle sue parti. */
+/** Operazione chiusa: da chiusa il piano non prevede più nulla «a finire». */
+export const STATI_CHIUSI_GENERALE: readonly string[] = ["completato", "completed", "chiuso"];
+export const operazioneChiusa = (r: Pick<RiepilogoGenerale, "generale">): boolean =>
+  STATI_CHIUSI_GENERALE.includes(r.generale.stato ?? "");
+
 export function totaliGenerale(r: Pick<RiepilogoGenerale, "figlie" | "generale" | "permessi" | "fattureGenerale">): TotaliGenerale {
   const f = r.figlie;
   const importi = r.permessi.importi;

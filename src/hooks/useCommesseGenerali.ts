@@ -595,3 +595,18 @@ export function useSalvaDatiGenerale(generaleId: string) {
     },
   });
 }
+
+/** Chiude o riapre l'operazione (20290402110000): da chiusa il piano non prevede più nulla «a finire». */
+export function useChiusuraGenerale(generaleId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (chiusa: boolean) => {
+      const { error } = await db.rpc("commessa_generale_chiusura", { p_generale_id: generaleId, p_chiusa: chiusa });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chiaviGenerali.riepilogo(generaleId) });
+      void qc.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}

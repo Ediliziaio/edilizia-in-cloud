@@ -9,7 +9,7 @@ import { ATTACHMENTS_BUCKET } from "@/components/orders/filePreviewUtils";
 import { controllaBudget, DA_STIMARE, fonteImportazione } from "@/lib/orders/generali/budgetCompletezza";
 import type { OrigineBusinessPlan } from "@/components/orders/generali/piano/ImportaBusinessPlan";
 import { allPaymentRows } from "./useSupplierPayments";
-import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { operazioneChiusa, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import type { CategoriaPiano, TipoVoce, VoceNuova } from "@/lib/orders/generali/pianoCategorie";
 import { useCriterioRipartizione } from "@/hooks/useCommesseGenerali";
 import { useVariantiGenerale } from "@/hooks/useGeneraleVarianti";
@@ -205,6 +205,7 @@ export function useGeneralePianoNumeri(riepilogo: RiepilogoGenerale | undefined,
       criterio: criterio.data?.criterio ?? "auto",
       scenario: opzioni.scenario ?? null,
       varianti: conUnita ? variantiPerPiano(varianti.data) : null,
+      chiusa: operazioneChiusa(riepilogo),
     });
   }, [riepilogo, inVista, confrontaCon, voci.data, approvate.data, reale.data, unita.data, criterio.data, opzioni.scenario, conUnita, varianti.data]);
 

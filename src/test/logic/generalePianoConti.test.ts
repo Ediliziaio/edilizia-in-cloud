@@ -374,3 +374,32 @@ describe("tutto insieme", () => {
     expect(n.capitaleMassimoImpegnato).toBe(Math.max(...n.flussoMensile.map((m) => -m.cumulato)));
   });
 });
+
+
+describe("operazione chiusa (20290402110000)", () => {
+  // Residenza Le Querce: a lavori finiti il piano prevedeva ancora 137.403 € di manodopera «a finire».
+  const vociChiuse: VocePiano[] = [
+    { id: "r", tipo: "ricavo", categoria: "vendite", descrizione: "Vendite", importo: 1_780_000, mese: "2026-09", durataMesi: 1, figliaId: null, categorieCosto: [], aFinire: null, nota: null, ordine: 1, origineId: null },
+    { id: "m", tipo: "costo", categoria: "manodopera", descrizione: "Manodopera", importo: 140_000, mese: "2026-01", durataMesi: 10, figliaId: null, categorieCosto: [], aFinire: null, nota: null, ordine: 2, origineId: null },
+    { id: "x", tipo: "costo", categoria: "imprevisti", descrizione: "Imprevisti", importo: 30_000, mese: "2026-05", durataMesi: 1, figliaId: null, categorieCosto: [], aFinire: 5_000, nota: null, ordine: 3, origineId: null },
+  ];
+  const righeChiuse: RigaReale[] = [
+    { id: "1", fonte: "documento_fiscale", rifId: "d", orderId: "G", data: "2026-11-11", tipo: "ricavo", chiave: "ricavi", categoria: null, descrizione: "Vendite", importo: 1_780_000, voceId: "r" },
+    { id: "2", fonte: "ore", rifId: "o", orderId: "G", data: "2026-06-01", tipo: "costo", chiave: "manodopera", categoria: null, descrizione: "Ore", importo: 2_597, voceId: "m" },
+  ];
+  const base = { oggi: "2026-11-30", generaleId: "G", voci: vociChiuse, righe: righeChiuse, incassi: [] as Incasso[], figlie: [] as { id: string; nome: string; importo: number | null }[] };
+
+  it("aperta: le voci prevedono ancora l'a finire", () => {
+    const p = calcolaPianoEconomico(base);
+    expect(p.confronto.totali.costi.aFinire).toBeGreaterThan(0);
+    expect(p.chiusa).toBe(false);
+  });
+  it("chiusa: a finire zero ovunque, anche quello scritto a mano; la stima è il registrato", () => {
+    const p = calcolaPianoEconomico({ ...base, chiusa: true });
+    expect(p.chiusa).toBe(true);
+    expect(p.confronto.totali.costi.aFinire).toBe(0);
+    expect(p.confronto.totali.costi.stima).toBe(2_597);
+    expect(p.confronto.totali.margine.stima).toBe(1_780_000 - 2_597);
+    expect(p.budgetCompleto).toBe(true);
+  });
+});
