@@ -16,6 +16,11 @@ const state = vi.hoisted(() => ({
   esitoSubappalti: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true }) }));
+vi.mock("@/hooks/useVerificaCollegamenti", () => ({
+  useVerificaCollegamenti: () => ({ data: undefined as unknown, isLoading: false, error: null as Error | null }),
+  useCambiaStatoCollegamenti: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock("@/hooks/useCollegamentoAutomatico", () => ({
   useCollegamentoAutomatico: () => ({ data: state.acceso, isLoading: false }),
   useSalvaCollegamentoAutomatico: () => ({ mutate: (v: boolean) => state.salvati.push(v), isPending: false }),
@@ -68,6 +73,13 @@ describe("Impostazioni → Automazioni", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Collegamento automatico dei documenti" }));
     expect(state.salvati).toEqual([true]);
     expect(screen.getByText("2 collegamenti proposti aspettano la tua conferma")).toBeInTheDocument();
+  });
+
+  it("dalla riga si aprono le proposte da confermare di tutta l'azienda", () => {
+    open();
+    const riga = document.getElementById("collegamento-documenti")!;
+    fireEvent.click(within(riga).getByRole("button", { name: /Verifica collegamenti/ }));
+    expect(screen.getByText(/I collegamenti fra documenti dell'azienda/)).toBeInTheDocument();
   });
 
   it("chi non amministra lo vede ma non lo cambia", () => {

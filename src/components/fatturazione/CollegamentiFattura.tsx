@@ -13,6 +13,7 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { ScegliMezzoFattura } from "./ScegliMezzoFattura";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
+import { VerificaCollegamentiDialog } from "@/components/acquisti/VerificaCollegamentiDialog";
 import { EsitoControlloSubappalto, useControlloSubappalto } from "./ControlloSubappaltoFattura";
 import { useCollegamentoAutomatico } from "@/hooks/useCollegamentoAutomatico";
 import { conInterruttoreSubappalto, proveTraccia } from "@/lib/subappaltatori/controlloFatturaSubappalto";
@@ -249,6 +250,8 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
             </PopoverContent>
           </Popover>
         )}
+        {/* Il perché di ogni aggancio, le proposte da confermare e l'annullamento (traccia dei collegamenti). */}
+        {ddt.length > 0 && <VerificaCollegamentiDialog companyId={companyId} fatturaId={fatturaId} puoModificare={puoModificare} />}
       </dd>
 
       {(contrattoId || contratti.length > 0 || controllo) && (

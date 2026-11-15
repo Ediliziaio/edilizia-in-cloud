@@ -33,7 +33,8 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
-import { commessaFinale, decidiClassificazione, type CommessaDaRegole } from "../_shared/regolePrimaDellAi.ts";
+import { commessaFinale, decidiClassificazione, type CommessaDaRegole, type ConflittoDaRegole } from "../_shared/regolePrimaDellAi.ts";
+import { catenaDellaFattura } from "../_shared/catenaFatturaServer.ts";
 import { esitoDaRisultatoRouter, registraEsitoLavoroAi } from "../_shared/esitoLavoroAi.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,8 +104,30 @@ interface ClassifiedFattura {
   order_motivo?: string | null;
 }
 
-/** La commessa dai codici della fattura, senza AI. Un errore qui non ferma la classificazione. */
+/**
+ * La commessa senza AI: prima i codici (CUP, CIG, codice commessa), poi la catena dei documenti
+ * (DDT → ordine → commessa, ordine, indirizzo del cantiere). Un errore qui non ferma la classificazione.
+ */
 async function commessaDaRegole(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any, fattura: AnyObj, companyId: string,
+): Promise<{ regola: CommessaDaRegole | null; conflitto: ConflittoDaRegole | null }> {
+  const daCodici = await commessaDaCodici(supabase, fattura, companyId);
+  if (daCodici) return { regola: daCodici, conflitto: null };
+  try {
+    const esito = await catenaDellaFattura(supabase, {
+      id: fattura.id, company_id: companyId, fornitore_id: fattura.fornitore_id ?? null, data_fattura: fattura.data_fattura ?? null,
+      xml_raw: fattura.xml_raw ?? null, indice_corpo: fattura.indice_corpo ?? 0,
+    });
+    if (esito.conflitto) return { regola: null, conflitto: { conflitto: esito.conflitto } };
+    return { regola: esito.commessa, conflitto: null };
+  } catch (e) {
+    console.warn("[ai-fattura-classify] catena non disponibile:", e instanceof Error ? e.message : e);
+    return { regola: null, conflitto: null };
+  }
+}
+
+async function commessaDaCodici(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any, fattura: AnyObj, companyId: string,
 ): Promise<CommessaDaRegole | null> {
@@ -126,15 +149,19 @@ async function classifyOne(
   supabase: any, fattura: AnyObj, openOrders: AnyObj[],
   companyId: string, userId: string,
 ): Promise<{ result: ClassifiedFattura; modelUsed: string; tokens: number; cost: number }> {
-  const regola = await commessaDaRegole(supabase, fattura, companyId);
+  const { regola, conflitto } = await commessaDaRegole(supabase, fattura, companyId);
   const decisione = decidiClassificazione(regola, fattura.categoria_ai);
-  if (!decisione.chiamaAi && regola) {
+  // Conflitto fra i documenti e categoria già nota: l'AI non servirebbe a niente (la sua commessa
+  // verrebbe scartata). Si scrive il conflitto, senza proposta, e decide una persona.
+  const conflittoSenzaAi = !!conflitto && !!String(fattura.categoria_ai ?? "").trim();
+  if ((!decisione.chiamaAi && regola) || conflittoSenzaAi) {
+    const finale = commessaFinale(regola, { orderId: null, confidenza: 0 }, conflitto);
     await supabase
       .from("fatture_ricevute")
-      .update({ order_id_suggerito: regola.order_id, order_match_confidenza: 1, order_suggerito_motivo: regola.motivo })
+      .update({ order_id_suggerito: finale.orderId, order_match_confidenza: finale.confidenza, order_suggerito_motivo: finale.motivo })
       .eq("id", fattura.id);
     await registraEsitoLavoroAi(supabase, {
-      companyId, flusso: "fattura_classifica", chiave: fattura.id, esito: "senza_ai", motivo: regola.motivo,
+      companyId, flusso: "fattura_classifica", chiave: fattura.id, esito: conflitto ? "eccezione" : "senza_ai", motivo: finale.motivo,
     });
     return {
       result: {
@@ -142,11 +169,11 @@ async function classifyOne(
         categoria_ai: String(fattura.categoria_ai),
         sottocategoria_ai: String(fattura.sottocategoria_ai ?? ""),
         confidenza: Number(fattura.categoria_confidenza ?? 0),
-        order_id_match: regola.order_id,
-        order_match_confidenza: 1,
+        order_id_match: finale.orderId,
+        order_match_confidenza: finale.confidenza,
         ai_riassunto: String(fattura.ai_riassunto ?? ""),
         fonte: "regole",
-        order_motivo: regola.motivo,
+        order_motivo: finale.motivo,
       },
       modelUsed: "regole",
       tokens: 0,
@@ -227,7 +254,7 @@ async function classifyOne(
   if (orderMatchAi && !openOrders.some((o) => o.id === orderMatchAi)) {
     orderMatchAi = null;
   }
-  const commessa = commessaFinale(regola, { orderId: orderMatchAi, confidenza: orderConf });
+  const commessa = commessaFinale(regola, { orderId: orderMatchAi, confidenza: orderConf }, conflitto);
   const orderMatch = commessa.orderId;
 
   // Persist
@@ -333,7 +360,7 @@ Deno.serve(async (req: Request) => {
     // Fetch fatture
     const { data: fatture, error: fetchErr } = await supabaseAdmin
       .from("fatture_ricevute")
-      .select("id, cedente_ragione_sociale, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, righe, note, company_cost_id, xml_raw, categoria_ai, sottocategoria_ai, categoria_confidenza, ai_riassunto")
+      .select("id, cedente_ragione_sociale, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, righe, note, company_cost_id, xml_raw, indice_corpo, fornitore_id, categoria_ai, sottocategoria_ai, categoria_confidenza, ai_riassunto")
       .eq("company_id", company_id)
       .in("id", ids);
     if (fetchErr) return errorResponse(`Fetch error: ${fetchErr.message}`, 500, cors);

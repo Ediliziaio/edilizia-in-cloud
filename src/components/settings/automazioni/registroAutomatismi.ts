@@ -6,7 +6,9 @@
  * `AUTOMATISMI` qui sotto, con i due hook che lo descrivono. Niente pagine nuove, niente
  * interruttori sparsi altrove. Istruzioni complete: docs/automazioni-acquisti.md §3.
  */
+import type { ComponentType } from "react";
 import { useCollegamentoAutomatico, useSalvaCollegamentoAutomatico } from "@/hooks/useCollegamentoAutomatico";
+import { VerificaCollegamentiDialog } from "@/components/acquisti/VerificaCollegamentiDialog";
 import { useUltimoCollegamento } from "@/hooks/useUltimoCollegamento";
 import { useUltimoCollegamentoSubappalti } from "@/hooks/useUltimoCollegamentoSubappalti";
 import { useUltimoEsitoTesoreria } from "@/hooks/useUltimoEsitoTesoreria";
@@ -41,9 +43,17 @@ export interface Automatismo {
   useStato: (companyId: string) => StatoAutomatismo;
   /** Facoltativo: senza, la riga dice «nessun esito registrato». */
   useUltimoEsito?: (companyId: string) => UltimoEsito | null | undefined;
+  /**
+   * Facoltativo: un'azione sotto l'ultimo esito (es. aprire le proposte da confermare).
+   * `puoModificare` = l'utente può confermare/annullare; il database lo ricontrolla comunque.
+   */
+  Azione?: ComponentType<{ companyId: string; puoModificare: boolean }>;
 }
 
-/** L'interruttore comune: le righe che lo seguono lo riusano, così resta uno solo. */
+/**
+ * L'interruttore comune del collegamento automatico. Gli automatismi che lo seguono (tesoreria,
+ * subappalti…) usano questo stesso `useStato`: l'interruttore resta uno solo.
+ */
 export function useStatoCollegamento(companyId: string): StatoAutomatismo {
   const { data = false, isLoading } = useCollegamentoAutomatico(companyId);
   const salva = useSalvaCollegamentoAutomatico(companyId);
@@ -60,6 +70,7 @@ export const AUTOMATISMI: Automatismo[] = [
     daSpento: "Da spento il collegamento certo ti viene proposto e lo confermi con un clic. Quando c'è un dubbio ti chiede sempre, acceso o spento.",
     useStato: useStatoCollegamento,
     useUltimoEsito: useUltimoCollegamento,
+    Azione: VerificaCollegamentiDialog,
   },
   {
     id: "subappalti-fattura-contratto-sal",

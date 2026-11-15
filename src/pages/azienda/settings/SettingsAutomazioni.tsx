@@ -6,6 +6,7 @@
  */
 import { Workflow } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Switch } from "@/components/ui/switch";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -22,7 +23,7 @@ function nessunEsito(): undefined {
   return undefined;
 }
 
-function RigaAutomatismo({ a, companyId, puoModificare }: { a: Automatismo; companyId: string; puoModificare: boolean }) {
+function RigaAutomatismo({ a, companyId, puoModificare, puoConfermare }: { a: Automatismo; companyId: string; puoModificare: boolean; puoConfermare: boolean }) {
   const stato = a.useStato(companyId);
   const esito = (a.useUltimoEsito ?? nessunEsito)(companyId);
   return (
@@ -56,6 +57,11 @@ function RigaAutomatismo({ a, companyId, puoModificare }: { a: Automatismo; comp
         ) : (
           <p className="text-muted-foreground">Nessun esito registrato</p>
         )}
+        {a.Azione && (
+          <div className="mt-1">
+            <a.Azione companyId={companyId} puoModificare={puoConfermare} />
+          </div>
+        )}
       </div>
     </li>
   );
@@ -63,10 +69,13 @@ function RigaAutomatismo({ a, companyId, puoModificare }: { a: Automatismo; comp
 
 export default function SettingsAutomazioni() {
   const { effectiveCompany, role } = useAuth();
+  const permessi = usePermissions();
   const companyId = effectiveCompany?.id;
   if (!companyId) return null;
   // La scrittura degli interruttori è riservata all'amministratore dalle regole del database.
   const puoModificare = role === "company_admin" || role === "super_admin";
+  // Confermare o annullare un collegamento: chi vede i costi o gestisce gli acquisti (regola del database).
+  const puoConfermare = puoModificare || !!permessi.canViewCosts || !!permessi.canManagePurchasing;
   return (
     <div className="space-y-4 max-w-5xl">
       <div className="flex items-start gap-3">
@@ -89,7 +98,7 @@ export default function SettingsAutomazioni() {
         </div>
         <ul>
           {AUTOMATISMI.map((a) => (
-            <RigaAutomatismo key={a.id} a={a} companyId={companyId} puoModificare={puoModificare} />
+            <RigaAutomatismo key={a.id} a={a} companyId={companyId} puoModificare={puoModificare} puoConfermare={puoConfermare} />
           ))}
         </ul>
       </div>

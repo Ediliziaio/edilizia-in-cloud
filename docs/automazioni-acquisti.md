@@ -108,7 +108,10 @@ o spento, ultimo controllo o esito. Niente interruttori sparsi in altre pagine. 
    `attenzione`, `errore`). Esempio: `src/hooks/useUltimoCollegamento.ts` (proposte in attesa,
    poi ultimo collegamento). Per un lavoro a giri, l'ultimo giro con il suo esito.
 3. **Un elemento** in `AUTOMATISMI` (`src/components/settings/automazioni/registroAutomatismi.ts`):
-   `{ id, area, titolo, cosaFa, daSpento, useStato, useUltimoEsito }`. `id` in minuscolo col
+   `{ id, area, titolo, cosaFa, daSpento, useStato, useUltimoEsito, Azione? }`. Chi segue
+   l'interruttore comune usa `useStato: useStatoCollegamento` (esportato dallo stesso file):
+   l'interruttore resta uno solo. `Azione` (facoltativa) è un componente `{ companyId,
+   puoModificare }` mostrato sotto l'ultimo esito; per il collegamento è il popup di verifica. `id` in minuscolo col
    trattino (diventa l'ancora `#id`); `cosaFa` e `daSpento` in una o due frasi da cantiere.
 4. **Test**: aggiungi i tuoi casi in `src/test/ui/impostazioniAutomazioni.test.tsx` (lì c'è già
    il controllo che ogni riga abbia id unico e tutti i testi).
@@ -190,6 +193,22 @@ parziali, resi, note di credito, fattura prima della consegna, eccedenze.
 interruttore acceso, la bolla si aggancia (prima restava «proposto» nella traccia).
 Da sapere: per una fattura lunga analizzata a lotti, `riconcilia-fattura-ai` registra `chiamateAi: 1`
 anche se le chiamate sono di più (il contatore della A sottostima).
+
+**Lotto 5 — popup di verifica** (`components/acquisti/VerificaCollegamentiDialog.tsx`): si apre dalla
+fattura ricevuta («Verifica collegamenti» accanto ai DDT). Schede Da confermare / Collegati /
+Annullati; le proposte «certe» (tutte le prove tornano, una identifica, nessun dato dall'AI) si
+confermano insieme, le altre una per una; per ogni riga regola, prove ✓ ✗ ?, percorso; rifiuto e
+annullamento chiedono il motivo. Scrive solo con `acquisti_collegamento_cambia_stato`.
+
+**Lotto 6 — la catena prima dell'AI** (`_shared/catenaFatturaServer.ts`, in `ai-fattura-classify`):
+se CUP/CIG/codice non bastano, la catena DDT → ordine → commessa (o ordine diretto) dà la
+commessa proposta solo quando è certa (l'indirizzo del cantiere da solo non basta) (`order_id_suggerito`, motivo «catena: DDT … → ordine …»). Se i documenti
+indicano commesse diverse la proposta resta vuota, il motivo dice il conflitto e nemmeno l'AI
+sceglie (`commessaFinale(…, conflitto)`); se la categoria è già nota l'AI non si chiama affatto
+(esito `eccezione` nel contatore). Carica solo i documenti dell'azienda della fattura; bolle e
+ordini solo se la fattura li cita; gli ordini annullati non contano. Tetto: 1000 bolle e 1000
+ordini per azienda (PostgREST), oltre restano fuori le più vecchie. Contratti: non ancora (lista vuota). La commessa resta una
+**proposta** come prima: assegnare il costo (`fattura_collega_commesse`) è un passo dell'utente.
 
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
