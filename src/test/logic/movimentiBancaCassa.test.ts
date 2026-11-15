@@ -5,7 +5,7 @@
  * raddoppia, il saldo quadra con la banca.
  */
 import { describe, expect, it } from "vitest";
-import { dividiNelleQuote, uniscMovimentiBanca, type MovimentoBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
+import { dividiNelleQuote, uniscMovimentiBanca, type MovimentoBancaCassa, type QuotaBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
 import { costruisciRendiconto, type MovimentoRegistrato } from "@/lib/controlloGestione/rendicontoCassa";
 
 const banca = (p: Partial<MovimentoBancaCassa> & { id: string; cents: number }): MovimentoBancaCassa => ({
@@ -119,10 +119,10 @@ describe("quadratura con la banca", () => {
 });
 
 describe("un movimento ripartito su più voci (15/11/2026)", () => {
-  const voce = { id: "m", nome: "Materiali edili", codice: "04.02", in: null, out: "usc_materiali" as const, origine: "manuale" };
-  const quote = [
-    { id: "m", nome: "Materiali edili", codice: "04.02", in: null, out: "usc_materiali" as const, cents: 70000 },
-    { id: "t", nome: "Trasporti", codice: "09.12", in: null, out: "usc_mezzi" as const, cents: 30000 },
+  const voce: MovimentoBancaCassa["voce"] = { id: "m", nome: "Materiali edili", codice: "04.02", in: null, out: "usc_materiali", origine: "manuale" };
+  const quote: QuotaBancaCassa[] = [
+    { id: "m", nome: "Materiali edili", codice: "04.02", in: null, out: "usc_materiali", cents: 70000 },
+    { id: "t", nome: "Trasporti", codice: "09.12", in: null, out: "usc_mezzi", cents: 30000 },
   ];
 
   it("senza prima nota: una riga per quota, ognuna nella sua riga del cash flow", () => {
