@@ -41,11 +41,11 @@ function buildAttivo(a: SPAttivo): Riga[] {
 
 function buildPassivo(p: SPPassivo): Riga[] {
   return [
-    { chiave: "capitale_sociale", label: "Capitale sociale", valore: p.capitale_sociale, livello: "voce" },
-    { chiave: "riserve", label: "Riserve e utili degli anni passati", valore: p.riserve, livello: "voce" },
-    { chiave: "utile_esercizio", label: "Utile dell'anno", valore: p.utile_esercizio, livello: "voce", spiegazione: "Dal conto economico dell'anno intero." },
+    { chiave: "capitale_sociale", label: "Capitale sociale", valore: p.capitale_sociale, livello: "voce", spiegazione: "Dai dati di partenza (Controllo dei dati → Patrimonio netto): l'ultimo anno inserito." },
+    { chiave: "riserve", label: "Riserve e utili degli anni passati", valore: p.riserve, livello: "voce", spiegazione: "Dai dati di partenza, più l'utile o la perdita del conto economico di ogni anno passato da allora. I dividendi non sono registrati." },
+    { chiave: "utile_esercizio", label: "Utile dell'anno", valore: p.utile_esercizio, livello: "voce", spiegazione: "Dal conto economico, dall'inizio dell'anno al mese della data." },
     { chiave: "mezzi_propri", label: "Patrimonio netto", valore: p.mezzi_propri, livello: "subtot", spiegazione: "I soldi dei soci nell'azienda." },
-    { chiave: "fondo_tfr", label: "Fondo TFR", valore: p.fondo_tfr, livello: "voce" },
+    { chiave: "fondo_tfr", label: "Fondo TFR", valore: p.fondo_tfr, livello: "voce", spiegazione: "Fondo di partenza più il TFR maturato dai cedolini fino alla data (lordo / 13,5, come nel conto economico). Liquidazioni e versamenti ai fondi pensione non sono registrati." },
     { chiave: "fondi_rischi", label: "Fondi rischi", valore: p.fondi_rischi, livello: "voce" },
     { chiave: "mutui_mlt", label: "Mutui e finanziamenti oltre 12 mesi", valore: p.mutui_mlt, livello: "voce", spiegazione: "Capitale residuo che si rimborsa dopo i prossimi 12 mesi." },
     { chiave: "pas_consolidato", label: "Debiti a lungo termine", valore: p.pas_consolidato, livello: "subtot" },

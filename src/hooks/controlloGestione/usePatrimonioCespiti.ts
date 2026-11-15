@@ -62,6 +62,30 @@ export function usePatrimonioNetto(anno: number) {
   });
 }
 
+/**
+ * Ultimo anno prima di `anno` con i dati inseriti. Senza la riga dell'anno lo
+ * Stato patrimoniale riparte da quella, con gli utili degli anni dopo.
+ */
+export function usePatrimonioAnnoPrecedente(anno: number) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["cg", "patrimonio-netto-precedente", anno, companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<number | null> => {
+      const { data, error } = await db
+        .from("patrimonio_netto")
+        .select("esercizio")
+        .eq("company_id", companyId)
+        .lt("esercizio", anno)
+        .order("esercizio", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as { esercizio: number } | null)?.esercizio ?? null;
+    },
+  });
+}
+
 export function useSalvaPatrimonioNetto() {
   const qc = useQueryClient();
   const companyId = useEffectiveCompanyId();

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useAggiungiCespite, useCespiti, useDismettiCespite, usePatrimonioNetto, useSalvaPatrimonioNetto,
+  useAggiungiCespite, useCespiti, useDismettiCespite, usePatrimonioAnnoPrecedente, usePatrimonioNetto, useSalvaPatrimonioNetto,
   type PatrimonioNettoRow,
 } from "@/hooks/controlloGestione/usePatrimonioCespiti";
 import { formatEuro, parseImportoIt } from "@/lib/controlloGestione/indiciBanca";
@@ -30,7 +30,7 @@ const CAMPI_PN: { campo: CampoPn; label: string; aiuto?: string }[] = [
   { campo: "riserva_straordinaria", label: "Riserva straordinaria" },
   { campo: "altre_riserve", label: "Altre riserve" },
   { campo: "utili_perdite_a_nuovo", label: "Utili (o perdite) portati a nuovo", aiuto: "Le perdite con il segno meno" },
-  { campo: "fondo_tfr", label: "Fondo TFR" },
+  { campo: "fondo_tfr", label: "Fondo TFR di partenza", aiuto: "Il TFR che matura nell'anno si aggiunge da solo" },
   { campo: "fondo_rischi", label: "Fondo rischi" },
   { campo: "altri_fondi", label: "Altri fondi" },
 ];
@@ -42,16 +42,34 @@ function aTesto(v: number | null | undefined): string {
 
 export function PatrimonioNettoEditor({ anno }: { anno: number }) {
   const q = usePatrimonioNetto(anno);
+  const precedente = usePatrimonioAnnoPrecedente(anno);
+  const riportato = !q.isLoading && !q.data && precedente.data != null ? precedente.data : null;
   return (
     <Card id="patrimonio" className="scroll-mt-24 rounded-2xl">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Landmark className="h-4 w-4" /> Patrimonio netto {anno}
+          <Landmark className="h-4 w-4" /> Patrimonio netto e fondi all'1/1/{anno}
         </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Copia i valori dall'ultimo bilancio depositato (stato patrimoniale, voce A del passivo, e fondi). Importi
-          in euro, per esempio 100.000 oppure 100000,50.
-        </p>
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>
+            Copia i valori dal bilancio al 31/12/{anno - 1} (stato patrimoniale: voce A del passivo, fondi per rischi
+            e TFR). L'utile o la perdita del {anno - 1} va sommato agli utili portati a nuovo, meno i dividendi
+            distribuiti. L'utile del {anno} lo calcola il conto economico.
+          </p>
+          <p>
+            Il fondo TFR qui è quello di partenza: il gestionale aggiunge da solo il TFR che matura con i cedolini
+            (lordo / 13,5). Se nell'anno hai liquidato il TFR a chi è uscito o lo versi a un fondo pensione, correggi il
+            fondo di partenza.
+          </p>
+          <p>Gli anni dopo si riportano da soli, con gli utili del conto economico: li reinserisci solo per correggerli.</p>
+          <p>Importi in euro, per esempio 100.000 oppure 100000,50.</p>
+        </div>
+        {riportato != null && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs">
+            Per il {anno} non hai inserito dati: lo Stato patrimoniale riparte da quelli del {riportato}, con gli utili
+            del conto economico degli anni dopo e il TFR maturato. Salva qui solo se vuoi correggerli con il bilancio.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {q.isLoading ? (
