@@ -1,3 +1,4 @@
+import { normalizzaRiferimenti, numeriLineaDi, type RiferimentoPaFattura } from "../../../supabase/functions/_shared/riferimentiPaFattura";
 import { supabase } from "@/integrations/supabase/client";
 import type { DocumentoFiscale, RigaDocumento } from "@/types/fatturazione";
 import { calcolaRiga, calcolaTotaliDocumento } from "./calcoli";
@@ -132,6 +133,12 @@ export async function creaNotaCredito(
     cig: fattura.cig,
     cup: fattura.cup,
     codice_commessa_convenzione: fattura.codice_commessa_convenzione,
+    // Riferimenti PA e ufficio della fattura: la nota va allo stesso ufficio, con gli stessi
+    // contratto, CIG e CUP. Nello storno totale le righe sono le stesse, nello stesso ordine
+    // (con id nuovi): un riferimento di alcune righe resta su quelle. Nel parziale le righe si
+    // scrivono dopo, e i riferimenti valgono per tutta la nota.
+    riferimenti_pa: riferimentiPerNota(fattura.riferimenti_pa, fattura.righe ?? [], righe),
+    ufficio_pa_id: fattura.ufficio_pa_id ?? null,
     metodo_pagamento_codice: fattura.metodo_pagamento_codice,
     iban_pagamento: fattura.iban_pagamento,
     bic_pagamento: fattura.bic_pagamento,
@@ -142,3 +149,12 @@ export async function creaNotaCredito(
   };
 }
 
+
+/** I riferimenti PA della fattura, riportati sulle righe della nota (stesse posizioni). */
+function riferimentiPerNota(raw: unknown, righeFattura: RigaDocumento[], righeNota: RigaDocumento[]): RiferimentoPaFattura[] {
+  return normalizzaRiferimenti(raw).map((r) => {
+    const posizioni = numeriLineaDi(r, righeFattura as never);
+    const righe_id = righeNota.length ? posizioni.map((n) => righeNota[n - 1]?.id).filter((id): id is string => !!id) : [];
+    return { ...r, righe_id, numeri_linea: righe_id.length ? posizioni : [] };
+  });
+}

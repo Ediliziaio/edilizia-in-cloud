@@ -1,8 +1,14 @@
-import { beforeEach,expect,it,vi } from 'vitest';
+import { beforeEach, expect, it, vi } from "vitest";
 const mock=vi.hoisted(()=>({download:vi.fn(),generate:vi.fn()}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{storage:{from:()=>({download:mock.download})}}}));
 vi.mock('@/lib/fatturazione/generateXML',()=>({generateFatturaPAXML:mock.generate}));
 import {leggiXmlFattura} from '@/lib/fatturazione/scaricaXml';
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 beforeEach(()=>vi.clearAllMocks());
 it('per una consegnata usa il contenuto originale e non rigenera dalle note attuali',async()=>{
  mock.download.mockResolvedValue({data:{text:async()=>'<originale/>'},error:null});

@@ -1,7 +1,7 @@
 // src/lib/fatturazione/calcoli.ts
 // Centralized calculation engine for native billing documents
 
-import { controlliFatturaSdi, naturaCassa, ivaRivalsa } from "../../../supabase/functions/_shared/controlliFatturaSdi";
+import { controlliFatturaSdi, naturaCassa, ivaRivalsa, type ContestoControlliPa } from "../../../supabase/functions/_shared/controlliFatturaSdi";
 import { NATURE_IVA } from "@/types/fatturazione";
 import { arrotondaCentesimi } from "@/lib/numberUtils";
 import { datiClienteMancanti, ePrivato, nomeCliente } from "@/lib/fatturazione/clienteSnapshot";
@@ -308,11 +308,13 @@ export function calcolaTotaliDocumento(
 export interface ValidationError {
   field: string;
   message: string;
-  severity: "error" | "warning";
+  /** error blocca l'invio (la bozza si salva sempre), warning è da controllare, info è da sapere. */
+  severity: "error" | "warning" | "info";
 }
 
 export function validateDocumento(
-  doc: Partial<DocumentoFiscale> & { regime_fiscale?: string; _regimeFiscale?: string }
+  doc: Partial<DocumentoFiscale> & { regime_fiscale?: string; _regimeFiscale?: string },
+  contestoPa: ContestoControlliPa = {},
 ): ValidationError[] {
   const errors: ValidationError[] = [];
   const tipo = doc.tipo ?? "fattura";
@@ -354,7 +356,7 @@ export function validateDocumento(
     });
   }
 
-  errors.push(...controlliFatturaSdi(doc));
+  errors.push(...controlliFatturaSdi(doc, {}, contestoPa));
 
   // Each riga validation
   righe.forEach((r, i) => {
@@ -390,15 +392,9 @@ export function validateDocumento(
     }
   });
 
-  // PA without CIG
+  // PA: CIG, codice ufficio, riferimenti e coerenza con commessa e ufficio stanno in
+  // controlliRiferimentiPa (dentro controlliFatturaSdi), gli stessi che usa invia-sdi.
   const snap = doc.cliente_snapshot as ClienteSnapshot | undefined;
-  if (snap?.tipo_cliente === "PA" && !doc.cig) {
-    errors.push({
-      field: "cig",
-      message: "CIG obbligatorio per la Pubblica Amministrazione",
-      severity: "warning",
-    });
-  }
 
   // Fattura immediata: va trasmessa entro 12 giorni dall'operazione (art. 21
   // c. 4 DPR 633/72). Una bozza con la data di settimane fa, emessa oggi, è in

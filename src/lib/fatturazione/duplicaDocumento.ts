@@ -8,6 +8,7 @@
 //
 // Chi parte dall'elenco deve prima rileggere il documento intero.
 
+import { normalizzaRiferimenti, numeriLineaDi } from "../../../supabase/functions/_shared/riferimentiPaFattura";
 import type { DocumentoFiscale, RigaDocumento, ScadenzaPagamento } from "@/types/fatturazione";
 
 const CAMPI_DA_COPIARE = [
@@ -19,7 +20,7 @@ const CAMPI_DA_COPIARE = [
   "rivalsa_inps", "rivalsa_tipo", "rivalsa_aliquota", "rivalsa_importo",
   "altra_ritenuta", "altra_ritenuta_tipo", "altra_ritenuta_aliquota", "altra_ritenuta_causale", "altra_ritenuta_importo",
   "metodo_pagamento_codice", "iban_pagamento", "bic_pagamento", "nome_banca", "intestatario_conto",
-  "esigibilita_iva", "allega_pdf_sdi", "emesso_in_seguito_a", "cig", "cup", "codice_commessa_convenzione", "causale",
+  "esigibilita_iva", "allega_pdf_sdi", "emesso_in_seguito_a", "cig", "cup", "codice_commessa_convenzione", "riferimenti_pa", "ufficio_pa_id", "causale",
   "note_documento", "note_interne", "probabilita_chiusura", "testo_intro", "testo_conclusivo",
   "ddt_causale_trasporto", "ddt_numero_colli", "ddt_peso", "ddt_aspetto_beni", "ddt_porto", "ddt_mezzo_trasporto",
   "ddt_indirizzo_consegna", "ddt_vettore",
@@ -71,6 +72,15 @@ export function datiCopiaDocumento(
     id: crypto.randomUUID(),
     numero_linea: i + 1,
   }));
+  // Riferimenti PA di alcune righe: seguono le righe copiate (stesse posizioni, id nuovi).
+  if (Array.isArray(doc.riferimenti_pa)) {
+    const nuove = copia.righe as RigaDocumento[];
+    copia.riferimenti_pa = normalizzaRiferimenti(doc.riferimenti_pa).map((r) => {
+      const posizioni = numeriLineaDi(r, (doc.righe ?? []) as never);
+      const righe_id = posizioni.map((n) => nuove[n - 1]?.id).filter((id): id is string => !!id);
+      return { ...r, righe_id, numeri_linea: righe_id.length ? posizioni : [] };
+    });
+  }
 
   const dataScadenza = spostaData(doc.data_scadenza, doc.data_emissione, oggi);
   if (dataScadenza) copia.data_scadenza = dataScadenza;

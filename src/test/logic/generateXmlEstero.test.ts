@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { capSdi } from "../../../supabase/functions/_shared/generateXML";
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 
 describe("CAP nell'XML della fattura", () => {
   it("italiano a cinque cifre passa così com'è", () => {

@@ -12,6 +12,7 @@
 
 import { naturaCassa, ivaRivalsa } from "./controlliFatturaSdi.ts";
 import { iscrizioneRea } from "./datiSocietari.ts";
+import { riferimentiPaDelDocumento, xmlRiferimentiPa } from "./riferimentiPaFattura.ts";
 
 type Dati = Record<string, any>;
 
@@ -84,6 +85,26 @@ export function testoSdi(valore: unknown, max: number): string {
 /** testoSdi già pronto per stare dentro un elemento XML. */
 function x(valore: unknown, max: number): string {
   return escXml(testoSdi(valore, max));
+}
+
+/**
+ * Testo per i campi che lo schema vuole in Basic Latin (String10/15/20/35/60/80/100Type, senza
+ * «Latin»): numero del documento, IdDocumento, NumItem, NumeroDDT, UnitaMisura,
+ * RiferimentoAmministrazione. Lì «°», «²» e le lettere accentate fanno scartare la fattura: «m²»
+ * come unità di misura (comune nei lavori edili) o «Rep. n° 12» come numero di contratto.
+ * Trovato il 15/11/2026 validando l'XML contro lo schema ufficiale. Qui gli apici diventano
+ * cifre, gli accenti cadono, il resto fuori ASCII sparisce.
+ */
+export function testoSdiAscii(valore: unknown, max: number): string {
+  const t = testoSdi(valore, 100_000)
+    .replace(/²/g, "2").replace(/³/g, "3").replace(/¹/g, "1")
+    .replace(/[°º]/g, "")
+    .normalize("NFKD").replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ").trim();
+  return t.length > max ? t.slice(0, max).trimEnd() : t;
+}
+function xa(valore: unknown, max: number): string {
+  return escXml(testoSdiAscii(valore, max));
 }
 
 /** Testi lunghi (Causale: 200 caratteri) spezzati in più elementi, senza tagliare le parole. */
@@ -198,7 +219,7 @@ function scontoRiga(r: Dati): { percentuale?: number; importo?: number } {
 function bloccoRea(azienda: Dati): string {
   const rea = iscrizioneRea(azienda);
   if (!rea) return "";
-  return `<IscrizioneREA><Ufficio>${rea.ufficio}</Ufficio><NumeroREA>${escXml(rea.numero)}</NumeroREA>` +
+  return `<IscrizioneREA><Ufficio>${rea.ufficio}</Ufficio><NumeroREA>${xa(rea.numero, 20)}</NumeroREA>` +
     (rea.capitale !== null ? `<CapitaleSociale>${fmtNum(rea.capitale)}</CapitaleSociale>` : "") +
     (rea.socioUnico ? `<SocioUnico>${rea.socioUnico}</SocioUnico>` : "") +
     `<StatoLiquidazione>${rea.stato}</StatoLiquidazione></IscrizioneREA>`;
@@ -388,14 +409,14 @@ export function generateXML(
         ${r.codice_articolo ? `<CodiceArticolo><CodiceTipo>INTERNO</CodiceTipo><CodiceValore>${x(r.codice_articolo, 35)}</CodiceValore></CodiceArticolo>` : ""}
         <Descrizione>${x(r.descrizione, 1000) || "-"}</Descrizione>
         <Quantita>${fmtNum8(q)}</Quantita>
-        ${r.unita_misura ? `<UnitaMisura>${x(r.unita_misura, 10)}</UnitaMisura>` : ""}
+        ${r.unita_misura ? `<UnitaMisura>${xa(r.unita_misura, 10)}</UnitaMisura>` : ""}
         <PrezzoUnitario>${fmtNum8(prezzoUnitario)}</PrezzoUnitario>
         ${scontoXml}
         <PrezzoTotale>${fmtNum(r.imponibile)}</PrezzoTotale>
         <AliquotaIVA>${fmtNum(aliquota)}</AliquotaIVA>
         ${ritenuta ? "<Ritenuta>SI</Ritenuta>" : ""}
         ${r.natura_iva ? `<Natura>${escXml(naturaToXml(r.natura_iva))}</Natura>` : ""}
-        ${r.riferimento_amministrazione ? `<RiferimentoAmministrazione>${x(r.riferimento_amministrazione, 20)}</RiferimentoAmministrazione>` : ""}
+        ${r.riferimento_amministrazione ? `<RiferimentoAmministrazione>${xa(r.riferimento_amministrazione, 20)}</RiferimentoAmministrazione>` : ""}
       </DettaglioLinee>`;
   };
 
@@ -463,13 +484,19 @@ export function generateXML(
   for (const c of scritte) causali.push(c);
   const causaliXml = causali.flatMap((c) => aPezzi(c, 200)).map((c) => `<Causale>${escXml(c)}</Causale>`).join("\n        ");
 
+  // Riferimenti PA (lotto 5, 15/11/2026): con le righe di `riferimenti_pa` ogni contratto,
+  // ordine e convenzione va nel suo blocco (DatiContratto, DatiOrdineAcquisto, DatiConvenzione),
+  // con RiferimentoNumeroLinea quando vale solo per alcune righe, e NumItem per il lotto. Il
+  // contratto non si traveste più da ordine con IdDocumento «0». I documenti senza righe in
+  // riferimenti_pa (tutti quelli fatti prima) escono come sempre, dalle colonne vecchie.
+  const riferimentiPa = riferimentiPaDelDocumento(doc);
   const ordini = ((doc.riferimenti_ordine ?? []) as Dati[]).filter((o) => o && (o.IdDocumento || o.id_documento || o.numero));
   // Ordine dello schema (DatiDocumentiCorrelatiType): CodiceCUP PRIMA di CodiceCIG.
   // Scritti al contrario, una fattura con tutti e due veniva scartata per formato.
   // Schema 1.2.2: IdDocumento, Data, NumItem, CodiceCommessaConvenzione,
   // CodiceCUP, CodiceCIG. Il codice commessa/convenzione fino al 15/11/2026 non
   // si scriveva mai. Se è lo stesso numero dell'ordine non si ripete.
-  const cigCup = `${doc.cup ? `<CodiceCUP>${x(doc.cup, 15)}</CodiceCUP>` : ""}${doc.cig ? `<CodiceCIG>${x(doc.cig, 15)}</CodiceCIG>` : ""}`;
+  const cigCup = `${doc.cup ? `<CodiceCUP>${xa(doc.cup, 15)}</CodiceCUP>` : ""}${doc.cig ? `<CodiceCIG>${xa(doc.cig, 15)}</CodiceCIG>` : ""}`;
   const codiceConvenzione = String(doc.codice_commessa_convenzione ?? "").trim();
   const convenzioneXml = (idDocumento: string) =>
     codiceConvenzione && testoSdi(codiceConvenzione, 100) !== testoSdi(idDocumento, 100)
@@ -479,7 +506,7 @@ export function generateXML(
     ? ordini.map((o) => {
       const data = fmtDate(String(o.Data ?? o.data ?? ""));
       const id = String(o.IdDocumento ?? o.id_documento ?? o.numero);
-      return `<DatiOrdineAcquisto><IdDocumento>${x(id, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(data) ? `<Data>${data}</Data>` : ""}${convenzioneXml(id)}${cigCup}</DatiOrdineAcquisto>`;
+      return `<DatiOrdineAcquisto><IdDocumento>${xa(id, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(data) ? `<Data>${data}</Data>` : ""}${convenzioneXml(id)}${cigCup}</DatiOrdineAcquisto>`;
     }).join("\n      ")
     // Senza ordine lo schema vuole comunque un IdDocumento: «0» lo SDI lo accetta.
     : (doc.cig || doc.cup || codiceConvenzione) ? `<DatiOrdineAcquisto><IdDocumento>0</IdDocumento>${convenzioneXml("0")}${cigCup}</DatiOrdineAcquisto>` : "";
@@ -488,7 +515,7 @@ export function generateXML(
   const collegata: Dati | null = (tipoDoc === "TD04" || tipoDoc === "TD05" || TIPI_INVERSIONE.includes(tipoDoc)) && doc.fattura_collegata?.numero ? doc.fattura_collegata : null;
   const dataCollegata = collegata ? fmtDate(String(collegata.data ?? "")) : "";
   const collegataXml = collegata
-    ? `<DatiFattureCollegate><IdDocumento>${x(collegata.numero, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(dataCollegata) ? `<Data>${dataCollegata}</Data>` : ""}</DatiFattureCollegate>`
+    ? `<DatiFattureCollegate><IdDocumento>${xa(collegata.numero, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(dataCollegata) ? `<Data>${dataCollegata}</Data>` : ""}</DatiFattureCollegate>`
     : "";
 
   // Fattura differita: numero e data di ogni DDT (art. 21 c.4 DPR 633/72).
@@ -496,7 +523,7 @@ export function generateXML(
   const ddtXml = ((doc.riferimenti_ddt ?? []) as Dati[])
     .map((d) => ({ numero: d?.NumeroDDT ?? d?.numero, data: fmtDate(String(d?.DataDDT ?? d?.data ?? "")) }))
     .filter((d) => d.numero && /^\d{4}-\d{2}-\d{2}$/.test(d.data))
-    .map((d) => `<DatiDDT><NumeroDDT>${x(d.numero, 20)}</NumeroDDT><DataDDT>${d.data}</DataDDT></DatiDDT>`)
+    .map((d) => `<DatiDDT><NumeroDDT>${xa(d.numero, 20)}</NumeroDDT><DataDDT>${d.data}</DataDDT></DatiDDT>`)
     .join("\n      ");
 
   // Fattura accompagnatoria: dati del trasporto, solo quelli nel formato giusto.
@@ -521,7 +548,7 @@ export function generateXML(
         <TipoDocumento>${tipoDoc}</TipoDocumento>
         <Divisa>EUR</Divisa>
         <Data>${fmtDate(doc.data_emissione)}</Data>
-        <Numero>${x(doc.numero, 20)}</Numero>
+        <Numero>${xa(doc.numero, 20)}</Numero>
         ${doc.ritenuta_acconto && doc.ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.ritenuta_tipo || "RT01")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.ritenuta_aliquota ?? 20)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
         ${doc.altra_ritenuta && doc.altra_ritenuta_importo ? `<DatiRitenuta><TipoRitenuta>${escXml(doc.altra_ritenuta_tipo || "RT03")}</TipoRitenuta><ImportoRitenuta>${fmtNum(doc.altra_ritenuta_importo)}</ImportoRitenuta><AliquotaRitenuta>${fmtNum(doc.altra_ritenuta_aliquota || 0)}</AliquotaRitenuta><CausalePagamento>${escXml(doc.altra_ritenuta_causale || "A")}</CausalePagamento></DatiRitenuta>` : ""}
         ${doc.bollo_virtuale ? `<DatiBollo><BolloVirtuale>SI</BolloVirtuale><ImportoBollo>${fmtNum(doc.bollo_importo || 2)}</ImportoBollo></DatiBollo>` : ""}
@@ -531,7 +558,7 @@ export function generateXML(
         ${Number(doc.arrotondamento) ? `<Arrotondamento>${fmtNum(doc.arrotondamento)}</Arrotondamento>` : ""}
         ${causaliXml}
       </DatiGeneraliDocumento>
-      ${ordiniXml}
+      ${riferimentiPa.length ? xmlRiferimentiPa(riferimentiPa, righe, x, xa) : ordiniXml}
       ${collegataXml}
       ${ddtXml}
       ${trasportoXml}
@@ -588,7 +615,7 @@ ${riepilogo.map((r: Dati) => {
       xml += `
     <Allegati>
       <NomeAttachment>${x(a.nome, 60)}</NomeAttachment>
-      <FormatoAttachment>${x(a.formato || "PDF", 10)}</FormatoAttachment>
+      <FormatoAttachment>${xa(a.formato || "PDF", 10)}</FormatoAttachment>
       <Attachment>${escXml(String(a.contenuto))}</Attachment>
     </Allegati>`;
     }

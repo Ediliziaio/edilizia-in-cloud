@@ -1,3 +1,4 @@
+import type { RiferimentoPaFattura } from "../../supabase/functions/_shared/riferimentiPaFattura";
 // src/types/fatturazione.ts
 // Complete Italian fiscal billing types for the native billing module
 
@@ -219,6 +220,21 @@ export interface ClienteSnapshot {
   cup?: string;
   /** Solo PA: false se l'ente non applica la scissione dei pagamenti (dall'anagrafica, lotto 1). */
   split_payment?: boolean;
+  /**
+   * Solo PA: l'ufficio destinatario scelto sulla fattura (lotto 4). Il suo codice è anche in
+   * `codice_sdi`, che l'XML usa come CodiceDestinatario.
+   */
+  ufficio_pa?: UfficioPaFattura;
+}
+
+export interface UfficioPaFattura {
+  id: string | null;
+  codice: string;
+  descrizione?: string | null;
+  /** Ente a cui appartiene l'ufficio (anagrafiche_native.id). */
+  anagrafica_id?: string | null;
+  /** Da dove viene: l'ufficio predefinito dell'ente, la commessa, o scelto qui. */
+  origine: 'anagrafica' | 'commessa' | 'manuale';
 }
 
 export type StatoDocumento =
@@ -345,9 +361,14 @@ export interface DocumentoFiscale {
   ordine_id?: string;
 
   // PA
+  /** Colonne vecchie: per i documenti con riferimenti_pa sono il primo CIG/CUP (colonneCompatibili). */
   cig?: string;
   cup?: string;
   codice_commessa_convenzione?: string;
+  /** Riferimenti PA della fattura (lotti 4-5): vedi supabase/functions/_shared/riferimentiPaFattura.ts. */
+  riferimenti_pa?: RiferimentoPaFattura[];
+  /** Ufficio PA destinatario scelto sulla fattura. */
+  ufficio_pa_id?: string | null;
 
   // DDT
   ddt_causale_trasporto?: string;

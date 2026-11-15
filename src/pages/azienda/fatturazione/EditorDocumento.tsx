@@ -49,6 +49,8 @@ import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
 import { EditorDDTOpzioniCard } from "./editor/EditorDDTOpzioniCard";
 import { EditorDDTModelloCard } from "./editor/EditorDDTModelloCard";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
+import { EditorCommessaRiferimentiSection } from "./editor/EditorCommessaRiferimentiSection";
+import { useContestoControlliPa } from "@/hooks/useContestoControlliPa";
 import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazioneElettronicaSection";
 import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
 import { EditorContributiRitenuteSection } from "./editor/EditorContributiRitenuteSection";
@@ -393,9 +395,12 @@ function EditorDelDocumento() {
     }
   }, [state.id, isEmpty, isDirty, isBozza, navigate, releaseEmptyDraft]);
 
+  // Controlli PA con il contesto (commesse collegate, cliente della commessa, ufficio): gli
+  // stessi che fa invia-sdi prima di trasmettere.
+  const contestoPa = useContestoControlliPa(state.id ? { id: state.id, ordine_id: state.ordine_id ?? null, ufficio_pa_id: state.ufficio_pa_id ?? null } : undefined);
   const validationErrors = useMemo(
-    () => validateDocumento(state),
-    [state]
+    () => validateDocumento(state, contestoPa),
+    [state, contestoPa]
   );
   const criticalErrorCount = validationErrors.filter((e) => e.severity === "error").length;
 
@@ -605,8 +610,10 @@ function EditorDelDocumento() {
                 </div>
               </div>
 
-              {/* Ordine collegato (solo se presente) */}
-              {(state.ordine_id || searchParams.get("ordine_link")) && (
+              {/* Commessa e riferimenti PA (fatture e note); per preventivi e proforma il solo collegamento. */}
+              {state.tipo !== "preventivo" && state.tipo !== "proforma" ? (
+                <EditorCommessaRiferimentiSection state={state} dispatch={dispatch} disabled={!modificabile} />
+              ) : (state.ordine_id || searchParams.get("ordine_link")) && (
                 <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
             </>

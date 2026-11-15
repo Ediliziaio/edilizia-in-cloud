@@ -22,6 +22,12 @@ import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
 import { generateXML } from "../../../supabase/functions/_shared/generateXML";
 
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
+
 const azienda = {
   ragione_sociale: "IMPRESA PROVA S.R.L.", partita_iva: "01234567897", codice_fiscale: "01234567897",
   indirizzo_via: "Via Roma", indirizzo_numero_civico: "1", indirizzo_cap: "33170", indirizzo_comune: "Pordenone",

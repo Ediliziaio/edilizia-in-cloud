@@ -1,7 +1,13 @@
-import { expect,it } from 'vitest';
+import { expect, it, vi } from "vitest";
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { generateXML } from '../../../supabase/functions/_shared/generateXML';
 import { fatturaXmlTabellareHtml,leggiFattureXmlStampabili,generaPdfFatturaXml } from '@/lib/fatturazione/fatturaXmlTabellare';
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 const az={ragione_sociale:'Fornitore Prova Srl',partita_iva:'01941970939',regime_fiscale:'RF01',indirizzo_via:'Via Roma 1',indirizzo_comune:'Pordenone',indirizzo_cap:'33170',indirizzo_provincia:'PN',indirizzo_nazione:'IT'};
 const cliente={ragione_sociale:'Cliente Prova Srl',partita_iva:'01234567897',indirizzo_via:'Via Cliente 2',indirizzo_comune:'Udine',indirizzo_cap:'33100',indirizzo_provincia:'UD',indirizzo_nazione:'IT',codice_sdi:'ABC1234'};
 function xml(n=1){return generateXML({tipo:'fattura',numero:'FPR 79/26',data_emissione:'2026-11-13',cliente_snapshot:cliente,righe:Array.from({length:n},(_,i)=>({numero_linea:i+1,descrizione:`Voce ${i+1} — lavori e installazioni`,quantita:1,prezzo_unitario:100,imponibile:100,aliquota_iva:'22',unita_misura:'PZ'})),riepilogo_iva:[{aliquota:'22',imponibile:n*100,imposta:n*22,esigibilita:'I'}],totale_documento:n*122,totale_da_pagare:n*122,note_documento:'Rendicontazione bando F decreto 59702 <riferimento> & note pubbliche',note_interne:'RISERVATO NON ESPORTARE',cup:'B12H20000070001',cig:'ZA12345678',scadenze_pagamento:[{data_scadenza:'2026-11-30',importo:n*61,metodo_pagamento:'MP05'},{data_scadenza:'2026-12-31',importo:n*61,metodo_pagamento:'MP05'}],iban_pagamento:'IT39Q0708464900000000976098'},az,'00001');}

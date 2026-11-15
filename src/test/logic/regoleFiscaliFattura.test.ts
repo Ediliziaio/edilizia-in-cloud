@@ -1,7 +1,7 @@
 // Regole di legge che il calcolo della fattura deve rispettare (24/09/2026):
 // bollo sulla parte senza IVA, IVA per cassa solo dove c'è IVA, e le diciture
 // che l'XML deve portare per IVA per cassa e scissione dei pagamenti.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   calcolaRiga,
   calcolaRiepilogoIVA,
@@ -11,6 +11,12 @@ import {
 } from "@/lib/fatturazione/calcoli";
 import { generateXML } from "../../../supabase/functions/_shared/generateXML";
 import type { RigaDocumento } from "@/types/fatturazione";
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 
 const riga = (importo: number, aliquota: string, natura?: string): RigaDocumento =>
   calcolaRiga({

@@ -98,13 +98,13 @@ export function verificaFormale(
 
   // ── Il documento ───────────────────────────────────────────────────────
   for (const e of validateDocumento(doc)) {
-    if (e.severity === "error") errore(e.message); else avviso(e.message);
+    if (e.severity === "error") errore(e.message); else if (e.severity === "warning") avviso(e.message);
   }
   if (!voci.some((v) => v.esito !== "ok" && /righe|riga|importo|totale|IVA|scadenz/i.test(v.testo))) {
     ok("Righe, riepilogo IVA e totali coerenti");
   }
 
-  for (const p of controlliFatturaSdi(doc, az)) if (!voci.some(v => v.testo === p.message)) { if (p.severity === "error") errore(p.message); else avviso(p.message); }
+  for (const p of controlliFatturaSdi(doc, az)) if (!voci.some(v => v.testo === p.message)) { if (p.severity === "error") errore(p.message); else if (p.severity === "warning") avviso(p.message); }
 
   // ── L'XML ──────────────────────────────────────────────────────────────
   if (xml) {

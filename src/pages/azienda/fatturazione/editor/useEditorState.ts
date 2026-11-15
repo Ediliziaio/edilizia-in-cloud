@@ -8,6 +8,11 @@ import type {
 } from "@/types/fatturazione";
 import { useUpdateDocumento } from "@/hooks/useDocumentiFiscali";
 import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
+import type { UfficioPaFattura } from "@/types/fatturazione";
+import {
+  allineaRighe, cigValido, colonneCompatibili, cupValido, normalizzaRiferimenti, proponiDallaCommessa,
+  type RiferimentoPaFattura,
+} from "../../../../../supabase/functions/_shared/riferimentiPaFattura";
 
 // ─── State & Actions ─────────────────────────────────────────
 
@@ -29,7 +34,13 @@ export type Action =
   | { type: "ADD_SCADENZA"; scadenza: ScadenzaPagamento }
   | { type: "UPDATE_SCADENZA"; index: number; scadenza: Partial<ScadenzaPagamento> }
   | { type: "REMOVE_SCADENZA"; index: number }
-  | { type: "SET_SCADENZE"; scadenze: ScadenzaPagamento[] };
+  | { type: "SET_SCADENZE"; scadenze: ScadenzaPagamento[] }
+  /** Riferimenti PA della fattura (lotto 4): contratto, ordine, convenzione, CIG, CUP, righe. */
+  | { type: "SET_RIFERIMENTI_PA"; riferimenti: RiferimentoPaFattura[] }
+  /** Ufficio PA destinatario: il suo codice diventa il CodiceDestinatario. */
+  | { type: "SET_UFFICIO_PA"; ufficio: UfficioPaFattura | null }
+  /** Commessa principale della fattura (ordine_id): i riferimenti li sistema chi la cambia. */
+  | { type: "SET_COMMESSA"; ordine_id: string | null; riferimenti: RiferimentoPaFattura[] };
 
 // ─── Campi persistiti ────────────────────────────────────────
 //
@@ -87,6 +98,9 @@ const TRACKED_FIELDS = [
   "allega_pdf_sdi",
   "emesso_in_seguito_a",
   "codice_commessa_convenzione",
+  "riferimenti_pa",
+  "ufficio_pa_id",
+  "ordine_id",
   "ddt_causale_trasporto",
   "ddt_numero_colli",
   "ddt_peso",
@@ -123,6 +137,7 @@ const VUOTO_E_NULL = [
   "anagrafica_id", "data_scadenza", "data_validita", "ddt_data_ora_consegna", "ddt_numero_colli", "probabilita_chiusura",
   "sconto_globale_percentuale", "sconto_globale_valore", "bollo_importo", "ritenuta_aliquota", "cassa_aliquota", "cassa_imponibile",
   "rivalsa_aliquota", "altra_ritenuta_aliquota", "arrotondamento", "ddt_porto",
+  "ufficio_pa_id", "ordine_id",
 ] as const;
 
 /** I totali derivati sono NOT NULL: un NaN (campo numerico svuotato) diventa 0, non null. */
@@ -135,6 +150,12 @@ export function buildSavePayload(state: EditorState) {
     const v = campi[k];
     if (v === "" || v === undefined || (typeof v === "number" && Number.isNaN(v))) campi[k] = null;
   }
+  // Riferimenti PA: righe riallineate agli id delle righe, e le colonne vecchie (cig, cup,
+  // codice commessa/convenzione) uguali al primo valore, per elenchi e PDF. L'XML legge
+  // riferimenti_pa. Un documento senza riferimenti_pa tiene le colonne vecchie com'erano.
+  const riferimenti = allineaRighe(normalizzaRiferimenti(state.riferimenti_pa), (state.righe ?? []) as never);
+  campi.riferimenti_pa = riferimenti;
+  if (riferimenti.length) Object.assign(campi, colonneCompatibili(riferimenti));
   return {
     id: state.id!,
     ...campi,
@@ -214,6 +235,9 @@ export function riferimentiDelCliente(state: EditorState): string[] {
   if (pieno(state.cup)) out.push("CUP");
   if (pieno(state.codice_commessa_convenzione)) out.push("codice commessa/convenzione");
   if (state.esigibilita_iva === "S") out.push("split payment");
+  const dallAnagrafica = normalizzaRiferimenti(state.riferimenti_pa).filter((r) => r.origine === "anagrafica").length;
+  if (dallAnagrafica) out.push(dallAnagrafica === 1 ? "il riferimento PA dell'anagrafica" : `${dallAnagrafica} riferimenti PA dell'anagrafica`);
+  if (state.ufficio_pa_id || state.cliente_snapshot?.ufficio_pa) out.push("ufficio destinatario");
   return out;
 }
 
@@ -235,11 +259,33 @@ export function senzaRiferimentiCliente(state: EditorState): EditorState {
   const causale = Array.isArray(state.causale)
     ? (state.causale as unknown[]).filter((c) => !DICITURA_SPLIT.test(String(c ?? "")))
     : state.causale;
+  // Riferimenti venuti dall'anagrafica del cliente precedente: via. Quelli della commessa
+  // restano (li controlla la coerenza cliente/commessa), quelli scritti qui pure.
+  const riferimenti_pa = normalizzaRiferimenti(state.riferimenti_pa).filter((r) => r.origine !== "anagrafica");
+  const conRiferimenti = riferimenti_pa.length > 0;
   return {
     ...state,
-    cig: null, cup: null, codice_commessa_convenzione: null, esigibilita_iva: null,
+    // Con riferimenti_pa le colonne vecchie le riscrive il salvataggio; senza, si svuotano.
+    cig: conRiferimenti ? state.cig : null, cup: conRiferimenti ? state.cup : null,
+    codice_commessa_convenzione: conRiferimenti ? state.codice_commessa_convenzione : null,
+    esigibilita_iva: null,
     causale,
+    riferimenti_pa,
+    ufficio_pa_id: null,
   } as unknown as EditorState;
+}
+
+/**
+ * Cliente nuovo dall'anagrafica: se la fattura non ha riferimenti PA e l'anagrafica ha CIG/CUP
+ * (vecchi campi del cliente), si propongono come riferimento «dall'anagrafica».
+ */
+function conRiferimentiAnagrafica(state: EditorState, anagraficaId: string | undefined, snap: ClienteSnapshot): EditorState {
+  if (!anagraficaId) return state;
+  const attuali = normalizzaRiferimenti(state.riferimenti_pa);
+  if (attuali.length || !(cigValido(snap.cig) || cupValido(snap.cup))) return state;
+  const proposti = proponiDallaCommessa({ id: "", codice: null }, [], [], { id: anagraficaId, cig: snap.cig, cup: snap.cup })
+    .map((r): RiferimentoPaFattura => ({ ...r, order_id: null as string | null }));
+  return { ...state, riferimenti_pa: proposti } as EditorState;
 }
 
 // ─── Reducer ─────────────────────────────────────────────────
@@ -262,14 +308,41 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
         [action.field]: action.value,
       });
 
-    case "SET_CLIENTE":
+    case "SET_CLIENTE": {
+      const altro = eAltroCliente(state, action.anagrafica_id || undefined);
+      const nuovo = altro || (!state.anagrafica_id && !!action.anagrafica_id);
+      const base = altro ? senzaRiferimentiCliente(state) : state;
+      // Lo stesso cliente corretto a mano tiene l'ufficio scelto sulla fattura.
+      const ufficio = !altro ? state.cliente_snapshot?.ufficio_pa : undefined;
+      const snap = normalizzaCliente(action.snapshot);
       return recalculate({
-        ...(eAltroCliente(state, action.anagrafica_id || undefined) ? senzaRiferimentiCliente(state) : state),
+        ...(nuovo ? conRiferimentiAnagrafica(base, action.anagrafica_id || undefined, snap) : base),
         // Cliente nuovo (non ancora in anagrafica): nessun id, mai una stringa vuota.
         anagrafica_id: action.anagrafica_id || undefined,
         // Per un privato la ragione sociale è «Nome Cognome»: sempre allineata.
-        cliente_snapshot: normalizzaCliente(action.snapshot),
+        cliente_snapshot: ufficio && !snap.ufficio_pa && snap.tipo_cliente === "PA" ? { ...snap, ufficio_pa: ufficio } : snap,
       });
+    }
+
+    case "SET_RIFERIMENTI_PA":
+      return { ...state, riferimenti_pa: action.riferimenti };
+
+    case "SET_UFFICIO_PA": {
+      const snap = state.cliente_snapshot;
+      if (!snap) return state;
+      if (!action.ufficio) {
+        const { ufficio_pa: _tolto, ...resto } = snap;
+        return { ...state, ufficio_pa_id: null, cliente_snapshot: resto as ClienteSnapshot } as EditorState;
+      }
+      return {
+        ...state,
+        ufficio_pa_id: action.ufficio.id,
+        cliente_snapshot: { ...snap, codice_sdi: action.ufficio.codice, ufficio_pa: action.ufficio },
+      } as EditorState;
+    }
+
+    case "SET_COMMESSA":
+      return { ...state, ordine_id: action.ordine_id ?? undefined, riferimenti_pa: action.riferimenti } as EditorState;
 
     case "CLEAR_CLIENTE":
       return recalculate({

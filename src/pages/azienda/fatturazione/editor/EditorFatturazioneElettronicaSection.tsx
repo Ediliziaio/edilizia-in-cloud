@@ -252,44 +252,11 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
               </div>
             </div>
 
-            {/* ─── CIG / CUP (for PA) ─── */}
+            {/* CIG, CUP, contratto, ordine, convenzione e ufficio: sezione «Commessa e riferimenti PA» (lotto 4). */}
             {isPA && (
-              <div className="space-y-2 pt-2 border-t">
-                <Label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Riferimenti PA</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">CIG</Label>
-                    <Input
-                      value={state.cig ?? ""}
-                      onChange={(e) => setField("cig", e.target.value.toUpperCase())}
-                      className="h-7 text-xs font-mono uppercase"
-                      placeholder="Z1234567AB"
-                      maxLength={15}
-                      disabled={disabled}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">CUP</Label>
-                    <Input
-                      value={state.cup ?? ""}
-                      onChange={(e) => setField("cup", e.target.value.toUpperCase())}
-                      className="h-7 text-xs font-mono uppercase"
-                      placeholder="B12C34000050006"
-                      maxLength={15}
-                      disabled={disabled}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Codice commessa/convenzione</Label>
-                    <Input
-                      value={state.codice_commessa_convenzione ?? ""}
-                      onChange={(e) => setField("codice_commessa_convenzione", e.target.value)}
-                      className="h-7 text-xs"
-                      disabled={disabled}
-                    />
-                  </div>
-                </div>
-              </div>
+              <p className="pt-2 border-t text-[11px] text-muted-foreground">
+                CIG, CUP, contratto e ufficio destinatario si scelgono in <a href="#ed-riferimenti-pa" className="underline">Commessa e riferimenti PA</a>.
+              </p>
             )}
           </div>
         </CollapsibleContent>

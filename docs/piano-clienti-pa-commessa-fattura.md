@@ -149,18 +149,66 @@ Accessi: come `order_work_phases` (vede chi ha «Vedere commesse» e vede la com
 
 **Resta per i lotti successivi**: chiave esterna e selettore dell'ufficio (`SelettoreUfficioPa`) nella riga, al posto del codice scritto a mano; un trigger che copi `codice_univoco_ufficio` dall'ufficio scelto.
 
-### Lotto 4 — Dalla commessa alla fattura (e dal modulo Fatturazione)
+### Lotto 4 — Dalla commessa alla fattura (e dal modulo Fatturazione) — **FATTO il 15/11/2026** (stato sotto)
 - La fattura copia cliente, ufficio e riferimenti dalla commessa, con l'origine scritta accanto: «dall'anagrafica», «dalla commessa», «modificato qui».
 - Modifiche sulla fattura non toccano commessa e anagrafica.
 - Editor: si sceglie o si cambia la commessa; i riferimenti della commessa precedente si tolgono con avviso; i conflitti si mostrano e si sceglie.
 - Riferimenti scrivibili a mano quando non c'è commessa; fattura su più commesse: riferimenti per riga.
 - Fatture emesse mai toccate; bozze: «Aggiorna dalla commessa» con le differenze, senza sovrascrivere ciò che è stato modificato a mano.
 
-### Lotto 5 — XML completo e controlli
+### Lotto 5 — XML completo e controlli — **FATTO il 15/11/2026** (stato sotto)
 - `DatiContratto`, `DatiConvenzione`, `DatiOrdineAcquisto` dalle righe del lotto 3, con `RiferimentoNumeroLinea` quando un riferimento vale solo per alcune righe.
 - Controlli: formato codice ufficio, CIG (compresi i vecchi codici), CUP; coerenza cliente-ufficio-commessa. Errori che bloccano l'invio, avvisi, informazioni; la bozza si salva sempre. Il messaggio dice cosa manca, dove inserirlo e cosa non si può fare. Il formato giusto non vuol dire che il codice sia quello dell'appalto, e il messaggio lo dice.
 - Test sugli scenari A–L, con lo schema XSD ufficiale nel repository per la validazione automatica (va scaricato dal sito FatturaPA).
 - Nessuna fattura vera inviata per le prove.
+
+### Lotti 4 e 5 — FATTI il 15/11/2026: stato
+
+**Dove stanno i dati sulla fattura** (migrazione `20290410400000_fattura_riferimenti_pa`, applicata e riallineata):
+- `documenti_fiscali.riferimenti_pa` jsonb (array, CHECK): una riga per riferimento con `tipo` (`ordine_acquisto` / `contratto` / `convenzione`), `numero`, `data`, `num_item` (lotto), `codice_commessa_convenzione`, `cig` o `cig_non_dovuto` (+ `cig_motivo_esclusione`), `cup` o `cup_non_dovuto`, `righe_id` (id delle righe; vuoto = tutta la fattura) e `numeri_linea` (gli stessi come numero, ricalcolati al salvataggio), `origine` (`anagrafica` / `commessa` / `manuale`), `modificato`, `order_id`, `order_code`, `sorgente_id` (riga di `order_riferimenti_pa`, o `contratto_generale:<id>` / `computo:<id>` / `anagrafica:<id>`), `originale` (i valori come sono arrivati dalla fonte). Regole e tipi: `supabase/functions/_shared/riferimentiPaFattura.ts`.
+- `documenti_fiscali.ufficio_pa_id` → `anagrafica_uffici_pa` (on delete set null); il codice è copiato in `cliente_snapshot.codice_sdi` (CodiceDestinatario) e in `cliente_snapshot.ufficio_pa` {id, codice, descrizione, anagrafica_id, origine}.
+- **Compatibilità**: un documento con `riferimenti_pa` vuoto (tutti quelli di prima) esce nell'XML come prima, dalle colonne `cig`, `cup`, `codice_commessa_convenzione`, `riferimenti_ordine`. Per i documenti nuovi il salvataggio tiene `cig`/`cup`/`codice_commessa_convenzione` uguali al primo valore dei riferimenti (li leggono elenchi e PDF). Nell'editor, sulle bozze vecchie, «Trasformali in riferimenti» li converte.
+- Nessuna delle due colonne è tra i campi modificabili di una fattura emessa: il trigger `documenti_fiscali_proteggi_emessi` le blocca (provato).
+- **Collegamenti tra aziende** (scoperto qui): `ordine_id`, `anagrafica_id` e `fattura_ordine` si controllavano solo con la chiave esterna, che non guarda le regole d'accesso: un utente poteva legare alla sua fattura la commessa o il cliente di un'altra azienda conoscendone l'id. Ora i trigger `documento_fiscale_collegamenti_stessa_azienda` e `fattura_ordine_stessa_azienda` lo rifiutano (stesso messaggio per «non esiste» e «è di un altro»). Il 15/11 nessuna riga era in questa situazione.
+
+**Lotto 4 — dalla commessa alla fattura**
+- Regola unica, deterministica: `datiPaFattura()` in `src/lib/fatturazione/fatturaPaDaCommessa.ts`. Riferimenti: righe di `order_riferimenti_pa`; se non ce ne sono, CIG/CUP di `generale_contratti` e `computo_uploads`; poi quelli dell'anagrafica. Ufficio (solo PA): scelto qui → indicato sulla commessa (se è un ufficio attivo di quell'ente) → predefinito dell'ente → vecchio `codice_sdi` di 6 caratteri; con avviso se l'ufficio della commessa è disattivato o di un altro ente.
+- «Crea fattura» (`CreaFatturaDialog`): riquadro «Dati appalto e fatturazione PA» con ufficio (`SelettoreUfficioPa`) e riferimenti (`RiferimentiPaFatturaEditor`), origine accanto a ogni riga, «Riprendi quelli della commessa». Non prende più CIG/CUP dal cliente.
+- Editor del modulo Fatturazione: sezione «Commessa e riferimenti PA» (`EditorCommessaRiferimentiSection`): sceglie / cambia commessa, aggiunge altre commesse (`fattura_ordine`), propone i riferimenti, mostra i conflitti e fa scegliere, al cambio commessa toglie quelli della precedente con avviso, controlla che il cliente della commessa sia quello della fattura, «Aggiorna dalla commessa» sulle bozze con le differenze (ciò che è cambiato a mano resta), riferimenti scritti a mano senza commessa, righe a cui si applica ogni riferimento. Ufficio destinatario con origine. Cambio cliente: via ufficio e riferimenti dell'anagrafica precedente (con avviso), restano quelli della commessa. CIG/CUP non sono più nelle sezioni Cliente e Fatturazione elettronica.
+- Note di credito e «Duplica» portano riferimenti e ufficio, con le righe nelle stesse posizioni.
+- **Difetto trovato nel browser e corretto**: il caricamento del documento (`mapRow` in `useDocumentiFiscali.ts`) copiava i campi uno per uno e non aveva le colonne nuove: l'editor vedeva i riferimenti vuoti e il primo salvataggio li avrebbe cancellati. Ora c'è un test.
+
+**Lotto 5 — XML e controlli**
+- `generateXML.ts`: blocchi `DatiOrdineAcquisto`, `DatiContratto`, `DatiConvenzione` dai riferimenti, ciascuno nel suo, nell'ordine dello schema; dentro: `RiferimentoNumeroLinea`*, `IdDocumento`, `Data`, `NumItem`, `CodiceCommessaConvenzione`, `CodiceCUP`, `CodiceCIG`. Niente più IdDocumento «0» per un contratto: «0» resta solo per un riferimento senza numero, con avviso. «Non dovuto» = nessun tag, nessun valore finto. `impegno_spesa` e `determina` della commessa non vanno nell'XML da soli: se l'ente li chiede, si scrivono nel codice commessa/convenzione della fattura.
+- **Difetto trovato con lo schema XSD e corretto**: i campi Basic Latin dello schema (numero del documento, IdDocumento, NumItem, NumeroDDT, UnitaMisura, RiferimentoAmministrazione, NumeroREA) non accettano «°», «²», lettere accentate. Una riga con unità «m²» o un contratto «Rep. n° 12» faceva scartare la fattura. Ora `testoSdiAscii` li riduce (m² → m2, n° → n, è → e).
+- Controlli (`controlliRiferimentiPa` in `_shared/controlliFatturaSdi.ts`, usati da editor e `invia-sdi` con lo stesso contesto: commesse collegate, cliente della commessa, ufficio dal database). Tre livelli: `error` blocca l'invio (la bozza si salva sempre), `warning`, `info`.
+  - errore: Codice Univoco Ufficio mancante o non di 6 caratteri; ufficio di un altro ente; CIG non di 10 caratteri (SmartCIG compresi); CUP non di 15 con la lettera davanti; numero del documento o lotto oltre 20 caratteri; righe che non esistono; PA senza CIG e senza «non dovuto» (per le note di credito è un avviso).
+  - avviso: riferimento senza numero (IdDocumento 0); codice destinatario diverso dall'ufficio scelto; riferimenti di più commesse senza righe; riferimento di una commessa non più collegata; commessa intestata a un altro cliente; ufficio disattivato.
+  - informazione: «il formato del CIG è giusto, ma il gestionale non può sapere se è quello di questo appalto»; CIG non dovuto col motivo.
+- Schema XSD ufficiale 1.2.2 in `src/test/fixtures/fatturapa-1.2.2/` (dal sito fatturapa.gov.it, più la firma W3C che importa), validato con xmllint (`src/test/helpers/validaXsdFatturaPa.ts`). `xsdSuOgniXml.ts` fa passare dallo schema **ogni** XML generato in 11 file di test (anche quelli del gestore vero di invia-sdi). In CI il passo installa xmllint se manca; senza, i test falliscono, non si saltano.
+
+**Scenari — tutti provati il 15/11/2026** (test + bozze vere su Demo Azienda 2, XML generato, schema XSD, conti SDI 00422/00423, controlli; per A–E, J, L, Renova e le note di credito anche il gestore vero di `invia-sdi` col provider finto openapi, confrontando XML archiviato, XML trasmesso e corpo della chiamata):
+
+| | Scenario | Esito | Dove |
+|---|---|---|---|
+| A | Privato: cliente → commessa → fattura, senza obblighi PA | passato — FPR12, 0000000, nessun blocco PA | `invioSdiFlussoCompleto` · bozza A_privato |
+| B | Azienda, flusso B2B (anche col CUP di un finanziamento) | passato — FPR12, ABC1234; CUP in DatiContratto senza CIG richiesto | idem · B_azienda |
+| C | Ente PA → ufficio → commessa con CIG e CUP → fattura dalla commessa → FPA12 | passato — UFXYZ1 dalla commessa, DatiContratto + DatiOrdineAcquisto, split. Su Demo 2 il controllo **blocca**: il lotto di DEMO2-0013 «Lotto 1 — scuola media» ha 22 caratteri (l'XML ne ammette 20) | idem · C_pa_commessa_0013 |
+| D | PA con più uffici, ufficio diverso dal predefinito | passato — CodiceDestinatario UFTST1 (predefinito UFTST2) | idem · D_ufficio_non_predefinito |
+| E | Riferimenti non dovuti, senza valori fittizi | passato — DatiConvenzione senza CodiceCIG; PA senza CIG e senza «non dovuto» bloccata | idem · E_non_dovuti_0015 |
+| F | Fattura dal modulo Fatturazione poi collegata alla commessa | passato — conflitto sul CIG mostrato, scelta la commessa | `fatturaPaLotti45` · F_fatturazione_poi_commessa |
+| G | Cambio commessa | passato — tolti i 2 riferimenti di DEMO2-0013, messi quelli di DEMO2-0015 | `fatturaPaLotti45`, `editorRiferimentiPa` · G_cambio_commessa |
+| H | Modifica a mano sulla fattura | passato — «dalla commessa, modificato qui», la commessa resta com'era (verificato sul database) | `fatturaPaLotti45`, UI · H_modifica_qui |
+| I | Aggiornamento della commessa | passato — la bozza non cambia da sola; «Aggiorna dalla commessa» mostra le differenze e lascia ciò che è stato cambiato (provato nel browser); una fattura emessa rifiuta riferimenti e ufficio nuovi (transazione annullata) | `fatturaPaLotti45` |
+| J | Più riferimenti e righe diverse | passato — RiferimentoNumeroLinea 1 / 1 / 2, due commesse collegate | idem · J_due_commesse_per_riga |
+| K | Salvo, ricarico, riapro | passato — riletti dal database riferimenti, ufficio, origine, «modificato», righe | `editorRiferimentiPa` · tutte le bozze |
+| L | Un'altra azienda | passato — un amministratore di un'altra azienda vede 0 bozze, commesse, riferimenti, uffici, clienti di Demo 2 e non può collegarli alla sua fattura (transazione annullata) | migrazione 20290410400000 |
+| NC | Note di credito TD04 su A, B, C, split acceso e spento, ritenuta | passato — 7 casi nel gestore di invio, 7 bozze su Demo 2 | `invioSdiFlussoCompleto`, `noteCreditoXmlPa` |
+| Renova | Azienda con P.IVA, openapi, apostrofi e caratteri speciali, sconti di riga e sul totale, ritenuta | passato — schema e conti SDI | idem · Renova_azienda_sconti_ritenuta |
+
+**Dati di prova su Demo Azienda 2**: 17 bozze con nota interna «PROVA lotti 4-5 (15/11/2026) <caso> — non inviare» (10 fatture, 6 note di credito, la J collegata anche a DEMO2-0015 in `fattura_ordine`); indirizzi completati su «PROVA Comune di Demolandia», «PROVA Mario Privato», «PROVA Costruzioni S.r.l.» (servono all'XML). Nessun invio, nessuna fattura emessa toccata.
+
+**Resta da decidere (non è un difetto del codice)**: il lotto di DEMO2-0013 è lungo 22 caratteri. Sulla fattura si accorcia (scenario H); sulla commessa resta com'è finché qualcuno non lo corregge.
 
 ## Ordine consigliato
 Lotto 0 subito (corregge documenti che partono sbagliati), poi 1 → 2 → 3 → 4 → 5. I lotti 1-2 e 3 si possono fare in parallelo; il 4 ha bisogno di entrambi.

@@ -38525,6 +38525,7 @@ export type Database = {
           riepilogo_iva: Json
           riferimenti_ddt: Json | null
           riferimenti_ordine: Json | null
+          riferimenti_pa: Json
           righe: Json
           ritenuta_acconto: boolean | null
           ritenuta_aliquota: number | null
@@ -38557,6 +38558,7 @@ export type Database = {
           totale_da_pagare: number
           totale_documento: number
           trasmissione: string | null
+          ufficio_pa_id: string | null
           updated_at: string | null
           version: number
         }
@@ -38630,6 +38632,7 @@ export type Database = {
           riepilogo_iva?: Json
           riferimenti_ddt?: Json | null
           riferimenti_ordine?: Json | null
+          riferimenti_pa?: Json
           righe?: Json
           ritenuta_acconto?: boolean | null
           ritenuta_aliquota?: number | null
@@ -38662,6 +38665,7 @@ export type Database = {
           totale_da_pagare?: number
           totale_documento?: number
           trasmissione?: string | null
+          ufficio_pa_id?: string | null
           updated_at?: string | null
           version?: number
         }
@@ -38735,6 +38739,7 @@ export type Database = {
           riepilogo_iva?: Json
           riferimenti_ddt?: Json | null
           riferimenti_ordine?: Json | null
+          riferimenti_pa?: Json
           righe?: Json
           ritenuta_acconto?: boolean | null
           ritenuta_aliquota?: number | null
@@ -38767,6 +38772,7 @@ export type Database = {
           totale_da_pagare?: number
           totale_documento?: number
           trasmissione?: string | null
+          ufficio_pa_id?: string | null
           updated_at?: string | null
           version?: number
         }
@@ -38930,6 +38936,13 @@ export type Database = {
             columns: ["ordine_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_fiscali_ufficio_pa_fk"
+            columns: ["ufficio_pa_id"]
+            isOneToOne: false
+            referencedRelation: "anagrafica_uffici_pa"
             referencedColumns: ["id"]
           },
         ]
@@ -138402,6 +138415,7 @@ export type Database = {
             riepilogo_iva: Json
             riferimenti_ddt: Json | null
             riferimenti_ordine: Json | null
+            riferimenti_pa: Json
             righe: Json
             ritenuta_acconto: boolean | null
             ritenuta_aliquota: number | null
@@ -138434,6 +138448,7 @@ export type Database = {
             totale_da_pagare: number
             totale_documento: number
             trasmissione: string | null
+            ufficio_pa_id: string | null
             updated_at: string | null
             version: number
           } | null
@@ -149425,6 +149440,7 @@ export type Database = {
           riepilogo_iva: Json
           riferimenti_ddt: Json | null
           riferimenti_ordine: Json | null
+          riferimenti_pa: Json
           righe: Json
           ritenuta_acconto: boolean | null
           ritenuta_aliquota: number | null
@@ -149457,6 +149473,7 @@ export type Database = {
           totale_da_pagare: number
           totale_documento: number
           trasmissione: string | null
+          ufficio_pa_id: string | null
           updated_at: string | null
           version: number
         }
@@ -159652,7 +159669,14 @@ export type Database = {
         Returns: Json
       }
       subappalto_collega_fattura: {
-        Args: { p_contratto: string; p_fattura: string; p_sal?: string }
+        Args: {
+          p_contratto: string
+          p_esito?: string
+          p_fattura: string
+          p_prove?: Json
+          p_regola?: string
+          p_sal?: string
+        }
         Returns: Json
       }
       subappalto_etichette_commesse: {
@@ -159867,6 +159891,10 @@ export type Database = {
       }
       tesoreria_sostituisci_previsione: {
         Args: { p_company: string; p_previsione: string; p_reale: string }
+        Returns: Json
+      }
+      tesoreria_stato_automatismo: {
+        Args: { p_company: string }
         Returns: Json
       }
       ticket_segna_richiamo: {

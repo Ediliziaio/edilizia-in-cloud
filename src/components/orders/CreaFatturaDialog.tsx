@@ -18,7 +18,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
-import { LUNGHEZZA_CIG, splitPredefinito, tipoClienteDaProfilo } from "@/lib/fatturazione/fatturaPa";
+import { splitPredefinito, tipoClienteDaProfilo } from "@/lib/fatturazione/fatturaPa";
+import { datiPaFattura, snapshotConUfficio } from "@/lib/fatturazione/fatturaPaDaCommessa";
+import { allineaRighe, colonneCompatibili, codiceUfficioValido, type RiferimentoPaFattura } from "../../../supabase/functions/_shared/riferimentiPaFattura";
+import { useRiferimentiPaCommessa } from "@/hooks/useRiferimentiPaCommessa";
+import { useUfficiPa } from "@/hooks/useUfficiPa";
+import { SelettoreUfficioPa } from "@/components/clients/SelettoreUfficioPa";
+import { RiferimentiPaFatturaEditor } from "@/components/fatturazione/RiferimentiPaFatturaEditor";
 import type { Installment } from "@/lib/orderUtils";
 import { METODI_PAGAMENTO_SDI, type ClienteSnapshot, type RigaDocumento, type ScadenzaPagamento } from "@/types/fatturazione";
 import { unitaDocumento } from "@/lib/orders/unitaDocumento";
@@ -352,8 +358,10 @@ export function CreaFatturaDialog({
   const [aziendaTolte, setAziendaTolte] = useState<string[]>([]);
   const [nuovaClausola, setNuovaClausola] = useState("");
   const [altreClausole, setAltreClausole] = useState(false);
-  const [cig, setCig] = useState<string | null>(null);
-  const [cup, setCup] = useState<string | null>(null);
+  // Riferimenti PA e ufficio: null = segui la commessa (lotto 4). Quello che si cambia qui resta
+  // sulla fattura: commessa e anagrafica non si toccano.
+  const [riferimentiScelti, setRiferimentiScelti] = useState<RiferimentoPaFattura[] | null>(null);
+  const [ufficioScelto, setUfficioScelto] = useState<string | null>(null);
   const [anteprima, setAnteprima] = useState(false);
   // Percentuali delle trattenute (testo, come si scrive).
   const [percentuali, setPercentuali] = useState<Record<string, string>>({});
@@ -399,8 +407,8 @@ export function CreaFatturaDialog({
       setClausoleMie([]);
       setNuovaClausola("");
       setAltreClausole(false);
-      setCig(null);
-      setCup(null);
+      setRiferimentiScelti(null);
+      setUfficioScelto(null);
       setPercentuali({});
       setValoreBeni("");
       setMetodoScelto(null);
@@ -851,16 +859,29 @@ export function CreaFatturaDialog({
         tipo_cliente: tipoClienteDaProfilo(profilo, matchedAnagrafica.tipo_cliente || "B2B"),
         ...(typeof (matchedAnagrafica as { split_payment?: boolean | null }).split_payment === "boolean"
           && { split_payment: (matchedAnagrafica as { split_payment?: boolean }).split_payment }),
-        cig: matchedAnagrafica.cig || undefined,
-        cup: matchedAnagrafica.cup || undefined,
       }
     : undefined;
 
-  const cigFinale = (cig ?? matchedAnagrafica?.cig ?? "").trim();
-  const cupFinale = (cup ?? matchedAnagrafica?.cup ?? "").trim();
+  // ── Riferimenti PA e ufficio dalla commessa (lotto 4) ────────
+  // Ordine delle fonti: righe «Dati appalto e fatturazione PA» della commessa; se non ci sono,
+  // CIG/CUP del contratto generale e del computo; poi quelli dell'anagrafica. L'ufficio: quello
+  // scelto qui, quello della commessa, il predefinito dell'ente.
+  const { data: rifCommessa, isPending: rifCommessaPending } = useRiferimentiPaCommessa(open ? orderId : null);
+  const { tutti: ufficiEnte } = useUfficiPa(matchedAnagrafica?.id ?? null);
+  const datiPa = datiPaFattura({
+    commessa: { id: orderId, codice: orderCode },
+    anagrafica: matchedAnagrafica ?? null,
+    tipoCliente: clienteSnapshot?.tipo_cliente ?? (profilo === "pa" ? "PA" : "B2B"),
+    righeCommessa: rifCommessa?.righe ?? [],
+    fonti: (rifCommessa?.fonti ?? []).filter((f) => !f.giaPresente),
+    uffici: ufficiEnte,
+    ufficioScelto,
+  });
+  const riferimentiPa = allineaRighe(riferimentiScelti ?? datiPa.riferimenti_pa, previewRighe);
+  const compatibili = colonneCompatibili(riferimentiPa);
   const clientePA = clienteSnapshot?.tipo_cliente === "PA";
   const anagraficaPA = matchedAnagrafica?.tipo_cliente === "PA";
-  const mostraCigCup = profilo === "pa" || clientePA || !!cigFinale || !!cupFinale;
+  const mostraCigCup = profilo === "pa" || clientePA || riferimentiPa.length > 0 || !!rifCommessa?.attivi;
 
   const baseNote = (noteOverride ?? autoNote).trim();
   const extraNote: string[] = [];
@@ -922,7 +943,7 @@ export function CreaFatturaDialog({
   const datiDocumento = {
     tipo: clientePA ? ("fattura_pa" as const) : ("fattura" as const),
     cliente_snapshot: clienteSnapshot
-      ? { ...clienteSnapshot, ...(cigFinale && { cig: cigFinale }), ...(cupFinale && { cup: cupFinale }) }
+      ? snapshotConUfficio(clienteSnapshot, datiPa.ufficio)
       : { ragione_sociale: customerName, tipo_cliente: (profilo === "pa" ? "PA" : profilo === "impresa" ? "B2B" : "B2C") as ClienteSnapshot["tipo_cliente"] },
     ...(matchedAnagrafica?.id && { anagrafica_id: matchedAnagrafica.id }),
     righe: previewRighe,
@@ -937,8 +958,11 @@ export function CreaFatturaDialog({
     ordine_id: orderId,
     note_documento: noteDoc,
     ...(causaleArr.length > 0 && { causale: causaleArr }),
-    ...(cigFinale && { cig: cigFinale }),
-    ...(cupFinale && { cup: cupFinale }),
+    riferimenti_pa: riferimentiPa,
+    ...(clientePA && datiPa.ufficio_pa_id && { ufficio_pa_id: datiPa.ufficio_pa_id }),
+    ...(compatibili.cig && { cig: compatibili.cig }),
+    ...(compatibili.cup && { cup: compatibili.cup }),
+    ...(compatibili.codice_commessa_convenzione && { codice_commessa_convenzione: compatibili.codice_commessa_convenzione }),
     data_scadenza: dataScadenza,
     scadenze_pagamento: scadenzePagamento,
     metodo_pagamento_codice: metodo,
@@ -1782,20 +1806,51 @@ export function CreaFatturaDialog({
           ))}
 
           {mostraCigCup && (
-            <div className="rounded-lg border p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="fatt-cig" className="text-[11px] text-muted-foreground">CIG</Label>
-                  <Input id="fatt-cig" value={cig ?? matchedAnagrafica?.cig ?? ""} onChange={(e) => setCig(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, LUNGHEZZA_CIG))} maxLength={LUNGHEZZA_CIG} className="h-8 text-xs font-mono" placeholder="Codice identificativo gara" />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="fatt-cup" className="text-[11px] text-muted-foreground">CUP</Label>
-                  <Input id="fatt-cup" value={cup ?? matchedAnagrafica?.cup ?? ""} onChange={(e) => setCup(e.target.value.toUpperCase())} maxLength={15} className="h-8 text-xs font-mono" placeholder="Codice unico di progetto" />
-                </div>
+            <div className="rounded-lg border p-3 space-y-3" data-testid="sezione-pa-fattura">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-medium">Dati appalto e fatturazione PA</p>
+                {riferimentiScelti && (
+                  <button type="button" className="text-[11px] text-primary hover:underline" onClick={() => setRiferimentiScelti(null)}>
+                    Riprendi quelli della commessa
+                  </button>
+                )}
               </div>
-              {profilo === "pa" && !cigFinale && (
+              {clientePA && matchedAnagrafica?.id && (
+                <div className="space-y-1">
+                  <Label htmlFor="fatt-ufficio-pa" className="text-[11px] text-muted-foreground">Ufficio destinatario (Codice Univoco Ufficio)</Label>
+                  <SelettoreUfficioPa
+                    id="fatt-ufficio-pa"
+                    anagraficaId={matchedAnagrafica.id}
+                    value={datiPa.ufficio_pa_id}
+                    proponiPredefinito={false}
+                    onChange={(id) => setUfficioScelto(id)}
+                    className="h-8 text-xs"
+                  />
+                  {datiPa.ufficio && (
+                    <p className="text-[11px] text-muted-foreground" data-testid="origine-ufficio">
+                      Codice <span className="font-mono">{datiPa.ufficio.codice}</span> ·{" "}
+                      {datiPa.ufficio.origine === "manuale" ? "scelto qui" : datiPa.ufficio.origine === "commessa" ? "dalla commessa" : "dall'anagrafica (predefinito)"}
+                    </p>
+                  )}
+                </div>
+              )}
+              {datiPa.avvisi.map((a) => (
+                <p key={a} className="text-[11px] text-amber-700 dark:text-amber-400">{a}</p>
+              ))}
+              {rifCommessaPending ? (
+                <p className="text-xs text-muted-foreground">Carico i riferimenti della commessa…</p>
+              ) : (
+                <RiferimentiPaFatturaEditor
+                  value={riferimentiPa}
+                  onChange={setRiferimentiScelti}
+                  righe={previewRighe}
+                  vuoto="La commessa non ha riferimenti PA: aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa."
+                />
+              )}
+              {(profilo === "pa" || clientePA) && !riferimentiPa.some((r) => r.cig || r.cig_non_dovuto) && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  Per un appalto pubblico il CIG in fattura è obbligatorio: senza, l'ente non può pagarla.
+                  Per un appalto pubblico il CIG in fattura è obbligatorio: senza, l'ente non può pagarla e la fattura non si invia.
+                  Se per questo affidamento non è dovuto, spunta «non dovuto» e scrivi il motivo.
                 </p>
               )}
               {profilo === "pa" && matchedAnagrafica && !anagraficaPA && (
@@ -1804,10 +1859,10 @@ export function CreaFatturaDialog({
                   fattura PA perché l'hai scelto qui. Correggi anche l'anagrafica, così la prossima volta è già giusta.
                 </p>
               )}
-              {profilo === "pa" && !/^[A-Z0-9]{6}$/.test(String(clienteSnapshot?.codice_sdi ?? "").trim().toUpperCase()) && (
+              {profilo === "pa" && !codiceUfficioValido(datiPa.ufficio?.codice ?? clienteSnapshot?.codice_sdi) && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   Manca il Codice Univoco Ufficio dell'ente (6 caratteri): senza, lo SDI non sa a quale ufficio consegnare
-                  la fattura. Si inserisce nell'editor, sezione Fatturazione elettronica, prima dell'invio.
+                  la fattura. Aggiungi l'ufficio nella scheda del cliente (uffici PA) o sceglilo nell'editor prima dell'invio.
                 </p>
               )}
             </div>

@@ -52,7 +52,7 @@ export interface DocumentiFiscaliFilters {
 
 // ─── Row mapper ───────────────────────────────────────────────
 
-function mapRow(row: Record<string, unknown>): DocumentoFiscale {
+export function mapRow(row: Record<string, unknown>): DocumentoFiscale {
   return {
     id: row.id as string,
     company_id: row.company_id as string,
@@ -135,6 +135,10 @@ function mapRow(row: Record<string, unknown>): DocumentoFiscale {
     codice_commessa_convenzione: row.codice_commessa_convenzione as string | undefined,
     cig: row.cig as string | undefined,
     cup: row.cup as string | undefined,
+    // Riferimenti PA e ufficio (lotto 4): senza qui l'editor li leggeva vuoti e il primo
+    // salvataggio della bozza li avrebbe cancellati.
+    riferimenti_pa: (row.riferimenti_pa ?? []) as DocumentoFiscale["riferimenti_pa"],
+    ufficio_pa_id: (row.ufficio_pa_id ?? null) as string | null,
     causale: (row.causale ?? []) as unknown[],
     note_documento: row.note_documento as string | undefined,
     importo_pagato: Number(row.importo_pagato ?? 0),

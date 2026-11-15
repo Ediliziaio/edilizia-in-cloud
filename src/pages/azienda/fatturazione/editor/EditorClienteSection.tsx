@@ -113,6 +113,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
       tipo_cliente: tipoCliente,
       // Ente che non applica lo split (anagrafica, lotto 1): decide il valore di partenza.
       ...(typeof a.split_payment === "boolean" ? { split_payment: a.split_payment } : {}),
+      // CIG/CUP scritti sul cliente: la fattura li propone come riferimento «dall'anagrafica».
+      ...(a.cig ? { cig: String(a.cig) } : {}),
+      ...(a.cup ? { cup: String(a.cup) } : {}),
     };
     dispatch({ type: "SET_CLIENTE", anagrafica_id: a.id as string, snapshot: snap });
     setSearch("");
@@ -514,28 +517,11 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
             </CollapsibleContent>
           </Collapsible>
 
-          {/* CIG/CUP for PA */}
+          {/* CIG, CUP, contratto e ufficio: sezione «Commessa e riferimenti PA» (lotto 4). */}
           {snapshot?.tipo_cliente === "PA" && (
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <div>
-                <Label className="text-[10px] text-muted-foreground">CIG</Label>
-                <Input
-                  value={state.cig ?? ""}
-                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "cig", value: e.target.value })}
-                  className="h-7 text-xs font-mono"
-                  disabled={disabled}
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] text-muted-foreground">CUP</Label>
-                <Input
-                  value={state.cup ?? ""}
-                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "cup", value: e.target.value })}
-                  className="h-7 text-xs font-mono"
-                  disabled={disabled}
-                />
-              </div>
-            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Ufficio destinatario, CIG, CUP e contratto: nella sezione <a href="#ed-riferimenti-pa" className="underline">Commessa e riferimenti PA</a>.
+            </p>
           )}
         </div>
       ) : (

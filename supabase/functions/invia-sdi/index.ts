@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { leggiImpostazionePiattaforma } from "../_shared/getPlatformSetting.ts";
-import { controlliFatturaSdi } from "../_shared/controlliFatturaSdi.ts";
+import { controlliFatturaSdi, type ContestoControlliPa } from "../_shared/controlliFatturaSdi.ts";
 import { TIPI_SENZA_SDI, generateXML } from "../_shared/generateXML.ts";
 import { allegatiPerInvioSdi } from "../_shared/allegatiSdi.ts";
 import { datiReaMancanti } from "../_shared/datiSocietari.ts";
@@ -130,8 +130,32 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Anagrafica azienda non configurata" }), { status: 400, headers: getCorsHeaders(req) });
     }
 
-    // Validate mandatory fiscal data before generating XML
-    const validationErrors: string[] = controlliFatturaSdi(doc, azienda).filter(p => p.severity === "error").map(p => p.message);
+    // Validate mandatory fiscal data before generating XML.
+    // Contesto dei controlli PA (lotto 5): commesse collegate, cliente della commessa, ufficio
+    // scelto. È un aiuto: se una lettura non riesce, restano i controlli sul solo documento.
+    const contestoPa: ContestoControlliPa = {};
+    try {
+      const collegate = new Set<string>(doc.ordine_id ? [String(doc.ordine_id)] : []);
+      const { data: link } = await supabase.from("fattura_ordine").select("ordine_id").eq("fattura_id", doc.id);
+      for (const l of (link ?? []) as Array<{ ordine_id: string }>) collegate.add(String(l.ordine_id));
+      contestoPa.commesseCollegate = [...collegate];
+      if (doc.ordine_id) {
+        const { data: ordine } = await supabase.from("orders").select("id, order_code, customer_id, company_id").eq("id", doc.ordine_id).maybeSingle();
+        if (ordine && ordine.company_id === doc.company_id && ordine.customer_id) {
+          const { data: ana } = await supabase.from("anagrafiche_native").select("id, ragione_sociale")
+            .eq("company_id", doc.company_id).eq("cliente_id", ordine.customer_id).maybeSingle();
+          contestoPa.commessa = { id: ordine.id, codice: ordine.order_code, anagrafica_id: ana?.id ?? null, cliente: ana?.ragione_sociale ?? null };
+        }
+      }
+      if (doc.ufficio_pa_id) {
+        const { data: uff } = await supabase.from("anagrafica_uffici_pa").select("id, anagrafica_id, codice_univoco_ufficio, descrizione, attivo, company_id")
+          .eq("id", doc.ufficio_pa_id).maybeSingle();
+        if (uff && uff.company_id === doc.company_id) contestoPa.ufficio = uff;
+      }
+    } catch (e) {
+      console.warn("[invia-sdi] contesto dei controlli PA non letto:", e);
+    }
+    const validationErrors: string[] = controlliFatturaSdi(doc, azienda, contestoPa).filter(p => p.severity === "error").map(p => p.message);
     if (!azienda.partita_iva) {
       validationErrors.push("Partita IVA azienda mancante");
     } else if (!isValidPartitaIva(azienda.partita_iva)) {
@@ -154,15 +178,7 @@ Deno.serve(async (req) => {
     const snap = doc.cliente_snapshot || {};
     const isPaCliente = snap.tipo_cliente === "PA";
 
-    // B6: PA CodiceDestinatario must be exactly 6 alphanumeric chars
-    if (isPaCliente) {
-      const codiceSdi = (snap.codice_sdi || "").trim();
-      if (!codiceSdi || codiceSdi.length !== 6) {
-        validationErrors.push(
-          `Codice Destinatario SDI per PA deve essere esattamente 6 caratteri (attuale: ${codiceSdi || "(vuoto)"})`
-        );
-      }
-    }
+    // Codice Univoco Ufficio della PA (6 caratteri): in controlliRiferimentiPa, come nell'editor.
 
     // Controlli fiscali condivisi: RF19, contributi e integrazioni estere. Anche l’archivio XML deve riuscire prima di trasmettere.
 

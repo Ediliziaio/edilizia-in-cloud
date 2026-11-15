@@ -8,7 +8,7 @@
  * - cambiando cliente in bozza restavano CIG, CUP e split del precedente;
  * - il codice commessa/convenzione non arrivava mai nell'XML.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { generateXML } from "../../../supabase/functions/_shared/generateXML";
 import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
 import { splitPredefinito, tipoClienteDaProfilo } from "@/lib/fatturazione/fatturaPa";
@@ -16,6 +16,12 @@ import { avvisiXmlPa } from "@/lib/fatturazione/scaricaXml";
 import { editorReducer, riferimentiDelCliente, type EditorState } from "@/pages/azienda/fatturazione/editor/useEditorState";
 import { bozzaFatturaCertificato } from "@/lib/computo/fatturaCertificato";
 import type { ClienteSnapshot } from "@/types/fatturazione";
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 
 const azienda = {
   ragione_sociale: "IMPRESA PROVA S.R.L.", partita_iva: "01234567897", codice_fiscale: "01234567897",

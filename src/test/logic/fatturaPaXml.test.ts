@@ -11,9 +11,15 @@
  * resta scritto; i due conti che lo SDI rifà (00423 sulle righe, 00422 sul
  * riepilogo) si rifanno anche qui.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { generateXML, testoSdi, fmtNum8 } from "../../../supabase/functions/_shared/generateXML";
 import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 
 const renova = {
   ragione_sociale: "RENOVA SOLUTION S.R.L.", partita_iva: "01941970939", codice_fiscale: "01941970939",

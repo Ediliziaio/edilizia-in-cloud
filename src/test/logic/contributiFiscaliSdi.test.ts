@@ -1,7 +1,13 @@
-import { expect,it } from 'vitest';
+import { expect, it, vi } from "vitest";
 import { calcolaRiga,calcolaTotaliDocumento } from '@/lib/fatturazione/calcoli';
 import { controlliFatturaSdi } from '../../../supabase/functions/_shared/controlliFatturaSdi';
 import { generateXML } from '../../../supabase/functions/_shared/generateXML';
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 const r=(iva='22',natura?:string)=>calcolaRiga({id:'r',numero_linea:1,descrizione:'Prestazione professionale',quantita:1,prezzo_unitario:1000,aliquota_iva:iva,natura_iva:natura,imponibile:0,imposta:0,totale_riga:0} as never);
 const azienda={ragione_sociale:'Prova',partita_iva:'01941970939',regime_fiscale:'RF01',indirizzo_via:'Via Roma',indirizzo_comune:'Roma',indirizzo_cap:'00100',indirizzo_provincia:'RM'};
 const cliente={ragione_sociale:'Cliente',partita_iva:'01234567897',indirizzo_via:'Via Cliente',indirizzo_comune:'Roma',indirizzo_cap:'00100',indirizzo_provincia:'RM',codice_sdi:'ABC1234'};

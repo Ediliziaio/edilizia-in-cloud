@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { allegatiPerInvioSdi, formatoAllegatoSdi, MAX_BYTES_ALLEGATI_SDI, nomeAllegatoSdi } from "../../../supabase/functions/_shared/allegatiSdi";
 import { generateXML } from "../../../supabase/functions/_shared/generateXML";
+
+// Ogni XML generato in questo file passa dallo schema XSD ufficiale FatturaPA 1.2.2.
+vi.mock("../../../supabase/functions/_shared/generateXML", async (originale) =>
+  (await import("../helpers/xsdSuOgniXml")).conRegistro(await originale()));
+import { ogniXmlNelloSchema } from "../helpers/xsdSuOgniXml";
+ogniXmlNelloSchema();
 
 // 30/10/2026 — Allegati delle fatture: sui documenti SDI quelli scelti partono
 // dentro l'XML (<Allegati>), letti prima di prenotare l'invio.
@@ -59,8 +65,14 @@ describe("invia-sdi", () => {
   });
   it("generateXML scrive gli allegati in <Allegati>", () => {
     const xml = generateXML(
-      { tipo: "fattura", numero: "1", data_emissione: "2026-10-30", righe: [], cliente_snapshot: { ragione_sociale: "Rossi", partita_iva: "01234567890", indirizzo_nazione: "IT" }, allegati: [{ nome: "contratto.pdf", formato: "PDF", contenuto: "JVBE" }] },
-      { ragione_sociale: "Impresa", partita_iva: "09876543210" },
+      {
+        tipo: "fattura", numero: "1", data_emissione: "2026-10-30",
+        righe: [{ descrizione: "Lavori", quantita: 1, prezzo_unitario: 100, imponibile: 100, aliquota_iva: "22" }],
+        riepilogo_iva: [{ aliquota: "22", imponibile: 100, imposta: 22, esigibilita: "I" }], totale_documento: 122,
+        cliente_snapshot: { ragione_sociale: "Rossi", partita_iva: "01234567890", indirizzo_nazione: "IT", indirizzo_via: "Via Verdi 1", indirizzo_cap: "00100", indirizzo_comune: "Roma" },
+        allegati: [{ nome: "contratto.pdf", formato: "PDF", contenuto: "JVBE" }],
+      },
+      { ragione_sociale: "Impresa", partita_iva: "09876543210", regime_fiscale: "RF01", indirizzo_via: "Via Roma 1", indirizzo_cap: "00100", indirizzo_comune: "Roma" },
       "00001",
     );
     expect(xml).toContain("<NomeAttachment>contratto.pdf</NomeAttachment>");

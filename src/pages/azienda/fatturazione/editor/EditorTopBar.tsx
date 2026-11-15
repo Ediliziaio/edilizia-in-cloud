@@ -83,7 +83,7 @@ const TIPO_TO_TD: Record<string, string> = {
 interface ValidationError {
   field: string;
   message: string;
-  severity: "error" | "warning";
+  severity: "error" | "warning" | "info";
 }
 
 interface Props {
@@ -201,7 +201,7 @@ export function EditorTopBar({
                 <p className="text-xs font-semibold text-muted-foreground mb-2">Clicca per andare al campo</p>
                 <div className="space-y-1.5 max-h-48 overflow-auto">
                   {(validationErrors ?? []).map((e, i) => (
-                    <button type="button" onClick={() => onVaiAlCampo?.(e.field)} key={i} className={`flex w-full items-start gap-1.5 text-left text-xs hover:underline ${e.severity === "error" ? "text-destructive" : "text-amber-600"}`}>
+                    <button type="button" onClick={() => onVaiAlCampo?.(e.field)} key={i} className={`flex w-full items-start gap-1.5 text-left text-xs hover:underline ${e.severity === "error" ? "text-destructive" : e.severity === "warning" ? "text-amber-600" : "text-muted-foreground"}`}>
                       <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                       <span>{e.message}</span>
                     </button>
