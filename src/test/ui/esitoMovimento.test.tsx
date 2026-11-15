@@ -78,3 +78,22 @@ describe("errore di «Senza fattura» detto chiaro", () => {
     expect(erroreSenzaFattura({ code: "22023", message: "Scrivi di cosa si tratta." }).testo).toBe("Scrivi di cosa si tratta.");
   });
 });
+
+describe("conferma con un clic degli esiti unici e verificati", () => {
+  it("compare solo per fattura o giroconto «automatico» e chiama tesoreria_conferma_esito", async () => {
+    const cambiato = vi.fn();
+    const pronto: EsitoMovimentoDati = { ...esito, esito: "automatico", natura: "documento" };
+    const { rerender } = render(<RigaEsitoMovimento company="c" movement={movimento} esito={pronto} puoScrivere onCambiato={cambiato} />);
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(cambiato).toHaveBeenCalled());
+    expect(mock.rpc).toHaveBeenCalledWith("tesoreria_conferma_esito", { p_company: "c", p_tx: "tx" });
+    rerender(<RigaEsitoMovimento company="c" movement={movimento} esito={{ ...pronto, natura: "parziale" }} puoScrivere onCambiato={cambiato} />);
+    expect(screen.queryByRole("button", { name: "Conferma" })).not.toBeInTheDocument();
+  });
+  it("se il database rifiuta, il suo messaggio arriva così com'è", async () => {
+    mock.rpc.mockRejectedValueOnce(new Error("Il movimento non ha più un esito «unico e verificato»: aprilo e collegalo a mano"));
+    render(<RigaEsitoMovimento company="c" movement={movimento} esito={{ ...esito, esito: "automatico", natura: "giroconto" }} puoScrivere onCambiato={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(mock.toast.error).toHaveBeenCalledWith("Non confermato", { description: "Il movimento non ha più un esito «unico e verificato»: aprilo e collegalo a mano" }));
+  });
+});

@@ -76,6 +76,13 @@ export const NATURA: Record<string, string> = {
   sconosciuta: "Da capire",
 };
 
+const EVENTO_STORIA: Record<string, string> = {
+  calcolo: "calcolata",
+  scartato: "scartata",
+  confermato_clic: "confermata a mano",
+  confermato_auto: "confermata in automatico",
+};
+
 const testoConflitto = (c: string | { titolo?: string; motivi?: string[] }) =>
   typeof c === "string" ? c : [c.titolo, ...(c.motivi ?? [])].filter(Boolean).join(": ");
 
@@ -92,7 +99,7 @@ export function useEsitoMovimento(company: string, tx: string) {
       // Da quello registrato dal cron si prendono solo lo scarto e lo storico.
       const [vivo, salvato] = await Promise.all([
         bankRpc<EsitoMovimentoDati | null>("tesoreria_classifica_movimento", { p_company: company, p_tx: tx }),
-        bankRpc<EsitoMovimentoDati | null>("tesoreria_esito_movimento", { p_company: company, p_tx: tx }).catch(() => null),
+        bankRpc<EsitoMovimentoDati | null>("tesoreria_esito_movimento", { p_company: company, p_tx: tx }).catch((): null => null),
       ]);
       const valido = (x: unknown): x is EsitoMovimentoDati => !!x && typeof x === "object" && !Array.isArray(x) && typeof (x as EsitoMovimentoDati).esito === "string";
       if (!valido(vivo)) return valido(salvato) ? salvato : null;
@@ -124,6 +131,23 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
   const [inCorso, setInCorso] = useState(false);
   const e = ETICHETTA_ESITO[esito.esito];
   const conflitti = (esito.conflitti ?? []).map(testoConflitto).filter(Boolean);
+  // «Unico e verificato» su una fattura o un giroconto: si conferma con un clic, a nome di chi clicca.
+  // Il database ricontrolla tutto e rifiuta se l'esito non è più quello (messaggio mostrato così com'è).
+  const confermaClic = puoScrivere && !esito.scartato_at && esito.esito === "automatico" && ["documento", "giroconto"].includes(esito.natura);
+  async function confermaEsito() {
+    if (inCorso) return;
+    setInCorso(true);
+    try {
+      await bankRpc("tesoreria_conferma_esito", { p_company: company, p_tx: m.id });
+      toast.success(esito.natura === "giroconto" ? "Giroconto confermato" : "Collegamento confermato");
+      onCambiato();
+    } catch (err) {
+      toast.error("Non confermato", { description: err instanceof Error ? err.message : undefined });
+      onCambiato();
+    } finally {
+      setInCorso(false);
+    }
+  }
   const scartabile = puoScrivere && !esito.scartato_at && esito.natura !== "gia_riconciliato" && (esito.candidati?.length ?? 0) > 0;
   async function scarta() {
     const motivo = (scarto ?? "").trim();
@@ -160,6 +184,11 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
         <p className="text-xs text-muted-foreground">Proposta scartata il {formatDateIt(esito.scartato_at)}{esito.scartato_motivo ? `: ${esito.scartato_motivo}` : ""}</p>
       )}
       <div className="flex flex-wrap items-center gap-3">
+        {confermaClic && (
+          <Button size="sm" className="h-7" disabled={inCorso} onClick={() => void confermaEsito()}>
+            {inCorso && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}<CheckCircle2 className="mr-1 h-3.5 w-3.5" />Conferma
+          </Button>
+        )}
         {scartabile && scarto === null && (
           <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setScarto("")}>Scarta proposta</Button>
         )}
@@ -169,7 +198,7 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
             <ul className="mt-1 space-y-0.5">
               {esito.storia!.map((h, i) => (
                 <li key={i} className="text-muted-foreground">
-                  {formatDateIt(h.il)} · {h.evento === "scartato" ? "scartata" : "calcolata"}
+                  {formatDateIt(h.il)} · {EVENTO_STORIA[h.evento] ?? h.evento}
                   {h.esito ? ` · ${ETICHETTA_ESITO[h.esito as EsitoCodice]?.label ?? h.esito}` : ""}
                   {h.natura ? ` · ${NATURA[h.natura] ?? h.natura}` : ""}
                   {h.regola ? ` (${h.regola})` : ""}
