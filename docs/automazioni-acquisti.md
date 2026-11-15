@@ -285,6 +285,13 @@ chiudevano 8 righe su 10, all'AI andava l'intero documento. Ora le righe chiuse 
 rientrano nell'unione finale con «Regola, senza AI». Il registro conta una chiamata per lotto
 (30 righe), non una per fattura.
 
+**Lotto 15 — contratti di subappalto nella catena** (`catenaFatturaServer.ts`): quando la fattura
+cita un contratto (`DatiContratto`), la catena lato server carica i contratti di subappalto
+dell'azienda (non in bozza, col numero) e li confronta col motore comune: numero del contratto
+che identifica, fornitore essenziale. Il fornitore del contratto è il subappaltatore collegato
+alla scheda del fornitore della fattura (`suppliers.subappaltatore_id`): il contratto di un altro
+subappaltatore resta escluso. Il 15/11: 165 contratti con numero, 519 fatture che citano un contratto.
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 

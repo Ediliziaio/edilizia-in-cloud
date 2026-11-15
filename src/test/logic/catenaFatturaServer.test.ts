@@ -19,7 +19,9 @@ function dbFinto(tabelle: Tabelle) {
         eq: (c: string, v: unknown) => ((righe = righe.filter((r) => r[c] === v)), q),
         is: (c: string, v: unknown) => ((righe = righe.filter((r) => (r[c] ?? null) === v)), q),
         neq: (c: string, v: unknown) => ((righe = righe.filter((r) => r[c] !== v)), q),
+        not: (c: string, _op: string, v: unknown) => ((righe = righe.filter((r) => (r[c] ?? null) !== v)), q),
         limit: () => q,
+        maybeSingle: () => ({ then: (ok: (x: { data: unknown; error: null }) => unknown) => ok({ data: righe[0] ?? null, error: null }) }),
         then: (ok: (x: { data: unknown[]; error: null }) => unknown) => ok({ data: righe, error: null }),
       };
       return q;
@@ -84,5 +86,35 @@ describe("catena della fattura lato server", () => {
     const r = await catenaDellaFattura(dbFinto(t), fattura(xml("<DatiOrdineAcquisto><IdDocumento>ODA-2026-0039</IdDocumento></DatiOrdineAcquisto>")));
     expect(r.commessa).toBeNull();
     expect(r.catena?.allocazioni[0].destinazione).toEqual({ tipo: "magazzino", id: "mag" });
+  });
+
+  describe("contratti di subappalto", () => {
+    const SUB = "sub-1", SUB2 = "sub-2";
+    const conContratti: Tabelle = {
+      ...tabelle,
+      suppliers: [{ id: FORN, company_id: AZ, subappaltatore_id: SUB }],
+      contratti_subappalto: [
+        { id: "k1", company_id: AZ, subappaltatore_id: SUB, numero_contratto: "SUB-2026-007", data_stipula: "2026-03-01", order_id: "c-B", stato: "attivo" },
+        { id: "k2", company_id: AZ, subappaltatore_id: SUB2, numero_contratto: "SUB-2026-008", data_stipula: "2026-03-01", order_id: "c-A", stato: "attivo" },
+        { id: "k3", company_id: AZ, subappaltatore_id: SUB, numero_contratto: "SUB-2026-009", data_stipula: "2026-03-01", order_id: "c-A", stato: "bozza" },
+      ],
+    };
+    const cita = (n: string) => xml(`<DatiContratto><IdDocumento>${n}</IdDocumento></DatiContratto>`);
+
+    it("la fattura cita il contratto del suo subappaltatore: commessa del contratto", async () => {
+      const r = await catenaDellaFattura(dbFinto(conContratti), fattura(cita("SUB-2026-007")));
+      expect(r.commessa).toEqual({ order_id: "c-B", motivo: "catena: contratto SUB-2026-007" });
+    });
+
+    it("contratto di un altro subappaltatore, o ancora in bozza: nessuna commessa", async () => {
+      expect((await catenaDellaFattura(dbFinto(conContratti), fattura(cita("SUB-2026-008")))).commessa).toBeNull();
+      expect((await catenaDellaFattura(dbFinto(conContratti), fattura(cita("SUB-2026-009")))).commessa).toBeNull();
+    });
+
+    it("senza contratto citato i contratti non si leggono", async () => {
+      const db = dbFinto(conContratti);
+      await catenaDellaFattura(db, fattura(xml("<DatiDDT><NumeroDDT>1068</NumeroDDT><DataDDT>2026-09-07</DataDDT></DatiDDT>")));
+      expect(db.lette).not.toContain("contratti_subappalto");
+    });
   });
 });

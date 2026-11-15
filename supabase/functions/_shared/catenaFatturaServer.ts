@@ -13,7 +13,7 @@
  *   - `conflitto`: il perché, se i documenti indicano due destinazioni diverse. In quel caso la
  *     commessa NON la sceglie nessuno, nemmeno l'AI: la decide una persona.
  */
-import { costruisciCatena, type CatenaFattura, type CommessaNota, type DdtNoto, type OrdineNoto } from "../../../shared/acquisti/catena.ts";
+import { costruisciCatena, type CatenaFattura, type CommessaNota, type ContrattoNoto, type DdtNoto, type OrdineNoto } from "../../../shared/acquisti/catena.ts";
 import { ddtNelleDescrizioni, leggiRiferimentiFattura } from "../../../shared/acquisti/riferimentiFattura.ts";
 
 export interface FatturaPerCatenaServer {
@@ -47,7 +47,9 @@ export async function catenaDellaFattura(db: Db, f: FatturaPerCatenaServer): Pro
   const haDocumenti = riferimenti.ddt.length || ddtNelTesto.length || riferimenti.ordini.some((o) => o.numero) || riferimenti.contratti.some((c) => c.numero);
 
   // Le commesse servono sempre (codice e indirizzo nel testo); bolle e ordini solo se la fattura li cita.
-  const [comm, bolle, ordini, legami] = await Promise.all([
+  // Contratti di subappalto solo se la fattura cita un contratto e il fornitore è un subappaltatore.
+  const citaContratto = riferimenti.contratti.some((c) => c.numero) && !!f.fornitore_id;
+  const [comm, bolle, ordini, legami, contrattiRighe] = await Promise.all([
     db.from("orders").select("id, company_id, order_code, indirizzo_lavori, work_address").eq("company_id", f.company_id).is("deleted_at", null).limit(LIMITE),
     haDocumenti && f.fornitore_id
       ? db.from("ddt_ricezione").select("id, company_id, supplier_id, numero_ddt, data_ricezione, purchase_order_id, order_id, warehouse_id").eq("company_id", f.company_id).eq("supplier_id", f.fornitore_id).limit(LIMITE)
@@ -56,8 +58,27 @@ export async function catenaDellaFattura(db: Db, f: FatturaPerCatenaServer): Pro
       ? db.from("purchase_orders").select("id, company_id, supplier_id, oda_number, supplier_reference, issue_date, order_id, delivery_warehouse_id").eq("company_id", f.company_id).neq("status", "annullato").limit(LIMITE)
       : { data: [] },
     haDocumenti && f.fornitore_id ? db.from("ddt_ordini_acquisto").select("ddt_id, purchase_order_id").eq("company_id", f.company_id).limit(LIMITE) : { data: [] },
+    citaContratto
+      ? db.from("contratti_subappalto").select("id, company_id, subappaltatore_id, numero_contratto, data_stipula, order_id, stato").eq("company_id", f.company_id).neq("stato", "bozza").not("numero_contratto", "is", null).limit(LIMITE)
+      : { data: [] },
   ]);
-  for (const r of [comm, bolle, ordini, legami]) if (r.error) throw r.error;
+  for (const r of [comm, bolle, ordini, legami, contrattiRighe]) if (r.error) throw r.error;
+  // Il fornitore di un contratto è un subappaltatore: è «questo fornitore» solo se la sua scheda è collegata.
+  let subDelFornitore: string | null = null;
+  if ((contrattiRighe.data ?? []).length) {
+    const { data: s, error } = await db.from("suppliers").select("subappaltatore_id").eq("id", f.fornitore_id).eq("company_id", f.company_id).maybeSingle();
+    if (error) throw error;
+    subDelFornitore = s?.subappaltatore_id ?? null;
+  }
+  const contratti: ContrattoNoto[] = (contrattiRighe.data ?? []).map((c: Record<string, string | null>) => ({
+    id: c.id!,
+    companyId: c.company_id!,
+    // Un altro subappaltatore resta «un altro fornitore» (prova essenziale diversa: escluso).
+    fornitoreId: subDelFornitore && c.subappaltatore_id === subDelFornitore ? f.fornitore_id : `subappaltatore:${c.subappaltatore_id}`,
+    numero: c.numero_contratto ?? "",
+    data: c.data_stipula,
+    commessaId: c.order_id,
+  }));
 
   const ordiniPerDdt = new Map<string, string[]>();
   for (const l of legami.data ?? []) ordiniPerDdt.set(l.ddt_id, [...(ordiniPerDdt.get(l.ddt_id) ?? []), l.purchase_order_id]);
@@ -91,7 +112,7 @@ export async function catenaDellaFattura(db: Db, f: FatturaPerCatenaServer): Pro
 
   const catena = costruisciCatena(
     { id: f.id, companyId: f.company_id, fornitoreId: f.fornitore_id, data: f.data_fattura, riferimenti, ddtNelTesto },
-    { ddt, ordini: ordiniNoti, contratti: [], commesse },
+    { ddt, ordini: ordiniNoti, contratti, commesse },
   );
 
   if (catena.esito === "conflitto") return { catena, commessa: null, conflitto: catena.motivo, saltata: null };
