@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Loader2,
   Unlink,
+  BadgeCheck,
   FileText,
   Link2,
 } from "lucide-react";
@@ -359,6 +360,17 @@ function Detail({
                         ))}
                       </span>
                       <span className="shrink-0 font-semibold tabular-nums">{monetary(f.amount)}</span>
+                      {/* Su un incasso già collegato a una fattura: l'IBAN dell'ordinante diventa la prova
+                          che identifica quel cliente negli incassi futuri (tesoreria_ricorda_iban_da_quota). */}
+                      {write && f.id && m.amount > 0 && m.debtor_iban && (f.kind === "documento" || f.kind === "invoice") && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" disabled={busy}
+                          title="Ricorda questo IBAN per il cliente della fattura" aria-label="Ricorda questo IBAN per il cliente della fattura"
+                          onClick={() => void act(async () => {
+                            await bankRpc("tesoreria_ricorda_iban_da_quota", { p_company: company, p_riconciliazione: f.id });
+                          }, "IBAN ricordato: identificherà i prossimi bonifici di questo cliente")}>
+                          <BadgeCheck className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {write && f.id && f.split && (
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setRemove(f)} disabled={busy}
                           title={f.existing_payment ? "Scollega prova bancaria" : "Annulla abbinamento"}

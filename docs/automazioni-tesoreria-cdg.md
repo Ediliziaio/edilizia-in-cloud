@@ -357,6 +357,22 @@ due calendari (335,40 €), 10 costi ripartiti su una commessa per meno del 100%
 sono ripartizioni parziali volute su una sola commessa, il resto resta spese generali; uno è un
 arrotondamento da 0,82 €). Nessuna correzione automatica: sono dati da sistemare a mano.
 
+### Lotto 8 — schermate (15/11/2026)
+
+Migrazione `20290404323000_tesoreria_ricorda_iban_dalla_quota`. La sessione «Fatture, Scadenzario e
+Tesoreria» ha lasciato le schermate a questa area.
+
+- **Dettaglio movimento → Fatture e pagamenti**: su un incasso con l'IBAN dell'ordinante, ogni
+  fattura collegata ha «Ricorda questo IBAN» (`tesoreria_ricorda_iban_da_quota`, che risale alla
+  fattura dalla quota, anche importata).
+- **Esito → conflitto «pagante diverso»**: «Registra il rapporto» apre il modulo già compilato con
+  pagante, intestatario e IBAN; la prova è obbligatoria (`tesoreria_registra_pagante`).
+- **Tesoreria → Impostazioni → Riferimenti verificati** (`RiferimentiVerificati.tsx`): IBAN dei
+  clienti e rapporti coi paganti, con revoca e aggiunta; chi non riconcilia vede soltanto.
+- **Controllo di gestione → Controllo dei dati → «Niente contato due volte»**
+  (`ControlliDoppiCard.tsx`): i rilievi di `cdg_controllo_doppi` con titolo, importo e cosa fare.
+- Test: `src/test/ui/tesoreriaRiferimentiVerificati.test.tsx`.
+
 ### Copertura del §7.10, §7.15 e §7.18 (15/11/2026)
 
 | Caso | Dove | Test |
@@ -394,9 +410,5 @@ arrotondamento da 0,82 €). Nessuna correzione automatica: sono dati da sistema
    da confermare come volute. Si sistemano a mano, nessuna correzione automatica.
 4. **Titolare di Demo Azienda 2**: non indicato, quindi il cron non conferma da solo lì;
    conferma chi apre la tesoreria.
-5. **Schermate**: esito, motivi, «Conferma» e «Scarta» ci sono (`EsitoMovimento.tsx`). Mancano le
-   schermate per gli IBAN verificati dei clienti e per i rapporti col pagante terzo (le funzioni ci
-   sono: `tesoreria_riferimenti_verificati`, `tesoreria_ricorda_iban_cliente`,
-   `tesoreria_registra_pagante`), e il pannello dei controlli di gestione (`cdg_controllo_doppi`).
-   Specifiche passate il 15/11 alla sessione «Fatture, Scadenzario e Tesoreria», che possiede
-   quelle schermate.
+5. **Prova a schermo** delle tre schermate nuove (sotto): verificate con i test dell'interfaccia,
+   non ancora aperte nell'app con un utente vero.

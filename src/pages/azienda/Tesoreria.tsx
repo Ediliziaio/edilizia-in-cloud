@@ -26,6 +26,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 const PrevisionaleCompleto = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 import BankAlertRules from "@/components/tesoreria/BankAlertRules";
 import CategorizationRules from "@/components/tesoreria/CategorizationRules";
+import { RiferimentiVerificati } from "@/components/tesoreria/RiferimentiVerificati";
 import ExpenseReports from "@/components/tesoreria/ExpenseReports";
 import { ManualTreasuryPanel } from "@/components/tesoreria/ManualTreasuryPanel";
 import { useManualTreasury } from "@/hooks/useManualTreasury";
@@ -376,6 +377,7 @@ export default function Tesoreria() {
           <div className="space-y-8">
             <BankAlertRules companyId={effectiveCompany?.id || ""} />
             <CategorizationRules companyId={effectiveCompany?.id || ""} />
+            <RiferimentiVerificati companyId={effectiveCompany?.id || ""} puoScrivere={!!permessi.canReconcileBankTransactions} />
             {/* Lo stesso catalogo del Controllo di gestione → Configurazione. */}
             <CategorieCassaConfig />
           </div>

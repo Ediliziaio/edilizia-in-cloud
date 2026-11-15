@@ -9,6 +9,7 @@ import { bankRpc, type BankMovement } from "@/lib/finance/bankWorkspace";
 import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
 import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import { formatDateIt } from "@/lib/formatters";
+import { FormPagante } from "@/components/tesoreria/RiferimentiVerificati";
 
 /**
  * Il motore degli esiti della tesoreria (tesoreria_esito_movimento): per ogni
@@ -131,6 +132,12 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
   const [inCorso, setInCorso] = useState(false);
   const e = ETICHETTA_ESITO[esito.esito];
   const conflitti = (esito.conflitti ?? []).map(testoConflitto).filter(Boolean);
+  // Conflitto «pagante diverso»: si risolve registrando il rapporto, con la prova.
+  const [rapporto, setRapporto] = useState<{ intestatario: string; pagante: string } | null>(null);
+  const paganteDiverso = (testo: string) => {
+    const x = /Il pagante «(.+?)» non è l'intestatario «(.+?)»/.exec(testo);
+    return x ? { pagante: x[1], intestatario: x[2] } : null;
+  };
   // «Unico e verificato» su una fattura o un giroconto: si conferma con un clic, a nome di chi clicca.
   // Il database ricontrolla tutto e rifiuta se l'esito non è più quello (messaggio mostrato così com'è).
   const confermaClic = puoScrivere && !esito.scartato_at && esito.esito === "automatico" && ["documento", "giroconto"].includes(esito.natura);
@@ -181,9 +188,20 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
         {Number(esito.differenza) > 0 && <span className="text-xs text-amber-700">· differenza {money(Number(esito.differenza), "—", m.currency)}</span>}
       </div>
       {esito.nota && <p className="text-xs text-muted-foreground">{esito.nota}</p>}
-      {conflitti.map((c, i) => (
-        <p key={i} className="flex items-start gap-1.5 text-xs text-red-700"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{c}</p>
-      ))}
+      {conflitti.map((c, i) => {
+        const pd = puoScrivere ? paganteDiverso(c) : null;
+        return (
+          <p key={i} className="flex flex-wrap items-start gap-1.5 text-xs text-red-700"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{c}
+            {pd && !rapporto && (
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setRapporto(pd)}>Registra il rapporto</Button>
+            )}
+          </p>
+        );
+      })}
+      {rapporto && (
+        <FormPagante companyId={company} iniziale={{ ...rapporto, iban: m.debtor_iban }}
+          onFatto={() => { setRapporto(null); onCambiato(); }} onAnnulla={() => setRapporto(null)} />
+      )}
       {(esito.mancanti ?? []).map((c, i) => (
         <p key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground"><CircleHelp className="mt-0.5 h-3 w-3 shrink-0" />{c}</p>
       ))}

@@ -158,6 +158,7 @@ beforeAll(async () => {
    create table rate_fornitori(id uuid primary key default gen_random_uuid(),company_id uuid,company_cost_id uuid,importo numeric,stato text default 'da_pagare');`);
   await pg.exec(await readFile("supabase/migrations/20290404321000_cdg_controllo_doppi_ordini_e_rate.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404322000_cdg_incassi_oltre_totale_affinato.sql", "utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290404323000_tesoreria_ricorda_iban_dalla_quota.sql", "utf8"));
 }, 60000);
 
 beforeEach(async () => {
@@ -772,5 +773,21 @@ describe("Incassi oltre il totale", () => {
     expect(oltre.find((x) => x.ids[0] === b).cosa_fare).toMatch(/lordo/);
     expect(oltre.find((x) => x.ids[0] === c).cosa_fare).toMatch(/doppi/);
     expect(oltre.map((x) => x.ids[0])).not.toContain(a);
+  });
+});
+
+describe("Ricorda l'IBAN dalla quota del movimento", () => {
+  it("dalla quota risale alla fattura, nativa o importata", async () => {
+    const IBAN = "IT55Q0000000000000000000055";
+    const d = await doc({ numero: "FT-2026-0701", totale: 400, cliente: "Rho Srl", piva: "01111111111" });
+    const t = await tx({ amount: 400, type: "credit", desc: "bonifico", name: "Rho", iban: IBAN });
+    const q = (await service(`insert into bank_reconciliations(company_id,transaction_id,documento_id,matched_amount,regola) values($1,$2,$3,400,'manuale') returning id`, [company, t, d])).rows[0].id;
+    expect(await rpc("tesoreria_ricorda_iban_da_quota", [company, q])).toMatchObject({ cliente: "Rho Srl", iban: IBAN });
+    const inv = nid();
+    await service(`insert into invoices(id,company_id,invoice_number,total,client_name) values($1,$2,'FT-2026-0702',300,'Sigma Spa')`, [inv, company]);
+    const t2 = await tx({ amount: 300, type: "credit", desc: "bonifico", name: "Sigma", iban: "IT66S0000000000000000000066" });
+    const q2 = (await service(`insert into bank_reconciliations(company_id,transaction_id,invoice_id,matched_amount,regola) values($1,$2,$3,300,'manuale') returning id`, [company, t2, inv])).rows[0].id;
+    // l'importata del test non ha P.IVA nello snapshot: arriva alla fattura e lo dice
+    await expect(rpc("tesoreria_ricorda_iban_da_quota", [company, q2])).rejects.toThrow(/partita IVA/);
   });
 });
