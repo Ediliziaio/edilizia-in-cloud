@@ -24,6 +24,8 @@ import { Ciambella } from "@/components/charts/grafici/Ciambella";
 
 const MESI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const VERDE = "hsl(142 64% 40%)";
+/** Corpo e stoppino hanno la stessa larghezza e uno scarto uguale e contrario: si sovrappongono. */
+const LARGHEZZA_CANDELA = 22;
 const ROSSO = "hsl(0 72% 51%)";
 const eur = (cents: number | null | undefined) => (cents == null ? "—" : euroIntero(cents / 100));
 
@@ -33,6 +35,9 @@ interface Riga {
   inizio: number | null;
   fine: number | null;
   corpo: [number, number] | null;
+  stoppino: [number, number] | null;
+  min: number | null;
+  max: number | null;
   sale: boolean;
   incassi: number;
   uscite: number;
@@ -60,6 +65,12 @@ function TooltipMese({ active, payload }: { active?: boolean; payload?: Array<{ 
         <dt className="text-muted-foreground">Uscite</dt><dd className="text-right text-red-600 dark:text-red-400">{eur(-r.uscite)}</dd>
         <dt className="text-muted-foreground">Flusso netto</dt><dd className="text-right">{eur(r.netto)}</dd>
         <dt className="font-medium">Saldo a fine mese</dt><dd className="text-right font-semibold">{eur(r.fine)}</dd>
+        {r.min != null && r.max != null && (
+          <>
+            <dt className="text-muted-foreground">Più basso / più alto nel mese</dt>
+            <dd className="text-right">{eur(r.min)} / {eur(r.max)}</dd>
+          </>
+        )}
       </dl>
     </div>
   );
@@ -79,6 +90,9 @@ export function GraficiCassa({ r, onApriMese }: { r: RendicontoCassa; onApriMese
       inizio,
       fine,
       corpo: inizio == null || fine == null ? null : [Math.min(inizio, fine) / 100, Math.max(inizio, fine) / 100],
+      stoppino: r.estremiMese?.[i] ? [r.estremiMese[i]!.min / 100, r.estremiMese[i]!.max / 100] : null,
+      min: r.estremiMese?.[i]?.min ?? null,
+      max: r.estremiMese?.[i]?.max ?? null,
       sale: (fine ?? 0) >= (inizio ?? 0),
       incassi: (r.gruppi.incassi[i] ?? 0),
       uscite: -(r.gruppi.uscite[i] ?? 0),
@@ -118,7 +132,7 @@ export function GraficiCassa({ r, onApriMese }: { r: RendicontoCassa; onApriMese
             </div>
             <div className="h-[230px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={righe} margin={{ top: 14, right: 4, left: 0, bottom: 0 }} barCategoryGap="28%" onClick={clicMese} className={onApriMese ? "cursor-pointer" : undefined}>
+                <BarChart data={righe} margin={{ top: 14, right: 4, left: 0, bottom: 0 }} barGap={-LARGHEZZA_CANDELA} onClick={clicMese} className={onApriMese ? "cursor-pointer" : undefined}>
                   {defsGrafico(id, {})}
                   <CartesianGrid fill={`url(#${id}-punti)`} vertical={false} stroke="hsl(var(--border))" strokeDasharray="4 6" />
                   <XAxis dataKey="mese" tickLine={false} axisLine={false} tick={TESTO_ASSE} tickMargin={8} />
@@ -129,7 +143,20 @@ export function GraficiCassa({ r, onApriMese }: { r: RendicontoCassa; onApriMese
                     <ReferenceLine y={r.sogliaCents / 100} stroke="hsl(38 92% 50%)" strokeDasharray="5 4" label={{ value: "soglia", position: "insideTopRight", fontSize: 10, fill: "hsl(38 92% 40%)" }} />
                   )}
                   <RechartsTooltip cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.5 }} content={<TooltipMese />} />
-                  <Bar dataKey="corpo" radius={3} minPointSize={2} isAnimationActive={!fermo} animationDuration={700}>
+                  {/* Lo stoppino (minimo e massimo di fine giornata, solo nei mesi previsti) sta
+                      sotto il corpo della candela: stessa colonna, barra sottile. */}
+                  <Bar
+                    dataKey="stoppino"
+                    barSize={LARGHEZZA_CANDELA}
+                    isAnimationActive={!fermo}
+                    animationDuration={700}
+                    shape={(props: { x?: number; y?: number; width?: number; height?: number; payload?: Riga }) => {
+                      const { x = 0, y = 0, width = 0, height = 0, payload } = props;
+                      if (!payload?.stoppino) return <g />;
+                      return <rect x={x + width / 2 - 1} y={y} width={2} height={Math.max(height, 1)} rx={1} fill={payload.sale ? VERDE : ROSSO} fillOpacity={0.75} />;
+                    }}
+                  />
+                  <Bar dataKey="corpo" barSize={LARGHEZZA_CANDELA} radius={3} minPointSize={2} isAnimationActive={!fermo} animationDuration={700}>
                     {righe.map((x, i) => (
                       <Cell key={x.mese} fill={x.sale ? VERDE : ROSSO} fillOpacity={previsto(i) ? 0.45 : 0.9} stroke={x.sale ? VERDE : ROSSO} strokeOpacity={previsto(i) ? 0.9 : 0} strokeDasharray={previsto(i) ? "3 2" : undefined} />
                     ))}

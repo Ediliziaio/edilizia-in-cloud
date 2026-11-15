@@ -103,6 +103,11 @@ export interface RendicontoCassa {
   flussoNetto: number[];
   saldoInizio: (number | null)[];
   saldoFine: (number | null)[];
+  /**
+   * Saldo più basso e più alto di fine giornata nei mesi previsti (da oggi in avanti), per gli
+   * «stoppini» delle candele. Null nei mesi passati: di quelli si conoscono solo inizio e fine.
+   */
+  estremiMese: ({ min: number; max: number } | null)[];
   /** Dettaglio dei movimenti di ogni cella, chiave `${voce}:${mese}`. */
   dettagli: Map<string, DettaglioCella[]>;
   /** Somme del registrato per mese (positive): devono coincidere con la prima nota. */
@@ -345,6 +350,21 @@ export function costruisciRendiconto(input: {
   }
 
   // ── Riquadri ──────────────────────────────────────────────────────────────
+  const estremiMese: ({ min: number; max: number } | null)[] = Array.from({ length: 12 }, () => null);
+  if (p && oggi != null)
+    for (const d of p.days) {
+      if (d.balance == null || d.date.slice(0, 4) !== String(anno)) continue;
+      const i = Number(d.date.slice(5, 7)) - 1;
+      const e = estremiMese[i];
+      estremiMese[i] = e ? { min: Math.min(e.min, d.balance), max: Math.max(e.max, d.balance) } : { min: d.balance, max: d.balance };
+    }
+  // Inizio e fine mese stanno dentro l'intervallo (la candela non esce dallo stoppino).
+  for (let i = 0; i < 12; i++) {
+    const e = estremiMese[i];
+    if (!e) continue;
+    for (const v of [saldoInizio[i], saldoFine[i]]) if (v != null) { e.min = Math.min(e.min, v); e.max = Math.max(e.max, v); }
+  }
+
   let minimo: RendicontoCassa["kpi"]["minimo"] = null;
   if (p && oggi != null) {
     for (const d of p.days) {
@@ -384,6 +404,7 @@ export function costruisciRendiconto(input: {
     flussoNetto,
     saldoInizio,
     saldoFine,
+    estremiMese,
     dettagli,
     entrateRegistrate,
     usciteRegistrate,
