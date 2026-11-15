@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProveModelliRouter } from "@/components/admin/ai-monitor/ProveModelliRouter";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
@@ -310,14 +311,24 @@ export default function AdminAITestLab() {
   };
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-6 p-4 md:p-6">
+      {/* 15/11/2026: in cima il traffico vero del router; sotto, richiudibili, le prove della demo. */}
+      <ProveModelliRouter />
+
+      <details className="group rounded-xl border bg-card">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium">
+          <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+          Prove della demo e strumenti
+          <span className="font-normal text-muted-foreground">— chiamate registrate in ai_test_runs, smoke test, base di conoscenza</span>
+        </summary>
+      <div className="space-y-4 border-t p-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <FlaskConical className="h-8 w-8 text-violet-600" />
           <div>
-            <h1 className="text-2xl font-bold">AI Test Lab</h1>
+            <h1 className="text-lg font-semibold">Prove della demo</h1>
             <p className="text-sm text-muted-foreground">
-              Confronto costi/latency/quality per ogni modello AI
+              Le chiamate registrate per Demo Azienda con il modello scelto a mano
             </p>
           </div>
         </div>
@@ -452,6 +463,8 @@ export default function AdminAITestLab() {
           )}
         </CardContent>
       </Card>
+      </div>
+      </details>
     </div>
   );
 }
