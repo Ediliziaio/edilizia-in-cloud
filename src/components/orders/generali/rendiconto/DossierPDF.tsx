@@ -298,6 +298,9 @@ function Avanzamento({ d }: { d: DatiDossier }) {
           })}
         />
       ) : <>{a.scala ? null : titolo}<Text style={s.nota}>Nessuna commessa dentro, per ora.</Text></>}
+      {a.figlie.length > 0 && a.dallaGenerale ? (
+        <Text style={s.nota}>Le unità senza fasi proprie avanzano con i lavori della commessa generale.</Text>
+      ) : null}
     </View>
   );
 }

@@ -86,6 +86,11 @@ export interface FigliaGenerale {
    */
   avanzamentoFasi?: number | null;
   aMisura?: boolean;
+  /**
+   * Senza fasi né avanzamento suo, prende quello delle fasi della generale (20290402120000): un'unità
+   * di un edificio costruito sulla generale avanza con l'edificio.
+   */
+  avanzamentoDallaGenerale?: boolean;
   /** null = chi guarda non ha il permesso di vedere gli importi (o i costi, o i margini). */
   importo: number | null;
   eseguito: number | null;
@@ -177,6 +182,7 @@ export function leggiRiepilogo(data: unknown): RiepilogoGenerale | null {
         avanzamento: Math.min(100, Math.max(0, numero(f.avanzamento) ?? 0)),
         avanzamentoFasi: numero(f.avanzamento_fasi),
         aMisura: f.a_misura === true,
+        avanzamentoDallaGenerale: f.avanzamento_dalla_generale === true,
         importo: numero(f.importo),
         eseguito: numero(f.eseguito),
         fatturato: numero(f.fatturato),

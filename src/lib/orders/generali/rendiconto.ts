@@ -220,6 +220,8 @@ export interface DatiDossier {
       nome: string; codice: string | null; stato: string | null; avanzamento: number;
       importo: number | null; eseguito: number | null; fatturato: number | null; incassato: number | null;
     }[];
+    /** Qualche commessa senza fasi proprie avanza con i lavori della generale. */
+    dallaGenerale?: boolean;
     /** Solo con il permesso sugli importi. */
     scala: { valore: number | null; valoreEtichetta: string; assegnato: number | null; eseguito: number | null; fatturato: number | null; incassato: number | null; daIncassare: number | null } | null;
   } | null;
@@ -350,6 +352,7 @@ export function componiDossier(i: InputDossier): DatiDossier {
   const avanzamento: DatiDossier["avanzamento"] = c.has("avanzamento") || c.has("sintesi")
     ? {
         medio: avanzamentoOperazione(r),
+        dallaGenerale: r.figlie.some((f) => f.avanzamentoDallaGenerale),
         figlie: r.figlie.map((f) => ({
           // Un'unità in vendita dice dove è arrivata la vendita, se la commessa non ha uno stato suo.
           nome: f.nome, codice: f.codice, stato: f.statoNome ?? (isStatoVendita(f.statoVendita) ? NOMI_STATO[f.statoVendita].una : null),

@@ -28,6 +28,11 @@ describe("avanzamento dell'operazione", () => {
     expect(avanzamentoOperazione(r(40, []))).toBe(40);
     expect(avanzamentoOperazione(r(null, []))).toBeNull();
   });
+  it("il riepilogo dice quali unità avanzano con la generale (20290402120000)", () => {
+    const l = leggiRiepilogo({ generale: { id: "g", nome: "Op", modello: "sviluppo" }, permessi: { importi: true, costi: true, margini: true },
+      figlie: [{ id: "a", nome: "A1", avanzamento: 100, avanzamento_dalla_generale: true }, { id: "b", nome: "A2", avanzamento: 30 }] });
+    expect(l?.figlie.map((f) => [f.nome, f.avanzamento, f.avanzamentoDallaGenerale])).toEqual([["A1", 100, true], ["A2", 30, false]]);
+  });
   it("il riepilogo legge l'avanzamento della generale", () => {
     const l = leggiRiepilogo({ generale: { id: "g", nome: "Op", modello: "sviluppo", avanzamento: 100 }, figlie: [], permessi: { importi: true, costi: true, margini: true } });
     expect(l?.generale.avanzamento).toBe(100);
