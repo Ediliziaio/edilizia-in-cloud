@@ -72,9 +72,19 @@ spento di base; docs/automazioni-acquisti.md §3).
 - Ogni collegamento va nella traccia comune `acquisti_collegamenti` (fattura → contratto,
   fattura → SAL) con regola `subappalto_controllo_fattura`, prove, autore ed esito (`manuale`
   quando decide una persona). Scollegare o cambiare SAL annulla le righe vecchie col motivo.
-- Limite: oggi il collegamento automatico avviene quando qualcuno con i permessi apre la fattura,
-  non all'arrivo dall'SDI. Per farlo all'arrivo serve un giro lato server col motore (passo
-  successivo).
+- **All'arrivo, dal server** (15/11/2026): la funzione `subappalti-collega-fatture`, ogni 15
+  minuti, passa per le sole aziende con l'interruttore acceso le fatture ricevute degli ultimi
+  120 giorni ancora libere, il cui cedente ha un contratto di subappalto, e che non hanno già
+  una riga nella traccia (una persona ha deciso: una regola non la contraddice). Le controlla
+  col motore (`shared/subappalti/controlloFattura.ts`, lo stesso della scheda; `decidiGiro`
+  considera già collegate le fatture decise prima nello stesso giro) e collega solo le
+  «unico e verificato» con `subappalto_collega_fattura(…, 'automatico')`. Tetto di 40 fatture
+  per giro, le più recenti prima; nessuna AI (l'esito `senza_ai` va in «Consumo AI del team»).
+  Dal service role la funzione SQL accetta solo `automatico`, non scollega, e nella traccia
+  l'autore è il processo `subappalti-collega-fatture` (migrazione
+  `20290415140000_subappalto_collega_fattura_dal_servizio`). Test: `subappaltiCollegaFattureGiro.test.ts`.
+- La scheda della fattura collega ancora da sola quando la si apre (stesso esito, stessa
+  funzione): copre la fattura arrivata nei 15 minuti prima del giro.
 - La P.IVA si confronta con `chiaveFiscale` (`shared/acquisti/normalizza.ts`), la stessa chiave
   di `partner_tax_key`.
 

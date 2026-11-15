@@ -7,7 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  chiavePiva, controllaFatturaSubappalto,
+  chiavePiva, controllaFatturaSubappalto, testoFattura,
   type ContrattoCtrl, type FatturaCtrl, type RisultatoControllo, type SalCtrl,
 } from "@/lib/subappaltatori/controlloFatturaSubappalto";
 
@@ -15,13 +15,6 @@ import {
 const db = supabase as any;
 
 const COLONNE_FATTURA = "id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, imponibile_totale, totale_documento, stato, contratto_subappalto_id, sal_subappaltatore_id, righe, note";
-
-/** Il testo su cui leggere contratto, SAL e periodo: descrizioni delle righe e note. */
-export function testoFattura(f: { righe?: unknown; note?: string | null }): string {
-  const righe = Array.isArray(f.righe) ? f.righe : [];
-  const descrizioni = righe.map((r) => (r && typeof r === "object" ? String((r as Record<string, unknown>).descrizione ?? (r as Record<string, unknown>).Descrizione ?? "") : "")).filter(Boolean);
-  return [...descrizioni, f.note ?? ""].join("\n");
-}
 
 type FatturaRiga = Omit<FatturaCtrl, "testo"> & { righe?: unknown; note?: string | null };
 const aCtrl = (f: FatturaRiga): FatturaCtrl => ({ ...f, testo: testoFattura(f) });

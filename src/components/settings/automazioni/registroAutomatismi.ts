@@ -8,6 +8,7 @@
  */
 import { useCollegamentoAutomatico, useSalvaCollegamentoAutomatico } from "@/hooks/useCollegamentoAutomatico";
 import { useUltimoCollegamento } from "@/hooks/useUltimoCollegamento";
+import { useUltimoCollegamentoSubappalti } from "@/hooks/useUltimoCollegamentoSubappalti";
 
 /** Lo stato dell'interruttore, letto dal server. */
 export interface StatoAutomatismo {
@@ -41,7 +42,8 @@ export interface Automatismo {
   useUltimoEsito?: (companyId: string) => UltimoEsito | null | undefined;
 }
 
-function useStatoCollegamento(companyId: string): StatoAutomatismo {
+/** L'interruttore comune: le righe che lo seguono lo riusano, così resta uno solo. */
+export function useStatoCollegamento(companyId: string): StatoAutomatismo {
   const { data = false, isLoading } = useCollegamentoAutomatico(companyId);
   const salva = useSalvaCollegamentoAutomatico(companyId);
   return { acceso: data, caricamento: isLoading, cambia: (v) => salva.mutate(v), salvataggio: salva.isPending };
@@ -57,5 +59,16 @@ export const AUTOMATISMI: Automatismo[] = [
     daSpento: "Da spento il collegamento certo ti viene proposto e lo confermi con un clic. Quando c'è un dubbio ti chiede sempre, acceso o spento.",
     useStato: useStatoCollegamento,
     useUltimoEsito: useUltimoCollegamento,
+  },
+  {
+    id: "subappalti-fattura-contratto-sal",
+    area: "Subappalti",
+    titolo: "Fattura del subappaltatore al suo contratto e SAL",
+    cosaFa:
+      "Quando arriva la fattura di un subappaltatore la collega al suo contratto e al SAL, se è certo: stessa partita IVA, SAL citato in fattura e già verificato, importo uguale al netto del SAL (acconto già scalato). Ogni 15 minuti, senza AI. Segue l'interruttore del collegamento automatico.",
+    daSpento:
+      "Da spento la fattura ti viene proposta nella sua scheda e la colleghi con un clic. Una fattura sul cumulativo, oltre il contratto o su un SAL già fatturato non si collega mai da sola.",
+    useStato: useStatoCollegamento,
+    useUltimoEsito: useUltimoCollegamentoSubappalti,
   },
 ];

@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   acceso: false,
   salvati: [] as boolean[],
   esito: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
+  esitoSubappalti: null as null | { quando: string | null; testo: string; tono: "neutro" | "ok" | "attenzione" | "errore" },
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
 vi.mock("@/hooks/useCollegamentoAutomatico", () => ({
@@ -22,6 +23,8 @@ vi.mock("@/hooks/useUltimoCollegamento", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useUltimoCollegamento")>()),
   useUltimoCollegamento: () => state.esito,
 }));
+
+vi.mock("@/hooks/useUltimoCollegamentoSubappalti", () => ({ useUltimoCollegamentoSubappalti: () => state.esitoSubappalti }));
 
 import SettingsAutomazioni from "@/pages/azienda/settings/SettingsAutomazioni";
 import { AUTOMATISMI } from "@/components/settings/automazioni/registroAutomatismi";
@@ -37,6 +40,7 @@ afterEach(() => {
   state.acceso = false;
   state.salvati = [];
   state.esito = null;
+  state.esitoSubappalti = null;
 });
 
 describe("Impostazioni → Automazioni", () => {
@@ -64,6 +68,20 @@ describe("Impostazioni → Automazioni", () => {
     open();
     expect(screen.getByRole("switch", { name: "Collegamento automatico dei documenti" })).toBeDisabled();
     expect(screen.getByText(/Gli interruttori li cambia l'amministratore/)).toBeInTheDocument();
+  });
+
+  it("Subappalti: la riga della fattura del subappaltatore segue lo stesso interruttore e ha il suo esito", () => {
+    state.acceso = true;
+    state.esitoSubappalti = { quando: new Date().toISOString(), testo: "Ultimo collegamento fatto da solo", tono: "ok" };
+    open();
+    const riga = document.getElementById("subappalti-fattura-contratto-sal")!;
+    expect(within(riga).getByText("Fattura del subappaltatore al suo contratto e SAL")).toBeInTheDocument();
+    expect(within(riga).getByText(/senza AI/)).toBeInTheDocument();
+    const interruttore = within(riga).getByRole("switch", { name: "Fattura del subappaltatore al suo contratto e SAL" });
+    expect(interruttore).toBeChecked();
+    expect(within(riga).getByText("Ultimo collegamento fatto da solo")).toBeInTheDocument();
+    fireEvent.click(interruttore);
+    expect(state.salvati).toEqual([false]);
   });
 
   it("ogni automatismo del registro ha un id unico e i testi che la riga mostra", () => {

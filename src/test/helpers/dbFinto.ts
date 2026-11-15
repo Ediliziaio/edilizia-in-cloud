@@ -52,6 +52,8 @@ function condizioneDaTesto(pezzo: string): Condizione {
   switch (operatore) {
     case "is": return (r) => (valore === "null" ? (r[colonna] ?? null) === null : String(r[colonna]) === valore);
     case "eq": return (r) => String(r[colonna]) === valore;
+    // Come in Postgres: un valore nullo non è né uguale né diverso.
+    case "neq": return (r) => (r[colonna] ?? null) !== null && String(r[colonna]) !== valore;
     case "lte": return (r) => { const c = confronta(r[colonna], valore); return c !== null && c <= 0; };
     case "lt": return (r) => { const c = confronta(r[colonna], valore); return c !== null && c < 0; };
     case "gte": return (r) => { const c = confronta(r[colonna], valore); return c !== null && c >= 0; };
