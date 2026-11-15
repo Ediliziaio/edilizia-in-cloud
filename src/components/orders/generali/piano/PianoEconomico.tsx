@@ -641,7 +641,8 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
             Importi al netto dell'IVA; l'IVA che non recuperi va nella voce «IVA
             non detraibile». Il reale viene dalle commesse dentro la generale e
             dalle spese portate sulla generale: consuntivo, ordini d'acquisto,
-            fatture ricevute, fatture emesse.
+            fatture ricevute, fatture emesse. Caparre e acconti delle unità sono incassi:
+            diventano ricavo con la fattura o con il rogito.
           </p>
           <StoricoBusinessPlan generaleId={g.id} versioneId={v.id} />
         </TabsContent>

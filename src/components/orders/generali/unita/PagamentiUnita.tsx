@@ -54,6 +54,7 @@ export function PagamentiUnita({ generaleId, unita: u, gestisci }: Props) {
         </div>
       </dl>
       <p className="text-xs text-muted-foreground">Prezzo e quote coperte senza IVA. L’entrata effettiva è registrata una sola volta in prima nota, con IVA se dovuta.</p>
+      <p className="text-xs text-muted-foreground">Caparra e acconti sono soldi entrati, non ancora ricavo: nel piano e nel margine diventano ricavo con la fattura o con il rogito. Fino ad allora contano negli incassi e nella cassa.</p>
 
       {u.movimenti.length > 0 ? (
         <ul className="divide-y rounded-md border text-sm">

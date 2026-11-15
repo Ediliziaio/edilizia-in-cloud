@@ -175,6 +175,12 @@ describe("la scheda del piano economico", () => {
     expect(within(riga).getByText("Non necessario")).toBeVisible();
   });
 
+  it("spiega che caparre e acconti sono incassi, non ricavi, finché non c'è fattura o rogito", () => {
+    m.numeri = numeri("bozza");
+    disegna();
+    expect(screen.getByText(/Caparre e acconti delle unità sono incassi/)).toBeVisible();
+  });
+
   it("ogni numero del reale apre le righe da cui viene", () => {
     m.numeri = numeri("bozza");
     disegna();
