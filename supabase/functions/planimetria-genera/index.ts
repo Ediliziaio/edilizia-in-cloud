@@ -53,15 +53,22 @@ const BUCKET = "planimetrie";
 /** Scelti col banco di prova (docs/planimetrie/fase3-esito.md). */
 // Claude per primo: Gemini 2.5 Pro non finiva mai nei 30 s del router (02/11/2026, prova su 15 piante reali)
 // e bruciava mezzo minuto prima del ripiego. Ora ogni chiamata ha 100 s (`timeoutMs`).
-const MODELLI = (Deno.env.get("PLANIMETRIA_MODELLI") ?? "anthropic/claude-sonnet-4.5,google/gemini-2.5-pro")
+// Riserva (15/11/2026): Gemini 2.5 Pro partiva solo dopo un Sonnet scaduto, con ~5 s rimasti, e non ha
+// mai risposto (26 su 26, 1-2/11). Ora la riserva è un Sonnet più nuovo, con un tempo vero (vedi sotto).
+const MODELLI = (Deno.env.get("PLANIMETRIA_MODELLI") ?? "anthropic/claude-sonnet-4.5,anthropic/claude-sonnet-5.5")
   .split(",").map((m) => m.trim()).filter(Boolean);
 // Gli schizzi quotati richiedono lettura delle note e ragionamento geometrico.
 // Catena separata: i documenti ordinari mantengono la configurazione esistente.
 const MODELLI_SCHIZZO = (Deno.env.get("PLANIMETRIA_MODELLI_SCHIZZO") ?? "anthropic/claude-opus-5.5,anthropic/claude-sonnet-4.5")
   .split(",").map((m) => m.trim()).filter(Boolean);
-/** Il gateway chiude a 150 s: 140 s per leggere la pianta, di cui al massimo 110 s per un modello solo. */
+/**
+ * Il gateway chiude a 150 s: 140 s per leggere la pianta, di cui al massimo 75 s per un modello solo.
+ * Con 110 s il primo modello, quando non rispondeva, lasciava alla riserva pochi secondi: inutile.
+ * Le risposte buone arrivano entro un minuto (massimo 58 s, Sonnet 4.5, novembre 2026), così la
+ * riserva ha ancora circa 40 s.
+ */
 const TEMPO_TOTALE_MS = 140_000;
-const TEMPO_PER_MODELLO_MS = 110_000;
+const TEMPO_PER_MODELLO_MS = 75_000;
 const MAX_BYTES = 15 * 1024 * 1024;
 const MIME_AMMESSI = ["image/png", "image/jpeg", "image/webp", "application/pdf"];
 const INGRESSI = ["documento", "schizzo", "descrizione", "sopralluogo", "dxf", "rilievo"] as const;

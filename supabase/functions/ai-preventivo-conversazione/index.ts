@@ -140,7 +140,9 @@ Deno.serve(async req => {
         const boundedFormat = structuredClone(responseFormat);
         if (interactiveGpt) { boundedFormat.json_schema.schema.properties.proposals.maxItems = Math.min(6, boundedFormat.json_schema.schema.properties.proposals.maxItems); boundedFormat.json_schema.schema.properties.proposals.items.properties.description.maxLength = 450; }
         const response = await aiRouterComplete({ supabase: db, taskKey: "preventivo_genera", messages: providerMessages,
-          params: chosenModel ? { max_tokens: 6000, reasoning: { effort: experiment || interactiveGpt ? 'low' : 'medium' } } : { temperature: 0.2, max_tokens: stage === 0 ? 2600 : 3600 }, responseFormat: boundedFormat,
+          // Cache anche della coda (15/11/2026): il secondo passaggio, dopo la ricerca nel listino, rilegge tutta la
+          // conversazione pochi secondi dopo, e il 60% delle chiamate arriva entro 75 s dalla precedente. 5 minuti come Silvio.
+          params: { ...(chosenModel ? { max_tokens: 6000, reasoning: { effort: experiment || interactiveGpt ? 'low' as const : 'medium' as const } } : { temperature: 0.2, max_tokens: stage === 0 ? 2600 : 3600 }), promptCache: { ttl: '5m' as const, coda: true } }, responseFormat: boundedFormat,
           forceModel: chosenModel, disableModelFallback: !!chosenModel,
           companyId: request.companyId, userId, sessionId: request.sessionId, preferLowLatency: true,
           idempotencyKey: key, guardProviderRequest: true, turnControl: control,
