@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { CespitiEditor, PatrimonioNettoEditor } from "@/components/controllo-gestione/ui/DatiPartenzaEditor";
 import { TfrEditor } from "@/components/controllo-gestione/ui/TfrEditor";
+import { VersamentiFiscaliCard } from "@/components/controllo-gestione/ui/VersamentiFiscaliCard";
 import {
   useHealthCheck, useRiconciliazione, useUpsertRiconciliazione,
   type HealthCheck, type HealthStatus, type RiconciliazioneDichiarato,
@@ -225,6 +226,7 @@ export function TabHealthCheck({ anno }: Props) {
       {/* C. Dati di partenza */}
       <PatrimonioNettoEditor anno={anno} />
       <TfrEditor />
+      <VersamentiFiscaliCard anno={anno} />
       <CespitiEditor />
 
       {/* D. Riconciliazione */}

@@ -17,6 +17,8 @@ insert into auth.users(id) values ('c9000000-0000-4000-a000-000000000002');
 insert into profiles(id, company_id, first_name, last_name, email)
   values ('c9000000-0000-4000-a000-000000000002', 'c9000000-0000-4000-a000-000000000001', 'Titolare', 'CdG', 'titolare-cdg@example.test');
 insert into user_roles(user_id, role) values ('c9000000-0000-4000-a000-000000000002', 'company_admin');
+insert into company_feature_overrides(company_id, feature_key, is_enabled)
+  values ('c9000000-0000-4000-a000-000000000001', 'controllo_gestione_v1', true);
 insert into employees(id, company_id, first_name, last_name, is_active) values
   ('c9000000-0000-4000-a000-00000000000a', 'c9000000-0000-4000-a000-000000000001', 'Anna', 'Azienda', true),
   ('c9000000-0000-4000-a000-00000000000b', 'c9000000-0000-4000-a000-000000000001', 'Bruno', 'Fondo', true);
@@ -45,7 +47,7 @@ do $$
 declare
   c constant uuid := 'c9000000-0000-4000-a000-000000000001';
   v_ce numeric; v_mesi numeric; v_det numeric; v_l numeric;
-  sp jsonb; p jsonb; sp26 jsonb;
+  sp jsonb; p jsonb; sp26 jsonb; v jsonb;
 begin
   -- Conto economico: costo del personale con il TFR e la rivalutazione; mesi e dettaglio sommano uguale.
   select (v ->> 'valore')::numeric into v_ce
@@ -85,6 +87,19 @@ begin
   -- Saldo 2025 dell'imposta sostitutiva entro il 16/2/2026.
   if (sp26 -> 'meta' -> 'patrimonio' ->> 'tfr_imposta_sostitutiva_da_versare')::numeric is distinct from 3.54 then
     raise exception 'Saldo imposta sostitutiva 2025 al 31/1/2026: atteso 3.54, trovato %', sp26 -> 'meta' -> 'patrimonio' ->> 'tfr_imposta_sostitutiva_da_versare';
+  end if;
+
+  -- Versamenti F24 2025 (20290401210000): ritenute e contributi di gennaio il 16/2 (600 + 1.650),
+  -- quelli di novembre più l'acconto dell'imposta sostitutiva (31,82) il 16/12; senza conti in banca
+  -- le scadenze passate non sono verificabili. Il TFR al fondo pensione non è un F24.
+  v := public.cg_get_versamenti_fiscali(c, 2025);
+  if jsonb_array_length(v -> 'scadenze') <> 11 then raise exception 'Versamenti 2025: attese 11 scadenze, trovate %', jsonb_array_length(v -> 'scadenze'); end if;
+  if v -> 'scadenze' -> 0 ->> 'scadenza' <> '2025-02-16' or (v -> 'scadenze' -> 0 ->> 'atteso')::numeric <> 2250.00
+     or v -> 'scadenze' -> 0 ->> 'stato' <> 'non_verificabile' then
+    raise exception 'Versamenti 2025, prima scadenza: attesa 16/2 2250 non verificabile, trovata %', v -> 'scadenze' -> 0;
+  end if;
+  if v -> 'scadenze' -> 10 ->> 'scadenza' <> '2025-12-16' or (v -> 'scadenze' -> 10 ->> 'atteso')::numeric <> 2281.82 then
+    raise exception 'Versamenti 2025, 16/12: attesi 2281.82, trovato %', v -> 'scadenze' -> 10;
   end if;
 end $$;
 
