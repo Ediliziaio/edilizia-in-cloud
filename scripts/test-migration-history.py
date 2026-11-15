@@ -86,8 +86,14 @@ try:
         sql((ROOT/'scripts/fixtures/permessi-retribuzioni-backend.sql').read_text())
         sql((ROOT/'scripts/fixtures/office-area-tasks.sql').read_text())
         # Controllo di gestione: numeri fissi di CE e Stato patrimoniale (TFR, patrimonio, crediti, debiti).
-        sql((ROOT/'scripts/fixtures/controllo-gestione-tfr-patrimonio.sql').read_text())
-        sql((ROOT/'scripts/fixtures/controllo-gestione-crediti-debiti.sql').read_text())
+        # Le prove usano solo dati inventati: il messaggio d'errore si può stampare (le migrazioni no).
+        for prova in ('controllo-gestione-tfr-patrimonio.sql', 'controllo-gestione-crediti-debiti.sql'):
+            esito=subprocess.run(['docker','exec','-i',name,'psql','-X','-U','supabase_admin','-d','postgres','-v','ON_ERROR_STOP=1','-q'],
+                                 input=(ROOT/'scripts/fixtures'/prova).read_text(),text=True,capture_output=True)
+            if esito.returncode:
+                errore=next((r.strip() for r in esito.stderr.splitlines() if 'ERROR:' in r), 'errore senza messaggio')
+                print(json.dumps({'ok':False,'prova':prova,'errore':errore[:600]}),flush=True)
+                raise RuntimeError('Prova del controllo di gestione fallita: '+prova)
         print(json.dumps({'ok':True,'application_migrations':len(applied),'storage_foundations':len(platform),'deferred_patches':0,'network':'none','cron_execution':False}),flush=True)
 except subprocess.CalledProcessError as exc:
     if os.getenv('EIC_LOCAL_PRIVATE_ERROR'): Path(os.environ['EIC_LOCAL_PRIVATE_ERROR']).write_text(exc.stderr or '')

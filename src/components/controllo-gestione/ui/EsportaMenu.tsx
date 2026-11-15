@@ -12,7 +12,7 @@ import {
 import { Download, FileSpreadsheet, FileText, FileJson, FileArchive, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
-import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { supabase } from "@/integrations/supabase/client";
 import {
   caricaSezioni, htmlEsportazione, nomeFile, scaricaCsv, scaricaJson, scaricaXlsx,
   type FormatoEsportazione, type SezioneEsportata, type Tabella,
@@ -30,8 +30,26 @@ interface Props {
   size?: "sm" | "default";
 }
 
+/**
+ * Nome dell'azienda per l'intestazione, letto solo al momento di scaricare: l'azienda è quella
+ * che vede il database (get_my_company_id, come le RPC delle sezioni). Senza, il file resta senza nome.
+ */
+async function ragioneSociale(): Promise<string | null> {
+  try {
+    const { data: azienda } = await supabase.rpc("get_my_company_id");
+    if (!azienda) return null;
+    const { data } = await supabase
+      .from("anagrafica_azienda" as never)
+      .select("ragione_sociale")
+      .eq("company_id", azienda as string)
+      .maybeSingle();
+    return (data as { ragione_sociale?: string | null } | null)?.ragione_sociale ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scarica", size = "sm" }: Props) {
-  const anagrafica = useAnagraficaAzienda();
   const [occupato, setOccupato] = useState<FormatoEsportazione | null>(null);
   const [anteprima, setAnteprima] = useState<{ html: string; nome: string } | null>(null);
 
@@ -44,11 +62,7 @@ export function EsportaMenu({ anno, sezioni, titolo, tabelleExtra, label = "Scar
         ...(extra.length ? [{ chiave: "pagina", titolo, tabelle: extra, dati: extra }] : []),
         ...lette,
       ];
-      const intestazione = {
-        azienda: (anagrafica.data as { ragione_sociale?: string | null } | null | undefined)?.ragione_sociale ?? null,
-        titolo,
-        anno,
-      };
+      const intestazione = { azienda: await ragioneSociale(), titolo, anno };
       if (tutte.every((s) => s.tabelle.length === 0 && !s.errore)) {
         toast.info("Niente da scaricare per quest'anno");
         return;
