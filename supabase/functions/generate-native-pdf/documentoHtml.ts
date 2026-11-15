@@ -28,6 +28,7 @@ import {
   nomeModalitaPagamento,
   quantitaLeggibile,
   temaFattura,
+  vociRiferimenti,
   vociTotali,
 } from "../_shared/documentoFiscaleVista.ts";
 
@@ -172,7 +173,11 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
     </div>`
     : "";
 
-  const riferimenti = [doc.cig ? `CIG ${esc(doc.cig)}` : "", doc.cup ? `CUP ${esc(doc.cup)}` : ""].filter(Boolean).join(" · ");
+  // Riferimenti (ufficio PA, contratto, ordine, convenzione, DDT, documento rettificato):
+  // gli stessi che vanno nell'XML, in una griglia a due colonne per non rubare spazio.
+  const riferimenti = vociRiferimenti(doc)
+    .map((v) => `<div class="fd-rif"><span class="fd-rif-voce">${esc(v.etichetta)}</span><span class="fd-rif-valore">${esc(v.valore)}</span></div>`)
+    .join("");
 
   // ── Righe ──
   const righeHtml = righe.map((r, i) => `
@@ -256,12 +261,14 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
     <div class="fd-documento">
       <div class="fd-tipo">${esc(etichetta)}</div>
       <div class="fd-estremi">${estremi}</div>
-      ${destinatarioHtml}
     </div>
   </div>
   <div class="fd-filetto"></div>
 
-  ${riferimenti ? `<div class="fd-riferimenti">${riferimenti}</div>` : ""}
+  <div class="fd-fascia">
+    ${destinatarioHtml}
+    ${riferimenti ? `<div class="fd-riferimenti">${riferimenti}</div>` : ""}
+  </div>
 
   ${tabellaRighe}
 

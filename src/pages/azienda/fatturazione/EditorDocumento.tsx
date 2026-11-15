@@ -41,6 +41,7 @@ import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { APRI_FATTURAZIONE_ELETTRONICA } from "./editor/EditorFatturazioneElettronicaSection";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
+import { AnteprimaXmlFattura } from "@/components/fatturazione/AnteprimaXmlFattura";
 import { useAuth } from "@/contexts/AuthContext";
 import { PanelRight } from "lucide-react";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -438,6 +439,15 @@ function EditorDelDocumento() {
     } catch { /* senza memoria si usa la larghezza */ }
     return typeof window !== "undefined" && window.innerWidth >= 1500;
   });
+  // Due anteprime: il PDF che legge il cliente e il contenuto del file XML che parte allo
+  // SDI. La scelta si ricorda, come l'apertura del pannello.
+  const [vistaAnteprima, setVistaAnteprima] = useState<"pdf" | "xml">(() => {
+    try { return localStorage.getItem("editor-fattura-vista-anteprima") === "xml" ? "xml" : "pdf"; } catch { return "pdf"; }
+  });
+  const scegliVista = useCallback((v: "pdf" | "xml") => {
+    setVistaAnteprima(v);
+    try { localStorage.setItem("editor-fattura-vista-anteprima", v); } catch { /* facoltativo */ }
+  }, []);
   const cambiaAnteprima = useCallback(() => {
     setAnteprimaAccanto((prima) => {
       try { localStorage.setItem("editor-fattura-anteprima", prima ? "0" : "1"); } catch { /* facoltativo */ }
@@ -446,6 +456,8 @@ function EditorDelDocumento() {
   }, []);
   // Il foglio segue con calma: scrivere nel modulo resta fluido.
   const statoAnteprima = useDeferredValue(state);
+  // L'XML esiste solo per i documenti che vanno allo SDI (non per DDT, preventivi, proforma).
+  const xmlDisponibile = TIPI_SDI.includes(state.tipo) && !["preventivo", "proforma", "ddt"].includes(state.tipo);
   const { effectiveCompany: aziendaAnteprima } = useAuth();
 
   if (isCreate || isLoading || !state._initialized) {
@@ -675,10 +687,31 @@ function EditorDelDocumento() {
           </div>
         </div>
         {anteprimaAccanto && (
-          <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[380px] shrink-0 justify-center overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
-            <div className="shrink-0">
-              <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.45} />
-            </div>
+          <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[380px] shrink-0 flex-col overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">
+            {xmlDisponibile && (
+              <div className="sticky top-0 z-10 flex gap-1 border-b bg-background/95 p-1.5 backdrop-blur">
+                {([["pdf", "PDF"], ["xml", "XML allo SDI"]] as const).map(([v, etichetta]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => scegliVista(v)}
+                    aria-pressed={vistaAnteprima === v}
+                    className={`flex-1 rounded px-2 py-1 text-[11px] font-medium transition-colors ${vistaAnteprima === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  >
+                    {etichetta}
+                  </button>
+                ))}
+              </div>
+            )}
+            {vistaAnteprima === "xml" && xmlDisponibile ? (
+              <AnteprimaXmlFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} />
+            ) : (
+              <div className="flex justify-center">
+                <div className="shrink-0">
+                  <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.45} />
+                </div>
+              </div>
+            )}
           </aside>
         )}
         </div>

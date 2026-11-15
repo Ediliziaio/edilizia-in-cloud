@@ -12,6 +12,12 @@
  */
 
 import { normalizzaHex, schiarisci, testoSuChiaro } from "./temaColori.ts";
+import {
+  ETICHETTA_TIPO_RIFERIMENTO,
+  numeriLineaDi,
+  riferimentiPaDelDocumento,
+  riferimentoVuoto,
+} from "./riferimentiPaFattura.ts";
 
 /** Il colore delle fatture quando l'azienda non ne ha scelto uno (Impostazioni → Fatturazione → Template PDF). */
 export const COLORE_FATTURA_DI_SERIE = "#0EA5E9";
@@ -164,6 +170,84 @@ export function indirizzoInRiga(a: Record<string, unknown> | null | undefined): 
   return [via, luogo.trim(), nazione && nazione !== "IT" ? nazione : ""].filter(Boolean).join(", ");
 }
 
+// ─── Riferimenti del documento ──────────────────────────────────────────────
+
+export interface VoceRiferimento {
+  etichetta: string;
+  valore: string;
+}
+
+/**
+ * I riferimenti che il cliente deve leggere sulla copia di cortesia: ufficio
+ * destinatario della PA, contratti, ordini e convenzioni (con CIG, CUP, lotto e
+ * le righe a cui valgono), il codice commessa/convenzione, i DDT e la fattura
+ * rettificata. Sono gli stessi dati che finiscono nell'XML (15/11/2026): prima
+ * il PDF mostrava solo CIG e CUP delle colonne vecchie, e una fattura alla PA
+ * con contratto e lotto arrivava al cliente senza niente di tutto questo.
+ */
+export function vociRiferimenti(doc: Record<string, unknown>): VoceRiferimento[] {
+  const voci: VoceRiferimento[] = [];
+  const snap = (doc.cliente_snapshot ?? {}) as Record<string, unknown>;
+  const ufficio = snap.ufficio_pa as Record<string, unknown> | null | undefined;
+  const codiceUfficio = pulito(ufficio?.codice) || (snap.tipo_cliente === "PA" ? pulito(snap.codice_sdi) : "");
+  if (codiceUfficio) {
+    voci.push({
+      etichetta: "Ufficio destinatario",
+      valore: [codiceUfficio, pulito(ufficio?.descrizione)].filter(Boolean).join(" · "),
+    });
+  }
+
+  const righe = Array.isArray(doc.righe) ? (doc.righe as Array<Record<string, unknown>>) : [];
+  const riferimenti = riferimentiPaDelDocumento(doc as Record<string, unknown>);
+  for (const r of riferimenti.filter((x) => !riferimentoVuoto(x))) {
+    const linee = numeriLineaDi(r, righe).filter((n) => n >= 1 && n <= righe.length);
+    const valore = [
+      r.numero ? `n. ${r.numero}` : null,
+      r.data ? `del ${dataBreve(r.data)}` : null,
+      r.num_item ? `lotto ${r.num_item}` : null,
+      r.codice_commessa_convenzione && r.codice_commessa_convenzione !== r.numero ? `codice ${r.codice_commessa_convenzione}` : null,
+      r.cup ? `CUP ${r.cup}` : null,
+      r.cig ? `CIG ${r.cig}` : r.cig_non_dovuto ? `CIG non dovuto${r.cig_motivo_esclusione ? ` (${r.cig_motivo_esclusione})` : ""}` : null,
+      linee.length > 0 && linee.length < righe.length ? `${linee.length === 1 ? "riga" : "righe"} ${linee.join(", ")}` : null,
+    ].filter(Boolean).join(" · ");
+    voci.push({ etichetta: ETICHETTA_TIPO_RIFERIMENTO[r.tipo] ?? String(r.tipo), valore });
+  }
+
+  // Colonne vecchie: si mostrano solo se non ci sono già le righe nuove.
+  if (riferimenti.length === 0) {
+    const vecchi = [
+      pulito(doc.cig) && `CIG ${pulito(doc.cig)}`,
+      pulito(doc.cup) && `CUP ${pulito(doc.cup)}`,
+      pulito(doc.codice_commessa_convenzione) && `Codice commessa/convenzione ${pulito(doc.codice_commessa_convenzione)}`,
+    ].filter(Boolean) as string[];
+    if (vecchi.length > 0) voci.push({ etichetta: "Riferimenti", valore: vecchi.join(" · ") });
+    const ordini = Array.isArray(doc.riferimenti_ordine) ? (doc.riferimenti_ordine as Array<Record<string, unknown>>) : [];
+    for (const o of ordini) {
+      const numero = pulito(o.IdDocumento ?? o.id_documento ?? o.numero);
+      if (!numero) continue;
+      const data = pulito(o.Data ?? o.data);
+      voci.push({ etichetta: "Ordine d'acquisto", valore: [`n. ${numero}`, data ? `del ${dataBreve(data)}` : null].filter(Boolean).join(" · ") });
+    }
+  }
+
+  const ddt = Array.isArray(doc.riferimenti_ddt) ? (doc.riferimenti_ddt as Array<Record<string, unknown>>) : [];
+  for (const d of ddt) {
+    const numero = pulito(d.numero ?? d.NumeroDDT);
+    if (!numero) continue;
+    const data = pulito(d.data ?? d.DataDDT);
+    voci.push({ etichetta: "DDT", valore: [`n. ${numero}`, data ? `del ${dataBreve(data)}` : null].filter(Boolean).join(" · ") });
+  }
+
+  const collegata = doc.fattura_collegata as Record<string, unknown> | null | undefined;
+  if (collegata && pulito(collegata.numero)) {
+    voci.push({
+      etichetta: "Documento rettificato",
+      valore: [`n. ${pulito(collegata.numero)}`, pulito(collegata.data) ? `del ${dataBreve(collegata.data)}` : null].filter(Boolean).join(" · "),
+    });
+  }
+  return voci;
+}
+
 // ─── Totali ─────────────────────────────────────────────────────────────────
 
 export interface VoceTotale {
@@ -253,7 +337,7 @@ export function importoInEvidenza(doc: Record<string, unknown>): { etichetta: st
  */
 export function cssFoglio(t: TemaFattura): string {
   return `
-.fd-foglio { box-sizing: border-box; width: 210mm; padding: 14mm 16mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; background: #ffffff; color: #1e293b; font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9pt; line-height: 1.45; font-variant-numeric: tabular-nums; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.fd-foglio { box-sizing: border-box; width: 210mm; padding: 12mm 14mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; background: #ffffff; color: #1e293b; font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9pt; line-height: 1.45; font-variant-numeric: tabular-nums; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fd-foglio *, .fd-foglio *::before, .fd-foglio *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fd-foglio table { border-collapse: collapse; border-spacing: 0; }
 .fd-foglio th, .fd-foglio td { vertical-align: top; }
@@ -272,12 +356,19 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-voce.fd-evidenza { font-weight: 600; color: #475569; }
 .fd-valore.fd-evidenza { font-size: 11pt; font-weight: 800; color: ${t.accentoTesto}; }
 .fd-riquadro { border: 1px solid #e2e8f0; border-radius: 2mm; padding: 3.4mm 4.2mm; }
-.fd-destinatario { margin-top: 4mm; text-align: left; }
+.fd-destinatario { text-align: left; }
+.fd-fascia { display: flex; align-items: stretch; gap: 5mm; margin: 0 0 3.5mm; }
+.fd-fascia > * { flex: 1 1 0; min-width: 0; margin: 0; }
+.fd-fascia > .fd-riferimenti { display: block; }
 .fd-etichetta { margin-bottom: 1.2mm; font-size: 6.8pt; font-weight: 600; line-height: 1.3; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
 .fd-cliente { margin-bottom: 0.8mm; font-size: 10.5pt; font-weight: 700; line-height: 1.25; color: #0f172a; }
 .fd-cliente-dati { font-size: 8pt; line-height: 1.55; color: #475569; }
-.fd-filetto { height: 0; margin: 5mm 0; border: 0; border-top: 2px solid ${t.accento}; }
-.fd-riferimenti { margin: 0 0 5mm; padding: 2.4mm 4.5mm; border: 1px solid #e2e8f0; border-radius: 2mm; background: #f8fafc; font-size: 8pt; color: #334155; }
+.fd-filetto { height: 0; margin: 3.6mm 0; border: 0; border-top: 2px solid ${t.accento}; }
+.fd-riferimenti { display: grid; grid-template-columns: 1fr 1fr; column-gap: 6mm; row-gap: 0.6mm; margin: 0 0 3.5mm; padding: 2.2mm 3.4mm; border: 1px solid #e2e8f0; border-radius: 2mm; background: #f8fafc; font-size: 7.8pt; line-height: 1.45; color: #334155; }
+.fd-rif { display: flex; gap: 1.6mm; min-width: 0; }
+.fd-fascia .fd-rif + .fd-rif { margin-top: 0.6mm; }
+.fd-rif-voce { flex: 0 0 auto; font-weight: 600; color: #475569; }
+.fd-rif-valore { min-width: 0; overflow-wrap: anywhere; }
 .fd-avviso { margin: 0 0 5mm; padding: 2.4mm 4.5mm; border: 1px solid #fde68a; border-radius: 2mm; background: #fffbeb; font-size: 8pt; color: #92400e; }
 .fd-voci { width: 100%; font-size: 8.6pt; }
 .fd-voci th { padding: 2mm 2mm; border-bottom: 1.5px solid ${t.accento}; background: ${t.tinta}; text-align: left; font-size: 6.8pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; white-space: nowrap; }
@@ -290,7 +381,7 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-voci td.fd-importo { font-weight: 600; color: #0f172a; }
 .fd-sotto { margin-top: 0.6mm; font-size: 7.4pt; color: #64748b; }
 .fd-sotto-nota { font-style: italic; }
-.fd-conti { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; margin-top: 5mm; break-inside: avoid; page-break-inside: avoid; }
+.fd-conti { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; margin-top: 3.6mm; break-inside: avoid; page-break-inside: avoid; }
 .fd-riepilogo { flex: 1 1 auto; min-width: 0; }
 .fd-riepilogo table { width: 100%; font-size: 8.2pt; }
 .fd-riepilogo th { padding: 1.3mm 2mm; border-bottom: 1px solid #cbd5e1; text-align: left; font-size: 6.8pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
@@ -304,7 +395,7 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-totali .fd-finale td:first-child { border-radius: 1.5mm 0 0 1.5mm; }
 .fd-totali .fd-finale td:last-child { border-radius: 0 1.5mm 1.5mm 0; }
 .fd-totali .fd-stacco td { height: 1.6mm; padding: 0; }
-.fd-info { display: flex; align-items: stretch; gap: 6mm; margin-top: 6mm; break-inside: avoid; page-break-inside: avoid; }
+.fd-info { display: flex; align-items: stretch; gap: 5mm; margin-top: 4mm; break-inside: avoid; page-break-inside: avoid; }
 .fd-info > .fd-riquadro { flex: 1 1 0; min-width: 0; font-size: 8.2pt; line-height: 1.55; color: #334155; }
 .fd-metodo { margin-bottom: 1mm; font-size: 9pt; font-weight: 600; color: #0f172a; }
 .fd-iban { font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 8.6pt; font-weight: 600; letter-spacing: 0.02em; color: #0f172a; }
@@ -312,13 +403,13 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-rate th { padding: 1mm 2mm 1mm 0; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 6.8pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
 .fd-rate td { padding: 1mm 2mm 1mm 0; border-bottom: 1px solid #f1f5f9; }
 .fd-testo { white-space: pre-wrap; overflow-wrap: anywhere; }
-.fd-avvertenze { margin-top: 5mm; font-size: 7.6pt; line-height: 1.5; color: #475569; break-inside: avoid; page-break-inside: avoid; }
+.fd-avvertenze { margin-top: 3.6mm; font-size: 7.6pt; line-height: 1.5; color: #475569; break-inside: avoid; page-break-inside: avoid; }
 .fd-avvertenze .fd-etichetta { margin-bottom: 0.8mm; }
 .fd-clausole { color: #334155; }
 .fd-clausole > div + div { margin-top: 1mm; }
-.fd-forfettario { margin-top: 3mm; font-size: 7.2pt; line-height: 1.5; font-style: italic; color: #64748b; }
-.fd-cortesia { margin-top: 3mm; font-size: 7.2pt; line-height: 1.5; color: #94a3b8; }
-.fd-piede { display: flex; justify-content: space-between; gap: 6mm; margin-top: 7mm; padding-top: 2.6mm; border-top: 1px solid #e2e8f0; font-size: 7pt; color: #94a3b8; break-inside: avoid; page-break-inside: avoid; }
+.fd-forfettario { margin-top: 2.6mm; font-size: 7.2pt; line-height: 1.5; font-style: italic; color: #64748b; }
+.fd-cortesia { margin-top: 2.6mm; font-size: 7.2pt; line-height: 1.5; color: #94a3b8; }
+.fd-piede { display: flex; justify-content: space-between; gap: 6mm; margin-top: 5mm; padding-top: 2.4mm; border-top: 1px solid #e2e8f0; font-size: 7pt; color: #94a3b8; break-inside: avoid; page-break-inside: avoid; }
 `;
 }
 

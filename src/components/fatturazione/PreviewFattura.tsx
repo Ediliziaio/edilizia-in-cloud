@@ -21,6 +21,7 @@ import {
   nomeModalitaPagamento,
   quantitaLeggibile,
   temaFattura,
+  vociRiferimenti,
   vociTotali,
 } from "../../../supabase/functions/_shared/documentoFiscaleVista";
 
@@ -128,6 +129,11 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
               {!isDdt && <><div className="fd-voce fd-evidenza">{evidenza.etichetta}</div>
               <div className="fd-valore fd-evidenza">{euro(evidenza.importo)}</div></>}
             </div>
+          </div>
+        </div>
+        <div className="fd-filetto" />
+
+        <div className="fd-fascia">
             {destinatario && (
               <div className="fd-riquadro fd-destinatario">
                 <div className="fd-etichetta">Destinatario</div>
@@ -143,15 +149,20 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
                 </div>
               </div>
             )}
-          </div>
+          {vociRiferimenti(doc).length > 0 && (
+            <div className="fd-riferimenti">
+              {vociRiferimenti(doc).map((v, i) => (
+                <div className="fd-rif" key={i}>
+                  <span className="fd-rif-voce">{v.etichetta}</span>
+                  <span className="fd-rif-valore">{v.valore}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="fd-filetto" />
 
         {doc.tipo === "nota_credito" && doc.documento_correlato_id && (
           <div className="fd-avviso">Nota di credito a storno di un documento precedente</div>
-        )}
-        {(doc.cig || doc.cup) && (
-          <div className="fd-riferimenti">{unite([doc.cig && `CIG ${doc.cig}`, doc.cup && `CUP ${doc.cup}`])}</div>
         )}
 
         {righe.length > 0 && (
