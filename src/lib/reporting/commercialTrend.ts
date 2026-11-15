@@ -16,10 +16,11 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 
-import type {
-  CommercialContactRow,
-  CommercialOrderRow,
-  CommercialQuoteRow,
+import {
+  isDraftOnlyQuote,
+  type CommercialContactRow,
+  type CommercialOrderRow,
+  type CommercialQuoteRow,
 } from "@/lib/reporting/commercialPerformanceReport";
 
 export interface CommercialTrendRows {
@@ -115,7 +116,10 @@ export function buildCommercialTrend(
     const i = findBucket(parseDate(c.created_at));
     if (i >= 0) points[i].lead += 1;
   }
+  // 15/11/2026: le bozze mai inviate non sono preventivi emessi, come nel riquadro in cima
+  // (sullo stesso periodo la pagina diceva 96 sopra e 105 nel confronto).
   for (const q of rows.quotes) {
+    if (isDraftOnlyQuote(q)) continue;
     const i = findBucket(parseDate(q.created_at));
     if (i >= 0) {
       points[i].preventivi += 1;
@@ -154,7 +158,7 @@ export interface PeriodComparisonMetric {
 function aggregatePeriod(rows: CommercialTrendRows) {
   return {
     lead: rows.contacts.length,
-    preventivi: rows.quotes.length,
+    preventivi: rows.quotes.filter((q) => !isDraftOnlyQuote(q)).length,
     vinte: rows.orders.length,
     fatturatoCents: rows.orders.reduce((s, o) => s + toCents(o.total_amount), 0),
   };

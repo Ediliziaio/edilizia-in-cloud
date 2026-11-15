@@ -724,7 +724,7 @@ function isOpenQuote(quote: CommercialQuoteRow) {
   return OPEN_QUOTE_STATUSES.has(status) && !isAcceptedQuote(quote) && !isRejectedQuote(quote);
 }
 
-function isDraftOnlyQuote(quote: CommercialQuoteRow) {
+export function isDraftOnlyQuote(quote: CommercialQuoteRow) {
   return normalizeLookup(quote.status) === "bozza" && !quote.sent_at && !quote.signed_at;
 }
 

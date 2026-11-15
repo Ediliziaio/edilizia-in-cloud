@@ -53,7 +53,8 @@ export function GraficoAndamento({
     const primo = dati[0].valore;
     const ultimo = dati[dati.length - 1].valore;
     const diff = ultimo - primo;
-    const pct = primo !== 0 ? (diff / Math.abs(primo)) * 100 : null;
+    // 15/11/2026: solo da una base positiva: «+433%» partendo da −48.514 € non dice niente.
+    const pct = primo > 0 ? (diff / primo) * 100 : null;
     return { iMax, iMin, diff, pct };
   }, [dati]);
 

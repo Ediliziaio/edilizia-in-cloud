@@ -489,7 +489,8 @@ export function TabDashboard({ anno }: Props) {
     valore: p.saldo,
   }));
   const minimoCassa = datiCassa.length > 0 ? datiCassa.reduce((a, b) => (b.valore < a.valore ? b : a)) : null;
-  const pctCassa = cf.data && cf.data.meta.saldo_apertura !== 0
+  // 15/11/2026: niente percentuale su una cassa di partenza negativa (+433% da −48.514 €).
+  const pctCassa = cf.data && cf.data.meta.saldo_apertura > 0
     ? ((cf.data.meta.saldo_chiusura - cf.data.meta.saldo_apertura) / Math.abs(cf.data.meta.saldo_apertura)) * 100
     : null;
 
