@@ -108,6 +108,10 @@ beforeEach(() => {
 describe("fatture native e importate: un unico pagamento bancario", () => {
   it("mostra entrambe le fonti, senza conferme automatiche", async () => {
     view();
+    // Le scelte si aprono dalla riga «Fatture e pagamenti» di «A cosa è collegato».
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Collega fatture e pagamenti" }),
+    );
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Collega fatture e scadenze",
@@ -121,6 +125,10 @@ describe("fatture native e importate: un unico pagamento bancario", () => {
   });
   it("conferma due quote atomiche e aggiorna anche Fatture in Cloud per la quota importata", async () => {
     view();
+    // Le scelte si aprono dalla riga «Fatture e pagamenti» di «A cosa è collegato».
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Collega fatture e pagamenti" }),
+    );
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Collega fatture e scadenze",
@@ -156,6 +164,10 @@ describe("fatture native e importate: un unico pagamento bancario", () => {
   it("se la conferma fallisce conserva selezione e quote senza inviare pagamenti al gestionale esterno", async () => {
     mocks.fail = true;
     view();
+    // Le scelte si aprono dalla riga «Fatture e pagamenti» di «A cosa è collegato».
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Collega fatture e pagamenti" }),
+    );
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Collega fatture e scadenze",

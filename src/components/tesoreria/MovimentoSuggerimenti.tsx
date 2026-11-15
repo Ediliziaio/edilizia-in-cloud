@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Loader2, Package, Sparkles, UserRound } from "lucide-react";
+import { Loader2, Package, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,15 +23,9 @@ const controparteDi = (m: BankMovement) => (m.transaction_type === "credit" ? m.
  * Quel che serve a chi riconcilia, prima di cercare a mano: chi è la
  * controparte (con la sua scheda), l'ordine d'acquisto citato nella causale,
  * i documenti aperti di quella controparte e i migliori abbinamenti col loro
- * punteggio, abbinabili con un clic.
+ * punteggio. Il popup li mostra dentro «A cosa è collegato», nella riga giusta.
  */
-export function MovimentoSuggerimenti({ company, movement: m, puoAbbinare, onAbbinato }: {
-  company: string;
-  movement: BankMovement;
-  /** Il movimento accetta abbinamenti e l'utente può farli. */
-  puoAbbinare: boolean;
-  onAbbinato: () => void;
-}) {
+export function useSuggerimentiMovimento(company: string, m: BankMovement, puoAbbinare: boolean, onAbbinato: () => void) {
   const controparte = controparteDi(m);
   const causale = bankCausale(m);
   const rifOda = riferimentoOda(causale);
@@ -106,79 +100,75 @@ export function MovimentoSuggerimenti({ company, movement: m, puoAbbinare, onAbb
     }
   }
 
+  return { controparte, uscita, rifOda, fornitore, oda, candidati, migliori, dellaControparte, apertiControparte, abbina, inCorso, puoAbbinare };
+}
+export type SuggerimentiMovimento = ReturnType<typeof useSuggerimentiMovimento>;
+
+/** Riga «Controparte»: il nome, la scheda del fornitore, l'ODA citato e quanto ha di aperto. */
+export function ControparteRiconosciuta({ s }: { s: SuggerimentiMovimento }) {
+  const { controparte, uscita, fornitore, oda, rifOda, candidati, dellaControparte, apertiControparte, puoAbbinare } = s;
+  return (
+    <>
+      {fornitore.data
+        ? <Link to={linkFornitore(fornitore.data.id)} className="font-medium text-primary hover:underline" title="Apri la scheda del fornitore">{fornitore.data.name}</Link>
+        : controparte ? <span className="font-medium">{controparte}</span> : <span className="text-muted-foreground">Nessuno</span>}
+      {uscita && controparte && fornitore.isSuccess && !fornitore.data && <span className="text-xs text-muted-foreground">non è tra i fornitori</span>}
+      {!uscita && controparte && (
+        <Link to={`/azienda/documenti?cerca=${encodeURIComponent(controparte)}`} className="text-xs text-primary hover:underline">Sue fatture</Link>
+      )}
+      {puoAbbinare && controparte && candidati.isSuccess && dellaControparte.length > 0 && (
+        <span className="text-xs text-muted-foreground">{dellaControparte.length} {uscita ? (dellaControparte.length === 1 ? "scadenza aperta" : "scadenze aperte") : (dellaControparte.length === 1 ? "fattura aperta" : "fatture aperte")} · {money(apertiControparte)}</span>
+      )}
+      {rifOda && (
+        <span className="inline-flex max-w-full flex-wrap items-center gap-x-1 rounded-full border px-2 py-0.5 text-xs">
+          <Package className="h-3 w-3 shrink-0 text-muted-foreground" />
+          {oda.data
+            ? <>
+                <Link to={linkOda(oda.data.id)} className="font-medium text-primary hover:underline">{/^oda/i.test(oda.data.oda_number ?? "") ? oda.data.oda_number : `ODA ${oda.data.oda_number}`}</Link>
+                {oda.data.status && <span className="text-muted-foreground">· {oda.data.status}</span>}
+                {oda.data.order_id && <Link to={linkCommessa(oda.data.order_id)} className="text-primary hover:underline">· commessa</Link>}
+              </>
+            : <span>ODA {rifOda} nella causale{oda.isSuccess && <span className="text-muted-foreground"> · non trovato</span>}</span>}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** Dentro la riga «Fatture e pagamenti»: i documenti aperti che somigliano di più, abbinabili con un clic. */
+export function SuggerimentiAbbinamento({ s, resto }: { s: SuggerimentiMovimento; resto: number }) {
+  const { candidati, migliori, abbina, inCorso } = s;
+  if (!s.puoAbbinare || candidati.isError) return null;
+  if (candidati.isPending) return <p role="status" className="basis-full text-xs text-muted-foreground">Cerco i documenti aperti…</p>;
+  if (!migliori.length) return null;
   const linkCandidato = (c: CandidatoRipartizione) =>
     c.tipo === "documento" ? linkFattura(c.id, true) : c.tipo === "invoice" ? linkFattura(c.id, false) : null;
-
-  const haRiconoscimenti = !!controparte || !!rifOda;
-  if (!haRiconoscimenti && !puoAbbinare) return null;
-
   return (
-    <section className="space-y-3 rounded-xl border border-primary/20 bg-primary/[0.03] p-4">
-      <h3 className="flex items-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-primary" />Cosa abbiamo riconosciuto</h3>
-      <div className="flex flex-wrap gap-2 text-sm">
-        {controparte && (
-          <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1">
-            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
-            {fornitore.data
-              ? <Link to={linkFornitore(fornitore.data.id)} className="text-primary hover:underline">Fornitore: {fornitore.data.name}</Link>
-              : <span>{uscita ? "Controparte" : "Cliente"}: {controparte}{uscita && fornitore.isSuccess && <span className="text-muted-foreground"> · non è tra i fornitori</span>}</span>}
-          </span>
-        )}
-        {!uscita && controparte && (
-          <Link to={`/azienda/documenti?cerca=${encodeURIComponent(controparte)}`} className="inline-flex items-center gap-1 rounded-md border bg-card px-2 py-1 text-primary hover:underline">
-            Fatture di questo cliente<ExternalLink className="h-3 w-3" />
-          </Link>
-        )}
-        {rifOda && (
-          <span className="inline-flex items-center gap-1.5 rounded-md border bg-card px-2 py-1">
-            <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <span>{oda.data
-              ? <><Link to={linkOda(oda.data.id)} className="text-primary hover:underline">{/^oda/i.test(oda.data.oda_number ?? "") ? oda.data.oda_number : `ODA ${oda.data.oda_number}`}</Link>
-                  {oda.data.status && <span className="text-muted-foreground"> · {oda.data.status}</span>}
-                  {oda.data.order_id && <> · <Link to={linkCommessa(oda.data.order_id)} className="text-primary hover:underline">commessa</Link></>}</>
-              : <>ODA {rifOda} citato nella causale{oda.isSuccess && <span className="text-muted-foreground"> · non trovato tra gli ordini</span>}</>}</span>
-          </span>
-        )}
-        {puoAbbinare && controparte && candidati.isSuccess && (
-          <span className="inline-flex items-center rounded-md border bg-card px-2 py-1">
-            {dellaControparte.length
-              ? <>{dellaControparte.length} {uscita ? "scadenze aperte" : "fatture aperte"} di questa controparte · {money(apertiControparte)}</>
-              : <span className="text-muted-foreground">Nessun documento aperto di questa controparte</span>}
-          </span>
-        )}
-      </div>
-
-      {puoAbbinare && (
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Abbinamenti suggeriti</p>
-          {candidati.isPending ? <p role="status" className="text-sm text-muted-foreground">Cerco i documenti aperti…</p>
-            : candidati.isError ? <p className="text-sm text-muted-foreground">Suggerimenti non disponibili: usa «Fatture e scadenze» qui sotto.</p>
-            : !migliori.length ? <p className="text-sm text-muted-foreground">Nessun documento aperto somiglia a questo movimento. Cerca a mano con «Fatture e scadenze».</p>
-            : <ul className="divide-y rounded-lg border bg-card">
-                {migliori.map(({ c, punteggio, motivi }) => {
-                  const link = linkCandidato(c);
-                  const importo = Math.min(Number(c.residuo), m.links.remaining);
-                  return (
-                    <li key={c.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm sm:flex-nowrap">
-                      <Badge variant="outline" className={punteggio >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"} title="Quanto il documento somiglia al movimento">{punteggio}%</Badge>
-                      <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-full">
-                        <p className="truncate font-medium" title={c.titolo}>
-                          {link ? <Link to={link} className="hover:underline">{c.titolo}</Link> : c.titolo}
-                          {c.sottotitolo && <span className="font-normal text-muted-foreground"> · {c.sottotitolo}</span>}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">{motivi.join(" · ")}</p>
-                      </div>
-                      <span className="shrink-0 tabular-nums">{money(Number(c.residuo))}</span>
-                      <Button size="sm" variant={punteggio >= 70 ? "default" : "outline"} disabled={!!inCorso} onClick={() => void abbina(c)}
-                        aria-label={`Abbina ${c.titolo} per ${money(importo)}`}>
-                        {inCorso === c.key && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Abbina {importo < Number(c.residuo) ? money(importo) : ""}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>}
-        </div>
-      )}
-    </section>
+    <div className="w-full min-w-0 basis-full space-y-1">
+      <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground"><Sparkles className="h-3 w-3 text-primary" />Suggeriti</p>
+      <ul className="divide-y rounded-lg border bg-card">
+        {migliori.map(({ c, punteggio, motivi }) => {
+          const link = linkCandidato(c);
+          const importo = Math.min(Number(c.residuo), resto);
+          return (
+            <li key={c.key} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 sm:flex-nowrap">
+              <div className="min-w-0 flex-1 max-sm:order-first max-sm:basis-full">
+                <p className="truncate font-medium" title={c.titolo}>
+                  {link ? <Link to={link} className="hover:underline">{c.titolo}</Link> : c.titolo}
+                  {c.sottotitolo && <span className="font-normal text-muted-foreground"> · {c.sottotitolo}</span>}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{motivi.join(" · ")}</p>
+              </div>
+              <Badge variant="outline" className={punteggio >= 70 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"} title="Quanto il documento somiglia al movimento">{punteggio}%</Badge>
+              <span className="shrink-0 tabular-nums">{money(Number(c.residuo))}</span>
+              <Button size="sm" className="h-7" variant={punteggio >= 70 ? "default" : "outline"} disabled={!!inCorso} onClick={() => void abbina(c)}
+                aria-label={`Abbina ${c.titolo} per ${money(importo)}`}>
+                {inCorso === c.key && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Abbina{importo < Number(c.residuo) ? ` ${money(importo)}` : ""}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

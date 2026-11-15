@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  ExternalLink,
   Loader2,
   Unlink,
   FileText,
@@ -43,12 +42,10 @@ import {
   bankCausale,
   bankVisibilityKey,
   bankState,
-  CONTEXT_LABELS,
   type BankMovement,
   type BankLink,
   type BankTarget,
 } from "@/lib/finance/bankWorkspace";
-import type { VoceMovimento } from "@/lib/finance/cassaVoci";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
 import { BankContextEditor } from "./BankContextEditor";
@@ -60,7 +57,7 @@ import {
 import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
-import { MovimentoSuggerimenti } from "./MovimentoSuggerimenti";
+import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovimento } from "./MovimentoSuggerimenti";
 
 export type BankDetailSection = "documents" | "contexts";
 
@@ -182,11 +179,7 @@ function Detail({
     category: m.category ?? "",
   });
   const [contextDirty, setContextDirty] = useState(false);
-  const startSection = useRef<HTMLElement>(null);
-  const sezioneDocumenti = useRef<HTMLElement>(null);
-  const sezioneContesti = useRef<HTMLElement>(null);
-  const sezioneNote = useRef<HTMLElement>(null);
-  const vai = (r: RefObject<HTMLElement>) => setTimeout(() => r.current?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 0);
+  const startSection = useRef<HTMLDivElement | null>(null);
   const voce = useVociMovimenti(company, [m.id]);
   useEffect(() => {
     startSection.current?.scrollIntoView?.({ block: "start" });
@@ -223,8 +216,22 @@ function Detail({
     !m.chiuso_senza_documento &&
     m.reconciliation_status !== "ignored";
   const monetary = (n: number) => money(n, "—", m.currency);
+  const s = useSuggerimentiMovimento(company, m, validMatch, refresh);
+  const commesse = new Map<string, BankTarget & { amount?: number }>();
+  for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
+  for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
+  const contesti = (tipi: string[]) => m.links.contexts.filter((c) => tipi.includes(c.kind));
+  const puoContesti = write && !m.links.restricted_contexts;
+  const apriContesti = puoContesti ? () => { setEditContexts(true); setContextDirty(false); } : undefined;
+  const noteCambiata = note !== savedAnnotation.note;
+  const riga = (titolo: string, contenuto: ReactNode, sotto?: ReactNode) => (
+    <>
+      <dt className="pt-0.5 text-muted-foreground">{titolo}</dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">{contenuto}{sotto}</dd>
+    </>
+  );
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <section className="rounded-xl border bg-muted/30 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -239,19 +246,21 @@ function Detail({
               {monetary(m.amount)}
             </span>
           </div>
-          <Badge variant="outline" className={state.className}>
-            {state.label}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">
+              Abbinato <strong className="text-foreground tabular-nums">{monetary(m.links.matched)}</strong>
+              {" · "}da abbinare <strong className={`tabular-nums ${m.links.remaining > 0 ? "text-amber-700 dark:text-amber-400" : "text-foreground"}`}>{monetary(m.links.remaining)}</strong>
+            </span>
+            <Badge variant="outline" className={state.className}>
+              {state.label}
+            </Badge>
+          </div>
         </div>
         <p className="mt-3 whitespace-pre-wrap break-words font-medium">
           {bankCausale(m)}
         </p>
-        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
           {[
-            [
-              "Controparte",
-              m.transaction_type === "credit" ? m.debtor_name : m.creditor_name,
-            ],
             [
               "IBAN controparte",
               m.transaction_type === "credit" ? m.debtor_iban : m.creditor_iban,
@@ -259,389 +268,230 @@ function Detail({
             ["Conto", m.account_name],
             ["Data operazione", formatDateIt(m.booking_date)],
             ["Data valuta", formatDateIt(m.value_date)],
-            ["Riferimento", m.reference],
             [
               "Stato in banca",
               m.status === "booked"
                 ? "Contabilizzato"
-                : "In attesa di contabilizzazione",
+                : "In attesa",
             ],
+            ...(m.reference ? [["Riferimento", m.reference]] : []),
           ].map(([k, v]) => (
-            <div key={k}>
+            <div key={k} className="min-w-0">
               <dt className="text-xs text-muted-foreground">{k}</dt>
               <dd className="break-words">{v || "—"}</dd>
             </div>
           ))}
         </dl>
       </section>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border px-4 py-3">
-          <p className="text-xs text-muted-foreground">
-            Abbinato a pagamenti / documenti
-          </p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">
-            {monetary(m.links.matched)}
-          </p>
-        </div>
-        <div className="rounded-xl border px-4 py-3">
-          <p className="text-xs text-muted-foreground">Ancora da abbinare</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">
-            {monetary(m.links.remaining)}
-          </p>
-        </div>
-      </div>
-      {!m.chiuso_senza_documento && (
-        <MovimentoSuggerimenti
-          company={company}
-          movement={m}
-          puoAbbinare={validMatch}
-          onAbbinato={refresh}
-        />
-      )}
-      <CollegatoA
-        movimento={m}
-        company={company}
-        voce={voce.data?.[m.id]}
-        revisione={revision}
-        categoriaTesto={category}
-        puoModificare={write && m.status === "booked"}
-        onCategoria={(rev, nome) => {
-          setRevision(rev);
-          if (nome) {
-            setCategory(nome);
-            setSavedAnnotation((a) => ({ ...a, category: nome }));
-          }
-        }}
-        onCollegaDocumenti={validMatch ? () => { setMode("new"); vai(sezioneDocumenti); } : undefined}
-        onVaiDocumenti={() => vai(sezioneDocumenti)}
-        onCollegaContesti={write && !m.links.restricted_contexts ? () => { setEditContexts(true); vai(sezioneContesti); } : undefined}
-        onVaiNote={() => vai(sezioneNote)}
-        note={note}
-      />
-      {m.reconciliation_status === "suggestion" && (
-        <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">
-          <p className="font-semibold">Proposta da verificare</p>
-          <p className="mt-1">
-            È stata trovata una possibile corrispondenza. Verifica i documenti e
-            conferma le quote: il suggerimento non registra pagamenti.
-          </p>
-          {write && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              disabled={busy}
-              onClick={() =>
-                void act(async () => {
-                  await bankRpc("bank_scarta_suggerimento", {
-                    p_company: company,
-                    p_tx: m.id,
-                  });
-                }, "Proposta scartata")
-              }
-            >
-              Scarta proposta
-            </Button>
-          )}
-        </div>
-      )}
-      {validMatch && (
-        <section
-          ref={(el) => {
-            sezioneDocumenti.current = el;
-            if (initialSection === "documents") startSection.current = el;
-          }}
-          className="scroll-mt-4 space-y-3 rounded-xl border p-4"
-        >
-          <h3 className="font-semibold">Collega fatture e pagamenti</h3>
-          <p className="text-sm text-muted-foreground">
-            Un bonifico può coprire più fatture. Scegli i documenti e indica la
-            quota di ciascuno.
-          </p>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Button
-              className="h-auto items-start justify-start gap-2 whitespace-normal p-3 text-left"
-              aria-label="Collega fatture e scadenze"
-              variant={mode === "new" ? "default" : "outline"}
-              onClick={() => setMode((v) => (v === "new" ? null : "new"))}
-            >
-              <FileText className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                <span className="block font-medium">Fatture e scadenze</span>
-                <span className="mt-1 block text-xs font-normal">
-                  Cerca e ripartisci su più documenti.
-                </span>
-              </span>
-            </Button>
-            {perms.canViewPrimaNota && (
-              <Button
-                className="h-auto items-start justify-start gap-2 whitespace-normal p-3 text-left"
-                aria-label="Collega pagamenti già registrati"
-                variant={mode === "existing" ? "default" : "outline"}
-                onClick={() =>
-                  setMode((v) => (v === "existing" ? null : "existing"))
-                }
-              >
-                <Link2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  <span className="block font-medium">Pagamenti già registrati</span>
-                  <span className="mt-1 block text-xs font-normal">
-                    Collega senza duplicare il pagamento.
-                  </span>
-                </span>
-              </Button>
-            )}
-            {m.links.matched === 0 && (
-              <Button
-                className="h-auto items-start justify-start whitespace-normal p-3 text-left"
-                aria-label="Senza fattura"
-                variant={mode === "none" ? "default" : "outline"}
-                onClick={() => setMode((v) => (v === "none" ? null : "none"))}
-              >
-                <span>
-                  <span className="block font-medium">Senza fattura</span>
-                  <span className="mt-1 block text-xs font-normal">
-                    Classifica altri incassi e uscite.
-                  </span>
-                </span>
-              </Button>
-            )}
-          </div>
-          {mode === "new" && (
-            <FinancialPicker
-              key="new"
-              company={company}
-              movement={m}
-              onDone={() => {
-                setMode(null);
-                refresh();
-              }}
-            />
-          )}
-          {mode === "existing" && (
-            <ExistingPicker
-              key="existing"
-              company={company}
-              movement={m}
-              onDone={() => {
-                setMode(null);
-                refresh();
-              }}
-            />
-          )}
-          {mode === "none" && (
-            <MovimentoSenzaFattura
-              companyId={company}
-              tx={m}
-              onFatto={() => {
-                setMode(null);
-                refresh();
-              }}
-            />
-          )}
-        </section>
-      )}
-      {write &&
-        !validMatch &&
-        !m.chiuso_senza_documento &&
-        m.links.remaining > 0 && (
-          <p className="rounded-lg border p-3 text-sm text-muted-foreground">
-            {m.status !== "booked"
-              ? "Attendi che la banca contabilizzi il movimento prima di abbinarlo."
-              : m.currency !== "EUR"
-                ? "Movimento in valuta estera: occorre verificare il cambio prima di registrare pagamenti in euro."
-                : "Questo movimento richiede la verifica degli abbinamenti precedenti."}
-          </p>
-        )}
-      <section className="space-y-3">
-        <h3 className="font-semibold">
-          Fatture e pagamenti abbinati{" "}
-          <span className="text-muted-foreground">
-            ({m.links.financial.length})
-          </span>
+
+      {/* Un posto solo: ogni legame ha la sua riga, e quel che serve per cambiarlo si apre lì sotto. */}
+      <section className="rounded-xl border p-4" aria-labelledby="collegato-a">
+        <h3 id="collegato-a" className="mb-3 flex items-center gap-2 font-semibold">
+          <Link2 className="h-4 w-4" /> A cosa è collegato
         </h3>
-        {m.links.financial.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Nessun abbinamento finanziario confermato.
-          </p>
-        )}
-        {m.links.financial.map((f, i) => (
-          <div key={f.id ?? `legacy-${i}`} className="rounded-xl border p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">
-                  {f.existing_payment
-                    ? "Pagamento già registrato · prova bancaria"
-                    : f.kind === "scadenza"
-                      ? "Scadenza pagata"
-                      : "Documento"}
-                </p>
-                {f.url ? (
-                  <Link
-                    to={f.url}
-                    className="mt-1 inline-flex items-center gap-1 break-words font-medium text-primary hover:underline"
-                  >
-                    {f.label}
-                    <ExternalLink className="h-3 w-3 shrink-0" />
-                  </Link>
-                ) : (
-                  <p className="mt-1 break-words font-medium">{f.label}</p>
-                )}
-              </div>
-              <p className="shrink-0 font-semibold tabular-nums">
-                {monetary(f.amount)}
-              </p>
-            </div>
-            {f.jobs?.map((j) => (
-              <Link
-                key={j.id}
-                to={j.url!}
-                className="mt-2 mr-2 inline-block rounded-md bg-muted px-2 py-1 text-xs hover:underline"
-              >
-                {j.label}
-              </Link>
-            ))}
-            {f.note && (
-              <p className="mt-2 whitespace-pre-wrap break-words text-xs text-muted-foreground">
-                {f.note}
-              </p>
-            )}
-            {write && f.id && f.split && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-2 text-muted-foreground"
-                onClick={() => setRemove(f)}
-                disabled={busy}
-              >
-                <Unlink className="mr-1 h-3 w-3" />
-                {f.existing_payment
-                  ? "Scollega prova bancaria"
-                  : "Annulla abbinamento"}
-              </Button>
-            )}
-          </div>
-        ))}
-      </section>
-      <section
-        ref={(el) => {
-          sezioneContesti.current = el;
-          if (initialSection === "contexts") startSection.current = el;
-        }}
-        className="scroll-mt-4 space-y-3 rounded-xl border p-4"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="font-semibold">Collegamenti gestionali</h3>
-          {write && !m.links.restricted_contexts && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setEditContexts((v) => !v);
-                setContextDirty(false);
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
+          {riga("Controparte", <ControparteRiconosciuta s={s} />)}
+          {riga(
+            "Categoria",
+            <CategoriaMovimento
+              company={company}
+              tx={m.id}
+              importo={m.amount}
+              revisione={revision}
+              voce={voce.data?.[m.id]}
+              testoVecchio={category || null}
+              puoModificare={write && m.status === "booked"}
+              onSalvata={(rev, nome) => {
+                setRevision(rev);
+                if (nome) {
+                  setCategory(nome);
+                  setSavedAnnotation((a) => ({ ...a, category: nome }));
+                }
               }}
-            >
-              {editContexts ? "Annulla modifica" : "Gestisci collegamenti"}
-            </Button>
+            />,
           )}
-        </div>
-        {m.links.restricted_contexts && (
-          <p className="text-xs text-muted-foreground">
-            Alcuni riferimenti sono riservati. Un amministratore può modificare
-            i collegamenti del movimento.
-          </p>
-        )}
-        {!editContexts && m.links.contexts.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Puoi associare più commesse, fornitori, mezzi e riferimenti del
-            personale, secondo i tuoi permessi.
-          </p>
-        )}
-        {!editContexts &&
-          m.links.contexts.map((c) => (
-            <div
-              key={c.context_id}
-              className="flex items-start justify-between gap-3 rounded-lg border p-3"
-            >
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {CONTEXT_LABELS[c.kind]}
+          {riga(
+            "Fatture e pagamenti",
+            <>
+              {m.links.financial.length === 0 && <Nessuno />}
+              {validMatch && (
+                <Azione onClick={() => setMode((v) => (v ? null : "new"))} label="Collega fatture e pagamenti">
+                  {mode ? "Chiudi" : m.links.financial.length ? "Aggiungi" : "Collega"}
+                </Azione>
+              )}
+              {m.links.remaining > 0 && m.links.matched > 0 && (
+                <span className="text-xs text-amber-700 dark:text-amber-400">restano {monetary(m.links.remaining)}</span>
+              )}
+            </>,
+            <>
+              {m.links.financial.length > 0 && (
+                <ul className="w-full min-w-0 basis-full divide-y rounded-lg border">
+                  {m.links.financial.map((f, i) => (
+                    <li key={f.id ?? `legacy-${i}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5">
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {f.existing_payment ? "Pagamento registrato" : f.kind === "scadenza" ? "Scadenza" : "Documento"}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate max-sm:basis-full max-sm:order-first" title={f.note ?? f.label}>
+                        {f.url ? (
+                          <Link to={f.url} className="font-medium text-primary hover:underline">{f.label}</Link>
+                        ) : (
+                          <span className="font-medium">{f.label}</span>
+                        )}
+                        {f.jobs?.map((j) => (
+                          <Link key={j.id} to={j.url!} className="ml-2 text-xs text-muted-foreground hover:underline">{j.label}</Link>
+                        ))}
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums">{monetary(f.amount)}</span>
+                      {write && f.id && f.split && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground" onClick={() => setRemove(f)} disabled={busy}
+                          title={f.existing_payment ? "Scollega prova bancaria" : "Annulla abbinamento"}
+                          aria-label={f.existing_payment ? "Scollega prova bancaria" : "Annulla abbinamento"}>
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {m.reconciliation_status === "suggestion" && (
+                <p className="basis-full rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs text-violet-900">
+                  Proposta da verificare: c'è una possibile corrispondenza, ma il suggerimento non registra pagamenti.
+                  {write && (
+                    <Button variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" disabled={busy}
+                      onClick={() => void act(async () => { await bankRpc("bank_scarta_suggerimento", { p_company: company, p_tx: m.id }); }, "Proposta scartata")}>
+                      Scarta proposta
+                    </Button>
+                  )}
                 </p>
-                {c.url ? (
-                  <Link
-                    className="text-sm font-medium hover:underline"
-                    to={c.url}
-                  >
-                    {c.label}
-                  </Link>
-                ) : (
-                  <p className="text-sm font-medium">{c.label}</p>
-                )}
-                {c.note && (
-                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
-                    {c.note}
-                  </p>
-                )}
+              )}
+              {!m.chiuso_senza_documento && !mode && <SuggerimentiAbbinamento s={s} resto={m.links.remaining} />}
+              {write && !validMatch && !m.chiuso_senza_documento && m.links.remaining > 0 && (
+                <p className="basis-full text-xs text-muted-foreground">
+                  {m.status !== "booked"
+                    ? "Attendi che la banca contabilizzi il movimento prima di abbinarlo."
+                    : m.currency !== "EUR"
+                      ? "Movimento in valuta estera: occorre verificare il cambio prima di registrare pagamenti in euro."
+                      : "Questo movimento richiede la verifica degli abbinamenti precedenti."}
+                </p>
+              )}
+              {validMatch && mode && (
+                <div
+                  ref={(el) => { if (initialSection === "documents") startSection.current = el; }}
+                  className="basis-full scroll-mt-4 space-y-3 rounded-lg border bg-muted/20 p-3"
+                >
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Come collegare">
+                    <Button size="sm" variant={mode === "new" ? "default" : "outline"} aria-label="Collega fatture e scadenze" onClick={() => setMode("new")}>
+                      <FileText className="mr-1 h-3.5 w-3.5" />Fatture e scadenze
+                    </Button>
+                    {perms.canViewPrimaNota && (
+                      <Button size="sm" variant={mode === "existing" ? "default" : "outline"} aria-label="Collega pagamenti già registrati" onClick={() => setMode("existing")}>
+                        <Link2 className="mr-1 h-3.5 w-3.5" />Pagamenti già registrati
+                      </Button>
+                    )}
+                    {m.links.matched === 0 && (
+                      <Button size="sm" variant={mode === "none" ? "default" : "outline"} aria-label="Senza fattura" onClick={() => setMode("none")}>
+                        Senza fattura
+                      </Button>
+                    )}
+                  </div>
+                  {mode === "new" && (
+                    <FinancialPicker key="new" company={company} movement={m} onDone={() => { setMode(null); refresh(); }} />
+                  )}
+                  {mode === "existing" && (
+                    <ExistingPicker key="existing" company={company} movement={m} onDone={() => { setMode(null); refresh(); }} />
+                  )}
+                  {mode === "none" && (
+                    <MovimentoSenzaFattura companyId={company} tx={m} onFatto={() => { setMode(null); refresh(); }} />
+                  )}
+                </div>
+              )}
+            </>,
+          )}
+          {riga(
+            "Commesse",
+            <>
+              {commesse.size ? [...commesse.values()].map((j) => <Pastiglia valuta={monetary} key={j.id} t={j} importo={(j as { amount?: number }).amount} />) : <Nessuno />}
+              {!editContexts && <Azione onClick={apriContesti} label="Collega una commessa">{commesse.size ? "Modifica" : "Collega"}</Azione>}
+            </>,
+          )}
+          {riga(
+            "Mezzi",
+            <>
+              {contesti(["mezzo"]).length ? contesti(["mezzo"]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />) : <Nessuno />}
+              {!editContexts && <Azione onClick={apriContesti} label="Collega un mezzo">{contesti(["mezzo"]).length ? "Modifica" : "Collega"}</Azione>}
+            </>,
+          )}
+          {contesti(["fornitore"]).length > 0 &&
+            riga("Fornitori", contesti(["fornitore"]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+          {contesti(["dipendente", "cedolino"]).length > 0 &&
+            riga("Personale", contesti(["dipendente", "cedolino"]).map((c) => <Pastiglia valuta={monetary} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
+          {m.links.restricted_contexts && riga("", <span className="text-xs text-muted-foreground">Alcuni riferimenti sono riservati: li modifica un amministratore.</span>)}
+          {editContexts && puoContesti && (
+            <div
+              ref={(el) => { if (initialSection === "contexts") startSection.current = el; }}
+              className="scroll-mt-4 rounded-lg border bg-muted/20 p-3 sm:col-span-2"
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Commesse, fornitori, mezzi e personale</p>
+                <Button size="sm" variant="ghost" onClick={() => { setEditContexts(false); setContextDirty(false); }}>Annulla</Button>
               </div>
-              <span className="shrink-0 text-sm font-semibold">
-                {monetary(c.amount)}
-              </span>
+              <BankContextEditor
+                company={company}
+                movement={m}
+                revision={revision}
+                canPersonnel={perms.isAdmin}
+                canMezzi={perms.canViewMezzi}
+                onDirty={() => setContextDirty(true)}
+                onSaved={(r) => {
+                  setRevision(r);
+                  setContextDirty(false);
+                  setEditContexts(false);
+                  refresh();
+                }}
+              />
             </div>
-          ))}
-        {editContexts && write && (
-          <BankContextEditor
-            company={company}
-            movement={m}
-            revision={revision}
-            canPersonnel={perms.isAdmin}
-            canMezzi={perms.canViewMezzi}
-            onDirty={() => setContextDirty(true)}
-            onSaved={(r) => {
-              setRevision(r);
-              setContextDirty(false);
-              setEditContexts(false);
-              refresh();
-            }}
-          />
-        )}
-      </section>
-      <section ref={sezioneNote} className="scroll-mt-4 space-y-3 rounded-xl border p-4">
-        <h3 className="font-semibold">Note interne</h3>
-        <p className="text-xs text-muted-foreground">
-          Le note restano nel gestionale e non vengono inviate alla banca o
-          riportate sulle fatture. La categoria si sceglie in alto, in «A cosa è collegato».
-        </p>
-        <Label htmlFor="bank-note" className="sr-only">Note interne</Label>
-        <Textarea
-          id="bank-note"
-          rows={4}
-          maxLength={10000}
-          value={note}
-          readOnly={!write}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Annotazioni per il tuo team…"
-        />
-        {write && (
-          <Button
-            disabled={busy}
-            onClick={() =>
-              void act(async () => {
-                const r = await bankRpc<number>("bank_movimento_note", {
-                  p_company: company,
-                  p_tx: m.id,
-                  p_note: note,
-                  p_category: category,
-                  p_revision: revision,
-                });
-                setRevision(r);
-                setSavedAnnotation({ note, category });
-              }, "Note salvate")
-            }
-          >
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva
-            note
-          </Button>
-        )}
+          )}
+          {riga(
+            "Note interne",
+            <div className="w-full space-y-1.5">
+              <Label htmlFor="bank-note" className="sr-only">Note interne</Label>
+              <Textarea
+                id="bank-note"
+                rows={2}
+                maxLength={10000}
+                value={note}
+                readOnly={!write}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={write ? "Annotazioni per il tuo team: restano nel gestionale, non vanno alla banca né in fattura" : "Nessuna nota"}
+                className="min-h-[2.75rem] text-sm"
+              />
+              {write && noteCambiata && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void act(async () => {
+                        const r = await bankRpc<number>("bank_movimento_note", {
+                          p_company: company,
+                          p_tx: m.id,
+                          p_note: note,
+                          p_category: category,
+                          p_revision: revision,
+                        });
+                        setRevision(r);
+                        setSavedAnnotation({ note, category });
+                      }, "Nota salvata")
+                    }
+                  >
+                    {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salva nota
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setNote(savedAnnotation.note)}>Annulla</Button>
+                </div>
+              )}
+            </div>,
+          )}
+        </dl>
       </section>
       {m.links.history.length > 0 && (
         <details className="rounded-xl border p-4">
@@ -955,120 +805,6 @@ function ExistingPicker({
         collegamento
       </Button>
     </div>
-  );
-}
-
-/**
- * «A cosa è collegato», come nella scheda della fattura ricevuta: una riga per
- * ogni legame (categoria, fatture, commesse, mezzi, fornitori, personale, note),
- * con il valore o «Nessuno» e un'azione accanto. I moduli completi restano più
- * sotto: da qui ci si arriva con un clic.
- */
-function CollegatoA({
-  movimento: m,
-  company,
-  voce,
-  revisione,
-  categoriaTesto,
-  puoModificare,
-  onCategoria,
-  onCollegaDocumenti,
-  onVaiDocumenti,
-  onCollegaContesti,
-  onVaiNote,
-  note,
-}: {
-  movimento: BankMovement;
-  company: string;
-  voce: VoceMovimento | undefined;
-  revisione: number;
-  categoriaTesto: string;
-  puoModificare: boolean;
-  onCategoria: (revisione: number, nome: string | null) => void;
-  onCollegaDocumenti?: () => void;
-  onVaiDocumenti: () => void;
-  onCollegaContesti?: () => void;
-  onVaiNote: () => void;
-  note: string;
-}) {
-  const valuta = (n: number) => money(n, "—", m.currency);
-  const controparte = m.transaction_type === "credit" ? m.debtor_name : m.creditor_name;
-  const commesse = new Map<string, BankTarget & { amount?: number }>();
-  for (const f of m.links.financial) for (const j of f.jobs ?? []) commesse.set(j.id, j);
-  for (const c of m.links.contexts) if (c.kind === "commessa") commesse.set(c.id, c);
-  const contesti = (tipi: string[]) => m.links.contexts.filter((c) => tipi.includes(c.kind));
-  const riga = (titolo: string, contenuto: ReactNode) => (
-    <>
-      <dt className="pt-0.5 text-muted-foreground">{titolo}</dt>
-      <dd className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">{contenuto}</dd>
-    </>
-  );
-  return (
-    <section className="rounded-xl border p-4" aria-labelledby="collegato-a">
-      <h3 id="collegato-a" className="mb-3 flex items-center gap-2 font-semibold">
-        <Link2 className="h-4 w-4" /> A cosa è collegato
-      </h3>
-      <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 text-sm sm:grid-cols-[minmax(130px,max-content)_1fr]">
-        {riga("Controparte", controparte ? <span className="font-medium">{controparte}</span> : <Nessuno />)}
-        {riga(
-          "Categoria",
-          <CategoriaMovimento
-            company={company}
-            tx={m.id}
-            importo={m.amount}
-            revisione={revisione}
-            voce={voce}
-            testoVecchio={categoriaTesto || null}
-            puoModificare={puoModificare}
-            onSalvata={onCategoria}
-          />,
-        )}
-        {riga(
-          "Fatture e pagamenti",
-          <>
-            {m.links.financial.length ? (
-              m.links.financial.map((f, i) => (
-                <Pastiglia valuta={valuta} key={f.id ?? i} t={{ id: f.id ?? String(i), kind: "commessa", label: f.label, url: f.url }} importo={f.amount} />
-              ))
-            ) : (
-              <Nessuno />
-            )}
-            {m.links.financial.length > 0 && <Azione onClick={onVaiDocumenti} label="Vedi fatture e pagamenti">Dettagli</Azione>}
-            <Azione onClick={onCollegaDocumenti} label="Collega fatture e pagamenti">
-              {m.links.financial.length ? "Aggiungi" : "Collega"}
-            </Azione>
-            {m.links.remaining > 0 && m.links.matched > 0 && (
-              <span className="text-xs text-amber-700 dark:text-amber-400">restano {valuta(m.links.remaining)}</span>
-            )}
-          </>,
-        )}
-        {riga(
-          "Commesse",
-          <>
-            {commesse.size ? [...commesse.values()].map((j) => <Pastiglia valuta={valuta} key={j.id} t={j} importo={(j as { amount?: number }).amount} />) : <Nessuno />}
-            <Azione onClick={onCollegaContesti} label="Collega una commessa">Collega</Azione>
-          </>,
-        )}
-        {riga(
-          "Mezzi",
-          <>
-            {contesti(["mezzo"]).length ? contesti(["mezzo"]).map((c) => <Pastiglia valuta={valuta} key={c.context_id ?? c.id} t={c} importo={c.amount} />) : <Nessuno />}
-            <Azione onClick={onCollegaContesti} label="Collega un mezzo">Collega</Azione>
-          </>,
-        )}
-        {contesti(["fornitore"]).length > 0 &&
-          riga("Fornitori", contesti(["fornitore"]).map((c) => <Pastiglia valuta={valuta} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
-        {contesti(["dipendente", "cedolino"]).length > 0 &&
-          riga("Personale", contesti(["dipendente", "cedolino"]).map((c) => <Pastiglia valuta={valuta} key={c.context_id ?? c.id} t={c} importo={c.amount} />))}
-        {riga(
-          "Note interne",
-          <>
-            {note.trim() ? <span className="line-clamp-2 whitespace-pre-wrap break-words">{note}</span> : <Nessuno />}
-            <Azione onClick={onVaiNote} label="Scrivi una nota">{note.trim() ? "Modifica" : "Scrivi"}</Azione>
-          </>,
-        )}
-      </dl>
-    </section>
   );
 }
 

@@ -209,7 +209,7 @@ describe("popup e registro dei movimenti", () => {
     const input = await screen.findByLabelText("Note interne");
     fireEvent.change(input, { target: { value: "Testo da non perdere" } });
     fireEvent.click(
-      screen.getByRole("button", { name: "Salva note" }),
+      screen.getByRole("button", { name: "Salva nota" }),
     );
     await waitFor(() => expect(mock.toast.error).toHaveBeenCalled());
     expect(input).toHaveValue("Testo da non perdere");
