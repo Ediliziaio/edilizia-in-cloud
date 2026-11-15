@@ -21,7 +21,7 @@ import { ChartSkeleton } from "@/components/controllo-gestione/skeletons/ChartSk
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
 import { EmptyState } from "@/components/controllo-gestione/ui/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -71,11 +71,11 @@ function scenarioLabel(s: PianoScenario | string): string {
 function ratingTone(classe?: string): { bg: string; text: string } {
   switch (classe) {
     case "AAA": case "AA": case "A":
-      return { bg: "bg-emerald-50", text: "text-emerald-700" };
+      return { bg: "bg-muted/30", text: "text-foreground" };
     case "BBB": case "BB":
-      return { bg: "bg-amber-50", text: "text-amber-700" };
+      return { bg: "bg-muted/30", text: "text-foreground" };
     case "B": case "CCC":
-      return { bg: "bg-rose-50", text: "text-rose-700" };
+      return { bg: "bg-muted/30", text: "text-amber-700" };
     default:
       return { bg: "bg-muted/30", text: "text-muted-foreground" };
   }
@@ -315,9 +315,7 @@ function PianoHeader({
               {nomeScenario} · {piano.meta.orizzonte} anni
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Si parte dal {piano.meta.anno_base}
-              {stimata ? " stimato a fine anno (dati fin qui riportati a 12 mesi)" : " (anno chiuso)"} e si arriva al{" "}
-              {annoFinale.anno}. Le proiezioni applicano le ipotesi dello scenario ai numeri dell'anno di partenza.
+              Dal {piano.meta.anno_base}{stimata ? " stimato a fine anno" : ""} al {annoFinale.anno}, con le ipotesi dello scenario.
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -353,19 +351,14 @@ function PianoHeader({
       </CardHeader>
       <CardContent className="space-y-3">
         {spNonQuadra && (
-          <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              Lo Stato patrimoniale del {piano.meta.anno_base} non quadra
-              {piano.meta.sp_base_differenza !== undefined ? ` (differenza di ${formatEuro(piano.meta.sp_base_differenza)})` : ""}:
-              mezzi propri, debiti e rating del piano sono provvisori.
-            </span>
-          </div>
+          <p role="status" className="text-xs text-amber-700">
+            Stato patrimoniale {piano.meta.anno_base} non in quadratura
+            {piano.meta.sp_base_differenza !== undefined ? ` (${formatEuro(piano.meta.sp_base_differenza)})` : ""}: patrimonio, debiti e rating sono provvisori.
+          </p>
         )}
         {annoBase && annoBase.ebitda < 0 && (
-          <p className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-            Nel {annoBase.anno} il margine operativo lordo è negativo ({formatEuroBreve(annoBase.ebitda)}): le proiezioni
-            partono da una perdita. Se l'anno in corso va meglio, prova «Parti dal {annoCorrente} stimato».
+          <p className="text-xs text-muted-foreground">
+            MOL {annoBase.anno} negativo ({formatEuroBreve(annoBase.ebitda)}): il piano parte da una perdita. Prova «Parti dal {annoCorrente} stimato».
           </p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -418,9 +411,9 @@ function KpiSint({
   tone: "green" | "red" | "blue" | "neutral";
 }) {
   const bg =
-    tone === "green" ? "bg-emerald-50" : tone === "red" ? "bg-rose-50" : tone === "blue" ? "bg-blue-50" : "bg-muted/30";
+    "bg-muted/30";
   const text =
-    tone === "green" ? "text-emerald-700" : tone === "red" ? "text-rose-700" : tone === "blue" ? "text-blue-700" : "text-foreground";
+    tone === "red" ? "text-amber-700" : "text-foreground";
   return (
     <div className={cn("rounded-xl border px-4 py-3", bg)}>
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -515,7 +508,7 @@ function TabellaPrev({ titolo, righe, periodi, stimata, nota }: {
                     const varz = riga.variazione && i > 0 ? variazioneLeggibile(val, riga.pick(periodi[i - 1])) : null;
                     return (
                       <td key={p.t} className="px-3 py-2 text-right tabular-nums" title={formatEuro(val)}>
-                        <div className={cn(val < 0 && "text-destructive")}>{formatEuroBreve(val)}</div>
+                        <div className={cn(val < 0 && "text-amber-700")}>{formatEuroBreve(val)}</div>
                         {varz && <div className="text-[10px] font-normal text-muted-foreground">{varz}</div>}
                       </td>
                     );
@@ -637,7 +630,7 @@ function IndiciPrev({ periodi }: { periodi: PianoPeriodo[] }) {
                   {ind.valori.map((v, i) => (
                     <td
                       key={i}
-                      className={cn("px-3 py-2 text-right tabular-nums", v.valore !== null && v.valore < 0 && "text-destructive")}
+                      className={cn("px-3 py-2 text-right tabular-nums", v.valore !== null && v.valore < 0 && "text-amber-700")}
                       title={v.motivo ?? undefined}
                     >
                       {v.valore === null ? <span className="text-muted-foreground">n.c.</span> : ind.formato(v.valore)}

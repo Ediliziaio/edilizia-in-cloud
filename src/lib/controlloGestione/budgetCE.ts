@@ -47,6 +47,17 @@ export const SCHEMA_CE: { codice: string; label: string; tipo: VoceCE["tipo"] }[
 
 /** Voci di costo: per queste spendere più del budget è un peggioramento. */
 export const CODICI_COSTO = new Set(["03", "04", "05", "06", "07", "08", "08b", "09", "10", "11", "14", "15"]);
+/** Costi e subtotali di costo (costo materie, costo del venduto): per questi spendere di più è peggio. */
+const COSTI_E_SUBTOTALI_COSTO = new Set([...CODICI_COSTO, "B", "C"]);
+/** Variazioni di scorte (lavori in corso, magazzino): a fine anno si stimano col consuntivo, non ×12. */
+const VARIAZIONI = new Set(["02", "04"]);
+/** Da quali voci è fatto ogni subtotale. */
+const COMPONENTI: Record<string, string[]> = {
+  A: ["01", "02"], B: ["03", "04"], C: ["B", "05"], D: ["A", "C"], E: ["D", "06", "07", "08", "08b"],
+  F: ["E", "09"], G: ["F", "10"], H: ["G", "11", "12"], I: ["H", "13", "14"], L: ["I", "15"],
+};
+const vociDi = (codice: string): string[] =>
+  COMPONENTI[codice] ? COMPONENTI[codice].flatMap(vociDi) : [codice];
 /** Voci che portano soldi: ricavi e proventi. */
 export const CODICI_RICAVO = new Set(["01", "02", "12", "13"]);
 
@@ -82,7 +93,7 @@ export function semaforoScostamento(codice: string, budget: number, previsione: 
   if (budget === 0) return "grigio";
   const pct = ((previsione - budget) / Math.abs(budget)) * 100;
   // Per i costi «peggio» è spendere di più; per ricavi e margini incassare meno.
-  const peggioramento = CODICI_COSTO.has(codice) ? pct : -pct;
+  const peggioramento = COSTI_E_SUBTOTALI_COSTO.has(codice) ? pct : -pct;
   if (peggioramento <= 5) return "verde";
   if (peggioramento <= 15) return "giallo";
   return "rosso";
@@ -100,6 +111,11 @@ export interface RigaBudget {
   semaforo: SemaforoBudget;
   /** true se uno scostamento positivo è un bene (ricavi, margini, utile). */
   piuEMeglio: boolean;
+  /**
+   * Subtotale con voci che hanno un consuntivo ma nessun budget: il confronto
+   * non avrebbe senso (un budget dei soli ricavi farebbe sembrare ogni margine in perdita).
+   */
+  budgetIncompleto?: boolean;
 }
 
 export interface RiepilogoBudget {
@@ -109,6 +125,8 @@ export interface RiepilogoBudget {
   ricavi: { budget: number; previsione: number };
   costi: { budget: number; previsione: number };
   utile: { budget: number; previsione: number };
+  /** Il budget dell'utile ha tutte le voci con un consuntivo: si può confrontare. */
+  utileConfrontabile: boolean;
 }
 
 /**
@@ -127,7 +145,7 @@ export function costruisciBudget(
   }
   const prevPerCodice: Record<string, number> = {};
   for (const [c, val] of Object.entries(consPerCodice)) {
-    prevPerCodice[c] = nMesiChiusi > 0 ? (val / nMesiChiusi) * 12 : 0;
+    prevPerCodice[c] = nMesiChiusi <= 0 ? 0 : VARIAZIONI.has(c) ? val : (val / nMesiChiusi) * 12;
   }
   const bud = calcolaTotaliCE(budgetPerCodice);
   const cons = calcolaTotaliCE(consPerCodice);
@@ -137,7 +155,9 @@ export function costruisciBudget(
     const b = round2(bud[codice] ?? 0);
     const c = round2(cons[codice] ?? 0);
     const p = nMesiChiusi > 0 ? round2(prev[codice] ?? 0) : 0;
-    const haConfronto = b !== 0 && nMesiChiusi > 0;
+    const incompleto = !!COMPONENTI[codice] &&
+      vociDi(codice).some((v) => (budgetPerCodice[v] ?? 0) === 0 && (consPerCodice[v] ?? 0) !== 0);
+    const haConfronto = b !== 0 && nMesiChiusi > 0 && !incompleto;
     const scost = haConfronto ? round2(p - b) : 0;
     return {
       codice,
@@ -149,7 +169,8 @@ export function costruisciBudget(
       scostamento: scost,
       scostamentoPct: haConfronto ? (scost / Math.abs(b)) * 100 : null,
       semaforo: haConfronto ? semaforoScostamento(codice, b, p) : "grigio",
-      piuEMeglio: !CODICI_COSTO.has(codice),
+      piuEMeglio: !COSTI_E_SUBTOTALI_COSTO.has(codice),
+      budgetIncompleto: incompleto,
     };
   });
 
@@ -165,6 +186,7 @@ export function costruisciBudget(
     ricavi: { budget: round2(sommaRicavi(bud)), previsione: round2(sommaRicavi(prev)) },
     costi: { budget: round2(sommaCosti(bud)), previsione: round2(sommaCosti(prev)) },
     utile: { budget: round2(bud.L), previsione: round2(prev.L) },
+    utileConfrontabile: !vociDi("L").some((v) => (budgetPerCodice[v] ?? 0) === 0 && (consPerCodice[v] ?? 0) !== 0),
   };
 }
 

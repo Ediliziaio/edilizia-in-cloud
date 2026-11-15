@@ -28,6 +28,14 @@ describe("margine sui materiali", () => {
     expect(t).toMatchObject({ margine: 40, costo_senza_ricavo: 1480, costo_reale: 1540 });
   });
 
+  it("una vendita senza costo resta a parte e non gonfia il margine al 100%", () => {
+    const righe = [riga({}), riga({ order_item_id: "p", name: "Posa", ricavo: 500, costo_reale: 0 })];
+    const agg = aggregaProdotti(righe, "fase");
+    expect(agg[0]).toMatchObject({ ricavo: 100, margine: 40, ricavo_senza_costo: 500, righe_senza_costo: 1 });
+    expect(agg[0].margine_perc).toBe(40);
+    expect(totaliProdotti(righe)).toMatchObject({ margine: 40, ricavo_senza_costo: 500, righe_senza_costo: 1 });
+  });
+
   it("raggruppa per fase, fornitore, prodotto o categoria con nomi leggibili quando mancano", () => {
     const righe = [riga({}), riga({ order_item_id: "b", fase: null, fornitore: null })];
     expect(aggregaProdotti(righe, "fase").map((a) => a.label).sort()).toEqual(["Opere murarie", "Senza fase"]);

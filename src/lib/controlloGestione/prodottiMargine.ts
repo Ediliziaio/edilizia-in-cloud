@@ -43,6 +43,9 @@ export interface AggregatoProdotti {
   /** Costi delle righe senza prezzo di vendita: da collegare a un preventivo. */
   costo_senza_ricavo: number;
   righe_senza_ricavo: number;
+  /** Righe vendute senza alcun costo: fuori dal margine (sarebbe un falso 100%). */
+  ricavo_senza_costo: number;
+  righe_senza_costo: number;
 }
 
 const cent = (n: number) => Math.round(n * 100) / 100;
@@ -77,7 +80,7 @@ export function aggregaProdotti(righe: RigaProdotto[], dim: DimensioneProdotti):
     const a = map.get(key) ?? {
       key, label, n_righe: 0, con_baseline: 0, costo_standard: 0, costo_reale: 0, scostamento: 0,
       scostamento_perc: null, ricavo: 0, costo_con_ricavo: 0, margine: 0, margine_perc: null,
-      costo_senza_ricavo: 0, righe_senza_ricavo: 0,
+      costo_senza_ricavo: 0, righe_senza_ricavo: 0, ricavo_senza_costo: 0, righe_senza_costo: 0,
     };
     a.n_righe += 1;
     a.con_baseline += r.ha_baseline_listino ? 1 : 0;
@@ -86,9 +89,14 @@ export function aggregaProdotti(righe: RigaProdotto[], dim: DimensioneProdotti):
       a.costo_standard += r.costo_standard;
       realeConListino.set(key, (realeConListino.get(key) ?? 0) + r.costo_reale);
     }
-    if (r.ricavo > 0) {
+    // Il margine si misura solo dove ci sono sia la vendita sia il costo: una
+    // riga venduta senza costo darebbe un margine del 100% che non esiste.
+    if (r.ricavo > 0 && r.costo_reale > 0) {
       a.ricavo += r.ricavo;
       a.costo_con_ricavo += r.costo_reale;
+    } else if (r.ricavo > 0) {
+      a.ricavo_senza_costo += r.ricavo;
+      a.righe_senza_costo += 1;
     } else if (r.costo_reale > 0) {
       a.costo_senza_ricavo += r.costo_reale;
       a.righe_senza_ricavo += 1;
@@ -105,6 +113,7 @@ export function aggregaProdotti(righe: RigaProdotto[], dim: DimensioneProdotti):
       ricavo: cent(a.ricavo),
       costo_con_ricavo: cent(a.costo_con_ricavo),
       costo_senza_ricavo: cent(a.costo_senza_ricavo),
+      ricavo_senza_costo: cent(a.ricavo_senza_costo),
       scostamento: scost,
       scostamento_perc: a.costo_standard > 0 ? (scost / a.costo_standard) * 100 : null,
       margine,
@@ -114,8 +123,9 @@ export function aggregaProdotti(righe: RigaProdotto[], dim: DimensioneProdotti):
 }
 
 export function totaliProdotti(righe: RigaProdotto[]) {
-  const conRicavo = righe.filter((r) => r.ricavo > 0);
+  const conRicavo = righe.filter((r) => r.ricavo > 0 && r.costo_reale > 0);
   const senzaRicavo = righe.filter((r) => r.ricavo <= 0 && r.costo_reale > 0);
+  const senzaCosto = righe.filter((r) => r.ricavo > 0 && r.costo_reale <= 0);
   const ricavo = cent(conRicavo.reduce((s, r) => s + r.ricavo, 0));
   const costoConRicavo = cent(conRicavo.reduce((s, r) => s + r.costo_reale, 0));
   const conListino = righe.filter((r) => r.ha_baseline_listino);
@@ -130,6 +140,8 @@ export function totaliProdotti(righe: RigaProdotto[]) {
     margine_perc: ricavo > 0 ? ((ricavo - costoConRicavo) / ricavo) * 100 : null,
     costo_senza_ricavo: cent(senzaRicavo.reduce((s, r) => s + r.costo_reale, 0)),
     righe_senza_ricavo: senzaRicavo.length,
+    ricavo_senza_costo: cent(senzaCosto.reduce((s, r) => s + r.ricavo, 0)),
+    righe_senza_costo: senzaCosto.length,
     con_baseline: conListino.length,
     costo_standard: costoStandard,
     scostamento: cent(costoRealeListino - costoStandard),

@@ -88,15 +88,23 @@ export function TabCommesse({ anno }: Props) {
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, expected_date")
-        .eq("company_id", companyId!)
-        .not("expected_date", "is", null)
-        .limit(2000);
-      if (error) throw error;
+      // A pagine da mille: PostgREST non ne dà di più per richiesta, e con
+      // .limit(2000) le commesse oltre la millesima perdevano il costo del ritardo.
+      const righe: { id: string; expected_date: string }[] = [];
+      for (let da = 0; ; da += 1000) {
+        const { data, error } = await supabase
+          .from("orders")
+          .select("id, expected_date")
+          .eq("company_id", companyId!)
+          .not("expected_date", "is", null)
+          .order("id")
+          .range(da, da + 999);
+        if (error) throw error;
+        righe.push(...((data ?? []) as { id: string; expected_date: string }[]));
+        if (!data || data.length < 1000) break;
+      }
       return {
-        perId: new Map((data || []).map((o) => [o.id as string, o.expected_date as string])),
+        perId: new Map(righe.map((o) => [o.id, o.expected_date])),
         oggi: new Date().toLocaleDateString("en-CA"),
       };
     },
@@ -166,9 +174,8 @@ export function TabCommesse({ anno }: Props) {
     <div className="space-y-4">
       {/* KPI bar */}
       <p className="text-xs text-muted-foreground">
-        Commesse del {anno}: quelle aperte nel {anno} ({kpi.n_anno ?? kpi.n_commesse})
-        {(kpi.n_pregresso ?? 0) > 0 && <> più {kpi.n_pregresso} degli anni prima ancora da chiudere (cantiere aperto o rate da incassare)</>}.
-        {" "}Le commesse archiviate non ci sono. Clicca una riga per aprire la commessa.
+        {kpi.n_anno ?? kpi.n_commesse} commesse aperte nel {anno}
+        {(kpi.n_pregresso ?? 0) > 0 && <> + {kpi.n_pregresso} degli anni prima ancora da chiudere</>}. Clicca una riga per aprirla.
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         <KPIMini
@@ -200,19 +207,19 @@ export function TabCommesse({ anno }: Props) {
         />
         <KPIMini
           label="Margine atteso a fine lavori"
-          value={kpi.preventivo_valutabile > 0 ? formatCurrency(kpi.margine_atteso_totale) : "—"}
+          value={(kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile) > 0 ? formatCurrency(kpi.margine_atteso_totale) : "—"}
           sub={
-            kpi.preventivo_valutabile > 0
-              ? `${percIt((kpi.margine_atteso_totale / kpi.preventivo_valutabile) * 100)} sulle commesse valutabili`
+            (kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile) > 0
+              ? `${percIt((kpi.margine_atteso_totale / (kpi.preventivo_con_margine_atteso ?? kpi.preventivo_valutabile)) * 100)} sulle commesse valutabili`
               : "Costi da completare"
           }
-          tone={kpi.preventivo_valutabile <= 0 ? "amber" : kpi.margine_atteso_totale > 0 ? "green" : "red"}
+          tone="neutral"
         />
         <KPIMini
           label="Stimate in perdita"
           value={String(kpi.n_in_perdita)}
           sub={kpi.n_in_perdita > 0 ? "A fine lavori i costi supereranno il preventivo" : "Nessuna commessa in perdita"}
-          tone={kpi.n_in_perdita > 0 ? "red" : "green"}
+          tone="neutral"
           onClick={kpi.n_in_perdita > 0 ? () => setSortBy("perdita") : undefined}
         />
         <KPIMini
@@ -221,7 +228,7 @@ export function TabCommesse({ anno }: Props) {
           sub={counts && counts.grigio > 0
             ? `${counts.senzaDati} senza costi o preventivo · ${counts.troppoPresto} sotto il 20% di avanzamento`
             : "Tutte valutabili"}
-          tone={counts && counts.grigio > 0 ? "amber" : "neutral"}
+          tone="neutral"
         />
         {isMobile ? null : quotaStruttura !== null ? (
           <KPIMini
@@ -307,8 +314,7 @@ export function TabCommesse({ anno }: Props) {
               <div className="shrink-0 text-right tabular-nums">
                 <p className={cn(
                   "text-[13px] font-semibold leading-tight",
-                  r.margine_atteso !== null && r.margine_atteso < 0 && "text-rose-700",
-                  r.margine_atteso !== null && r.margine_atteso > 0 && "text-emerald-700",
+                  r.margine_atteso !== null && r.margine_atteso < 0 && "text-amber-700",
                 )}>
                   {r.margine_atteso !== null ? formatCurrencyCompact(r.margine_atteso) : "—"}
                 </p>
@@ -328,11 +334,8 @@ export function TabCommesse({ anno }: Props) {
           <div>
             <CardTitle className="text-base">Marginalità per cantiere</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Stesso calcolo della scheda commessa: costi con la manodopera al costo orario per tipo e i rientri di
-              magazzino, avanzamento dalle fasi. Margine a fine lavori = preventivo − costi ÷ avanzamento, stimato dal
-              20% di avanzamento in su (prima è troppo presto: «non valutabile»). Verde da 15% in su, rosso sotto zero.
-              La colonna Tempo mostra il margine <em>al mese</em>: sotto la quota di struttura il cantiere non paga
-              l'affitto dell'azienda.
+              Margine a fine lavori = preventivo − costi ÷ avanzamento, dal 20% di avanzamento in su. Tempo: margine al
+              mese contro la quota di struttura.
             </p>
           </div>
           <ExportButton
@@ -494,7 +497,7 @@ export function TabCommesse({ anno }: Props) {
                       <td
                         className={cn(
                           "px-3 py-2 text-right tabular-nums",
-                          r.margine < 0 && "text-rose-700",
+                          r.margine < 0 && "text-amber-700",
                           r.margine > 0 && "text-emerald-700",
                         )}
                       >
@@ -512,7 +515,7 @@ export function TabCommesse({ anno }: Props) {
                       <td
                         className={cn(
                           "px-3 py-2 text-right tabular-nums",
-                          r.margine_atteso !== null && r.margine_atteso < 0 && "text-rose-700 font-semibold",
+                          r.margine_atteso !== null && r.margine_atteso < 0 && "text-amber-700 font-semibold",
                           r.margine_atteso !== null && r.margine_atteso > 0 && "text-emerald-700",
                         )}
                       >
@@ -603,7 +606,7 @@ function CellaTempo({
               <span className="text-[10px] text-muted-foreground">appena aperta</span>
             )}
             {ritardoEur !== null && (
-              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
                 ritardo −{formatCurrency(ritardoEur)}
               </span>
             )}
@@ -628,7 +631,7 @@ function CellaTempo({
             </p>
           )}
           {ritardoEur !== null && (
-            <p className="text-rose-600 dark:text-rose-400">
+            <p>
               {fmtMesi(ritardoMesi)} mesi oltre la consegna promessa
               {promessa ? ` (${formatDate(promessa)})` : ""}: ≈{formatCurrency(ritardoEur)} di
               struttura consumata in più.

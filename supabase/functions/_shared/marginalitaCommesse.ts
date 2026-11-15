@@ -42,6 +42,12 @@ export interface CommesseKPI {
   consuntivo_totale: number;
   margine_totale: number;
   margine_atteso_totale: number;
+  /**
+   * Preventivo delle sole commesse con un margine atteso (15/11/2026): è il
+   * denominatore giusto della percentuale. Prima si divideva anche per le
+   * commesse sotto il 20% di avanzamento, che contavano come margine zero.
+   */
+  preventivo_con_margine_atteso?: number;
   n_in_perdita: number;
   n_da_completare: number;
   preventivo_valutabile: number;
@@ -114,17 +120,22 @@ export function normalizeMarginalitaCommesse(input: MarginalitaCommesseResult, l
   // Tutti i KPI economici vengono ricostruiti dalle righe normalizzate. Le
   // commesse senza costi restano nel portafoglio, ma non gonfiano margine e
   // percentuale come falsi utili del 100%.
-  const valutabili = righe.filter((r) => r.dati_economici_completi);
-  result.kpi.preventivo_totale = righe.reduce((s, r) => s + r.preventivo, 0);
+  // Le commesse annullate restano in elenco ma non entrano nei totali.
+  const attive = righe.filter((r) => r.work_state !== "cancelled");
+  const valutabili = attive.filter((r) => r.dati_economici_completi);
+  result.kpi.preventivo_totale = attive.reduce((s, r) => s + r.preventivo, 0);
   result.kpi.preventivo_valutabile = valutabili.reduce((s, r) => s + r.preventivo, 0);
   result.kpi.consuntivo_totale = valutabili.reduce((s, r) => s + r.consuntivo, 0);
   result.kpi.margine_totale = valutabili.reduce((s, r) => s + r.margine, 0);
-  result.kpi.n_da_completare = righe.length - valutabili.length;
+  result.kpi.n_da_completare = attive.length - valutabili.length;
   result.kpi.margine_atteso_totale = valutabili.reduce((s, r) => s + (r.margine_atteso ?? 0), 0);
+  result.kpi.preventivo_con_margine_atteso = valutabili
+    .filter((r) => r.margine_atteso !== null)
+    .reduce((s, r) => s + r.preventivo, 0);
   result.kpi.n_in_perdita = valutabili.filter((r) => (r.margine_atteso ?? 0) < 0).length;
   // Stessa svista di scala su in corso/completate: con pct 0–100 la RPC vedeva
   // "completata" qualsiasi commessa ≥1% (mostrava 0 in corso · 22 completate).
-  result.kpi.n_commesse = righe.length;
+  result.kpi.n_commesse = attive.length;
   result.kpi.n_in_corso = righe.filter((r) => r.work_state ? r.work_state === "open" : r.pct_avanzamento > 0 && r.pct_avanzamento < 1).length;
   result.kpi.n_assistenza = righe.filter(r => r.work_state === "support").length;
   result.kpi.n_annullate = righe.filter(r => r.work_state === "cancelled").length;

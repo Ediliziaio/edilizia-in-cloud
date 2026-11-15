@@ -28,7 +28,7 @@ import {
   type DimensioneProdotti, type RigaProdotto,
 } from "@/lib/controlloGestione/prodottiMargine";
 import { cn } from "@/lib/utils";
-import { Package, TrendingUp, TrendingDown, Info } from "lucide-react";
+import { Package, TrendingUp, TrendingDown } from "lucide-react";
 
 interface Props {
   anno: number;
@@ -162,8 +162,8 @@ export function TabProdotti({ anno }: Props) {
   const colonna = DIMENSIONI.find((d) => d.value === dim)!.colonna;
   const baselinePerc = totali.righe > 0 ? Math.round((totali.con_baseline / totali.righe) * 100) : 0;
   const scostTot = totali.scostamento;
-  const overColor = scostTot > 0.005 ? "text-rose-600" : scostTot < -0.005 ? "text-emerald-600" : "text-muted-foreground";
-  const margTotColor = totali.margine >= 0 ? "text-emerald-600" : "text-rose-600";
+  const overColor = scostTot > 0.005 ? "text-amber-700" : "text-muted-foreground";
+  const margTotColor = totali.margine >= 0 ? "" : "text-amber-700";
 
   return (
     <div className="space-y-4">
@@ -203,26 +203,11 @@ export function TabProdotti({ anno }: Props) {
             />
           </div>
 
-          {totali.righe_senza_ricavo > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              <Info className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                <strong>{formatCurrency(totali.costo_senza_ricavo)}</strong> di costi su {totali.righe_senza_ricavo} {totali.righe_senza_ricavo === 1 ? "riga" : "righe"}{" "}
-                senza prezzo di vendita: sono materiali comprati ma non presenti nel preventivo (o con prezzo zero).
-                Non li contiamo come margine negativo: controlla se vanno fatti pagare al cliente o se sono un costo
-                del cantiere. Sono comunque nei costi della scheda Commesse.
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              Margine sui <strong>materiali</strong>: prezzo di vendita meno costo d'acquisto degli articoli.
-              Manodopera e spese del cantiere non ci sono (si pagano per commessa, non per prodotto): per il margine
-              completo di ogni lavoro usa la scheda <strong>Commesse</strong>.
-            </span>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Margine sui soli materiali (vendita − acquisto): manodopera e spese di cantiere sono nella scheda Commesse.
+            {totali.righe_senza_ricavo > 0 && <> Fuori dal margine: {formatCurrency(totali.costo_senza_ricavo)} di costi senza prezzo di vendita ({totali.righe_senza_ricavo} {totali.righe_senza_ricavo === 1 ? "riga" : "righe"}).</>}
+            {totali.righe_senza_costo > 0 && <> Fuori dal margine: {formatCurrency(totali.ricavo_senza_costo)} di vendite senza costo ({totali.righe_senza_costo} {totali.righe_senza_costo === 1 ? "riga" : "righe"}).</>}
+          </p>
         </>
       )}
 
@@ -244,16 +229,10 @@ export function TabProdotti({ anno }: Props) {
       )}
 
       {vista === "costi" && baselinePerc < 50 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            {totali.con_baseline === 0
-              ? "Nessun articolo ha un costo di listino: sono stati scritti a mano nella commessa invece di essere presi dal listino. "
-              : `Solo il ${baselinePerc}% delle righe ha un costo di listino. `}
-            Il confronto si fa solo su quelle righe. Aggiungendo gli articoli <strong>dal listino</strong> il costo
-            previsto viene salvato e qui vedi subito dove paghi più del previsto.
-          </span>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          {totali.con_baseline === 0 ? "Nessuna riga ha un costo di listino" : `Solo il ${baselinePerc}% delle righe ha un costo di listino`}:
+          il confronto vale su quelle. Gli articoli presi dal listino lo salvano da soli.
+        </p>
       )}
 
       {/* Raggruppamento + export */}
@@ -339,10 +318,9 @@ export function TabProdotti({ anno }: Props) {
               {aggregati.map((a) => {
                 const over = a.scostamento > 0.005;
                 const under = a.scostamento < -0.005;
-                // Semaforo margine: <10% rosso, <20% ambra, ≥20% verde.
+                // Una sola soglia, la stessa del riquadro in alto: sotto il 15% si nota.
                 const mp = a.margine_perc;
-                const margColor = mp == null ? "text-muted-foreground"
-                  : mp < 10 ? "text-rose-600" : mp < 20 ? "text-amber-600" : "text-emerald-600";
+                const margColor = mp == null ? "text-muted-foreground" : mp < 15 ? "font-semibold text-amber-700" : "";
                 return (
                   <tr key={a.key} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="p-3">
@@ -382,7 +360,7 @@ export function TabProdotti({ anno }: Props) {
                           {a.scostamento_perc == null ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
-                            <span className={cn("font-medium", over ? "text-rose-600" : under ? "text-emerald-600" : "text-muted-foreground")}>
+                            <span className={cn("font-medium", over ? "text-amber-700" : under ? "" : "text-muted-foreground")}>
                               {over ? "▲" : under ? "▼" : ""} {a.scostamento > 0 ? "+" : ""}{formatCurrency(a.scostamento)}
                               <span className="ml-1 text-[11px]">({a.scostamento_perc > 0 ? "+" : ""}{percIt(a.scostamento_perc, 0)})</span>
                             </span>
@@ -411,13 +389,13 @@ function KPI({ label, value, sub, valueClass, title, alert = false, icon }: {
   icon?: ReactNode;
 }) {
   return (
-    <Card className={cn("min-w-0", alert && "border-rose-200 bg-rose-50/40")}>
+    <Card className={cn("min-w-0", alert && "border-amber-200")}>
       <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle></CardHeader>
       <CardContent>
         <p className={cn("flex items-center gap-1 break-words text-xl font-bold leading-tight tabular-nums", valueClass)} title={title}>
           {icon}{value}
         </p>
-        {sub && <p className={cn("mt-0.5 text-[11px]", alert ? "font-medium text-rose-600" : "text-muted-foreground")}>{sub}</p>}
+        {sub && <p className={cn("mt-0.5 text-[11px]", alert ? "font-medium text-amber-700" : "text-muted-foreground")}>{sub}</p>}
       </CardContent>
     </Card>
   );

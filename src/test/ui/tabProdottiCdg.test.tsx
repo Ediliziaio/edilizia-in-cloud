@@ -41,7 +41,7 @@ describe("scheda Prodotti & Categorie", () => {
     // 1001 righe − 1 cancellata = 1000; 999 vendute a 15 con costo 10.
     expect(screen.getByText(/1000 righe/)).toBeInTheDocument();
     expect(screen.getAllByText("14.985,00 €").length).toBeGreaterThan(0);
-    expect(document.body.textContent).toMatch(/1\.480,00\s€ di costi su 1 riga senza prezzo di vendita/);
+    expect(document.body.textContent).toMatch(/1\.480,00\s€ di costi senza prezzo di vendita \(1 riga\)/);
     expect(document.body.textContent).toContain("33,3%");
   });
 });

@@ -106,4 +106,25 @@ describe("Formati all'italiana", () => {
     expect(leggiImporto("")).toBe(0);
     expect(leggiImporto("abc")).toBeNull();
   });
+
+  it("costo materie e costo del venduto sono costi: spendere di più non è verde", () => {
+    const r = costruisciBudget({ "01": 1000, "03": 100 }, [{ codice: "01", label: "", tipo: "voce", valore: 600 }, { codice: "03", label: "", tipo: "voce", valore: 120 }] as never, 6);
+    const b = r.righe.find((x) => x.codice === "B")!;
+    expect(b.piuEMeglio).toBe(false);
+    expect(b.semaforo).not.toBe("verde");
+  });
+
+  it("un budget dei soli ricavi non fa sembrare in perdita i margini", () => {
+    const r = costruisciBudget({ "01": 1000 }, [{ codice: "01", label: "", tipo: "voce", valore: 500 }, { codice: "06", label: "", tipo: "voce", valore: 200 }] as never, 6);
+    const e = r.righe.find((x) => x.codice === "E")!;
+    expect(e.budgetIncompleto).toBe(true);
+    expect(e.scostamentoPct).toBeNull();
+    expect(r.utileConfrontabile).toBe(false);
+    expect(r.righe.find((x) => x.codice === "01")!.scostamentoPct).not.toBeNull();
+  });
+
+  it("le variazioni di scorte non si moltiplicano per dodici", () => {
+    const r = costruisciBudget({ "02": 100 }, [{ codice: "02", label: "", tipo: "voce", valore: 50 }] as never, 6);
+    expect(r.righe.find((x) => x.codice === "02")!.previsione).toBe(50);
+  });
 });

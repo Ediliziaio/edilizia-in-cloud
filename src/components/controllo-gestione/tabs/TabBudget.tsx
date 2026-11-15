@@ -34,7 +34,7 @@ interface Props {
 const SEM_BG = {
   verde:  "bg-emerald-50 text-emerald-700",
   giallo: "bg-amber-50 text-amber-700",
-  rosso:  "bg-rose-50 text-rose-700",
+  rosso:  "bg-amber-100 text-amber-900",
   grigio: "bg-muted/40 text-muted-foreground",
 } as const;
 
@@ -42,7 +42,7 @@ const SEM_BG = {
 function coloreScostamento(r: RigaBudget): string {
   if (r.scostamento === 0) return "text-muted-foreground";
   const migliora = r.piuEMeglio ? r.scostamento > 0 : r.scostamento < 0;
-  return migliora ? "text-emerald-700" : "text-rose-700";
+  return migliora ? "text-emerald-700" : "font-semibold";
 }
 
 export function TabBudget({ anno }: Props) {
@@ -53,7 +53,7 @@ export function TabBudget({ anno }: Props) {
   if (q.isError)   return <ErrorBlock onRetry={() => q.refetch()} />;
   if (!q.data) return null;
 
-  const { righe, mesiChiusi, haBudget, ricavi, costi, utile } = q.data;
+  const { righe, mesiChiusi, haBudget, ricavi, costi, utile, utileConfrontabile } = q.data;
   const periodo = etichettaMesiChiusi(mesiChiusi);
   const annoChiuso = mesiChiusi === 12;
   // Budget ricavi sotto un terzo della previsione: quasi certamente un budget
@@ -63,30 +63,21 @@ export function TabBudget({ anno }: Props) {
   return (
     <div className="space-y-4">
       {!haBudget ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <div>
-            <p className="font-semibold">Inserisci il budget {anno}</p>
-            <p className="mt-0.5 text-blue-900/80">
-              Non c'è ancora un budget per il {anno}. Premi la matita accanto a ogni voce e scrivi
-              quanto prevedi di incassare o spendere nell'anno: il confronto con il consuntivo
-              compare da solo.
-            </p>
-          </div>
-        </div>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Info className="h-4 w-4 shrink-0" />
+          Nessun budget per il {anno}: premi la matita accanto a una voce per inserirlo.
+        </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <RiquadroConfronto titolo="Ricavi" budget={ricavi.budget} previsione={ricavi.previsione} piuEMeglio annoChiuso={annoChiuso} />
           <RiquadroConfronto titolo="Costi" budget={costi.budget} previsione={costi.previsione} piuEMeglio={false} annoChiuso={annoChiuso} />
-          <RiquadroConfronto titolo="Utile netto" budget={utile.budget} previsione={utile.previsione} piuEMeglio annoChiuso={annoChiuso} />
+          <RiquadroConfronto titolo="Utile netto" budget={utile.budget} previsione={utile.previsione} piuEMeglio annoChiuso={annoChiuso} incompleto={!utileConfrontabile} />
         </div>
       )}
       {budgetSospetto && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Il budget dei ricavi ({formatCurrency(ricavi.budget)}) è meno di un terzo della
-          previsione di fine anno ({formatCurrency(ricavi.previsione)}): è ancora quello
-          giusto? Se è un budget vecchio, aggiornalo.
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Il budget dei ricavi è meno di un terzo della previsione: è ancora quello giusto?
+        </p>
       )}
 
       <Card className="rounded-2xl">
@@ -98,7 +89,7 @@ export function TabBudget({ anno }: Props) {
                 ? "Nessun mese ancora chiuso: il consuntivo e la previsione compaiono dalla fine del primo mese."
                 : annoChiuso
                   ? "Anno chiuso: la previsione coincide con il consuntivo dell'anno, dallo stesso conto economico della scheda CE."
-                  : `Consuntivo dei mesi chiusi (${periodo}), dallo stesso conto economico della scheda CE. Previsione fine anno = consuntivo ÷ ${mesiChiusi} mesi × 12. Semaforo: verde fino al 5% di scostamento sfavorevole, giallo fino al 15%, rosso oltre.`}
+                  : `Consuntivo ${periodo} · previsione = consuntivo ÷ ${mesiChiusi} × 12 (le variazioni di scorte restano quelle registrate).`}
             </p>
           </div>
           <ExportButton
@@ -170,7 +161,9 @@ export function TabBudget({ anno }: Props) {
                         {v.previsione !== 0 ? formatCurrency(v.previsione) : "—"}
                       </td>
                       <td className={cn("px-3 py-2 text-right tabular-nums", coloreScostamento(v))}>
-                        {v.scostamentoPct !== null ? formatCurrency(v.scostamento) : "—"}
+                        {v.scostamentoPct !== null ? formatCurrency(v.scostamento) : v.budgetIncompleto && v.budget !== 0
+                          ? <span className="text-xs text-muted-foreground" title="Alcune voci di questo totale hanno un consuntivo ma nessun budget">budget incompleto</span>
+                          : "—"}
                       </td>
                       <td className="px-3 py-2 text-right">
                         {v.scostamentoPct !== null ? (
@@ -217,16 +210,18 @@ export function TabBudget({ anno }: Props) {
 }
 
 function RiquadroConfronto({
-  titolo, budget, previsione, piuEMeglio, annoChiuso,
+  titolo, budget, previsione, piuEMeglio, annoChiuso, incompleto = false,
 }: {
   titolo: string;
   budget: number;
   previsione: number;
   piuEMeglio: boolean;
   annoChiuso: boolean;
+  /** Budget senza alcune voci che hanno un consuntivo: niente confronto. */
+  incompleto?: boolean;
 }) {
   const scost = previsione - budget;
-  const pct = budget !== 0 ? (scost / Math.abs(budget)) * 100 : null;
+  const pct = budget !== 0 && !incompleto ? (scost / Math.abs(budget)) * 100 : null;
   const migliora = piuEMeglio ? scost >= 0 : scost <= 0;
   return (
     <Card className="rounded-2xl border-0 bg-muted/30">
@@ -237,13 +232,13 @@ function RiquadroConfronto({
             {formatEuroRiquadro(previsione)}
           </p>
           {pct !== null && (
-            <span className={cn("text-sm font-semibold tabular-nums", migliora ? "text-emerald-700" : "text-rose-700")}>
+            <span className={cn("text-sm font-semibold tabular-nums", migliora ? "text-emerald-700" : "text-foreground")}>
               {formatPct(pct, 1, true)}
             </span>
           )}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground" title={formatCurrency(budget)}>
-          {annoChiuso ? "Consuntivo" : "Previsione fine anno"} · budget {formatEuroRiquadro(budget)}
+          {annoChiuso ? "Consuntivo" : "Previsione fine anno"} · {incompleto ? "budget incompleto" : <>budget {formatEuroRiquadro(budget)}</>}
         </p>
       </CardContent>
     </Card>
