@@ -219,6 +219,21 @@ describe("rendimento (TIR)", () => {
     expect(tirAnnuo([-1000, 0, 0, 900])!).toBeLessThan(0);
   });
 
+  it("un costo dopo l'ultimo incasso non fa sparire il TIR", () => {
+    // I flussi della simulazione «Residenza Le Querce»: caparre, acconti, rogiti, poi 13.000 € di costi a dicembre.
+    const flussi = [-426_800, 0, -52_000, -58_000, 0, 178_000, -21_000, -370_000, 356_000, 0, 0, 1_015_000, -13_000];
+    const r = tirMensile(flussi)!;
+    expect(r).not.toBeNull();
+    expect(r).toBeGreaterThan(0);
+    expect(Math.abs(valoreAttuale(flussi, r))).toBeLessThan(0.01);
+    expect(tirAnnuo(flussi)!).toBeCloseTo(1.5008, 3);
+  });
+
+  it("con più tassi possibili sceglie quello più vicino a zero", () => {
+    // -100, +230, -132: azzerano il valore attuale sia il 10% sia il 20% al mese.
+    expect(tirMensile([-100, 230, -132])).toBeCloseTo(0.1, 8);
+  });
+
   it("niente TIR se i flussi non cambiano segno", () => {
     expect(tirMensile([-100, -50])).toBeNull();
     expect(tirMensile([100, 50])).toBeNull();

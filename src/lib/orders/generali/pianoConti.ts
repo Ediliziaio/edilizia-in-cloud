@@ -385,21 +385,42 @@ export function valoreAttuale(flussi: number[], r: number): number {
 /**
  * TIR mensile: il tasso che azzera il valore attuale. Null se i flussi non cambiano mai segno
  * (nessun investimento o nessun ritorno) o se non si trova un tasso sensato.
+ *
+ * Il tasso si cerca partendo da zero e allargandosi verso l'alto e verso il basso: il primo
+ * cambio di segno è il tasso più vicino a zero. Cercarlo solo fra -99,99% e il massimo non
+ * basta: con un costo dopo l'ultimo incasso (flussi -, +, -) il valore attuale ha lo stesso
+ * segno ai due estremi, anche se il tasso c'è, e il TIR usciva «—».
  */
 export function tirMensile(flussi: number[]): number | null {
   if (!flussi.some((f) => f < 0) || !flussi.some((f) => f > 0)) return null;
-  let basso = -0.9999;
-  let alto = 1;
-  let vBasso = valoreAttuale(flussi, basso);
-  let vAlto = valoreAttuale(flussi, alto);
-  while (Math.sign(vBasso) === Math.sign(vAlto) && alto < 1e4) {
-    alto *= 2;
-    vAlto = valoreAttuale(flussi, alto);
+  const va = (r: number) => valoreAttuale(flussi, r);
+  if (va(0) === 0) return 0;
+  const passi: number[] = [];
+  for (let d = 0.0005; d < 1e4; d *= 1.2) passi.push(d);
+  const verso = (segno: 1 | -1) => [0, ...passi.map((d) => (segno === 1 ? d : -Math.min(d, 0.9999)))]
+    .filter((r, i, a) => i === 0 || r !== a[i - 1]);
+  const su = verso(1);
+  const giu = verso(-1);
+  for (let i = 1; i < Math.max(su.length, giu.length); i++) {
+    for (const lato of [su, giu]) {
+      if (i >= lato.length) continue;
+      const a = lato[i - 1];
+      const b = lato[i];
+      const va1 = va(a);
+      const vb = va(b);
+      if (!Number.isFinite(va1) || !Number.isFinite(vb)) continue;
+      if (vb === 0) return b;
+      if (Math.sign(va1) !== Math.sign(vb)) return bisezione(va, Math.min(a, b), Math.max(a, b));
+    }
   }
-  if (!Number.isFinite(vBasso) || !Number.isFinite(vAlto) || Math.sign(vBasso) === Math.sign(vAlto)) return null;
+  return null;
+}
+
+function bisezione(f: (r: number) => number, basso: number, alto: number): number {
+  let vBasso = f(basso);
   for (let i = 0; i < 300 && alto - basso > 1e-12; i++) {
     const medio = (basso + alto) / 2;
-    const vMedio = valoreAttuale(flussi, medio);
+    const vMedio = f(medio);
     if (vMedio === 0) return medio;
     if (Math.sign(vMedio) === Math.sign(vBasso)) {
       basso = medio;
