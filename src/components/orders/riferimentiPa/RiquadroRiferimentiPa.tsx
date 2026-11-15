@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRiferimentiPaCommessa } from "@/hooks/useRiferimentiPaCommessa";
 import {
-  bozzaDaFonte, bozzaDaRiga, bozzaHaErrori, controllaRiferimento, ETICHETTA_FONTE, etichettaTipoRiferimento,
+  bozzaDaFonte, bozzaDaRiga, bozzaHaErrori, controllaRiferimento, ETICHETTA_FONTE, etichettaLotto, etichettaTipoRiferimento,
   type BozzaRiferimentoPa, type FonteRiferimentoEsistente, type RiferimentoPa,
 } from "@/lib/orders/riferimentiPa";
 import { RiferimentiPaEditor } from "./RiferimentiPaEditor";
@@ -46,25 +46,31 @@ function Testo({ etichetta, valore }: { etichetta: string; valore: string }) {
   );
 }
 
-export function RigaRiferimentoPa({ r }: { r: RiferimentoPa }) {
+/**
+ * Una riga di riferimenti: la usano la Panoramica della commessa e la scheda cliente.
+ * `compatta` (colonna stretta della scheda cliente): una voce per riga invece di tre colonne.
+ * `nomeUfficio`: la descrizione dell'ufficio scelto, quando chi chiama la conosce.
+ */
+export function RigaRiferimentoPa({ r, compatta = false, nomeUfficio }: { r: RiferimentoPa; compatta?: boolean; nomeUfficio?: string | null }) {
   const { mancanze } = controllaRiferimento(bozzaDaRiga(r));
   const titolo = [etichettaTipoRiferimento(r.tipo), r.numero && `n. ${r.numero}`, r.data && `del ${dataIt(r.data)}`].filter(Boolean).join(" ");
   return (
     <li className="space-y-2 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="break-words text-sm font-semibold">{titolo}</span>
-        {r.lotto && <span className="text-xs text-slate-600">Lotto {r.lotto}</span>}
+        {r.lotto && <span className="text-xs text-slate-600">{etichettaLotto(r.lotto)}</span>}
         {r.fonte !== "manuale" && <span className="text-xs text-slate-500">({ETICHETTA_FONTE[r.fonte]})</span>}
       </div>
-      <dl className="grid gap-3 sm:grid-cols-3">
+      <dl className={compatta ? "grid grid-cols-1 gap-2" : "grid gap-3 sm:grid-cols-3"}>
         {r.cig ? <Codice etichetta="CIG" valore={r.cig} />
           : r.cig_non_dovuto ? <Testo etichetta="CIG" valore={`Non dovuto${r.cig_motivo_esclusione ? `: ${r.cig_motivo_esclusione}` : ""}`} /> : null}
         {r.cup ? <Codice etichetta="CUP" valore={r.cup} /> : r.cup_non_dovuto ? <Testo etichetta="CUP" valore="Non dovuto" /> : null}
+        {nomeUfficio && <Testo etichetta="Ufficio" valore={nomeUfficio} />}
         {r.codice_univoco_ufficio && <Codice etichetta="Codice Univoco Ufficio" valore={r.codice_univoco_ufficio} />}
         {r.numero && <Codice etichetta={`Numero ${etichettaTipoRiferimento(r.tipo).toLowerCase()}`} valore={r.numero} mono={false} />}
         {r.impegno_spesa && <Codice etichetta="Impegno di spesa" valore={r.impegno_spesa} mono={false} />}
         {r.determina && <Testo etichetta="Determina / atto di affidamento" valore={r.determina} />}
-        {r.note_fatturazione && <div className="sm:col-span-3"><Testo etichetta="Note per la fatturazione" valore={r.note_fatturazione} /></div>}
+        {r.note_fatturazione && <div className={compatta ? "" : "sm:col-span-3"}><Testo etichetta="Note per la fatturazione" valore={r.note_fatturazione} /></div>}
       </dl>
       {mancanze.length > 0 && <p className="text-xs text-amber-800">Manca ancora: {mancanze.join(" · ")}</p>}
     </li>

@@ -258,3 +258,38 @@ export function fonteGiaPresente(righe: Array<Pick<RiferimentoPa, "fonte" | "fon
 /** Righe in ordine: prima l'ordinamento scelto, poi la data di creazione. */
 export const ordinaRiferimenti = <T extends Pick<RiferimentoPa, "ordinamento" | "created_at">>(righe: T[]): T[] =>
   [...righe].sort((a, b) => a.ordinamento - b.ordinamento || a.created_at.localeCompare(b.created_at));
+
+/** «Lotto 1» e non «Lotto Lotto 1»: se il valore dice già «Lotto», non si ripete l'etichetta. */
+export function etichettaLotto(lotto: string | null | undefined): string | null {
+  const l = (lotto ?? "").trim();
+  if (!l) return null;
+  return /^lotto\b/i.test(l) ? l : `Lotto ${l}`;
+}
+
+/** Le commesse del cliente, come le conosce la scheda cliente. */
+export interface CommessaDelCliente {
+  id: string;
+  order_code: string | null;
+  description: string | null;
+}
+
+export interface GruppoRiferimentiCommessa {
+  commessa: CommessaDelCliente;
+  righe: RiferimentoPa[];
+}
+
+/**
+ * Le righe di tutte le commesse di un cliente, raggruppate per commessa (scheda cliente):
+ * nell'ordine delle commesse, solo quelle che hanno almeno un riferimento, righe in ordine.
+ */
+export function raggruppaRiferimentiPerCommessa(righe: RiferimentoPa[], commesse: CommessaDelCliente[]): GruppoRiferimentiCommessa[] {
+  const perCommessa = new Map<string, RiferimentoPa[]>();
+  for (const r of righe) {
+    const elenco = perCommessa.get(r.order_id) ?? [];
+    elenco.push(r);
+    perCommessa.set(r.order_id, elenco);
+  }
+  return commesse
+    .filter((c) => perCommessa.has(c.id))
+    .map((c) => ({ commessa: c, righe: ordinaRiferimenti(perCommessa.get(c.id)!) }));
+}

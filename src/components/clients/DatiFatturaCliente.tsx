@@ -4,9 +4,8 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useAnagraficaFiscaleCliente } from "@/hooks/useAnagraficaFiscaleCliente";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DatiFiscaliClienteDialog } from "@/components/clients/DatiFiscaliClienteDialog";
@@ -16,27 +15,12 @@ import { etichettaTipoCliente, formDaAnagrafica, formDaProfilo, type ClienteBase
 
 export function DatiFatturaCliente({ customer, puoModificare }: { customer: ClienteBase; puoModificare: boolean }) {
   const [aperto, setAperto] = useState(false);
-  const { data: ana, isLoading } = useQuery({
-    queryKey: ["anagrafica-cliente", customer.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("anagrafiche_native")
-        .select(
-          "id, tipo_cliente, ragione_sociale, nome, cognome, partita_iva, codice_fiscale, codice_sdi, pec, email, email_fatture, telefono, referente_amministrativo, indirizzo_via, indirizzo_cap, indirizzo_comune, indirizzo_provincia, indirizzo_nazione, codice_ipa, split_payment",
-        )
-        .eq("cliente_id", customer.id)
-        .order("attivo", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: ana, isLoading } = useAnagraficaFiscaleCliente(customer.id);
   const pa = ana?.tipo_cliente === "PA";
   const { tutti: uffici } = useUfficiPa(pa ? ana?.id : null);
 
   if (isLoading) return null;
-  const iniziale = ana ? formDaAnagrafica(ana as Record<string, unknown>) : formDaProfilo(customer);
+  const iniziale = ana ? formDaAnagrafica(ana as unknown as Record<string, unknown>) : formDaProfilo(customer);
   // Profilo e anagrafica che dicono cose diverse: lo si fa vedere, non si sceglie da soli.
   const disallineato = ana && (ana.tipo_cliente === "B2C") === !!customer.is_business;
 

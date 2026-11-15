@@ -16,7 +16,7 @@
  * Edit inline via InlineField → mutation singolo campo, no più modale
  * "modifica tutto". Pattern marketing standard.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { emailDaMostrare } from "@/lib/orders/nuovaCommessaProposte";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,6 +46,9 @@ import { queryKeys } from "@/lib/queryKeys";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { campiDaCompletare, sembraAzienda } from "@/lib/clienti/anagraficaCliente";
 import { DatiFatturaCliente } from "@/components/clients/DatiFatturaCliente";
+import { useAnagraficaFiscaleCliente } from "@/hooks/useAnagraficaFiscaleCliente";
+import { etichettaTipoCliente, formDaAnagrafica, problemiClienteFiscale, type ClienteFiscaleForm } from "@/lib/clienti/clienteFiscale";
+import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
 
 /** Valore della voce «Non assegnato»: Radix Select non accetta la stringa vuota. */
 const NESSUN_AGENTE = "__nessuno";
@@ -102,9 +105,11 @@ interface CustomerProfileCardProps {
   onSaved?: () => void;
   /** Sulla scheda di un committente: è sempre un'impresa e non ha un cantiere suo. */
   perCommittente?: boolean;
+  /** Mostrato subito sotto «Dati per la fattura» (scheda cliente: i riferimenti d'appalto). */
+  dopoDatiFattura?: ReactNode;
 }
 
-export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommittente = false, onChiudi }: CustomerProfileCardProps) {
+export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommittente = false, onChiudi, dopoDatiFattura }: CustomerProfileCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -145,6 +150,34 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
   const agenteAssegnato = salespeople.find((s) => s.id === customer.salesperson_id);
   const nomeAgente = (s: { first_name: string | null; last_name: string | null }) =>
     [s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome";
+
+  // L'anagrafica fiscale collegata, se c'è, fa fede per tipo, codice fiscale e partita IVA
+  // (15/11/2026): la sezione «Anagrafica» mostrava «—» e «azienda» per un Comune che nei
+  // dati per la fattura aveva il codice fiscale ed era «Pubblica Amministrazione».
+  const { data: anaFiscale } = useAnagraficaFiscaleCliente(customer.id);
+  const codiceFiscaleVisto = anaFiscale?.codice_fiscale || customer.fiscal_code || "";
+  const partitaIvaVista = anaFiscale?.partita_iva || customer.vat_number || "";
+
+  // Con l'anagrafica fiscale, codice fiscale e partita IVA si salvano lì e nel profilo
+  // insieme (salva_anagrafica_cliente + profilo), così i due non si separano più.
+  const salvaCodiceFiscale = useMutation({
+    mutationFn: async ({ campo, valore }: { campo: "codiceFiscale" | "partitaIva"; valore: string }) => {
+      if (!puoModificare) throw new Error("Non hai il permesso di modificare questo cliente.");
+      if (!anaFiscale) throw new Error("Anagrafica fiscale non trovata");
+      const form: ClienteFiscaleForm = { ...formDaAnagrafica(anaFiscale as unknown as Record<string, unknown>), [campo]: valore };
+      const problema = problemiClienteFiscale(form)[campo];
+      if (problema) throw new Error(problema);
+      await salvaClienteFiscale({ clienteId: customer.id, anagraficaId: anaFiscale.id, form, aggiornaProfilo: true });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["anagrafica-cliente", customer.id] });
+      queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.anagraficheNative.all });
+      onSaved?.();
+    },
+    onError: (e) => toast({ title: "Errore salvataggio", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
+  });
 
   // Update singolo campo (pattern marketing updateField)
   const updateField = useMutation({
@@ -229,7 +262,7 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
     onError: (e) => toast({ title: "Errore salvataggio", description: e instanceof Error ? e.message : "Riprova", variant: "destructive" }),
   });
   // Cosa manca per chiamare, scrivere e fatturare: un tocco filtra la scheda su quel campo.
-  const mancano = campiDaCompletare(customer);
+  const mancano = campiDaCompletare(customer, anaFiscale);
 
   // Filtro sezioni per search box
   const matchesSearch = (label: string): boolean => {
@@ -421,30 +454,42 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                     <InlineField
                       disabled={solaLettura}
                       label="Codice fiscale"
-                      value={customer.fiscal_code || ""}
+                      value={codiceFiscaleVisto}
                       validate={(v) => {
                         const esito = validateCodiceFiscale(v);
                         return esito.ok ? null : (esito.hint ?? "Codice fiscale non valido");
                       }}
-                      onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v ? v.toUpperCase() : null })}
+                      onSave={(v) => anaFiscale
+                        ? salvaCodiceFiscale.mutate({ campo: "codiceFiscale", valore: v })
+                        : updateField.mutate({ field: "fiscal_code", value: v ? v.toUpperCase() : null })}
                     />
                   )}
                   {matchesSearch("Partita IVA") && (
                     <InlineField
                       disabled={solaLettura}
                       label="Partita IVA"
-                      value={customer.vat_number || ""}
+                      value={partitaIvaVista}
                       validate={(v) => {
                         const esito = validatePartitaIva(v);
                         return esito.ok ? null : (esito.hint ?? "Partita IVA non valida");
                       }}
-                      onSave={(v) => updateField.mutate({
-                        field: "vat_number",
-                        value: v ? v.toUpperCase().replace(/^IT/, "") : null,
-                      })}
+                      onSave={(v) => anaFiscale
+                        ? salvaCodiceFiscale.mutate({ campo: "partitaIva", valore: v })
+                        : updateField.mutate({
+                          field: "vat_number",
+                          value: v ? v.toUpperCase().replace(/^IT/, "") : null,
+                        })}
                     />
                   )}
-                  {!perCommittente && matchesSearch("Tipo cliente") && (
+                  {!perCommittente && matchesSearch("Tipo cliente") && anaFiscale && (
+                    // Il tipo vero è quello fiscale: si cambia da «Dati per la fattura», che
+                    // chiede i dati che il nuovo tipo vuole (un ente, un'azienda, un privato).
+                    <div>
+                      <InlineField disabled label="Tipo cliente" value={etichettaTipoCliente(anaFiscale.tipo_cliente)} onSave={() => {}} />
+                      {!solaLettura && <p className="px-1 text-[10px] text-muted-foreground">Si cambia da «Dati per la fattura» → Modifica.</p>}
+                    </div>
+                  )}
+                  {!perCommittente && matchesSearch("Tipo cliente") && !anaFiscale && (
                     <InlineField
                       disabled={solaLettura}
                       label="Tipo cliente"
@@ -467,6 +512,8 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                   <DatiFatturaCliente customer={customer} puoModificare={puoModificare} />
                 </CollapsibleContent>
               </Collapsible>
+
+              {dopoDatiFattura}
 
               {/* Collapsible: Indirizzo residenza / sede legale */}
               <Collapsible defaultOpen={!isMobile}>

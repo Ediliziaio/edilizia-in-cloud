@@ -59,6 +59,8 @@ function Corpo({ onOpenChange, iniziale, clienteId, anagraficaId, chiediUfficio,
       });
       qc.invalidateQueries({ queryKey: queryKeys.anagraficheNative.all });
       qc.invalidateQueries({ queryKey: ["anagrafica-cliente"] });
+      // Il profilo è stato allineato (tipo, ragione sociale, codici): la testata lo rilegge.
+      if (clienteId) qc.invalidateQueries({ queryKey: ["company-customer-detail", clienteId] });
       qc.invalidateQueries({ queryKey: ["uffici-pa"] });
       qc.invalidateQueries({ queryKey: ["anagrafiche-pa-da-confermare"] });
       if (clienteId) qc.invalidateQueries({ queryKey: queryKeys.customersList.all });

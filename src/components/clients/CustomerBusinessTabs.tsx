@@ -1,3 +1,4 @@
+import { etichettaStatoDocumento, etichettaTipoDocumento } from "@/lib/fatturazione/etichetteDocumento";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -535,8 +536,8 @@ function DocumentiTab({
                 )}
               </div>
               <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <span><span className="capitalize">{f.tipo || "fattura"}</span> · {formatDate(f.data_emissione)}</span>
-                {f.stato && <Badge variant="outline" className="text-[10px] font-normal capitalize">{f.stato}</Badge>}
+                <span>{etichettaTipoDocumento(f.tipo)} · {formatDate(f.data_emissione)}</span>
+                {f.stato && <Badge variant="outline" className="text-[10px] font-normal">{etichettaStatoDocumento(f.stato)}</Badge>}
                 <ExternalLink className="ml-auto h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </button>

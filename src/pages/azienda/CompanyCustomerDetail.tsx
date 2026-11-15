@@ -62,6 +62,11 @@ import { cn } from "@/lib/utils";
 import { euro, oggiRoma, rateConResiduo, totaleDaIncassare, type SchedaCliente } from "@/lib/clienti/schedaCliente";
 import { azioniSuggerite } from "@/lib/clienti/cosaFareAdesso";
 import { CosaFareAdesso } from "@/components/clients/CosaFareAdesso";
+import { useAnagraficaFiscaleCliente } from "@/hooks/useAnagraficaFiscaleCliente";
+import { useUfficiPa } from "@/hooks/useUfficiPa";
+import { etichettaTipoCliente } from "@/lib/clienti/clienteFiscale";
+import { anagraficaEPa } from "@/lib/orders/riferimentiPa";
+import { RiferimentiPaCliente } from "@/components/orders/riferimentiPa/RiferimentiPaCliente";
 
 interface CustomerProfile {
   id: string;
@@ -190,6 +195,13 @@ export default function CompanyCustomerDetail() {
   const { emailConversazioni: emailConversationsForTimeline, messaggi: conversazioniMessaggi, note: diaryMessagesForTimeline } =
     useComunicazioniScheda(id, effectiveCompany?.id, customer?.email);
   const { data: linkedContact } = useContattoCollegato(customer?.marketing_contact_id);
+
+  // Il tipo fiscale vero (Privato, Azienda, PA, Estero) e, per un ente, i suoi uffici:
+  // la testata e i riferimenti d'appalto lo leggono da qui, non da profiles.is_business.
+  const { data: anaFiscale } = useAnagraficaFiscaleCliente(customer?.id);
+  const clientePa = anagraficaEPa(anaFiscale);
+  const { tutti: ufficiPa } = useUfficiPa(clientePa ? anaFiscale?.id : null);
+  const nomiUffici = useMemo(() => Object.fromEntries(ufficiPa.map((u) => [u.id, u.descrizione])), [ufficiPa]);
 
   // ── Computed values ──────────────────────────────────────────────────────────
   const orderCount = orders.length;
@@ -395,7 +407,9 @@ export default function CompanyCustomerDetail() {
           nome={fullName}
           accantoAlNome={
             <>
-              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]">{customer.is_business ? "Azienda" : "Cliente"}</Badge>
+              <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]" data-testid="tipo-cliente-testata">
+                {anaFiscale ? etichettaTipoCliente(anaFiscale.tipo_cliente) : customer.is_business ? "Azienda" : "Privato"}
+              </Badge>
               {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
                 <span className="truncate text-xs font-normal text-muted-foreground">(anagrafica da completare)</span>
               )}
@@ -626,6 +640,9 @@ export default function CompanyCustomerDetail() {
             linkedContact={linkedContact}
             onSaved={() => refetchCustomer()}
             onChiudi={() => setAnagraficaChiusa(true)}
+            dopoDatiFattura={scheda ? (
+              <RiferimentiPaCliente commesse={orders} clientePa={clientePa} nomiUffici={nomiUffici} />
+            ) : null}
           />
           {/* Storico chiamate sincronizzato (centralino + AI) */}
           <ContactCallHistory

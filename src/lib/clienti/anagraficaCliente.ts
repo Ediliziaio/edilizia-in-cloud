@@ -26,17 +26,42 @@ export interface ClientePerCompletare {
   is_business?: boolean | null;
 }
 
+/** I codici dell'anagrafica fiscale collegata (anagrafiche_native), se c'è: fanno fede su quelli del profilo. */
+export interface FiscalePerCompletare {
+  tipo_cliente?: string | null;
+  codice_fiscale?: string | null;
+  partita_iva?: string | null;
+}
+
 const vuoto = (v: string | null | undefined) => !v || !v.trim() || v.trim() === "—" || v.trim() === "-";
 
-/** Le etichette dei campi che mancano, come si chiamano nella scheda anagrafica. */
-export function campiDaCompletare(c: ClientePerCompletare): string[] {
+/**
+ * Le etichette dei campi che mancano, come si chiamano nella scheda anagrafica.
+ * Il codice fiscale e la partita IVA che servono dipendono dal tipo fiscale
+ * (15/11/2026: a un Comune si chiedeva la partita IVA):
+ * - Privato: codice fiscale;
+ * - Azienda: partita IVA;
+ * - Pubblica Amministrazione: codice fiscale dell'ente (la partita IVA è facoltativa);
+ * - Estero: nessuno dei due (l'identificativo estero sta nei dati per la fattura).
+ * Senza anagrafica fiscale vale il profilo: azienda → partita IVA, persona → codice fiscale.
+ */
+export function campiDaCompletare(c: ClientePerCompletare, fiscale?: FiscalePerCompletare | null): string[] {
   const mancano: string[] = [];
   if (vuoto(c.phone)) mancano.push("Telefono");
   const email = (c.email ?? "").trim().toLowerCase();
   if (!email.includes("@") || email.endsWith("@no-email.ediliziaincloud.local")) mancano.push("Email");
-  if (c.is_business) {
-    if (vuoto(c.vat_number)) mancano.push("Partita IVA");
-  } else if (vuoto(c.fiscal_code)) {
+  const cf = fiscale?.codice_fiscale || c.fiscal_code;
+  const piva = fiscale?.partita_iva || c.vat_number;
+  const tipo = (fiscale?.tipo_cliente ?? "").toUpperCase();
+  if (tipo === "PA" || tipo === "B2C") {
+    if (vuoto(cf)) mancano.push("Codice fiscale");
+  } else if (tipo === "B2B") {
+    if (vuoto(piva)) mancano.push("Partita IVA");
+  } else if (tipo === "ESTERO") {
+    // L'identificativo fiscale estero non è nella scheda anagrafica.
+  } else if (c.is_business) {
+    if (vuoto(piva)) mancano.push("Partita IVA");
+  } else if (vuoto(cf)) {
     mancano.push("Codice fiscale");
   }
   if (vuoto(c.address)) mancano.push("Indirizzo");

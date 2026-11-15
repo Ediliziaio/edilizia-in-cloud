@@ -10,6 +10,7 @@
  * entità business del cliente — NON c'è una tabella
  * `customer_activities` dedicata, quindi aggrego client-side.
  */
+import { etichettaStatoDocumento, etichettaTipoDocumento } from "@/lib/fatturazione/etichetteDocumento";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, isToday, isYesterday } from "date-fns";
@@ -224,8 +225,10 @@ export function CustomerActivityTimeline({
         category: "activity",
         icon: <FileText className="h-3.5 w-3.5" />,
         iconBg: "bg-emerald-100 text-emerald-600",
-        title: maiuscola(`${f.tipo || "Fattura"} ${f.numero || ""}`.trim()),
-        description: f.totale_documento != null && !nascondiImporti ? `${euro(f.totale_documento, true)}${f.stato ? ` · ${f.stato}` : ""}` : (f.stato ?? undefined),
+        title: `${etichettaTipoDocumento(f.tipo)} ${f.numero || ""}`.trim(),
+        description: f.totale_documento != null && !nascondiImporti
+          ? `${euro(f.totale_documento, true)}${f.stato ? ` · ${etichettaStatoDocumento(f.stato)}` : ""}`
+          : (etichettaStatoDocumento(f.stato) || undefined),
         timestamp: f.data_emissione,
         href: `/azienda/documenti/${f.id}`,
       });
