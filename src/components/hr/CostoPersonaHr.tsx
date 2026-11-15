@@ -11,8 +11,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { messaggioErroreOperai, useCostoPersona, useSalvaCostoPersona } from "@/hooks/useOperai";
-import { formatCurrency } from "@/lib/formatters";
+import { messaggioErroreOperai, oggiRoma, useCostoPersona, useSalvaCostoPersona } from "@/hooks/useOperai";
+import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { usePermissions } from "@/hooks/usePermissions";
 import { FullLaborCostCalculator } from "@/components/hr/FullLaborCostCalculator";
 import { HrLaborReconciliation } from "@/components/hr/HrLaborReconciliation";
@@ -31,6 +31,12 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
     ore_mese: testo(data?.ore_mese), contributi_percento: testo(data?.contributi_percento),
   };
   const [edit, setEdit] = useState<{ values: typeof server; baseline: typeof server } | null>(null);
+  // Da quando vale il costo nuovo: oggi, oppure una data passata (un aumento «dal 1° del mese»).
+  // I rapportini con la data del lavoro da lì in poi prendono il costo nuovo quando vengono approvati.
+  // Vuoto = oggi, letto al momento del salvataggio (la scheda può restare aperta oltre la mezzanotte).
+  const oggi = oggiRoma();
+  const unAnnoFa = (() => { const d = new Date(`${oggi}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 366); return d.toISOString().slice(0, 10); })();
+  const [dal, setDal] = useState("");
   const v = edit?.values ?? server;
   const dirty = !!edit && JSON.stringify(edit.values) !== JSON.stringify(edit.baseline);
   const remoteChange = !!edit && JSON.stringify(server) !== JSON.stringify(edit.baseline);
@@ -54,8 +60,16 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
     const patch: HrCostSaveDraft = {};
     for (const key of Object.keys(v) as (keyof typeof v)[]) if (v[key] !== edit.baseline[key]) patch[key] = v[key];
     if (!Object.keys(patch).length) { setEdit(null); return; }
+    const oggiOra = oggiRoma();
+    if (dal && dal > oggiOra) { toast.error("Il costo non può valere da una data futura: scrivilo quel giorno."); return; }
+    if (dal && dal < unAnnoFa) { toast.error("Il costo può valere al massimo da un anno fa."); return; }
+    const retroattivo = !!dal && dal < oggiOra;
+    if (retroattivo) patch.decorrenza = dal;
     salva.mutate(patch, {
-      onSuccess: () => { setEdit(null); toast.success("Costo aggiornato per i prossimi rapportini"); },
+      onSuccess: () => {
+        setEdit(null); setDal("");
+        toast.success(retroattivo ? `Costo aggiornato: vale dal ${formatDateShort(dal)}` : "Costo aggiornato per i prossimi rapportini");
+      },
       onError: (err) => toast.error(messaggioErroreOperai(err, "Non sono riuscito a salvare il costo. Riprova tra qualche secondo.")),
     });
   };
@@ -84,6 +98,28 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
         <div className="space-y-1"><Label htmlFor="costo-contributi_percento">INPS ditta (%)</Label><Input {...campo("contributi_percento")} placeholder={data?.inps_del_tipo != null ? testo(data.inps_del_tipo) : ""} /></div>
         <div className="space-y-1"><Label htmlFor="costo-costo_orario">Oppure costo orario (€)</Label><Input {...campo("costo_orario")} placeholder="Es. 24,50" /></div>
       </div>
+      {dirty && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="costo-decorrenza">Vale dal</Label>
+            <Input id="costo-decorrenza" type="date" className="w-44" value={dal || oggi} min={unAnnoFa} max={oggi} disabled={!canEdit || salva.isPending}
+              onChange={(e) => setDal(e.target.value === oggi ? "" : e.target.value)} />
+          </div>
+          <p className="pb-2 text-xs text-muted-foreground">
+            {dal && dal < oggi
+              ? `I rapportini dal ${formatDateShort(dal)} prendono il costo nuovo quando vengono approvati; quelli già approvati restano come sono.`
+              : "Vale per il lavoro da oggi. Per un aumento con decorrenza passata scegli la data."}
+          </p>
+        </div>
+      )}
+      {data?.valido_dal && (
+        <p className="text-xs text-muted-foreground">
+          Costo in vigore dal {formatDateShort(data.valido_dal)}{data.costo_precedente != null ? `; prima ${formatCurrency(data.costo_precedente)} all'ora` : ""}.
+          {(data.rapportini_col_costo_di_prima ?? 0) > 0 && (
+            <span className="text-amber-800">{" "}{data.rapportini_col_costo_di_prima === 1 ? "1 rapportino già approvato" : `${data.rapportini_col_costo_di_prima} rapportini già approvati`} da quella data {data.rapportini_col_costo_di_prima === 1 ? "ha" : "hanno"} ancora il costo di prima: restano come sono stati approvati.</span>
+          )}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           Se scrivi il costo orario vale quello. Altrimenti lo calcoliamo da lordo e ore, con mensilità,
@@ -94,7 +130,7 @@ export function CostoPersonaHr({ profiloId }: { profiloId: string }) {
         </Button>
       </div>
       {remoteChange && <div role="alert" className="text-sm text-amber-800">Il costo è cambiato mentre scrivevi. La bozza è conservata; rileggi i dati aggiornati prima di salvare.
-        <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={() => setEdit(null)}>Rileggi e scarta la bozza</Button>
+        <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={() => { setEdit(null); setDal(""); }}>Rileggi e scarta la bozza</Button>
       </div>}
       <FullLaborCostCalculator disabled={!canEdit || salva.isPending || isLoading || remoteChange} onPropose={rate => change("costo_orario", testo(rate))} />
       {permissions.canViewCosts && <HrLaborReconciliation profiloId={profiloId} />}

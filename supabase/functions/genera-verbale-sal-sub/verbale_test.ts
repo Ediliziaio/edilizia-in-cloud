@@ -5,6 +5,7 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  benestareFatturazione,
   type VerbaleSalSub,
   verificaVerbaleSalSub,
 } from "../_shared/verbaleSalSub.ts";
@@ -101,6 +102,19 @@ Deno.test("modello: zero percento di ritenuta è ammesso", () => {
   d.sal.ritenuta_importo = 0;
   d.sal.importo_netto = 4000;
   assertEquals(verificaVerbaleSalSub(d).netto, 4000);
+});
+Deno.test("modello: il recupero dell'acconto scala il netto e compare nel benestare", () => {
+  const d = esempio();
+  d.sal.stato = "verificato";
+  d.sal.acconto_recuperato = 1000;
+  d.sal.importo_netto = 2800;
+  const r = verificaVerbaleSalSub(d);
+  assertEquals(r.netto, 2800);
+  assertEquals(r.accontoRecuperato, 1000);
+  const b = benestareFatturazione(d, r);
+  assertEquals(b.righe.some(([k]) => k.startsWith("Recupero dell'acconto")), true);
+  d.sal.importo_netto = 3800;
+  assertThrows(() => verificaVerbaleSalSub(d), Error, "incoerenti");
 });
 for (
   const [nome, modifica] of [

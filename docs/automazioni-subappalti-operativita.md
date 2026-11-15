@@ -37,7 +37,7 @@ e cosa resta.
 | **Periodi sovrapposti** | Nessun controllo | Periodo solo nel testo («dal … al …»); `sal_subappaltatori` ha solo `data_emissione` | Parser del periodo, sovrapposizione con le altre fatture dello stesso contratto → avviso | Nessuna | Senza periodo scritto non si controlla | Fatture | Media | Fatto (testo); periodo strutturato sul SAL da fare | Test periodo sovrapposto |
 | **Riferimenti incoerenti** | Nessun controllo | Numero SAL / contratto nel testo vs collegamento | Citato ≠ collegato → blocco | Nessuna | Testo con due SAL diversi → nessun numero letto | Fatture | Alta | Fatto | Test SAL e contratto diversi |
 | **Pagamenti e ritenute del SAL** | `registra_pagamento_sal_sub`, registro ritenute, avviso «ritenute non registrate» | Pagato, ritenute trattenute/svincolate | Restano quelli; residuo contrattuale = valore − eseguito; residuo finanziario = netto − pagato | Nessuna | Svincolo prima del collaudo: regola del contratto | Subappaltatori, Tesoreria (C) | Media | Esistente | Riepilogo del contratto coerente |
-| **Rapportino: operaio, qualifica, costo** | Costo fotografato all'approvazione; tariffa a mano vince, altrimenti costo vero da lordo/oneri | Persona, ore, qualifica, storico del costo (`costi_orari_storico`, dal 15/11) | Costo valido alla **data del lavoro**: fatto (lotto 2) | Nessuna | Decorrenza passata di un aumento: da fare nell'interfaccia | Campo, Personale | Media | Fatto | Due rapportini dello stesso operaio prima/dopo l'aumento hanno costi diversi |
+| **Rapportino: operaio, qualifica, costo** | Costo fotografato all'approvazione; tariffa a mano vince, altrimenti costo vero da lordo/oneri | Persona, ore, qualifica, storico del costo (`costi_orari_storico`, dal 15/11) | Costo valido alla **data del lavoro**: fatto (lotto 2) | Nessuna | Decorrenza passata: «Vale dal» nella scheda (15/11); i rapportini già approvati restano col costo di allora | Campo, Personale | Media | Fatto | Due rapportini dello stesso operaio prima/dopo l'aumento hanno costi diversi |
 | **Rapportino: mezzo e tariffa** | `rapportino_mezzi_costi_trg`, costo orario del mezzo | Mezzo, ore; storico del costo manuale e delle ore previste | Costo alla data del lavoro: fatto (lotto 2); il calcolato sulle spese resta senza storia | Nessuna | Mezzo a noleggio: costo dalla fattura del noleggio (B) | Campo, Mezzi | Bassa | Fatto | — |
 | **Rapportino: listino e prezzo** | `prezzo_voce_commessa`: cantiere → committente → generale | Tariffe, eccezioni per commessa | Esistente; il prezzo del committente **non** sostituisce il costo (campi separati) | Nessuna | Unità diverse fra listino committente e generale: segnalate (`unita_diverse`) | Campo, Listini | — | Esistente | Test in `src/test/logic/rapportiniPrezzoListino.test.ts` |
 | **Materiali: magazzino → cantiere** | Scarico al costo medio, quota «a magazzino» sulla fattura | Movimenti, costo medio | La fattura a magazzino non va sulla commessa; lo scarico sì: un costo solo | Nessuna | Rientro dal cantiere al costo d'uscita | Magazzino (B) | — | Area B | Test dell'area B |
@@ -61,15 +61,42 @@ e cosa resta.
 - Test: `src/test/logic/controlloFatturaSubappalto.test.ts` (20 casi),
   `riconciliazioneSubappalto.test.ts`, `src/test/ui/collegamentiFattura.test.tsx`.
 
-**Collegamento automatico**: oggi l'esito «automatico» è mostrato come «Riconosciuta» e si
-conferma con un clic. Lo si può rendere davvero automatico all'arrivo della fattura (nessun
-clic) quando il titolare lo decide (§6, domanda 1).
+**Collegamento automatico** (15/11/2026, migrazione `20290415130000_subappalto_fattura_interruttore_traccia`):
+vale l'interruttore comune dell'azienda (`company_governance_settings.collegamento_automatico`,
+spento di base; docs/automazioni-acquisti.md §3).
+- Spento: l'esito «automatico» del controllo si mostra come **proposta** e si conferma con un
+  clic (`conInterruttoreSubappalto`).
+- Acceso: la scheda della fattura la collega da sola, una volta, con esito `automatico`.
+- `subappalto_collega_fattura(…, p_esito, p_regola, p_prove)` lo ricontrolla: con `automatico` e
+  l'interruttore spento non collega e registra solo la proposta.
+- Ogni collegamento va nella traccia comune `acquisti_collegamenti` (fattura → contratto,
+  fattura → SAL) con regola `subappalto_controllo_fattura`, prove, autore ed esito (`manuale`
+  quando decide una persona). Scollegare o cambiare SAL annulla le righe vecchie col motivo.
+- Limite: oggi il collegamento automatico avviene quando qualcuno con i permessi apre la fattura,
+  non all'arrivo dall'SDI. Per farlo all'arrivo serve un giro lato server col motore (passo
+  successivo).
+- La P.IVA si confronta con `chiaveFiscale` (`shared/acquisti/normalizza.ts`), la stessa chiave
+  di `partner_tax_key`.
 
 **Dati storici**: anteprima eseguita il 15/11 — 241 fatture ricevute non collegate hanno la
 P.IVA di un subappaltatore con contratto (2 aziende; 135 di fornitori con più contratti, quindi
 in buona parte «scelta»). Nessuna scrittura massiva fatta: un collegamento storico si fa a lotti
 (`lock_timeout` 3 s, `statement_timeout` 60 s, un'azienda per volta) solo per gli esiti
 `automatico`, dopo il sì del titolare.
+
+Anteprima col motore, 15/11 (sola lettura, dopo la correzione dei numeri di contratto):
+
+| Azienda | Automatico | Proposta | Scelta | Conflitto |
+|---|---|---|---|---|
+| A (116 fatture) | 0 | 78 · 1.227.920 € | 38 · 516.832 € | 0 |
+| B (125 fatture) | 0 | 39 · 132.174 € | 85 · 132.849 € | 1 · 700 € |
+
+Nessuna «automatico»: in tutte le proposte manca il SAL (le due aziende hanno un solo SAL di
+subappalto registrato) e molti contratti hanno importo 0. Il conflitto è una fattura di 700 €
+su un contratto da 250 €. Quindi niente collegamento a lotti: si scelgono a mano. Nella stessa
+anteprima 4 fatture risultavano in conflitto perché citavano «contratto n. 07» e il contratto in
+archivio non ha numero: ora è una proposta con avviso (`contratto_senza_numero`), e il numero
+breve («02 del 15/09/2025 — commessa 06/2025») si riconosce dalla fattura che scrive «n. 02».
 
 ## 4. Bollette e utenze — proposta (il modulo non esiste)
 
@@ -126,18 +153,37 @@ un conguaglio non viene scambiato per doppione; un doppione non entra due volte 
    Restano:
    - il costo **calcolato** di un mezzo (spese degli ultimi 12 mesi) cambia col tempo senza
      lasciare storia: si storicizzano solo le modifiche del manuale e delle ore previste;
-   - un aumento con decorrenza passata («dal 1° del mese») si registra dal giorno in cui lo si
-     scrive: la data a scelta serve nell'interfaccia della scheda dipendente;
+   - ~~decorrenza passata di un aumento~~ — **fatta il 15/11/2026** (migrazione
+     `20290415110000_costo_orario_decorrenza`): nella scheda del Personale, quando si cambia il
+     costo, compare «Vale dal» (oggi, oppure fino a un anno fa; mai nel futuro). I rapportini
+     da quella data prendono il costo nuovo quando vengono approvati; quelli già approvati
+     restano come sono, e la scheda dice quanti hanno ancora il costo di prima. Aggiornarli è un
+     passaggio esplicito ancora da costruire;
    - `rapportino_costo_recupera` (il costo che mancava e arriva dopo) usa il primo costo noto.
 2. **Periodo del SAL del subappaltatore**: c'è solo `data_emissione`. Con `periodo_dal`/`periodo_al`
    sul SAL la sovrapposizione si controlla anche quando la fattura non scrive il periodo.
-3. **Acconto al subappaltatore**: non c'è un campo strutturato sul contratto; una fattura
-   d'acconto oggi risulta «SAL mancante» (avviso, non blocco).
+3. ~~**Acconto al subappaltatore**~~ — **fatto il 15/11/2026** (migrazione
+   `20290415120000_subappalto_acconto`):
+   - sul contratto `acconto_importo` (campo «Acconto» nella scheda) e `acconto_recupero_pct`
+     (vuota = acconto / valore del contratto);
+   - la fattura d'acconto si collega al contratto **senza SAL** e si riconosce dal testo
+     («acconto», «anticipazione») o dall'importo uguale all'acconto ancora da fatturare;
+     oltre l'acconto previsto si blocca (`acconto_oltre`);
+   - ogni SAL registrato recupera la sua quota in `sal_subappaltatori.acconto_recuperato`,
+     solo dell'acconto **già fatturato**, mai oltre il residuo; l'ultimo SAL recupera tutto il
+     resto; il netto (colonna calcolata) è lordo − ritenuta − recupero, e il browser non lo
+     cambia;
+   - la fattura del SAL deve scalare l'acconto: se è sul netto senza recupero si blocca
+     (`acconto_non_scalato`), perché l'acconto si pagherebbe due volte;
+   - il riepilogo del contratto mostra acconto, fatturato, recuperato e **da recuperare**; il
+     verbale del SAL ha la riga «Recupero dell'acconto già fatturato» nel benestare.
+   Provato su Demo 2 (transazione annullata): contratto 12.400 €, acconto 3.100 €; SAL prima
+   della fattura d'acconto → recupero 0; SAL da 4.000 € → 1.000 €; ultimo SAL → i 2.100 € che
+   restano. Il recupero vale per i SAL registrati da oggi: quelli già registrati restano a 0.
 
 ## 6. Domande per il titolare
 
-1. Una fattura «Riconosciuta» (stesso subappaltatore, SAL citato e verificato, importo uguale al
-   periodo) si collega da sola all'arrivo, o resta il clic?
-2. Gli acconti ai subappaltatori sono previsti dai contratti? Se sì, si aggiunge l'importo
-   dell'acconto al contratto e il recupero sui SAL, come per il committente.
+1. ~~Una fattura «Riconosciuta» si collega da sola?~~ Lo decide l'interruttore comune
+   dell'azienda (§3).
+2. ~~Gli acconti ai subappaltatori sono previsti dai contratti?~~ Sì, a volte: fatto (§5.3).
 3. Le 241 fatture storiche: si collegano a lotti quelle «Riconosciute», azienda per azienda?

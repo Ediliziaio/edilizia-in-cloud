@@ -49,11 +49,16 @@ export function calculateFullLaborCost(draft: HrCostDraft) {
   return { errors, annualCost, productiveHours, hourlyCost };
 }
 
-export interface HrCostSaveDraft { costo_orario?: string; stipendio_lordo?: string; ore_mese?: string; contributi_percento?: string }
+export interface HrCostSaveDraft {
+  costo_orario?: string; stipendio_lordo?: string; ore_mese?: string; contributi_percento?: string;
+  /** Da quando vale il costo nuovo (AAAA-MM-GG). Assente = da oggi. Non è un dato del costo: da sola non si salva. */
+  decorrenza?: string;
+}
 /** Partial update: applying a full cost rate must not overwrite salary or hours. */
 export function normalizeHrCostSave(draft: HrCostSaveDraft): HrCostSaveDraft {
   const normalized: HrCostSaveDraft = {};
   for (const key of Object.keys(draft) as (keyof HrCostSaveDraft)[]) {
+    if (key === "decorrenza") continue;
     if (!["costo_orario", "stipendio_lordo", "ore_mese", "contributi_percento"].includes(key)) throw new Error("Campo costo non supportato.");
     const value = draft[key];
     if (value == null) continue;
@@ -71,5 +76,9 @@ export function normalizeHrCostSave(draft: HrCostSaveDraft): HrCostSaveDraft {
     normalized[key] = String(n).replace(".", ",");
   }
   if (!Object.keys(normalized).length) throw new Error("Nessun costo da aggiornare.");
+  if (draft.decorrenza) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.decorrenza)) throw new Error("La data da cui vale il costo non è valida.");
+    normalized.decorrenza = draft.decorrenza;
+  }
   return normalized;
 }

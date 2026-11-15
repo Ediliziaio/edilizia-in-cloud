@@ -121,7 +121,7 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null
       columns: [
         box([etichetta("Lavori di questo SAL"), { text: euro(r.lordo), fontSize: riquadro.numeroCorpo, margin: [0, 3, 0, 0] }, { text: "lordo, IVA esclusa", style: "nota" }]),
         box([etichetta(`Ritenuta di garanzia ${d.sal.ritenuta_pct}%`), { text: euro(r.ritenuta), fontSize: riquadro.numeroCorpo, margin: [0, 3, 0, 0] }, { text: "si paga allo svincolo", style: "nota" }]),
-        box([etichetta("Netto del SAL"), { text: euro(r.netto), fontSize: riquadro.numeroCorpo, bold: true, color: ACCENTO, margin: [0, 3, 0, 0] }, { text: "imponibile della fattura", style: "nota" }]),
+        box([etichetta("Netto del SAL"), { text: euro(r.netto), fontSize: riquadro.numeroCorpo, bold: true, color: ACCENTO, margin: [0, 3, 0, 0] }, { text: r.accontoRecuperato > 0 ? `imponibile della fattura, già scalati ${euro(r.accontoRecuperato)} di acconto` : "imponibile della fattura", style: "nota" }]),
       ],
       columnGap: 8,
       margin: [0, 10, 0, 0],

@@ -496,6 +496,12 @@ export interface CostoPersona {
   tipo?: string | null;
   /** INPS che vale quando la persona non ne ha uno suo. */
   inps_del_tipo?: number | null;
+  /** Da quando vale il costo di adesso (null = nessuna modifica registrata). */
+  valido_dal?: string | null;
+  /** Il costo che valeva prima di quella data. */
+  costo_precedente?: number | null;
+  /** Rapportini già approvati da quella data che hanno ancora il costo di prima: restano così. */
+  rapportini_col_costo_di_prima?: number;
 }
 
 export function useCostoPersona(profiloId: string | undefined) {
@@ -540,6 +546,7 @@ export function useSalvaCostoPersona(profiloId: string) {
       if (!saved?.ha_scheda_costo) throw new Error("Costo non confermato: ricarica la scheda.");
       const fields = { costo_orario: "costo_orario_scritto", stipendio_lordo: "stipendio_lordo", ore_mese: "ore_mese", contributi_percento: "contributi_percento" } as const;
       for (const key of Object.keys(dati) as (keyof HrCostSaveDraft)[]) {
+        if (key === "decorrenza") continue;
         const expected = dati[key] ? parseHrCostAmount(dati[key]!) : null;
         const actual = saved[fields[key]];
         if (!Object.prototype.hasOwnProperty.call(saved, fields[key])) throw new Error("Conferma incompleta: ricarica il costo prima di riprovare.");

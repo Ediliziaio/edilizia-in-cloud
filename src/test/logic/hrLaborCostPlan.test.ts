@@ -30,6 +30,11 @@ describe("Costo pieno gestionale, non un secondo cedolino", () => {
     expect(() => normalizeHrCostSave({ stipendio_lordo: "" })).toThrow();
   });
   it.each(["0", "745", "7,5", "-5"])("non arrotonda o inventa ore mensili %s", ore_mese => expect(() => normalizeHrCostSave({ ore_mese })).toThrow());
+  it("la decorrenza va col costo, da sola non si salva, e dev'essere una data", () => {
+    expect(normalizeHrCostSave({ costo_orario: "26", decorrenza: "2026-11-01" })).toEqual({ costo_orario: "26", decorrenza: "2026-11-01" });
+    expect(() => normalizeHrCostSave({ decorrenza: "2026-11-01" })).toThrow(/Nessun costo/);
+    expect(() => normalizeHrCostSave({ costo_orario: "26", decorrenza: "01/11/2026" })).toThrow(/non è valida/);
+  });
   it("INPS zero rimane zero e aliquota >100 viene rifiutata", () => {
     expect(normalizeHrCostSave({ contributi_percento: "0" })).toEqual({ contributi_percento: "0" });
     expect(() => normalizeHrCostSave({ contributi_percento: "101" })).toThrow();

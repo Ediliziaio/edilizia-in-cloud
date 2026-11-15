@@ -16,6 +16,8 @@ export type RigaSalSub = {
   importo_lordo: number;
   ritenuta_pct: number;
   ritenuta_importo: number;
+  /** Acconto recuperato da questo SAL (15/11/2026): il netto è già al netto di questo. */
+  acconto_recuperato?: number | null;
   importo_netto: number;
   note: string | null;
   note_contestazione?: string | null;
@@ -139,10 +141,11 @@ export function verificaVerbaleSalSub(d: VerbaleSalSub) {
   const lordo = cent(d.sal.importo_lordo),
     rit = cent(d.sal.ritenuta_importo),
     netto = cent(d.sal.importo_netto),
+    acconto = cent(d.sal.acconto_recuperato ?? 0),
     pct = Number(d.sal.ritenuta_pct);
   if (
-    lordo < 0 || rit < 0 || netto < 0 || !Number.isFinite(pct) || pct < 0 ||
-    pct > 100 || Math.abs(lordo - rit - netto) > 1 ||
+    lordo < 0 || rit < 0 || netto < 0 || acconto < 0 || !Number.isFinite(pct) || pct < 0 ||
+    pct > 100 || Math.abs(lordo - rit - acconto - netto) > 1 ||
     Math.abs(Math.round(lordo * pct / 100) - rit) > 1
   ) {
     throw new Error(
@@ -187,6 +190,7 @@ export function verificaVerbaleSalSub(d: VerbaleSalSub) {
   return {
     lordo: lordo / 100,
     ritenuta: rit / 100,
+    accontoRecuperato: acconto / 100,
     netto: netto / 100,
     precedenteRiconosciuto:
       precedenti.reduce((t, s) => t + cent(s.importo_lordo), 0) / 100,
@@ -205,7 +209,7 @@ export function verificaVerbaleSalSub(d: VerbaleSalSub) {
  * già esserci. Si fattura il netto del SAL: la ritenuta di garanzia si fattura
  * quando viene svincolata.
  */
-export function benestareFatturazione(d: VerbaleSalSub, r: { lordo: number; ritenuta: number; netto: number }) {
+export function benestareFatturazione(d: VerbaleSalSub, r: { lordo: number; ritenuta: number; netto: number; accontoRecuperato?: number }) {
   // «always»: senza, in italiano 9500 resta senza punto delle migliaia.
   const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions);
   const rif = [
@@ -221,6 +225,7 @@ export function benestareFatturazione(d: VerbaleSalSub, r: { lordo: number; rite
       righe: [
         ["Lavori del SAL (lordo)", euro(r.lordo)],
         [`Ritenuta di garanzia ${d.sal.ritenuta_pct}% (si fattura allo svincolo)`, `− ${euro(r.ritenuta)}`],
+        ...((r.accontoRecuperato ?? 0) > 0 ? [["Recupero dell'acconto già fatturato", `− ${euro(r.accontoRecuperato!)}`] as [string, string]] : []),
         ["Imponibile da fatturare", euro(r.netto)],
       ] as Array<[string, string]>,
       istruzioni: [

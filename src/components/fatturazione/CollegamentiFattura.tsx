@@ -3,7 +3,7 @@ import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/ord
  * Mezzi, DDT, subappalto e note di credito di una fattura ricevuta: righe di «A cosa è collegata», come
  * fornitore e commessa. A vuoto occupano una riga con «Collega»: il modulo si apre solo a chi lo chiede.
  */
-import { forwardRef, useState, type ComponentProps } from "react";
+import { forwardRef, useEffect, useRef, useState, type ComponentProps } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X } from "lucide-react";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { ScegliMezzoFattura } from "./ScegliMezzoFattura";
 import { CollegaDdtFattura } from "./CollegaDdtFattura";
 import { EsitoControlloSubappalto, useControlloSubappalto } from "./ControlloSubappaltoFattura";
+import { useCollegamentoAutomatico } from "@/hooks/useCollegamentoAutomatico";
+import { conInterruttoreSubappalto, proveTraccia } from "@/lib/subappaltatori/controlloFatturaSubappalto";
 import { chiaveCollegamenti, esigiRigaSalvata, messaggioSalvataggio } from "@/lib/fatturazione/salvataggioFattura";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -166,16 +168,35 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
   // azienda e SAL verificato li ricontrolla il database, e il costo va sulla commessa del contratto.
   // Prima qui c'era un update diretto, che saltava tutti questi controlli.
   const salvaSubappalto = useMutation({
-    mutationFn: async (campi: { contratto_subappalto_id?: string | null; sal_subappaltatore_id?: string | null }) => {
+    // La traccia (acquisti_collegamenti) la scrive la funzione: «manuale» quando decide una persona,
+    // «automatico» quando decide il controllo, e allora vale l'interruttore dell'azienda.
+    mutationFn: async (campi: { contratto_subappalto_id?: string | null; sal_subappaltatore_id?: string | null;
+      esito?: "manuale" | "automatico"; prove?: unknown[] }) => {
       const contratto = campi.contratto_subappalto_id !== undefined ? campi.contratto_subappalto_id : contrattoId ?? null;
       const sal = campi.contratto_subappalto_id === null ? null : campi.sal_subappaltatore_id !== undefined ? campi.sal_subappaltatore_id : null;
-      const { error } = await db.rpc("subappalto_collega_fattura", { p_fattura: fatturaId, p_contratto: contratto, p_sal: sal });
+      const { error } = await db.rpc("subappalto_collega_fattura", {
+        p_fattura: fatturaId, p_contratto: contratto, p_sal: sal,
+        p_esito: campi.esito ?? "manuale", p_regola: "subappalto_controllo_fattura", p_prove: campi.prove ?? [],
+      });
       if (error) throw error;
     },
     onSuccess: () => { aggiorna(); void qc.invalidateQueries({ queryKey: ["fattura-controllo-subappalto", companyId, fatturaId] }); },
     onError: errore,
   });
-  const { data: controllo } = useControlloSubappalto(fatturaId, companyId, cedentePiva);
+  const { data: controlloGrezzo } = useControlloSubappalto(fatturaId, companyId, cedentePiva);
+  // L'interruttore del collegamento automatico (docs/automazioni-acquisti.md §3): spento, il
+  // «riconosciuto» resta una proposta da confermare; acceso, la fattura si collega da sola.
+  const { data: automaticoAcceso = false } = useCollegamentoAutomatico(companyId);
+  const controllo = controlloGrezzo ? { ...controlloGrezzo, risultato: conInterruttoreSubappalto(controlloGrezzo.risultato, automaticoAcceso) } : undefined;
+  const tentatoAutomatico = useRef<string | null>(null);
+  const daCollegareDaSola = automaticoAcceso && !contrattoId && puoModificare && controlloGrezzo?.risultato.esito === "automatico"
+    ? controlloGrezzo.risultato : null;
+  useEffect(() => {
+    if (!daCollegareDaSola?.contrattoId || tentatoAutomatico.current === fatturaId || salvaSubappalto.isPending) return;
+    tentatoAutomatico.current = fatturaId;
+    salvaSubappalto.mutate({ contratto_subappalto_id: daCollegareDaSola.contrattoId, sal_subappaltatore_id: daCollegareDaSola.salId,
+      esito: "automatico", prove: proveTraccia(daCollegareDaSola) });
+  }, [daCollegareDaSola, fatturaId, salvaSubappalto]);
   const collegati = new Set((data?.mezzi ?? []).map((m) => m.mezzo_id));
   const ddt = data?.ddt ?? [];
   const ddtVisti = tuttiDdt ? ddt : ddt.slice(0, DDT_A_VISTA);
@@ -261,7 +282,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
             {controllo && (
               <EsitoControlloSubappalto risultato={controllo.risultato} contratti={controllo.contratti} sal={controllo.sal}
                 giaCollegata={!!contrattoId} puoModificare={puoModificare} occupato={salvaSubappalto.isPending}
-                onCollega={(c, sal) => salvaSubappalto.mutate({ contratto_subappalto_id: c, sal_subappaltatore_id: sal })} />
+                onCollega={(c, sal) => salvaSubappalto.mutate({ contratto_subappalto_id: c, sal_subappaltatore_id: sal, prove: proveTraccia(controllo.risultato) })} />
             )}
           </dd>
         </>

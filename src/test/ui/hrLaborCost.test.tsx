@@ -41,6 +41,21 @@ describe("Costo persona HR: salvataggio mirato e bozza protetta", () => {
     fireEvent.click(screen.getByRole("button", { name: "Salva il costo" }));
     expect(mocks.save).toHaveBeenCalledWith({ costo_orario: "25,74" }, expect.any(Object));
   });
+  it("decorrenza: la data passata va col costo, oggi non si manda", () => {
+    view(); expect(screen.queryByLabelText("Vale dal")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Oppure costo orario (€)"), { target: { value: "26" } });
+    expect(screen.getByLabelText("Vale dal")).toHaveValue("2026-10-13");
+    fireEvent.change(screen.getByLabelText("Vale dal"), { target: { value: "2026-10-01" } });
+    expect(screen.getByText(/I rapportini dal .* prendono il costo nuovo/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salva il costo" }));
+    expect(mocks.save).toHaveBeenCalledWith({ costo_orario: "26", decorrenza: "2026-10-01" }, expect.any(Object));
+  });
+  it("mostra da quando vale il costo e i rapportini approvati rimasti col costo di prima", () => {
+    mocks.read.mockReturnValue({ data: { ...cost, valido_dal: "2026-10-01", costo_precedente: 14, rapportini_col_costo_di_prima: 3 }, isLoading: false, error: null });
+    view();
+    expect(screen.getByText(/Costo in vigore dal/)).toBeInTheDocument();
+    expect(screen.getByText(/3 rapportini già approvati da quella data hanno ancora il costo di prima/)).toBeInTheDocument();
+  });
   it("refresh remoti non cancellano una bozza; bloccano la sovrascrittura", async () => {
     const { rerender } = view(); fireEvent.change(screen.getByLabelText("Oppure costo orario (€)"), { target: { value: "25,74" } });
     mocks.read.mockReturnValue({ data: { ...cost, costo_orario_scritto: 30, costo_orario: 30 }, isLoading: false, error: null });

@@ -219,7 +219,7 @@ export function creaGestore(
       }
       const sal = await singolo(
         db.from("sal_subappaltatori").select(
-          "id,company_id,contratto_id,order_id,subappaltatore_id,numero_sal,data_emissione,stato,importo_lordo,ritenuta_pct,ritenuta_importo,importo_netto,note,note_contestazione,data_pagamento,payment_reference,payment_method",
+          "id,company_id,contratto_id,order_id,subappaltatore_id,numero_sal,data_emissione,stato,importo_lordo,ritenuta_pct,ritenuta_importo,acconto_recuperato,importo_netto,note,note_contestazione,data_pagamento,payment_reference,payment_method",
         ).eq("id", input.sal_id).eq("company_id", input.company_id),
         "SAL",
       );

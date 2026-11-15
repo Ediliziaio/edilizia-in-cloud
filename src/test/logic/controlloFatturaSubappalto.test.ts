@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  chiavePiva, controllaFatturaSubappalto, periodoDalTesto, progressiviSal, salDalTesto,
+  chiavePiva, conInterruttoreSubappalto, controllaFatturaSubappalto, proveTraccia, periodoDalTesto, progressiviSal, salDalTesto,
   type ContrattoCtrl, type FatturaCtrl, type SalCtrl,
 } from "@/lib/subappaltatori/controlloFatturaSubappalto";
 
@@ -101,6 +101,18 @@ describe("identità e riferimenti", () => {
     expect(r.problemi.map((p) => p.codice)).toContain("contratto_diverso");
   });
 
+  it("cita un numero ma il contratto in archivio non ne ha: proposta con avviso, non conflitto", () => {
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 1234, testo: "CONTRATTO DI SUBAPPALTO N. 07 DEL 15/09/2025" }), { contratti: [contratto({ numero_contratto: null })], sal: tre, altreFatture: [] });
+    expect(r).toMatchObject({ esito: "proposta", contrattoId: "c1" });
+    expect(r.problemi.find((p) => p.codice === "contratto_senza_numero")?.blocca).toBe(false);
+  });
+
+  it("numero breve in archivio («02 del 15/09/2025 — commessa 06/2025») riconosciuto dalla fattura che scrive «contratto n. 02»", () => {
+    const due = [contratto({ id: "c1", numero_contratto: "02 del 15/09/2025 — commessa 06/2025" }), contratto({ id: "c2", numero_contratto: "07 del 15/09/2025 — commessa 04/2023" })];
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 4321, testo: "Contratto di subappalto n. 07 del 15/09/2025" }), { contratti: due, sal: [], altreFatture: [] });
+    expect(r.contrattoId).toBe("c2");
+  });
+
   it("nessun contratto con quella P.IVA: da gestire", () => {
     const r = controllaFatturaSubappalto(fattura({ cedente_piva: "05555555555" }), { contratti: [contratto()], sal: tre, altreFatture: [] });
     expect(r.esito).toBe("da_gestire");
@@ -127,6 +139,39 @@ describe("identità e riferimenti", () => {
     const altre = [fattura({ id: "f1", numero_fattura: "9", contratto_subappalto_id: "c1", sal_subappaltatore_id: "s1", imponibile_totale: 10000, testo: "Lavori dal 01/09/2026 al 30/09/2026" })];
     const r = controllaFatturaSubappalto(fattura({ testo: "SAL 2 lavori dal 15/09/2026 al 15/10/2026" }), { contratti: [contratto()], sal: tre, altreFatture: altre });
     expect(r.problemi.map((p) => p.codice)).toContain("periodo_sovrapposto");
+  });
+});
+
+describe("acconto al subappaltatore", () => {
+  // Contratto da 12.400 con acconto 3.100: il SAL 2 da 4.000 recupera 1.000 (netto 4.000 − 200 − 1.000 = 2.800).
+  const conAcconto = () => contratto({ importo_contrattuale: 12400, acconto_importo: 3100 });
+  const salAcc = [sal(1, 4000, "verificato", { ritenuta_importo: 200, acconto_recuperato: 1000, importo_netto: 2800 })];
+
+  it("la fattura d'acconto si riconosce senza SAL e non chiede un SAL", () => {
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 3100, testo: "Acconto su contratto di subappalto" }), { contratti: [conAcconto()], sal: [], altreFatture: [] });
+    expect(r).toMatchObject({ esito: "automatico", contrattoId: "c1", salId: null });
+    expect(r.problemi.map((p) => p.codice)).not.toContain("sal_mancante");
+  });
+
+  it("acconto fatturato due volte: blocco", () => {
+    const prima = fattura({ id: "fa", contratto_subappalto_id: "c1", imponibile_totale: 3100 });
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 3100, testo: "Acconto" }), { contratti: [conAcconto()], sal: [], altreFatture: [prima] });
+    expect(r.esito).toBe("conflitto");
+    expect(r.problemi.map((p) => p.codice)).toContain("acconto_oltre");
+  });
+
+  it("la fattura del SAL che scala l'acconto passa; quella che non lo scala si blocca", () => {
+    const accontoFatturato = fattura({ id: "fa", contratto_subappalto_id: "c1", imponibile_totale: 3100 });
+    const ok = controllaFatturaSubappalto(fattura({ imponibile_totale: 2800, testo: "SAL n. 1" }), { contratti: [conAcconto()], sal: salAcc, altreFatture: [accontoFatturato] });
+    expect(ok).toMatchObject({ esito: "automatico", salId: "s1" });
+    const doppia = controllaFatturaSubappalto(fattura({ imponibile_totale: 3800, testo: "SAL n. 1" }), { contratti: [conAcconto()], sal: salAcc, altreFatture: [accontoFatturato] });
+    expect(doppia.esito).toBe("conflitto");
+    expect(doppia.problemi.map((p) => p.codice)).toContain("acconto_non_scalato");
+  });
+
+  it("l'acconto non ancora recuperato non fa scattare «oltre i SAL approvati»", () => {
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 3100, testo: "Anticipazione contrattuale" }), { contratti: [conAcconto()], sal: [], altreFatture: [] });
+    expect(r.problemi.map((p) => p.codice)).not.toContain("oltre_approvato");
   });
 });
 
@@ -166,5 +211,25 @@ describe("letture dal testo", () => {
     expect(salDalTesto("SAL 2 e SAL 3")).toBeNull();
     expect(salDalTesto("Salone 3")).toBeNull();
     expect(periodoDalTesto("periodo 1.9.2026 - 30.9.2026")).toEqual({ dal: "2026-09-01", al: "2026-09-30" });
+  });
+});
+
+describe("interruttore del collegamento automatico e traccia", () => {
+  const ctx = { contratti: [contratto()], sal: tre, altreFatture: [] as FatturaCtrl[] };
+  it("spento: l'automatico diventa proposta; acceso: resta automatico; gli altri esiti non cambiano", () => {
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 6000, testo: "3° SAL" }), ctx);
+    expect(r.esito).toBe("automatico");
+    expect(conInterruttoreSubappalto(r, false)).toMatchObject({ esito: "proposta", contrattoId: "c1", salId: "s3" });
+    expect(conInterruttoreSubappalto(r, false).regola).toMatch(/spento/);
+    expect(conInterruttoreSubappalto(r, true)).toBe(r);
+    const conflitto = controllaFatturaSubappalto(fattura({ imponibile_totale: 18000, testo: "SAL n. 2" }), ctx);
+    expect(conInterruttoreSubappalto(conflitto, false)).toBe(conflitto);
+  });
+  it("le prove vanno nella traccia nel formato comune", () => {
+    const r = controllaFatturaSubappalto(fattura({ imponibile_totale: 6000, testo: "3° SAL" }), ctx);
+    const p = proveTraccia(r);
+    expect(p.length).toBe(r.prove.length);
+    expect(p[0]).toMatchObject({ ruolo: "conferma", esito: "uguale" });
+    expect(p.every((x) => /^[a-z0-9_]+$/.test(x.campo))).toBe(true);
   });
 });

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const selezioni: Record<string, string> = {};
 const chiamate: Array<{ nome: string; args: unknown }> = [];
+const interruttore = { acceso: false };
 const righe: Record<string, unknown[]> = {
   fattura_ricevuta_mezzi: [{ id: "l1", mezzo_id: "m1", importo: 120, confermata: false, mezzi: { nome: "Gru", targa: "AB123CD" } }],
   fattura_ddt: Array.from({ length: 8 }, (_, i) => ({ id: `d${i}`, numero_ddt: `DDT-${i}`, data_ddt: null as string | null, ddt_ricezione_id: null as string | null })),
@@ -27,7 +28,10 @@ const righe: Record<string, unknown[]> = {
 };
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: async (nome: string, args: unknown) => { chiamate.push({ nome, args }); return { data: null as unknown, error: null as unknown }; },
+    rpc: async (nome: string, args: unknown) => {
+      chiamate.push({ nome, args });
+      return { data: (nome === "azienda_collegamento_automatico" ? interruttore.acceso : null) as unknown, error: null as unknown };
+    },
     auth: { getUser: async () => ({ data: { user: null as { id: string } | null } }) },
     from: (t: string) => {
       const q: Record<string, unknown> = {};
@@ -91,9 +95,23 @@ describe("Collegamenti della fattura, come righe del riepilogo", () => {
     righe.sal_subappaltatori = [{ id: "s1", company_id: "c1", contratto_id: "k1", numero_sal: 1, importo_lordo: 500, oneri_quota: 0, importo_netto: 475, stato: "verificato" }];
     try {
       monta(true, "01234567890");
-      expect(await screen.findByText(/Riconosciuta: contratto K-1 · SAL 1/)).toBeTruthy();
+      // Interruttore spento (di base): il riconosciuto resta una proposta, la conferma è «manuale».
+      expect(await screen.findByText(/Proposta: contratto K-1 · SAL 1/)).toBeTruthy();
+      expect(chiamate.some((c) => c.nome === "subappalto_collega_fattura")).toBe(false);
       screen.getByRole("button", { name: "Collega" }).click();
-      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura", args: { p_fattura: "f1", p_contratto: "k1", p_sal: "s1" } }));
+      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura",
+        args: expect.objectContaining({ p_fattura: "f1", p_contratto: "k1", p_sal: "s1", p_esito: "manuale", p_regola: "subappalto_controllo_fattura" }) }));
+      const prove = (chiamate.find((c) => c.nome === "subappalto_collega_fattura")!.args as { p_prove: Array<{ testo: string }> }).p_prove;
+      expect(prove.map((p) => p.testo)).toContain("SAL trovato per numero: n. 1");
+      // Interruttore acceso: si collega da sola, con esito «automatico».
+      cleanup();
+      chiamate.length = 0;
+      interruttore.acceso = true;
+      monta(true, "01234567890");
+      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura",
+        args: expect.objectContaining({ p_contratto: "k1", p_sal: "s1", p_esito: "automatico" }) }));
+      expect(chiamate.filter((c) => c.nome === "subappalto_collega_fattura")).toHaveLength(1);
+      interruttore.acceso = false;
       // SAL ancora da verificare: si propone il solo contratto, il SAL dopo la verifica.
       cleanup();
       chiamate.length = 0;
@@ -101,9 +119,10 @@ describe("Collegamenti della fattura, come righe del riepilogo", () => {
       monta(true, "01234567890");
       expect(await screen.findByText(/Proposta: contratto K-1 \(il SAL si collega dopo la verifica\)/)).toBeTruthy();
       screen.getByRole("button", { name: "Collega" }).click();
-      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura", args: { p_fattura: "f1", p_contratto: "k1", p_sal: null } }));
+      await vi.waitFor(() => expect(chiamate).toContainEqual({ nome: "subappalto_collega_fattura",
+        args: expect.objectContaining({ p_fattura: "f1", p_contratto: "k1", p_sal: null, p_esito: "manuale" }) }));
     } finally {
-      righe.fatture_ricevute = prima.f; righe.contratti_subappalto = prima.c; righe.sal_subappaltatori = prima.s;
+      righe.fatture_ricevute = prima.f; righe.contratti_subappalto = prima.c; righe.sal_subappaltatori = prima.s; interruttore.acceso = false;
     }
   });
 });

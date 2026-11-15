@@ -54,6 +54,8 @@ export interface ContrattoCompleto {
   note: string | null;
   created_at: string;
   oneri_sicurezza: number;
+  /** Acconto previsto dal contratto (15/11/2026): si fattura senza SAL e si recupera nei SAL. */
+  acconto_importo?: number | null;
   data_stipula: string | null;
   responsabile_impresa: string | null;
   referente_subappaltatore: string | null;
@@ -154,6 +156,7 @@ interface FormContratto {
   importo_contrattuale: string;
   oneri_sicurezza: string;
   ritenuta_garanzia_pct: string;
+  acconto_importo: string;
   durata_garanzia_mesi: string;
   data_stipula: string;
   data_inizio: string;
@@ -170,7 +173,7 @@ interface FormContratto {
 
 const formVuoto = (orderId: string, referente: string): FormContratto => ({
   order_id: orderId, numero_contratto: "", descrizione_lavori: "", importo_contrattuale: "", oneri_sicurezza: "",
-  ritenuta_garanzia_pct: "5", durata_garanzia_mesi: "12", data_stipula: oggi(), data_inizio: "", data_fine_prevista: "",
+  ritenuta_garanzia_pct: "5", acconto_importo: "", durata_garanzia_mesi: "12", data_stipula: oggi(), data_inizio: "", data_fine_prevista: "",
   stato: "attivo", responsabile_impresa: "", referente_subappaltatore: referente, obblighi: "", modalita_pagamento: "",
   penali: "", garanzie: "", note: "",
 });
@@ -178,7 +181,8 @@ const formVuoto = (orderId: string, referente: string): FormContratto => ({
 const daContratto = (c: ContrattoCompleto): FormContratto => ({
   order_id: c.order_id, numero_contratto: c.numero_contratto ?? "", descrizione_lavori: c.descrizione_lavori ?? "",
   importo_contrattuale: String(c.importo_contrattuale ?? ""), oneri_sicurezza: String(c.oneri_sicurezza ?? ""),
-  ritenuta_garanzia_pct: String(c.ritenuta_garanzia_pct ?? ""), durata_garanzia_mesi: String(c.durata_garanzia_mesi ?? 12),
+  ritenuta_garanzia_pct: String(c.ritenuta_garanzia_pct ?? ""),
+  acconto_importo: Number(c.acconto_importo ?? 0) > 0 ? String(c.acconto_importo) : "", durata_garanzia_mesi: String(c.durata_garanzia_mesi ?? 12),
   data_stipula: c.data_stipula ?? "", data_inizio: c.data_inizio ?? "", data_fine_prevista: c.data_fine_prevista ?? "",
   stato: c.stato, responsabile_impresa: c.responsabile_impresa ?? "", referente_subappaltatore: c.referente_subappaltatore ?? "",
   obblighi: c.obblighi ?? "", modalita_pagamento: c.modalita_pagamento ?? "", penali: c.penali ?? "", garanzie: c.garanzie ?? "", note: c.note ?? "",
@@ -247,7 +251,7 @@ export function ContrattiSubappalto({
     queryKey: [...chiaviContratti.salTutti(sub.id), ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("sal_subappaltatori" as never)
-        .select("id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
+        .select("id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, acconto_recuperato, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; oneri_quota?: number | null; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
     },
@@ -407,6 +411,11 @@ export function ContrattiSubappalto({
       // Tutte le verifiche prima della variante: una variante registrata e poi un errore sul resto lasciavano a metà.
       const ritenuta = numero(form.ritenuta_garanzia_pct);
       if (ritenuta == null || ritenuta < 0 || ritenuta > 100) throw new Error("Ritenuta di garanzia non valida");
+      // L'acconto si recupera nei SAL: non può superare il valore del contratto.
+      const accontoLetto = form.acconto_importo.trim() ? numero(form.acconto_importo) : 0;
+      if (accontoLetto == null || accontoLetto < 0) throw new Error("Acconto non valido");
+      const acconto = Math.round(accontoLetto * 100) / 100;
+      if (acconto > importo + oneri + 0.004) throw new Error("L'acconto non può superare il valore del contratto");
       const orig = dialog?.id ? contratti.find((x) => x.id === dialog.id) : undefined;
       const cambiaImporto = !!orig && (Math.abs(Number(orig.importo_contrattuale) - importo) > 0.004 || Math.abs(Number(orig.oneri_sicurezza ?? 0) - oneri) > 0.004);
       // In firma: il subappaltatore firmerebbe il PDF con l'importo vecchio.
@@ -428,7 +437,7 @@ export function ContrattiSubappalto({
       const campi = {
         company_id: companyId, subappaltatore_id: sub.id, order_id: form.order_id,
         numero_contratto: form.numero_contratto.trim() || null, descrizione_lavori: form.descrizione_lavori.trim(),
-        importo_contrattuale: importo, oneri_sicurezza: oneri, ritenuta_garanzia_pct: ritenuta,
+        importo_contrattuale: importo, oneri_sicurezza: oneri, ritenuta_garanzia_pct: ritenuta, acconto_importo: acconto,
         durata_garanzia_mesi: Math.max(0, Math.round(numero(form.durata_garanzia_mesi) ?? 12)),
         data_stipula: form.data_stipula || null, data_inizio: form.data_inizio || null, data_fine_prevista: form.data_fine_prevista || null,
         stato: form.stato, responsabile_impresa: form.responsabile_impresa.trim() || null,
@@ -733,6 +742,12 @@ export function ContrattiSubappalto({
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground"><span>Eseguito {r.avanzamento}%</span><span>Residuo {euro(r.residuo)}</span></div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${r.avanzamento}%` }} /></div>
+                {r.acconto > 0 && (
+                  <p className="pt-1 text-xs text-muted-foreground" data-testid="acconto-contratto">
+                    Acconto {euro(r.acconto)} · fatturato {euro(r.accontoFatturato)} · recuperato nei SAL {euro(r.accontoRecuperato)} ·{" "}
+                    <span className={r.accontoDaRecuperare > 0 ? "font-medium text-amber-800" : undefined}>da recuperare {euro(r.accontoDaRecuperare)}</span>
+                  </p>
+                )}
               </div>
               {/* Firma elettronica: a che punto è */}
               {richiesta && !c.firmato_il && (
@@ -928,6 +943,8 @@ export function ContrattiSubappalto({
             <div className="space-y-1"><Label>Importo lavori (€) *</Label><Input inputMode="decimal" {...campo("importo_contrattuale")} placeholder="0,00" /></div>
             <div className="space-y-1"><Label>Oneri della sicurezza (€)</Label><Input inputMode="decimal" {...campo("oneri_sicurezza")} placeholder="Non soggetti a ribasso" /></div>
             <div className="space-y-1"><Label>Ritenuta di garanzia (%)</Label><Input inputMode="decimal" {...campo("ritenuta_garanzia_pct")} /></div>
+            <div className="space-y-1"><Label>Acconto (€)</Label><Input inputMode="decimal" {...campo("acconto_importo")} placeholder="Se il contratto lo prevede" />
+              <p className="text-[11px] text-muted-foreground">Si fattura senza SAL e si scala dai SAL, in proporzione al valore del contratto; l'ultimo SAL recupera il resto.</p></div>
             <div className="space-y-1"><Label>Garanzia (mesi dalla fine lavori)</Label><Input inputMode="numeric" {...campo("durata_garanzia_mesi")} /></div>
             <div className="space-y-1"><Label>Inizio lavori</Label><Input type="date" {...campo("data_inizio")} /></div>
             <div className="space-y-1"><Label>Fine lavori prevista</Label><Input type="date" {...campo("data_fine_prevista")} /></div>
@@ -1070,7 +1087,7 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
     queryKey: [...chiaviContratti.salTutti(subId), ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("sal_subappaltatori" as never)
-        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
+        .select("id, contratto_id, numero_sal, importo_lordo, ritenuta_importo, acconto_recuperato, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
       if (error) throw error;
       return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
     },
@@ -1091,10 +1108,10 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
     queryKey: ["fatture-sub-lavori", subId, ids.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.from("fatture_ricevute" as never)
-        .select("id, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id")
+        .select("id, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id")
         .in("contratto_subappalto_id" as never, ids as never);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null }>;
+      return (data ?? []) as unknown as Array<{ id: string; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null }>;
     },
     enabled: ids.length > 0,
   });

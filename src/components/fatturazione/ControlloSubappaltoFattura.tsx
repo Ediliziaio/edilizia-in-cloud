@@ -37,7 +37,7 @@ export function useControlloSubappalto(fatturaId: string, companyId: string, ced
       const piva = chiavePiva(f.cedente_piva ?? cedentePiva);
       if (!piva && !f.contratto_subappalto_id) return null;
       const { data: righeC, error: ec } = await db.from("contratti_subappalto")
-        .select("id, company_id, numero_contratto, importo_contrattuale, oneri_sicurezza, stato, subappaltatori_sicurezza(piva)")
+        .select("id, company_id, numero_contratto, importo_contrattuale, oneri_sicurezza, acconto_importo, stato, subappaltatori_sicurezza(piva)")
         .eq("company_id", companyId).limit(1000);
       if (ec) throw ec;
       const contratti: ContrattoCtrl[] = ((righeC ?? []) as Array<ContrattoCtrl & { subappaltatori_sicurezza: { piva: string | null } | null }>)
@@ -46,7 +46,7 @@ export function useControlloSubappalto(fatturaId: string, companyId: string, ced
       if (!contratti.length) return null;
       const ids = contratti.map((c) => c.id);
       const [s, a] = await Promise.all([
-        db.from("sal_subappaltatori").select("id, company_id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, importo_netto, stato, data_emissione")
+        db.from("sal_subappaltatori").select("id, company_id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, acconto_recuperato, importo_netto, stato, data_emissione")
           .eq("company_id", companyId).in("contratto_id", ids),
         db.from("fatture_ricevute").select(COLONNE_FATTURA).eq("company_id", companyId).in("contratto_subappalto_id", ids).neq("id", fatturaId).limit(1000),
       ]);
@@ -78,7 +78,8 @@ export function EsitoControlloSubappalto({ risultato, contratti, sal, giaCollega
   // il solo contratto, e il SAL si aggiunge dopo la verifica.
   const salDaVerificare = problemi.some((p) => p.codice === "sal_non_verificato");
   const s = salDaVerificare ? undefined : sal.find((x) => x.id === salId);
-  const nomeProposta = c ? `contratto ${c.numero_contratto || "senza numero"}${s ? ` · SAL ${s.numero_sal}` : ""}` : "";
+  const acconto = risultato.prove.some((p) => p.dato === "Fattura d'acconto");
+  const nomeProposta = c ? `contratto ${c.numero_contratto || "senza numero"}${s ? ` · SAL ${s.numero_sal}` : acconto ? " · fattura d'acconto, senza SAL" : ""}` : "";
   const proponibile = !giaCollegata && !!c && (esito === "automatico" || esito === "proposta");
   return (
     <span className="basis-full text-xs" data-testid="controllo-subappalto">

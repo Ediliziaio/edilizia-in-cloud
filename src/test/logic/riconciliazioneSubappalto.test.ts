@@ -147,3 +147,18 @@ describe("SAL fatturato due volte nel riepilogo del contratto", () => {
     expect(r.avvisi.join(" ")).toMatch(/SAL n\. 1 .* è fatturato per/);
   });
 });
+
+describe("acconto nel riepilogo del contratto", () => {
+  it("acconto fatturato, recuperato nei SAL e residuo da recuperare; niente doppio conteggio", () => {
+    const r = riepilogoContratto({ importo_contrattuale: 12400, acconto_importo: 3100 },
+      [{ id: "s1", numero_sal: 1, importo_lordo: 4000, ritenuta_importo: 200, acconto_recuperato: 1000, importo_netto: 2800, stato: "verificato" }],
+      [{ imponibile_totale: 3100 }, { imponibile_totale: 2800, sal_subappaltatore_id: "s1" }],
+      [{ importo: 200, stato: "trattenuta" }]);
+    expect(r).toMatchObject({ acconto: 3100, accontoFatturato: 3100, accontoRecuperato: 1000, accontoDaRecuperare: 2100, fatturato: 5900, daPagare: 2800 });
+    expect(r.avvisi).toEqual([]);
+  });
+  it("senza acconto nel contratto le fatture senza SAL non diventano acconto", () => {
+    const r = riepilogoContratto({ importo_contrattuale: 5000 }, [], [{ imponibile_totale: 1000 }], []);
+    expect(r.accontoFatturato).toBe(0);
+  });
+});

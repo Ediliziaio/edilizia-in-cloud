@@ -17,6 +17,8 @@
  * sia il resto: non c'è un punteggio che lo compensa. Un SAL mancante chiede una verifica ma
  * non rende sbagliata la fattura.
  */
+import { chiaveFiscale } from "../../../shared/acquisti/normalizza.ts";
+import type { Prova as ProvaTraccia } from "../../../shared/acquisti/riconciliazione.ts";
 
 export type EsitoControllo = "automatico" | "proposta" | "scelta" | "conflitto" | "da_gestire";
 
@@ -28,6 +30,8 @@ export interface ContrattoCtrl {
   importo_contrattuale: number;
   oneri_sicurezza?: number | null;
   stato?: string | null;
+  /** Acconto previsto dal contratto: si fattura senza SAL e si recupera nei SAL. */
+  acconto_importo?: number | null;
 }
 export interface SalCtrl {
   id: string;
@@ -39,6 +43,8 @@ export interface SalCtrl {
   oneri_quota?: number | null;
   ritenuta_importo?: number | null;
   importo_netto?: number | null;
+  /** Acconto recuperato da questo SAL: il netto è già al netto di questo. */
+  acconto_recuperato?: number | null;
   stato: string | null;
   data_emissione?: string | null;
 }
@@ -62,7 +68,8 @@ export interface Problema {
   codice:
     | "piva_diversa" | "contratto_diverso" | "sal_diverso" | "importo_cumulativo" | "sal_gia_fatturato"
     | "oltre_contratto" | "oltre_approvato" | "sal_non_verificato" | "sal_mancante" | "periodo_sovrapposto"
-    | "importo_diverso" | "altra_azienda" | "fattura_rifiutata";
+    | "importo_diverso" | "altra_azienda" | "fattura_rifiutata" | "contratto_senza_numero"
+    | "acconto_oltre" | "acconto_non_scalato";
   blocca: boolean;
   testo: string;
 }
@@ -85,10 +92,8 @@ const tondo = (v: number) => Math.round(v * 100) / 100;
 const uguale = (a: number, b: number) => Math.abs(a - b) <= 0.01 + Math.abs(b) * 0.0005;
 const euro = (v: number) => v.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
 
-/** P.IVA senza spazi, punti né prefisso IT: la stessa chiave di `partner_tax_key` nel database. */
-export function chiavePiva(p: string | null | undefined): string {
-  return (p ?? "").toUpperCase().replace(/[\s.-]/g, "").replace(/^IT(?=\d{11}$)/, "");
-}
+/** P.IVA confrontabile: la chiave comune `chiaveFiscale`, uguale a `partner_tax_key` nel database. */
+export const chiavePiva = (p: string | null | undefined): string => chiaveFiscale(p);
 const numeroPulito = (s: string | null | undefined) => (s ?? "").toUpperCase().replace(/[\s\-_/.]/g, "");
 
 /** Imponibile con segno: le note di credito sono negative. */
@@ -126,10 +131,16 @@ export function salDalTesto(testo: string | null | undefined): number | null {
   return trovati.size === 1 ? [...trovati][0] : null;
 }
 
-/** Il numero di contratto è citato nel testo? Confronto senza spazi e separatori, almeno 3 caratteri. */
+/**
+ * Il numero di contratto è citato nel testo? Due prove: il numero intero dentro il testo (almeno 3
+ * caratteri, senza spazi e separatori), oppure il testo È il primo pezzo del numero. In archivio i
+ * numeri sono spesso «02 del 15/09/2025 — commessa 06/2025», e la fattura scrive «contratto n. 02».
+ */
 function citaContratto(testo: string, numero: string | null): boolean {
   const k = numeroPulito(numero);
-  return k.length >= 3 && numeroPulito(testo).includes(k);
+  if (k.length >= 3 && numeroPulito(testo).includes(k)) return true;
+  const primo = numeroPulito((numero ?? "").trim().split(/\s+/)[0]);
+  return !!primo && numeroPulito(testo) === primo;
 }
 /** Riferimenti a un contratto nel testo: «contratto n. XYZ», «contr. XYZ». */
 function contrattiCitati(testo: string): string[] {
@@ -203,15 +214,20 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
     if (!piva) return fine("da_gestire", "La fattura non ha la P.IVA del fornitore: il contratto non si può riconoscere.", null, null);
     const delFornitore = contratti.filter((c) => chiavePiva(c.piva) === piva && c.stato !== "annullato");
     if (!delFornitore.length) return fine("da_gestire", "Nessun contratto di subappalto con questa P.IVA.", null, null);
-    const perNumero = delFornitore.filter((c) => citaContratto(testo, c.numero_contratto));
+    const perNumero = delFornitore.filter((c) => citaContratto(testo, c.numero_contratto) || citati.some((x) => citaContratto(x, c.numero_contratto)));
     if (perNumero.length === 1) {
       contratto = perNumero[0];
       prove.push({ dato: "Numero di contratto in fattura", valore: contratto.numero_contratto ?? "" });
     } else if (delFornitore.length === 1 && !citati.length) {
       contratto = delFornitore[0];
       prove.push({ dato: "Unico contratto del subappaltatore", valore: contratto.numero_contratto ?? "senza numero" });
+    } else if (delFornitore.length === 1 && citati.length && !numeroPulito(delFornitore[0].numero_contratto)) {
+      // Il contratto in archivio non ha numero: non si può dire che sia un altro. Dato mancante, non conflitto.
+      contratto = delFornitore[0];
+      prove.push({ dato: "Unico contratto del subappaltatore", valore: "senza numero" });
+      problemi.push({ codice: "contratto_senza_numero", blocca: false, testo: `La fattura cita il contratto ${citati[0]}, ma il contratto in archivio non ha numero: scrivilo sul contratto.` });
     } else if (delFornitore.length === 1 && citati.length) {
-      problemi.push({ codice: "contratto_diverso", blocca: true, testo: `La fattura cita il contratto ${citati[0]}, che non è quello del subappaltatore (${delFornitore[0].numero_contratto ?? "senza numero"}).` });
+      problemi.push({ codice: "contratto_diverso", blocca: true, testo: `La fattura cita il contratto ${citati[0]}, che non è quello del subappaltatore (${delFornitore[0].numero_contratto}).` });
       return fine("conflitto", "", null, null);
     } else {
       // Più contratti: si restringe con l'importo di un SAL; se resta più d'uno, sceglie l'utente.
@@ -263,6 +279,24 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
     }
   }
 
+  // 2b. Fattura d'acconto: collegata al contratto senza SAL, entro l'acconto previsto.
+  const acconto = tondo(n(contratto.acconto_importo));
+  const accontoFatturatoAltre = tondo(altre.filter((f) => f.contratto_subappalto_id === contratto!.id && !f.sal_subappaltatore_id)
+    .reduce((t, f) => t + imponibileFattura(f), 0));
+  const accontoDaFatturare = tondo(acconto - accontoFatturatoAltre);
+  const citaAcconto = /\b(acconto|anticipazion)/i.test(testo);
+  let eAcconto = false;
+  if (!sal && !fattura.sal_subappaltatore_id && !eNotaCredito(fattura) && acconto > 0
+      && (citaAcconto || (!alternative.length && uguale(imp, accontoDaFatturare)))) {
+    eAcconto = true;
+    alternative.length = 0;
+    prove.push({ dato: "Fattura d'acconto", valore: `${euro(imp)} su un acconto di ${euro(acconto)}` });
+    if (tondo(accontoFatturatoAltre + imp) > acconto + 0.01) {
+      problemi.push({ codice: "acconto_oltre", blocca: true,
+        testo: `Con questa fattura l'acconto fatturato (${euro(tondo(accontoFatturatoAltre + imp))}) supera l'acconto del contratto (${euro(acconto)}).` });
+    }
+  }
+
   // 3. Fattura sul cumulativo: l'importo è il «a tutto il SAL n», non il periodo.
   if (!eNotaCredito(fattura)) {
     const p = sal ? prog.find((x) => x.id === sal!.id) : null;
@@ -273,6 +307,11 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
       const x = p ?? prog.find((y) => uguale(imp, y.cumulativo))!;
       problemi.push({ codice: "importo_cumulativo", blocca: true,
         testo: `L'imponibile (${euro(imp)}) è il cumulativo a tutto il SAL n. ${x.numero}, non il periodo (${euro(x.periodo)}): i SAL precedenti sarebbero contati due volte.` });
+    } else if (sal && n(sal.acconto_recuperato) > 0 && !uguale(imp, n(sal.importo_netto))
+               && (uguale(imp, tondo(n(sal.importo_netto) + n(sal.acconto_recuperato))) || uguale(imp, periodoSal(sal)))) {
+      // Il SAL recupera l'acconto, la fattura no: l'acconto già fatturato si pagherebbe due volte.
+      problemi.push({ codice: "acconto_non_scalato", blocca: true,
+        testo: `Il SAL n. ${sal.numero_sal} recupera ${euro(n(sal.acconto_recuperato))} di acconto, ma la fattura (${euro(imp)}) non lo scala: l'imponibile atteso è ${euro(n(sal.importo_netto))}.` });
     } else if (sal && !uguale(imp, periodoSal(sal)) && !uguale(imp, n(sal.importo_netto))) {
       // Importo diverso dal SAL: può essere una fattura parziale. Proposta, non blocco.
       problemi.push({ codice: "importo_diverso", blocca: false, testo: `L'imponibile (${euro(imp)}) non è l'importo del SAL n. ${sal.numero_sal} (${euro(periodoSal(sal))}).` });
@@ -293,12 +332,15 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
   const fatturatoAltre = tondo(altre.filter((f) => f.contratto_subappalto_id === contratto!.id).reduce((t, f) => t + imponibileFattura(f), 0));
   const fatturatoTot = tondo(fatturatoAltre + imp);
   const approvato = tondo(salC.filter((s) => s.stato === "verificato" || s.stato === "pagato").reduce((t, s) => t + periodoSal(s), 0));
+  // L'acconto non ancora recuperato è autorizzato dal contratto anche senza SAL.
+  const recuperato = tondo(salC.filter((s) => s.stato !== "contestato").reduce((t, s) => t + n(s.acconto_recuperato), 0));
+  const autorizzato = tondo(approvato + Math.max(0, acconto - recuperato));
   prove.push({ dato: "Valore del contratto (varianti comprese)", valore: euro(valore) });
   prove.push({ dato: "Fatturato con questa fattura", valore: euro(fatturatoTot) });
   if (valore > 0 && fatturatoTot > valore + 0.01) {
     problemi.push({ codice: "oltre_contratto", blocca: true, testo: `Con questa fattura il fatturato (${euro(fatturatoTot)}) supera il valore del contratto (${euro(valore)}): serve una variante approvata.` });
-  } else if (fatturatoTot > approvato + 0.01 && !eNotaCredito(fattura)) {
-    problemi.push({ codice: "oltre_approvato", blocca: false, testo: `Con questa fattura il fatturato (${euro(fatturatoTot)}) supera i SAL approvati (${euro(approvato)}): verifica i SAL prima di pagare.` });
+  } else if (fatturatoTot > autorizzato + 0.01 && !eNotaCredito(fattura)) {
+    problemi.push({ codice: "oltre_approvato", blocca: false, testo: `Con questa fattura il fatturato (${euro(fatturatoTot)}) supera i SAL approvati${acconto > 0 ? " più l'acconto da recuperare" : ""} (${euro(autorizzato)}): verifica i SAL prima di pagare.` });
   }
 
   // 6. Periodi sovrapposti con altre fatture dello stesso contratto.
@@ -317,7 +359,7 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
   if (sal && sal.stato !== "verificato" && sal.stato !== "pagato") {
     problemi.push({ codice: "sal_non_verificato", blocca: false, testo: `Il SAL n. ${sal.numero_sal} non è ancora verificato: va approvato prima di collegare e pagare.` });
   }
-  if (!sal && !eNotaCredito(fattura) && !alternative.length) {
+  if (!sal && !eAcconto && !eNotaCredito(fattura) && !alternative.length) {
     problemi.push({ codice: "sal_mancante", blocca: false, testo: "Nessun SAL corrisponde a questa fattura: verifica se manca un SAL o se è un acconto previsto dal contratto." });
   }
 
@@ -326,6 +368,30 @@ export function controllaFatturaSubappalto(fattura: FatturaCtrl, ctx: ContestoCo
   const unico = !!sal && salCerto && (sal.stato === "verificato" || sal.stato === "pagato")
     && (uguale(imp, periodoSal(sal)) || uguale(imp, n(sal.importo_netto)));
   if (unico && !avvisi.length) return fine("automatico", "Stesso subappaltatore, SAL citato e verificato, importo uguale al periodo del SAL.", contratto.id, sal!.id);
+  if (eAcconto && citaAcconto && uguale(imp, accontoDaFatturare) && !avvisi.length) {
+    return fine("automatico", "Fattura d'acconto del subappaltatore: importo uguale all'acconto del contratto ancora da fatturare.", contratto.id, null);
+  }
+  if (eAcconto) return fine("proposta", avvisi[0]?.testo ?? "Fattura d'acconto: da confermare.", contratto.id, null);
   if (contratto && (sal || eNotaCredito(fattura))) return fine("proposta", avvisi[0]?.testo ?? "Contratto e SAL trovati: da confermare.", contratto.id, sal?.id ?? null);
   return fine("proposta", avvisi[0]?.testo ?? "Contratto trovato, SAL da scegliere.", contratto.id, null);
+}
+
+/** Le prove del controllo nel formato della traccia comune (acquisti_collegamenti.prove). */
+export function proveTraccia(r: RisultatoControllo): ProvaTraccia[] {
+  return r.prove.map((p) => ({
+    campo: p.dato.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 60),
+    ruolo: "conferma",
+    esito: "uguale",
+    trovato: p.valore,
+    testo: `${p.dato}: ${p.valore}`,
+  }));
+}
+
+/**
+ * L'interruttore del collegamento automatico dell'azienda (docs/automazioni-acquisti.md §3):
+ * spento, «automatico» si mostra come proposta da confermare. Gli altri esiti non cambiano.
+ */
+export function conInterruttoreSubappalto(r: RisultatoControllo, automaticoAcceso: boolean): RisultatoControllo {
+  if (r.esito !== "automatico" || automaticoAcceso) return r;
+  return { ...r, esito: "proposta", regola: `${r.regola} Da confermare: il collegamento automatico è spento.` };
 }

@@ -1405,6 +1405,7 @@ export default function SubappaltatoreDetail() {
                         <span>Netto da pagare:</span>
                         <span className="text-green-600">€{netto.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
                       </div>
+                      <p className="text-xs text-muted-foreground">Se il contratto ha un acconto già fatturato, al salvataggio se ne scala la quota da questo netto.</p>
                     </>
                   );
                 })()}
