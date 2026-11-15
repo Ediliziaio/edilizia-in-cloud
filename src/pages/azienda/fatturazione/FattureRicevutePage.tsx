@@ -350,7 +350,9 @@ export default function FattureRicevutePage() {
   const { data: conteggiAllegati } = useConteggiAllegatiRicevute(companyId);
   const oggiIso = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
   const [collegaCommesse, setCollegaCommesse] = useState<FatturaRicevuta | null>(null);
-  const [contabFilter, setContabFilter] = useState<"all" | "da_contabilizzare">("all");
+  // Dal Controllo di gestione si arriva con ?filtro=da_contabilizzare.
+  const [contabFilter, setContabFilter] = useState<"all" | "da_contabilizzare">(() =>
+    parametri.get("filtro") === "da_contabilizzare" ? "da_contabilizzare" : "all");
   const [ordinamento, setOrdinamento] = useState<{ campo: "data" | "fornitore" | "totale"; dir: "asc" | "desc" }>({
     campo: "data",
     dir: "desc",

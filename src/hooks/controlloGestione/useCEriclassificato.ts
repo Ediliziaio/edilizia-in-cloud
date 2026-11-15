@@ -107,6 +107,9 @@ export interface RicaviProvenienza {
   fatture_imponibile: number;
   commesse_righe: number;
   commesse_valore: number;
+  /** Fatture ricevute del periodo non ancora registrate come costo (dal 15/11/2026). */
+  costi_da_registrare_righe?: number;
+  costi_da_registrare_imponibile?: number;
 }
 
 export function useRicaviProvenienza(anno: number, meseDa = 1, meseA = 12) {

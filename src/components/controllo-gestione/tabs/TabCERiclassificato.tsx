@@ -266,6 +266,9 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
       costoPersonale,
       costiNonClassificati,
       commesseInPerdita: commesse.data?.kpi.n_in_perdita ?? null,
+      daRegistrare: provenienza.data?.costi_da_registrare_righe
+        ? { righe: provenienza.data.costi_da_registrare_righe, imponibile: Number(provenienza.data.costi_da_registrare_imponibile ?? 0) }
+        : null,
     });
     const spiegazioni: Record<string, string | null> = {
       ...SPIEGAZIONI_MARGINI,
@@ -487,6 +490,8 @@ function CEExecutiveSummary({
   qualityChecks: QualityCheck[];
 }) {
   const daControllare = qualityChecks.filter((c) => c.tone !== "ok");
+  // Le fatture ricevute non registrate cambiano l'utile: si vedono subito, non nel riquadro chiuso.
+  const inEvidenza = daControllare.find((c) => c.id === "da-registrare");
   return (
     <Card className="rounded-2xl">
       <CardContent className="space-y-3 p-4">
@@ -516,6 +521,12 @@ function CEExecutiveSummary({
           />
           <MiniMetric label="Utile" value={formatCurrency(utile)} />
         </div>
+        {inEvidenza && (
+          <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+            <span className="font-medium">{inEvidenza.label}.</span> {inEvidenza.description}{" "}
+            {inEvidenza.href && <Link to={inEvidenza.href} className="font-medium underline underline-offset-2">{inEvidenza.cta}</Link>}
+          </p>
+        )}
         {daControllare.length > 0 && (
           <details className="rounded-lg border bg-background p-3">
             <summary className="cursor-pointer text-sm font-medium">Cosa controllare ({daControllare.length})</summary>
@@ -552,7 +563,7 @@ function MiniMetric({ label, value, title }: { label: string; value: string; tit
  * Cosa controllare prima di usare questi numeri. Solo quello che c'è da fare:
  * ciò che va bene non si elenca.
  */
-function buildQualityChecks({
+export function buildQualityChecks({
   hasCedolini,
   periodoLabel,
   ebitdaPctPil,
@@ -560,6 +571,7 @@ function buildQualityChecks({
   costoPersonale,
   costiNonClassificati = 0,
   commesseInPerdita = null,
+  daRegistrare = null,
 }: {
   hasCedolini: boolean;
   periodoLabel: string;
@@ -568,8 +580,20 @@ function buildQualityChecks({
   costoPersonale: number;
   costiNonClassificati?: number;
   commesseInPerdita?: number | null;
+  daRegistrare?: { righe: number; imponibile: number } | null;
 }): QualityCheck[] {
   const checks: QualityCheck[] = [];
+  // I costi arrivano dalle fatture ricevute solo dopo la registrazione: quelle
+  // ancora da registrare non ci sono, e l'utile risulta più alto del vero.
+  if (daRegistrare && daRegistrare.righe > 0)
+    checks.push({
+      id: "da-registrare",
+      label: `${daRegistrare.righe} ${daRegistrare.righe === 1 ? "fattura ricevuta" : "fatture ricevute"} da registrare (${formatCurrency(daRegistrare.imponibile)})`,
+      description: "Non sono tra i costi: se non le hai inserite a mano, l'utile è più alto del vero.",
+      tone: "danger",
+      href: "/azienda/documenti/fatture-ricevute?filtro=da_contabilizzare",
+      cta: "Registrale",
+    });
   if (periodoLabel !== "Anno completo")
     checks.push({ id: "periodo", label: "Periodo parziale", description: "Confrontalo con lo stesso periodo dell'anno prima, non con un anno intero.", tone: "warning" });
   if (!hasCedolini)
