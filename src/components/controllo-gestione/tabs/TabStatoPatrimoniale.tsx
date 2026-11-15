@@ -153,9 +153,10 @@ function SPExportButton({ anno }: { anno: number }) {
     rows.push({ codice: "MP", label: "Mezzi propri TOT", valore: passivo.mezzi_propri, tipo: "subtot" });
     rows.push({ codice: "13", label: "TFR", valore: passivo.fondo_tfr, tipo: "voce" });
     rows.push({ codice: "14", label: "Fondi rischi", valore: passivo.fondi_rischi, tipo: "voce" });
-    rows.push({ codice: "15", label: "Mutui MLT", valore: passivo.mutui_mlt, tipo: "voce" });
+    rows.push({ codice: "15", label: "Mutui oltre 12 mesi", valore: passivo.mutui_mlt, tipo: "voce" });
     rows.push({ codice: "PC", label: "Pas. Consol. TOT", valore: passivo.pas_consolidato, tipo: "subtot" });
     rows.push({ codice: "16", label: "Banche -", valore: passivo.banche_negative, tipo: "voce" });
+    rows.push({ codice: "16b", label: "Mutui entro 12 mesi", valore: passivo.mutui_breve ?? 0, tipo: "voce" });
     rows.push({ codice: "17", label: "Debiti forn.", valore: passivo.debiti_fornitori, tipo: "voce" });
     rows.push({ codice: "18", label: "Debiti trib.", valore: passivo.debiti_tributari, tipo: "voce" });
     rows.push({ codice: "19", label: "Debiti pers.", valore: passivo.debiti_personale, tipo: "voce" });
@@ -220,13 +221,12 @@ function SPSingleAnnoView({ anno }: { anno: number }) {
 
   const manuali = vociSenzaFonte(sp.data);
   const indizi = quadratura.quadrato ? [] : indiziQuadratura(attivo, passivo, quadratura.differenza, manuali);
-  const annoPassato = anno < new Date().getFullYear();
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="text-muted-foreground">
-          Al {formatDate(sp.data.meta.data_riferimento)}{annoPassato ? " · saldi di banca di oggi" : ""}
+          Al {formatDate(sp.data.meta.data_riferimento)}
         </span>
         <span
           className={cn(
@@ -313,9 +313,10 @@ const RIGHE_PASSIVO: RigaConfronto[] = [
   // Debiti/passività: aumento = negativo (rosso).
   { label: "TFR", livello: "voce", pick: (sp) => sp.passivo.fondo_tfr, higherIsWorse: true },
   { label: "Fondi rischi", livello: "voce", pick: (sp) => sp.passivo.fondi_rischi, higherIsWorse: true },
-  { label: "Mutui MLT", livello: "voce", pick: (sp) => sp.passivo.mutui_mlt, higherIsWorse: true },
+  { label: "Mutui oltre 12 mesi", livello: "voce", pick: (sp) => sp.passivo.mutui_mlt, higherIsWorse: true },
   { label: "Pas. Consol. TOT", livello: "subtot", pick: (sp) => sp.passivo.pas_consolidato, higherIsWorse: true },
   { label: "Banche -", livello: "voce", pick: (sp) => sp.passivo.banche_negative, higherIsWorse: true },
+  { label: "Mutui entro 12 mesi", livello: "voce", pick: (sp) => sp.passivo.mutui_breve ?? 0, higherIsWorse: true },
   { label: "Debiti forn.", livello: "voce", pick: (sp) => sp.passivo.debiti_fornitori, higherIsWorse: true },
   { label: "Debiti trib.", livello: "voce", pick: (sp) => sp.passivo.debiti_tributari, higherIsWorse: true },
   { label: "Debiti pers.", livello: "voce", pick: (sp) => sp.passivo.debiti_personale, higherIsWorse: true },

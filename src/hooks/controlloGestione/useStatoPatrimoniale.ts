@@ -42,6 +42,8 @@ export interface SPPassivo {
   mutui_mlt: number;
   pas_consolidato: number;
   banche_negative: number;
+  /** Quota capitale dei mutui nei prossimi 12 mesi (dalla migrazione 20290330150000). */
+  mutui_breve?: number;
   debiti_fornitori: number;
   debiti_tributari: number;
   debiti_personale: number;
