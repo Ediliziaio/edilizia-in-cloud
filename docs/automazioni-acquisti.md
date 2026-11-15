@@ -309,7 +309,7 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
 |---|---|---|---|---|---|---|---|---|---|
 | Fornitore della fattura | **fatto (lotti 8 e 12)**: P.IVA/CF unico → `fornitore_id` (trigger); i mancanti nascono da soli col tipo se certo | P.IVA, CF, IdPaese in XML; 12.515 fatture senza fornitore in rubrica | `risolviAnagrafica`: identificativo valido, alias verificati, omonimi segnalati; proposta di creazione solo con P.IVA valida | nessuna | omonimi con P.IVA diversa; stessa P.IVA e CF discordante (conflitto) | Fatture ricevute, Fornitori | A | M | 0 anagrafiche unite per nome; ogni nuova anagrafica ha P.IVA/CF valido |
 | IBAN della fattura | `fornitori_iban_storico` registra, `confermato` a mano | IBAN in `DatiPagamento` | `ibanDaVerificare`: mai applicato ai pagamenti finché non confermato per altro canale | nessuna | IBAN cambiato dal fornitore (frode tipica) | Fornitori, Tesoreria (C) | A | S | un IBAN nuovo non entra in un bonifico senza conferma |
-| Fattura ↔ DDT (testata) | era: numero identico, solo all'arrivo (180/1.560) | `DatiDDT` + `RiferimentoNumeroLinea`; bolle registrate | **fatto**: numero normalizzato + fornitore + anno + data ±10 gg; trigger sulla bolla | nessuna | numero ripetuto in anni diversi (vincolo unico senza anno); bolla mai caricata | Fatture ricevute, DDT | A | — | fatto: casi PGlite verdi, anteprima senza scritture |
+| Fattura ↔ DDT (testata) | era: numero identico, solo all'arrivo (180/1.560) | `DatiDDT` + `RiferimentoNumeroLinea`; bolle registrate | **fatto**: numero normalizzato + fornitore + anno + data ±10 gg; trigger sulla bolla | nessuna | numero ripetuto in anni diversi (vincolo con l'anno dal 15/11); bolla mai caricata | Fatture ricevute, DDT | A | — | fatto: casi PGlite verdi, anteprima senza scritture |
 | DDT nelle descrizioni | **fatto (lotto 9)** | «Rif. DDT n. … del …» nelle righe | `ddtNelleDescrizioni` (solo con la parola DDT/bolla davanti) → stesse regole | nessuna | numeri nudi (prezzi, misure) esclusi di proposito | Fatture ricevute | B | S | nuove righe `fattura_ddt` con origine «descrizione» |
 | Fattura ↔ ordine (DatiOrdineAcquisto) | non letto; solo `aggancia_fattura_a_oda` per importo | `IdDocumento`, `Data`, `NumItem`, righe; 3/570 citano nostri ordini | `abbinaOrdine`: nostro numero o conferma del fornitore, anno, fornitore essenziale; riferimenti vuoti ignorati | nessuna | ordine di un altro fornitore (conflitto); conferma d'ordine del fornitore non registrata | Fatture, ODA | B | M | percorso «ordine X» nella traccia; nessun ordine agganciato per solo importo senza proposta |
 | Fattura → commessa | **fatto (lotto 13)**: catena → automatico, codici → proposta, il costo segue la conferma; AI `riconcilia-fattura-ai` per il resto | catena DDT/ordine/contratto, codici, indirizzo | `costruisciCatena`: fonti forti in accordo → automatico; forte contro debole → conflitto; indirizzo da solo → proposta; per riga dove l'XML lo dice | AI solo per leggere un codice da un allegato scansionato, poi verificato | ordine e indirizzo in disaccordo; commessa chiusa; nessun elemento → «da attribuire» | Fatture, Commesse, CdG (C) | A | M | nessuna commessa forzata: le fatture senza elementi restano «da attribuire» con i dati mancanti |
@@ -334,8 +334,10 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
    Con la regola dell'interruttore dovrebbe diventare una proposta quando è spento; ma da lì
    discende il costo sull'ordine (`fattura_ricevuta_porta_costo_su_ordine`), quindi si cambia
    con un'anteprima di cosa smetterebbe di collegarsi da solo. Da confermare.
-3. **Bolle con lo stesso numero in anni diversi**: il vincolo unico non lo permette. Si allarga
-   all'anno (migrazione sul vincolo, da fare con anteprima dei doppioni)?
+3. ~~**Bolle con lo stesso numero in anni diversi**~~ — **fatto il 15/11** (migrazione
+   `20290404308000`): il vincolo comprende l'anno della bolla (446 bolle, 0 conflitti, perché il
+   nuovo vincolo è più largo del vecchio); `arrivo_registra` riusa una bolla già caricata solo
+   dello stesso anno.
 4. **Automatico per l'indirizzo del cantiere**: oggi mai (solo proposta). Confermato?
 
 ## 7. Prossimi lotti
