@@ -195,6 +195,9 @@ describe("commercial performance report", () => {
       ],
       quotes: [
         { id: "quote-orphan", status: "accettata", total: 15_000, created_at: "2026-05-06T09:00:00.000Z" },
+        // 15/11/2026: conta come «senza opportunità» solo il preventivo di un cliente che
+        // un'opportunità ce l'ha (qui lead-unscored); quello senza contatto no.
+        { id: "quote-da-collegare", contact_id: "lead-unscored", status: "inviata", total: 9_000, created_at: "2026-05-07T09:00:00.000Z" },
       ],
       opportunities: [
         { id: "opp-orphan", status: "open", value: 30_000, created_at: "2026-04-01T09:00:00.000Z" },
@@ -218,6 +221,14 @@ describe("commercial performance report", () => {
     expect(report.sync.actions.map((action) => action.key)).toEqual(
       expect.arrayContaining(["connect-quotes", "connect-appointments", "close-sales-loop", "score-leads"]),
     );
+  });
+
+  it("tanti preventivi senza pipeline non sono una criticità (15/11/2026)", () => {
+    const contacts = Array.from({ length: 30 }, (_, i) => ({ id: `c${i}`, created_at: "2026-05-01T08:00:00.000Z", lead_score: 50 }));
+    const quotes = contacts.map((c, i) => ({ id: `q${i}`, contact_id: c.id, status: "inviata", total: 10_000, created_at: "2026-05-06T09:00:00.000Z" }));
+    const report = buildCommercialPerformanceReport({ now, contacts, appointments: [], quotes, opportunities: [], orders: [] });
+    expect(report.sync.quotesWithoutOpportunity).toBe(0);
+    expect(report.sync.healthScore).toBeGreaterThan(70);
   });
 
   it("keeps operational calendar rows and commesse out of CRM synchronization gaps", () => {

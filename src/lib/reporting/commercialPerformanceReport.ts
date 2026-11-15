@@ -276,9 +276,15 @@ function buildSyncHealth({
   ordersByQuote: Map<string, CommercialOrderRow[]>;
 }): CommercialPerformanceReport["sync"] {
   const quotesWithoutContact = quotes.filter((quote) => !hasLinkedId(quote.contact_id, contactsById)).length;
-  const quotesWithoutOpportunity = quotes.filter((quote) => !hasLinkedId(quote.opportunity_id, opportunitiesById)).length;
+  // 15/11/2026: un preventivo senza opportunità è un buco solo se il cliente un'opportunità ce
+  // l'ha: chi non usa la pipeline per ogni preventivo non ha niente da collegare. Prima tutti i
+  // preventivi senza opportunità contavano (nel database nessuno è collegato: 0 su 307).
+  const contattiConOpportunita = new Set(opportunities.map((o) => o.contact_id).filter(Boolean));
+  const collegabile = (quote: CommercialQuoteRow) => !!quote.contact_id && contattiConOpportunita.has(quote.contact_id);
+  const quotesWithoutOpportunity = quotes.filter((quote) => collegabile(quote) && !hasLinkedId(quote.opportunity_id, opportunitiesById)).length;
   const acceptedQuotesWithoutOrder = acceptedQuotes.filter((quote) => !(ordersByQuote.get(quote.id)?.length)).length;
   const acceptedQuotesWithoutWonOpportunity = acceptedQuotes.filter((quote) => {
+    if (!collegabile(quote)) return false;
     const opportunity = quote.opportunity_id ? opportunitiesById.get(quote.opportunity_id) : undefined;
     return !isWonStatus(opportunity?.status);
   }).length;
@@ -298,6 +304,17 @@ function buildSyncHealth({
     lostOpportunitiesWithoutReason +
     unscoredLeads;
   const healthScore = computeSyncScore({
+    basi: {
+      quotes: quotes.length,
+      quotesCollegabili: quotes.filter(collegabile).length,
+      accepted: acceptedQuotes.length,
+      acceptedCollegabili: acceptedQuotes.filter(collegabile).length,
+      appointments: appointments.length,
+      opportunities: opportunities.length,
+      orders: orders.length,
+      lost: opportunities.filter((o) => isLostStatus(o.status)).length,
+      contacts: contacts.length,
+    },
     quotesWithoutContact,
     quotesWithoutOpportunity,
     acceptedQuotesWithoutOrder,
@@ -409,7 +426,23 @@ function buildSyncActions(issues: {
   return actions;
 }
 
+/**
+ * 15/11/2026: il punteggio è la quota di cose a posto per ogni controllo, pesata. Prima era
+ * 100 meno 12 punti per ogni preventivo senza opportunità (e così via): con nove preventivi
+ * qualunque azienda era a zero, e il numero non diceva più niente.
+ */
 function computeSyncScore(issues: {
+  basi: {
+    quotes: number;
+    quotesCollegabili: number;
+    accepted: number;
+    acceptedCollegabili: number;
+    appointments: number;
+    opportunities: number;
+    orders: number;
+    lost: number;
+    contacts: number;
+  };
   quotesWithoutContact: number;
   quotesWithoutOpportunity: number;
   acceptedQuotesWithoutOrder: number;
@@ -420,17 +453,24 @@ function computeSyncScore(issues: {
   lostOpportunitiesWithoutReason: number;
   unscoredLeads: number;
 }) {
-  const penalty =
-    issues.quotesWithoutContact * 12 +
-    issues.quotesWithoutOpportunity * 12 +
-    issues.acceptedQuotesWithoutOrder * 16 +
-    issues.acceptedQuotesWithoutWonOpportunity * 12 +
-    issues.appointmentsWithoutContact * 8 +
-    issues.opportunitiesWithoutContact * 10 +
-    issues.ordersWithoutQuote * 10 +
-    issues.lostOpportunitiesWithoutReason * 6 +
-    issues.unscoredLeads * 5;
-  return clamp(100 - penalty, 0, 100);
+  const b = issues.basi;
+  const controlli: Array<[number, number, number]> = [
+    [issues.quotesWithoutContact, b.quotes, 12],
+    [issues.quotesWithoutOpportunity, b.quotesCollegabili, 12],
+    [issues.acceptedQuotesWithoutOrder, b.accepted, 16],
+    [issues.acceptedQuotesWithoutWonOpportunity, b.acceptedCollegabili, 12],
+    [issues.appointmentsWithoutContact, b.appointments, 8],
+    [issues.opportunitiesWithoutContact, b.opportunities, 10],
+    [issues.ordersWithoutQuote, b.orders, 10],
+    [issues.lostOpportunitiesWithoutReason, b.lost, 6],
+    [issues.unscoredLeads, b.contacts, 5],
+  ];
+  // Solo i controlli che hanno qualcosa da controllare (base > 0) entrano nel peso.
+  const validi = controlli.filter(([, base]) => base > 0);
+  const pesoTotale = validi.reduce((t, [, , w]) => t + w, 0);
+  if (pesoTotale === 0) return 100;
+  const penalita = validi.reduce((t, [n, base, w]) => t + w * Math.min(1, n / base), 0);
+  return clamp(Math.round(100 * (1 - penalita / pesoTotale)), 0, 100);
 }
 
 function syncHealthLabel(score: number): CommercialPerformanceReport["sync"]["healthLabel"] {
