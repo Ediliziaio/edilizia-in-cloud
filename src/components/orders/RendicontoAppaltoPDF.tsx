@@ -322,7 +322,8 @@ export function RendicontoAppaltoPDF({
         {/* 4. Il dettaglio: un raggruppamento per cantiere, riga tenue e non più fascia piena */}
         {cantieri.map((c, i) => (
           <View key={c.orderId} wrap style={i === 0 ? { marginTop: 14 } : undefined}>
-            <View style={styles.thead} minPresenceAhead={40}>
+            {/* Intestazione, cantiere e almeno una riga insieme: a fondo pagina restava l'intestazione da sola (15/11/2026). */}
+            <View style={styles.thead} minPresenceAhead={90}>
               <Text style={[styles.th, styles.cData]}>Data</Text>
               <Text style={[styles.th, styles.cDesc]}>Descrizione</Text>
               <Text style={[styles.th, styles.cUm]}>U.m.</Text>
