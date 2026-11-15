@@ -237,6 +237,24 @@ fallisce per tutti: si usa `COLONNE_RAPPORTINO` (`src/lib/campo/colonneRapportin
 costi arrivano da `rapportini_costi()`, che li dà solo a chi ha il permesso. Una colonna nuova
 che il browser deve leggere va aggiunta al GRANT e a `COLONNE_RAPPORTINO`.
 
+## Gli importi delle fasi e delle voci
+
+Su `order_work_phases` e `order_work_phase_voci` il ruolo `authenticated` ha il GRANT di
+SELECT per colonna, tutto tranne `importo_venduto` (fasi) e `importo`, `costo_manodopera`,
+`costo_materiali` (voci). Il browser le legge da `order_work_phases_visibili` e
+`order_work_phase_voci_visibili` (security_invoker: stesse righe; gli importi solo a chi ha
+«Venduto e importi», i costi solo a chi ha «Costi»): lo fa da sé il client, che riscrive le
+GET e gli embed (`lib/orders/protectedPhaseRequests.ts`). Le scritture restano sulle tabelle.
+- Un `select("*")`, un embed `order_work_phases(*)` o un `.insert(…).select()` vuoto sulle
+  tabelle grezze fallisce per **tutti**, amministratori compresi. Dopo una scrittura si
+  chiedono colonne esplicite (`.select("id")`); il test `protectedPhaseRequests` lo controlla.
+- Una funzione SQL non definer, una vista invoker o una edge function col token dell'utente
+  che legge quelle colonne dalla tabella grezza fallisce: passa dalla vista.
+- Una colonna nuova su queste tabelle va aggiunta al GRANT e alla vista: si rilanciano i
+  blocchi di `20290327110000` (viste) e `20290327110100` (permessi per colonna).
+- Niente regola restrittiva sulle righe per proteggerle: il 12/11 una restrittiva su `orders`
+  ha svuotato 61 regole di altre tabelle.
+
 ## Backup e ripristino delle aziende
 
 Il job `company-backup-settimanale` (domenica 02:30 UTC) salva un JSON per

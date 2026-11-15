@@ -8,6 +8,7 @@ import { authStorage } from "./authStorage";
 import { supabaseRequestTimeout } from "./requestTimeout";
 import { protectedBankUrl } from "@/lib/finance/protectedBankRequests";
 import { protectedOrderUrl } from "@/lib/orders/protectedOrderRequests";
+import { protectedPhaseUrl } from "@/lib/orders/protectedPhaseRequests";
 import { letturaSenzaPrezzi, urlSenzaPrezzi } from "@/lib/acquisti/letturaSenzaPrezzi";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -79,7 +80,9 @@ function urlDi(input: RequestInfo | URL): string {
  */
 async function fetchTraducendoGliErrori(originale: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   // Chi non vede i costi legge ordini e offerte senza prezzi. Vedi lib/acquisti/letturaSenzaPrezzi.
-  const projected = protectedBankUrl(protectedOrderUrl(urlDi(originale)), init?.method ?? (originale instanceof Request ? originale.method : "GET"));
+  const metodo = init?.method ?? (originale instanceof Request ? originale.method : "GET");
+  // Fasi e voci: importi e costi solo dalle viste. Vedi lib/orders/protectedPhaseRequests.
+  const projected = protectedBankUrl(protectedPhaseUrl(protectedOrderUrl(urlDi(originale)), metodo), metodo);
   const compatible = letturaSenzaPrezzi() ? urlSenzaPrezzi(projected, init?.method) : projected;
   const input = originale instanceof Request ? new Request(compatible, originale) : compatible;
   const res = await fetchWithTimeout(input, init);
