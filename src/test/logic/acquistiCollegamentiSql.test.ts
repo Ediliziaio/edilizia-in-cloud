@@ -629,3 +629,23 @@ describe("fattura → commessa: il costo segue il collegamento (migrazione 20290
     await expect(dallaCatena(107)).rejects.toThrow(/servizio/);
   });
 });
+
+describe("lavoro da fare (migrazione 20290404307000)", () => {
+  beforeAll(async () => {
+    await db.exec(`alter table suppliers add column if not exists tipo text, add column if not exists is_active boolean default true;`);
+    await db.exec(readFileSync("supabase/migrations/20290404307000_acquisti_da_fare.sql", "utf8"));
+  });
+  it("conta proposte, storici da ricontrollare, fornitori senza tipo e fatture senza fornitore; solo a chi può collegare", async () => {
+    const COMM = id(70);
+    await db.query(`insert into orders(id, company_id) values ($1,$2)`, [COMM, AZ]);
+    await fattura(71, [], { fornitore: null });
+    await db.query(`update fatture_ricevute set cedente_piva = 'IT00743110157' where id = $1`, [id(71)]);
+    await fattura(72, [], { fornitore: null });
+    await db.query(`select acquisti_collegamento_registra($1,'fattura_ricevuta',$2,null,'commessa',$3,null,'codici_commessa','proposta')`, [AZ, id(71), COMM]);
+    await db.query(`insert into suppliers(company_id, vat_number, tipo) values ($1,'01234567897',null),($1,'03456789019','generali')`, [AZ]);
+    const r = (await db.query<{ r: Record<string, number> }>(`select acquisti_da_fare($1) r`, [AZ])).rows[0].r;
+    expect(r).toEqual({ proposte: 1, da_ricontrollare: 0, fornitori_senza_tipo: 1, fatture_senza_fornitore: 2, fatture_senza_identificativo: 1 });
+    await db.exec(`select set_config('test.role','authenticated',false), set_config('test.user','${UTENTE}',false), set_config('test.company','${ALTRA}',false)`);
+    await expect(db.query(`select acquisti_da_fare($1)`, [AZ])).rejects.toThrow(/permesso/);
+  });
+});

@@ -19,6 +19,8 @@ const state = vi.hoisted(() => ({
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-1" }, role: state.role }) }));
 // La misura ha il suo test (misuraAutomazioni.test.tsx).
 vi.mock("@/components/settings/automazioni/MisuraAutomazioni", () => ({ MisuraAutomazioni: (): null => null }));
+// Il riquadro «Da fare» ha il suo test (daFareAcquisti.test.tsx).
+vi.mock("@/components/settings/automazioni/DaFareAcquisti", () => ({ DaFareAcquisti: (): null => null }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewCosts: true }) }));
 vi.mock("@/hooks/useVerificaCollegamenti", () => ({
   useVerificaCollegamenti: () => ({ data: undefined as unknown, isLoading: false, error: null as Error | null }),

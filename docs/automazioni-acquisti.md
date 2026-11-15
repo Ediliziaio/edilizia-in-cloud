@@ -292,6 +292,12 @@ che identifica, fornitore essenziale. Il fornitore del contratto è il subappalt
 alla scheda del fornitore della fattura (`suppliers.subappaltatore_id`): il contratto di un altro
 subappaltatore resta escluso. Il 15/11: 165 contratti con numero, 519 fatture che citano un contratto.
 
+**Lotto 16 — il lavoro da fare si vede** (Impostazioni → Automazioni, riquadro «Da fare»,
+`acquisti_da_fare`, migrazione `20290404307000`): proposte da confermare, fatture agganciate per
+solo importo da ricontrollare, fornitori senza tipo, fatture senza fornitore divise fra «c'è un
+identificativo ma non si è potuto creare» e «senza P.IVA né codice fiscale». Un numero per cosa,
+col link alla pagina dove si fa; gli zeri non si mostrano.
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 
