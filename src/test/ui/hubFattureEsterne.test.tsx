@@ -107,7 +107,7 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
     expect(screen.getByRole("heading", { name: "Fatturazione" })).toBeInTheDocument();
     expect(screen.getByText("Gestisci documenti fiscali, SDI, incassi e scadenze operative.")).toBeInTheDocument();
     // Stesse colonne della tabella nativa.
-    for (const col of ["Fattura · cliente", "Emessa il", "Imponibile", "Totale", "Netto a pagare", "SDI", "Incasso", "Incassato", "Residuo", "Prossima scadenza", "Collegata a", "Note", "Note interne", "Allegati"]) {
+    for (const col of ["Numero", "Cliente", "Emessa il", "Imponibile", "Totale", "Netto a pagare", "SDI", "Incasso", "Incassato", "Residuo", "Prossima scadenza", "Collegata a", "Note", "Note interne", "Allegati"]) {
       expect(screen.getByRole("columnheader", { name: col })).toBeInTheDocument();
     }
     // L'elenco legge anche le importate.

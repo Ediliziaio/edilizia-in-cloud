@@ -18,8 +18,10 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
 export const COLONNE_EMESSE = [
-  // Numero e cliente insieme, fermi a sinistra: scorrendo a destra si sa sempre di quale fattura si parla.
-  { id: "documento", label: "Fattura · cliente", fissa: true },
+  // Numero e cliente in due colonne (15/11/2026, richiesta del titolare), entrambe ferme a
+  // sinistra: scorrendo a destra si sa sempre di quale fattura si parla.
+  { id: "numero", label: "Numero", fissa: true },
+  { id: "cliente", label: "Cliente", fissa: true },
   { id: "data", label: "Emessa il" },
   { id: "imponibile", label: "Imponibile", cifra: true },
   { id: "iva", label: "IVA", cifra: true, opzionale: true },
@@ -77,11 +79,14 @@ export function SceltaColonneEmesse({ colonne, cambia }: ReturnType<typeof useCo
 
 /** La casella di selezione è larga 2.5rem e ferma a sinistra: la colonna della fattura le sta accanto. */
 export const STICKY_SELEZIONE = "sticky left-0 w-10 min-w-10 max-w-10";
-const STICKY_DOCUMENTO = "sticky left-10 min-w-[260px] max-w-[320px] shadow-[1px_0_0_hsl(var(--border))]";
+const STICKY_NUMERO = "sticky left-10 w-[150px] min-w-[150px] max-w-[150px]";
+/** Il cliente sta subito dopo il numero (2.5rem della casella + 150px del numero). */
+const STICKY_CLIENTE = "sticky left-[calc(2.5rem+150px)] min-w-[200px] max-w-[280px] shadow-[1px_0_0_hsl(var(--border))]";
+const FISSA: Partial<Record<ColonnaEmesse, string>> = { numero: STICKY_NUMERO, cliente: STICKY_CLIENTE };
 
 export function IntestazioniEmesse({ colonne }: { colonne: ColonnaEmesse[] }) {
   return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableHead key={c.id}
-    className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${c.id === "documento" ? `${STICKY_DOCUMENTO} z-20 bg-card` : ""}`}>{c.label}</TableHead>)}</>;
+    className={`whitespace-nowrap ${"cifra" in c ? "text-right" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-20 bg-card` : ""}`}>{c.label}</TableHead>)}</>;
 }
 
 export function NoteEmessa({ doc, interne=false }: { doc: DocumentoFiscale; interne?:boolean }) {
@@ -133,9 +138,11 @@ export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: Doc
   const cliente = nomeCliente(doc.cliente_snapshot as never) || "—";
   const credito = creditoCliente(doc);
   const valori: Record<ColonnaEmesse, React.ReactNode> = {
-    documento: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="flex w-full min-w-0 items-baseline gap-2 text-left hover:underline" title={`${doc.numero || "Bozza senza numero"} · ${cliente}`}>
-      <span className="shrink-0 font-mono text-xs text-muted-foreground">{doc.numero || "Bozza"}</span>
-      <span className="min-w-0 truncate font-medium">{cliente}</span>
+    numero: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="block w-full truncate text-left font-mono text-xs hover:underline" title={doc.numero || "Bozza senza numero"}>
+      {doc.numero || "Bozza"}
+    </button>,
+    cliente: <button type="button" onClick={e => { e.stopPropagation(); apri(); }} className="block w-full truncate text-left font-medium hover:underline" title={cliente}>
+      {cliente}
     </button>,
     data: formatDateShort(doc.data_emissione),
     imponibile: formatCurrency(doc.imponibile_totale), iva: formatCurrency(doc.iva_totale),
@@ -153,5 +160,5 @@ export function CelleEmesse({ doc, colonne, apri, incassa, collega }: { doc: Doc
     origine: doc.origine === "importata" ? (doc.external_provider || "Importata") : "Edilizia in Cloud",
   };
   return <>{COLONNE_EMESSE.filter(c => colonne.includes(c.id)).map(c => <TableCell key={c.id}
-    className={`whitespace-nowrap py-2 ${"cifra" in c ? "text-right tabular-nums" : ""} ${c.id === "documento" ? `${STICKY_DOCUMENTO} z-[1] bg-card group-hover:bg-[color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]` : ""}`}>{valori[c.id]}</TableCell>)}</>;
+    className={`whitespace-nowrap py-2 ${"cifra" in c ? "text-right tabular-nums" : ""} ${FISSA[c.id] ? `${FISSA[c.id]} z-[1] bg-card group-hover:bg-[color-mix(in_srgb,hsl(var(--muted))_50%,hsl(var(--card)))]` : ""}`}>{valori[c.id]}</TableCell>)}</>;
 }
