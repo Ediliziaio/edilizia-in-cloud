@@ -78,11 +78,39 @@ beforeAll(async () => {
   await pg.exec(await readFile("supabase/migrations/20290404310000_tesoreria_esiti_riconciliazione.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404311000_tesoreria_esiti_regole_dati_veri.sql", "utf8"));
   await pg.exec(await readFile("supabase/migrations/20290404312000_tesoreria_guardia_solo_se_verificato.sql", "utf8"));
+  // Come in produzione: l'identità viene dai claim della richiesta; qui, se mancano, dai parametri di prova.
+  await pg.exec(`
+   create or replace function auth.uid() returns uuid language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claim.sub',true),''),nullif(current_setting('test.user',true),''))::uuid$$;
+   create or replace function auth.role() returns text language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claim.role',true),''),nullif(current_setting('test.role',true),''),'authenticated')$$;
+   -- Conferme vere ridotte all'essenziale: chiedono un utente e ne scrivono il nome.
+   create or replace function public.riconcilia_movimento_su_documenti(p_transazione uuid,p_righe jsonb,p_nota text) returns jsonb language plpgsql security definer as $$
+   declare r record; t public.bank_transactions; m uuid; begin
+    if auth.uid() is null then raise exception 'Riconciliazione non autorizzata'; end if;
+    select * into t from public.bank_transactions where id=p_transazione;
+    for r in select * from jsonb_to_recordset(p_righe) x(tipo text,id uuid,importo numeric) loop
+     -- come la vera: l'incasso diventa un movimento di cassa e la quota punta a quello
+     insert into public.movimenti_cassa_native(id,company_id,documento_id) values(gen_random_uuid(),t.company_id,r.id) returning id into m;
+     insert into public.bank_reconciliations(company_id,transaction_id,movimento_id,matched_amount,match_type,matched_by,notes) values(t.company_id,t.id,m,r.importo,'manual',auth.uid(),p_nota);
+     update public.documenti_fiscali set importo_pagato=importo_pagato+r.importo where id=r.id;
+    end loop;
+    update public.bank_transactions set reconciliation_status='reconciled' where id=t.id;
+    return jsonb_build_object('resto',round(abs(t.amount)-(select sum(matched_amount) from public.bank_reconciliations where transaction_id=t.id and unmatched_at is null),2));
+   end $$;
+   create or replace function public.chiudi_movimento_senza_fattura(p_transazione uuid,p_tipo text,p_categoria text,p_descrizione text default null,p_categoria_costo text default 'altro',p_riferimento text default null,p_commessa uuid default null,p_mezzo uuid default null,p_fornitore uuid default null) returns jsonb language plpgsql security definer as $$
+   begin
+    if auth.uid() is null then raise exception 'Operazione non autorizzata'; end if;
+    if exists(select 1 from public.bank_transactions where id=p_transazione and chiuso_senza_documento is not null) then raise exception 'Questo movimento bancario è già abbinato.'; end if;
+    update public.bank_transactions set chiuso_senza_documento=p_tipo,category=p_categoria,reconciliation_status='reconciled' where id=p_transazione;
+    return jsonb_build_object('tipo',p_tipo);
+   end $$;`);
+  await pg.exec(await readFile("supabase/migrations/20290404313000_tesoreria_conferma_automatica.sql", "utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290404314000_tesoreria_prove_dal_movimento_di_cassa.sql", "utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290404315000_tesoreria_conferma_in_attesa_interruttore_comune.sql", "utf8"));
 }, 60000);
 
 beforeEach(async () => {
   await pg.exec(`reset role;select set_config('test.user','${user}',false);select set_config('test.role','service_role',false);
-   truncate tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
+   truncate movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
      documenti_fiscali,scadenze,suppliers,company_costs,fattura_ordine,orders,order_installments,fornitori_iban_storico,prima_nota_entries,test_permissions,companies cascade;
    insert into companies values('${company}'),('${other}');
    insert into test_permissions values('${company}',true,true,true);
@@ -411,5 +439,78 @@ describe("Controllo di gestione: niente doppi conteggi", () => {
     await service(`insert into company_costs(id,company_id,name,amount,allocations) values($1,$2,'Ripartito',100,'[{"order_id":"${id(77)}","pct":60}]')`, [nid(), company]);
     const tipi = (await rpc<any[]>("cdg_controllo_doppi", [company])).map((x) => x.controllo).sort();
     expect(tipi).toEqual(["allocazioni_non_100", "movimento_oltre_importo", "spesa_da_banca_su_debito_aperto"]);
+  });
+});
+
+describe("Conferma automatica (in attesa dell'interruttore comune)", () => {
+  const delegato = id(9);
+  // La conferma di un singolo esito, come la farà il giro quando l'interruttore comune è acceso:
+  // per conto della persona indicata, con i suoi permessi.
+  const conferma = async (t: string) => {
+    await pg.exec(`reset role;select set_config('test.role','service_role',false);begin;
+      select set_config('request.jwt.claim.sub','${delegato}',true);select set_config('request.jwt.claim.role','authenticated',true);`);
+    try {
+      const v = (await pg.query<any>(`select private.tes_conferma_una($1,$2,array['documento','giroconto']) v`, [company, t])).rows[0].v;
+      await pg.exec(`commit;`);
+      return v;
+    } catch (e) {
+      await pg.exec(`rollback;`);
+      throw e;
+    } finally {
+      await pg.exec(`select set_config('test.role','authenticated',false);set role authenticated;`);
+    }
+  };
+
+  it("il giro è spento finché non c'è l'interruttore comune", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    expect(await rpc("tesoreria_conferma_automatica", [company, 50])).toMatchObject({ attiva: false, confermati: [] });
+    expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(0);
+    await expect(pg.query(`select * from tesoreria_conferma_automatica`)).rejects.toThrow(/does not exist/);
+  });
+
+  it("conferma l'unico verificato per conto del delegato, una volta sola; non un parziale", async () => {
+    const d = await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    const parz = await tx({ amount: 300, type: "credit", desc: "acconto", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    expect(await conferma(t)).toEqual({ transaction_id: t, natura: "documento", importo: 1000 });
+    expect(await conferma(parz)).toBeNull();
+    const q = (await service(`select matched_by,match_type,regola,matched_amount::numeric a from bank_reconciliations where transaction_id=$1`, [t])).rows;
+    expect(q).toEqual([{ matched_by: delegato, match_type: "auto", regola: "R-DOC/v1", a: "1000.00" }]);
+    expect(Number((await service(`select importo_pagato from documenti_fiscali where id=$1`, [d])).rows[0].importo_pagato)).toBe(1000);
+    const storia = await rpc("tesoreria_esito_movimento", [company, t]);
+    expect(storia.storia.map((x: any) => x.evento)).toContain("confermato_auto");
+    expect(await conferma(t)).toBeNull(); // retry: già riconciliato
+    expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(1);
+  });
+
+  it("un esito scartato non si conferma", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    await rpc("tesoreria_scarta_esito", [company, t, "Non è questa fattura"]);
+    expect(await conferma(t)).toBeNull();
+  });
+
+  it("giroconto: chiude le due gambe senza costi né ricavi", async () => {
+    const out = await tx({ amount: 5000, type: "debit", desc: "trasferimento", iban: IBAN_B, account: accA, date: "2026-11-10" });
+    const inn = await tx({ amount: 5000, type: "credit", desc: "trasferimento", iban: IBAN_A, account: accB, date: "2026-11-11" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    expect(await conferma(out)).toMatchObject({ natura: "giroconto" });
+    expect(await conferma(inn)).toBeNull();
+    const righe = (await service(`select chiuso_senza_documento c,category from bank_transactions where id in($1,$2)`, [out, inn])).rows;
+    expect(righe.every((x: any) => x.c === "nessun_costo" && x.category === "Giroconto")).toBe(true);
+    expect((await service(`select count(*)::int n from company_costs`)).rows[0].n).toBe(0);
+  });
+
+  it("senza il permesso del delegato la conferma non passa", async () => {
+    await doc({ numero: "FT-2026-0012", totale: 1000, cliente: "Alfa Costruzioni" });
+    const t = await tx({ amount: 1000, type: "credit", desc: "Saldo fattura 12/2026", name: "Alfa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    await service(`update test_permissions set write=false where company_id=$1`, [company]);
+    await expect(conferma(t)).rejects.toThrow(/permesso/);
+    expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(0);
   });
 });

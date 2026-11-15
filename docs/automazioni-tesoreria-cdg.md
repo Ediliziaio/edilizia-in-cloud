@@ -180,8 +180,9 @@ con `lock_timeout` 3 s e `statement_timeout` 60 s. Anteprima del 15/11: vedi §6
 
 ## 5. Decisioni per il titolare
 
-1. **Conferma automatica**: quali aziende, e per quali nature? Proposta: solo `automatico`
-   su incassi di fatture emesse e giroconti, prima su Demo Azienda 2, interruttore per azienda.
+1. ~~**Conferma automatica**~~ — deciso il 15/11/2026: un interruttore per azienda, **comune a
+   tutti i collegamenti**, spento di base (lo costruisce la sessione Acquisti). Acceso: l'esito
+   «unico e verificato» si collega da solo; spento: è una proposta da confermare con un clic.
 2. **Soglia delle differenze**: oggi 1 € per commissioni e arrotondamenti. Resta così?
 3. **IBAN verificati dei clienti**: oggi non esiste un registro come `fornitori_iban_storico`
    per i clienti. Lo si apre (conferma alla prima riconciliazione manuale)?
@@ -225,7 +226,7 @@ giro su Demo Azienda 2 ha cambiato 0 righe. `cdg_controllo_doppi` sulle aziende 
 sulle otto con più costi: un rilievo, un costo ripartito su commesse che non arriva al 100%
 (2.055,17 €).
 
-**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 31 casi):
+**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 36 casi):
 unico verificato, anno diverso, pagante terzo con e senza rapporto, scelta, cumulativo,
 parziale e saldo, acconto prima della fattura e poi fatturato, nota di credito, commissione
 sotto e sopra 1 €, giroconto e non-giroconto, F24, storno, spesa bancaria, acquisto con
@@ -239,11 +240,37 @@ Nota: il trigger `tes_previsione_da_reale` riduce da solo la previsione quando a
 scadenza reale dello stesso fornitore e della stessa commessa e la previsione aperta è una sola;
 la riduzione è tracciata in `scadenze_sostituzioni` e si annulla.
 
+### Lotto 2 — conferma automatica, pronta ma spenta (15/11/2026)
+
+Migrazioni `20290404313000_tesoreria_conferma_automatica`, `20290404314000_tesoreria_prove_dal_movimento_di_cassa`
+e `20290404315000_tesoreria_conferma_in_attesa_interruttore_comune`, applicate e riallineate.
+
+- **Cosa conferma** `private.tes_conferma_una(azienda, movimento, nature)`: solo un esito
+  **ricalcolato in quel momento** che sia `automatico`, con un solo candidato «forte», senza
+  conflitti, che copre esattamente il residuo; mai uno scartato. Nature: `documento` (incassi di
+  fatture emesse **native**; le importate restano manuali per il write-back verso il gestionale
+  esterno) e `giroconto` (chiude le due gambe come «nessun costo»).
+- **Come**: con le funzioni di sempre (`bank_conferma_ripartizione` → `riconcilia_movimento_su_documenti`,
+  `chiudi_movimento_senza_fattura`), **per conto di una persona**: valgono i suoi permessi e il
+  suo nome va sulle quote. Le quote sono `match_type='auto'`, con regola e prove; la storia ha
+  l'evento `confermato_auto` o `errore_auto`.
+- **Il giro** `tesoreria_conferma_automatica(azienda, limite)` (chiamato dal cron) oggi risponde
+  sempre «spento»: il titolare ha deciso un **interruttore comune** a tutti i collegamenti,
+  costruito dalla sessione Acquisti. L'interruttore proprio della tesoreria, creato e acceso per
+  una prova su Demo Azienda 2, è stato spento e tolto (`…315000`). Quando l'interruttore comune è
+  su `main`, il giro lo legge e chiama `tes_conferma_una` per ogni esito `automatico`.
+- **Prova fatta su Demo Azienda 2** prima dello spegnimento: bonifico simulato di 3.105,60 €
+  «saldo fattura FT-2026-30204» sul conto «DEMO · 2026 · Conto simulato» → esito `automatico`
+  → confermato: fattura pagata, una riga di prima nota, nessun costo creato, movimento
+  riconciliato; secondo giro senza conferme. Trovato e corretto lì: la quota diceva «manuale»
+  perché la conferma vera la scrive sul movimento di cassa, non sull'id della fattura (`…314000`).
+
 ### Da fare (lotti successivi)
 
 1. **Schermate** (sessione «Fatture, Scadenzario e Tesoreria»): mostrare esito, motivi,
-   conflitti e mancanti nel Dettaglio movimento; «Scarta» con motivo → `tesoreria_scarta_esito`.
-2. **Conferma automatica** per azienda, solo esiti `automatico` (decisione 1 del §5).
+   conflitti e mancanti nel Dettaglio movimento; «Scarta» con motivo → `tesoreria_scarta_esito`;
+   «Conferma» con un clic sugli esiti `automatico` finché l'interruttore comune è spento.
+2. Conferma automatica delle fatture importate, con il write-back verso il gestionale esterno.
 3. Registro degli IBAN verificati dei clienti (decisione 3) e conferma dell'IBAN alla prima
    riconciliazione manuale, con i componenti comuni della sessione B quando arrivano su `main`.
 4. Componenti F24 (righe tributo) per collegare una delega a più scadenze fiscali.

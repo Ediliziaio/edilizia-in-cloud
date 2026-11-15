@@ -23,14 +23,17 @@ serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
     if(error)throw new Error("Impossibile leggere le aziende da verificare");companies.push(...(data??[]).map(r=>r.company_id));if(!data||data.length<1000)break;
    }companies=[...new Set(companies)];
   }
-  let proposals=0;const errors:string[]=[];const classified:Record<string,unknown>[]=[];
+  let proposals=0;const errors:string[]=[];const classified:Record<string,unknown>[]=[];const confirmed:Record<string,unknown>[]=[];
   for(const id of companies){
    const {data,error}=await client.rpc("bank_suggerisci_riconciliazioni",{p_company:id});
    if(error){errors.push(`${id}: ${error.message}`);continue;}proposals+=Number(data??0);
    // Esiti con regola e motivi (docs/automazioni-tesoreria-cdg.md): classifica, non registra denaro.
    const esiti=await client.rpc("tesoreria_classifica_movimenti",{p_company:id,p_limite:100,p_anteprima:false});
    if(esiti.error)errors.push(`${id}: esiti ${esiti.error.message}`);else classified.push({company_id:id,...(esiti.data as Record<string,unknown>)});
+   // Conferma automatica: solo dove l'azienda l'ha accesa, per conto di chi l'ha autorizzata.
+   const conferme=await client.rpc("tesoreria_conferma_automatica",{p_company:id,p_limite:50});
+   if(conferme.error)errors.push(`${id}: conferme ${conferme.error.message}`);else confirmed.push({company_id:id,...(conferme.data as Record<string,unknown>)});
   }
-  return jsonResponse({success:errors.length===0,review_required:true,auto_matched:0,costs_matched:0,pending_review:proposals,proposals_created:proposals,esiti:classified,errors},200,headers);
+  return jsonResponse({success:errors.length===0,review_required:true,auto_matched:0,costs_matched:0,pending_review:proposals,proposals_created:proposals,esiti:classified,conferme:confirmed,errors},200,headers);
  }catch(e){if(e instanceof Response)return e;return errorResponse(e instanceof Error?e.message:"Analisi non riuscita",500,headers);}
 });
