@@ -187,7 +187,7 @@ export function pdfInterno(variante: VarianteInterna, q: QuadroDocumento, info: 
     pdf.setFillColor(254, 243, 199);
     pdf.rect(left, yF + 2, width, 5.2, "F");
     font(7.5, true, AVVISO);
-    pdf.text("DOCUMENTO INTERNO · CONTIENE COSTI E MARGINI · NON INVIARE AL CLIENTE", left + width / 2, yF + 5.5, { align: "center", charSpace: mm(0.3) });
+    pdf.text(`DOCUMENTO INTERNO · CONTIENE ${conMargine ? "COSTI E MARGINI" : "I COSTI"} · NON INVIARE AL CLIENTE`, left + width / 2, yF + 5.5, { align: "center", charSpace: mm(0.3) });
     y = yF + 7.2 + mm(stileTestata.spazioDopo) * 0.6;
   };
   const riquadro = (x: number, yy: number, w: number, h: number) => {
