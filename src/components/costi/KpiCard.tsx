@@ -103,8 +103,9 @@ export function NavyStatCard({
       </span>
       <span className="min-w-0">
         <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{label}</span>
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="block truncate text-lg font-bold text-white xl:text-xl">{value}</span>
+        {/* 15/11/2026: la pillola va a capo invece di tagliare la cifra («263.0…»). */}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="block whitespace-nowrap text-lg font-bold tabular-nums text-white xl:text-xl">{value}</span>
           {variazione && (
             <PillolaVariazione pct={variazione.pct} piuEMeglio={variazione.piuEMeglio} neutra={variazione.neutra} titolo={variazione.nota} suScuro className="shrink-0" />
           )}

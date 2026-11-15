@@ -490,22 +490,26 @@ export function CostsOverviewTab({
                       onClick={() => setDrillVoce(v.nome)}
                       className="tap-compact group w-full rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
                     >
+                      {/* 15/11/2026: il nome su una riga sua. Accanto a conteggio e importo, nella
+                          colonna stretta accanto alla ciambella, veniva schiacciato a zero («I…»). */}
                       <div className="flex items-baseline justify-between gap-3">
                         <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground max-sm:text-[13px]">
                           <span
                             className="h-2.5 w-2.5 shrink-0 rounded-sm"
                             style={{ backgroundColor: color }}
                           />
-                          <span className="truncate">{v.nome}</span>
-                          <span className="shrink-0 text-xs text-muted-foreground max-sm:text-[11px]">
-                            {v.count} {v.count === 1 ? "costo" : "costi"}
-                          </span>
+                          <span className="truncate" title={v.nome}>{v.nome}</span>
                         </span>
-                        <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground max-sm:text-[13px]">
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {pct >= 0.5 ? `${pct.toFixed(0)}%` : "<1%"}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex items-baseline justify-between gap-3 pl-[18px] text-xs">
+                        <span className="text-muted-foreground max-sm:text-[11px]">
+                          {v.count} {v.count === 1 ? "costo" : "costi"}
+                        </span>
+                        <span className="font-semibold tabular-nums text-foreground max-sm:text-[13px]">
                           {formatCurrency(v.totale)}
-                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                            {pct >= 0.5 ? `${pct.toFixed(0)}%` : "<1%"}
-                          </span>
                         </span>
                       </div>
                       <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted max-sm:mt-1 max-sm:h-1.5">
