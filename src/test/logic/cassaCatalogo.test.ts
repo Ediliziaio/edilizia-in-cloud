@@ -86,6 +86,7 @@ beforeAll(async () => {
   await db.exec(migrazione("_cassa_classifica_movimenti.sql"));
   await db.exec(migrazione("_cassa_ripartizione_documento.sql"));
   await db.exec(migrazione("_cassa_catalogo_standard_per_tutti.sql"));
+  await db.exec(migrazione("_cassa_categorie_anche_da_tesoreria.sql"));
   await db.exec(`
     create trigger bank_transaction_operator_guard before insert or delete or update on bank_transactions
       for each row execute function bank_transaction_operator_guard();
@@ -192,12 +193,32 @@ describe("la copia dell'azienda", () => {
     expect((await uno<{ n: number }>("select count(*)::int n from cassa_voci where company_id = $1 and nome = 'Cappotto termico'", [B])).n).toBe(0);
   });
 
-  it("chi non ha il controllo di gestione non configura", async () => {
+  it("chi vede la tesoreria ma non riconcilia, e non ha il controllo di gestione, non configura", async () => {
+    await prepara();
+    await db.exec(`delete from permessi where permesso in ('can_view_controllo_gestione', 'can_reconcile_bank_transactions')`);
+    await comeUtente();
+    const v = await voce("04.02");
+    await expect(db.query("select public.cassa_voce_salva($1, $2, $3)", [A, v.id, { nome: "x" }])).rejects.toThrow(/permesso/);
+  });
+
+  it("chi gestisce la tesoreria (vede e riconcilia) configura anche senza controllo di gestione", async () => {
     await prepara();
     await db.exec(`delete from permessi where permesso = 'can_view_controllo_gestione'`);
     await comeUtente();
     const v = await voce("04.02");
-    await expect(db.query("select public.cassa_voce_salva($1, $2, $3)", [A, v.id, { nome: "x" }])).rejects.toThrow(/permesso/);
+    await db.query("select public.cassa_voce_salva($1, $2, $3)", [A, v.id, { nome: "Cemento" }]);
+    expect(await voce("04.02")).toMatchObject({ nome: "Cemento" });
+  });
+
+  it("dentro un'area si aggiunge una categoria nuova, e dentro quella le sue voci", async () => {
+    await prepara();
+    await comeUtente();
+    const area = await uno<{ id: string }>("select id from cassa_voci where company_id = $1 and livello = 'area' and nome = 'Operativa'", [A]);
+    const cat = await uno<{ id: string }>("select public.cassa_voce_salva($1, null, $2) id", [A, { parent_id: area.id, nome: "Fotovoltaico", flusso: "uscita" }]);
+    const c = await uno<{ codice: string; livello: string; flusso: string }>("select codice, livello, flusso from cassa_voci where id = $1", [cat.id]);
+    expect(c).toEqual({ codice: "X01", livello: "categoria", flusso: "uscita" });
+    const v = await uno<{ id: string }>("select public.cassa_voce_salva($1, null, $2) id", [A, { parent_id: cat.id, nome: "Pannelli", voce_cassa_out: "usc_materiali" }]);
+    expect(await uno("select codice, livello from cassa_voci where id = $1", [v.id])).toEqual({ codice: "X01.X01", livello: "voce" });
   });
 
   it("non accetta una riga del cash flow inventata", async () => {

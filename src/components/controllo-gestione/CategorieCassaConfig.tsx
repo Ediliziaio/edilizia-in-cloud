@@ -52,7 +52,10 @@ function passa(v: VoceCatalogo, f: Filtro) {
 export function CategorieCassaConfig() {
   const company = useEffectiveCompanyId();
   const permessi = usePermissions();
-  const puoModificare = permessi.canViewControlloGestione && !permessi.solaLettura;
+  // Le gestisce chi ha il controllo di gestione o chi gestisce la tesoreria
+  // (la vede e riconcilia): lo stesso controllo è nel database (cassa_accesso).
+  const puoModificare =
+    !permessi.solaLettura && (permessi.canViewControlloGestione || (permessi.canViewTesoreria && permessi.canReconcileBankTransactions));
   const catalogo = useCatalogoCassa(company);
   const salva = useSalvaVoceCassa(company);
   const [cerca, setCerca] = useState("");
@@ -111,7 +114,8 @@ export function CategorieCassaConfig() {
           <CardTitle className="text-base">Categorie del cash flow</CardTitle>
           <p className="text-sm text-muted-foreground">
             Le voci con cui classificare entrate e uscite di banca. Accendi quelle che usate, rinominale come le chiamate voi,
-            aggiungine di vostre. Ogni voce dice in quale riga del cash flow finisce. Valgono solo per questa azienda.
+            aggiungine di vostre, anche categorie intere. Partono dallo standard del catalogo e valgono solo per questa azienda:
+            le stesse si modificano dal Controllo di gestione e dalle impostazioni della Tesoreria.
           </p>
           <p className="text-xs text-muted-foreground">
             {totali.filter((v) => v.attiva && !v.archiviata_il).length} voci attive su {totali.length}. Spegnere o archiviare una
@@ -136,7 +140,14 @@ export function CategorieCassaConfig() {
           {albero.length === 0 && <p className="text-sm text-muted-foreground">Nessuna voce con questi filtri.</p>}
           {albero.map(({ area, categorie }) => (
             <div key={area.id} className="space-y-1.5">
-              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{area.nome}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{area.nome}</p>
+                {puoModificare && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setScelta(area.id)} aria-label={`Aggiungi categoria in ${area.nome}`}>
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Aggiungi categoria
+                  </Button>
+                )}
+              </div>
               <div className="divide-y rounded-lg border">
                 {categorie.map(({ cat, voci, attive, totale }) => {
                   const aperta = aperte.has(cat.id) || !!cerca.trim() || filtro !== "tutte";
@@ -201,8 +212,10 @@ export function CategorieCassaConfig() {
         )}
         <Card className="rounded-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Come si vede nel cash flow</CardTitle>
-            <p className="text-xs text-muted-foreground">Le righe del rendiconto di cassa e quante voci attive finiscono in ciascuna.</p>
+            <CardTitle className="text-sm">Righe del riassunto del cash flow</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Il cash flow si legge per queste categorie; nella vista «Riassunto» per queste righe. Accanto, quante voci attive finiscono in ciascuna.
+            </p>
           </CardHeader>
           <CardContent className="space-y-3 text-xs">
             {GRUPPI_CASSA.map((g) => (
@@ -243,7 +256,7 @@ function EditorVoce({ voce, catalogo, puoModificare, salva, onAggiunta }: {
   const padre = catalogo.find((v) => v.id === voce.parent_id);
   const modificabile = puoModificare && voce.livello !== "area";
   const foglia = voce.livello === "voce" || voce.livello === "sottovoce";
-  const puoAggiungere = puoModificare && (voce.livello === "categoria" || voce.livello === "voce");
+  const puoAggiungere = puoModificare && (voce.livello === "area" || voce.livello === "categoria" || voce.livello === "voce");
   const esito = {
     onError: (e: unknown) => toast.error("Non salvato", { description: e instanceof Error ? e.message : String(e) }),
   };
@@ -346,7 +359,9 @@ function EditorVoce({ voce, catalogo, puoModificare, salva, onAggiunta }: {
 
         {puoAggiungere && (
           <div className="space-y-2 border-t pt-3">
-            <p className="text-sm font-medium">{voce.livello === "categoria" ? "Aggiungi una voce in questa categoria" : "Aggiungi una sottovoce"}</p>
+            <p className="text-sm font-medium">
+              {voce.livello === "area" ? "Aggiungi una categoria in quest'area" : voce.livello === "categoria" ? "Aggiungi una voce in questa categoria" : "Aggiungi una sottovoce"}
+            </p>
             <Input placeholder="Nome" value={nuova} maxLength={120} onChange={(e) => setNuova(e.target.value)} aria-label="Nome della nuova voce" />
             <Input placeholder="Cosa significa (facoltativo)" value={nuovaDescr} onChange={(e) => setNuovaDescr(e.target.value)} aria-label="Descrizione della nuova voce" />
             <Button
@@ -359,7 +374,7 @@ function EditorVoce({ voce, catalogo, puoModificare, salva, onAggiunta }: {
                   {
                     ...esito,
                     onSuccess: (id) => {
-                      toast.success("Voce aggiunta");
+                      toast.success(voce.livello === "area" ? "Categoria aggiunta: ora aggiungi le sue voci" : "Voce aggiunta");
                       setNuova("");
                       setNuovaDescr("");
                       onAggiunta(id);
@@ -370,7 +385,11 @@ function EditorVoce({ voce, catalogo, puoModificare, salva, onAggiunta }: {
             >
               <Plus className="mr-2 h-4 w-4" /> Aggiungi
             </Button>
-            <p className="text-[11px] text-muted-foreground">Eredita verso e riga del cash flow da «{voce.nome}»: puoi cambiarli dopo.</p>
+            <p className="text-[11px] text-muted-foreground">
+              {voce.livello === "area"
+                ? "Una categoria raccoglie voci: dopo averla creata, aggiungi dentro le voci con cui classificare i movimenti."
+                : `Eredita verso e riga del cash flow da «${voce.nome}»: puoi cambiarli dopo.`}
+            </p>
           </div>
         )}
       </CardContent>

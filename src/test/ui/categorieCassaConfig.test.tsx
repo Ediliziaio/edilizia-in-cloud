@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { VoceCatalogo } from "@/lib/finance/cassaVoci";
 
-const m = vi.hoisted(() => ({ mutate: vi.fn(), puo: true }));
+const m = vi.hoisted(() => ({ mutate: vi.fn(), puo: true, tesoreria: false }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az" }));
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewControlloGestione: m.puo, solaLettura: false }) }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewControlloGestione: m.puo, canViewTesoreria: m.tesoreria, canReconcileBankTransactions: m.tesoreria, solaLettura: false }) }));
 const voce = (p: Partial<VoceCatalogo> & { id: string; codice: string; nome: string }): VoceCatalogo => ({
   parent_id: null, livello: "voce", descrizione: null, esempio: null, flusso: "uscita", sezione: "operativa",
   voce_cassa_in: null, voce_cassa_out: "usc_materiali", richiede_commessa: false, attiva: true, archiviata_il: null,
@@ -27,7 +27,7 @@ vi.mock("@/lib/finance/cassaVoci", async (orig): Promise<Record<string, unknown>
 }));
 import { CategorieCassaConfig } from "@/components/controllo-gestione/CategorieCassaConfig";
 
-beforeEach(() => { vi.clearAllMocks(); m.puo = true; });
+beforeEach(() => { vi.clearAllMocks(); m.puo = true; m.tesoreria = false; });
 afterEach(cleanup);
 
 describe("categorie del cash flow in Configurazione", () => {
@@ -75,5 +75,22 @@ describe("categorie del cash flow in Configurazione", () => {
     fireEvent.click(screen.getByRole("button", { name: "Materiali edili" }));
     expect(screen.queryByRole("button", { name: /Archivia/ })).toBeNull();
     expect(screen.getByText("Acquisto di materiali edili.")).toBeInTheDocument();
+  });
+
+  it("chi gestisce la tesoreria modifica anche senza controllo di gestione", () => {
+    m.puo = false;
+    m.tesoreria = true;
+    render(<CategorieCassaConfig />);
+    fireEvent.click(screen.getByRole("button", { name: /Materiali e merci/ }));
+    expect(screen.getByRole("switch", { name: "Spegni Materiali edili" })).toBeEnabled();
+  });
+
+  it("aggiunge una categoria nuova dentro un'area", () => {
+    render(<CategorieCassaConfig />);
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi categoria in Operativa" }));
+    expect(screen.getByText("Aggiungi una categoria in quest'area")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Nome della nuova voce" }), { target: { value: "Fotovoltaico" } });
+    fireEvent.click(screen.getByRole("button", { name: /Aggiungi$/ }));
+    expect(m.mutate).toHaveBeenCalledWith({ id: null, dati: { parent_id: "area", nome: "Fotovoltaico", descrizione: "" } }, expect.anything());
   });
 });

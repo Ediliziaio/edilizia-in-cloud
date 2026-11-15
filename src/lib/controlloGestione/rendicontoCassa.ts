@@ -57,6 +57,8 @@ export interface MovimentoRegistrato {
   /** Riga del rendiconto indicata dalla categoria CONFERMATA del movimento: vince sul testo. */
   voceCassa?: VoceCassa | null;
   voceNome?: string | null;
+  /** Codice della voce del catalogo (es. «04.02») scelta sul movimento: decide la categoria nella vista per categorie. */
+  codiceCassa?: string | null;
 }
 
 
@@ -84,6 +86,8 @@ export interface DettaglioCella {
   nota?: string;
   /** Movimento di banca da cui viene (per classificarlo dal dettaglio). */
   bankTransactionId?: string | null;
+  /** Voce del catalogo scelta sul movimento, se c'è. */
+  codiceCassa?: string | null;
 }
 
 export interface RendicontoCassa {
@@ -245,6 +249,7 @@ export function costruisciRendiconto(input: {
         ? `/azienda/tesoreria?tab=transazioni&movimento=${r.bankTransactionId}`
         : r.orderId ? `/azienda/ordini/${r.orderId}` : "/azienda/prima-nota",
       bankTransactionId: r.bankTransactionId ?? null,
+      codiceCassa: r.codiceCassa ?? null,
       tipo: "registrato",
       stimato: false,
     });

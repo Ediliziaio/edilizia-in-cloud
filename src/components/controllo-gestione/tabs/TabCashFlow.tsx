@@ -6,6 +6,10 @@
  * della pagina Previsionale). Righe a gruppi: saldo iniziale, incassi, uscite della gestione,
  * flusso operativo, investimenti, finanziamenti, flusso netto, saldo finale.
  * Un clic su un importo apre i movimenti che lo compongono.
+ *
+ * Dal 15/11/2026 la tabella si legge per le CATEGORIE del catalogo dell'azienda
+ * (lo standard dell'Excel, modificabile in Configurazione e in Tesoreria):
+ * area → categoria → voce. La vista «Riassunto» mostra le righe di prima.
  */
 import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
@@ -41,6 +45,8 @@ import {
   type TipoColonna,
 } from "@/lib/controlloGestione/rendicontoCassa";
 import { GRUPPI_CASSA, VOCE_PER_CHIAVE, type GruppoCassa, type VoceCassa } from "@/lib/controlloGestione/vociCassa";
+import { righeEsportazioneCategorie, vistaPerCategorie, type AreaCassa } from "@/lib/controlloGestione/rendicontoCategorie";
+import { useCatalogoCassa } from "@/lib/finance/cassaVoci";
 
 interface Props {
   anno: number;
@@ -80,6 +86,19 @@ interface Selezione {
   titolo: string;
   voci: VoceCassa[];
   mese: number | null;
+  /** Vista per categorie: i movimenti della riga, già scelti (si filtrano per mese). */
+  righe?: DettaglioCella[];
+  daClassificare?: boolean;
+}
+
+type Vista = "categorie" | "riassunto";
+const CHIAVE_VISTA = "eic:cashflow-vista:v1";
+function vistaSalvata(): Vista {
+  try {
+    return localStorage.getItem(CHIAVE_VISTA) === "riassunto" ? "riassunto" : "categorie";
+  } catch {
+    return "categorie";
+  }
 }
 
 export function TabCashFlow({ anno }: Props) {
@@ -95,6 +114,13 @@ export function TabCashFlow({ anno }: Props) {
   const [selezione, setSelezione] = useState<Selezione | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [classifica, setClassifica] = useState(false);
+  const [vista, setVistaStato] = useState<Vista>(vistaSalvata);
+  const [aree, setAreeChiuse] = useState<Set<string>>(() => new Set());
+  const setVista = (v: Vista) => {
+    setVistaStato(v);
+    try { localStorage.setItem(CHIAVE_VISTA, v); } catch { /* preferenza facoltativa */ }
+  };
+  const catalogo = useCatalogoCassa(companyId);
   const permessi = usePermissions();
   const soglia = useMemo(() => sogliaSalvata(companyId), [companyId]);
 
@@ -115,6 +141,12 @@ export function TabCashFlow({ anno }: Props) {
       sogliaCents: soglia,
     });
   }, [q.data, anno, ipotesi, soglia]);
+  const perCategorie = useMemo<AreaCassa[] | null>(
+    () => (r && catalogo.data?.length ? vistaPerCategorie(r, catalogo.data) : null),
+    [r, catalogo.data],
+  );
+  // Senza catalogo (non ancora letto o non disponibile) resta il riassunto.
+  const vistaAttiva: Vista = vista === "categorie" && perCategorie ? "categorie" : "riassunto";
 
   if (q.isLoading)
     return (
@@ -146,6 +178,15 @@ export function TabCashFlow({ anno }: Props) {
     return `/azienda/previsionale${s ? `?${s}` : ""}`;
   })();
   const apri = (titolo: string, voci: VoceCassa[], mese: number | null) => setSelezione({ titolo, voci, mese });
+  const apriRighe = (titolo: string, righe: DettaglioCella[], mese: number | null, daClassificare = false) =>
+    setSelezione({ titolo, voci: [], mese, righe, daClassificare });
+  const toggleArea = (k: string) =>
+    setAreeChiuse((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
   const toggleGruppo = (g: GruppoCassa) =>
     setChiusi((prev) => {
       const next = new Set(prev);
@@ -155,7 +196,7 @@ export function TabCashFlow({ anno }: Props) {
     });
 
   const esporta = async () => {
-    const righe = righeEsportazione(r);
+    const righe = vistaAttiva === "categorie" && perCategorie ? righeEsportazioneCategorie(r, perCategorie) : righeEsportazione(r);
     await exportXlsx({
       filename: `rendiconto_cassa_${anno}.xlsx`,
       brand: { title: "Rendiconto di cassa", subtitle: `Anno ${anno} · importi in euro` },
@@ -163,7 +204,7 @@ export function TabCashFlow({ anno }: Props) {
         {
           name: `Cassa ${anno}`,
           columns: [
-            { header: "Voce", key: "voce", width: 46 },
+            { header: vistaAttiva === "categorie" ? "Categoria" : "Voce", key: "voce", width: 46 },
             ...r.colonne.map((c) => ({
               header: `${MESI[c.mese - 1]} (${ETICHETTA_COLONNA[c.tipo]})`,
               key: `m${c.mese}`,
@@ -221,6 +262,21 @@ export function TabCashFlow({ anno }: Props) {
           <p className="text-sm text-muted-foreground">Il {anno} è chiuso: tutti i mesi sono a consuntivo.</p>
         )}
         <div className="flex flex-wrap gap-2">
+          {perCategorie && !isMobile && (
+            <div role="group" aria-label="Come leggere la tabella" className="inline-flex rounded-md border p-0.5">
+              {([["categorie", "Per categorie"], ["riassunto", "Riassunto"]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={vistaAttiva === k}
+                  onClick={() => setVista(k)}
+                  className={cn("rounded px-2.5 py-1 text-xs font-medium", vistaAttiva === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {companyId && permessi.canViewTesoreria && (
             <Button
               size="sm"
@@ -257,6 +313,8 @@ export function TabCashFlow({ anno }: Props) {
 
       {isMobile ? (
         <VistaMese r={r} onApri={apri} />
+      ) : vistaAttiva === "categorie" && perCategorie ? (
+        <TabellaCategorie r={r} aree={perCategorie} chiuse={aree} onToggle={toggleArea} onApri={apriRighe} />
       ) : (
         <TabellaRendiconto r={r} chiusi={chiusi} onToggle={toggleGruppo} onApri={apri} />
       )}
@@ -540,6 +598,165 @@ function TabellaRendiconto({ r, chiusi, onToggle, onApri }: {
   );
 }
 
+// ── Tabella per categorie del catalogo ──────────────────────────────────────
+
+function TabellaCategorie({ r, aree, chiuse, onToggle, onApri }: {
+  r: RendicontoCassa;
+  aree: AreaCassa[];
+  chiuse: Set<string>;
+  onToggle: (chiave: string) => void;
+  onApri: (titolo: string, righe: DettaglioCella[], mese: number | null, daClassificare?: boolean) => void;
+}) {
+  const [aperte, setAperte] = useState<Set<string>>(() => new Set());
+  const totale = (a: number[]) => a.reduce((s, c) => s + c, 0);
+  const td = (tipo: TipoColonna, extra?: string) => cn("whitespace-nowrap px-2 py-1.5 text-right text-xs", SFONDO_COLONNA[tipo], extra);
+  const prima = "sticky left-0 z-10 min-w-[240px] max-w-[300px] px-3 py-1.5 text-left";
+  const importo = (cents: number, label: string, righe: DettaglioCella[], mese: number | null, daClassificare: boolean) => (
+    <span className={cn("tabular-nums", cents < 0 && "text-rose-700")}>
+      {cents === 0 && !righe.some((d) => mese == null || Number(d.data.slice(5, 7)) === mese) ? (
+        <span className="text-muted-foreground">—</span>
+      ) : (
+        <button
+          type="button"
+          aria-label={`Apri il dettaglio di ${label}: ${euro(cents)}`}
+          onClick={() => onApri(label, righe, mese, daClassificare)}
+          className="rounded px-0.5 hover:bg-muted hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          {euro(cents)}
+        </button>
+      )}
+    </span>
+  );
+  const celle = (nome: string, valori: number[], righe: DettaglioCella[], daClassificare: boolean, forte = false) => (
+    <>
+      {r.colonne.map((c, i) => (
+        <td key={c.mese} className={td(c.tipo, forte ? "font-semibold" : undefined)}>
+          {importo(valori[i], `${nome} · ${MESI_LUNGHI[c.mese - 1]} ${r.anno}`, righe, c.mese, daClassificare)}
+        </td>
+      ))}
+      <td className="whitespace-nowrap bg-muted/50 px-2 py-1.5 text-right text-xs font-semibold">
+        {importo(totale(valori), `${nome} · ${r.anno}`, righe, null, daClassificare)}
+      </td>
+    </>
+  );
+  const saldo = (label: string, valori: (number | null)[], totaleAnno: number | null, fine = false) => (
+    <tr className={cn(fine ? "border-t-2 border-foreground/30 font-bold" : "border-t font-semibold", "bg-muted/40")}>
+      <th scope="row" className={cn(prima, "bg-muted")}>{label}</th>
+      {r.colonne.map((c, i) => {
+        const v = valori[i];
+        return (
+          <td
+            key={c.mese}
+            className={cn(td(c.tipo), v != null && v < 0 ? "bg-rose-100 text-rose-800" : v != null && fine && v < r.sogliaCents ? "bg-amber-100 text-amber-900" : "")}
+            title={v == null ? r.saldo.avviso ?? undefined : undefined}
+          >
+            <span className="tabular-nums">{euro(v)}</span>
+          </td>
+        );
+      })}
+      <td className={cn("whitespace-nowrap bg-muted px-2 py-1.5 text-right text-xs tabular-nums", totaleAnno != null && totaleAnno < 0 && "text-rose-700")}>{euro(totaleAnno)}</td>
+    </tr>
+  );
+  const tutte = aree.flatMap((a) => a.categorie.flatMap((c) => c.dettagli));
+
+  return (
+    <div className="max-w-full overflow-x-auto rounded-xl border bg-card">
+      <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">Cash flow {r.anno} per area, categoria e voce, mese per mese</caption>
+        <thead>
+          <tr className="border-b">
+            <th scope="col" className={cn(prima, "z-20 bg-card py-2 text-xs font-medium text-muted-foreground")}>Categorie · euro, IVA compresa</th>
+            {r.colonne.map((c) => (
+              <th key={c.mese} scope="col" className={cn("min-w-[96px] px-2 py-2 text-right text-xs font-semibold", SFONDO_COLONNA[c.tipo])}>
+                <span className="block">{MESI[c.mese - 1]}</span>
+                <span className={cn("block text-[10px] font-normal", c.tipo === "consuntivo" ? "text-muted-foreground" : c.tipo === "in-corso" ? "text-amber-800" : "text-sky-800")}>
+                  {ETICHETTA_COLONNA[c.tipo]}
+                </span>
+              </th>
+            ))}
+            <th scope="col" className="min-w-[108px] bg-muted/50 px-2 py-2 text-right text-xs font-semibold">Totale {r.anno}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {saldo("Saldo di cassa a inizio mese", r.saldoInizio, r.saldoInizio[0])}
+          {aree.map((a) => {
+            const aperta = !chiuse.has(a.chiave);
+            return (
+              <Fragment key={a.chiave}>
+                <tr className="border-t bg-muted/20">
+                  <th scope="rowgroup" colSpan={r.colonne.length + 2} className="p-0 text-left">
+                    <button
+                      type="button"
+                      onClick={() => onToggle(a.chiave)}
+                      aria-expanded={aperta}
+                      className="sticky left-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-foreground/80 hover:text-foreground"
+                    >
+                      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !aperta && "-rotate-90")} aria-hidden />
+                      {a.nome}
+                    </button>
+                  </th>
+                </tr>
+                {aperta &&
+                  a.categorie.map((c) => {
+                    const dettagliabile = c.voci.length > 1 || !!c.voci[0]?.codice;
+                    const espansa = aperte.has(c.chiave);
+                    return (
+                      <Fragment key={c.chiave}>
+                        <tr className={cn("border-t", c.daClassificare && "bg-amber-50/80 dark:bg-amber-950/40")}>
+                          <th scope="row" className={cn(prima, "font-normal", c.daClassificare ? "bg-amber-50 font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "bg-card")}>
+                            <span className="flex items-center gap-1.5 pl-3">
+                              {dettagliabile ? (
+                                <button
+                                  type="button"
+                                  aria-expanded={espansa}
+                                  aria-label={`${espansa ? "Chiudi" : "Apri"} le voci di ${c.nome}`}
+                                  onClick={() => setAperte((p) => { const n = new Set(p); if (n.has(c.chiave)) n.delete(c.chiave); else n.add(c.chiave); return n; })}
+                                  className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                                >
+                                  <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", espansa && "rotate-90")} aria-hidden />
+                                </button>
+                              ) : (
+                                <span className="w-[18px]" aria-hidden />
+                              )}
+                              {c.codice && <span className="w-6 shrink-0 font-mono text-[10px] text-muted-foreground">{c.codice}</span>}
+                              <span className="truncate" title={c.nome}>{c.daClassificare ? `⚠ ${c.nome}` : c.nome}</span>
+                            </span>
+                          </th>
+                          {celle(c.nome, c.valori, c.dettagli, c.daClassificare)}
+                        </tr>
+                        {espansa &&
+                          c.voci.map((v) => (
+                            <tr key={v.chiave} className="border-t border-dashed text-muted-foreground">
+                              <th scope="row" className={cn(prima, "bg-card pl-14 text-xs font-normal")}>
+                                <span className="flex items-center gap-1.5">
+                                  {v.codice && <span className="shrink-0 font-mono text-[10px]">{v.codice}</span>}
+                                  <span className={cn("truncate", !v.codice && "italic")} title={v.nome}>{v.nome}</span>
+                                </span>
+                              </th>
+                              {celle(`${c.nome} · ${v.nome}`, v.valori, v.dettagli, c.daClassificare)}
+                            </tr>
+                          ))}
+                      </Fragment>
+                    );
+                  })}
+                <tr className="border-t bg-muted/30">
+                  <th scope="row" className={cn(prima, "bg-muted font-semibold")}>Totale {a.nome.toLocaleLowerCase("it-IT")}</th>
+                  {celle(`Totale ${a.nome}`, a.valori, a.categorie.flatMap((c) => c.dettagli), false, true)}
+                </tr>
+              </Fragment>
+            );
+          })}
+          <tr className="border-t-2 bg-primary/5">
+            <th scope="row" className={cn(prima, "bg-muted font-bold")}>Flusso netto del mese</th>
+            {celle("Flusso netto del mese", r.flussoNetto, tutte, false, true)}
+          </tr>
+          {saldo("Saldo di cassa a fine mese", r.saldoFine, r.saldoFine[11], true)}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Vista per mese (telefono) ───────────────────────────────────────────────
 
 function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string, voci: VoceCassa[], mese: number | null) => void }) {
@@ -610,7 +827,13 @@ function VistaMese({ r, onApri }: { r: RendicontoCassa; onApri: (titolo: string,
 
 function DettaglioSheet({ r, selezione, onClose, onClassifica }: { r: RendicontoCassa; selezione: Selezione | null; onClose: () => void; onClassifica?: () => void }) {
   const focusReturn = useDialogFocusReturn();
-  const righe: DettaglioCella[] = selezione ? dettagliCella(r, selezione.voci, selezione.mese) : [];
+  const righe: DettaglioCella[] = !selezione
+    ? []
+    : selezione.righe
+      ? selezione.righe
+          .filter((d) => selezione.mese == null || Number(d.data.slice(5, 7)) === selezione.mese)
+          .sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id))
+      : dettagliCella(r, selezione.voci, selezione.mese);
   const totale = righe.reduce((s, d) => s + d.cents, 0);
   return (
     <Sheet open={!!selezione} onOpenChange={(o) => !o && onClose()}>
@@ -621,7 +844,7 @@ function DettaglioSheet({ r, selezione, onClose, onClassifica }: { r: Rendiconto
             {righe.length} movimenti · totale <span className={cn("font-semibold tabular-nums", totale < 0 && "text-rose-700")}>{euro(totale)}</span>
           </SheetDescription>
         </SheetHeader>
-        {onClassifica && selezione?.voci.some((v) => VOCE_PER_CHIAVE.get(v)?.daClassificare) && righe.some((d) => d.bankTransactionId) && (
+        {onClassifica && (selezione?.daClassificare || selezione?.voci.some((v) => VOCE_PER_CHIAVE.get(v)?.daClassificare)) && righe.some((d) => d.bankTransactionId) && (
           <Button size="sm" className="mt-3" onClick={onClassifica}>
             <Tags className="mr-2 h-4 w-4" /> Classifica questi movimenti
           </Button>

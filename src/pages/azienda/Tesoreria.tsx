@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CategorieCassaConfig } from "@/components/controllo-gestione/CategorieCassaConfig";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -375,6 +376,8 @@ export default function Tesoreria() {
           <div className="space-y-8">
             <BankAlertRules companyId={effectiveCompany?.id || ""} />
             <CategorizationRules companyId={effectiveCompany?.id || ""} />
+            {/* Lo stesso catalogo del Controllo di gestione → Configurazione. */}
+            <CategorieCassaConfig />
           </div>
         </TabsContent>
       </Tabs>

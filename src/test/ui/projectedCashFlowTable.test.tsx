@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { DatiRendicontoCassa } from '@/hooks/controlloGestione/useRendicontoCassa';
+import type { VoceCatalogo } from '@/lib/finance/cassaVoci';
 
-const state = vi.hoisted(() => ({ query: vi.fn(), exported: vi.fn(), mobile: false }));
+const state = vi.hoisted(() => ({ query: vi.fn(), exported: vi.fn(), mobile: false, catalogo: undefined as unknown }));
+// Senza catalogo la tabella resta il «Riassunto» (i test qui sotto); con il
+// catalogo si legge per categorie (in fondo).
+vi.mock('@/lib/finance/cassaVoci', () => ({ useCatalogoCassa: () => ({ data: state.catalogo }) }));
 vi.mock('@/hooks/controlloGestione/useRendicontoCassa', () => ({ useRendicontoCassa: () => state.query() }));
 vi.mock('@/hooks/useEffectiveCompanyId', () => ({ useEffectiveCompanyId: () => 'azienda-1' }));
 vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => state.mobile }));
@@ -40,6 +44,8 @@ const dati = (): DatiRendicontoCassa => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.mobile = false;
+  state.catalogo = undefined;
+  try { localStorage.clear(); } catch { /* niente */ }
   state.query.mockReturnValue({ data: dati(), isLoading: false, isError: false });
 });
 afterEach(cleanup);
@@ -157,5 +163,48 @@ describe('rendiconto di cassa', () => {
     expect(within(t2).getAllByText('-250 €').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: /Classifica movimenti/ }));
     expect(screen.getByRole('dialog', { name: 'Classifica i movimenti nelle categorie' })).toBeInTheDocument();
+  });
+});
+
+describe('cash flow per le categorie del catalogo', () => {
+  const v = (p: Partial<VoceCatalogo> & { id: string; codice: string; nome: string }): VoceCatalogo => ({
+    parent_id: null, livello: 'voce', descrizione: null, esempio: null, flusso: 'uscita', sezione: 'operativa',
+    voce_cassa_in: null, voce_cassa_out: null, richiede_commessa: false, attiva: true, archiviata_il: null, ordine: 0, origine: 'catalogo', ...p,
+  });
+  const catalogo = [
+    v({ id: 'op', codice: 'A.operativa', nome: 'Operativa', livello: 'area', ordine: 1 }),
+    v({ id: 'c01', codice: '01', nome: 'Incassi clienti', livello: 'categoria', parent_id: 'op', ordine: 1 }),
+    v({ id: 'v0104', codice: '01.04', nome: 'Lavori edili', parent_id: 'c01', flusso: 'entrata', voce_cassa_in: 'inc_clienti' }),
+    v({ id: 'c06', codice: '06', nome: 'Personale', livello: 'categoria', parent_id: 'op', ordine: 6 }),
+    v({ id: 'v0611', codice: '06.11', nome: 'Contributi a carico azienda', parent_id: 'c06', voce_cassa_out: 'usc_contributi' }),
+  ];
+
+  it('con il catalogo la tabella parte per categorie, e si torna al riassunto', () => {
+    state.catalogo = catalogo;
+    apri();
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('Incassi clienti')).toBeInTheDocument();
+    expect(within(table).getByText('Totale operativa')).toBeInTheDocument();
+    expect(within(table).queryByText('Flusso della gestione operativa')).toBeNull();
+    expect(within(table).getAllByText('60.626 €').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Riassunto' }));
+    expect(within(screen.getByRole('table')).getByText('Flusso della gestione operativa')).toBeInTheDocument();
+  });
+
+  it('un importo di una categoria apre i suoi movimenti', async () => {
+    state.catalogo = catalogo;
+    apri();
+    fireEvent.click(screen.getByRole('button', { name: /Apri il dettaglio di Incassi clienti · gennaio 2026/ }));
+    expect(await screen.findByText('Fattura 1/2026')).toBeInTheDocument();
+  });
+
+  it("l'Excel segue la vista per categorie", async () => {
+    state.catalogo = catalogo;
+    apri();
+    fireEvent.click(screen.getByRole('button', { name: 'Esporta' }));
+    await waitFor(() => expect(state.exported).toHaveBeenCalled());
+    const foglio = state.exported.mock.calls[0][0].sheets[0];
+    expect(foglio.columns[0].header).toBe('Categoria');
+    expect(foglio.rows.some((r: { voce: string }) => r.voce === '  01 Incassi clienti')).toBe(true);
   });
 });

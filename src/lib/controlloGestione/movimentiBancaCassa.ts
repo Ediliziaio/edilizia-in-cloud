@@ -92,10 +92,12 @@ export function uniscMovimentiBanca(
         amount: (Math.sign(Number(r.amount)) || 1) * parti[i] / 100,
         voceCassa: (entrata ? q.in : q.out) ?? null,
         voceNome: q.nome,
+        codiceCassa: q.codice,
       }));
     }
     const riga = b ? rigaDellaVoce(b.voce, entrata) : null;
-    return riga ? [{ ...r, voceCassa: riga, voceNome: b!.voce!.nome }] : [r];
+    if (riga) return [{ ...r, voceCassa: riga, voceNome: b!.voce!.nome, codiceCassa: b!.voce!.codice }];
+    return b?.voce ? [{ ...r, codiceCassa: b.voce.codice }] : [r];
   });
 
   // 2. I movimenti senza prima nota, tranne quelli che hanno una scrittura gemella non collegata.
@@ -133,11 +135,12 @@ export function uniscMovimentiBanca(
       fonteBanca: true,
       voceCassa: rigaDellaVoce(b.voce, entrata),
       voceNome: b.voce?.nome ?? null,
+      codiceCassa: b.voce?.codice ?? null,
     };
     if (ripartito(b)) {
       const parti = dividiNelleQuote(assoluto, b.quote);
       b.quote.forEach((q, i) =>
-        out.push({ ...riga, id: `banca:${b.id}#${i}`, amount: parti[i] / 100, voceCassa: (entrata ? q.in : q.out) ?? null, voceNome: q.nome }),
+        out.push({ ...riga, id: `banca:${b.id}#${i}`, amount: parti[i] / 100, voceCassa: (entrata ? q.in : q.out) ?? null, voceNome: q.nome, codiceCassa: q.codice }),
       );
     } else out.push(riga);
   }
