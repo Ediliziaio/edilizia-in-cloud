@@ -250,6 +250,23 @@ Confermare/annullare dal popup passa da `collega_fattura_a_ordini` (costi compre
 scollegato e mai più riagganciato da solo). Storico: le 147 fatture già agganciate senza conferma
 (144 di Demo Azienda 2) restano agganciate, costi intatti, e sono nel popup come «Da ricontrollare».
 
+**Lotto 12 — fornitori creati da soli dalle fatture** (richiesta del titolare del 15/11, migrazioni
+`20290404303000`, `304000`, `305000`): quando arriva una fattura di un cedente che non è in rubrica,
+il fornitore nasce da solo (trigger `acquisti_fornitore_automatico_da_fattura`), una volta per
+P.IVA/CF anche se il nome è scritto in modi diversi, e le sue fatture si agganciano. Mai creato:
+l'azienda stessa, un estero, un identificativo non valido, una P.IVA già su più fornitori (si dice
+e lo sistema una persona). Il **tipo** si scrive solo se è certo: già tra i subappaltatori o
+fatture in reverse charge edile (N6.3/N6.7) → «subappalto», ed entra da sé nell'elenco dei
+subappaltatori; gestori noti per nome (luce, gas, telefonia, banche, enti, noleggi, carburanti,
+grandi rivenditori) → il loro tipo, stessa lista di `tipoDaNome` (parità provata). Studi e
+professionisti non si deducono dal nome: li propone la pagina «Tipi dei fornitori».
+Storico del 15/11: **1.198 fornitori creati** in 6 aziende (`acquisti_fornitori_automatici_lotto`,
+solo servizio): le fatture senza fornitore scendono da 12.515 a 4.309. Restano senza fornitore 40 cedenti (20 P.IVA non valida,
+18 esteri, 2 con più fornitori in rubrica) e **3.520 fatture senza P.IVA né codice fiscale**
+(testate importate senza i dati del cedente): senza identificativo non si crea niente.
+Velocità: indici per chiave fiscale sulle fatture senza fornitore e sulla rubrica; prima ogni
+fattura rileggeva tutta la rubrica (da 4,6 s a 0,04 s per fornitore).
+
 **Senza AI**: nessuno dei tre lotti chiama un modello. Nei test: 100% dei casi chiusi senza AI
 (gli esiti «scelta»/«conflitto»/«nessuno» vanno a una persona, non all'AI).
 
@@ -259,7 +276,7 @@ Priorità: A subito, B dopo, C quando serve. Impegno: S ≤ ½ giornata, M 1–2
 
 | Flusso | Comportamento attuale | Dati disponibili/mancanti | Parser e regole proposti | AI residua | Eccezioni | Moduli | Priorità | Impegno | Criterio di accettazione |
 |---|---|---|---|---|---|---|---|---|---|
-| Fornitore della fattura | **fatto (lotto 8)**: P.IVA/CF unico → `fornitore_id` (trigger); i mancanti si creano da Fornitori → «Rivedi e crea» | P.IVA, CF, IdPaese in XML; 12.515 fatture senza fornitore in rubrica | `risolviAnagrafica`: identificativo valido, alias verificati, omonimi segnalati; proposta di creazione solo con P.IVA valida | nessuna | omonimi con P.IVA diversa; stessa P.IVA e CF discordante (conflitto) | Fatture ricevute, Fornitori | A | M | 0 anagrafiche unite per nome; ogni nuova anagrafica ha P.IVA/CF valido |
+| Fornitore della fattura | **fatto (lotti 8 e 12)**: P.IVA/CF unico → `fornitore_id` (trigger); i mancanti nascono da soli col tipo se certo | P.IVA, CF, IdPaese in XML; 12.515 fatture senza fornitore in rubrica | `risolviAnagrafica`: identificativo valido, alias verificati, omonimi segnalati; proposta di creazione solo con P.IVA valida | nessuna | omonimi con P.IVA diversa; stessa P.IVA e CF discordante (conflitto) | Fatture ricevute, Fornitori | A | M | 0 anagrafiche unite per nome; ogni nuova anagrafica ha P.IVA/CF valido |
 | IBAN della fattura | `fornitori_iban_storico` registra, `confermato` a mano | IBAN in `DatiPagamento` | `ibanDaVerificare`: mai applicato ai pagamenti finché non confermato per altro canale | nessuna | IBAN cambiato dal fornitore (frode tipica) | Fornitori, Tesoreria (C) | A | S | un IBAN nuovo non entra in un bonifico senza conferma |
 | Fattura ↔ DDT (testata) | era: numero identico, solo all'arrivo (180/1.560) | `DatiDDT` + `RiferimentoNumeroLinea`; bolle registrate | **fatto**: numero normalizzato + fornitore + anno + data ±10 gg; trigger sulla bolla | nessuna | numero ripetuto in anni diversi (vincolo unico senza anno); bolla mai caricata | Fatture ricevute, DDT | A | — | fatto: casi PGlite verdi, anteprima senza scritture |
 | DDT nelle descrizioni | **fatto (lotto 9)** | «Rif. DDT n. … del …» nelle righe | `ddtNelleDescrizioni` (solo con la parola DDT/bolla davanti) → stesse regole | nessuna | numeri nudi (prezzi, misure) esclusi di proposito | Fatture ricevute | B | S | nuove righe `fattura_ddt` con origine «descrizione» |
