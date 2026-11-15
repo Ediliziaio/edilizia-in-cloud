@@ -9,6 +9,7 @@ import { AlertTriangle, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
@@ -192,7 +193,7 @@ function SezioneComune({ riepilogo, puoModificare }: PropsScheda) {
       </div>
       <div className="space-y-1 sm:col-span-2">
         <Label htmlFor="dati-indirizzo" className="text-xs">{luogo}</Label>
-        <Input id="dati-indirizzo" className="h-9" value={v.indirizzo} disabled={disab} placeholder="Via, numero, comune" onChange={(e) => setV((x) => ({ ...x, indirizzo: e.target.value }))} />
+        <CampoIndirizzo id="dati-indirizzo" className="h-9" value={v.indirizzo} disabled={disab} placeholder="Via, numero, comune" onChange={(t) => setV((x) => ({ ...x, indirizzo: t }))} />
       </div>
       <div className="space-y-1">
         <Label htmlFor="dati-inizio" className="text-xs">Inizio lavori</Label>

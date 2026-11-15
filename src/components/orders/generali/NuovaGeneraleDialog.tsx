@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DialogContentGenerale as DialogContent } from "@/components/orders/generali/design/DialogGenerale";
 import { Input } from "@/components/ui/input";
+import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
 import { Label } from "@/components/ui/label";
 import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
 import { Switch } from "@/components/ui/switch";
@@ -188,7 +189,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
               <Label htmlFor="generale-indirizzo">
                 {modello === "compravendita" ? "Indirizzo dell'immobile" : modello === "sviluppo" ? "Indirizzo dell'area" : "Indirizzo del cantiere"} <span className="font-normal text-muted-foreground">(facoltativo)</span>
               </Label>
-              <Input id="generale-indirizzo" value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} placeholder="Via, numero, comune" />
+              <CampoIndirizzo id="generale-indirizzo" value={indirizzo} onChange={setIndirizzo} placeholder="Via, numero, comune" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="generale-inizio">{appalto ? "Consegna lavori" : "Inizio lavori"}</Label>

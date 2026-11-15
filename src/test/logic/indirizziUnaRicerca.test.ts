@@ -73,6 +73,8 @@ const MODULI = [
   // Commesse.
   "src/pages/azienda/CreateLavoroAppaltatore.tsx",
   "src/pages/azienda/EditOrder.tsx",
+  "src/components/orders/generali/NuovaGeneraleDialog.tsx",
+  "src/components/orders/generali/moduli/DatiScheda.tsx",
   // Preventivi.
   "src/pages/azienda/marketing/QuoteBuilder.tsx",
   "src/components/preventivatore/IndirizzoDeiLavori.tsx",
