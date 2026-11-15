@@ -303,7 +303,8 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       id: `sal-${s.id}`,
       type: 'sal' as EventType,
       date: s.data_emissione,
-      title: `SAL #${s.numero_sal} — €${Number(s.importo_totale).toLocaleString('it-IT')}`,
+      // Senza «Venduto e importi» l'importo arriva vuoto (15/11/2026): il titolo resta senza cifra.
+      title: s.importo_totale == null ? `SAL #${s.numero_sal}` : `SAL #${s.numero_sal} — lavori a tutto il SAL €${Number(s.importo_totale).toLocaleString('it-IT')}`,
       badge: s.stato as string | undefined,
       badgeColor: s.stato === 'firmato' ? '#16A34A' : '#CA8A04',
       amount: s.importo_totale,
@@ -348,7 +349,10 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
       varianti: variantiApprovate.length,
       impattoVarianti: variantiApprovate.reduce((tot, v) => tot + (Number(v.impatto_economico) || 0), 0),
       sal: sal.length,
-      importoSal: sal.reduce((tot, x) => tot + (Number(x.importo_totale) || 0), 0),
+      // importo_totale è il CUMULATIVO («lavori a tutto il…»): i SAL non si sommano, vale l'ultimo.
+      importoSal: sal.length && sal.some(x => x.importo_totale != null)
+        ? [...sal].sort((a, b) => b.numero_sal - a.numero_sal)[0].importo_totale ?? null
+        : null,
     };
 
     const filtrati = filtro === 'tutti' ? events : events.filter(e => e.type === filtro);
@@ -405,9 +409,9 @@ export function TimelineCantiere({ orderId, companyId, adminView = false }: Time
           {riepilogo.sal > 0 && (
             <div>
               <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                SAL emessi ({riepilogo.sal})
+                SAL emessi ({riepilogo.sal}){riepilogo.importoSal != null ? " · lavori a tutto l'ultimo" : ""}
               </dt>
-              <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{formatCurrency(riepilogo.importoSal)}</dd>
+              <dd className="mt-0.5 text-lg font-bold tabular-nums text-slate-900">{riepilogo.importoSal != null ? formatCurrency(riepilogo.importoSal) : "—"}</dd>
             </div>
           )}
         </dl>

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const stato = vi.hoisted(() => ({
   sal: [] as Array<Record<string, unknown>>, salMatura: "emesso" as string,
   update: vi.fn(), sostituisci: vi.fn(), conferma: vi.fn(),
-  canEdit:true,readError:false,save:vi.fn(),upsert:vi.fn(),
+  canEdit:true,vedeImporti:true,readError:false,save:vi.fn(),upsert:vi.fn(),
   fasi: [] as Array<Record<string, unknown>>,
   sottofasi: [] as Array<Record<string, unknown>>, vociCommessa: [] as Array<Record<string, unknown>>,
 }));
@@ -14,7 +14,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => stato.conferma }));
 vi.mock("@/components/shared/PrintPreviewModal", () => ({ PrintPreviewModal: (): null => null }));
 vi.mock("@/hooks/useSalMatura", () => ({ useSalMatura: () => stato.salMatura }));
-vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:stato.canEdit,canViewSettingsOrders:false})}));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:stato.canEdit,canViewOrderAmounts:stato.vedeImporti,canViewSettingsOrders:false})}));
 vi.mock("@/lib/orders/saveSalDraft",async(importOriginal)=>({...await importOriginal<typeof import("@/lib/orders/saveSalDraft")>(),saveSalDraft:stato.save}));
 vi.mock("@/hooks/usePianoPagamenti", () => ({ useSostituisciRate: () => ({ mutate: stato.sostituisci, isPending: false }) }));
 vi.mock("@/integrations/supabase/client", () => {
@@ -68,7 +68,7 @@ beforeEach(() => {
     { id: "f1", name: "Demolizioni", status: "completata", percentuale: 100, importo_venduto: 4000 },
     { id: "f2", name: "Massetti", status: "in_corso", percentuale: 50, importo_venduto: 6000 },
   ];
-  stato.canEdit = true; stato.readError = false; stato.save.mockResolvedValue({ id: "nuovo-sal" });
+  stato.canEdit = true; stato.vedeImporti = true; stato.readError = false; stato.save.mockResolvedValue({ id: "nuovo-sal" });
   stato.conferma.mockResolvedValue(true);
 });
 afterEach(cleanup);
@@ -176,5 +176,19 @@ describe("Acconto e ritenuta nel certificato (15/11/2026)", () => {
     expect(cert.textContent).toContain("Recupero anticipazione");
     expect(screen.getByText(/Acconto già fatturato o incassato/)).toBeInTheDocument();
     expect(screen.getByText(/non dice una ritenuta di garanzia/)).toBeInTheDocument();
+  });
+});
+
+describe("SAL di chi ha «Venduto e importi» (15/11/2026)", () => {
+  it("senza il diritto si vedono i verbali con le percentuali, senza importi né pulsanti per farli", async () => {
+    stato.vedeImporti = false;
+    stato.sal = [{ ...sal1(), importo_totale: null, sal_certificati: null, sal_voci: sal1().sal_voci.map((v) => ({ ...v, importo_contrattuale: null as number | null, importo_sal: null as number | null })) }];
+    disegna();
+    await screen.findByText("SAL #1");
+    expect(screen.getByRole("note").textContent).toContain("Venduto e importi");
+    expect(screen.queryByRole("button", { name: /Nuovo verbale/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Prepara SAL/ })).toBeNull();
+    expect(screen.queryByLabelText("Riepilogo dei SAL")).toBeNull();
+    expect(screen.getByText("100%")).toBeInTheDocument();
   });
 });

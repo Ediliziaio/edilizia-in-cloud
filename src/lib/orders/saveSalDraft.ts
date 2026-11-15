@@ -22,8 +22,11 @@ export async function saveSalDraft(client:SupabaseClient<Database>,input:{orderI
   if(error && codice) throw new SalSaveError(`SAL non salvato: ${error.message||"il database l'ha rifiutato"}`);
   if(error || data?.id!==id || data.company_id!==input.companyId || data.order_id!==input.orderId || data.stato!=="bozza")
     throw new SalSaveError("Salvataggio non confermato: controlla l'elenco SAL prima di riprovare, per evitare duplicati.",true);
-  const result=await client.from("sal_voci").insert(prepared.rows.map((row,i)=>({...row,id:voceIds[i],sal_id:id}))).select("id,importo_sal");
-  let vociOk=!result.error && result.data?.length===prepared.rows.length && Math.round((result.data??[]).reduce((sum,row)=>sum+Number(row.importo_sal),0)*100)===Math.round(prepared.total*100);
+  // L'importo calcolato si rilegge dalla vista: sulla tabella grezza la colonna è chiusa (20290402130100).
+  const result=await client.from("sal_voci").insert(prepared.rows.map((row,i)=>({...row,id:voceIds[i],sal_id:id}))).select("id");
+  const importi=!result.error && result.data?.length===prepared.rows.length
+    ? await client.from("sal_voci_visibili").select("importo_sal").eq("sal_id",id) : null;
+  let vociOk=!!importi && !importi.error && importi.data?.length===prepared.rows.length && Math.round((importi.data??[]).reduce((sum,row)=>sum+Number(row.importo_sal),0)*100)===Math.round(prepared.total*100);
   if(vociOk && dettaglio.length){
     const sotto=await client.from("sal_voci_sottofasi").insert(dettaglio).select("id");
     vociOk=!sotto.error && sotto.data?.length===dettaglio.length;

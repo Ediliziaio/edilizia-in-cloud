@@ -96,8 +96,8 @@ export function CalendarEventPayments({
                 <span className="text-xs">{statusLabel(sal.stato)}</span>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                {date(sal.data_emissione)} · Cumulativo netto{" "}
-                {formatCurrency(sal.importo_totale)}
+                {date(sal.data_emissione)}
+                {sal.importo_totale != null && <> · Cumulativo netto {formatCurrency(sal.importo_totale)}</>}
               </p>
               <p className="mt-2 text-xs">
                 {rate

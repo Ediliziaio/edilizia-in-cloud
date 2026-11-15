@@ -137,6 +137,10 @@ const emptyVoce = (): VoceForm => ({
 export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0, financingCostMode, showPaymentProgress = true }: SalTabProps) {
   const queryClient = useQueryClient();
   const permissions = usePermissions();
+  // I SAL sono di chi ha «Venduto e importi» (15/11/2026): gli altri li vedono, senza importi, e non li fanno.
+  const vedeImporti = permissions.canViewOrderAmounts !== false;
+  const puoFareSal = permissions.canEditOrders && vedeImporti;
+  const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(n));
   const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -238,7 +242,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   // AI: suggerisce % avanzamento dalle voci ordine + storico SAL + rapportini
   const aiSuggestMutation = useMutation({
     mutationFn: async () => {
-      if(!permissions.canEditOrders || !dialogOpen)throw new Error("Non hai il permesso di compilare il SAL.");
+      if(!puoFareSal || !dialogOpen)throw new Error("Non hai il permesso di compilare il SAL.");
       const revision=draftRevision.current;
       const nextNumero = numeroNuovoSal((installments??[]).find(i=>i.id===rataCollegata)??null,salList);
       const { data, error } = await supabase.functions.invoke("suggerisci-sal-ai", {
@@ -280,7 +284,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
 
   const createSalMutation = useMutation({
     mutationFn: async ({emetti}:{emetti:boolean}) => {
-      if(!permissions.canEditOrders || !review || blocked || saveBlocked)throw new Error("Controlla lo storico e il riepilogo prima di salvare.");
+      if(!puoFareSal || !review || blocked || saveBlocked)throw new Error("Controlla lo storico e il riepilogo prima di salvare.");
       if(vociInDiscesa.length>0 && !rettifica)throw new Error("Alcune voci scendono sotto il SAL precedente: conferma che è una rettifica o correggi le percentuali.");
       if(rataCollegata && (!(installments??[]).some(i=>i.id===rataCollegata) || salList.some(s=>s.installment_id===rataCollegata)))
         throw new Error("La rata non è disponibile o ha già un verbale SAL.");
@@ -320,7 +324,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const deleteSalMutation = useMutation({
     mutationFn: async (salId:string) => {
       const row=salList.find(s=>s.id===salId);
-      if(!permissions.canEditOrders || blocked || row?.stato!=="bozza")throw new Error("Si può eliminare solo una bozza SAL.");
+      if(!puoFareSal || blocked || row?.stato!=="bozza")throw new Error("Si può eliminare solo una bozza SAL.");
       const {data,error}=await supabase.from("sal_records").delete().eq("id",salId).eq("order_id",orderId).eq("company_id",companyId).eq("stato","bozza").select("id");
       if(error || data?.length!==1)throw new Error("Eliminazione non confermata: il SAL potrebbe essere stato modificato.");
     },
@@ -330,7 +334,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
   const cambiaStato = useMutation({
     mutationFn: async ({id,stato:next}:{id:string;stato:"emesso"|"approvato"}) => {
       const row=salList.find(s=>s.id===id);
-      if(!permissions.canEditOrders || blocked || !salMatura || !row || prossimoStatoSal(row.stato)?.stato!==next)throw new Error("Passaggio non consentito o regola SAL non verificata.");
+      if(!puoFareSal || blocked || !salMatura || !row || prossimoStatoSal(row.stato)?.stato!==next)throw new Error("Passaggio non consentito o regola SAL non verificata.");
       const sequenceIssue=salEmissionIssue(row,salList);
       if(sequenceIssue)throw new Error(sequenceIssue);
       const prepared=prepareSalLines((row.sal_voci??[]).map(v=>({descrizione:v.descrizione,importo_contrattuale:String(v.importo_contrattuale),percentuale_avanzamento:String(v.percentuale_avanzamento),note:v.note??""})),orderTotalAmount);
@@ -430,7 +434,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
     void queryClient.invalidateQueries({queryKey:["order-installments",orderId]});
   };
   const openComposer=(installmentId="")=>{
-    if(!permissions.canEditOrders || blocked)return;
+    if(!puoFareSal || blocked)return;
     if(saveBlocked){toast.error("Un salvataggio precedente resta da verificare: ricarica lo storico prima di creare un altro SAL.");return;}
     // Senza una rata scelta si propone la prima che il piano aspetta da un SAL: «Nessuna» resta una scelta.
     const rata=installmentId || rataProposta(installments??[],salList);
@@ -511,7 +515,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         </div>
         {/* Con la lista vuota il CTA vive nell'empty state qui sotto:
             due bottoni identici nella stessa card erano solo rumore. */}
-        {permissions.canEditOrders && salList.length > 0 && (
+        {puoFareSal && salList.length > 0 && (
           <Button size="sm" disabled={blocked} onClick={() => openComposer()}>
             <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo verbale
           </Button>
@@ -520,7 +524,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
 
       {(() => {
         const ultimo = salList.find((x) => x.stato !== "bozza");
-        if (!ultimo) return null;
+        if (!ultimo || !vedeImporti) return null;
         const contrattuale = (ultimo.sal_voci ?? []).reduce((t, v) => t + Number(v.importo_contrattuale), 0);
         const eseguito = Number(ultimo.importo_totale);
         const numero = (titolo: string, valore: string, nota?: string) => (
@@ -535,6 +539,12 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           </dl>
         );
       })()}
+
+      {!vedeImporti && (
+        <p role="note" className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          I SAL li prepara ed emette chi ha il permesso «Venduto e importi»: qui li vedi con le percentuali, senza importi.
+        </p>
+      )}
 
       {/* Il punto che vale tutto il capitolo: il SAL è una misura del lavoro
           eseguito, non una scadenza sul calendario. */}
@@ -651,7 +661,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="font-medium">{formatCurrency(inst.amount)}</span>
-                    {permissions.canEditOrders && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={blocked} onClick={() => openComposer(inst.id ?? "")}>
+                    {puoFareSal && <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={blocked} onClick={() => openComposer(inst.id ?? "")}>
                       Prepara SAL
                     </Button>}
                   </span>
@@ -670,9 +680,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
               <FileBarChart2 className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              <span>Nessun verbale. Crea una bozza dalle fasi oppure compila le voci a mano.</span>
+              <span>{puoFareSal ? "Nessun verbale. Crea una bozza dalle fasi oppure compila le voci a mano." : "Nessun verbale SAL su questa commessa."}</span>
             </p>
-            {permissions.canEditOrders && <Button size="sm" variant="outline" disabled={blocked} onClick={() => openComposer()}>
+            {puoFareSal && <Button size="sm" variant="outline" disabled={blocked} onClick={() => openComposer()}>
               <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea verbale
             </Button>}
           </CardContent>
@@ -691,7 +701,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       </Badge>
                     </CardTitle>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {sal.stato==="bozza" ? "Bozza del" : "Emesso il"} {fmtDate(sal.data_emissione)} · Cumulativo netto: {formatCurrency(sal.importo_totale)}
+                      {sal.stato==="bozza" ? "Bozza del" : "Emesso il"} {fmtDate(sal.data_emissione)} · {vedeImporti ? <>Cumulativo netto: {formatCurrency(sal.importo_totale)}</> : "importi visibili a chi ha «Venduto e importi»"}
                     </p>
                     {salEmissionIssue(sal,salList) && <p className="text-xs text-amber-700 mt-1 max-w-xl">{salEmissionIssue(sal,salList)}</p>}
                     <CertificatoSal salId={sal.id} orderId={orderId} companyId={companyId} numero={sal.numero_sal} cumulativo={sal.importo_totale}
@@ -700,7 +710,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       giaMaturato={maturatoPrecedente(sal,salList)}
                       bloccato={certificatoBloccato(sal,salList,installments ?? [])}
                       opzioni={{anticipazione,contratto:orderTotalAmount,ritenutaContratto}}
-                      puoModificare={permissions.canEditOrders && !blocked}/>
+                      puoModificare={puoFareSal && !blocked}/>
                     {(() => {
                       const cert = certificatoDelSal(sal.sal_certificati);
                       if (!cert || sal.stato === "bozza" || !(Number(cert.ritenuta) > 0) || !permissions.isAdmin || !salNelRegistro) return null;
@@ -745,7 +755,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                             Rata «{rata.label}»: {formatCurrency(mostrato)}
                             {salMaturato(salMatura, sal.stato) && !rata.is_paid ? " · da incassare" : ""}
                           </span>
-                          {permissions.canEditOrders && proposta !== null && (
+                          {puoFareSal && proposta !== null && (
                             <Button
                               type="button"
                               variant="outline"
@@ -773,7 +783,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                   <div className="flex flex-wrap items-center gap-1">
                     {(() => {
                       const prossimo = prossimoStatoSal(sal.stato);
-                      if (!prossimo || !permissions.canEditOrders) return null;
+                      if (!prossimo || !puoFareSal) return null;
                       return (
                         <Button
                           type="button"
@@ -800,7 +810,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
                       Verbale PDF
                     </Button>
-                    {permissions.canEditOrders && sal.stato === "bozza" && <Button
+                    {puoFareSal && sal.stato === "bozza" && <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 w-7 p-0 text-destructive hover:text-destructive"
@@ -822,7 +832,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>}
-                    {permissions.canEditOrders && ["emesso","approvato"].includes(sal.stato) && <Button variant="outline" size="sm" disabled={signatureBusy || blocked} onClick={async()=>{
+                    {puoFareSal && ["emesso","approvato"].includes(sal.stato) && <Button variant="outline" size="sm" disabled={signatureBusy || blocked} onClick={async()=>{
                       if(signatureBusy)return;setSignatureBusy(true);
                       try{const {data,error}=await supabase.functions.invoke("generate-sal-pdf",{body:{sal_id:sal.id,company_id:companyId,prepare_signature:true}});
                         if(error || typeof data?.signature_url!=="string" || !/^https:\/\//.test(data.signature_url))throw new Error("Link cliente non confermato.");
@@ -850,9 +860,9 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                         {sal.sal_voci.flatMap((v) => [
                           <tr key={v.id} className="border-b last:border-0">
                             <td className={`p-2${v.sal_voci_sottofasi?.length ? " font-medium" : ""}`}>{v.descrizione}</td>
-                            <td className="p-2 text-right">{formatCurrency(v.importo_contrattuale)}</td>
+                            <td className="p-2 text-right">{euro(v.importo_contrattuale)}</td>
                             <td className="p-2 text-right">{v.percentuale_avanzamento}%</td>
-                            <td className="p-2 text-right font-medium">{formatCurrency(v.importo_sal)}</td>
+                            <td className="p-2 text-right font-medium">{euro(v.importo_sal)}</td>
                           </tr>,
                           ...[...(v.sal_voci_sottofasi ?? [])].sort((a, b) => a.posizione - b.posizione).map((d) => (
                             <tr key={d.id} className="border-b text-muted-foreground last:border-0">
@@ -870,7 +880,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                       <tfoot>
                         <tr className="bg-muted/30 font-semibold">
                           <td className="p-2" colSpan={3}>Avanzamento cumulativo netto</td>
-                          <td className="p-2 text-right">{formatCurrency(sal.importo_totale)}</td>
+                          <td className="p-2 text-right">{euro(sal.importo_totale)}</td>
                         </tr>
                         {maturatoPrecedente(sal, salList) > 0 && (
                           <>
@@ -912,7 +922,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <div className="min-h-0 overflow-y-auto p-4 space-y-4">
           {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
           {review && <Button variant="outline" size="sm" disabled={createSalMutation.isPending} onClick={()=>{setReview(false);setRettifica(false);}}>Modifica bozza</Button>}
-          <fieldset className="space-y-4 min-w-0" disabled={review || createSalMutation.isPending || !permissions.canEditOrders}>
+          <fieldset className="space-y-4 min-w-0" disabled={review || createSalMutation.isPending || !puoFareSal}>
             <p className="rounded-lg border bg-muted/20 p-3 text-sm">Stato iniziale: <strong>Bozza</strong>. L'emissione è un passaggio successivo, dopo la verifica delle voci.</p>
 
             {/* Rata certificata: il piano rate nasce dagli importi del
@@ -1249,7 +1259,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               className="h-auto min-h-11 whitespace-normal"
               variant={review ? "outline" : "default"}
               onClick={() => {if(!review){reviewDraft();return;}if(saving.current)return;saving.current=true;createSalMutation.mutate({emetti:false});}}
-              disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders || (review && vociInDiscesa.length > 0 && !rettifica) || (review && conCertificato && !certificatoNuovo)}
+              disabled={createSalMutation.isPending || aiSuggestMutation.isPending || blocked || saveBlocked || !puoFareSal || (review && vociInDiscesa.length > 0 && !rettifica) || (review && conCertificato && !certificatoNuovo)}
             >
               {createSalMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> Salvataggio...</>
@@ -1266,7 +1276,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
                   if (!ok || saving.current) return;
                   saving.current = true; createSalMutation.mutate({ emetti: true });
                 }}
-                disabled={createSalMutation.isPending || blocked || saveBlocked || !permissions.canEditOrders || !salMatura || (vociInDiscesa.length > 0 && !rettifica) || (conCertificato && !certificatoNuovo) || !!salEmissionIssue({ id: "nuovo", numero_sal: numeroNuovo, stato: "bozza" }, salList)}
+                disabled={createSalMutation.isPending || blocked || saveBlocked || !puoFareSal || !salMatura || (vociInDiscesa.length > 0 && !rettifica) || (conCertificato && !certificatoNuovo) || !!salEmissionIssue({ id: "nuovo", numero_sal: numeroNuovo, stato: "bozza" }, salList)}
               >
                 Salva ed emetti
               </Button>

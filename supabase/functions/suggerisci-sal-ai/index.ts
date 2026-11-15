@@ -78,6 +78,11 @@ Deno.serve(async (req: Request) => {
       return errorResponse("order_id e company_id obbligatori", 400, cors);
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+    // I SAL sono di chi ha «Venduto e importi» (15/11/2026): il suggerimento porta il venduto di ogni voce.
+    const { data: vedeImporti, error: erroreDiritto } = await supabaseAdmin.rpc("has_permission_for_company", {
+      _user_id: userId, _permission: "can_view_order_amounts", _company_id: company_id,
+    });
+    if (erroreDiritto || vedeImporti !== true) return errorResponse("Il SAL lo prepara chi ha il permesso «Venduto e importi».", 403, cors);
 
     // Fetch order
     const { data: order, error: orderErr } = await supabaseAdmin

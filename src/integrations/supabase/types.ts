@@ -23484,6 +23484,75 @@ export type Database = {
           },
         ]
       }
+      cg_tfr_destinazioni: {
+        Row: {
+          company_id: string
+          dal: string
+          destinazione: string
+          employee_id: string
+          note: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          dal: string
+          destinazione: string
+          employee_id: string
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          dal?: string
+          destinazione?: string
+          employee_id?: string
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      cg_tfr_movimenti: {
+        Row: {
+          annullato_il: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          employee_id: string | null
+          id: string
+          importo: number
+          note: string | null
+          tipo: string
+        }
+        Insert: {
+          annullato_il?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data: string
+          employee_id?: string | null
+          id?: string
+          importo: number
+          note?: string | null
+          tipo: string
+        }
+        Update: {
+          annullato_il?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          employee_id?: string | null
+          id?: string
+          importo?: number
+          note?: string | null
+          tipo?: string
+        }
+        Relationships: []
+      }
       chat_notifications: {
         Row: {
           channel_id: string
@@ -52958,6 +53027,13 @@ export type Database = {
             referencedRelation: "sal_records"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "generale_fatture_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
         ]
       }
       generale_fonti: {
@@ -53729,6 +53805,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "generale_misure_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "generale_misure_voce_id_fkey"
             columns: ["voce_id"]
             isOneToOne: false
@@ -54341,6 +54424,13 @@ export type Database = {
             referencedRelation: "sal_records"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "generale_sal_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: true
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
         ]
       }
       generale_sal_voci: {
@@ -54470,10 +54560,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "generale_sal_voci_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "generale_sal_voci_sal_voce_id_fkey"
             columns: ["sal_voce_id"]
             isOneToOne: true
             referencedRelation: "sal_voci"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generale_sal_voci_sal_voce_id_fkey"
+            columns: ["sal_voce_id"]
+            isOneToOne: true
+            referencedRelation: "sal_voci_visibili"
             referencedColumns: ["id"]
           },
           {
@@ -102159,6 +102263,13 @@ export type Database = {
             referencedRelation: "sal_records"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ritenute_garanzia_sal_record_id_fkey"
+            columns: ["sal_record_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
         ]
       }
       route_plans: {
@@ -104002,6 +104113,13 @@ export type Database = {
             referencedRelation: "sal_records"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sal_certificati_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: true
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sal_records: {
@@ -104230,6 +104348,13 @@ export type Database = {
             columns: ["sal_id"]
             isOneToOne: false
             referencedRelation: "sal_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_signature_tokens_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
             referencedColumns: ["id"]
           },
         ]
@@ -104744,6 +104869,13 @@ export type Database = {
             referencedRelation: "sal_records"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sal_voci_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
+          },
         ]
       }
       sal_voci_sottofasi: {
@@ -104802,6 +104934,13 @@ export type Database = {
             columns: ["voce_id"]
             isOneToOne: false
             referencedRelation: "sal_voci"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sottofasi_voce_id_fkey"
+            columns: ["voce_id"]
+            isOneToOne: false
+            referencedRelation: "sal_voci_visibili"
             referencedColumns: ["id"]
           },
         ]
@@ -133961,13 +134100,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_2"]
-            isOneToOne: false
-            referencedRelation: "commesse_valore_pattuito"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
             referencedRelation: "commesse_valore_pattuito"
@@ -133977,7 +134109,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "orders"
+            referencedRelation: "commesse_valore_pattuito"
             referencedColumns: ["id"]
           },
           {
@@ -133991,7 +134123,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
-            referencedRelation: "orders_visibili"
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -134005,6 +134137,20 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_2"]
             isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_1"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_2"]
+            isOneToOne: false
             referencedRelation: "v_cg_lavori_in_corso"
             referencedColumns: ["order_id"]
           },
@@ -134012,7 +134158,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
-            referencedRelation: "v_cg_lavori_in_corso"
+            referencedRelation: "v_cg_portafoglio_commesse"
             referencedColumns: ["order_id"]
           },
           {
@@ -134026,7 +134172,7 @@ export type Database = {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
             isOneToOne: false
-            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
             referencedColumns: ["order_id"]
           },
           {
@@ -134039,20 +134185,13 @@ export type Database = {
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
             columns: ["cantiere_1"]
-            isOneToOne: false
-            referencedRelation: "v_ordine_costi_mezzi_stimati"
-            referencedColumns: ["order_id"]
-          },
-          {
-            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "v_ordine_esposizione"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
-            columns: ["cantiere_1"]
+            columns: ["cantiere_2"]
             isOneToOne: false
             referencedRelation: "v_ordine_esposizione"
             referencedColumns: ["id"]
@@ -139212,6 +139351,289 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_insoluti"
             referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      sal_records_visibili: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          created_by: string | null
+          data_emissione: string | null
+          id: string | null
+          importo_totale: number | null
+          installment_id: string | null
+          maturato_il: string | null
+          note: string | null
+          numero_sal: number | null
+          order_id: string | null
+          stato: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_emissione?: string | null
+          id?: string | null
+          importo_totale?: never
+          installment_id?: string | null
+          maturato_il?: string | null
+          note?: string | null
+          numero_sal?: number | null
+          order_id?: string | null
+          stato?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_emissione?: string | null
+          id?: string | null
+          importo_totale?: never
+          installment_id?: string | null
+          maturato_il?: string | null
+          note?: string | null
+          numero_sal?: number | null
+          order_id?: string | null
+          stato?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "sal_records_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "order_installments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "order_installments_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_installment_id_fkey"
+            columns: ["installment_id"]
+            isOneToOne: false
+            referencedRelation: "v_rate_commessa_stato"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "commesse_valore_pattuito"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "sal_records_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sal_voci_sottofasi_visibili: {
+        Row: {
+          created_at: string | null
+          descrizione: string | null
+          id: string | null
+          importo_contrattuale: number | null
+          importo_sal: number | null
+          percentuale_avanzamento: number | null
+          posizione: number | null
+          quantita_a_oggi: number | null
+          quantita_contratto: number | null
+          sottofase_id: string | null
+          unita: string | null
+          voce_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descrizione?: string | null
+          id?: string | null
+          importo_contrattuale?: never
+          importo_sal?: never
+          percentuale_avanzamento?: number | null
+          posizione?: number | null
+          quantita_a_oggi?: number | null
+          quantita_contratto?: number | null
+          sottofase_id?: string | null
+          unita?: string | null
+          voce_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descrizione?: string | null
+          id?: string | null
+          importo_contrattuale?: never
+          importo_sal?: never
+          percentuale_avanzamento?: number | null
+          posizione?: number | null
+          quantita_a_oggi?: number | null
+          quantita_contratto?: number | null
+          sottofase_id?: string | null
+          unita?: string | null
+          voce_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_voci_sottofasi_sottofase_id_fkey"
+            columns: ["sottofase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_subphases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sottofasi_voce_id_fkey"
+            columns: ["voce_id"]
+            isOneToOne: false
+            referencedRelation: "sal_voci"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sottofasi_voce_id_fkey"
+            columns: ["voce_id"]
+            isOneToOne: false
+            referencedRelation: "sal_voci_visibili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sal_voci_visibili: {
+        Row: {
+          created_at: string | null
+          descrizione: string | null
+          fase_id: string | null
+          id: string | null
+          importo_contrattuale: number | null
+          importo_sal: number | null
+          note: string | null
+          percentuale_avanzamento: number | null
+          sal_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          descrizione?: string | null
+          fase_id?: string | null
+          id?: string | null
+          importo_contrattuale?: never
+          importo_sal?: never
+          note?: string | null
+          percentuale_avanzamento?: number | null
+          sal_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          descrizione?: string | null
+          fase_id?: string | null
+          id?: string | null
+          importo_contrattuale?: never
+          importo_sal?: never
+          note?: string | null
+          percentuale_avanzamento?: number | null
+          sal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_voci_fase_id_fkey"
+            columns: ["fase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_fase_id_fkey"
+            columns: ["fase_id"]
+            isOneToOne: false
+            referencedRelation: "order_work_phases_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_voci_sal_id_fkey"
+            columns: ["sal_id"]
+            isOneToOne: false
+            referencedRelation: "sal_records_visibili"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -146347,6 +146769,10 @@ export type Database = {
           p_nome: string
           p_valore: number
         }
+        Returns: undefined
+      }
+      commessa_generale_chiusura: {
+        Args: { p_chiusa: boolean; p_generale_id: string }
         Returns: undefined
       }
       commessa_generale_collega: {

@@ -37,7 +37,7 @@ function db(behavior:{headerError?:boolean;lineError?:boolean;rollbackError?:boo
   const operations:unknown[]=[];let id="";
   const client={from:(table:string)=>{
     let action="";const filters:unknown[]=[];
-    const query={insert:(payload:unknown)=>{action="insert";operations.push({table,action,payload});if(table==="sal_records")id=(payload as {id:string}).id;return query;},delete:()=>{action="delete";operations.push({table,action,filters});return query;},select:()=>query,eq:(key:string,value:unknown)=>{filters.push([key,value]);return query;},single:async()=>({data:{id,company_id:"company",order_id:"order",stato:"bozza"},error:behavior.headerError?{message:"rete"}:null}),then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(table==="sal_voci" ? {data:[{id:"line",importo_sal:50}],error:behavior.lineError?{message:"fail"}:null} : {data:behavior.rollbackError?[]:[{id}],error:null}).then(resolve)};return query;
+    const query={insert:(payload:unknown)=>{action="insert";operations.push({table,action,payload});if(table==="sal_records")id=(payload as {id:string}).id;return query;},delete:()=>{action="delete";operations.push({table,action,filters});return query;},select:()=>query,eq:(key:string,value:unknown)=>{filters.push([key,value]);return query;},single:async()=>({data:{id,company_id:"company",order_id:"order",stato:"bozza"},error:behavior.headerError?{message:"rete"}:null}),then:(resolve:(value:unknown)=>unknown)=>Promise.resolve(table==="sal_voci"||table==="sal_voci_visibili" ? {data:[{id:"line",importo_sal:50}],error:behavior.lineError?{message:"fail"}:null} : {data:behavior.rollbackError?[]:[{id}],error:null}).then(resolve)};return query;
   }} as unknown as SupabaseClient<Database>;
   return {client,operations};
 }
