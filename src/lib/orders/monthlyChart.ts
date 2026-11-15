@@ -32,6 +32,7 @@ export function orderChartMonths(months: OrderChartMonth[], now = new Date()) {
       current: month.key === currentKey,
       sold: unavailable ? null : month.venduto,
       collected: unavailable ? null : month.incassato,
+      due: unavailable ? null : month.daIncassare,
       count: unavailable ? null : month.commesse,
     };
   });

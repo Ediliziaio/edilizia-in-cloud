@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import {
   Area,
@@ -19,6 +19,14 @@ import {
   type DisplayChartMonth,
   type OrderChartMonth,
 } from "@/lib/orders/monthlyChart";
+import { CATALOGO_SERIE, type SerieGrafico } from "@/lib/orders/riepilogoCommesse";
+
+/** Chiave della serie nei dati del grafico e nel confronto con l'anno prima. */
+const CHIAVE_SERIE: Record<SerieGrafico, { dato: "sold" | "collected" | "due"; confronto: string }> = {
+  venduto: { dato: "sold", confronto: "comparison.venduto" },
+  incassato: { dato: "collected", confronto: "comparison.incassato" },
+  da_incassare: { dato: "due", confronto: "comparison.daIncassare" },
+};
 const monthName = (month: OrderChartMonth) =>
   new Date(`${month.key}-01T12:00:00`).toLocaleDateString("it-IT", {
     month: "long",
@@ -98,7 +106,14 @@ export function OrdersMonthlyChart({
   selectedMonth = null,
   onSelectMonth,
   comparison,
+  serie = ["venduto", "incassato"],
+  vistaIniziale = "money",
+  formaIniziale = "lines",
 }: {
+  /** Le linee in euro, scelte dall'azienda (riepilogo commesse). */
+  serie?: SerieGrafico[];
+  vistaIniziale?: "money" | "count";
+  formaIniziale?: "lines" | "bars";
   comparison?: {
     year: number;
     enabled: boolean;
@@ -113,8 +128,14 @@ export function OrdersMonthlyChart({
   selectedMonth?: string | null;
   onSelectMonth?: (month: string | null) => void;
 }) {
-  const [view, setView] = useState<"money" | "count">("money");
-  const [shape, setShape] = useState<"lines" | "bars">("lines");
+  const [view, setView] = useState<"money" | "count">(vistaIniziale);
+  const [shape, setShape] = useState<"lines" | "bars">(formaIniziale);
+  // Quando l'azienda cambia la scelta, il grafico riparte da quella; chi guarda può poi cambiarla per sé.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setView(vistaIniziale), [vistaIniziale]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setShape(formaIniziale), [formaIniziale]);
+  const linee = CATALOGO_SERIE.filter((s) => serie.includes(s.id));
   const reducedMotion = useReducedMotion();
   const [animateInteraction, setAnimateInteraction] = useState(true);
   const gradient = useId().replace(/:/g, "");
@@ -247,14 +268,13 @@ export function OrdersMonthlyChart({
       >
         {view === "money" ? (
           <>
-            <span className="inline-flex items-center gap-1.5">
-              <i className="h-2 w-2 rounded-full bg-blue-600" />
-              Venduto
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <i className="h-2 w-2 rounded-full bg-orange-500" />
-              Incassato · IVA inclusa
-            </span>
+            {linee.map((linea) => (
+              <span key={linea.id} className="inline-flex items-center gap-1.5">
+                <i className="h-2 w-2 rounded-full" style={{ background: linea.colore }} />
+                {linea.nome}
+              </span>
+            ))}
+            <span className="text-slate-500">IVA inclusa</span>
           </>
         ) : (
           <span className="inline-flex items-center gap-1.5">
@@ -273,7 +293,7 @@ export function OrdersMonthlyChart({
         role="img"
         aria-label={
           view === "money"
-            ? "Venduto e incassato per mese di creazione, in euro"
+            ? `${linee.map((l) => l.nome).join(", ")} per mese di creazione, in euro`
             : "Numero di commesse create per mese"
         }
       >
@@ -288,10 +308,7 @@ export function OrdersMonthlyChart({
             }}
           >
             <defs>
-              {[
-                { id: "sold", color: "#2563eb" },
-                { id: "collected", color: "#f97316" },
-              ].map((item) => (
+              {linee.map((linea) => ({ id: CHIAVE_SERIE[linea.id].dato, color: linea.colore })).map((item) => (
                 <linearGradient
                   key={item.id}
                   id={`${gradient}-${item.id}`}
@@ -363,28 +380,20 @@ export function OrdersMonthlyChart({
             {comparing &&
               (view === "money" ? (
                 <>
-                  <Line
-                    dataKey="comparison.venduto"
-                    name={`Venduto ${comparison!.year}`}
-                    type="monotone"
-                    stroke="#2563eb"
-                    strokeWidth={2}
-                    strokeDasharray="6 4"
-                    dot={false}
-                    connectNulls={false}
-                    {...animation}
-                  />
-                  <Line
-                    dataKey="comparison.incassato"
-                    name={`Incassato ${comparison!.year}`}
-                    type="monotone"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    strokeDasharray="6 4"
-                    dot={false}
-                    connectNulls={false}
-                    {...animation}
-                  />
+                  {linee.map((linea) => (
+                    <Line
+                      key={linea.id}
+                      dataKey={CHIAVE_SERIE[linea.id].confronto}
+                      name={`${linea.nome} ${comparison!.year}`}
+                      type="monotone"
+                      stroke={linea.colore}
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      dot={false}
+                      connectNulls={false}
+                      {...animation}
+                    />
+                  ))}
                 </>
               ) : (
                 <Line
@@ -402,49 +411,35 @@ export function OrdersMonthlyChart({
             {view === "money" ? (
               shape === "bars" ? (
                 <>
-                  <Bar
-                    dataKey="sold"
-                    name="Venduto"
-                    fill="#2563eb"
-                    radius={[5, 5, 0, 0]}
-                    maxBarSize={24}
-                    {...animation}
-                  />
-                  <Bar
-                    dataKey="collected"
-                    name="Incassato"
-                    fill="#f97316"
-                    radius={[5, 5, 0, 0]}
-                    maxBarSize={24}
-                    {...animation}
-                  />
+                  {linee.map((linea) => (
+                    <Bar
+                      key={linea.id}
+                      dataKey={CHIAVE_SERIE[linea.id].dato}
+                      name={linea.nome}
+                      fill={linea.colore}
+                      radius={[5, 5, 0, 0]}
+                      maxBarSize={24}
+                      {...animation}
+                    />
+                  ))}
                 </>
               ) : (
                 <>
-                  <Area
-                    dataKey="sold"
-                    name="Venduto"
-                    type="monotone"
-                    stroke="#2563eb"
-                    strokeWidth={2.5}
-                    fill={`url(#${gradient}-sold)`}
-                    dot={false}
-                    activeDot={{ r: 5, stroke: "white", strokeWidth: 2 }}
-                    connectNulls={false}
-                    {...animation}
-                  />
-                  <Area
-                    dataKey="collected"
-                    name="Incassato"
-                    type="monotone"
-                    stroke="#f97316"
-                    strokeWidth={2.5}
-                    fill={`url(#${gradient}-collected)`}
-                    dot={false}
-                    activeDot={{ r: 5, stroke: "white", strokeWidth: 2 }}
-                    connectNulls={false}
-                    {...animation}
-                  />
+                  {linee.map((linea) => (
+                    <Area
+                      key={linea.id}
+                      dataKey={CHIAVE_SERIE[linea.id].dato}
+                      name={linea.nome}
+                      type="monotone"
+                      stroke={linea.colore}
+                      strokeWidth={2.5}
+                      fill={`url(#${gradient}-${CHIAVE_SERIE[linea.id].dato})`}
+                      dot={false}
+                      activeDot={{ r: 5, stroke: "white", strokeWidth: 2 }}
+                      connectNulls={false}
+                      {...animation}
+                    />
+                  ))}
                 </>
               )
             ) : (

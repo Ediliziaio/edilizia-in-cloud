@@ -29179,6 +29179,72 @@ export type Database = {
           },
         ]
       }
+      company_riepilogo_commesse: {
+        Row: {
+          company_id: string
+          grafico_forma: string
+          grafico_serie: string[]
+          grafico_vista: string
+          riquadri: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          grafico_forma?: string
+          grafico_serie?: string[]
+          grafico_vista?: string
+          riquadri?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          grafico_forma?: string
+          grafico_serie?: string[]
+          grafico_vista?: string
+          riquadri?: string[]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_riepilogo_commesse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_riepilogo_commesse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_riepilogo_commesse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_riepilogo_commesse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_riepilogo_commesse_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       company_role_dashboards: {
         Row: {
           company_id: string
@@ -150396,6 +150462,30 @@ export type Database = {
       rientra_piano_mezzo: {
         Args: { p_allocazione?: string; p_piano: string }
         Returns: undefined
+      }
+      riepilogo_commesse_salva: {
+        Args: {
+          p_company_id: string
+          p_grafico_forma: string
+          p_grafico_serie: string[]
+          p_grafico_vista: string
+          p_riquadri: string[]
+        }
+        Returns: {
+          company_id: string
+          grafico_forma: string
+          grafico_serie: string[]
+          grafico_vista: string
+          riquadri: string[]
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_riepilogo_commesse"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       riepilogo_mattino: {
         Args: { p_company_id: string; p_giorni_preventivo?: number }

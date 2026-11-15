@@ -20,7 +20,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon, FileQuestion, HardHat, NotebookPen } from "lucide-react";
+import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
+import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
+import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, Map as MapIcon, FileQuestion, HardHat, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -1361,9 +1364,43 @@ function OrdersListInner() {
   );
   const isWorkflowStatsLoading = isEconomicStatsLoading || (!!effectiveCompany?.id && isLoadingStatuses);
 
+  // Riepilogo commesse: i riquadri e il grafico li sceglie l'azienda; chi guarda vede solo quelli che i suoi permessi consentono.
+  const { scelta: sceltaRiepilogo } = useRiepilogoCommesse(effectiveCompany?.id);
+  const [sceltaRiepilogoAperta, setSceltaRiepilogoAperta] = useState(false);
+  const permessiRiepilogo = { importi: orderPerms.canViewOrderAmounts, costi: orderPerms.canViewCosts, margini: orderPerms.canViewMargins };
+  const riquadriRiepilogo = riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo);
+  const valoriRiepilogo = useMemo(() => {
+    const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
+    const periodo = isYearCorrente ? String(currentYear) : "del periodo";
+    const generali = new Set(globalStats?.generaliIds ?? []);
+    const righe = (globalStats?.scopeRows ?? []).filter((o) => !generali.has(o.id));
+    const ritardo = commesseInRitardo(righe, new Set([lastStatusId, supportStatusId].filter(Boolean)), new Date().toLocaleDateString("en-CA"));
+    const margine = scopeMargins && globalStats ? margineDelPeriodo(scopeMargins, new Set(globalStats.annualIds)) : null;
+    const quanteCommesse = isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders;
+    const valori: Record<RiquadroRiepilogo, { titolo: string; valore: string; nota: string; icona: typeof Euro }> = {
+      commesse: { titolo: isYearCorrente ? `Commesse ${currentYear}` : "Commesse del periodo", valore: String(quanteCommesse), icona: ShoppingBag,
+        nota: `media mese ${monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
+      venduto: { titolo: `Venduto sulle commesse ${periodo}`, valore: euro(stats.totalGross), icona: Euro, nota: `media commessa ${euro(stats.averageGross)}` },
+      incassato: { titolo: `Incassato sulle commesse ${periodo}`, valore: euro(stats.collected), icona: TrendingUp, nota: `media mese ${euro(monthlySalesAverages.collectedPerMonth)}` },
+      da_incassare: { titolo: `Da incassare ${isYearCorrente ? currentYear : "periodo"}`, valore: euro(stats.pending), icona: AlertCircle,
+        nota: `${monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto` },
+      ticket_medio: { titolo: "Valore medio commessa", valore: euro(stats.averageGross), icona: Coins, nota: `su ${quanteCommesse} commesse · IVA inclusa` },
+      costi: { titolo: `Costi sostenuti ${periodo}`, valore: costiSostenuti == null ? "—" : euro(costiSostenuti), icona: Wallet, nota: "registrati sulle commesse" },
+      margine: { titolo: `Margine ${periodo}`, valore: margine ? euro(margine.margine) : "—", icona: Percent,
+        nota: !margine ? "" : `${margine.percentuale == null ? "—" : `${margine.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`} su ${margine.conCosti} con costi${margine.senzaCosti ? ` · ${margine.senzaCosti} senza` : ""}` },
+      aperte: { titolo: "Commesse aperte", valore: String(stats.countDaCompletare), icona: FolderOpen, nota: "anche degli anni prima" },
+      in_ritardo: { titolo: "In ritardo", valore: String(ritardo), icona: Clock, nota: "posa prevista già passata" },
+      assistenza: { titolo: "In assistenza", valore: String(stats.countAssistenza), icona: Wrench, nota: "nella fase di assistenza" },
+      completate: { titolo: "Completate", valore: String(stats.countCompletati), icona: CheckCircle2, nota: "arrivate all'ultima fase" },
+    };
+    return valori;
+  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages]);
+
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="orders-workspace flex flex-col gap-3">
+      {orderPerms.canEditSettingsOrders && effectiveCompany?.id && <RiepilogoCommesseScelta open={sceltaRiepilogoAperta}
+        onOpenChange={setSceltaRiepilogoAperta} companyId={effectiveCompany.id} scelta={sceltaRiepilogo} />}
       {canDeleteOrders && effectiveCompany?.id && <OrdersTrashDialog open={trashOpen} onOpenChange={setTrashOpen} companyId={effectiveCompany.id} onChanged={refreshOrderScope} />}
       {/* Header — titolo a sinistra e comandi a destra sulla stessa riga, tutti
           alti 32 px e col testo piccolo (23/09/2026, Florin: prima «Nuova
@@ -1527,12 +1564,19 @@ function OrdersListInner() {
                   </p>
                 </div>
               </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+              {orderPerms.canEditSettingsOrders && !isMobile && effectiveCompany?.id && <button type="button" onClick={() => setSceltaRiepilogoAperta(true)}
+                title="Scegli i riquadri e il grafico per tutta l'azienda"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
+                <Settings2 className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>Personalizza</span>
+              </button>}
               {orderPerms.canViewOrderAmounts && !isMobile && <button type="button" onClick={toggleAnalisi}
                 title={analisiAperta ? "Nascondi andamento" : "Mostra andamento"} aria-expanded={analisiAperta} aria-controls="orders-annual-chart"
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/20 px-3 py-2 text-xs text-blue-50 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
                 <PieChart className="h-3.5 w-3.5" /><span className={analisiAperta ? "xl:sr-only" : ""}>{analisiAperta ? "Nascondi andamento" : "Mostra andamento"}</span>
                 <ChevronDown className={`h-3.5 w-3.5 ${analisiAperta ? "rotate-180" : ""}`} />
               </button>}
+              </div>
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
             {!isGlobalStatsError && !isStatusesError && isMobile && orderPerms.canViewOrderAmounts && (() => {
@@ -1558,112 +1602,33 @@ function OrdersListInner() {
               </dl>;
             })()}
             {!isGlobalStatsError && !isStatusesError && (!isMobile || !orderPerms.canViewOrderAmounts) && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
-                    <ShoppingBag className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{isYearCorrente ? `Commesse ${currentYear}` : "Commesse del periodo"}</span>
-                    {isEconomicStatsLoading ? (
-                      <>
-                        <Skeleton className="mt-1 h-7 w-14 bg-white/20" />
-                        <Skeleton className="mt-1 h-3 w-24 bg-white/15" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="block truncate text-lg font-bold text-white">{isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders}</span>
-                        <span className="mt-0.5 block text-xs text-blue-50/70">
-                          media mese {monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              {orderPerms.canViewOrderAmounts && (<>
-              {/* "Totale venduto" e "Incassato" sono metriche da scrivania:
-                  su mobile confondono e allungano l'header → visibili da sm in su.
-                  Restano "Commesse totali" e "Da incassare" (operativi). */}
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
-                    <Euro className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Venduto sulle commesse {isYearCorrente ? currentYear : "del periodo"}</span>
-                    {isEconomicStatsLoading ? (
-                      <>
-                        <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
-                        <Skeleton className="mt-1 h-3 w-32 bg-white/15" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="block truncate text-lg font-bold text-white">
-                          {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-blue-50/70">
-                          media commessa {stats.averageGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              <div className="hidden sm:block rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
-                    <TrendingUp className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Incassato sulle commesse {isYearCorrente ? currentYear : "del periodo"}</span>
-                    {isEconomicStatsLoading ? (
-                      <>
-                        <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
-                        <Skeleton className="mt-1 h-3 w-28 bg-white/15" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="block truncate text-lg font-bold text-white">
-                          {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-blue-50/70">
-                          media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
-                    <AlertCircle className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da incassare {isYearCorrente ? currentYear : "periodo"}</span>
-                    {isEconomicStatsLoading ? (
-                      <>
-                        <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
-                        <Skeleton className="mt-1 h-3 w-24 bg-white/15" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="block truncate text-lg font-bold text-white">
-                          {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" })}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-blue-50/70">
-                          {monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto
-                        </span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-              </>)}
+              {riquadriRiepilogo.map((id) => {
+                const v = valoriRiepilogo[id];
+                const Icona = v.icona;
+                const daCosti = CATALOGO_RIQUADRI.find((c) => c.id === id)?.permesso;
+                const inAttesa = isEconomicStatsLoading || ((daCosti === "costi" || daCosti === "margini") && scopeMarginsPending);
+                return <div key={id} data-riquadro={id} className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
+                      <Icona className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{v.titolo}</span>
+                      {inAttesa ? (
+                        <>
+                          <Skeleton className="mt-1 h-7 w-20 bg-white/20" />
+                          <Skeleton className="mt-1 h-3 w-24 bg-white/15" />
+                        </>
+                      ) : (
+                        <>
+                          <span className="block truncate text-lg font-bold text-white">{v.valore}</span>
+                          <span className="mt-0.5 block truncate text-xs text-blue-50/70">{v.nota}</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>;
+              })}
             </div>}
             {/* Da telefono restano i numeri: pregresso, spiegazioni ed esposizione sono da scrivania. */}
             {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && !isMobile && <OrdersCarryoverSummary
@@ -1689,6 +1654,9 @@ function OrdersListInner() {
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
             ) : <OrdersMonthlyChart months={chartWithComparison}
+              serie={serieVisibili(sceltaRiepilogo.graficoSerie, permessiRiepilogo)}
+              vistaIniziale={sceltaRiepilogo.graficoVista === "numero" ? "count" : "money"}
+              formaIniziale={sceltaRiepilogo.graficoForma === "barre" ? "bars" : "lines"}
               comparison={comparisonPeriod ? {year:comparisonPeriod.previousYear, enabled:comparisonEnabled, onToggle:()=>setCompareChart(value=>!value), loading:comparisonPending, error:comparisonError, onRetry:()=>void retryComparison(), label:comparisonPeriod.label} : undefined} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"}
               selectedMonth={hasMonth ? `${monthYear}-${String(month+1).padStart(2,"0")}` : null}
               onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} />}
