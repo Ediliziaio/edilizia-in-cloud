@@ -608,8 +608,8 @@ function EditorDelDocumento() {
           ) : (
             // L'ordine segue il lavoro (15/11/2026): chi è il cliente, a quale commessa si
             // riferisce, cosa si fattura, come si paga e quanto fa, poi note e allegati.
-            // Il resto (dati del documento a parte, impostazioni XML, contributi, opzioni,
-            // personalizzazione) resta a portata di mano, chiuso.
+            // Le impostazioni (XML, contributi, opzioni, veste) stanno prima delle righe,
+            // chiuse: si sistemano una volta, poi non si guardano più.
             <>
               <div className={`grid grid-cols-1 gap-4 ${anteprimaAccanto ? "2xl:grid-cols-[1fr_300px]" : "lg:grid-cols-[1fr_300px]"}`}>
                 <div id="ed-cliente" className="min-w-0">
@@ -625,9 +625,20 @@ function EditorDelDocumento() {
                 <EditorOrdineSection state={state} dispatch={dispatch} disabled={!modificabile} />
               )}
 
-              {/* Come si paga si decide prima di scrivere le righe (15/11/2026): quando si
-                  arriva agli articoli non si torna più indietro. */}
-              <div id="ed-pagamento" className="min-w-0 md:w-[26rem]"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+              {/* Come si paga e le impostazioni (XML, contributi, opzioni, veste) si
+                  sistemano prima di scrivere le righe (15/11/2026): quando si arriva agli
+                  articoli si guarda il conto, non più le impostazioni. */}
+              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                <div id="ed-pagamento" className="min-w-0"><EditorPagamentoSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+                <div className="min-w-0 space-y-3">
+                  {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
+                    <div id="ed-fe"><EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+                  )}
+                  <div id="ed-contributi"><EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
+                  <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                  <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!modificabile} />
+                </div>
+              </div>
 
               <div id="ed-righe" className="min-w-0"><EditorRigheSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
 
@@ -662,17 +673,6 @@ function EditorDelDocumento() {
               <p className="text-xs text-muted-foreground">Allegati: si possono aggiungere appena la bozza è salvata.</p>
             )}
           </div>
-
-          {state.tipo !== "ddt" && (
-            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
-              {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
-                <div id="ed-fe"><EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-              )}
-              <div id="ed-contributi"><EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!modificabile} /></div>
-              <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!modificabile} />
-              <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!modificabile} />
-            </div>
-          )}
         </div>
         {anteprimaAccanto && (
           <aside aria-label="Anteprima del documento" className="sticky top-4 mt-6 hidden max-h-[calc(100vh-8rem)] w-[380px] shrink-0 justify-center overflow-y-auto overflow-x-hidden rounded-lg border bg-muted/30 xl:flex">

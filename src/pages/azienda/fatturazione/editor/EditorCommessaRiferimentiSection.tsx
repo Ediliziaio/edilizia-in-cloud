@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ExternalLink, FileSignature, Plus, RefreshCw, Replace, Search, X } from "lucide-react";
+import { ChevronDown, ExternalLink, FileSignature, Plus, RefreshCw, Replace, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -273,22 +274,34 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
 
   if (!fatturaId) return null;
 
+  // Si apre da sola quando serve: cliente PA, commessa collegata, riferimenti già scritti.
   const serve = isPA || !!state.ordine_id || idsCommesse.length > 0 || riferimenti.length > 0 || !!legacy || !!ordineLink;
-  const compatta = !serve && !aperta;
-  if (compatta && disabled) return null;
+  const inVista = serve || aperta;
+  if (!serve && disabled) return null;
+  const quante = (idsCommesse.length ? 1 : 0) + riferimenti.length;
 
   return (
-    <div className={compatta ? "" : "space-y-3 rounded-lg border bg-card p-4 shadow-sm"} id="ed-riferimenti-pa" data-testid="sezione-commessa-riferimenti">
-      {compatta ? (
-        <Button type="button" variant="outline" size="sm" className="h-8 border-dashed text-xs text-muted-foreground" onClick={() => setAperta(true)}>
-          <Plus className="mr-1 h-3.5 w-3.5" /> Collega commessa / riferimenti
-        </Button>
-      ) : (<>
-      <div className="flex flex-wrap items-center gap-2">
-        <FileSignature className="h-4 w-4 text-blue-500" />
-        <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-400/80">Commessa e riferimenti PA</span>
-        {!isBozza && <Badge variant="outline" className="text-[10px]">fattura emessa: non si modifica</Badge>}
-      </div>
+    <div className="overflow-hidden rounded-lg border bg-card shadow-sm" id="ed-riferimenti-pa" data-testid="sezione-commessa-riferimenti">
+      <Collapsible open={inVista} onOpenChange={(o) => setAperta(o || serve)}>
+        <CollapsibleTrigger asChild>
+          <button type="button" className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-accent/30">
+            <div className="flex flex-wrap items-center gap-2">
+              <FileSignature className="h-4 w-4 text-blue-500" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600/80 dark:text-blue-400/80">
+                Commessa e riferimenti PA
+              </span>
+              {quante > 0 && (
+                <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-blue-100 px-1 text-[9px] font-bold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  {quante}
+                </span>
+              )}
+              {!isBozza && <Badge variant="outline" className="text-[10px]">fattura emessa: non si modifica</Badge>}
+            </div>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${inVista ? "rotate-180" : ""}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="space-y-3 border-t px-4 pb-4 pt-3">
 
       {/* Commesse */}
       <div className="space-y-1.5">
@@ -371,7 +384,9 @@ export function EditorCommessaRiferimentiSection({ state, dispatch, disabled }: 
         disabled={disabled}
         vuoto={state.ordine_id ? "La commessa non ha riferimenti PA. Aggiungili qui (valgono solo per questa fattura) o nella Panoramica della commessa, poi «Aggiorna dalla commessa»." : undefined}
       />
-      </>)}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Conflitti al collegamento */}
       <Dialog open={!!conflitti} onOpenChange={(o) => !o && setConflitti(null)}>
