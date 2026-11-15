@@ -18,3 +18,12 @@ describe("CE: fatture ricevute da registrare", () => {
     expect(buildQualityChecks({ ...base, daRegistrare: { righe: 0, imponibile: 0 } })).toHaveLength(0);
   });
 });
+
+describe("CE: fatture emesse senza imponibile", () => {
+  it("le segnala con quante sono e quanto valgono", () => {
+    const checks = buildQualityChecks({ ...base, senzaImponibile: { righe: 273, totale: 3289028 } });
+    const c = checks.find((x) => x.id === "senza-imponibile");
+    expect(c?.label).toMatch(/^273 fatture emesse senza imponibile \(3\.289\.028/);
+    expect(c?.href).toBe("/azienda/documenti");
+  });
+});

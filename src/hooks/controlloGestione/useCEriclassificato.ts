@@ -110,6 +110,9 @@ export interface RicaviProvenienza {
   /** Fatture ricevute del periodo non ancora registrate come costo (dal 15/11/2026). */
   costi_da_registrare_righe?: number;
   costi_da_registrare_imponibile?: number;
+  /** Fatture emesse col solo totale (imponibile e IVA vuoti): il ricavo è IVA compresa. */
+  fatture_senza_imponibile_righe?: number;
+  fatture_senza_imponibile_totale?: number;
 }
 
 export function useRicaviProvenienza(anno: number, meseDa = 1, meseA = 12) {

@@ -269,6 +269,9 @@ export function TabCERiclassificato({ anno, meseDa, meseA }: TabCERiclassificato
       daRegistrare: provenienza.data?.costi_da_registrare_righe
         ? { righe: provenienza.data.costi_da_registrare_righe, imponibile: Number(provenienza.data.costi_da_registrare_imponibile ?? 0) }
         : null,
+      senzaImponibile: provenienza.data?.fatture_senza_imponibile_righe
+        ? { righe: provenienza.data.fatture_senza_imponibile_righe, totale: Number(provenienza.data.fatture_senza_imponibile_totale ?? 0) }
+        : null,
     });
     const spiegazioni: Record<string, string | null> = {
       ...SPIEGAZIONI_MARGINI,
@@ -491,7 +494,7 @@ function CEExecutiveSummary({
 }) {
   const daControllare = qualityChecks.filter((c) => c.tone !== "ok");
   // Le fatture ricevute non registrate cambiano l'utile: si vedono subito, non nel riquadro chiuso.
-  const inEvidenza = daControllare.find((c) => c.id === "da-registrare");
+  const inEvidenza = daControllare.filter((c) => c.id === "da-registrare" || c.id === "senza-imponibile");
   return (
     <Card className="rounded-2xl">
       <CardContent className="space-y-3 p-4">
@@ -521,12 +524,12 @@ function CEExecutiveSummary({
           />
           <MiniMetric label="Utile" value={formatCurrency(utile)} />
         </div>
-        {inEvidenza && (
-          <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
-            <span className="font-medium">{inEvidenza.label}.</span> {inEvidenza.description}{" "}
-            {inEvidenza.href && <Link to={inEvidenza.href} className="font-medium underline underline-offset-2">{inEvidenza.cta}</Link>}
+        {inEvidenza.map((c) => (
+          <p key={c.id} role="status" className="text-xs text-amber-700 dark:text-amber-300">
+            <span className="font-medium">{c.label}.</span> {c.description}{" "}
+            {c.href && <Link to={c.href} className="font-medium underline underline-offset-2">{c.cta}</Link>}
           </p>
-        )}
+        ))}
         {daControllare.length > 0 && (
           <details className="rounded-lg border bg-background p-3">
             <summary className="cursor-pointer text-sm font-medium">Cosa controllare ({daControllare.length})</summary>
@@ -572,6 +575,7 @@ export function buildQualityChecks({
   costiNonClassificati = 0,
   commesseInPerdita = null,
   daRegistrare = null,
+  senzaImponibile = null,
 }: {
   hasCedolini: boolean;
   periodoLabel: string;
@@ -581,6 +585,7 @@ export function buildQualityChecks({
   costiNonClassificati?: number;
   commesseInPerdita?: number | null;
   daRegistrare?: { righe: number; imponibile: number } | null;
+  senzaImponibile?: { righe: number; totale: number } | null;
 }): QualityCheck[] {
   const checks: QualityCheck[] = [];
   // I costi arrivano dalle fatture ricevute solo dopo la registrazione: quelle
@@ -593,6 +598,16 @@ export function buildQualityChecks({
       tone: "danger",
       href: "/azienda/documenti/fatture-ricevute?filtro=da_contabilizzare",
       cta: "Registrale",
+    });
+  // Fatture emesse arrivate col solo totale: il ricavo comprende l'IVA.
+  if (senzaImponibile && senzaImponibile.righe > 0)
+    checks.push({
+      id: "senza-imponibile",
+      label: `${senzaImponibile.righe} ${senzaImponibile.righe === 1 ? "fattura emessa" : "fatture emesse"} senza imponibile (${formatCurrency(senzaImponibile.totale)})`,
+      description: "Hanno solo il totale: i ricavi le contano IVA compresa, quindi sono più alti del vero.",
+      tone: "danger",
+      href: "/azienda/documenti",
+      cta: "Correggi le fatture",
     });
   if (periodoLabel !== "Anno completo")
     checks.push({ id: "periodo", label: "Periodo parziale", description: "Confrontalo con lo stesso periodo dell'anno prima, non con un anno intero.", tone: "warning" });
