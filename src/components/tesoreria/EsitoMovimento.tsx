@@ -137,12 +137,20 @@ export function RigaEsitoMovimento({ company, movement: m, esito, puoScrivere, o
   async function confermaEsito() {
     if (inCorso) return;
     setInCorso(true);
+    let salvato = false;
     try {
-      await bankRpc("tesoreria_conferma_esito", { p_company: company, p_tx: m.id });
+      const result = await bankRpc<{ esterne?: { invoice_id: string; provider: string; saldata: boolean; importo: number; numero: string; allinea?: boolean }[] }>(
+        "tesoreria_conferma_esito", { p_company: company, p_tx: m.id },
+      );
+      salvato = true;
+      // Fattura importata: il gestionale esterno si allinea dopo il salvataggio, mai prima.
+      const falliti = await syncBankExternalPayments([{ id: m.id, booking_date: m.booking_date, result: result ?? {} }]);
       toast.success(esito.natura === "giroconto" ? "Giroconto confermato" : "Collegamento confermato");
+      if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
       onCambiato();
     } catch (err) {
-      toast.error("Non confermato", { description: err instanceof Error ? err.message : undefined });
+      if (salvato) toast.warning("Collegamento salvato, aggiornamento esterno da riprovare");
+      else toast.error("Non confermato", { description: err instanceof Error ? err.message : undefined });
       onCambiato();
     } finally {
       setInCorso(false);

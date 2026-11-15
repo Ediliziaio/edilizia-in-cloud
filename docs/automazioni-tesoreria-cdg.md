@@ -184,8 +184,8 @@ con `lock_timeout` 3 s e `statement_timeout` 60 s. Anteprima del 15/11: vedi §6
    tutti i collegamenti**, spento di base (lo costruisce la sessione Acquisti). Acceso: l'esito
    «unico e verificato» si collega da solo; spento: è una proposta da confermare con un clic.
 2. **Soglia delle differenze**: oggi 1 € per commissioni e arrotondamenti. Resta così?
-3. **IBAN verificati dei clienti**: oggi non esiste un registro come `fornitori_iban_storico`
-   per i clienti. Lo si apre (conferma alla prima riconciliazione manuale)?
+3. ~~**IBAN verificati dei clienti**~~ — fatto nel lotto 4: registro per chiave fiscale, confermato
+   da una persona su un incasso già collegato, mai dedotto da un solo pagamento.
 
 ## 6. Stato dei lotti
 
@@ -226,7 +226,7 @@ giro su Demo Azienda 2 ha cambiato 0 righe. `cdg_controllo_doppi` sulle aziende 
 sulle otto con più costi: un rilievo, un costo ripartito su commesse che non arriva al 100%
 (2.055,17 €).
 
-**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 42 casi; UI `impostazioniAutomazioni.test.tsx`):
+**Test**: `src/test/security/tesoreriaEsitiRiconciliazione.test.ts` (PGlite, 50 casi; UI `impostazioniAutomazioni.test.tsx`):
 unico verificato, anno diverso, pagante terzo con e senza rapporto, scelta, cumulativo,
 parziale e saldo, acconto prima della fattura e poi fatturato, nota di credito, commissione
 sotto e sopra 1 €, giroconto e non-giroconto, F24, storno, spesa bancaria, acquisto con
@@ -291,12 +291,74 @@ Migrazione `20290404317000_tesoreria_traccia_comune_e_stato`.
   errore dell'ultimo giro, poi i movimenti certi in attesa, poi l'ultima conferma. Chi non vede
   la tesoreria riceve «nessun esito».
 
+### Lotto 4 — IBAN verificati dei clienti e pagante terzo (15/11/2026)
+
+Migrazione `20290404318000_tesoreria_iban_clienti_e_paganti`.
+
+- `tesoreria_iban_verificati`: IBAN del cliente per **chiave fiscale** (P.IVA o CF con
+  `partner_tax_key`; su 6.564 fatture 4.861 la hanno, solo 737 hanno l'anagrafica). Si scrive solo
+  con `tesoreria_ricorda_iban_cliente(azienda, movimento, fattura)`, da una persona, su un incasso
+  **già collegato** a quella fattura; si revoca con `tesoreria_revoca_iban_cliente`. Nel motore
+  identifica il cliente (anche senza nome nella causale) e, se è verificato per un altro cliente
+  e non per questo, è **conflitto**.
+- Pagante terzo: `tesoreria_registra_pagante(azienda, intestatario, pagante, iban, prova)` (prova
+  obbligatoria) e `tesoreria_revoca_pagante`. Elenco per le schermate:
+  `tesoreria_riferimenti_verificati(azienda)`.
+
+### Lotto 5 — note di credito ricevute e F24 su più scadenze (15/11/2026)
+
+Migrazione `20290404319000_tesoreria_note_ricevute_e_f24_multiple`.
+
+- **Nota di credito ricevuta non ancora collegata** (`fatture_ricevute` TD04 o `passive_credit_note`
+  senza riga in `note_credito_storni`): candidato delle uscite solo come quota negativa in una
+  compensazione dello stesso fornitore → proposta R-NC («fattura 1.000 − nota 200 = bonifico
+  800»). Non si conferma da sola: la nota si collega con `nota_credito_collega`, che riduce la
+  rata; dopo, la nota esce dai candidati e il bonifico è il residuo esatto (niente doppio sconto).
+- **F24 su più scadenze fiscali**: senza una scadenza dell'importo esatto, la combinazione di
+  scadenze fiscali aperte (fino a 8, entro 20 giorni) che lo somma → proposta; più combinazioni →
+  scelta. Una riga per componente, mai su una commessa.
+- Anteprima sui 181 movimenti veri: nessun esito cambia.
+
+### Lotto 6 — incassi di fatture importate (15/11/2026)
+
+Migrazione `20290404320000_tesoreria_conferma_importate`; `bank-auto-reconcile` e il pulsante
+«Conferma» di `EsitoMovimento.tsx`.
+
+- La conferma (automatica o con un clic) vale anche per le fatture **importate** da un gestionale
+  esterno: riga `invoice` a `riconcilia_movimento_su_documenti`, poi `private.bank_record_imported`
+  (residuo locale e registro delle quote importate), come la conferma in lotto.
+- Il risultato porta `esterne`: il cron chiama `billing-payment-push` in modo interno con
+  `allinea_banca`, il pulsante usa `syncBankExternalPayments`. Il gestionale si allinea al valore
+  **assoluto** calcolato dal server (`bank_external_payment_target`): un retry non somma due volte;
+  se non risponde, il pagamento locale resta e l'errore lo dice.
+- Traccia comune: `a_tipo = fattura_emessa`.
+
+### Lotto 7 — controllo di gestione sui dati veri (15/11/2026)
+
+Migrazioni `20290404321000_cdg_controllo_doppi_ordini_e_rate` e `20290404322000_cdg_incassi_oltre_totale_affinato`.
+
+Verificato prima, sui dati veri:
+- **Impegno e consuntivo**: `marginalita_costo_oda` conta il massimo fra ordinato e fatturato, non
+  la somma; i costi con l'ordine escono dai costi diretti. Nessun doppio.
+- **Cassa prevista**: un costo con scadenze **e** rate fornitore esce dalle scadenze, le rate sono
+  ignorate (`forecastLedger`). Nessun doppio in cassa.
+
+Controlli aggiunti a `cdg_controllo_doppi`:
+- 7. `fattura_su_ordine_e_su_commessa`: fattura collegata a un ordine (anche via
+  `fattura_ricevuta_ordini`) col costo sulla commessa ma senza l'ordine → contata due volte.
+  0 casi.
+- 8. `scadenza_e_rata_sullo_stesso_costo`: due calendari aperti sullo stesso costo (la cassa ne usa
+  uno, ma possono divergere). 1 caso, 335,40 €.
+- 2. `documento_oltre_totale` affinato: sotto 1 € non si segnala (erano 47 arrotondamenti di
+  fatture importate); «incassato il lordo» dice che la ritenuta è finita fra gli incassi.
+
+Rilievi del 15/11 su tutte le aziende: 1 fattura incassata per il lordo (7.333,37 €), 1 costo con
+due calendari (335,40 €), 10 costi ripartiti su una commessa per meno del 100% (277.124,08 €: nove
+sono ripartizioni parziali volute su una sola commessa, il resto resta spese generali; uno è un
+arrotondamento da 0,82 €). Nessuna correzione automatica: sono dati da sistemare a mano.
+
 ### Da fare (lotti successivi)
 
 1. **Schermate** (sessione «Fatture, Scadenzario e Tesoreria»): mostrare esito, motivi,
    conflitti e mancanti nel Dettaglio movimento; «Scarta» con motivo → `tesoreria_scarta_esito`;
    «Conferma» con un clic sugli esiti `automatico` → `tesoreria_conferma_esito`.
-2. Conferma automatica delle fatture importate, con il write-back verso il gestionale esterno.
-3. Registro degli IBAN verificati dei clienti (decisione 3) e conferma dell'IBAN alla prima
-   riconciliazione manuale, con i componenti comuni della sessione B quando arrivano su `main`.
-4. Componenti F24 (righe tributo) per collegare una delega a più scadenze fiscali.

@@ -1,5 +1,8 @@
-/** Automatic bank analysis creates proposals only. Money and invoice states
- * change exclusively through an explicit, authorized confirmation in the UI. */
+/** Analisi bancaria: proposte di sempre, esiti con regola e motivi e, solo dove l'interruttore
+ * comune del collegamento automatico è acceso, conferma degli esiti «unico e verificato»
+ * (docs/automazioni-tesoreria-cdg.md). Per le fatture importate la conferma porta «esterne»:
+ * qui si allinea il gestionale esterno con billing-payment-push «allinea_banca», che usa il
+ * valore assoluto del server (un retry non somma due volte). */
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 import {cronSecretValido} from "../_shared/cronAuth.ts";
 import {serveConMetricheRapida} from "../_shared/withMetricsRapida.ts";
@@ -32,7 +35,17 @@ serveConMetricheRapida("bank-auto-reconcile",async(req)=>{
    if(esiti.error)errors.push(`${id}: esiti ${esiti.error.message}`);else classified.push({company_id:id,...(esiti.data as Record<string,unknown>)});
    // Conferma automatica: solo dove l'azienda l'ha accesa, per conto di chi l'ha autorizzata.
    const conferme=await client.rpc("tesoreria_conferma_automatica",{p_company:id,p_limite:50});
-   if(conferme.error)errors.push(`${id}: conferme ${conferme.error.message}`);else confirmed.push({company_id:id,...(conferme.data as Record<string,unknown>)});
+   if(conferme.error){errors.push(`${id}: conferme ${conferme.error.message}`);continue;}
+   confirmed.push({company_id:id,...(conferme.data as Record<string,unknown>)});
+   const esterne=((conferme.data as {confermati?:{esterne?:{invoice_id?:string}[]}[]}|null)?.confermati??[]).flatMap(c=>c.esterne??[]);
+   for(const e of esterne){
+    if(!e.invoice_id)continue;
+    const r=await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/billing-payment-push`,{method:"POST",
+     headers:{"Content-Type":"application/json",Authorization:`Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`},
+     body:JSON.stringify({invoice_id:e.invoice_id,azione:"allinea_banca"})}).catch(()=>null);
+    const esito=r?await r.json().catch(()=>null) as {ok?:boolean;skipped?:boolean;messaggio?:string}|null:null;
+    if(!esito||!(esito.ok||esito.skipped))errors.push(`${id}: gestionale esterno da riallineare per la fattura ${e.invoice_id}${esito?.messaggio?` (${esito.messaggio})`:""}`);
+   }
   }
   return jsonResponse({success:errors.length===0,review_required:true,auto_matched:0,costs_matched:0,pending_review:proposals,proposals_created:proposals,esiti:classified,conferme:confirmed,errors},200,headers);
  }catch(e){if(e instanceof Response)return e;return errorResponse(e instanceof Error?e.message:"Analisi non riuscita",500,headers);}

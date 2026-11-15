@@ -33,11 +33,11 @@ async function tx(o: { amount: number; type: "credit" | "debit"; desc?: string; 
   );
   return t;
 }
-async function doc(o: { numero: string; anno?: number; totale: number; cliente: string; pagato?: number; tipo?: string; company?: string }) {
+async function doc(o: { numero: string; anno?: number; totale: number; cliente: string; pagato?: number; tipo?: string; company?: string; piva?: string }) {
   const d = nid();
   await service(
     `insert into documenti_fiscali(id,company_id,numero,anno,totale_da_pagare,importo_pagato,cliente_snapshot,tipo,data_scadenza) values($1,$2,$3,$4,$5,$6,$7,$8,'2026-11-10')`,
-    [d, o.company ?? company, o.numero, o.anno ?? 2026, o.totale, o.pagato ?? 0, JSON.stringify({ ragione_sociale: o.cliente }), o.tipo ?? "fattura"],
+    [d, o.company ?? company, o.numero, o.anno ?? 2026, o.totale, o.pagato ?? 0, JSON.stringify({ ragione_sociale: o.cliente, ...(o.piva ? { partita_iva: o.piva } : {}) }), o.tipo ?? "fattura"],
   );
   return d;
 }
@@ -84,17 +84,22 @@ beforeAll(async () => {
    create or replace function auth.role() returns text language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claim.role',true),''),nullif(current_setting('test.role',true),''),'authenticated')$$;
    -- Conferme vere ridotte all'essenziale: chiedono un utente e ne scrivono il nome.
    create or replace function public.riconcilia_movimento_su_documenti(p_transazione uuid,p_righe jsonb,p_nota text) returns jsonb language plpgsql security definer as $$
-   declare r record; t public.bank_transactions; m uuid; begin
+   declare r record; t public.bank_transactions; m uuid; est jsonb:='[]'; begin
     if auth.uid() is null then raise exception 'Riconciliazione non autorizzata'; end if;
     select * into t from public.bank_transactions where id=p_transazione;
     for r in select * from jsonb_to_recordset(p_righe) x(tipo text,id uuid,importo numeric) loop
+     if r.tipo='invoice' then
+      insert into public.bank_reconciliations(company_id,transaction_id,invoice_id,matched_amount,match_type,matched_by,notes) values(t.company_id,t.id,r.id,r.importo,'manual',auth.uid(),p_nota);
+      est:=est||jsonb_build_array(jsonb_build_object('invoice_id',r.id,'importo',r.importo,'provider',(select external_provider from public.invoices where id=r.id)));
+      continue;
+     end if;
      -- come la vera: l'incasso diventa un movimento di cassa e la quota punta a quello
      insert into public.movimenti_cassa_native(id,company_id,documento_id) values(gen_random_uuid(),t.company_id,r.id) returning id into m;
      insert into public.bank_reconciliations(company_id,transaction_id,movimento_id,matched_amount,match_type,matched_by,notes) values(t.company_id,t.id,m,r.importo,'manual',auth.uid(),p_nota);
      update public.documenti_fiscali set importo_pagato=importo_pagato+r.importo where id=r.id;
     end loop;
     update public.bank_transactions set reconciliation_status='reconciled' where id=t.id;
-    return jsonb_build_object('resto',round(abs(t.amount)-(select sum(matched_amount) from public.bank_reconciliations where transaction_id=t.id and unmatched_at is null),2));
+    return jsonb_build_object('resto',round(abs(t.amount)-(select sum(matched_amount) from public.bank_reconciliations where transaction_id=t.id and unmatched_at is null),2),'esterne',est);
    end $$;
    create or replace function public.chiudi_movimento_senza_fattura(p_transazione uuid,p_tipo text,p_categoria text,p_descrizione text default null,p_categoria_costo text default 'altro',p_riferimento text default null,p_commessa uuid default null,p_mezzo uuid default null,p_fornitore uuid default null) returns jsonb language plpgsql security definer as $$
    begin
@@ -123,11 +128,41 @@ beforeAll(async () => {
     return gen_random_uuid();
    end $$;`);
   await pg.exec(await readFile("supabase/migrations/20290404317000_tesoreria_traccia_comune_e_stato.sql", "utf8"));
+  await pg.exec(`create function public.partner_tax_key(v text) returns text language sql immutable as $$
+    select case when x ~ '^IT[0-9]{11}$' then substr(x,3) else x end from (select regexp_replace(upper(coalesce(v,'')),'[^A-Z0-9]','','g') x) s$$;`);
+  await pg.exec(await readFile("supabase/migrations/20290404318000_tesoreria_iban_clienti_e_paganti.sql", "utf8"));
+  await pg.exec(`create table fatture_ricevute(id uuid primary key,company_id uuid,fornitore_id uuid,tipo_documento text,numero_fattura text,data_fattura date,totale_documento numeric,stato text,cedente_ragione_sociale text);
+   create table note_credito_storni(id uuid primary key default gen_random_uuid(),company_id uuid,nota_id uuid,fattura_id uuid);`);
+  await pg.exec(await readFile("supabase/migrations/20290404319000_tesoreria_note_ricevute_e_f24_multiple.sql", "utf8"));
+  // Fatture importate da un gestionale esterno: nella vista operativa come in produzione.
+  await pg.exec(`
+   alter table invoices add column paid_amount numeric default 0, add column total numeric, add column status text default 'issued', add column deleted_at timestamptz, add column client_name text, add column external_provider text;
+   drop view documenti_fiscali_elenco_operativo;
+   alter table documenti_fiscali add column totale_documento numeric;
+   create view documenti_fiscali_elenco_operativo as
+    select d.*, 'nativa'::text origine, 0::numeric stornato from documenti_fiscali d
+    union all
+    select i.id,i.company_id,i.order_id,i.invoice_number,jsonb_build_object('ragione_sociale',i.client_name),'fattura','emessa',i.deleted_at,i.total,i.paid_amount,null::date,2026,i.total,'importata',0 from invoices i;
+   create or replace function private.bank_record_imported(p_company uuid,p_tx uuid,p_result jsonb) returns jsonb language plpgsql security definer as $$
+   declare e jsonb; out jsonb:='[]'; begin
+    for e in select value from jsonb_array_elements(coalesce(p_result->'esterne','[]')) loop
+     update public.invoices set paid_amount=coalesce(paid_amount,0)+(e->>'importo')::numeric where id=(e->>'invoice_id')::uuid;
+     out:=out||jsonb_build_array(e||jsonb_build_object('allinea',true));
+    end loop;
+    return p_result||jsonb_build_object('esterne',out);
+   end $$;`);
+  await pg.exec(await readFile("supabase/migrations/20290404320000_tesoreria_conferma_importate.sql", "utf8"));
+  await pg.exec(`alter table fatture_ricevute add column purchase_order_id uuid, add column company_cost_id uuid;
+   alter table company_costs add column purchase_order_id uuid;
+   create table fattura_ricevuta_ordini(company_id uuid,fattura_id uuid,purchase_order_id uuid,importo numeric);
+   create table rate_fornitori(id uuid primary key default gen_random_uuid(),company_id uuid,company_cost_id uuid,importo numeric,stato text default 'da_pagare');`);
+  await pg.exec(await readFile("supabase/migrations/20290404321000_cdg_controllo_doppi_ordini_e_rate.sql", "utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290404322000_cdg_incassi_oltre_totale_affinato.sql", "utf8"));
 }, 60000);
 
 beforeEach(async () => {
   await pg.exec(`reset role;select set_config('test.user','${user}',false);select set_config('test.role','service_role',false);
-   truncate test_traccia,company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
+   truncate fattura_ricevuta_ordini,rate_fornitori,invoices,fatture_ricevute,note_credito_storni,tesoreria_iban_verificati,test_traccia,company_governance_settings,movimenti_cassa_native,tesoreria_esiti_storia,tesoreria_esiti,tesoreria_paganti_autorizzati,scadenze_sostituzioni,bank_reconciliations,bank_transactions,bank_accounts,
      documenti_fiscali,scadenze,suppliers,company_costs,fattura_ordine,orders,order_installments,fornitori_iban_storico,prima_nota_entries,test_permissions,companies cascade;
    insert into companies values('${company}'),('${other}');
    insert into test_permissions values('${company}',true,true,true);
@@ -612,5 +647,130 @@ describe("Traccia comune e riga delle Automazioni", () => {
   it("chi non vede la tesoreria riceve null, non un errore", async () => {
     await service(`delete from test_permissions where company_id=$1`, [company]);
     expect(await rpc("tesoreria_stato_automatismo", [company])).toBeNull();
+  });
+});
+
+describe("IBAN verificati dei clienti e pagante terzo", () => {
+  const IBAN_C = "IT44C0000000000000000000044";
+  it("l'IBAN si conferma solo su un incasso già collegato; poi identifica il cliente anche senza nome", async () => {
+    const d1 = await doc({ numero: "FT-2026-0401", totale: 700, cliente: "Omega Srl", piva: "IT01234567890" });
+    const t1 = await tx({ amount: 700, type: "credit", desc: "bonifico", name: "OMEGA", iban: IBAN_C });
+    await expect(rpc("tesoreria_ricorda_iban_cliente", [company, t1, d1])).rejects.toThrow(/Prima collega/);
+    await service(`insert into bank_reconciliations(company_id,transaction_id,documento_id,matched_amount,regola) values($1,$2,$3,700,'manuale')`, [company, t1, d1]);
+    expect(await rpc("tesoreria_ricorda_iban_cliente", [company, t1, d1])).toMatchObject({ cliente: "Omega Srl", iban: IBAN_C });
+    // retry: nessun doppione
+    await rpc("tesoreria_ricorda_iban_cliente", [company, t1, d1]);
+    expect((await service(`select count(*)::int n from tesoreria_iban_verificati`)).rows[0].n).toBe(1);
+    const d2 = await doc({ numero: "FT-2026-0402", totale: 450, cliente: "Omega Srl", piva: "01234567890" });
+    const r = await classifica(await tx({ amount: 450, type: "credit", desc: "pagamento", iban: IBAN_C }));
+    expect(r.esito).toBe("automatico");
+    expect(r.candidati[0].righe[0].id).toBe(d2);
+    expect(r.motivi).toContain("IBAN verificato della controparte");
+  });
+
+  it("IBAN verificato per un altro cliente: conflitto, anche con numero e nome giusti", async () => {
+    const d1 = await doc({ numero: "FT-2026-0401", totale: 700, cliente: "Omega Srl", piva: "01234567890" });
+    const t1 = await tx({ amount: 700, type: "credit", desc: "bonifico", name: "Omega", iban: IBAN_C });
+    await service(`insert into bank_reconciliations(company_id,transaction_id,documento_id,matched_amount,regola) values($1,$2,$3,700,'manuale')`, [company, t1, d1]);
+    await rpc("tesoreria_ricorda_iban_cliente", [company, t1, d1]);
+    await service(`update documenti_fiscali set importo_pagato=700 where id=$1`, [d1]); // come la conferma vera
+    await doc({ numero: "FT-2026-0500", totale: 300, cliente: "Psi Impianti", piva: "09876543210" });
+    const r = await classifica(await tx({ amount: 300, type: "credit", desc: "fattura 500/2026", name: "Psi Impianti", iban: IBAN_C }));
+    expect(r.esito).toBe("conflitto");
+    expect(r.conflitti[0].motivi).toContain("IBAN verificato di un altro cliente");
+    const elenco = await rpc("tesoreria_riferimenti_verificati", [company]);
+    await rpc("tesoreria_revoca_iban_cliente", [company, elenco.iban_clienti[0].id]);
+    expect((await classifica((await service(`select id from bank_transactions where amount=300`)).rows[0].id)).esito).toBe("automatico");
+  });
+
+  it("il rapporto col pagante terzo si registra con la prova e si revoca", async () => {
+    await doc({ numero: "FT-2026-0077", totale: 500, cliente: "Mario Bianchi" });
+    const t = await tx({ amount: 500, type: "credit", desc: "pagamento fattura 77/2026", name: "Immobiliare Verdi" });
+    await expect(rpc("tesoreria_registra_pagante", [company, "Mario Bianchi", "Immobiliare Verdi", null, "", null])).rejects.toThrow(/prova/);
+    const id1 = await rpc("tesoreria_registra_pagante", [company, "Mario Bianchi", "Immobiliare Verdi", null, "Delega firmata il 01/11", null]);
+    expect((await classifica(t)).esito).toBe("automatico");
+    await rpc("tesoreria_revoca_pagante", [company, id1]);
+    expect((await classifica(t)).esito).toBe("conflitto");
+  });
+});
+
+describe("Note di credito ricevute e F24 su più scadenze", () => {
+  it("fattura del fornitore 1.000 − nota ricevuta 200 = bonifico 800: compensazione; collegata la nota, niente doppio sconto", async () => {
+    const f = await supplier("Tau Laterizi");
+    const sc = await scad({ amount: 1000, supplier: f, desc: "Fattura 10 Tau" });
+    const nc = nid();
+    await service(`insert into fatture_ricevute values($1,$2,$3,'TD04','NC-3','2026-11-05',200,'registrata','Tau Laterizi')`, [nc, company, f]);
+    const t = await tx({ amount: 800, type: "debit", desc: "saldo al netto della nota", name: "Tau Laterizi" });
+    const r = await classifica(t);
+    expect(r).toMatchObject({ esito: "proposta", natura: "compensazione_nc", regola: "R-NC" });
+    const righe = r.candidati[0].righe;
+    expect(righe.find((x: any) => x.id === sc).quota).toBe(1000);
+    expect(righe.find((x: any) => x.id === nc)).toMatchObject({ tipo: "nota_ricevuta", quota: -200 });
+    // la nota collegata riduce la rata (nota_credito_collega): poi il bonifico è il residuo esatto, la nota non conta più
+    await service(`insert into note_credito_storni(company_id,nota_id) values($1,$2)`, [company, nc]);
+    await service(`update scadenze set amount=800 where id=$1`, [sc]);
+    const r2 = await classifica(t);
+    expect(r2.natura).toBe("documento");
+    expect(r2.candidati[0].righe).toHaveLength(1);
+    expect(r2.candidati[0].righe[0]).toMatchObject({ id: sc, quota: 800 });
+  });
+
+  it("F24 di 1.500 = IVA 1.000 + ritenute 500: proposta con due componenti, nessuna commessa", async () => {
+    const a = await scad({ amount: 1000, desc: "F24 IVA ottobre", tipo: "scadenza_fiscale", order: id(998) });
+    const b = await scad({ amount: 500, desc: "F24 ritenute ottobre", tipo: "scadenza_fiscale" });
+    await scad({ amount: 700, desc: "F24 INPS ottobre", tipo: "scadenza_fiscale" });
+    const r = await classifica(await tx({ amount: 1500, type: "debit", desc: "DELEGA F24" }));
+    expect(r).toMatchObject({ esito: "proposta", natura: "f24", commesse: [] });
+    expect(r.candidati[0].righe.map((x: any) => x.id).sort()).toEqual([a, b].sort());
+  });
+});
+
+describe("Fatture importate: conferma e gestionale esterno", () => {
+  it("l'incasso certo di una fattura importata si conferma e porta le «esterne» da allineare", async () => {
+    const inv = nid();
+    await service(`insert into invoices(id,company_id,invoice_number,total,client_name,external_provider) values($1,$2,'FT-2026-0901',1200,'Kappa Costruzioni','fattureincloud')`, [inv, company]);
+    const t = await tx({ amount: 1200, type: "credit", desc: "saldo fattura 901/2026", name: "Kappa Costruzioni" });
+    await rpc("tesoreria_classifica_movimenti", [company, 100, false]);
+    const r = await rpc("tesoreria_conferma_esito", [company, t]);
+    expect(r).toMatchObject({ natura: "documento", importo: 1200 });
+    expect(r.esterne).toEqual([expect.objectContaining({ invoice_id: inv, provider: "fattureincloud", allinea: true })]);
+    expect(Number((await service(`select paid_amount from invoices where id=$1`, [inv])).rows[0].paid_amount)).toBe(1200);
+    expect((await service(`select a_tipo from test_traccia`)).rows).toEqual([{ a_tipo: "fattura_emessa" }]);
+    // retry: già riconciliato, nessuna seconda quota
+    await expect(rpc("tesoreria_conferma_esito", [company, t])).rejects.toThrow(/unico e verificato/);
+    expect((await service(`select count(*)::int n from bank_reconciliations where transaction_id=$1`, [t])).rows[0].n).toBe(1);
+  });
+});
+
+describe("Controllo di gestione: ordine, commessa e calendari", () => {
+  it("fattura su un ordine col costo diretto sulla commessa; scadenza e rata sullo stesso costo", async () => {
+    const cc = nid(), fr = nid(), cc2 = nid();
+    await service(`insert into company_costs(id,company_id,name,amount,order_id) values($1,$2,'Materiale',500,$3)`, [cc, company, id(55)]);
+    await service(`insert into fatture_ricevute(id,company_id,tipo_documento,numero_fattura,totale_documento,stato,company_cost_id) values($1,$2,'TD01','F-77',610,'contabilizzata',$3)`, [fr, company, cc]);
+    await service(`insert into fattura_ricevuta_ordini values($1,$2,$3,500)`, [company, fr, id(56)]);
+    await service(`insert into company_costs(id,company_id,name,amount) values($1,$2,'Noleggio',300)`, [cc2, company]);
+    await service(`insert into scadenze(id,company_id,cost_id,description,direction,amount) values($1,$2,$3,'Noleggio','uscita',300)`, [nid(), company, cc2]);
+    await service(`insert into rate_fornitori(company_id,company_cost_id,importo) values($1,$2,300)`, [company, cc2]);
+    const doppi = await rpc<any[]>("cdg_controllo_doppi", [company]);
+    expect(doppi.find((x) => x.controllo === "fattura_su_ordine_e_su_commessa")).toMatchObject({ ids: [fr, cc] });
+    expect(doppi.find((x) => x.controllo === "scadenza_e_rata_sullo_stesso_costo")).toMatchObject({ ids: [cc2], importo: 300 });
+    // collegato il costo all'ordine, il primo controllo tace
+    await service(`update company_costs set purchase_order_id=$2 where id=$1`, [cc, id(56)]);
+    expect((await rpc<any[]>("cdg_controllo_doppi", [company])).map((x) => x.controllo)).not.toContain("fattura_su_ordine_e_su_commessa");
+  });
+});
+
+describe("Incassi oltre il totale", () => {
+  it("sotto 1 € è arrotondamento; incassato il lordo lo dice", async () => {
+    const a = await doc({ numero: "FT-2026-0601", totale: 1000, cliente: "A", pagato: 1000.5 });
+    const b = await doc({ numero: "FT-2026-0602", totale: 1000, cliente: "B", pagato: 1220 });
+    await service(`update documenti_fiscali set totale_documento=1220 where id=$1`, [b]);
+    const c = await doc({ numero: "FT-2026-0603", totale: 1000, cliente: "C", pagato: 1500 });
+    await service(`update documenti_fiscali set totale_documento=1000 where id=$1`, [c]);
+    const oltre = (await rpc<any[]>("cdg_controllo_doppi", [company])).filter((x) => x.controllo === "documento_oltre_totale");
+    expect(oltre.map((x) => x.ids[0]).sort()).toEqual([b, c].sort());
+    expect(oltre.find((x) => x.ids[0] === b).cosa_fare).toMatch(/lordo/);
+    expect(oltre.find((x) => x.ids[0] === c).cosa_fare).toMatch(/doppi/);
+    expect(oltre.map((x) => x.ids[0])).not.toContain(a);
   });
 });
