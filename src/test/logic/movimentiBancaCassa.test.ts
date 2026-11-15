@@ -5,7 +5,7 @@
  * raddoppia, il saldo quadra con la banca.
  */
 import { describe, expect, it } from "vitest";
-import { dividiNelleQuote, uniscMovimentiBanca, type MovimentoBancaCassa, type QuotaBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
+import { dividiNelleQuote, previstiGiaInBanca, uniscMovimentiBanca, type MovimentoBancaCassa, type QuotaBancaCassa } from "@/lib/controlloGestione/movimentiBancaCassa";
 import { costruisciRendiconto, type MovimentoRegistrato } from "@/lib/controlloGestione/rendicontoCassa";
 
 const banca = (p: Partial<MovimentoBancaCassa> & { id: string; cents: number }): MovimentoBancaCassa => ({
@@ -149,5 +149,52 @@ describe("un movimento ripartito su più voci (15/11/2026)", () => {
     expect(dividiNelleQuote(100, [{ cents: 1 }, { cents: 1 }, { cents: 1 }])).toEqual([34, 33, 33]);
     expect(dividiNelleQuote(1001, [{ cents: 300 }, { cents: 700 }])).toEqual([300, 701]);
     expect(dividiNelleQuote(500, [])).toEqual([]);
+  });
+});
+
+describe("un pagamento arrivato in banca in anticipo (15/11/2026)", () => {
+  const prev = (p: { id: string; cents: number; date: string; counterparty?: string; direction?: "in" | "out" }) => ({
+    description: p.id, counterparty: "", direction: "out" as const, ...p,
+  });
+  const oggi = "2026-11-15";
+
+  it("stesso importo e stessa controparte: il previsto esce, non si conta due volte", () => {
+    const r = previstiGiaInBanca(
+      [prev({ id: "s1", cents: 120000, date: "2026-11-30", counterparty: "Ferramenta Rossi Srl" })],
+      [banca({ id: "t1", cents: -120000, data: "2026-11-10", controparte: "FERRAMENTA ROSSI" })],
+      oggi,
+    );
+    expect(r.restano).toHaveLength(0);
+    expect(r.coppie[0]).toMatchObject({ previsto: { id: "s1", cents: -120000 }, banca: { id: "t1" } });
+  });
+
+  it("l'affitto del mese dopo, un'altra controparte o una voce manuale restano", () => {
+    const r = previstiGiaInBanca(
+      [
+        prev({ id: "affitto-dic", cents: 100000, date: "2026-12-12", counterparty: "Immobiliare Verdi" }),
+        prev({ id: "altro", cents: 50000, date: "2026-11-20", counterparty: "Bianchi" }),
+        prev({ id: "manuale:x:1", cents: 30000, date: "2026-11-20" }),
+      ],
+      [
+        banca({ id: "t1", cents: -100000, data: "2026-11-12", controparte: "Immobiliare Verdi" }),
+        banca({ id: "t2", cents: -50000, data: "2026-11-12", controparte: "Rossi" }),
+        banca({ id: "t3", cents: -30000, data: "2026-11-12" }),
+      ],
+      oggi,
+    );
+    expect(r.restano.map((p) => p.id)).toEqual(["affitto-dic", "altro", "manuale:x:1"]);
+  });
+
+  it("un movimento già in prima nota, o vecchio di oltre 45 giorni, non conta; ognuno vale per un previsto solo", () => {
+    const r = previstiGiaInBanca(
+      [prev({ id: "a", cents: 1000, date: "2026-11-18" }), prev({ id: "b", cents: 1000, date: "2026-11-19" })],
+      [
+        banca({ id: "reg", cents: -1000, data: "2026-11-14", in_prima_nota: true }),
+        banca({ id: "vecchio", cents: -1000, data: "2026-09-01" }),
+        banca({ id: "t", cents: -1000, data: "2026-11-14" }),
+      ],
+      oggi,
+    );
+    expect(r.coppie.map((c) => [c.banca.id, c.previsto.id])).toEqual([["t", "a"]]);
   });
 });

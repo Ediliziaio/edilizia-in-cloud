@@ -141,6 +141,7 @@ export function TabCashFlow({ anno }: Props) {
       mutui: q.data.mutui,
       ipotesi,
       sogliaCents: soglia,
+      bancaNonRegistrati: q.data.bancaNonRegistrati,
     });
   }, [q.data, anno, ipotesi, soglia]);
   const perCategorie = useMemo<AreaCassa[] | null>(
@@ -329,7 +330,7 @@ export function TabCashFlow({ anno }: Props) {
         </div>
       </div>
 
-      <Avvisi r={r} daBanca={q.data.daBanca} bancaForseDoppi={q.data.bancaForseDoppi} onClassifica={permessi.canViewTesoreria ? () => setClassifica(true) : undefined} />
+      <Avvisi r={r} onIncludiGiaInBanca={() => setIpotesi((i) => ({ ...i, includeGiaInBanca: true }))} daBanca={q.data.daBanca} bancaForseDoppi={q.data.bancaForseDoppi} onClassifica={permessi.canViewTesoreria ? () => setClassifica(true) : undefined} />
 
       {isMobile ? (
         <VistaMese r={r} onApri={apri} />
@@ -429,8 +430,9 @@ function Riquadro({ label, value, sub, tone = "neutral" }: { label: string; valu
 
 // ── Avvisi ──────────────────────────────────────────────────────────────────
 
-function Avvisi({ r, daBanca, bancaForseDoppi, onClassifica }: {
+function Avvisi({ r, daBanca, bancaForseDoppi, onClassifica, onIncludiGiaInBanca }: {
   r: RendicontoCassa;
+  onIncludiGiaInBanca?: () => void;
   daBanca?: number;
   bancaForseDoppi?: { numero: number; cents: number };
   onClassifica?: () => void;
@@ -452,6 +454,23 @@ function Avvisi({ r, daBanca, bancaForseDoppi, onClassifica }: {
     righe.push({ chiave: "stime", testo: <>{e.stime.numero} stime (netto {euro(e.stime.cents)}) sono fuori perché hai spento «Includi stime».</> });
   if (e.senzaData.numero)
     righe.push({ chiave: "data", testo: <>{e.senzaData.numero} movimenti senza data (netto {euro(e.senzaData.cents)}): mettigli una data per vederli nel mese giusto.</> });
+  if (e.giaInBanca.numero)
+    righe.push({
+      chiave: "gia-in-banca",
+      testo: (
+        <>
+          {e.giaInBanca.numero} {e.giaInBanca.numero === 1 ? "previsto sembra già arrivato" : "previsti sembrano già arrivati"} in banca (netto {euro(e.giaInBanca.cents)}): stesso importo e stessa controparte di un movimento non ancora registrato. Non li conto due volte
+          {": "}
+          {e.giaInBanca.coppie.slice(0, 5).map((c, i) => (
+            <span key={c.previsto.id}>
+              {i ? "; " : ""}«{c.previsto.descrizione}» ↔ <Link className="underline" to={`/azienda/tesoreria?tab=transazioni&movimento=${c.banca.id}`}>movimento del {data(c.banca.data)}</Link>
+            </span>
+          ))}
+          {e.giaInBanca.numero > 5 ? "…" : ""}. Collegali in Tesoreria per chiudere la scadenza.{" "}
+          {onIncludiGiaInBanca && <button type="button" className="font-medium underline" onClick={onIncludiGiaInBanca}>Contali lo stesso</button>}
+        </>
+      ),
+    });
   if (e.forseDoppi.numero)
     righe.push({ chiave: "doppi", testo: <>{e.forseDoppi.numero} incassi forse già compresi nelle rate (netto {euro(e.forseDoppi.cents)}) restano fuori: collegali alla rata giusta.</> });
   if (r.nonClassificati.numero)

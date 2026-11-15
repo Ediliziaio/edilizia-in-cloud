@@ -48,6 +48,8 @@ export interface DatiRendicontoCassa {
   daBanca: number;
   /** Movimenti di banca lasciati fuori perché hanno una scrittura gemella non collegata. */
   bancaForseDoppi: { numero: number; cents: number };
+  /** Movimenti di banca non ancora in prima nota: riconoscono i previsti già pagati in anticipo. */
+  bancaNonRegistrati?: MovimentoBancaCassa[];
 }
 
 interface RigaPrimaNota {
@@ -233,6 +235,7 @@ export function useRendicontoCassa(anno: number) {
         flussoDopoAnnoCents: storico && storico.dopo != null ? storico.dopo + Number(movimentiBanca.dopo_anno_cents ?? 0) : null,
         daBanca: unione.daBanca,
         bancaForseDoppi: unione.forseDoppi,
+        bancaNonRegistrati: movimentiBanca.movimenti.filter((m) => !m.in_prima_nota),
         previsti: dataset?.movements ?? null,
         manuali: vociManuali,
         mutui: finanziamenti,

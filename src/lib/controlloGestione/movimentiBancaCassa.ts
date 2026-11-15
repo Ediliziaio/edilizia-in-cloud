@@ -146,3 +146,69 @@ export function uniscMovimentiBanca(
   }
   return { registrati: out, forseDoppi, daBanca };
 }
+
+/**
+ * Un pagamento o un incasso arrivato in banca IN ANTICIPO (15/11/2026): il
+ * movimento entra nel consuntivo, ma la scadenza che lo prevedeva resta
+ * aperta finché nessuno lo collega, e il previsto lo conta una seconda volta.
+ *
+ * Un previsto è «forse già in banca» se c'è un movimento di banca non ancora
+ * in prima nota, degli ultimi 45 giorni, con:
+ *  - stesso verso e stesso importo al centesimo;
+ *  - la data del previsto tra 30 giorni prima e 20 giorni dopo il movimento;
+ *  - la stessa controparte (una parola di almeno 4 lettere in comune) quando
+ *    le hanno entrambi; senza controparte, la finestra è di 10 giorni.
+ * Ogni movimento vale per un previsto solo, il più vicino di data. Le voci
+ * inserite a mano nel cash flow non si toccano: sono una scelta di chi le ha scritte.
+ * L'affitto del mese dopo (30 giorni più in là) non è mai preso per pagato.
+ */
+export interface PrevistoGiaInBanca {
+  previsto: { id: string; descrizione: string; data: string; cents: number };
+  banca: { id: string; data: string; descrizione: string | null; controparte: string | null };
+}
+
+const parole = (s: string | null | undefined) =>
+  new Set(
+    (s ?? "")
+      .toLocaleLowerCase("it-IT")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .split(/[^a-z0-9]+/)
+      .filter((p) => p.length >= 4 && !["s.r.l", "spa", "srls", "snc", "sas"].includes(p)),
+  );
+
+export function previstiGiaInBanca<T extends { id: string; direction: "in" | "out"; cents: number; date: string | null; description: string; counterparty: string }>(
+  previsti: T[],
+  banca: MovimentoBancaCassa[],
+  today: string,
+): { restano: T[]; coppie: PrevistoGiaInBanca[] } {
+  const da = (a: string, b: string) => (Date.parse(a) - Date.parse(b)) / 86_400_000;
+  const candidati = banca.filter((b) => !b.in_prima_nota && b.cents !== 0 && b.data <= today && da(today, b.data) <= 45);
+  const usati = new Set<string>();
+  const tolti = new Set<string>();
+  const coppie: PrevistoGiaInBanca[] = [];
+  // Prima i movimenti di banca più vecchi: ognuno prende il previsto più vicino.
+  for (const b of [...candidati].sort((x, y) => x.data.localeCompare(y.data) || x.id.localeCompare(y.id))) {
+    const verso = b.cents > 0 ? "in" : "out";
+    const nomiBanca = parole(b.controparte);
+    let migliore: { p: T; distanza: number } | null = null;
+    for (const p of previsti) {
+      if (tolti.has(p.id) || !p.date || p.id.startsWith("manuale:") || p.direction !== verso || p.cents !== Math.abs(b.cents)) continue;
+      const giorni = da(p.date, b.data);
+      const nomiPrevisto = parole(p.counterparty);
+      const entrambi = nomiBanca.size > 0 && nomiPrevisto.size > 0;
+      if (entrambi && ![...nomiPrevisto].some((x) => nomiBanca.has(x))) continue;
+      const [min, max] = entrambi ? [-30, 20] : [-10, 10];
+      if (giorni < min || giorni > max) continue;
+      if (!migliore || Math.abs(giorni) < migliore.distanza) migliore = { p, distanza: Math.abs(giorni) };
+    }
+    if (!migliore || usati.has(b.id)) continue;
+    usati.add(b.id);
+    tolti.add(migliore.p.id);
+    coppie.push({
+      previsto: { id: migliore.p.id, descrizione: migliore.p.description, data: migliore.p.date!, cents: verso === "in" ? migliore.p.cents : -migliore.p.cents },
+      banca: { id: b.id, data: b.data, descrizione: b.descrizione, controparte: b.controparte },
+    });
+  }
+  return { restano: previsti.filter((p) => !tolti.has(p.id)), coppie };
+}

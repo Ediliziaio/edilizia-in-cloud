@@ -23,6 +23,7 @@ import {
 // Il piano dei mutui sta nel Previsionale dal 01/11/2026: qui si riusa.
 export { rateMutui, type MutuoCG };
 import { vociManualiComeMovimenti, type VoceManualeCashFlow } from "@/lib/controlloGestione/cashFlowMensile";
+import { previstiGiaInBanca, type MovimentoBancaCassa, type PrevistoGiaInBanca } from "@/lib/controlloGestione/movimentiBancaCassa";
 import {
   classificaManuale,
   classificaPrevisto,
@@ -68,6 +69,8 @@ export interface IpotesiRendiconto {
   includeOverdueIncome: boolean;
   includeOverdueExpense: boolean;
   includeEstimates: boolean;
+  /** Conta anche i previsti che sembrano già arrivati in banca (di norma no: sarebbero doppi). */
+  includeGiaInBanca?: boolean;
 }
 
 export type TipoColonna = "consuntivo" | "in-corso" | "previsione";
@@ -135,6 +138,8 @@ export interface RendicontoCassa {
     stime: { numero: number; cents: number };
     senzaData: { numero: number; cents: number };
     forseDoppi: { numero: number; cents: number };
+    /** Previsti tolti perché un movimento di banca non registrato sembra già averli pagati o incassati. */
+    giaInBanca: { numero: number; cents: number; coppie: PrevistoGiaInBanca[] };
   };
   /** Movimenti di prima nota scartati (importo o data non validi) o con data futura. */
   registratiScartati: number;
@@ -171,6 +176,8 @@ export function costruisciRendiconto(input: {
   mutui?: MutuoCG[];
   ipotesi: IpotesiRendiconto;
   sogliaCents?: number;
+  /** Movimenti di banca non ancora in prima nota: servono a riconoscere i previsti già pagati in anticipo. */
+  bancaNonRegistrati?: MovimentoBancaCassa[];
 }): RendicontoCassa {
   const { anno, today } = input;
   const annoOggi = Number(today.slice(0, 4));
@@ -261,7 +268,9 @@ export function costruisciRendiconto(input: {
   }
 
   // ── Previsione: movimenti del Previsionale + mutui + voci manuali ─────────
-  const previstiBase = anno >= annoOggi ? input.previsti ?? [] : [];
+  const previstiTutti = anno >= annoOggi ? input.previsti ?? [] : [];
+  const giaInBanca = previstiGiaInBanca(previstiTutti, input.bancaNonRegistrati ?? [], today);
+  const previstiBase = input.ipotesi.includeGiaInBanca ? previstiTutti : giaInBanca.restano;
   const mutuiGiaPrevisti =
     (input.mutui ?? []).length > 0 &&
     previstiBase.some((m) => m.direction === "out" && (m.id.startsWith("mutuo:") || /mutu|finanziament/i.test(`${m.description} ${m.sourceCategory ?? ""}`)));
@@ -377,6 +386,9 @@ export function costruisciRendiconto(input: {
     });
   }
 
+  const sommaGiaInBanca = input.ipotesi.includeGiaInBanca
+    ? { numero: 0, cents: 0, coppie: [] }
+    : { numero: giaInBanca.coppie.length, cents: giaInBanca.coppie.reduce((x, c) => x + c.previsto.cents, 0), coppie: giaInBanca.coppie };
   const esclusi = p
     ? {
         incassiScaduti: sommaEsclusi(p.overdueIncome),
@@ -384,6 +396,7 @@ export function costruisciRendiconto(input: {
         stime: sommaEsclusi(p.excludedEstimates),
         senzaData: sommaEsclusi(p.undated),
         forseDoppi: sommaEsclusi(p.possibleDuplicates),
+        giaInBanca: sommaGiaInBanca,
       }
     : {
         incassiScaduti: { numero: 0, cents: 0 },
@@ -391,6 +404,7 @@ export function costruisciRendiconto(input: {
         stime: { numero: 0, cents: 0 },
         senzaData: { numero: 0, cents: 0 },
         forseDoppi: { numero: 0, cents: 0 },
+        giaInBanca: sommaGiaInBanca,
       };
 
   return {
