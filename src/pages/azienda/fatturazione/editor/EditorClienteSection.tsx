@@ -21,7 +21,7 @@ import {
   type NuovoClienteForm,
 } from "@/lib/fatturazione/clienteAnagrafica";
 import type { ClienteSnapshot } from "@/types/fatturazione";
-import type { EditorState } from "./useEditorState";
+import { riferimentiDelCliente, type EditorState } from "./useEditorState";
 
 interface Props {
   state: EditorState;
@@ -269,6 +269,12 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
               size="sm"
               className="h-5 text-[10px] px-1.5"
               onClick={() => {
+                const tolti = riferimentiDelCliente(state);
+                if (tolti.length > 0) {
+                  toast.info(`Tolti dalla fattura i dati del cliente precedente: ${tolti.join(", ")}`, {
+                    description: "Appartengono all'appalto di quel cliente. Se servono anche per il nuovo, riscrivili nella sezione Fatturazione elettronica.",
+                  });
+                }
                 dispatch({ type: "CLEAR_CLIENTE" });
                 setDetailsOpen(false);
                 setEditingSnapshot(false);
@@ -381,8 +387,8 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                       <Input value={snapshot!.codice_fiscale ?? ""} onChange={(e) => updateSnapshotField("codice_fiscale", e.target.value)} className="h-6 text-[11px] font-mono uppercase" />
                     </div>
                     <div>
-                      <Label className="text-[9px] text-muted-foreground">Codice SDI</Label>
-                      {/* PA: codice IPA esattamente 6 caratteri; privati: 7. Solo A-Z/0-9 (SDI rifiuta altri caratteri). */}
+                      <Label className="text-[9px] text-muted-foreground">{snapshot!.tipo_cliente === "PA" ? "Codice Univoco Ufficio" : "Codice SDI"}</Label>
+                      {/* PA: Codice Univoco Ufficio, esattamente 6 caratteri; privati: 7. Solo A-Z/0-9 (SDI rifiuta altri caratteri). */}
                       <Input
                         value={snapshot!.codice_sdi ?? ""}
                         onChange={(e) => updateSnapshotField("codice_sdi", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, snapshot!.tipo_cliente === "PA" ? 6 : 7))}
@@ -661,9 +667,9 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                         <Input placeholder="CF" value={newForm.codiceFiscale ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceFiscale: e.target.value })} className="h-7 text-xs font-mono" />
                       </div>
                       <div>
-                        <Label className="text-[10px]">Codice IPA (SDI) *</Label>
+                        <Label className="text-[10px]">Codice Univoco Ufficio *</Label>
                         <Input placeholder="6 caratteri" value={newForm.codiceSdi ?? ""} onChange={(e) => setNewForm({ ...newForm, codiceSdi: e.target.value.toUpperCase() })} className="h-7 text-xs font-mono" maxLength={6} />
-                        <p className="text-[8px] text-muted-foreground mt-0.5">Codice Univoco Ufficio (6 caratteri per PA)</p>
+                        <p className="text-[8px] text-muted-foreground mt-0.5">6 caratteri, dall'Indice PA: uno per ufficio</p>
                       </div>
                     </div>
                     <div>

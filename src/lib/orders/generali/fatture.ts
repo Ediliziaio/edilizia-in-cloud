@@ -288,8 +288,12 @@ export function bozzaFatturaSal(d: DatiFatturaSal, aliquota: AliquotaSal = "22")
     ...(split ? { esigibilita_iva: "S" as const } : {}),
     ...(s.cig ? { cig: s.cig } : {}),
     ...(s.cup ? { cup: s.cup } : {}),
+    // Il numero del contratto va nel riferimento all'ordine (IdDocumento), che
+    // l'ufficio dell'ente usa per abbinare la fattura. Fino al 15/11/2026 finiva
+    // anche nel codice commessa/convenzione: è un'altra cosa (il codice di una
+    // convenzione Consip o della commessa dell'ente), e ripeterlo lì era falso.
     ...(s.riferimentoContratto
-      ? { riferimenti_ordine: [{ IdDocumento: idDocumento(s.riferimentoContratto) }], codice_commessa_convenzione: s.riferimentoContratto }
+      ? { riferimenti_ordine: [{ IdDocumento: idDocumento(s.riferimentoContratto) }] }
       : {}),
     causale,
     note_documento: causale[0],

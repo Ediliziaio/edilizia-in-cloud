@@ -197,6 +197,51 @@ function recalculate(state: EditorState): EditorState {
   };
 }
 
+// ─── Cambio cliente ──────────────────────────────────────────
+
+const DICITURA_SPLIT = /scissione dei pagamenti|17-ter/i;
+const pieno = (v: unknown) => typeof v === "string" ? v.trim() !== "" : v != null;
+
+/**
+ * I dati che sulla bozza vengono dal cliente e dal suo appalto: CIG, CUP,
+ * codice commessa/convenzione, split payment. Cambiando cliente restavano
+ * quelli del precedente (fino al 15/11/2026): la fattura al Comune B portava il
+ * CIG del Comune A. Qui l'elenco, in parole, per l'avviso.
+ */
+export function riferimentiDelCliente(state: EditorState): string[] {
+  const out: string[] = [];
+  if (pieno(state.cig)) out.push("CIG");
+  if (pieno(state.cup)) out.push("CUP");
+  if (pieno(state.codice_commessa_convenzione)) out.push("codice commessa/convenzione");
+  if (state.esigibilita_iva === "S") out.push("split payment");
+  return out;
+}
+
+/** Il cliente sulla bozza diventa un altro (non: lo stesso corretto a mano). */
+function eAltroCliente(state: EditorState, anagraficaId: string | undefined): boolean {
+  if (!state.cliente_snapshot) return false;
+  // «Inserisci a mano» sgancia l'anagrafica ma tiene il cliente: non è un cambio.
+  if (!anagraficaId) return false;
+  return !!state.anagrafica_id && state.anagrafica_id !== anagraficaId;
+}
+
+/**
+ * Toglie i riferimenti del cliente precedente. `null` e non `undefined`: il
+ * salvataggio deve scriverli vuoti, non saltarli. L'esigibilità torna «da
+ * decidere» e la propone di nuovo la sezione Fatturazione elettronica per il
+ * cliente nuovo; con lo split se ne va anche la sua dicitura.
+ */
+export function senzaRiferimentiCliente(state: EditorState): EditorState {
+  const causale = Array.isArray(state.causale)
+    ? (state.causale as unknown[]).filter((c) => !DICITURA_SPLIT.test(String(c ?? "")))
+    : state.causale;
+  return {
+    ...state,
+    cig: null, cup: null, codice_commessa_convenzione: null, esigibilita_iva: null,
+    causale,
+  } as unknown as EditorState;
+}
+
 // ─── Reducer ─────────────────────────────────────────────────
 
 export function editorReducer(state: EditorState, action: Action): EditorState {
@@ -207,6 +252,10 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
     case "SET_FIELD":
       return recalculate({
         ...state,
+        // Split tolto: la sua dicitura in causale non è più vera.
+        ...(action.field === "esigibilita_iva" && action.value !== "S" && Array.isArray(state.causale)
+          ? { causale: (state.causale as unknown[]).filter((c) => !DICITURA_SPLIT.test(String(c ?? ""))) as typeof state.causale }
+          : {}),
         // Il valore calcolato dalla vecchia percentuale non è uno sconto
         // fisso: va scartato anche quando la percentuale torna a zero.
         ...(action.field === "sconto_globale_percentuale" ? { sconto_globale_valore: 0 } : {}),
@@ -215,7 +264,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
 
     case "SET_CLIENTE":
       return recalculate({
-        ...state,
+        ...(eAltroCliente(state, action.anagrafica_id || undefined) ? senzaRiferimentiCliente(state) : state),
         // Cliente nuovo (non ancora in anagrafica): nessun id, mai una stringa vuota.
         anagrafica_id: action.anagrafica_id || undefined,
         // Per un privato la ragione sociale è «Nome Cognome»: sempre allineata.
@@ -224,7 +273,7 @@ export function editorReducer(state: EditorState, action: Action): EditorState {
 
     case "CLEAR_CLIENTE":
       return recalculate({
-        ...state,
+        ...senzaRiferimentiCliente(state),
         anagrafica_id: undefined,
         cliente_snapshot: undefined as unknown as ClienteSnapshot,
       });

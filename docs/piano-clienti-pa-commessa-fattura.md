@@ -45,7 +45,18 @@ Test: `fatturaPaXml.test.ts` copre solo un cliente azienda; `invioSdiFlussoCompl
 
 ## Piano a lotti
 
-### Lotto 0 — XML e fattura: errori che producono documenti sbagliati oggi (piccolo, subito)
+### Lotto 0 — XML e fattura: errori che producono documenti sbagliati oggi (piccolo, subito) — **FATTO il 15/11/2026**
+
+Com'è adesso:
+- **Split payment**: l'XML segue `esigibilita_iva` della fattura (S → S; I/D → nessuna riga in S; non scritta → le righe del riepilogo). `split_payment_pa` dell'azienda e il nuovo `cliente_snapshot.split_payment` (dal lotto 1) decidono solo il valore di partenza (`splitPredefinito`, `src/lib/fatturazione/fatturaPa.ts`), nell'editor e in «Crea fattura». Senza split la dicitura 17-ter non arriva più allo SDI, e l'editor la toglie dalla causale quando lo split si spegne. Il certificato computo nasce con i totali già calcolati (prima a zero fino all'apertura nell'editor).
+- **«Crea fattura»**: il profilo scelto decide il tipo cliente (`tipoClienteDaProfilo`): «Ente pubblico» su un cliente B2B dà FPA12, con avviso di correggere l'anagrafica e, se manca, del Codice Univoco Ufficio. CIG a 10 caratteri.
+- **Editor, cambio cliente**: «Cambia» (o un altro cliente dall'anagrafica) toglie CIG, CUP, codice commessa/convenzione, split e la sua dicitura, con avviso che dice cosa ha tolto. Correggere lo stesso cliente o passarlo «a mano» non tocca niente.
+- **`CodiceCommessaConvenzione`** scritto in `DatiOrdineAcquisto` dopo `Data`, prima di CUP e CIG; non ripetuto se è uguale al numero dell'ordine. I SAL delle commesse generali non mettono più il riferimento del contratto anche come codice convenzione. CIG/CUP senza ordine: resta `IdDocumento` «0» (il blocco `DatiContratto` è del lotto 5).
+- **«Scarica XML»** di una PA senza Codice Univoco Ufficio (o con un codice di 7 caratteri): scarica e avvisa. Etichetta «Codice IPA (SDI)» → «Codice Univoco Ufficio» nell'editor.
+- **Test**: `src/test/logic/fatturaPaLotto0.test.ts` (FPA12, codice ufficio, CIG/CUP, split acceso/spento con importo e causale, codice convenzione, avviso, cambio cliente, certificato) e `invioSdiFlussoCompleto.test.ts` (tag CIG, esigibilità, codice destinatario per privato/azienda/PA).
+- **Prova su Demo Azienda 2**: sette bozze con nota interna «PROVA lotto 0 (15/11/2026) … — non inviare», XML controllati, nessun invio.
+
+Era:
 1. Split payment: l'XML segue `esigibilita_iva` della fattura, non «ogni PA». Il valore iniziale viene dal cliente (vedi lotto 1), modificabile sulla fattura. Verificare che con split l'importo da pagare in `DatiPagamento` sia senza IVA.
 2. `CreaFatturaDialog`: il profilo PA scelto imposta `tipo_cliente = PA` sulla fattura (FPA12).
 3. Editor: cambiando cliente si tolgono CIG, CUP e split del cliente precedente, con avviso.

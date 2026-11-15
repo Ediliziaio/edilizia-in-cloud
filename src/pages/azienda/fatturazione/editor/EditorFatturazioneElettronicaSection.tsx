@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ESIGIBILITA_IVA, METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { EditorState } from "./useEditorState";
+import { splitPredefinito } from "@/lib/fatturazione/fatturaPa";
 
 interface Props {
   state: EditorState;
@@ -51,7 +52,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
     if (state.esigibilita_iva) return;
     if (!azienda) return;
     if (isPA) {
-      if (azienda.split_payment_pa === false) return;
+      if (!splitPredefinito(azienda, snap)) return;
       dispatch({ type: "SET_FIELD", field: "esigibilita_iva", value: "S" });
       return;
     }
@@ -98,7 +99,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs text-xs">
                           {isPA
-                            ? "Per la PA: codice IPA a 6 caratteri (obbligatorio)"
+                            ? "Per la PA: Codice Univoco Ufficio a 6 caratteri (obbligatorio), dall'Indice PA"
                             : "Codice a 7 caratteri per privati (es. 0000000 se non noto). Per forfettari/B2C: 0000000"}
                         </TooltipContent>
                       </Tooltip>
@@ -134,7 +135,10 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                   <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
                   <div className="text-xs text-blue-700 dark:text-blue-300">
                     <span className="font-medium">Pubblica Amministrazione</span>
-                    <span className="text-blue-600 dark:text-blue-400 ml-1">— Codice IPA obbligatorio (6 caratteri), Split Payment applicato automaticamente</span>
+                    <span className="text-blue-600 dark:text-blue-400 ml-1">
+                      — Codice Univoco Ufficio obbligatorio (6 caratteri).{" "}
+                      {state.esigibilita_iva === "S" ? "Split payment: l'IVA la versa l'ente." : "Senza split payment: l'IVA la paga l'ente con la fattura."}
+                    </span>
                   </div>
                 </div>
               )}
@@ -144,7 +148,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
             <div>
               <Label className="text-[10px] text-muted-foreground">Esigibilità IVA</Label>
               <Select
-                value={state.esigibilita_iva ?? (isPA && azienda?.split_payment_pa ? "S" : "I")}
+                value={state.esigibilita_iva ?? (isPA && splitPredefinito(azienda, snap) ? "S" : "I")}
                 onValueChange={(v) => setField("esigibilita_iva", v)}
                 disabled={disabled}
               >

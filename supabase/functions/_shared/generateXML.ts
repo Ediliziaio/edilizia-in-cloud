@@ -235,14 +235,25 @@ export function generateXML(
   const righe: Dati[] = doc.righe || [];
   const scadenze: Dati[] = doc.scadenze_pagamento || [];
 
-  // Split payment: se PA e split_payment_pa attivo, forza EsigibilitaIVA = "S"
-  const applySplitPayment = isPa && (azienda.split_payment_pa !== false);
+  // Esigibilità: l'XML dice quello che dice la fattura. Fino al 15/11/2026 ogni
+  // PA usciva in split payment (S) se l'azienda non l'aveva spento in generale,
+  // anche quando sulla fattura lo split era tolto: il documento chiedeva l'IVA,
+  // l'XML diceva all'ente di non pagarla. Ora:
+  // - fattura in split (S): S su ogni aliquota imponibile;
+  // - fattura immediata o differita (I/D): nessuna riga in S;
+  // - esigibilità non scritta: si seguono le righe del riepilogo, che sono
+  //   quelle su cui sono calcolati totale e importo da pagare.
+  const esigibilitaDoc = ["I", "D", "S"].includes(String(doc.esigibilita_iva ?? "")) ? String(doc.esigibilita_iva) : null;
   const riepilogo: Dati[] = (doc.riepilogo_iva || []).map((r: Dati) => {
-    if (applySplitPayment && !r.natura && (parseFloat(r.aliquota) || 0) > 0) {
+    if (esigibilitaDoc === "S" && !isInversione && !r.natura && (parseFloat(r.aliquota) || 0) > 0) {
       return { ...r, esigibilita: "S" };
+    }
+    if (esigibilitaDoc && esigibilitaDoc !== "S" && r.esigibilita === "S") {
+      return { ...r, esigibilita: esigibilitaDoc };
     }
     return r;
   });
+  const inSplit = riepilogo.some((r: Dati) => r.esigibilita === "S");
 
   const progressivo = testoSdi(progressivoInvio || (doc.numero || "00001").replace(/[^a-zA-Z0-9]/g, "").slice(0, 10) || "00001", 10);
 
@@ -424,7 +435,11 @@ export function generateXML(
 
   const causali: string[] = [];
   const causaleOriginale = Array.isArray(doc.causale) ? doc.causale : typeof doc.causale === "string" ? [doc.causale] : [];
-  const scritte = causaleOriginale.map((c: unknown) => String(c ?? "")).filter((c: string) => c.trim());
+  // Senza split la dicitura della scissione dei pagamenti è falsa: resta sulla
+  // fattura quando lo split si toglie dopo averla scritta (bozze SAL, editor).
+  const DICITURA_SPLIT = /scissione dei pagamenti|17-ter/i;
+  const scritte = causaleOriginale.map((c: unknown) => String(c ?? "")).filter((c: string) => c.trim())
+    .filter((c: string) => inSplit || !DICITURA_SPLIT.test(c));
   // Le note pubbliche sono parte del documento: il PDF le mostra e devono
   // arrivare anche allo SDI. Le note interne non vanno mai esportate.
   const notaDocumento = typeof doc.note_documento === "string" ? doc.note_documento.trim() : "";
@@ -442,7 +457,7 @@ export function generateXML(
   if (riepilogo.some((r: Dati) => r.esigibilita === "D") && !scritte.some((c) => /32-bis|iva per cassa/i.test(c))) {
     causali.push("Operazione con IVA per cassa ai sensi dell'art. 32-bis del decreto-legge 22 giugno 2012, n. 83");
   }
-  if (riepilogo.some((r: Dati) => r.esigibilita === "S") && !scritte.some((c) => /scissione|17-ter/i.test(c))) {
+  if (inSplit && !scritte.some((c) => /scissione|17-ter/i.test(c))) {
     causali.push("Scissione dei pagamenti ai sensi dell'art. 17-ter del DPR 633/72");
   }
   for (const c of scritte) causali.push(c);
@@ -451,13 +466,23 @@ export function generateXML(
   const ordini = ((doc.riferimenti_ordine ?? []) as Dati[]).filter((o) => o && (o.IdDocumento || o.id_documento || o.numero));
   // Ordine dello schema (DatiDocumentiCorrelatiType): CodiceCUP PRIMA di CodiceCIG.
   // Scritti al contrario, una fattura con tutti e due veniva scartata per formato.
+  // Schema 1.2.2: IdDocumento, Data, NumItem, CodiceCommessaConvenzione,
+  // CodiceCUP, CodiceCIG. Il codice commessa/convenzione fino al 15/11/2026 non
+  // si scriveva mai. Se è lo stesso numero dell'ordine non si ripete.
   const cigCup = `${doc.cup ? `<CodiceCUP>${x(doc.cup, 15)}</CodiceCUP>` : ""}${doc.cig ? `<CodiceCIG>${x(doc.cig, 15)}</CodiceCIG>` : ""}`;
+  const codiceConvenzione = String(doc.codice_commessa_convenzione ?? "").trim();
+  const convenzioneXml = (idDocumento: string) =>
+    codiceConvenzione && testoSdi(codiceConvenzione, 100) !== testoSdi(idDocumento, 100)
+      ? `<CodiceCommessaConvenzione>${x(codiceConvenzione, 100)}</CodiceCommessaConvenzione>`
+      : "";
   const ordiniXml = ordini.length
     ? ordini.map((o) => {
       const data = fmtDate(String(o.Data ?? o.data ?? ""));
-      return `<DatiOrdineAcquisto><IdDocumento>${x(o.IdDocumento ?? o.id_documento ?? o.numero, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(data) ? `<Data>${data}</Data>` : ""}${cigCup}</DatiOrdineAcquisto>`;
+      const id = String(o.IdDocumento ?? o.id_documento ?? o.numero);
+      return `<DatiOrdineAcquisto><IdDocumento>${x(id, 20)}</IdDocumento>${/^\d{4}-\d{2}-\d{2}$/.test(data) ? `<Data>${data}</Data>` : ""}${convenzioneXml(id)}${cigCup}</DatiOrdineAcquisto>`;
     }).join("\n      ")
-    : (doc.cig || doc.cup) ? `<DatiOrdineAcquisto><IdDocumento>0</IdDocumento>${cigCup}</DatiOrdineAcquisto>` : "";
+    // Senza ordine lo schema vuole comunque un IdDocumento: «0» lo SDI lo accetta.
+    : (doc.cig || doc.cup || codiceConvenzione) ? `<DatiOrdineAcquisto><IdDocumento>0</IdDocumento>${convenzioneXml("0")}${cigCup}</DatiOrdineAcquisto>` : "";
 
   // Nota di credito o di debito: la fattura che rettifica (art. 26 DPR 633/72).
   const collegata: Dati | null = (tipoDoc === "TD04" || tipoDoc === "TD05" || TIPI_INVERSIONE.includes(tipoDoc)) && doc.fattura_collegata?.numero ? doc.fattura_collegata : null;

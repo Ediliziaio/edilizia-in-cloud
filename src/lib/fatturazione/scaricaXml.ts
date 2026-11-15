@@ -8,6 +8,26 @@
 import { supabase } from "@/integrations/supabase/client";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
+import { toast } from "sonner";
+
+const TIPI_INVERSIONE = ["reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue"];
+
+/**
+ * Cosa non va nell'XML di una fattura PA che si sta per scaricare. Senza Codice
+ * Univoco Ufficio il generatore scrive «000000» e la PEC: «Scarica XML» lo
+ * produceva in silenzio, e solo l'invio lo bloccava (15/11/2026).
+ */
+export function avvisiXmlPa(doc: Pick<DocumentoFiscale, "tipo" | "cliente_snapshot">): string[] {
+  const snap = doc.cliente_snapshot;
+  if (!snap || snap.tipo_cliente !== "PA" || TIPI_INVERSIONE.includes(doc.tipo)) return [];
+  const codice = String(snap.codice_sdi ?? "").trim().toUpperCase();
+  if (/^[A-Z0-9]{6}$/.test(codice) && codice !== "000000") return [];
+  return [
+    codice.length === 7
+      ? `Il codice destinatario «${codice}» ha 7 caratteri, quelli di un'azienda: a una PA serve il Codice Univoco Ufficio di 6 caratteri.`
+      : "Manca il Codice Univoco Ufficio dell'ente (6 caratteri): l'XML esce con «000000» e lo SDI non saprebbe a quale ufficio consegnarla.",
+  ];
+}
 
 /** Come fa l'invio: nota di credito e integrazione dichiarano la fattura che rettificano. */
 async function conFatturaCollegata(doc: DocumentoFiscale): Promise<DocumentoFiscale> {
@@ -43,6 +63,13 @@ export async function scaricaXmlFattura(
     nome = doc.sdi_file_xml_url.split("/").pop() || "fattura.xml";
   } else {
     if (!azienda) throw new Error("Dati dell'azienda non ancora caricati: riprova tra un attimo.");
+    const avvisi = avvisiXmlPa(doc);
+    if (avvisi.length > 0) {
+      toast.warning("XML scaricato, ma non è pronto per l'invio", {
+        description: `${avvisi.join(" ")} Inseriscilo nella sezione Fatturazione elettronica della fattura (o nell'anagrafica del cliente).`,
+        duration: 12000,
+      });
+    }
     file = new Blob([generateFatturaPAXML(await conFatturaCollegata(doc), azienda)], { type: "application/xml" });
     nome = `${(doc.numero || "fattura").replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
   }

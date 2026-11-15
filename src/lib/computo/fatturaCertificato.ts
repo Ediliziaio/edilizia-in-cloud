@@ -5,8 +5,8 @@
  * con la scissione dei pagamenti se il contratto la prevede, CIG e CUP nei
  * dati della PA. Solo dati: la fattura la crea l'editor (documento_crea).
  */
-import { calcolaRiga } from "@/lib/fatturazione/calcoli";
-import type { ClienteSnapshot, RigaDocumento, TipoDocumento } from "@/types/fatturazione";
+import { calcolaRiga, calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
+import type { ClienteSnapshot, RiepilogoIVA, RigaDocumento, TipoDocumento } from "@/types/fatturazione";
 
 export interface AnagraficaFatturazione {
   id: string;
@@ -41,6 +41,14 @@ export interface BozzaFattura {
   tipo: TipoDocumento;
   righe: RigaDocumento[];
   esigibilita_iva: "I" | "S";
+  /** Totali già calcolati: con lo split l'importo da pagare è senza IVA anche
+   *  prima che qualcuno apra la bozza nell'editor (fino al 15/11/2026 nasceva a zero). */
+  riepilogo_iva: RiepilogoIVA[];
+  subtotale: number;
+  imponibile_totale: number;
+  iva_totale: number;
+  totale_documento: number;
+  totale_da_pagare: number;
   ordine_id: string;
   note_documento: string;
   cig?: string;
@@ -84,10 +92,20 @@ export function bozzaFatturaCertificato(d: DatiFatturaCertificato): BozzaFattura
       ? { ragione_sociale: computo.stazione_appaltante!.trim(), tipo_cliente: "PA", indirizzo_nazione: "IT", cig, cup }
       : undefined;
   const pa = c.split_payment || snapshot?.tipo_cliente === "PA";
+  const totali = calcolaTotaliDocumento([riga], {
+    splitPayment: c.split_payment,
+    esigibilitaDefault: c.split_payment ? "S" : "I",
+  });
   return {
     tipo: pa ? "fattura_pa" : "fattura",
     righe: [riga],
     esigibilita_iva: c.split_payment ? "S" : "I",
+    riepilogo_iva: totali.riepilogo_iva,
+    subtotale: totali.subtotale,
+    imponibile_totale: totali.imponibile_totale,
+    iva_totale: totali.iva_totale,
+    totale_documento: totali.totale_documento,
+    totale_da_pagare: totali.totale_da_pagare,
     ordine_id: d.orderId,
     note_documento: [
       d.orderCode ? `Rif. commessa ${d.orderCode}` : null,

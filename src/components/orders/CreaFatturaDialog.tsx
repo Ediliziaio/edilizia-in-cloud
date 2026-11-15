@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { LUNGHEZZA_CIG, splitPredefinito, tipoClienteDaProfilo } from "@/lib/fatturazione/fatturaPa";
 import type { Installment } from "@/lib/orderUtils";
 import { METODI_PAGAMENTO_SDI, type ClienteSnapshot, type RigaDocumento, type ScadenzaPagamento } from "@/types/fatturazione";
 import { unitaDocumento } from "@/lib/orders/unitaDocumento";
@@ -689,7 +690,10 @@ export function CreaFatturaDialog({
     matchedAnagrafica?.ragione_sociale || customerName,
   );
   const profilo = profiloScelto ?? profiloSuggerito;
-  const clausoleCatalogo = clausoleScelte ?? clausolePredefinite(profilo, defaultVat);
+  // Lo split si propone per la PA, ma non se l'azienda l'ha spento o l'ente non lo applica.
+  const splitDiPartenza = splitPredefinito(aziendaFiscale, matchedAnagrafica as { split_payment?: boolean | null } | null | undefined);
+  const clausoleCatalogo = clausoleScelte
+    ?? clausolePredefinite(profilo, defaultVat).filter((id) => id !== "split_payment" || splitDiPartenza);
   /**
    * Le condizioni che l'azienda ha scritto per le fatture, dall'archivio «Contratti e condizioni»
    * (07/11/2026): prima si riscrivevano a mano a ogni fattura. Arrivano già spuntate — sono lo
@@ -843,7 +847,10 @@ export function CreaFatturaDialog({
         indirizzo_comune: matchedAnagrafica.indirizzo_comune || undefined,
         indirizzo_provincia: matchedAnagrafica.indirizzo_provincia || undefined,
         indirizzo_nazione: matchedAnagrafica.indirizzo_nazione || "IT",
-        tipo_cliente: matchedAnagrafica.tipo_cliente || "B2B",
+        // Vale il profilo scelto qui: «Ente pubblico» per un cliente segnato B2B fa una fattura PA (FPA12).
+        tipo_cliente: tipoClienteDaProfilo(profilo, matchedAnagrafica.tipo_cliente || "B2B"),
+        ...(typeof (matchedAnagrafica as { split_payment?: boolean | null }).split_payment === "boolean"
+          && { split_payment: (matchedAnagrafica as { split_payment?: boolean }).split_payment }),
         cig: matchedAnagrafica.cig || undefined,
         cup: matchedAnagrafica.cup || undefined,
       }
@@ -852,6 +859,7 @@ export function CreaFatturaDialog({
   const cigFinale = (cig ?? matchedAnagrafica?.cig ?? "").trim();
   const cupFinale = (cup ?? matchedAnagrafica?.cup ?? "").trim();
   const clientePA = clienteSnapshot?.tipo_cliente === "PA";
+  const anagraficaPA = matchedAnagrafica?.tipo_cliente === "PA";
   const mostraCigCup = profilo === "pa" || clientePA || !!cigFinale || !!cupFinale;
 
   const baseNote = (noteOverride ?? autoNote).trim();
@@ -1778,7 +1786,7 @@ export function CreaFatturaDialog({
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label htmlFor="fatt-cig" className="text-[11px] text-muted-foreground">CIG</Label>
-                  <Input id="fatt-cig" value={cig ?? matchedAnagrafica?.cig ?? ""} onChange={(e) => setCig(e.target.value.toUpperCase())} maxLength={15} className="h-8 text-xs font-mono" placeholder="Codice identificativo gara" />
+                  <Input id="fatt-cig" value={cig ?? matchedAnagrafica?.cig ?? ""} onChange={(e) => setCig(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, LUNGHEZZA_CIG))} maxLength={LUNGHEZZA_CIG} className="h-8 text-xs font-mono" placeholder="Codice identificativo gara" />
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="fatt-cup" className="text-[11px] text-muted-foreground">CUP</Label>
@@ -1790,10 +1798,16 @@ export function CreaFatturaDialog({
                   Per un appalto pubblico il CIG in fattura è obbligatorio: senza, l'ente non può pagarla.
                 </p>
               )}
-              {profilo === "pa" && matchedAnagrafica && !clientePA && (
+              {profilo === "pa" && matchedAnagrafica && !anagraficaPA && (
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                  In anagrafica il cliente non è segnato come Pubblica Amministrazione: la fattura partirà come
-                  fattura tra privati. Correggi l'anagrafica (tipo cliente e codice univoco ufficio di 6 caratteri).
+                  In anagrafica il cliente non è segnato come Pubblica Amministrazione: questa fattura parte come
+                  fattura PA perché l'hai scelto qui. Correggi anche l'anagrafica, così la prossima volta è già giusta.
+                </p>
+              )}
+              {profilo === "pa" && !/^[A-Z0-9]{6}$/.test(String(clienteSnapshot?.codice_sdi ?? "").trim().toUpperCase()) && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  Manca il Codice Univoco Ufficio dell'ente (6 caratteri): senza, lo SDI non sa a quale ufficio consegnare
+                  la fattura. Si inserisce nell'editor, sezione Fatturazione elettronica, prima dell'invio.
                 </p>
               )}
             </div>

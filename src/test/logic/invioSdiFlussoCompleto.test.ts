@@ -14,7 +14,7 @@ const indirizzo={indirizzo_via:'Via Cliente 2',indirizzo_comune:'Roma',indirizzo
 const clienti={privato:{...indirizzo,tipo_cliente:'B2C',nome:'Mario',cognome:'Rossi',codice_fiscale:'RSSMRA80A01H501U'},azienda:{...indirizzo,tipo_cliente:'B2B',ragione_sociale:'Cliente Srl',partita_iva:'01234567897',codice_sdi:'ABC1234'},PA:{...indirizzo,tipo_cliente:'PA',ragione_sociale:'Comune Prova',codice_fiscale:'01234567897',codice_sdi:'ABC123'}};
 function documento(cliente:Riga,tipo='fattura'):Riga {
  const r=calcolaRiga({id:'r1',numero_linea:1,descrizione:'Prestazione città e qualità',quantita:1,prezzo_unitario:100,aliquota_iva:'22'} as never);const t=calcolaTotaliDocumento([r],{splitPayment:cliente.tipo_cliente==='PA'});
- return {...t,id:'d1',company_id:'c1',tipo,stato:'emessa',numero:tipo==='nota_credito'?'NC 1/26':'FT 1/26',data_emissione:'2026-11-13',cliente_snapshot:cliente,righe:[r],note_documento:'Rendicontazione bando decreto 59702',cup:'B12H20000070001',cig:'ZA12345678',scadenze_pagamento:[{data_scadenza:'2026-12-13',importo:t.totale_da_pagare,metodo_pagamento:'MP05'}],...(tipo==='nota_credito'?{documento_correlato_id:'originale'}:{})};
+ return {...t,id:'d1',company_id:'c1',tipo,stato:'emessa',numero:tipo==='nota_credito'?'NC 1/26':'FT 1/26',data_emissione:'2026-11-13',cliente_snapshot:cliente,righe:[r],note_documento:'Rendicontazione bando decreto 59702',cup:'B12H20000070001',cig:'ZA12345678',esigibilita_iva:cliente.tipo_cliente==='PA'?'S':'I',scadenze_pagamento:[{data_scadenza:'2026-12-13',importo:t.totale_da_pagare,metodo_pagamento:'MP05'}],...(tipo==='nota_credito'?{documento_correlato_id:'originale'}:{})};
 }
 beforeEach(async()=>{
  m.db=new DbMinimo();m.permesso=true;m.upload.mockReset().mockResolvedValue({data:{},error:null});m.fetch.mockReset().mockResolvedValue(new Response(JSON.stringify({success:true,data:{id:'ID-TRACCIABILE'}}),{status:200}));
@@ -35,6 +35,17 @@ describe('gestore reale di invio: fatture e note di credito',()=>{
   const xml=xmlInviato();if(process.env.FISCAL_XML_FIXTURES_DIR){mkdirSync(process.env.FISCAL_XML_FIXTURES_DIR,{recursive:true});writeFileSync(`${process.env.FISCAL_XML_FIXTURES_DIR}/${nome}-${tipo}.xml`,xml);}
   const d=new DOMParser().parseFromString(xml,'application/xml');expect(d.getElementsByTagName('parsererror')).toHaveLength(0);
   expect(d.documentElement.getAttribute('versione')).toBe(nome==='PA'?'FPA12':'FPR12');expect(d.getElementsByTagName('TipoDocumento')[0].textContent).toBe(tipo==='nota_credito'?'TD04':'TD01');expect(xml).toContain('59702');expect(xml).toContain('B12H20000070001');
+  // CIG nel suo tag (dopo il CUP), esigibilità e codice destinatario come dice la fattura.
+  expect(d.getElementsByTagName('CodiceCIG')[0]?.textContent).toBe('ZA12345678');
+  const esig=Array.from(d.getElementsByTagName('EsigibilitaIVA')).map((e)=>e.textContent);
+  if(nome==='PA'){
+   expect(d.getElementsByTagName('CodiceDestinatario')[0].textContent).toBe('ABC123');
+   expect(esig).toEqual(['S']);expect(d.getElementsByTagName('ImportoPagamento')[0].textContent).toBe('100.00');
+   expect(xml).toMatch(/17-ter/);
+  } else {
+   expect(d.getElementsByTagName('CodiceDestinatario')[0].textContent).toBe(nome==='azienda'?'ABC1234':'0000000');
+   expect(esig).toEqual(['I']);expect(xml).not.toMatch(/17-ter/);
+  }
   if(nome==='privato'){expect(xml).toContain('<Nome>Mario</Nome><Cognome>Rossi</Cognome>');expect(xml).not.toContain('<IdCodice>RSSMRA');}
   if(tipo==='nota_credito')expect(xml).toContain('<DatiFattureCollegate>');
   const blob=m.upload.mock.calls[0][1] as Blob;expect(await blob.text()).toBe(xml);

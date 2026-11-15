@@ -217,6 +217,8 @@ export interface ClienteSnapshot {
   tipo_cliente: 'B2B' | 'B2C' | 'PA' | 'Estero';
   cig?: string;
   cup?: string;
+  /** Solo PA: false se l'ente non applica la scissione dei pagamenti (dall'anagrafica, lotto 1). */
+  split_payment?: boolean;
 }
 
 export type StatoDocumento =
