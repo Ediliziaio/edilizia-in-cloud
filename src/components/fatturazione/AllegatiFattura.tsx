@@ -52,7 +52,8 @@ export type MadreAllegato =
   | { documentoFiscaleId: string }
   | { fatturaRicevutaId: string }
   | { costoId: string }
-  | { f24Id: string };
+  | { f24Id: string }
+  | { movimentoId: string };
 
 interface Allegato {
   id: string;
@@ -73,11 +74,12 @@ const MAX_BYTES = 20 * 1024 * 1024;
  */
 export const MAX_BYTES_INVIO_SDI = 3.5 * 1024 * 1024;
 
-const colonnaMadre = (m: MadreAllegato): ["invoice_id" | "documento_fiscale_id" | "fattura_ricevuta_id" | "company_cost_id" | "f24_entry_id", string] =>
+const colonnaMadre = (m: MadreAllegato): ["invoice_id" | "documento_fiscale_id" | "fattura_ricevuta_id" | "company_cost_id" | "f24_entry_id" | "bank_transaction_id", string] =>
   "invoiceId" in m ? ["invoice_id", m.invoiceId]
     : "documentoFiscaleId" in m ? ["documento_fiscale_id", m.documentoFiscaleId]
       : "costoId" in m ? ["company_cost_id", m.costoId]
         : "f24Id" in m ? ["f24_entry_id", m.f24Id]
+          : "movimentoId" in m ? ["bank_transaction_id", m.movimentoId]
           : ["fattura_ricevuta_id", m.fatturaRicevutaId];
 
 export const allegatiQueryKey = (m: MadreAllegato) => ["fattura-allegati", ...colonnaMadre(m)] as const;
@@ -137,7 +139,7 @@ export function AllegatiFattura({
 }) {
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
-  const [tipoNuovo, setTipoNuovo] = useState<string>("fatturaRicevutaId" in madre ? "contabile_pagamento" : "altro");
+  const [tipoNuovo, setTipoNuovo] = useState<string>("fatturaRicevutaId" in madre || "movimentoId" in madre ? "contabile_pagamento" : "altro");
   const [colonna, idMadre] = colonnaMadre(madre);
   const db = supabase as any;
 

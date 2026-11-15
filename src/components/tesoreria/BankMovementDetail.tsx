@@ -55,6 +55,7 @@ import {
   type RigaRipartizione,
 } from "./RipartizioneMovimento";
 import { MovimentoSenzaFattura } from "./MovimentoSenzaFattura";
+import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 import { ControparteRiconosciuta, SuggerimentiAbbinamento, useSuggerimentiMovimento } from "./MovimentoSuggerimenti";
@@ -450,6 +451,13 @@ function Detail({
                 }}
               />
             </div>
+          )}
+          {perms.canViewBilling && riga(
+            "Allegati",
+            // Contabile del bonifico, ricevuta, F24 quietanzato: stessi allegati di fatture e costi.
+            <div className="w-full min-w-0">
+              <AllegatiFattura companyId={company} madre={{ movimentoId: m.id }} titolo="" sola_lettura={!write} />
+            </div>,
           )}
           {riga(
             "Note interne",
