@@ -54,7 +54,8 @@ Com'è adesso:
 - **`CodiceCommessaConvenzione`** scritto in `DatiOrdineAcquisto` dopo `Data`, prima di CUP e CIG; non ripetuto se è uguale al numero dell'ordine. I SAL delle commesse generali non mettono più il riferimento del contratto anche come codice convenzione. CIG/CUP senza ordine: resta `IdDocumento` «0» (il blocco `DatiContratto` è del lotto 5).
 - **«Scarica XML»** di una PA senza Codice Univoco Ufficio (o con un codice di 7 caratteri): scarica e avvisa. Etichetta «Codice IPA (SDI)» → «Codice Univoco Ufficio» nell'editor.
 - **Test**: `src/test/logic/fatturaPaLotto0.test.ts` (FPA12, codice ufficio, CIG/CUP, split acceso/spento con importo e causale, codice convenzione, avviso, cambio cliente, certificato) e `invioSdiFlussoCompleto.test.ts` (tag CIG, esigibilità, codice destinatario per privato/azienda/PA).
-- **Prova su Demo Azienda 2**: sette bozze con nota interna «PROVA lotto 0 (15/11/2026) … — non inviare», XML controllati, nessun invio.
+- **Note di credito (TD04)**: `noteCreditoXmlPa.test.ts`, 17 casi da `creaNotaCredito` all'XML (privato, azienda, PA con split acceso e spento, con ritenuta, con fattura rettificata, con CIG/CUP): formato, esigibilità, riepiloghi, ImportoPagamento, causale, conti 00422/00423.
+- **Prova su Demo Azienda 2**: sei note di credito in bozza collegate alle fatture di prova e sette bozze con nota interna «PROVA lotto 0 (15/11/2026) … — non inviare», XML controllati, nessun invio.
 
 Era:
 1. Split payment: l'XML segue `esigibilita_iva` della fattura, non «ogni PA». Il valore iniziale viene dal cliente (vedi lotto 1), modificabile sulla fattura. Verificare che con split l'importo da pagare in `DatiPagamento` sia senza IVA.
