@@ -220,6 +220,19 @@ function RiepilogoDati({ dati, onModifica }: { dati: DatiContratto; onModifica?:
         <Voce etichetta="IVA">{iva}</Voce>
         <Voce etichetta="CIG">{c.cig ?? "—"}</Voce>
         <Voce etichetta="CUP">{c.cup ?? "—"}</Voce>
+        {/* Dai documenti dell'appalto (lettura dai documenti, lotto 5): solo quelli che ci sono. */}
+        {c.daiDocumenti?.durataGiorni != null && <Voce etichetta="Durata">{c.daiDocumenti.durataGiorni} giorni</Voce>}
+        {c.daiDocumenti?.aCorpoMisura && <Voce etichetta="Corpo o misura">{c.daiDocumenti.aCorpoMisura}</Voce>}
+        {c.daiDocumenti?.costoManodopera != null && <Voce etichetta="Manodopera">{euro(c.daiDocumenti.costoManodopera)}</Voce>}
+        {(c.daiDocumenti?.salSogliaImporto != null || c.daiDocumenti?.salCadenzaGiorni != null) && (
+          <Voce etichetta="SAL">{[c.daiDocumenti.salSogliaImporto != null && `ogni ${euro(c.daiDocumenti.salSogliaImporto)}`, c.daiDocumenti.salCadenzaGiorni != null && `ogni ${c.daiDocumenti.salCadenzaGiorni} giorni`].filter(Boolean).join(" o ")}</Voce>
+        )}
+        {c.daiDocumenti?.terminiPagamentoGiorni != null && <Voce etichetta="Pagamento">a {c.daiDocumenti.terminiPagamentoGiorni} giorni</Voce>}
+        {c.daiDocumenti?.tettoAccordo != null && <Voce etichetta="Tetto dell'accordo quadro">{euro(c.daiDocumenti.tettoAccordo)}</Voce>}
+        {c.daiDocumenti?.quotaPct != null && (
+          <Voce etichetta="Quota nel raggruppamento">{percentoIt(c.daiDocumenti.quotaPct)}{c.daiDocumenti.importoTotaleAppalto != null && <span className="block text-xs text-muted-foreground">su {euro(c.daiDocumenti.importoTotaleAppalto)} dell'appalto</span>}</Voce>
+        )}
+        {c.daiDocumenti?.revisionePrezzi && <Voce etichetta="Revisione prezzi">{c.daiDocumenti.revisionePrezzi}</Voce>}
       </dl>
       {c.note && <p className="border-t px-4 py-2 text-sm text-muted-foreground">{c.note}</p>}
     </section>

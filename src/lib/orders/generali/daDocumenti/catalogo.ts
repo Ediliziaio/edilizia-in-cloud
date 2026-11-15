@@ -160,6 +160,8 @@ const CAMPI_SOLO_PUBBLICO: CampoCatalogo[] = [
   c("codice_univoco", "Codice univoco dell'ufficio", "codice", "codici", "order_riferimenti_pa.codice_univoco_ufficio"),
   c("cig", "CIG", "codice", "codici", "generale_contratti.cig"),
   c("cig_accordo", "CIG dell'accordo quadro", "codice", "codici", "nuovo:dati.appalto.cig_accordo", { puntoAperto: "accordo_quadro" }),
+  // Accordo quadro: l'importo massimo è il valore della generale; gli applicativi lo scalano.
+  c("tetto_accordo", "Importo massimo dell'accordo quadro", "importo", "importi", "generale_contratti.tetto_accordo", { doveCercare: "accordo quadro", puntoAperto: "accordo_quadro" }),
   c("cup", "CUP", "codice", "codici", "generale_contratti.cup"),
   c("rup", "RUP", "testo", "figure", "dati.appalto.rup"),
   c("split_payment", "Scissione dei pagamenti", "si_no", "pagamenti", "generale_contratti.split_payment"),

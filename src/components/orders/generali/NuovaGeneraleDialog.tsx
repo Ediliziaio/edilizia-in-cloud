@@ -2,7 +2,7 @@
 // Una schermata: tipo, nome, committente (o società dell'operazione), valore. Si può partire già
 // pronti: unità preparate e piano con le voci tipiche. Il resto si completa dalla pagina della generale.
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import { nomeMese } from "@/components/orders/generali/piano/formato";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
 import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
+import { CreaDaDocumenti } from "@/components/orders/generali/daDocumenti/CreaDaDocumenti";
+import { tipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 
 interface Props {
   open: boolean;
@@ -62,6 +64,10 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
   const [inizio, setInizio] = useState("");
   const [prezzoTesto, setPrezzoTesto] = useState("");
   const [rogito, setRogito] = useState("");
+  // Commessa generale dai documenti (docs/piano-commessa-generale-da-documenti.md): con
+  // ?prova-lettura=1 c'è anche la lettura di prova, con documenti e cifre inventati.
+  const [cercaParametri] = useSearchParams();
+  const provaLettura = cercaParametri.get("prova-lettura") === "1";
 
   const def = modello ? DEFINIZIONI_MODELLI[modello] : null;
   const valore = valoreTesto.trim() === "" ? null : leggiImporto(valoreTesto);
@@ -207,6 +213,8 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
               </span>
             </label>
           )}
+
+          {modello && <CreaDaDocumenti tipo={tipoDaDocumenti(modello, tipoAppalto)} prova={provaLettura} onCreata={() => onOpenChange(false)} />}
 
           <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
             <div className="space-y-1.5">

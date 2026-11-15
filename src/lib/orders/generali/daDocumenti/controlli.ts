@@ -60,12 +60,33 @@ export function stessoValore(a: Valore, b: Valore): boolean {
   return normale(a) === normale(b);
 }
 
-function raggruppa(occ: Occorrenza[]): EsitoCampo["valori"] {
+/** Testo senza accenti, punteggiatura e titoli (sig., ing., geom., dott.): per confrontare nomi e descrizioni. */
+const nudo = (v: Valore) => String(v).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/\b(sig|sigra|ing|geom|arch|dott|dottssa|avv|p ?i)\b\.?/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Per i campi di TESTO, due scritture della stessa cosa non sono un conflitto: uguali senza
+ * punteggiatura e titoli, una contenuta nell'altra, o con almeno il 60% delle parole in comune.
+ * Lotto 9 (contratto vero): metà dei «conflitti» erano questo. Codici, numeri e date restano rigidi.
+ */
+export function stessoTesto(a: Valore, b: Valore): boolean {
+  const x = nudo(a), y = nudo(b);
+  if (!x || !y) return x === y;
+  if (x === y || x.includes(y) || y.includes(x)) return true;
+  const px = new Set(x.split(" ")), py = new Set(y.split(" "));
+  const comuni = [...px].filter((w) => py.has(w)).length;
+  return comuni / new Set([...px, ...py]).size >= 0.6;
+}
+
+function raggruppa(occ: Occorrenza[], testo = false): EsitoCampo["valori"] {
   const gruppi: EsitoCampo["valori"] = [];
   for (const o of occ) {
-    const g = gruppi.find((x) => stessoValore(x.valore, o.valore));
-    if (g) g.occorrenze.push(o);
-    else gruppi.push({ valore: o.valore, occorrenze: [o] });
+    const g = gruppi.find((x) => stessoValore(x.valore, o.valore) || (testo && stessoTesto(x.valore, o.valore)));
+    if (g) {
+      g.occorrenze.push(o);
+      // Fra le varianti di un testo si mostra la più completa.
+      if (testo && String(o.valore).length > String(g.valore).length) g.valore = o.valore;
+    } else gruppi.push({ valore: o.valore, occorrenze: [o] });
   }
   return gruppi;
 }
@@ -76,7 +97,7 @@ export function statoCampo(tipo: TipoDaDocumenti, chiave: string, dati: DatiLett
   const def = campoDelCatalogo(tipo, chiave);
   const puntoAperto = def?.puntoAperto;
   if (def?.escluso) return { chiave, stato: "escluso", valori: [], valore: null, puntoAperto };
-  const valori = raggruppa(dati[chiave] ?? []);
+  const valori = raggruppa(dati[chiave] ?? [], def?.tipo === "testo");
   if (Object.prototype.hasOwnProperty.call(scelte, chiave) && scelte[chiave] !== null) {
     return { chiave, stato: "scelto", valori, valore: scelte[chiave], puntoAperto };
   }
@@ -101,6 +122,7 @@ export function aggiungiGiorni(iso: string, giorni: number): string {
 }
 
 const euro = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+const pct = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 }) + "%";
 const dataIt = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 // ─── Controlli ─────────────────────────────────────────────────────────────────
@@ -152,7 +174,7 @@ function controlliAppalto(tipo: TipoDaDocumenti, l: Lettore): Controllo[] {
       const calcolato = Math.round((base * (1 - rib / 100) + oneri) * 100) / 100;
       const diff = contr - calcolato;
       out.push(Math.abs(diff) <= TOLLERANZA_EURO
-        ? { id, titolo, campi, esito: "ok", messaggio: `${euro(base)} − ${rib}% + ${euro(oneri)} = ${euro(calcolato)}, come nel contratto.` }
+        ? { id, titolo, campi, esito: "ok", messaggio: `${euro(base)} − ${pct(rib)} + ${euro(oneri)} = ${euro(calcolato)}, come nel contratto.` }
         : { id, titolo, campi, esito: "errore", messaggio: `Il calcolo dà ${euro(calcolato)}, il contratto dice ${euro(contr)}: differenza di ${euro(Math.abs(diff))}.` });
     }
   }
@@ -179,22 +201,24 @@ function controlliAppalto(tipo: TipoDaDocumenti, l: Lettore): Controllo[] {
   out.push(controlloSomma("car", "Polizza CAR, partita lavori = importo contrattuale", l, "importo_contrattuale", "car_somma_lavori", "La somma assicurata dei lavori"));
   out.push(controlloSomma("rct", "Massimale RCT come da contratto", l, "rct_massimale_contratto", "rct_massimale", "Il massimale RCT della polizza"));
 
-  // 7. penale massima ≤ 10%
+  // 7. penale massima ≤ 10% (soglia di legge negli appalti pubblici; nel privato è solo un avviso)
   {
+    const pubblico = tipo === "appalto_pubblico";
     const id = "penale_massima", titolo = "Penale massima entro il 10%";
     const p = l.num("penale_massima_pct");
     out.push(p === null ? nonVerificabile(id, titolo, ["penale_massima_pct"], l)
-      : p <= 10 ? { id, titolo, campi: ["penale_massima_pct"], esito: "ok", messaggio: `Penale massima ${p}%.` }
-        : { id, titolo, campi: ["penale_massima_pct"], esito: "errore", messaggio: `Penale massima ${p}%: sopra il 10% di solito non è ammessa, ricontrolla la lettura.` });
+      : p <= 10 ? { id, titolo, campi: ["penale_massima_pct"], esito: "ok", messaggio: `Penale massima ${pct(p)}.` }
+        : pubblico ? { id, titolo, campi: ["penale_massima_pct"], esito: "errore", messaggio: `Penale massima ${pct(p)}: negli appalti pubblici non supera il 10%, ricontrolla la lettura.` }
+          : { id, titolo, campi: ["penale_massima_pct"], esito: "avviso", messaggio: `Penale massima ${pct(p)}: è alta, controlla che sia quella del contratto.` });
   }
 
-  // 8. ritenuta 0,5% (avviso se diversa)
-  {
+  // 8. ritenuta 0,5% (avviso se diversa): regola degli appalti pubblici
+  if (tipo === "appalto_pubblico") {
     const id = "ritenuta", titolo = "Ritenuta di garanzia dello 0,5%";
     const r = l.num("ritenuta_pct");
     out.push(r === null ? nonVerificabile(id, titolo, ["ritenuta_pct"], l)
       : Math.abs(r - 0.5) < 0.0001 ? { id, titolo, campi: ["ritenuta_pct"], esito: "ok", messaggio: "Ritenuta 0,5%." }
-        : { id, titolo, campi: ["ritenuta_pct"], esito: "avviso", messaggio: `Ritenuta ${r}%: negli appalti pubblici di solito è lo 0,5%. Controlla.` });
+        : { id, titolo, campi: ["ritenuta_pct"], esito: "avviso", messaggio: `Ritenuta ${pct(r)}: negli appalti pubblici di solito è lo 0,5%. Controlla.` });
   }
 
   if (tipo === "appalto_pubblico") {

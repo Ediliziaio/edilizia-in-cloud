@@ -509,28 +509,69 @@ si vede. Si può partire dallo 0 e dal 2 insieme, con la lettura finta.
 
 ---
 
-## 7. Domande per il titolare
+## 6 bis. Stato dei lotti (15/11/2026, sera)
 
-1. **Accordo quadro:** la generale è l'accordo e ogni contratto applicativo è una figlia
-   («lotto»)? Oppure ogni contratto applicativo è una generale a sé?
-2. **Capitolato speciale:** quando le regole di pagamento stanno lì e non nel contratto,
-   lo si chiede sempre o si lascia scegliere? Leggerlo costa: spesso 100–200 pagine.
-3. **Costo:** la lettura di un appalto scansionato di 76 pagine costa qualche decina di
-   centesimi in crediti. Va mostrato il preventivo e chiesto «Leggi», o si parte e basta
-   sotto una soglia?
-4. **Conti dedicati e delegati** (tracciabilità): li salviamo? Proposta: si riconosce il
-   conto dell'azienda fra quelli già in Tesoreria e non si salva nient'altro; i codici
-   fiscali dei delegati e i documenti d'identità non si estraggono mai.
-5. **RTI:** se l'impresa è una mandante, la commessa vale per la sua quota o per tutto?
-   E chi fattura?
-6. **Due valori per la stessa penale** (contratto contro verbale): la regola è «vince il
-   contratto», o si fa sempre scegliere?
-7. **Cosa si crea subito:** fasi e figlie dal computo alla creazione, o solo il contratto
-   e poi «Prepara le fasi» dalla pagina?
-8. **Dove si avvia:** solo dal popup «Nuova commessa generale», o anche da una generale
-   già esistente («Completa dai documenti»)? Proposta: tutte e due, il motore è lo stesso.
+| Lotto | Stato |
+|---|---|
+| 0 | su `main` (catalogo e controlli) |
+| 1-8 | su `main`, visibili a tutti in «Nuova commessa generale» → «Crea dai documenti»; con `?prova-lettura=1` c'è anche la lettura di prova con documenti inventati |
+| 9 | fatto in locale, vedi sotto |
 
----
+**Accordo quadro, come lo vuole il titolare (15/11):** la commessa generale è l'accordo, con
+l'importo massimo (`tetto_accordo`, letto dai documenti) come valore; ogni contratto applicativo
+è una commessa figlia che nel tempo «scala» quell'importo: è l'«Assegnato / Da assegnare» della
+pagina della generale. Nel «Costruisci» di un applicativo si vede quanto resta dell'accordo prima
+e dopo; sotto il 10% o oltre il tetto c'è un avviso (non un blocco: un atto aggiuntivo può alzarlo).
+
+Migrazioni: `20290416200000` (letture e pagine, RPC, compiti del router), `…200100` (avanzamento
+dell'estrazione), `…200200` (pagine escluse dal browser), `…200300` (colonne del contratto, creazione
+in una transazione, contratto applicativo, «Annulla tutto»).
+
+### Lotto 9: il contratto vero, in locale
+
+Fatto senza scritture in produzione e senza dati del documento nel repository. L'OCR e il modello
+di estrazione sono stati **simulati** (trascrizione e risposta scritte da un agente con le stesse
+istruzioni del sistema, `istruzioniEstrazione`); il resto è il codice vero: analisi delle pagine,
+gruppi, lettura delle risposte (`datiDaRisposta`), stati dei campi e controlli.
+
+- **Pagine:** 76, nessuna con testo nativo: tutte passano dall'OCR (analisi in 10 secondi).
+  Nella trascrizione 62 utili, 6 bianche, 8 con dati personali (documenti d'identità, chiavi
+  d'accesso, autocertificazioni). Stima del sistema: circa 1,20-1,45 € (OCR 0,015 € a pagina,
+  estrazione 0,05 € a gruppo); tempo atteso 6-7 minuti (3 pagine alla volta).
+- **Estrazione:** 4 gruppi, 76 valori, nessuno scartato, **tutte le citazioni ritrovate** nella
+  pagina indicata.
+- **Campi:** 19 letti senza dubbi (importi, ribasso, oneri, manodopera, durata, consegna, penale
+  massima, soglia dei SAL, polizza, totali di computo e sicurezza, CIG dell'accordo, figure);
+  11 non trovati, come previsto (anticipazione, ritenuta, termini, cauzione, subappalto, CUP,
+  codice univoco, split: stanno nel capitolato o nell'accordo quadro, non caricati).
+- **Controlli:** tornano importo contrattuale (base, ribasso, oneri), somma del computo, somma
+  della sicurezza, polizza CAR e penale massima.
+- **Conflitti:** la prima misura ne dava 12; metà erano lo stesso testo scritto in modi diversi
+  (titoli, punteggiatura, una descrizione più lunga). Corretto: per i campi di testo le varianti
+  simili sono un valore solo (`stessoTesto`). Ne restano **8, tutti veri**: numero e data del
+  contratto (applicativo contro protocollo), fine lavori (verbale contro polizza), penale
+  (contratto contro verbale), **CIG letto diverso nella polizza** (scansione sgranata: proprio il
+  caso per cui il sistema non sceglie da solo), esecutore (RTI/ATI), categorie SOA, luogo.
+- **Da migliorare:** la data di stipula non è scritta nel testo (solo «data del protocollo»):
+  il modello l'ha presa dal timbro, al limite della regola «non dedurre». La regola dei
+  documenti d'identità va provata su testi OCR veri, che qui non sono stati conservati.
+
+## 7. Domande per il titolare e scelte provvisorie
+
+Il titolare non ha ancora risposto. Fino alla risposta il codice segue queste **scelte
+provvisorie, cambiabili**: ognuna si legge in `PUNTI_APERTI`
+(`src/lib/orders/generali/daDocumenti/catalogo.ts`), e il popup la dice dove pesa.
+
+| # | Domanda | Scelta provvisoria | Dove si cambia |
+|---|---|---|---|
+| 1 | Accordo quadro: una generale per l'accordo, o una per applicativo? | La generale è l'accordo quadro; ogni contratto applicativo è una sua **figlia** con il proprio CIG derivato (`generale_applicativo_crea`). | forma nel popup «Costruisci»; RPC |
+| 2 | Capitolato speciale sempre? | **Facoltativo**: si legge solo se l'utente lo carica, dopo la stima del costo. I campi che di solito stanno lì restano «non trovati», col motivo. | `PUNTI_APERTI.capitolato` |
+| 3 | Costo: stima e «Leggi», o partenza da sola? | Si mostra **sempre** la stima, poi l'utente preme «Leggi». Niente partenze da sole. | `Partenza` nel popup di lettura |
+| 4 | RTI: quota o tutto? | La commessa vale per la **quota** dell'impresa; il totale dell'appalto resta nel contratto (`importo_totale_appalto`, `quota_pct`). | campo «La nostra quota» nel popup |
+| 5 | Stesso dato con valori diversi (es. penale contratto/verbale)? | Si fa **sempre scegliere**, mostrando le fonti. Mai una scelta automatica. | `controlli.ts` (conflitto) |
+| 6 | Conti dedicati e delegati? | **Non si estraggono**; le pagine con documenti d'identità o autocertificazioni si escludono. | `catalogo.ts` (`escluso`), `pagine.ts` |
+| 7 | Fasi e figlie dal computo subito o dopo? | Il popup **propone** elenco prezzi e fasi dal computo strutturato, con due spunte accese; si tolgono con un clic e si scrivono solo alla conferma. | `BozzaCostruisci.conElenco/conFasi` |
+| 8 | Da dove si avvia? | Dal popup «Nuova commessa generale» («Crea dai documenti»), per tutti i tipi; una generale esistente si completa con la forma «applicativo» (accordo quadro). «Completa dai documenti» su qualsiasi generale resta da fare. | `CreaDaDocumenti` |
 
 ## 8. Cosa questo piano non fa
 

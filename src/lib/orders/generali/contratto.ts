@@ -55,6 +55,24 @@ export interface ContrattoGenerale {
   splitPayment: boolean;
   reverseCharge: boolean;
   note: string | null;
+  /**
+   * Dati che arrivano dai documenti dell'appalto (docs/piano-commessa-generale-da-documenti.md,
+   * lotto 5): si mostrano nel riquadro del contratto; il modulo del contratto non li tocca.
+   */
+  daiDocumenti?: DatiContrattoDaiDocumenti | null;
+}
+
+export interface DatiContrattoDaiDocumenti {
+  costoManodopera: number | null;
+  durataGiorni: number | null;
+  aCorpoMisura: string | null;
+  salSogliaImporto: number | null;
+  salCadenzaGiorni: number | null;
+  terminiPagamentoGiorni: number | null;
+  revisionePrezzi: string | null;
+  tettoAccordo: number | null;
+  importoTotaleAppalto: number | null;
+  quotaPct: number | null;
 }
 
 export interface Allegato { id: string; nome: string; percorso: string }
@@ -187,7 +205,24 @@ export function leggiContratto(c: unknown): ContrattoGenerale | null {
     splitPayment: r.split_payment === true,
     reverseCharge: r.reverse_charge === true,
     note: testo(r.note),
+    daiDocumenti: daiDocumenti(r),
   };
+}
+
+function daiDocumenti(r: Record<string, unknown>): DatiContrattoDaiDocumenti | null {
+  const d: DatiContrattoDaiDocumenti = {
+    costoManodopera: numero(r.costo_manodopera),
+    durataGiorni: numero(r.durata_giorni),
+    aCorpoMisura: testo(r.a_corpo_misura),
+    salSogliaImporto: numero(r.sal_soglia_importo),
+    salCadenzaGiorni: numero(r.sal_cadenza_giorni),
+    terminiPagamentoGiorni: numero(r.termini_pagamento_giorni),
+    revisionePrezzi: testo(r.revisione_prezzi),
+    tettoAccordo: numero(r.tetto_accordo),
+    importoTotaleAppalto: numero(r.importo_totale_appalto),
+    quotaPct: numero(r.quota_pct),
+  };
+  return Object.values(d).some((x) => x !== null) ? d : null;
 }
 
 export function leggiDatiContratto(data: unknown): DatiContratto {

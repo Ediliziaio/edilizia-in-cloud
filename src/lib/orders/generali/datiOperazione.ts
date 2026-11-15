@@ -39,6 +39,11 @@ const APPALTO: SezioneDati = {
     { chiave: "direttore_lavori", etichetta: "Direttore lavori", tipo: "testo" },
     { chiave: "cse", etichetta: "Coordinatore sicurezza (CSE)", tipo: "testo" },
     { chiave: "soa", etichetta: "Categoria SOA prevalente", tipo: "testo", esempio: "OG1 classifica III" },
+    // Dai documenti dell'appalto (docs/piano-commessa-generale-da-documenti.md, lotti 5 e 7).
+    { chiave: "forma", etichetta: "Forma", tipo: "scelta", opzioni: ["Contratto singolo", "Accordo quadro"] },
+    { chiave: "cig_accordo", etichetta: "CIG dell'accordo quadro", tipo: "testo" },
+    { chiave: "esecutore", etichetta: "Esecutore", tipo: "testo", esempio: "impresa singola, RTI con…" },
+    { chiave: "quota_pct", etichetta: "Quota nel raggruppamento", tipo: "numero", unita: "%" },
   ],
 };
 

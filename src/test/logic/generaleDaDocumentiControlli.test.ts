@@ -200,3 +200,31 @@ describe("riepilogo", () => {
     expect(riepilogo(campi, ctrl, new Set(["importo_contrattuale", "car"])).bloccanti).toBe(1);
   });
 });
+
+describe("appalto privato: soglie del pubblico non bloccano", () => {
+  it("penale sopra il 10% è un avviso, la ritenuta non si controlla", () => {
+    const c = controlli("appalto_privato", { penale_massima_pct: [o(15)], ritenuta_pct: [o(5)] });
+    expect(c.find((x) => x.id === "penale_massima")!.esito).toBe("avviso");
+    expect(c.find((x) => x.id === "ritenuta")).toBeUndefined();
+  });
+
+  it("percentuali con la virgola", () => {
+    const c = controlli("appalto_pubblico", { importo_base: [o(400000)], ribasso_pct: [o(12.5)], oneri_sicurezza: [o(15000)], importo_contrattuale: [o(365000)] });
+    expect(c.find((x) => x.id === "importo_contrattuale")!.messaggio).toContain("12,5%");
+  });
+});
+
+describe("varianti di uno stesso testo (lotto 9)", () => {
+  it("titoli, punteggiatura e testo contenuto non sono un conflitto; si mostra il più completo", () => {
+    expect(statoCampo("appalto_pubblico", "rup", { rup: [o("Sig. Mario Prova"), o("Ing. Mario Prova")] }).stato).toBe("letto");
+    const s = statoCampo("appalto_pubblico", "oggetto", { oggetto: [o("Lavori di manutenzione delle strade"), o("Lavori di manutenzione delle strade comunali, lotto 2")] });
+    expect(s.stato).toBe("letto");
+    expect(s.valore).toBe("Lavori di manutenzione delle strade comunali, lotto 2");
+    expect(statoCampo("appalto_pubblico", "stazione_appaltante", { stazione_appaltante: [o("COMUNE DI PROVA - Ufficio Tecnico"), o("Comune di Prova, Ufficio tecnico")] }).stato).toBe("letto");
+  });
+  it("testi diversi, codici e date restano conflitti", () => {
+    expect(statoCampo("appalto_pubblico", "esecutore_forma", { esecutore_forma: [o("RTI"), o("Impresa singola")] }).stato).toBe("conflitto");
+    expect(statoCampo("appalto_pubblico", "cig", { cig: [o("Z1A2B3C4D5"), o("Z1A2B3C4D6")] }).stato).toBe("conflitto");
+    expect(statoCampo("appalto_pubblico", "contratto_numero", { contratto_numero: [o("12/2027"), o("Prot. 3456 del 2027")] }).stato).toBe("conflitto");
+  });
+});

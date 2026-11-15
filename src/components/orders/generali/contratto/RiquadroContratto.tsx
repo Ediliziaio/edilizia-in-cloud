@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { PropsScheda } from "@/components/orders/generali/tipiScheda";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
-import { anticipazione, oggiIso, ritenute, scadenzeContratto, totaliSal, valoreContratto } from "@/lib/orders/generali/contratto";
+import { anticipazione, oggiIso, ritenute, scadenzeContratto, totaliSal, valoreContratto, type DatiContrattoDaiDocumenti } from "@/lib/orders/generali/contratto";
 import { cn } from "@/lib/utils";
 import { dataIt, euro } from "./formato";
 
@@ -98,6 +98,7 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
         {dati.contratto.cup && <span>CUP <strong className="font-medium text-foreground">{dati.contratto.cup}</strong></span>}
         {dati.contratto.splitPayment && <span>Scissione dei pagamenti</span>}
       </footer>}
+      {dati.contratto?.daiDocumenti && <DaiDocumenti d={dati.contratto.daiDocumenti} />}
       {scadenze.length > 0 && (
         <ul className="space-y-1 border-t px-4 py-2.5">
           {scadenze.map((s) => (
@@ -109,5 +110,26 @@ export function RiquadroContratto({ riepilogo }: PropsScheda) {
         </ul>
       )}
     </section>
+  );
+}
+
+/** Quello che i documenti dell'appalto dicono e il modulo del contratto non chiede (lotto 5 della lettura dai documenti). */
+function DaiDocumenti({ d }: { d: DatiContrattoDaiDocumenti }) {
+  const voci = [
+    d.quotaPct !== null && `Quota nel raggruppamento ${d.quotaPct.toLocaleString("it-IT")}%${d.importoTotaleAppalto !== null ? ` di ${euro(d.importoTotaleAppalto)}` : ""}`,
+    d.tettoAccordo !== null && `Tetto dell'accordo quadro ${euro(d.tettoAccordo)}`,
+    d.durataGiorni !== null && `Durata ${d.durataGiorni} giorni`,
+    d.aCorpoMisura && `A ${d.aCorpoMisura.replace(/^a\s+/i, "")}`,
+    d.costoManodopera !== null && `Manodopera ${euro(d.costoManodopera)}`,
+    d.salSogliaImporto !== null && `SAL ogni ${euro(d.salSogliaImporto)}`,
+    d.salCadenzaGiorni !== null && `SAL ogni ${d.salCadenzaGiorni} giorni`,
+    d.terminiPagamentoGiorni !== null && `Pagamento a ${d.terminiPagamentoGiorni} giorni`,
+    d.revisionePrezzi && `Revisione prezzi: ${d.revisionePrezzi}`,
+  ].filter(Boolean) as string[];
+  if (voci.length === 0) return null;
+  return (
+    <footer className="generale-panel-footer flex-wrap" aria-label="Dati dai documenti">
+      {voci.map((v) => <span key={v}>{v}</span>)}
+    </footer>
   );
 }
