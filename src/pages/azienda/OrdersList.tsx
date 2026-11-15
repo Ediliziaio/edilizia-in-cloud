@@ -1018,7 +1018,7 @@ function OrdersListInner() {
 
   // Da telefono la parte blu è il riassunto dei soldi. Fatturato: il registro vendite, come nel cruscotto.
   const { data: kpiFatturazione } = useDashboardBillingKPI(
-    effectiveCompany?.id ?? null, isNative && orderPerms.canViewBilling && ((isMobile && isYearCorrente) || sceltaRiepilogo.riquadri.includes("fatturato")));
+    effectiveCompany?.id ?? null, isNative && orderPerms.canViewBilling && sceltaRiepilogo.riquadri.includes("fatturato"));
   const costiSostenuti = useMemo(() => {
     if (!scopeMargins || !globalStats) return null;
     const delPeriodo = new Set(globalStats.annualIds);
@@ -1406,11 +1406,11 @@ function OrdersListInner() {
         nota: `${globalStats?.reasons.work ?? 0} lavori · ${globalStats?.reasons.support ?? 0} assistenze · ${globalStats?.reasons.payment ?? 0} saldi` },
       fatturato: { titolo: `Fatturato ${currentYear}`, valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: "imponibile, tutta l'azienda" },
       appalti_valore: { titolo: "Valore appalti in corso", valore: soldi(ta?.valore), icona: Landmark,
-        nota: `${ta?.appalti ?? 0} appalti · eseguito ${soldi(ta?.eseguito)}` },
+        nota: `${ta?.appalti ?? 0} ${ta?.appalti === 1 ? "appalto" : "appalti"} · eseguito ${soldi(ta?.eseguito)}` },
       appalti_da_eseguire: { titolo: "Lavori da eseguire", valore: soldi(ta?.daEseguire), icona: Hammer, nota: `su ${soldi(ta?.valore)} di appalti` },
       appalti_da_incassare: { titolo: "Da incassare sugli appalti", valore: soldi(ta?.daIncassare), icona: AlertCircle, nota: `fatturato ${soldi(ta?.fatturato)}` },
       appalti_margine: { titolo: "Margine a finire appalti", valore: soldi(ta?.margineAFinire), icona: Percent, nota: `stima su ${ta?.conPiano ?? 0} appalti con il piano` },
-      unita_vendute: { titolo: "Unità vendute", valore: to ? `${to.vendute} su ${to.unita}` : "—", icona: Building2, nota: `${to?.operazioni ?? 0} operazioni in corso` },
+      unita_vendute: { titolo: "Unità vendute", valore: to ? `${to.vendute} su ${to.unita}` : "—", icona: Building2, nota: `${to?.operazioni ?? 0} ${to?.operazioni === 1 ? "operazione" : "operazioni"} in corso` },
       unita_libere: { titolo: "Unità libere", valore: String(to?.libere ?? 0), icona: Building2, nota: `su ${to?.unita ?? 0} unità` },
       operazioni_venduto: { titolo: "Venduto unità", valore: soldi(to?.venduto), icona: Euro, nota: `incassato ${soldi(to?.incassato)}` },
       operazioni_incassato: { titolo: "Incassato unità", valore: soldi(to?.incassato), icona: TrendingUp,
@@ -1605,29 +1605,21 @@ function OrdersListInner() {
               </div>
             </div>
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && isMobile && orderPerms.canViewOrderAmounts && (() => {
-              const anno = isYearCorrente ? ` ${currentYear}` : "";
-              const euro = (n: number | null | undefined) => n == null || isEconomicStatsLoading ? "—"
-                : n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
-              const quota = stats.totalGross > 0 ? `${Math.round((stats.collected / stats.totalGross) * 100)}% del venduto` : "";
-              const voci = [
-                { nome: `Venduto${anno}`, valore: euro(stats.totalGross), nota: "IVA inclusa" },
-                ...(isYearCorrente && isNative && orderPerms.canViewBilling
-                  ? [{ nome: `Fatturato${anno}`, valore: euro(kpiFatturazione?.fatturato_ytd), nota: "imponibile, tutta l'azienda" }] : []),
-                { nome: `Incassato${anno}`, valore: euro(stats.collected), nota: quota },
-                { nome: "Da incassare", valore: euro(stats.pending), nota: `${monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 0 })}% del venduto` },
-                ...(orderPerms.canViewCosts ? [{ nome: `Costi sostenuti${anno}`, valore: euro(costiSostenuti), nota: "sulle commesse" }] : []),
-                { nome: `Commesse${anno}`, valore: isEconomicStatsLoading ? "—" : String(isYearCorrente ? globalStats?.annual.count ?? 0 : stats.totalOrders), nota: `media mese ${monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
-              ];
-              return <dl aria-label="Riepilogo economico" className="grid grid-cols-2 gap-1.5">
-                {voci.map((v) => <div key={v.nome} className="min-w-0 rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5">
-                  <dt className="truncate text-[10px] font-semibold uppercase tracking-wide text-blue-100">{v.nome}</dt>
-                  <dd className="truncate text-base font-bold tabular-nums text-white">{v.valore}</dd>
-                  <dd className="truncate text-[11px] text-blue-50/70">{v.nota}</dd>
-                </div>)}
-              </dl>;
-            })()}
-            {!isGlobalStatsError && !isStatusesError && (!isMobile || !orderPerms.canViewOrderAmounts) && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
+            {/* Da telefono: gli stessi riquadri scelti dall'azienda, in forma compatta. */}
+            {!isGlobalStatsError && !isStatusesError && isMobile && <dl aria-label="Riepilogo commesse" className="grid grid-cols-2 gap-1.5">
+              {riquadriRiepilogo.map((id) => {
+                const v = valoriRiepilogo[id];
+                const voce = CATALOGO_RIQUADRI.find((c) => c.id === id);
+                const inAttesa = voce?.gruppo !== "commesse" ? numeriGeneraliPending
+                  : isEconomicStatsLoading || ((voce?.permesso === "costi" || voce?.permesso === "margini") && scopeMarginsPending);
+                return <div key={id} data-riquadro={id} className="min-w-0 rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5">
+                  <dt className="truncate text-[10px] font-semibold uppercase tracking-wide text-blue-100">{v.titolo}</dt>
+                  <dd className="truncate text-base font-bold tabular-nums text-white">{inAttesa ? "—" : v.valore}</dd>
+                  <dd className="truncate text-[11px] text-blue-50/70">{inAttesa ? "" : v.nota}</dd>
+                </div>;
+              })}
+            </dl>}
+            {!isGlobalStatsError && !isStatusesError && !isMobile && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
               {riquadriRiepilogo.map((id) => {
                 const v = valoriRiepilogo[id];
                 const Icona = v.icona;
