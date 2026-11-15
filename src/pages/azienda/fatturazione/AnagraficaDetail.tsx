@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, Pencil } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { DatiFiscaliClienteDialog } from "@/components/clients/DatiFiscaliClienteDialog";
+import { UfficiPaCard } from "@/components/clients/UfficiPaCard";
+import { useUfficiPa } from "@/hooks/useUfficiPa";
+import { etichettaTipoCliente, formDaAnagrafica } from "@/lib/clienti/clienteFiscale";
 import type { AnagraficaNative } from "@/types/fatturazione";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -54,6 +59,14 @@ export default function AnagraficaDetail() {
   const { data: movimentiData } = useMovimentiCassaByDocIds(docIds);
   const movimentiFiltered = movimentiData ?? [];
 
+  // Modifica secondo i permessi che già esistono: clienti o fatturazione, mai in sola lettura.
+  const permessi = usePermissions();
+  const puoModificare =
+    !permessi.isLoading && !permessi.solaLettura && (permessi.isAdmin || permessi.canEditCustomers || permessi.canViewBilling);
+  const [modifica, setModifica] = useState(false);
+  const anaPa = (rawData as { tipo_cliente?: string } | undefined)?.tipo_cliente === "PA";
+  const { tutti: uffici } = useUfficiPa(anaPa ? id : null);
+
   if (isLoading || !anagrafica) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -82,20 +95,34 @@ export default function AnagraficaDetail() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{displayName}</h1>
-            <Badge variant="secondary">{anagrafica.tipo_cliente}</Badge>
+            <Badge variant="secondary">{etichettaTipoCliente(anagrafica.tipo_cliente)}</Badge>
             <Badge variant={anagrafica.attivo ? "default" : "secondary"}>
               {anagrafica.attivo ? "Attivo" : "Inattivo"}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground font-mono">{anagrafica.partita_iva ?? "—"}</p>
         </div>
+        {puoModificare && (
+          <Button size="sm" variant="outline" onClick={() => setModifica(true)}>
+            <Pencil className="h-4 w-4 mr-1" /> Modifica
+          </Button>
+        )}
         <Button size="sm" onClick={() => navigate(`/azienda/documenti/nuovo?tipo=fattura`)}>
           <FileText className="h-4 w-4 mr-1" /> Nuova fattura
         </Button>
       </div>
 
       {/* KPI */}
-      <div className="grid grid-cols-4 gap-4">
+      <DatiFiscaliClienteDialog
+        open={modifica}
+        onOpenChange={setModifica}
+        iniziale={formDaAnagrafica(rawData as Record<string, unknown>)}
+        clienteId={anagrafica.cliente_id ?? null}
+        anagraficaId={anagrafica.id}
+        chiediUfficio={!anaPa || uffici.length === 0}
+      />
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Fatturato totale</p>
@@ -147,7 +174,7 @@ export default function AnagraficaDetail() {
         </TabsList>
 
         <TabsContent value="dati" className="mt-4">
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-6">
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-sm">Dati anagrafici</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
@@ -155,7 +182,7 @@ export default function AnagraficaDetail() {
                 <Row label="Nome" value={anagrafica.nome} />
                 <Row label="Cognome" value={anagrafica.cognome} />
                 <Row label="Forma giuridica" value={anagrafica.forma_giuridica} />
-                <Row label="Tipo soggetto" value={anagrafica.tipo_soggetto} />
+                <Row label="Tipo cliente" value={etichettaTipoCliente(anagrafica.tipo_cliente)} />
               </CardContent>
             </Card>
             <Card>
@@ -163,8 +190,19 @@ export default function AnagraficaDetail() {
               <CardContent className="space-y-2 text-sm">
                 <Row label="P.IVA" value={anagrafica.partita_iva} mono />
                 <Row label="Codice fiscale" value={anagrafica.codice_fiscale} mono />
-                <Row label="Codice SDI" value={anagrafica.codice_sdi} mono />
+                <Row
+                  label={anaPa ? "Codice univoco ufficio (predefinito)" : "Codice destinatario"}
+                  value={anagrafica.codice_sdi}
+                  mono
+                />
                 <Row label="PEC" value={anagrafica.pec} />
+                {anaPa && <Row label="Codice IPA dell'ente" value={anagrafica.codice_ipa} mono />}
+                {anaPa && (
+                  <Row
+                    label="Split payment"
+                    value={anagrafica.split_payment == null ? "Come l'impostazione dell'azienda" : anagrafica.split_payment ? "Sì" : "No"}
+                  />
+                )}
               </CardContent>
             </Card>
             <Card>
@@ -182,10 +220,17 @@ export default function AnagraficaDetail() {
               <CardContent className="space-y-2 text-sm">
                 <Row label="Email" value={anagrafica.email} />
                 <Row label="Telefono" value={anagrafica.telefono} />
+                <Row label="Referente amministrativo" value={anagrafica.referente_amministrativo} />
+                <Row label="Email amministrazione" value={anagrafica.email_fatture} />
                 <Row label="IBAN" value={anagrafica.iban_cliente} mono />
                 <Row label="Sito web" value={anagrafica.sito_web} />
               </CardContent>
             </Card>
+            {anaPa && (
+              <div className="sm:col-span-2">
+                <UfficiPaCard anagraficaId={anagrafica.id} puoModificare={puoModificare} />
+              </div>
+            )}
           </div>
         </TabsContent>
 

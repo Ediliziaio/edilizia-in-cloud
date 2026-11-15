@@ -38,6 +38,9 @@ import { descriviMotivi, nomeCliente } from "@/lib/clienti/duplicati";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { CampiClienteFiscale, SceltaTipoCliente } from "@/components/clients/CampiClienteFiscale";
+import { etichettaTipoCliente, problemiClienteFiscale, type ClienteFiscaleForm, type TipoClienteFiscale } from "@/lib/clienti/clienteFiscale";
+import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
 
 // Regex client-side (resta comunque validato server-side)
 const PHONE_CLEAN_REGEX = /[\u200B-\u200D\uFEFF]/g; // caratteri invisibili
@@ -71,7 +74,14 @@ export default function CreateCustomer() {
   );
   const isAppaltatore = appaltatoreEnabled && customerType === "appaltatore";
 
-  const [isBusiness, setIsBusiness] = useState(false);
+  // Privato / Azienda / Pubblica Amministrazione (lotto 1, 15/11/2026): il tipo
+  // finisce in anagrafiche_native.tipo_cliente e decide il formato della fattura.
+  const [tipoFiscale, setTipoFiscale] = useState<TipoClienteFiscale>("B2C");
+  const isBusiness = tipoFiscale !== "B2C";
+  const isPa = tipoFiscale === "PA";
+  const setIsBusiness = (b: boolean) => setTipoFiscale((t) => (b ? (t === "B2C" ? "B2B" : t) : "B2C"));
+  // PEC, codice destinatario, contatti amministrativi, IPA, split, primo ufficio.
+  const [extraFiscali, setExtraFiscali] = useState<Partial<ClienteFiscaleForm>>({ split: "azienda" });
   const [businessName, setBusinessName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -183,6 +193,29 @@ export default function CreateCustomer() {
 
   const shouldRequireEmail = companyPortalEnabled && createPortalAccount;
 
+  const formFiscale: ClienteFiscaleForm = {
+    ...extraFiscali,
+    tipo: tipoFiscale,
+    nome: firstName,
+    cognome: lastName,
+    ragioneSociale: businessName,
+    partitaIva: vatNumber,
+    codiceFiscale: fiscalCode,
+    email,
+    telefono: phone,
+    indirizzoVia: custAddresses.billing.address_line,
+    indirizzoCap: custAddresses.billing.address_postal_code,
+    indirizzoComune: custAddresses.billing.address_city,
+    indirizzoProvincia: custAddresses.billing.address_province,
+    indirizzoNazione: custAddresses.billing.address_country || "IT",
+  };
+  // Nome, email, P.IVA e CF hanno già i loro controlli qui sopra: qui i campi del tipo.
+  const erroriFiscali = problemiClienteFiscale(formFiscale);
+  const erroreFiscaleBloccante = erroriFiscali.codiceFiscale && isPa
+    ? erroriFiscali.codiceFiscale
+    : Object.entries(erroriFiscali).find(([k]) =>
+        ["pec", "codiceDestinatario", "emailAmministrazione", "codiceIpa", "ufficioCodice"].includes(k))?.[1] ?? null;
+
   const canSubmit =
     canCreate && !showSuccessDialog &&
     (isBusiness ? businessName.trim().length > 0 : (firstName.trim().length > 0 && lastName.trim().length > 0)) &&
@@ -191,6 +224,7 @@ export default function CreateCustomer() {
     !phoneError &&
     !vatError &&
     !fiscalCodeError &&
+    !erroreFiscaleBloccante &&
     !!effectiveCompany?.id &&
     !isSubmitting;
 
@@ -232,6 +266,10 @@ export default function CreateCustomer() {
     }
     if (fiscalCodeError) {
       toast({ title: "Codice fiscale non valido", description: fiscalCodeError, variant: "destructive" });
+      return;
+    }
+    if (erroreFiscaleBloccante) {
+      toast({ title: "Dati per la fattura da correggere", description: erroreFiscaleBloccante, variant: "destructive" });
       return;
     }
     if (simili.length > 0 && !confermaValida) {
@@ -294,6 +332,21 @@ export default function CreateCustomer() {
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
 
       const newCustomerId = data?.customer?.id ?? data?.customer_id ?? data?.user_id;
+
+      // Un cliente che fattura ha sempre la sua anagrafica fiscale, collegata.
+      if (newCustomerId) {
+        try {
+          // aggiornaProfilo: il server sposta un CF di 11 cifre nella P.IVA (regola per le società): per un ente è sbagliato.
+          await salvaClienteFiscale({ clienteId: newCustomerId, form: formFiscale, conUfficio: isPa, aggiornaProfilo: true });
+        } catch (fiscErr) {
+          logger.error("Anagrafica fiscale non creata:", fiscErr);
+          toast({
+            title: "Cliente creato, dati per la fattura non salvati",
+            description: `${fiscErr instanceof Error ? fiscErr.message : String(fiscErr)}. Completali dalla scheda cliente.`,
+            variant: "destructive",
+          });
+        }
+      }
       if (selectedDocumentCount > 0) {
         if (!newCustomerId) {
           toast({
@@ -427,22 +480,16 @@ export default function CreateCustomer() {
                   </div>
                 )}
 
-                {/* Tipo cliente persona/azienda — nascosto se Appaltatore (forzato a azienda) */}
+                {/* Tipo cliente Privato / Azienda / PA — nascosto se Appaltatore (forzato a azienda) */}
                 {!isAppaltatore && (
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground uppercase tracking-wide">Tipo cliente</Label>
-                    <Tabs value={isBusiness ? "business" : "person"} onValueChange={(v) => setIsBusiness(v === "business")}>
-                      <TabsList className="grid grid-cols-2 w-full">
-                        <TabsTrigger value="person">
-                          <UserIcon className="h-3.5 w-3.5 mr-1.5" />
-                          Persona fisica
-                        </TabsTrigger>
-                        <TabsTrigger value="business">
-                          <Building2 className="h-3.5 w-3.5 mr-1.5" />
-                          Azienda / P. IVA
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
+                    <SceltaTipoCliente value={tipoFiscale} onChange={setTipoFiscale} />
+                    {isPa && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Ente pubblico: la fattura elettronica va al codice univoco dell'ufficio (FPA12).
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -451,13 +498,13 @@ export default function CreateCustomer() {
                   <div className="space-y-2">
                     <Label htmlFor="businessName" className="flex items-center gap-1.5">
                       <Building2 className="h-3.5 w-3.5" />
-                      Ragione sociale *
+                      {isPa ? "Denominazione dell'ente *" : "Ragione sociale *"}
                     </Label>
                     <Input
                       id="businessName"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
-                      placeholder="Es. Rossi Costruzioni S.r.l."
+                      placeholder={isPa ? "Es. Comune di Bologna" : "Es. Rossi Costruzioni S.r.l."}
                       maxLength={200}
                       required
                     />
@@ -537,7 +584,7 @@ export default function CreateCustomer() {
                   <div className="space-y-2">
                     <Label htmlFor="vatNumber" className="flex items-center gap-1.5">
                       <CreditCard className="h-3.5 w-3.5" />
-                      Partita IVA
+                      {isPa ? "Partita IVA (facoltativa)" : "Partita IVA"}
                     </Label>
                     <Input
                       id="vatNumber"
@@ -555,7 +602,7 @@ export default function CreateCustomer() {
                 <div className="space-y-2">
                   <Label htmlFor="fiscalCode" className="flex items-center gap-1.5">
                     <CreditCard className="h-3.5 w-3.5" />
-                    Codice Fiscale
+                    {isPa ? "Codice fiscale dell'ente *" : isBusiness ? "Codice fiscale (se diverso dalla P.IVA)" : "Codice Fiscale"}
                   </Label>
                   <Input
                     id="fiscalCode"
@@ -566,7 +613,36 @@ export default function CreateCustomer() {
                     aria-invalid={!!fiscalCodeError}
                   />
                   {fiscalCodeError && <p className="text-xs text-destructive">{fiscalCodeError}</p>}
+                  {!fiscalCodeError && isPa && erroriFiscali.codiceFiscale && fiscalCode.trim() && (
+                    <p className="text-xs text-destructive">{erroriFiscali.codiceFiscale}</p>
+                  )}
                 </div>
+
+                {isBusiness && (
+                  <CampiClienteFiscale
+                    soloExtra
+                    conUfficio={isPa}
+                    value={formFiscale}
+                    onChange={(v) =>
+                      setExtraFiscali({
+                        pec: v.pec,
+                        codiceDestinatario: v.codiceDestinatario,
+                        referenteAmministrativo: v.referenteAmministrativo,
+                        emailAmministrazione: v.emailAmministrazione,
+                        codiceIpa: v.codiceIpa,
+                        split: v.split,
+                        ufficioCodice: v.ufficioCodice,
+                        ufficioDescrizione: v.ufficioDescrizione,
+                      })
+                    }
+                    errori={Object.fromEntries(
+                      Object.entries(erroriFiscali).filter(([k, val]) => {
+                        const scritto = (formFiscale as unknown as Record<string, unknown>)[k];
+                        return typeof scritto === "string" && scritto.trim() !== "" && !!val;
+                      }),
+                    )}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -646,9 +722,7 @@ export default function CreateCustomer() {
                   <span className="font-medium text-right">
                     {isAppaltatore
                       ? "Committente"
-                      : isBusiness
-                        ? "Azienda"
-                        : "Persona fisica"}
+                      : etichettaTipoCliente(tipoFiscale)}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-3">

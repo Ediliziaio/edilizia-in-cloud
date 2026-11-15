@@ -34278,6 +34278,78 @@ export type Database = {
           },
         ]
       }
+      costi_orari_storico: {
+        Row: {
+          company_id: string
+          costo_orario: number | null
+          id: string
+          origine: string
+          registrato_da: string | null
+          registrato_il: string
+          risorsa_id: string
+          tipo: string
+          valido_dal: string
+        }
+        Insert: {
+          company_id: string
+          costo_orario?: number | null
+          id?: string
+          origine: string
+          registrato_da?: string | null
+          registrato_il?: string
+          risorsa_id: string
+          tipo: string
+          valido_dal: string
+        }
+        Update: {
+          company_id?: string
+          costo_orario?: number | null
+          id?: string
+          origine?: string
+          registrato_da?: string | null
+          registrato_il?: string
+          risorsa_id?: string
+          tipo?: string
+          valido_dal?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costi_orari_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "costi_orari_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "costi_orari_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "costi_orari_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "costi_orari_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       costo_personale_parametri: {
         Row: {
           altri: number

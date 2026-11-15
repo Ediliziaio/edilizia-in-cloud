@@ -427,6 +427,12 @@ export interface AnagraficaNative {
   bic_cliente?: string;
   cig?: string;
   cup?: string;
+  /** null = decide l'impostazione dell'azienda (lotto 1, 15/11/2026). */
+  split_payment?: boolean | null;
+  /** Codice dell'ente in IPA, non il codice ufficio. */
+  codice_ipa?: string | null;
+  referente_amministrativo?: string | null;
+  tipo_confermato_at?: string | null;
   fatturato_totale: number;
   numero_fatture: number;
   ultima_fattura_at?: string;

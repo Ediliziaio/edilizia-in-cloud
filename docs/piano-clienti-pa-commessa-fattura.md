@@ -65,6 +65,31 @@ Test: `fatturaPaXml.test.ts` copre solo un cliente azienda; `invioSdiFlussoCompl
 - Si sceglie l'ufficio nella commessa e nella fattura; il predefinito si propone da solo.
 - Rinominare «Codice IPA (SDI)» in «Codice Univoco Ufficio».
 
+### Lotti 1 e 2 — fatti il 15/11/2026: stato e contratto dello schema
+
+Migrazioni `20290410200000_anagrafica_tipo_cliente_pa`, `20290410210000_anagrafica_uffici_pa` e `20290410220000_uffici_pa_ente_fisso_telefono_profilo`, applicate e riallineate. La terza impedisce di spostare un ufficio su un altro ente e concede `fish_customer_phone` ad `authenticated`: l'indice `fish_customer_phone_lookup_idx` su `profiles` la calcola, e senza il permesso le modifiche del profilo dal browser che toccano l'indice (telefono, P.IVA, CF…) fallivano dall'11/11.
+
+Controllo accessi (guardiano, 17 prove): nessun accesso tra aziende, utenti esterni, «solo campo» e subappaltatori esclusi; la RPC rifiuta profili non clienti e di altre aziende.
+
+Dati di prova su Demo Azienda 2: «PROVA Comune di Demolandia» (PA, uffici UFTST1 e UFTST2 predefinito, split no), «PROVA Mario Privato», «PROVA Costruzioni S.r.l.» (codice destinatario ABC1234), anagrafica senza cliente «PROVA Comune di Fintavilla» (confermata PA dall'elenco, ufficio UFFNT1).
+
+**Contratto per i lotti 3-5 (commessa, fattura, XML):**
+- **Tipo del cliente**: `anagrafiche_native.tipo_cliente` è la fonte — `B2C` = Privato, `B2B` = Azienda, `PA` = Pubblica Amministrazione, `Estero`. Etichette in `src/lib/clienti/clienteFiscale.ts` (`etichettaTipoCliente`). `tipo_soggetto` lo segue il trigger `anagrafica_allinea_tipo` (B2C→fisico, PA→pa, Estero→estero, B2B→giuridico, o fisico per la ditta individuale): non scriverlo a mano. `profiles.is_business` resta solo per la scheda (PA e azienda = true); `profiles.customer_type` (privato/appaltatore) è un'altra cosa (committente in subappalto).
+- **Colonne nuove su `anagrafiche_native`**: `split_payment boolean` (null = decide l'impostazione dell'azienda; true/false = scelto sul cliente), `codice_ipa text` (codice dell'ente in IPA, es. `c_h501`, **non** il codice ufficio), `referente_amministrativo text`, `tipo_confermato_at timestamptz` (qualcuno ha scelto il tipo a mano). Contatti amministrativi: `referente_amministrativo` + `email_fatture`.
+- **Uffici PA**: tabella `anagrafica_uffici_pa` (id, company_id, anagrafica_id → `anagrafiche_native` on delete cascade, descrizione, `codice_univoco_ufficio` CHECK `^[A-Z0-9]{6}$`, predefinito — uno solo per anagrafica, indice unico parziale —, attivo, note, created_at/updated_at; codice unico per anagrafica). RLS per azienda come `anagrafiche_native`; `company_id` lo mette il trigger dall'anagrafica. Il primo ufficio attivo diventa predefinito da solo; rendere predefinito uno toglie il segno agli altri; disattivare toglie il predefinito. Nel backup (nessuna tabella scoperta).
+- **Compatibilità**: per una PA `anagrafiche_native.codice_sdi` = codice del predefinito attivo (trigger `anagrafica_ufficio_pa_allinea`). XML e controlli di oggi continuano a leggere lì; il lotto 4 salverà sulla fattura l'ufficio scelto (es. `documenti_fiscali.ufficio_pa_id` + codice copiato) e smetterà di dipendere da `codice_sdi`.
+- **Salvataggio**: `salva_anagrafica_cliente(p_cliente_id uuid, p_dati jsonb) → uuid` (SECURITY DEFINER, permesso clienti o fatturazione, non sola lettura). Crea o aggiorna l'anagrafica **collegata** (`cliente_id`, `sync_from_cliente = false`), scrive solo le chiavi presenti, crea il primo ufficio da `ufficio_codice` o dal vecchio codice di 6 caratteri quando il tipo diventa PA. Da codice: `salvaClienteFiscale()` in `src/lib/clienti/salvaClienteFiscale.ts`.
+- **Fallback SQL** `generale_fattura_cliente`: con l'anagrafica il tipo viene da lì (PA compresa) e restituisce anche `split_payment`, `codice_ipa`, `ufficio_pa_id`, `ufficio_pa_descrizione`, con `codice_sdi` = ufficio predefinito; senza anagrafica indovina ancora B2B/B2C dalla P.IVA (il profilo non conosce la PA).
+- **Da riusare nei lotti 3-4**: `useUfficiPa(anagraficaId)` (`src/hooks/useUfficiPa.ts`: `uffici`, `tutti`, `predefinito`, `aggiungi`, `modifica`, `rendiPredefinito`, `disattiva`), `<SelettoreUfficioPa anagraficaId value onChange proponiPredefinito />` (`src/components/clients/SelettoreUfficioPa.tsx`), `ufficioDaProporre()` in `src/lib/clienti/ufficiPa.ts`.
+
+**Interfaccia:**
+- Nuovo cliente: scelta Privato / Azienda / Pubblica Amministrazione; per azienda e PA PEC, codice destinatario (solo azienda), referente ed email amministrazione; per la PA codice fiscale dell'ente obbligatorio, P.IVA facoltativa, codice IPA, split sì/no/come azienda, primo ufficio. Salvando nasce l'anagrafica collegata.
+- Scheda cliente: riquadro «Dati per la fattura» (tipo, codici, «Modifica»/«Completa», uffici PA); avvisa se la scheda dice persona e l'anagrafica azienda o viceversa.
+- Scheda anagrafica (`AnagraficaDetail`): «Modifica» per chi ha i permessi clienti o fatturazione; uffici PA (aggiungi, modifica, predefinito, disattiva).
+- Clienti fiscali: riquadro «N clienti sembrano enti pubblici» dalla vista `anagrafiche_pa_da_confermare` (codice di 6 caratteri o denominazione da ente). Il 15/11 sono 14, in 4 aziende (comuni, prefettura, capitaneria, scuola…), oggi fatturati come FPR12. Nessuno è stato riclassificato: si conferma dalla scheda e si esce dall'elenco.
+
+**Resta fuori (file di altre sessioni):** l'etichetta «Codice IPA (SDI)» nell'editor fattura (`EditorClienteSection.tsx`) va rinominata «Codice univoco ufficio» e l'editor deve usare `SelettoreUfficioPa` (lotto 4); lo split della fattura deve partire da `anagrafiche_native.split_payment` (lotto 0/4).
+
 ### Lotto 3 — Commessa: «Dati appalto e fatturazione PA»
 - Riferimenti come **righe** (più CIG/CUP/lotti per commessa): tipo (contratto / ordine d'acquisto / convenzione), numero, data, CIG, CUP, lotto, determina, impegno di spesa, ufficio destinatario, note. «CIG non dovuto» e «CUP non dovuto» espliciti, senza valori finti.
 - Attivabile anche per privati e aziende (es. finanziamento pubblico con CUP).

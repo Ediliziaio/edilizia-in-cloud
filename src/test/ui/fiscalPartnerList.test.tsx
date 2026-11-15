@@ -31,6 +31,9 @@ vi.mock("@/hooks/useAnagraficheNative", () => ({
 vi.mock("@/components/fatturazione/PartnerReconciliationPanel", () => ({
   PartnerReconciliationPanel: () : null => null,
 }));
+vi.mock("@/components/fatturazione/PaDaConfermare", () => ({
+  PaDaConfermare: () : null => null,
+}));
 import AnagraficheList from "@/pages/azienda/fatturazione/AnagraficheList";
 function Path() {
   return <span data-testid="path">{useLocation().pathname}</span>;

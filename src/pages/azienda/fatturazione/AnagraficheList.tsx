@@ -26,6 +26,8 @@ import { Search, Truck, Link2, ArrowRightLeft, Users } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { ClientiFiscaliImportatiTable } from "@/components/fatturazione/HubEsterno";
+import { PaDaConfermare } from "@/components/fatturazione/PaDaConfermare";
+import { etichettaTipoCliente } from "@/lib/clienti/clienteFiscale";
 
 const TIPO_COLORS: Record<string, string> = {
   B2B: "bg-blue-100 text-blue-700",
@@ -121,7 +123,8 @@ export default function AnagraficheList({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="anagrafiche">
+        <TabsContent value="anagrafiche" className="space-y-4">
+          {!esterna && <PaDaConfermare />}
           {esterna ? <ClientiFiscaliImportatiTable /> : <AnagraficheTable />}
         </TabsContent>
 
@@ -221,9 +224,9 @@ function AnagraficheTable() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutti i tipi</SelectItem>
-            <SelectItem value="B2B">B2B</SelectItem>
-            <SelectItem value="B2C">B2C</SelectItem>
-            <SelectItem value="PA">PA</SelectItem>
+            <SelectItem value="B2B">Azienda</SelectItem>
+            <SelectItem value="B2C">Privato</SelectItem>
+            <SelectItem value="PA">Pubblica Amministrazione</SelectItem>
             <SelectItem value="Estero">Estero</SelectItem>
           </SelectContent>
         </Select>
@@ -318,7 +321,7 @@ function AnagraficheTable() {
                           variant="secondary"
                           className={TIPO_COLORS[a.tipo_cliente] ?? ""}
                         >
-                          {a.tipo_cliente}
+                          {etichettaTipoCliente(a.tipo_cliente)}
                         </Badge>
                       </td>
                       <td className="p-3 text-right font-mono">

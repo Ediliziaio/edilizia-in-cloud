@@ -45,6 +45,7 @@ import { validatePartitaIva, validateCodiceFiscale } from "@/lib/italianFiscalVa
 import { queryKeys } from "@/lib/queryKeys";
 import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { campiDaCompletare, sembraAzienda } from "@/lib/clienti/anagraficaCliente";
+import { DatiFatturaCliente } from "@/components/clients/DatiFatturaCliente";
 
 /** Valore della voce «Non assegnato»: Radix Select non accetta la stringa vuota. */
 const NESSUN_AGENTE = "__nessuno";
@@ -453,6 +454,17 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved, perCommi
                       options={["persona", "azienda"]}
                     />
                   )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Collapsible: Dati per la fattura (tipo Privato / Azienda / PA, codici, uffici PA) */}
+              <Collapsible defaultOpen={!isMobile}>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                  <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                  Dati per la fattura
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-1">
+                  <DatiFatturaCliente customer={customer} puoModificare={puoModificare} />
                 </CollapsibleContent>
               </Collapsible>
 
