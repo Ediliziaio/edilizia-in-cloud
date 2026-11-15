@@ -20,6 +20,9 @@ export interface RotazioneData {
   rimanenze: number;
   ricavi: number;
   acquisti: number;
+  /** IVA compresa, come crediti e debiti: la base di DSO e DPO (dal 15/11/2026). */
+  ricavi_iva_compresa?: number;
+  acquisti_iva_compresa?: number;
   costo_venduto: number;
 }
 

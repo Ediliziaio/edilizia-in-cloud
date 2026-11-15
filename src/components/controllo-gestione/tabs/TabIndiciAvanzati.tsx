@@ -107,8 +107,9 @@ export function TabIndiciAvanzati({ anno }: Props) {
       crediti_clienti: Number(rotRpc.crediti_clienti ?? 0),
       debiti_fornitori: Number(rotRpc.debiti_fornitori ?? 0),
       rimanenze: Number(rotRpc.rimanenze ?? 0),
-      ricavi: Number(rotRpc.ricavi ?? 0),
-      acquisti: Number(rotRpc.acquisti ?? 0),
+      // Crediti e debiti sono IVA compresa: anche ricavi e acquisti, se il database li dà.
+      ricavi: Number(rotRpc.ricavi_iva_compresa ?? rotRpc.ricavi ?? 0),
+      acquisti: Number(rotRpc.acquisti_iva_compresa ?? rotRpc.acquisti ?? 0),
       costo_venduto: Number(rotRpc.costo_venduto ?? 0),
     },
     giorni,
@@ -205,7 +206,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
               icona={<Calendar className="h-4 w-4" />}
               righe={[
                 ["Crediti verso clienti", rotRpc.crediti_clienti],
-                ["Ricavi del periodo", rotRpc.ricavi],
+                rotRpc.ricavi_iva_compresa != null ? ["Ricavi del periodo, IVA compresa", rotRpc.ricavi_iva_compresa] : ["Ricavi del periodo", rotRpc.ricavi],
               ]}
               soglie="Fino a 60 giorni bene · oltre 90 critico"
             />
@@ -217,7 +218,7 @@ export function TabIndiciAvanzati({ anno }: Props) {
               icona={<Banknote className="h-4 w-4" />}
               righe={[
                 [rotRpc.debiti_fornitori_fonte === "scadenzario" ? "Debiti fornitori (scadenzario)" : "Debiti verso fornitori", rotRpc.debiti_fornitori],
-                ["Acquisti del periodo", rotRpc.acquisti],
+                rotRpc.acquisti_iva_compresa != null ? ["Acquisti del periodo, IVA compresa", rotRpc.acquisti_iva_compresa] : ["Acquisti del periodo", rotRpc.acquisti],
               ]}
               soglie="Da 60 giorni in su bene · sotto 30 paghi troppo presto"
               motivo={rot.motivoDpo}
