@@ -9,10 +9,13 @@ import {
   useConversionBySource,
   useTopLeads,
   useQuoteRevenue,
+  useRecalculateAllLeadScores,
   salesOSKeys,
 } from "@/hooks/useSalesOS";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, startOfMonth } from "date-fns";
+import { addDays, format, startOfMonth } from "date-fns";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { usePipelines } from "@/hooks/useOpportunitiesData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +68,7 @@ import { messaggioEsportazioneNonRiuscita, registraEsportazioneCrm } from "@/lib
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LeadScoringConfigForm } from "@/components/marketing/LeadScoringConfigForm";
-import { Settings2 } from "lucide-react";
+import { RefreshCw, Settings2 } from "lucide-react";
 import { getPeriodRange, PERIOD_OPTIONS, type SalesOSPeriod } from "@/lib/salesOSPeriod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
@@ -862,7 +865,44 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
   const { data: stalled, isLoading, isError, error } = useStalledOpportunities(companyId, pipelineId);
   const navigate = useNavigate();
   // Opportunità con il nome del contatto: CSV solo con «Esporta Clienti».
-  const { canExportClients } = usePermissions();
+  const { canExportClients, canEditMarketingOpportunities } = usePermissions();
+  const queryClient = useQueryClient();
+  // 15/11/2026: le ferme si rimettono in moto in blocco: prossima azione, entro quando e la
+  // data di chiusura prevista. Su Demo 2 66 trattative su 72 erano «da riprendere», quasi
+  // tutte senza prossima azione né data di chiusura.
+  const [scelte, setScelte] = useState<Set<string>>(new Set());
+  const [azione, setAzione] = useState("Richiamare il cliente");
+  const [entro, setEntro] = useState(() => format(addDays(new Date(), 2), "yyyy-MM-dd"));
+  const [chiusura, setChiusura] = useState("");
+  const [salvo, setSalvo] = useState(false);
+  const alterna = (id: string) =>
+    setScelte((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const applica = async () => {
+    if (!scelte.size || !azione.trim()) return;
+    setSalvo(true);
+    const { error: err } = await supabase
+      .from("marketing_opportunities")
+      .update({
+        next_action: azione.trim(),
+        next_action_date: entro || null,
+        ...(chiusura ? { expected_close_date: chiusura } : {}),
+      })
+      .eq("company_id", companyId)
+      .in("id", [...scelte]);
+    setSalvo(false);
+    if (err) {
+      toast.error(`Aggiornamento non riuscito: ${err.message}`);
+      return;
+    }
+    toast.success(`${scelte.size} ${scelte.size === 1 ? "trattativa aggiornata" : "trattative aggiornate"}`);
+    setScelte(new Set());
+    queryClient.invalidateQueries({ queryKey: salesOSKeys.all });
+  };
 
   const handleExport = async () => {
     if (!stalled?.length || !canExportClients) return;
@@ -941,9 +981,37 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
         );
       })}
     </div>
+    {canEditMarketingOpportunities && (
+      <div className="mb-2 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-3 max-sm:hidden">
+        <div className="min-w-[220px] flex-1">
+          <label htmlFor="ferme-azione" className="text-xs font-medium text-muted-foreground">Prossima azione</label>
+          <Input id="ferme-azione" value={azione} onChange={(e) => setAzione(e.target.value)} className="h-9" />
+        </div>
+        <div>
+          <label htmlFor="ferme-entro" className="text-xs font-medium text-muted-foreground">Entro</label>
+          <Input id="ferme-entro" type="date" value={entro} onChange={(e) => setEntro(e.target.value)} className="h-9 w-[150px]" />
+        </div>
+        <div>
+          <label htmlFor="ferme-chiusura" className="text-xs font-medium text-muted-foreground">Chiusura prevista</label>
+          <Input id="ferme-chiusura" type="date" value={chiusura} onChange={(e) => setChiusura(e.target.value)} className="h-9 w-[150px]" />
+        </div>
+        <Button size="sm" className="h-9" disabled={!scelte.size || !azione.trim() || salvo} onClick={applica}>
+          {salvo ? "Salvo…" : scelte.size ? `Applica a ${scelte.size}` : "Scegli le trattative"}
+        </Button>
+      </div>
+    )}
     <Table className="max-sm:hidden">
       <TableHeader>
         <TableRow>
+          {canEditMarketingOpportunities && (
+            <TableHead className="w-8">
+              <Checkbox
+                aria-label="Scegli tutte"
+                checked={stalled.length > 0 && scelte.size === stalled.length}
+                onCheckedChange={(v) => setScelte(v ? new Set(stalled.map((x) => x.opportunity_id)) : new Set())}
+              />
+            </TableHead>
+          )}
           <TableHead>Opportunità</TableHead>
           <TableHead>Fase</TableHead>
           <TableHead>Ferma da</TableHead>
@@ -962,6 +1030,15 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
               className="cursor-pointer hover:bg-muted/50"
               onClick={() => navigate(`/azienda/marketing/opportunita?apri=${s.opportunity_id}`)}
             >
+              {canEditMarketingOpportunities && (
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    aria-label={`Scegli ${s.opportunity_name}`}
+                    checked={scelte.has(s.opportunity_id)}
+                    onCheckedChange={() => alterna(s.opportunity_id)}
+                  />
+                </TableCell>
+              )}
               <TableCell>
                 <p className="font-medium text-sm">{s.opportunity_name}</p>
                 {s.contact_name && (
@@ -999,6 +1076,40 @@ function StalledOpportunitiesPanel({ companyId, pipelineId }: { companyId: strin
       </TableBody>
     </Table>
     </>
+  );
+}
+
+// ─── RicalcolaScore ───────────────────────────────────────────────────────────
+// 15/11/2026: «Score da configurare» portava qui, ma il ricalcolo stava solo nella Dashboard
+// Marketing (scheda Team): gli score restavano a 0 (Demo 2: 297 contatti, nessuno con lo score).
+
+function RicalcolaScore({ companyId }: { companyId: string }) {
+  const { canEditMarketingContacts } = usePermissions();
+  const ricalcola = useRecalculateAllLeadScores(companyId);
+  if (!canEditMarketingContacts) return null;
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium">Score dei contatti</p>
+          <p className="text-xs text-muted-foreground">Ricalcola con le regole qui sotto (o quelle di partenza, se non le hai cambiate).</p>
+        </div>
+        <Button
+          size="sm"
+          className="gap-1.5 shrink-0"
+          disabled={ricalcola.isPending}
+          onClick={() =>
+            ricalcola.mutate(undefined, {
+              onSuccess: (r) => toast.success(`Score ricalcolato per ${r.updated} contatti`),
+              onError: (e) => toast.error(e instanceof Error ? e.message : "Ricalcolo non riuscito"),
+            })
+          }
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${ricalcola.isPending ? "animate-spin" : ""}`} />
+          {ricalcola.isPending ? "Ricalcolo…" : "Ricalcola gli score"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1514,7 +1625,8 @@ export default function SalesOSDashboard() {
         </TabsContent>
 
         {/* TAB: Config Lead Scoring (Sprint 4) */}
-        <TabsContent value="config" className="mt-4">
+        <TabsContent value="config" className="mt-4 space-y-3">
+          <RicalcolaScore companyId={companyId} />
           <LeadScoringConfigForm companyId={companyId} />
         </TabsContent>
 
