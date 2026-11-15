@@ -320,50 +320,56 @@ export function RendicontoAppaltoPDF({
         </View>
 
         {/* 4. Il dettaglio: un raggruppamento per cantiere, riga tenue e non più fascia piena */}
-        {cantieri.map((c, i) => (
-          <View key={c.orderId} wrap style={i === 0 ? { marginTop: 14 } : undefined}>
-            {/* Intestazione, cantiere e almeno una riga insieme: a fondo pagina restava l'intestazione da sola (15/11/2026). */}
-            <View style={styles.thead} minPresenceAhead={90}>
-              <Text style={[styles.th, styles.cData]}>Data</Text>
-              <Text style={[styles.th, styles.cDesc]}>Descrizione</Text>
-              <Text style={[styles.th, styles.cUm]}>U.m.</Text>
-              <Text style={[styles.th, styles.cQta]}>Q.tà</Text>
-              <Text style={[styles.th, styles.cPrezzo]}>Prezzo</Text>
-              <Text style={[styles.th, styles.cImporto]}>Importo</Text>
-            </View>
-            <View style={styles.gruppo} wrap={false}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={st.tGruppoTesto}>{c.etichetta}</Text>
-                {c.codice && c.descrizione ? <Text style={[styles.infoTenue, { paddingHorizontal: tabella.paddingOrizzontale }]}>{c.descrizione}</Text> : null}
+        {cantieri.map((c, i) => {
+          const riga = (r: (typeof c.righe)[number]) => (
+            <View key={r.id} style={styles.tr} wrap={false}>
+              <Text style={[styles.td, styles.cData]}>{giornoIT(r.data)}</Text>
+              <View style={styles.cDesc}>
+                {/* La persona (la nota) una volta sola, sotto la voce: prima usciva anche in coda alla descrizione. */}
+                <Text style={styles.td}>{r.descrizione}</Text>
+                {r.extra_contratto ? <Text style={styles.extra}>Fuori contratto</Text> : null}
+                {notaPerCommittente(r.note) ? <Text style={styles.infoTenue}>{notaPerCommittente(r.note)}</Text> : null}
               </View>
-              <Text style={st.tGruppoTesto}>€ {soldi(c.totale)}</Text>
+              <Text style={[styles.td, styles.cUm]}>{etichettaUnita(r.unita_misura)}</Text>
+              <Text style={[styles.td, styles.cQta]}>{quantita(r.quantita)}</Text>
+              <Text style={[styles.td, styles.cPrezzo]}>
+                {soldi(r.prezzo_unitario)}
+                {Number(r.maggiorazione_pct) !== 0 ? ` +${quantita(r.maggiorazione_pct)}%` : ""}
+              </Text>
+              <Text style={[styles.td, styles.cImporto]}>{soldi(r.importo)}</Text>
             </View>
-
-            {c.righe.map((r) => (
-              <View key={r.id} style={styles.tr} wrap={false}>
-                <Text style={[styles.td, styles.cData]}>{giornoIT(r.data)}</Text>
-                <View style={styles.cDesc}>
-                  {/* La persona (la nota) una volta sola, sotto la voce: prima usciva anche in coda alla descrizione. */}
-                  <Text style={styles.td}>{r.descrizione}</Text>
-                  {r.extra_contratto ? <Text style={styles.extra}>Fuori contratto</Text> : null}
-                  {notaPerCommittente(r.note) ? <Text style={styles.infoTenue}>{notaPerCommittente(r.note)}</Text> : null}
+          );
+          return (
+            <View key={c.orderId} wrap style={i === 0 ? { marginTop: 14 } : undefined}>
+              {/* Intestazione, cantiere e prima riga in un blocco solo: a fondo pagina restava l'intestazione da sola
+                  (15/11/2026; minPresenceAhead non bastava). */}
+              <View wrap={false}>
+                <View style={styles.thead}>
+                  <Text style={[styles.th, styles.cData]}>Data</Text>
+                  <Text style={[styles.th, styles.cDesc]}>Descrizione</Text>
+                  <Text style={[styles.th, styles.cUm]}>U.m.</Text>
+                  <Text style={[styles.th, styles.cQta]}>Q.tà</Text>
+                  <Text style={[styles.th, styles.cPrezzo]}>Prezzo</Text>
+                  <Text style={[styles.th, styles.cImporto]}>Importo</Text>
                 </View>
-                <Text style={[styles.td, styles.cUm]}>{etichettaUnita(r.unita_misura)}</Text>
-                <Text style={[styles.td, styles.cQta]}>{quantita(r.quantita)}</Text>
-                <Text style={[styles.td, styles.cPrezzo]}>
-                  {soldi(r.prezzo_unitario)}
-                  {Number(r.maggiorazione_pct) !== 0 ? ` +${quantita(r.maggiorazione_pct)}%` : ""}
-                </Text>
-                <Text style={[styles.td, styles.cImporto]}>{soldi(r.importo)}</Text>
+                <View style={styles.gruppo}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={st.tGruppoTesto}>{c.etichetta}</Text>
+                    {c.codice && c.descrizione ? <Text style={[styles.infoTenue, { paddingHorizontal: tabella.paddingOrizzontale }]}>{c.descrizione}</Text> : null}
+                  </View>
+                  <Text style={st.tGruppoTesto}>€ {soldi(c.totale)}</Text>
+                </View>
+                {c.righe.slice(0, 1).map(riga)}
               </View>
-            ))}
+              {c.righe.slice(1).map(riga)}
 
-            <View style={styles.subtotale} wrap={false}>
-              <Text style={styles.totaleValore}>Totale {c.etichetta}</Text>
-              <Text style={styles.totaleValore}>€ {soldi(c.totale)}</Text>
+              <View style={styles.subtotale} wrap={false}>
+                <Text style={styles.totaleValore}>Totale {c.etichetta}</Text>
+                <Text style={styles.totaleValore}>€ {soldi(c.totale)}</Text>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
 
         {/* 5. Totali */}
         <View style={styles.totali} wrap={false}>
