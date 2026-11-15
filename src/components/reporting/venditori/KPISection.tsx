@@ -62,7 +62,8 @@ export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: 
     },
     {
       title: "Fatturato Generato",
-      value: formatCurrency(kpi?.fatturato_generato ?? 0),
+      // 15/11/2026: senza vendite vinte «—», come il tasso di chiusura accanto (0,00 € sembrava un dato).
+      value: (kpi?.opp_vinte ?? 0) > 0 ? formatCurrency(kpi?.fatturato_generato ?? 0) : "—",
       // Non è il «Ricavo firmato» di Sales OS, che conta i preventivi firmati.
       subtitle: `Valore delle opportunità vinte · pipeline aperta oggi ${formatCurrency(kpi?.pipeline_valore ?? 0)}`,
       icon: Euro,
@@ -71,7 +72,7 @@ export function KPISection({ kpi, isLoading, precedente, etichettaPrecedente }: 
     },
     {
       title: "Importo Medio Chiusura",
-      value: formatCurrency(kpi?.importo_medio_chiusura ?? 0),
+      value: (kpi?.opp_vinte ?? 0) > 0 ? formatCurrency(kpi?.importo_medio_chiusura ?? 0) : "—",
       subtitle: `Su ${kpi?.opp_vinte ?? 0} opportunità vinte`,
       icon: TrendingUp,
       colorKey: "blue" as ColorKey,

@@ -261,7 +261,7 @@ export function CrmSalesReportPanel({
           <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-3xl max-sm:grid-cols-2 max-sm:gap-2">
             <ExecutiveKpi
               icon={CircleDollarSign}
-              label="Fatturato attribuito"
+              label="Fatturato da Meta e Google"
               value={formatMoney(ads.totals.revenueCents)}
               detail={`${ads.totals.won} vendite vinte da Meta + Google`}
               loading={loading}
@@ -339,7 +339,8 @@ export function CrmSalesReportPanel({
           <div className="grid grid-cols-2 gap-3 self-start max-sm:grid-cols-3 max-sm:gap-2">
             <MiniMetric label="Fatturato comm." value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
             <MiniMetric label="Ticket medio" value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
-            <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
+            {/* 0 €/g voleva dire «non calcolabile» (nessuna vendita chiusa), non zero. */}
+            <MiniMetric label="Sales velocity" value={salesEff.velocityCentsPerDay > 0 ? `${formatMoney(salesEff.velocityCentsPerDay)}/g` : "—"} loading={commercial.isLoading} />
             {!commercial.isLoading && (report.forecast.monthlyTargetCents ?? 0) > 0 && (
               <div className="col-span-2 max-sm:col-span-3">
                 <ObiettivoMese vintoCents={report.forecast.wonThisMonthCents ?? 0} obiettivoCents={report.forecast.monthlyTargetCents ?? 0} />
@@ -527,7 +528,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if (report.sync.healthScore < 90) {
     actions.push({
       title: "Prima rendi affidabile il CRM",
-      detail: `${report.sync.totalIssues} criticità bloccano una lettura pulita: collega preventivi, opportunità e appuntamenti prima di scalare budget.`,
+      detail: `${report.sync.totalIssues} collegamenti mancanti tra preventivi, opportunità e appuntamenti.`,
       tone: report.sync.healthScore < 70 ? "critical" : "warning",
     });
   }
@@ -535,7 +536,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if (report.forecast.openWithoutNextStep > 0) {
     actions.push({
       title: "Assegna un prossimo step alla pipeline aperta",
-      detail: `${report.forecast.openWithoutNextStep} opportunità aperte non hanno una prossima azione: sono soldi in pipeline ma senza guida commerciale.`,
+      detail: `${report.forecast.openWithoutNextStep} opportunità aperte senza prossima azione.`,
       tone: "warning",
     });
   }
@@ -543,7 +544,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if (report.leadQuality.total > 0 && report.leadQuality.poor >= report.leadQuality.good) {
     actions.push({
       title: "Rivedi la qualità dei lead prima dei volumi",
-      detail: `${report.leadQuality.poor} lead risultano scarsi su ${report.leadQuality.total}: controlla zona, urgenza, budget e campagna sorgente.`,
+      detail: `${report.leadQuality.poor} lead scarsi su ${report.leadQuality.total}: guarda zona, urgenza, budget e campagna.`,
       tone: "warning",
     });
   }
@@ -551,7 +552,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if ((adsTotals.leads > 0 || adsTotals.won > 0) && adsTotals.spendCents === 0) {
     actions.push({
       title: "Importa la spesa Ads per leggere CPA e ROAS",
-      detail: "Ci sono lead o vendite attribuite, ma la spesa risulta a zero: collega i costi campagna prima di giudicare costo appuntamento e ritorno.",
+      detail: "Lead o vendite da Ads ma spesa a zero: senza i costi CPA e ROAS non si calcolano.",
       tone: "info",
     });
   }
@@ -559,7 +560,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if (report.margin.coveragePct < 80) {
     actions.push({
       title: "Completa margini e costi interni",
-      detail: `Copertura margine al ${report.margin.coveragePct}%: senza margine reale il fatturato non basta per decidere cosa scalare.`,
+      detail: `Margine noto sul ${report.margin.coveragePct}% del fatturato.`,
       tone: "info",
     });
   }
@@ -567,7 +568,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if (adsTotals.leads > 0 && adsTotals.won === 0) {
     actions.push({
       title: "Non giudicare le Ads solo dal CPL",
-      detail: `${adsTotals.leads} lead paid non hanno ancora vendite vinte attribuite: prima verifica follow-up e preventivi, poi ottimizzi creatività e budget.`,
+      detail: `${adsTotals.leads} lead da Ads senza vendite: prima follow-up e preventivi, poi creatività e budget.`,
       tone: "warning",
     });
   }
@@ -575,7 +576,7 @@ export function buildPriorityActions(report: CommercialPerformanceReport, adsTot
   if (!actions.length) {
     actions.push({
       title: "Sistema leggibile: puoi ottimizzare le campagne",
-      detail: "CRM, pipeline e margini sono abbastanza puliti: ora confronta ROAS, costo vendita e qualità lead per decidere dove spingere.",
+      detail: "Dati puliti: confronta ROAS, costo vendita e qualità lead.",
       tone: "good",
     });
   }
@@ -659,7 +660,10 @@ function FocusCard({
 }
 
 function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
-  const max = Math.max(conv.lead, 1);
+  // 15/11/2026: la barra più lunga è lo stadio più grande (gli appuntamenti possono superare i
+  // lead del periodo: comprendono lead arrivati prima), e un passaggio sopra il 100% non è una
+  // conversione: si scrive che lo stadio comprende contatti di prima.
+  const max = Math.max(conv.lead, conv.appuntamenti, conv.preventivi, conv.vinti, 1);
   const stages: Array<{ label: string; value: number; conv: number | null }> = [
     { label: "Lead", value: conv.lead, conv: null },
     { label: "1° appuntamento", value: conv.appuntamenti, conv: conv.convLeadAppt },
@@ -676,9 +680,14 @@ function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
               <span className="font-medium text-muted-foreground">{s.label}</span>
               <span className="tabular-nums text-muted-foreground">
                 <span className="font-semibold text-foreground">{s.value}</span>
-                {s.conv != null && (
+                {s.conv != null && s.conv <= 100 && (
                   <span className="ml-2 text-muted-foreground/80">
                     {s.conv}%<span className="max-sm:hidden"> dal precedente</span>
+                  </span>
+                )}
+                {s.conv != null && s.conv > 100 && (
+                  <span className="ml-2 text-muted-foreground/80" title="Più dello stadio precedente: comprende contatti arrivati prima del periodo.">
+                    anche contatti di prima
                   </span>
                 )}
               </span>
