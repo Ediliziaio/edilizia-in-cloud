@@ -5,9 +5,7 @@ import {
   HardHat,
   PackageCheck,
   ReceiptText,
-  ShieldCheck,
   Users,
-  Wallet,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { AspettoOperativoProvider } from "../design/ContestoOperativo";
@@ -24,6 +22,42 @@ import { MovimentiOperazione } from "./MovimentiOperazione";
 
 /** Valore del selettore per «tutta l'operazione»: generale e figlie insieme, sola lettura. */
 const TUTTA = "__tutta__";
+
+/**
+ * Le schede del cantiere (15/11/2026: erano otto, sono quattro). Le sezioni di prima restano
+ * come parti di una scheda: un collegamento vecchio (?vista-cantiere=pagamenti) apre la scheda
+ * che la contiene e scorre fino alla sezione.
+ */
+type Scheda = "rapportini" | "acquisti" | "contabilita" | "squadre";
+const SCHEDA_DELLA_SEZIONE: Record<string, Scheda> = {
+  rapportini: "rapportini",
+  lavorazioni: "rapportini",
+  acquisti: "acquisti",
+  forniture: "acquisti",
+  controllo: "acquisti",
+  contabilita: "contabilita",
+  fatture: "contabilita",
+  pagamenti: "contabilita",
+  squadre: "squadre",
+  subappalti: "squadre",
+};
+/** In «Tutta l'operazione» ogni scheda ha il suo elenco unico. */
+const VISTA_OPERAZIONE: Record<Scheda, string> = {
+  rapportini: "rapportini",
+  acquisti: "forniture",
+  contabilita: "fatture",
+  squadre: "squadre",
+};
+
+/** Una parte di una scheda, col suo titolo: è il bersaglio dei collegamenti alle sezioni di prima. */
+function Sezione({ id, titolo, children }: { id: string; titolo: string; children: React.ReactNode }) {
+  return (
+    <section id={`cantiere-${id}`} aria-labelledby={`cantiere-${id}-titolo`} className="scroll-mt-24 space-y-3">
+      <h3 id={`cantiere-${id}-titolo`} className="generale-cantiere-sezione">{titolo}</h3>
+      {children}
+    </section>
+  );
+}
 
 const RapportiniUfficio = lazy(() =>
   import("@/components/orders/RapportiniUfficio").then((m) => ({
@@ -89,23 +123,25 @@ const Riconciliazione = lazy(() =>
 export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const g = riepilogo.generale;
   const [parametri, setParametri] = useSearchParams();
-  const viste = [
-    "rapportini",
-    "forniture",
-    "squadre",
-    "lavorazioni",
-    ...(riepilogo.permessi.costi
-      ? ["fatture", "pagamenti", "subappalti", "controllo"]
-      : []),
-  ];
-  const richiesta = parametri.get("vista-cantiere");
-  const vista =
-    richiesta && viste.includes(richiesta) ? richiesta : "rapportini";
+  const costi = riepilogo.permessi.costi;
+  const richiesta = parametri.get("vista-cantiere") ?? "";
+  const scheda: Scheda = (() => {
+    const s = SCHEDA_DELLA_SEZIONE[richiesta];
+    // Senza il permesso dei costi la scheda delle fatture non c'è.
+    return !s || (s === "contabilita" && !costi) ? "rapportini" : s;
+  })();
+  const vista = scheda;
   const setVista = (x: string) => {
     const p = new URLSearchParams(parametri);
     p.set("vista-cantiere", x);
     setParametri(p, { replace: true });
   };
+  // Un collegamento a una sezione di prima (pagamenti, controllo…) scorre fino a lei.
+  useEffect(() => {
+    if (!richiesta || richiesta === scheda) return;
+    const t = window.setTimeout(() => document.getElementById(`cantiere-${richiesta}`)?.scrollIntoView({ block: "start" }), 300);
+    return () => window.clearTimeout(t);
+  }, [richiesta, scheda]);
   const [ambito, setAmbito] = useState(g.id);
   const tutta = ambito === TUTTA && riepilogo.figlie.length > 0;
   const scelto =
@@ -115,9 +151,9 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   useEffect(() => {
-    if (vista === "controllo")
+    if (vista === "acquisti" && costi)
       void qc.invalidateQueries({ queryKey: ["generale-controllo-forniture"] });
-  }, [qc, vista, orderId]);
+  }, [qc, vista, orderId, costi]);
   // Native mutations predate general projects. Refresh their consolidated figures when leaving the site workspace.
   useEffect(
     () => () => {
@@ -147,40 +183,22 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
             >
               <TabsTrigger value="rapportini">
                 <ClipboardList className="mr-2 h-4 w-4" />
-                Rapportini e bolle
+                Rapportini e lavorazioni
               </TabsTrigger>
-              <TabsTrigger value="forniture">
+              <TabsTrigger value="acquisti">
                 <PackageCheck className="mr-2 h-4 w-4" />
-                Forniture e DDT
+                Acquisti e DDT
               </TabsTrigger>
-              <TabsTrigger value="squadre">
-                <HardHat className="mr-2 h-4 w-4" />
-                Squadre e accessi
-              </TabsTrigger>
-              <TabsTrigger value="lavorazioni">
-                <ClipboardList aria-hidden="true" />
-                Lavorazioni e contratti
-              </TabsTrigger>
-              {riepilogo.permessi.costi && (
-                <>
-                  <TabsTrigger value="fatture">
-                    <ReceiptText aria-hidden="true" />
-                    Fatture e costi
-                  </TabsTrigger>
-                  <TabsTrigger value="pagamenti">
-                    <Wallet aria-hidden="true" />
-                    Pagamenti
-                  </TabsTrigger>
-                  <TabsTrigger value="subappalti">
-                    <Users aria-hidden="true" />
-                    Subappaltatori
-                  </TabsTrigger>
-                  <TabsTrigger value="controllo">
-                    <ShieldCheck aria-hidden="true" />
-                    Controllo forniture
-                  </TabsTrigger>
-                </>
+              {costi && (
+                <TabsTrigger value="contabilita">
+                  <ReceiptText aria-hidden="true" />
+                  Fatture e pagamenti
+                </TabsTrigger>
               )}
+              <TabsTrigger value="squadre">
+                <Users aria-hidden="true" />
+                Squadre e ditte
+              </TabsTrigger>
             </TabsList>
             <div className="generale-toolbar">
               <label className="mt-4 block max-w-xl text-sm font-medium">
@@ -226,61 +244,62 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
             </div>
 
             <Suspense fallback={<Skeleton className="mt-4 h-64 w-full" />}>
-              {tutta ? (
+                {tutta ? (
                 <div className="pt-2">
-                  <MovimentiOperazione riepilogo={riepilogo} vista={vista} onApri={setAmbito} />
+                  <MovimentiOperazione riepilogo={riepilogo} vista={VISTA_OPERAZIONE[scheda]} onApri={setAmbito} />
                 </div>
               ) : (
               <>
-              <TabsContent value="rapportini" className="space-y-4 pt-2">
-                {puoModificare && (
-                  <RapportiniUfficio
+              <TabsContent value="rapportini" className="space-y-6 pt-2">
+                <Sezione id="rapportini" titolo="Rapportini">
+                  {puoModificare && (
+                    <RapportiniUfficio
+                      key={orderId}
+                      orderId={orderId}
+                      className="border"
+                    />
+                  )}
+                  <DaApprovare key={`approva-${orderId}`} orderId={orderId} />
+                  <Rapportini key={`rapporti-${orderId}`} orderId={orderId} />
+                </Sezione>
+                <Sezione id="lavorazioni" titolo="Lavorazioni e avanzamento">
+                  {orderId === g.id && puoModificare && g.modello !== "appalto" && riepilogo.permessi.margini && (
+                    <InvitoFasiDalPiano riepilogo={riepilogo} />
+                  )}
+                  <Lavorazioni
                     key={orderId}
                     orderId={orderId}
-                    className="border"
+                    orderCode={scelto.codice}
                   />
+                </Sezione>
+              </TabsContent>
+              <TabsContent value="acquisti" className="space-y-6 pt-2">
+                <Sezione id="forniture" titolo="Ordini e DDT">
+                  <p className="text-sm text-muted-foreground">
+                    L'ordine al fornitore è facoltativo: «Carica bolla» registra la merce anche senza,
+                    e la fattura si collega dopo.
+                  </p>
+                  <Forniture
+                    key={orderId}
+                    orderId={orderId}
+                    orderCode={scelto.codice}
+                    items={[]}
+                  />
+                  <Bolle
+                    key={`bolle-${orderId}`}
+                    orderId={orderId}
+                    puoAprireDocumenti={permessi.canViewOrders}
+                  />
+                </Sezione>
+                {costi && (
+                  <Sezione id="controllo" titolo="Controllo: ordini, bolle e fatture">
+                    <Riconciliazione riepilogo={riepilogo} />
+                  </Sezione>
                 )}
-                <DaApprovare key={`approva-${orderId}`} orderId={orderId} />
-                <Rapportini key={`rapporti-${orderId}`} orderId={orderId} />
               </TabsContent>
-              <TabsContent value="forniture" className="space-y-3 pt-2">
-                <p className="text-sm text-muted-foreground">
-                  Puoi partire da «Carica bolla» senza un ordine d'acquisto e
-                  collegare la fattura in seguito. Se la merce è ordinata, apri
-                  l'ordine per gestire arrivi e DDT del fornitore.
-                </p>
-                <Forniture
-                  key={orderId}
-                  orderId={orderId}
-                  orderCode={scelto.codice}
-                  items={[]}
-                />
-                <Bolle
-                  key={`bolle-${orderId}`}
-                  orderId={orderId}
-                  puoAprireDocumenti={permessi.canViewOrders}
-                />
-              </TabsContent>
-              <TabsContent value="squadre" className="pt-2">
-                <Squadre
-                  key={orderId}
-                  orderId={orderId}
-                  editable={puoModificare}
-                />
-              </TabsContent>
-              <TabsContent value="lavorazioni" className="pt-2">
-                {orderId === g.id && puoModificare && g.modello !== "appalto" && riepilogo.permessi.margini && (
-                  <InvitoFasiDalPiano riepilogo={riepilogo} />
-                )}
-                <Lavorazioni
-                  key={orderId}
-                  orderId={orderId}
-                  orderCode={scelto.codice}
-                />
-              </TabsContent>
-              {riepilogo.permessi.costi && (
-                <>
-                  <TabsContent value="fatture" className="space-y-4 pt-2">
+              {costi && (
+                <TabsContent value="contabilita" className="space-y-6 pt-2">
+                  <Sezione id="fatture" titolo="Fatture e costi">
                     <Fatture
                       key={orderId}
                       orderId={orderId}
@@ -293,26 +312,38 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                       orderId={orderId}
                       puoModificare={puoModificare}
                     />
-                  </TabsContent>
-                  <TabsContent value="pagamenti" className="pt-2">
+                  </Sezione>
+                  <Sezione id="pagamenti" titolo="Pagamenti">
                     <Pagamenti
                       key={orderId}
                       orderId={orderId}
                       onApriSubappalti={() => setVista("subappalti")}
                     />
-                  </TabsContent>
-                  <TabsContent value="subappalti" className="pt-2">
+                  </Sezione>
+                </TabsContent>
+              )}
+              <TabsContent value="squadre" className="space-y-6 pt-2">
+                <Sezione id="squadre" titolo="Squadre, ore e accessi">
+                  <Squadre
+                    key={orderId}
+                    orderId={orderId}
+                    editable={puoModificare}
+                  />
+                </Sezione>
+                {costi && (
+                  <Sezione id="subappalti" titolo="Ditte e subappalti">
+                    <p className="text-sm text-muted-foreground">
+                      Le ore di una ditta nei rapportini contano la presenza: il costo della ditta
+                      arriva dalla sua fattura o dal SAL, se non ha un listino.
+                    </p>
                     <Subappalti
                       key={orderId}
                       orderId={orderId}
                       onApriCantiere={() => setVista("lavorazioni")}
                     />
-                  </TabsContent>
-                  <TabsContent value="controllo" className="pt-2">
-                    <Riconciliazione riepilogo={riepilogo} />
-                  </TabsContent>
-                </>
-              )}
+                  </Sezione>
+                )}
+              </TabsContent>
               </>
               )}
             </Suspense>

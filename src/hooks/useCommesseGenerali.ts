@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isModelloGenerale, leggiRiepilogo, modelliValidi, type ModelloGenerale, type RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { leggiPrerequisiti, type PrerequisitiGenerale } from "@/lib/orders/generali/prerequisiti";
 
 // Tabelle e RPC non sono ancora nei tipi generati: cast localizzato.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,6 +115,20 @@ export function useRiepilogoGenerale(generaleId: string | undefined) {
       const r = leggiRiepilogo(data);
       if (!r) throw new Error("Commessa generale non trovata.");
       return r;
+    },
+  });
+}
+
+/** Cosa serve per lavorare sull'operazione: operai, ditte, clienti, dati fiscali dell'azienda. */
+export function usePrerequisitiGenerale(generaleId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["commessa-generale-prerequisiti", generaleId],
+    enabled: !!generaleId && enabled,
+    staleTime: 60_000,
+    queryFn: async (): Promise<PrerequisitiGenerale | null> => {
+      const { data, error } = await db.rpc("generale_prerequisiti", { p_generale_id: generaleId });
+      if (error) throw error;
+      return leggiPrerequisiti(data);
     },
   });
 }

@@ -25,6 +25,7 @@ import { CollegaCommesseDialog } from "@/components/orders/generali/CollegaComme
 import { ModificaGeneraleDialog } from "@/components/orders/generali/ModificaGeneraleDialog";
 import { BottoneRendiconto } from "@/components/orders/generali/rendiconto/RendicontoGenerale";
 import { PerPartire } from "@/components/orders/generali/PerPartire";
+import { PerLavorare } from "@/components/orders/generali/PerLavorare";
 import { riquadriDelModello, schedeDelModello } from "@/components/orders/generali/schede";
 import { SpostaFigliaDialog, type AzioneFiglia } from "@/components/orders/generali/SpostaFigliaDialog";
 import { useDatiContratto } from "@/hooks/useGeneraleContratto";
@@ -147,6 +148,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
       {/* Da subito, anche senza lotti: un appalto non vedeva «completa il contratto» finché non creava un ordine. */}
       {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
+      {puoModificare && <PerLavorare riepilogo={r} />}
 
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
       {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}

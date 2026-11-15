@@ -1174,3 +1174,12 @@ button.generale-indicator[aria-pressed="true"] {
 @media (prefers-reduced-motion: reduce) {
   .generale-appare { animation: none; }
 }
+/* Il titolo di una parte di una scheda del cantiere (15/11/2026: otto schede diventate quattro). */
+.generale-cantiere-sezione {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: hsl(var(--foreground));
+  padding-bottom: 6px;
+  border-bottom: 1px solid hsl(var(--border));
+}
