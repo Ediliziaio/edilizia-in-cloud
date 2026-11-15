@@ -262,6 +262,8 @@ export function imponibileDalLordo(lordo: number, aliquota: number): number {
   return totale(sotto) <= atteso ? sotto : base;
 }
 
+const DESCRIZIONE_SVINCOLO = "Svincolo della ritenuta di garanzia";
+
 function buildRigaImporto(descrizione: string, lordo: number, aliquota: number): RigaDocumento {
   const al = Math.max(0, aliquota);
   return {
@@ -480,7 +482,6 @@ export function CreaFatturaDialog({
       return (data ?? []) as Array<{ id: string; importo: number; note: string | null }>;
     },
   });
-  const ritenutaDaSvincolare = Math.round(ritenuteTrattenute.reduce((t, r) => t + Number(r.importo || 0), 0) * 100) / 100;
   const { data: documentiCommessa = [], isLoading: documentiLoading, isError: documentiErrore } = useQuery({
     queryKey: ["order-documenti-for-invoice", orderId],
     enabled: open && !!orderId,
@@ -522,6 +523,14 @@ export function CreaFatturaDialog({
       ];
     },
   });
+  // Lo svincolo già fatturato (anche in bozza) si toglie: la ritenuta resta «trattenuta» nel registro finché
+  // l'amministratore non registra lo svincolo, e il pulsante non deve proporre una seconda fattura.
+  const svincoloGiaFatturato = (documentiCommessa as Array<{ stato?: string | null; deleted_at?: string | null; righe?: unknown }>)
+    .filter((d) => !d.deleted_at && !["annullata", "stornata"].includes(d.stato ?? ""))
+    .flatMap((d) => (Array.isArray(d.righe) ? (d.righe as Array<{ descrizione?: string; quantita?: number; prezzo_unitario?: number }>) : []))
+    .filter((r) => (r.descrizione ?? "").startsWith(DESCRIZIONE_SVINCOLO))
+    .reduce((t, r) => t + Number(r.quantita ?? 1) * Number(r.prezzo_unitario ?? 0), 0);
+  const ritenutaDaSvincolare = Math.max(0, Math.round((ritenuteTrattenute.reduce((t, r) => t + Number(r.importo || 0), 0) - svincoloGiaFatturato) * 100) / 100);
 
   // ── Fetch matching anagrafica ────────────────────────────────
   const { data: matchedAnagrafica, isPending: anagraficaPending, isError: anagraficaError, refetch: ricaricaAnagrafica } = useQuery({
@@ -1320,7 +1329,7 @@ export function CreaFatturaDialog({
                       <span>Ritenuta di garanzia trattenuta sui SAL: <strong className="tabular-nums">{fmt(ritenutaDaSvincolare)}</strong> senza IVA. Si fattura allo svincolo (collaudo o scadenza).</span>
                       <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => {
                         setSelectedInstId(null);
-                        setImporto({ descrizione: `Svincolo della ritenuta di garanzia trattenuta sui SAL${orderCode ? ` — commessa ${orderCode}` : ""}`, lordo: scriviImporto(ritenutaDaSvincolare * (1 + defaultVat / 100)), aliquota: String(defaultVat) });
+                        setImporto({ descrizione: `${DESCRIZIONE_SVINCOLO} trattenuta sui SAL${orderCode ? ` — commessa ${orderCode}` : ""}`, lordo: scriviImporto(ritenutaDaSvincolare * (1 + defaultVat / 100)), aliquota: String(defaultVat) });
                         dimenticaPrezzi((id) => id === "importo-rata");
                       }}>Fattura lo svincolo</Button>
                     </div>
