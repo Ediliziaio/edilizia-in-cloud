@@ -17,7 +17,8 @@ import { useAvviaGenerale } from "@/hooks/useAvviaGenerale";
 import { usePermissions } from "@/hooks/usePermissions";
 import { messaggioGenerale } from "@/hooks/useCommesseGenerali";
 import { leggiQuanteUnita, meseCorrente, unitaDiPartenza } from "@/lib/orders/generali/avvio";
-import { vociDiPartenza } from "@/lib/orders/generali/pianoCategorie";
+import { mesePartenzaPiano, vociDiPartenzaDalleDate } from "@/lib/orders/generali/pianoCategorie";
+import { nomeMese } from "@/components/orders/generali/piano/formato";
 import { leggiImporto } from "@/lib/controlloGestione/formatCG";
 import { DEFINIZIONI_MODELLI, type ModelloGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
@@ -85,13 +86,23 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
     }
     return d;
   };
-  /** Compravendita: il prezzo e il mese del rogito diventano la voce d'acquisto del piano. */
-  const vociIniziali = () => {
-    if (!modello) return null;
-    const voci = vociDiPartenza(modello, meseCorrente(), valore);
-    if (modello !== "compravendita" || !prezzo) return voci;
-    return voci.map((v) => (v.tipo === "costo" && v.categoria === "terreno" ? { ...v, importo: prezzo, nota: null, mese: rogito ? rogito.slice(0, 7) : v.mese } : v));
-  };
+  /**
+   * Le voci tipiche sul calendario delle date scritte qui: inizio lavori (o consegna) e, per la
+   * compravendita, rogito e prezzo d'acquisto. Senza date partono dal mese corrente.
+   */
+  const dateScritte = { inizio, rogito: modello === "compravendita" ? rogito : null, prezzo: modello === "compravendita" ? prezzo : null };
+  const vociIniziali = () => (modello ? vociDiPartenzaDalleDate(modello, valore, dateScritte, meseCorrente()) : null);
+  const partenzaPiano = modello ? mesePartenzaPiano(modello, dateScritte, meseCorrente()) : null;
+  const pianoDaDate = !!inizio || (modello === "compravendita" && !!rogito);
+  const meseInizio = inizio ? nomeMese(inizio.slice(0, 7)) : null;
+  const calendario = !partenzaPiano ? null
+    : !pianoDaDate ? `Il calendario parte da ${nomeMese(partenzaPiano)}: con ${appalto ? "la consegna lavori" : modello === "compravendita" ? "il rogito o l'inizio della ristrutturazione" : "l'inizio dei lavori"} si sposta da solo.`
+      : appalto ? `Il calendario parte da ${nomeMese(partenzaPiano)}, dalla consegna lavori.`
+        : modello === "compravendita" && rogito ? `Il calendario parte dal rogito, ${nomeMese(partenzaPiano)}${meseInizio ? `; la ristrutturazione da ${meseInizio}` : ""}.`
+          : `${modello === "compravendita" ? "La ristrutturazione" : "La costruzione"} parte da ${meseInizio}; ${modello === "compravendita" ? "acquisto e pratiche" : "terreno e progetto"} prima, da ${nomeMese(partenzaPiano)}.`;
+  const conVociTipiche = puoFarePiano && conPiano && originePiano === "tipiche";
+  // Appalto: contratto con l'AI e budget da Excel insieme. Si apre il contratto; il file si carica dopo.
+  const excelDopoContratto = appalto && importaContratto && puoFarePiano && conPiano && originePiano === "excel";
 
   const conferma = () => {
     if (!modello || !puoCreare) return;
@@ -99,7 +110,7 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
       {
         nuova: { modello, nome: nome.trim(), clienteId, valore },
         unita: unitaDiPartenza(quante ?? 0),
-        voci: conPiano && puoFarePiano && originePiano === "tipiche" ? vociIniziali() : null,
+        voci: conVociTipiche ? vociIniziali() : null,
         dati: datiIniziali(),
       },
       {
@@ -121,7 +132,10 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
     <>
         <DialogHeader>
           <DialogTitle>Nuova commessa generale</DialogTitle>
-          <DialogDescription>Gestisci budget, documenti e lavoro dell'intera operazione. Puoi aggiungere le unità o collegare le commesse anche in seguito.</DialogDescription>
+          <DialogDescription>
+            Gestisci budget, documenti e lavoro dell'intera operazione.
+            {def ? ` ${def.figlia.tante} e commesse da collegare si aggiungono anche dopo, dalla sua pagina.` : " Unità, lotti e commesse da collegare si aggiungono anche dopo."}
+          </DialogDescription>
         </DialogHeader>
 
         <form
@@ -164,9 +178,9 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
             <Label htmlFor="generale-cliente">
               {def?.cliente.etichetta ?? "Cliente"} {!appalto && <span className="font-normal text-muted-foreground">(facoltativo)</span>}
             </Label>
-            <ScegliCliente id="generale-cliente" valore={clienteId} onCambia={setClienteId} />
+            <ScegliCliente id="generale-cliente" valore={clienteId} onCambia={setClienteId} consentiNuovo />
             {conUnita && <p className="text-xs text-muted-foreground">È un riferimento dell'anagrafica clienti. La commessa e i documenti appartengono all'azienda attiva nel gestionale.</p>}
-            {senzaCommittente && <p className="text-xs text-muted-foreground">Scegli il committente: senza, il contratto e le fatture non hanno a chi andare.</p>}
+            {senzaCommittente && <p className="text-xs text-muted-foreground">Scegli il committente, o crealo con «Nuovo» se non è in anagrafica: senza, il contratto e le fatture non hanno a chi andare.</p>}
           </div>
 
           {appalto && (
@@ -184,7 +198,17 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
             </fieldset>
           )}
 
-          <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+          {appalto && (
+            <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+              <input type="checkbox" checked={importaContratto} onChange={(e) => setImportaContratto(e.target.checked)} className="mt-1" />
+              <span>
+                Ho il contratto: importalo con l’AI dopo la creazione
+                <span className="mt-1 block text-xs text-muted-foreground">PDF o immagine. Importo, ribasso, oneri, date e penali li legge l’AI; li verifichi in Contratto e SAL prima di salvarli.</span>
+              </span>
+            </label>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
             <div className="space-y-1.5">
               <Label htmlFor="generale-indirizzo">
                 {modello === "compravendita" ? "Indirizzo dell'immobile" : modello === "sviluppo" ? "Indirizzo dell'area" : "Indirizzo del cantiere"} <span className="font-normal text-muted-foreground">(facoltativo)</span>
@@ -192,13 +216,15 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
               <CampoIndirizzo id="generale-indirizzo" value={indirizzo} onChange={setIndirizzo} placeholder="Via, numero, comune" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="generale-inizio">{appalto ? "Consegna lavori" : "Inizio lavori"}</Label>
+              <Label htmlFor="generale-inizio">
+                {appalto ? "Consegna lavori" : modello === "compravendita" ? "Inizio ristrutturazione" : "Inizio lavori"}
+              </Label>
               <Input id="generale-inizio" type="date" value={inizio} onChange={(e) => setInizio(e.target.value)} />
             </div>
           </div>
 
           {modello === "compravendita" && (
-            <div className="grid gap-3 sm:grid-cols-[1fr_10rem]">
+            <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
               <div className="space-y-1.5">
                 <Label htmlFor="generale-prezzo">Prezzo d'acquisto <span className="font-normal text-muted-foreground">(facoltativo, al netto dell'IVA)</span></Label>
                 <Input id="generale-prezzo" inputMode="decimal" value={prezzoTesto} onChange={(e) => setPrezzoTesto(e.target.value)} placeholder="es. 185.000" aria-invalid={prezzoSbagliato || undefined} />
@@ -225,39 +251,46 @@ function Modulo({ onOpenChange, modelli, iniziale }: Omit<Props, "open">) {
               aria-describedby="generale-valore-aiuto"
             />
             <p id="generale-valore-aiuto" className={cn("text-xs", valoreSbagliato ? "text-destructive" : "text-muted-foreground")}>
-              {valoreSbagliato ? "Scrivi un importo, ad esempio 3.000.000 o 2500,50." : def?.valore.aiuto}
+              {valoreSbagliato ? "Scrivi un importo, ad esempio 3.000.000 o 2500,50." : appalto && importaContratto ? "Puoi lasciarlo vuoto: lo legge l’AI dal contratto." : def?.valore.aiuto}
             </p>
           </div>
 
           {conUnita && (
             <div className="space-y-1.5">
-              <Label htmlFor="generale-quante">Quante unità? <span className="font-normal text-muted-foreground">(facoltativo)</span></Label>
+              <Label htmlFor="generale-quante">{modello === "compravendita" ? "In quante parti lo rivendi?" : "Quante unità?"} <span className="font-normal text-muted-foreground">(facoltativo)</span></Label>
               <Input
                 id="generale-quante"
                 inputMode="numeric"
                 value={quanteTesto}
                 onChange={(e) => setQuanteTesto(e.target.value)}
-                placeholder="es. 6"
+                placeholder={modello === "compravendita" ? "es. 2" : "es. 6"}
                 className="w-28"
                 aria-invalid={quante === null || undefined}
                 aria-describedby="generale-quante-aiuto"
               />
               <p id="generale-quante-aiuto" className={cn("text-xs", quante === null ? "text-destructive" : "text-muted-foreground")}>
-                {quante === null ? "Scrivi un numero da 1 a 100." : quante > 0 ? `Le prepariamo come A1…A${quante}: nomi e prezzi li completi dopo.` : "Le puoi aggiungere dopo. Costi e rapportini possono stare sulla generale."}
+                {quante === null
+                  ? "Scrivi un numero da 1 a 100."
+                  : modello === "compravendita" && quante === 1
+                    ? "Lo rivendi intero: prepariamo un'unità, A1. Prezzo e dati li completi dopo."
+                    : quante > 0
+                      ? `Le prepariamo come A1…A${quante}: nomi e prezzi li completi dopo.`
+                      : modello === "compravendita"
+                        ? "1 se lo rivendi intero, 2 o più se lo dividi. Puoi deciderlo anche dopo."
+                        : "Le puoi aggiungere dopo. Costi e rapportini possono stare sulla generale."}
               </p>
             </div>
           )}
 
-          {modello === "appalto" && <label className="flex items-start gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={importaContratto} onChange={e => setImportaContratto(e.target.checked)} className="mt-1"/><span>Importa il contratto con l’AI dopo la creazione<span className="mt-1 block text-xs text-muted-foreground">PDF o immagine, poi verifica i dati in Contratto e SAL prima di salvarli.</span></span></label>}
           {puoFarePiano && <div className="flex items-center gap-2">
             <Switch id="generale-con-piano" checked={conPiano} onCheckedChange={setConPiano} />
             <Label htmlFor="generale-con-piano" className="text-sm font-normal">Prepara il piano economico</Label>
           </div>}
-          {puoFarePiano && conPiano && modello === "compravendita" && prezzo ? <p className="-mt-2 text-xs text-muted-foreground">Il prezzo d'acquisto entra nel piano come voce d'acquisto{rogito ? ", nel mese del rogito" : ""}.</p> : null}
+          {conVociTipiche && modello === "compravendita" && prezzo ? <p className="-mt-2 text-xs text-muted-foreground">Il prezzo d'acquisto entra nel piano come voce d'acquisto{rogito ? ", nel mese del rogito" : ""}.</p> : null}
           {puoFarePiano && conPiano && <fieldset className="space-y-2 rounded-lg border p-3">
             <legend className="px-1 text-xs font-medium">Da dove vuoi partire?</legend>
-            <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="tipiche" checked={originePiano === "tipiche"} onChange={() => setOriginePiano("tipiche")} /><span>Voci tipiche da compilare</span></label>
-            <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="excel" checked={originePiano === "excel"} onChange={() => setOriginePiano("excel")} /><span>Ho già un business plan Excel o PDF<span className="mt-0.5 block text-xs text-muted-foreground">Dopo la creazione scegli il file e lo scenario. Le voci tipiche non vengono aggiunte.</span></span></label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="tipiche" checked={originePiano === "tipiche"} onChange={() => setOriginePiano("tipiche")} /><span>Voci tipiche da compilare{originePiano === "tipiche" && calendario && <span className="mt-0.5 block text-xs text-muted-foreground">{calendario}</span>}</span></label>
+            <label className="flex items-start gap-2 text-sm"><input type="radio" name="origine-piano" value="excel" checked={originePiano === "excel"} onChange={() => setOriginePiano("excel")} /><span>{appalto ? "Ho già il budget in Excel o PDF" : "Ho già un business plan Excel o PDF"}<span className="mt-0.5 block text-xs text-muted-foreground">{excelDopoContratto ? "Prima si apre il contratto da importare: il file lo carichi poi dalla scheda Piano. Le voci tipiche non vengono aggiunte." : appalto ? "Dopo la creazione scegli il file. Le voci tipiche non vengono aggiunte." : "Dopo la creazione scegli il file e lo scenario. Le voci tipiche non vengono aggiunte."}</span></span></label>
           </fieldset>}
           </>}
 

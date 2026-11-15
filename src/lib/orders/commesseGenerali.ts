@@ -34,7 +34,7 @@ export const DEFINIZIONI_MODELLI: Record<ModelloGenerale, DefinizioneModello> = 
     figlia: { una: "ordine di lavoro", tante: "Ordini di lavoro", nuova: "Nuovo ordine di lavoro" },
     valore: { etichetta: "Valore del contratto", aiuto: "L'importo del contratto con il committente. Le commesse dentro lo «scalano»." },
     cliente: { etichetta: "Committente", facoltativo: false },
-    esempio: "Appalto manutenzione scuole 2027 — 3.000.000 €",
+    esempio: "Appalto manutenzione scuole 2027",
     comprende: "Contratto e SAL · Budget · Documenti",
   },
   sviluppo: {

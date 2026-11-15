@@ -151,6 +151,53 @@ export const VOCI_DI_PARTENZA: Record<ModelloGenerale, VoceDiPartenza[]> = {
   ],
 };
 
+/** Le date scritte alla creazione di una generale, tutte facoltative («aaaa-mm-gg»). */
+export interface DateDiPartenza {
+  /** Inizio dei lavori (per l'appalto: consegna lavori; per la compravendita: inizio ristrutturazione). */
+  inizio?: string | null;
+  /** Solo compravendita: rogito d'acquisto dell'immobile. */
+  rogito?: string | null;
+  /** Solo compravendita: prezzo d'acquisto, che diventa l'importo della voce d'acquisto. */
+  prezzo?: number | null;
+}
+
+const meseDi = (data: string | null | undefined): string | null =>
+  data && /^\d{4}-\d{2}/.test(data) ? data.slice(0, 7) : null;
+
+/**
+ * Da quale mese contare le voci tipiche, perché le date scritte nel popup cadano sulle voci a
+ * cui si riferiscono (15/11/2026: prima partivano sempre dal mese corrente, e un inizio lavori a
+ * marzo 2027 lasciava la costruzione a novembre 2026).
+ * - Compravendita col rogito: si parte dal rogito, che è la voce d'acquisto (mese 0).
+ * - Con l'inizio dei lavori: si parte in modo che la voce dei lavori cada su quel mese
+ *   (appalto: i costi partono subito; sviluppo e compravendita: la costruzione / ristrutturazione).
+ * - Senza date: dal mese corrente.
+ */
+export function mesePartenzaPiano(modello: ModelloGenerale, date: DateDiPartenza, oggiMese: string): string {
+  const rogito = modello === "compravendita" ? meseDi(date.rogito) : null;
+  if (rogito) return rogito;
+  const inizio = meseDi(date.inizio);
+  if (!inizio) return oggiMese;
+  const lavori = VOCI_DI_PARTENZA[modello].find((v) => v.categoria === "costruzione");
+  return aggiungiMesi(inizio, -(lavori?.dopoMesi ?? 0));
+}
+
+/**
+ * Le voci tipiche già messe sul calendario delle date scritte: il prezzo d'acquisto sulla voce
+ * d'acquisto, la ristrutturazione sul suo inizio anche quando il calendario parte dal rogito.
+ */
+export function vociDiPartenzaDalleDate(modello: ModelloGenerale, valore: number | null, date: DateDiPartenza, oggiMese: string): VoceNuova[] {
+  const voci = vociDiPartenza(modello, mesePartenzaPiano(modello, date, oggiMese), valore);
+  if (modello !== "compravendita") return voci;
+  const prezzo = date.prezzo != null && date.prezzo > 0 ? date.prezzo : null;
+  const inizio = meseDi(date.inizio);
+  return voci.map((v) => {
+    if (v.tipo === "costo" && v.categoria === "terreno" && prezzo) return { ...v, importo: prezzo, nota: null };
+    if (v.tipo === "costo" && v.categoria === "costruzione" && inizio && meseDi(date.rogito)) return { ...v, mese: inizio };
+    return v;
+  });
+}
+
 /** «2026-10» + 3 → «2027-01». */
 export function aggiungiMesi(mese: string, n: number): string {
   const [a, m] = mese.split("-").map(Number);

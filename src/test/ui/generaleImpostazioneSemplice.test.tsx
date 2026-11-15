@@ -123,7 +123,7 @@ describe("impostazione delle commesse generali", () => {
     expect(screen.getByRole("button", { name: "Crea commessa generale" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
     fireEvent.click(screen.getByRole("radio", { name: "Pubblico" }));
-    fireEvent.change(screen.getByLabelText("Consegna lavori"), { target: { value: "2027-01-10" } });
+    fireEvent.change(screen.getByLabelText(/Consegna lavori/), { target: { value: "2027-01-10" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
     const [payload] = m.avvia.mock.calls[0];
     expect(payload.nuova).toMatchObject({ modello: "appalto", clienteId: "cli" });
@@ -146,5 +146,89 @@ describe("impostazione delle commesse generali", () => {
     });
     const acquisto = payload.voci.find((v: { categoria: string; tipo: string }) => v.tipo === "costo" && v.categoria === "terreno");
     expect(acquisto).toMatchObject({ importo: 185000, mese: "2027-02", nota: null });
+  });
+
+  // 15/11/2026: le date scritte nel popup spostano il calendario del piano (prima partiva sempre da oggi).
+  const voce = (voci: { tipo: string; categoria: string; mese: string }[], categoria: string) => voci.find((v) => v.categoria === categoria)?.mese;
+
+  it("appalto: il piano parte dalla consegna lavori", () => {
+    m.modelli = ["appalto"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Scuole 2027" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
+    fireEvent.change(screen.getByLabelText(/Consegna lavori/), { target: { value: "2027-01-10" } });
+    expect(screen.getByText(/Il calendario parte da gen 2027, dalla consegna lavori/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [{ voci }] = m.avvia.mock.calls[0];
+    expect(voce(voci, "materiali")).toBe("2027-01");
+    expect(voce(voci, "lavori")).toBe("2027-02");
+  });
+
+  it("sviluppo: la costruzione cade sull'inizio lavori, il terreno prima", () => {
+    m.modelli = ["sviluppo"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Residenza" } });
+    fireEvent.change(screen.getByLabelText(/Inizio lavori/), { target: { value: "2027-03-01" } });
+    expect(screen.getByText("La costruzione parte da mar 2027; terreno e progetto prima, da nov 2026.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [{ voci }] = m.avvia.mock.calls[0];
+    expect(voce(voci, "costruzione")).toBe("2027-03");
+    expect(voce(voci, "terreno")).toBe("2026-11");
+  });
+
+  it("compravendita: rogito e inizio ristrutturazione, ognuno sulla sua voce; si dice in quante parti si rivende", () => {
+    m.modelli = ["compravendita"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Corso Italia" } });
+    fireEvent.change(screen.getByLabelText(/Prezzo d'acquisto/), { target: { value: "185.000" } });
+    fireEvent.change(screen.getByLabelText("Rogito d'acquisto"), { target: { value: "2027-02-15" } });
+    fireEvent.change(screen.getByLabelText(/Inizio ristrutturazione/), { target: { value: "2027-05-01" } });
+    fireEvent.change(screen.getByLabelText(/In quante parti lo rivendi/), { target: { value: "1" } });
+    expect(screen.getByText(/Lo rivendi intero/)).toBeInTheDocument();
+    expect(screen.getByText("Il calendario parte dal rogito, feb 2027; la ristrutturazione da mag 2027.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [{ voci, unita }] = m.avvia.mock.calls[0];
+    expect(voce(voci, "terreno")).toBe("2027-02");
+    expect(voce(voci, "costruzione")).toBe("2027-05");
+    expect(voce(voci, "vendite")).toBe("2027-10");
+    expect(unita).toHaveLength(1);
+  });
+
+  it("compravendita da Excel: non promette che il prezzo entri nel piano", () => {
+    m.modelli = ["compravendita"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText(/Prezzo d'acquisto/), { target: { value: "185.000" } });
+    expect(screen.getByText(/Il prezzo d'acquisto entra nel piano/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Ho già un business plan Excel/ }));
+    expect(screen.queryByText(/Il prezzo d'acquisto entra nel piano/)).not.toBeInTheDocument();
+  });
+
+  it("appalto con contratto da importare e budget da Excel: dice che il file si carica dopo, e apre il contratto", () => {
+    m.modelli = ["appalto"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Scuole 2027" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cliente" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /importalo con l’AI/ }));
+    expect(screen.getByText(/Puoi lasciarlo vuoto: lo legge l’AI dal contratto/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Ho già il budget in Excel/ }));
+    expect(screen.getByText(/il file lo carichi poi dalla scheda Piano/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Crea commessa generale" }));
+    const [payload, callback] = m.avvia.mock.calls[0];
+    expect(payload.voci).toBeNull();
+    callback.onSuccess({ id: "scuole", rimasti: [] });
+    expect(m.navigate).toHaveBeenCalledWith("/azienda/ordini/scuole?scheda=contratto&importa-contratto=1");
+  });
+
+  it("l'esempio del nome è un nome, senza l'importo dentro", () => {
+    m.modelli = ["appalto"];
+    disegna();
+    fireEvent.click(screen.getByRole("button", { name: /Crea la prima/ }));
+    expect(screen.getByLabelText("Nome")).toHaveAttribute("placeholder", "Appalto manutenzione scuole 2027");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ordini di lavoro e commesse da collegare si aggiungono anche dopo");
   });
 });
