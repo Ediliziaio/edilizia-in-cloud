@@ -7,6 +7,28 @@ export interface CompanyCustomer {
   first_name: string | null;
   last_name: string | null;
   email?: string | null;
+  /** Da clienti_per_scelta: assenti se si è ripiegato su get_company_customers. */
+  business_name?: string | null;
+  is_business?: boolean | null;
+  /** B2C, B2B o PA, dall'anagrafica fiscale collegata. */
+  tipo_cliente?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  site_address?: string | null;
+  site_city?: string | null;
+  vat_number?: string | null;
+  fiscal_code?: string | null;
+  created_at?: string | null;
+}
+
+/** Ordine alfabetico «naturale»: «Condominio 2» prima di «Condominio 10». */
+const ordinatore = new Intl.Collator("it", { numeric: true, sensitivity: "base" });
+const nomeOrdinamento = (c: CompanyCustomer) =>
+  c.business_name?.trim() || `${c.last_name ?? ""} ${c.first_name ?? ""}`.trim() || c.email || "";
+function ordinaClienti(clienti: CompanyCustomer[]): CompanyCustomer[] {
+  return [...clienti].sort((a, b) => ordinatore.compare(nomeOrdinamento(a), nomeOrdinamento(b)));
 }
 
 type RpcResult = {
@@ -56,6 +78,19 @@ export function useCompanyCustomers(companyId: string | null | undefined, enable
       // Retry perché dopo una migration la cache schema di PostgREST può essere
       // momentaneamente stantia su una delle istanze (PGRST202) → un secondo
       // tentativo colpisce spesso un'istanza già ricaricata.
+      // ── Strategia 0: stessi clienti con telefono, indirizzo e dati fiscali (15/11/2026),
+      // per riconoscerli e cercarli nella tendina. Se la funzione non risponde, si torna a
+      // get_company_customers (solo nome ed email).
+      try {
+        const { data, error } = await (supabase as unknown as {
+          rpc: (fn: string, args: Record<string, unknown>) => Promise<RpcResult>;
+        }).rpc("clienti_per_scelta", { p_company_id: companyId });
+        if (!error && Array.isArray(data)) return ordinaClienti(data as CompanyCustomer[]);
+        logger.warn(`[useCompanyCustomers] RPC clienti_per_scelta failed: ${error?.message ?? "rpc_unknown_error"}`);
+      } catch (e) {
+        logger.warn("[useCompanyCustomers] RPC clienti_per_scelta threw:", e);
+      }
+
       let rpcErrMsg = "";
       for (let attempt = 0; attempt < 2; attempt++) {
         try {

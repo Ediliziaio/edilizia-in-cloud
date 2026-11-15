@@ -5,12 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CreateCustomerDialog } from "@/components/orders/CreateCustomerDialog";
+import { RigaCliente } from "@/components/orders/RigaCliente";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
+import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
+import { cercaClienti, nomeCliente } from "@/lib/orders/nuovaCommessaProposte";
 import { cn } from "@/lib/utils";
-
-const nomeCliente = (c: Pick<CompanyCustomer, "first_name" | "last_name" | "email">) =>
-  [c.first_name, c.last_name].filter(Boolean).join(" ").trim() || c.email || "Cliente senza nome";
 
 /**
  * Un cliente dell'azienda, cercato per nome. Facoltativo: si può togliere.
@@ -27,6 +26,7 @@ export function ScegliCliente({ id, valore, onCambia, consentiNuovo = false }: {
   const [appenaCreato, setAppenaCreato] = useState<{ id: string; nome: string } | null>(null);
   const scelto = useMemo(() => clienti.find((c) => c.id === valore) ?? null, [clienti, valore]);
   const nomeScelto = scelto ? nomeCliente(scelto) : appenaCreato && appenaCreato.id === valore ? appenaCreato.nome : null;
+  const { risultati, altri } = useMemo(() => cercaClienti(clienti, cerca), [clienti, cerca]);
 
   const apriNuovo = (nome: string) => { setAperto(false); setNuovo({ nome: nome.trim() }); };
 
@@ -41,28 +41,32 @@ export function ScegliCliente({ id, valore, onCambia, consentiNuovo = false }: {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="Nome del cliente…" value={cerca} onValueChange={setCerca} />
-            <CommandList>
-              <CommandEmpty className="px-2 py-3 text-sm">
-                {consentiNuovo && cerca.trim() ? (
-                  <Button type="button" variant="ghost" size="sm" className="h-8 w-full justify-start font-normal" onClick={() => apriNuovo(cerca)}>
-                    <Plus className="mr-2 h-4 w-4" /> Crea «{cerca.trim()}»
-                  </Button>
-                ) : (
-                  <span className="block text-center text-muted-foreground">Nessun cliente con questo nome.</span>
-                )}
+        <PopoverContent className="w-[min(40rem,calc(100vw-2rem))] min-w-[var(--radix-popover-trigger-width)] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput placeholder="Cerca per nome, telefono, indirizzo, email o P.IVA…" value={cerca} onValueChange={setCerca} className="h-12 text-base" />
+            <CommandList className="max-h-[min(28rem,60vh)]">
+              <CommandEmpty className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Nessun cliente trovato{cerca.trim() ? ` per «${cerca.trim()}»` : ""}.
               </CommandEmpty>
-              <CommandGroup>
-                {clienti.map((c) => (
-                  <CommandItem key={c.id} value={`${nomeCliente(c)} ${c.email ?? ""} ${c.id}`} onSelect={() => { onCambia(c.id); setAperto(false); }}>
-                    <Check className={cn("mr-2 h-4 w-4", c.id === valore ? "opacity-100" : "opacity-0")} />
-                    <span className="truncate">{nomeCliente(c)}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {risultati.length > 0 && (
+                <CommandGroup heading={cerca.trim() ? `${risultati.length + altri} trovati` : `${clienti.length} clienti`}>
+                  {risultati.map((c) => (
+                    <CommandItem key={c.id} value={c.id} onSelect={() => { onCambia(c.id); setAperto(false); setCerca(""); }} className="items-start gap-2 py-2.5">
+                      <Check className={cn("mt-0.5 h-4 w-4 shrink-0", c.id === valore ? "opacity-100" : "opacity-0")} />
+                      <RigaCliente cliente={c} />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {altri > 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Altri {altri}: scrivi per restringere la ricerca.</p>}
             </CommandList>
+            {consentiNuovo && (
+              <div className="border-t p-1.5">
+                <Button type="button" variant="ghost" className="h-9 w-full justify-start font-normal" onClick={() => apriNuovo(/\p{L}/u.test(cerca) && !cerca.includes("@") ? cerca : "")}>
+                  <Plus className="mr-2 h-4 w-4" /> {cerca.trim() ? <>Nuovo cliente «{cerca.trim()}»</> : "Nuovo cliente"}
+                </Button>
+              </div>
+            )}
           </Command>
         </PopoverContent>
       </Popover>
@@ -84,6 +88,11 @@ export function ScegliCliente({ id, valore, onCambia, consentiNuovo = false }: {
           // sociale («Comune di Milano» → nome «Comune», cognome «di Milano»).
           initialValues={{ fullName: nuovo.nome || undefined, isBusiness: true, firstName: "", lastName: "" }}
           defaultCreatePortalAccount={false}
+          onClienteEsistente={(c) => {
+            setAppenaCreato({ id: c.id, nome: nomeCliente(c) });
+            onCambia(c.id);
+            setNuovo(null);
+          }}
           onCustomerCreated={(clienteId, nome) => {
             setAppenaCreato({ id: clienteId, nome });
             onCambia(clienteId);

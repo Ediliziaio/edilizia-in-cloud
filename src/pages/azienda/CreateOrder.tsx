@@ -217,6 +217,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const { cartelle: cartelleDocumenti } = useCartelleDocumenti();
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  // Quello scritto nella ricerca del cliente prima di «Nuovo cliente»: nome, telefono o email.
+  const [nuovoDaRicerca, setNuovoDaRicerca] = useState<{ fullName?: string; phone?: string; email?: string } | undefined>(undefined);
   // ?action=import-contratto (dal flusso "Importa documento intelligente" di
   // Silvio): la pagina apre già col dialog contratto spalancato — un contratto
   // firmato diventa commessa, non preventivo.
@@ -1783,14 +1785,28 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                     control={control}
                     name="customer_id"
                     render={({ field }) => (
-                      <ClienteCombobox id="customer" clienti={customerOptions} value={field.value || ""} onChange={field.onChange} />
+                      <ClienteCombobox
+                        id="customer"
+                        clienti={customerOptions}
+                        value={field.value || ""}
+                        onChange={field.onChange}
+                        onNuovo={(testo) => {
+                          setNuovoDaRicerca(
+                            !testo ? undefined
+                              : testo.includes("@") ? { email: testo }
+                              : /^[\d\s+().-]+$/.test(testo) ? { phone: testo }
+                              : { fullName: testo },
+                          );
+                          setShowCreateCustomer(true);
+                        }}
+                      />
                     )}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => setShowCreateCustomer(true)}
+                    onClick={() => { setNuovoDaRicerca(undefined); setShowCreateCustomer(true); }}
                     title="Nuovo cliente"
                   >
                     <Plus className="h-4 w-4" />
@@ -2097,11 +2113,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           del preventivo sono già caricati) → niente remount che cancella l'input. */}
       {showCreateCustomer && (
         <CreateCustomerDialog
-          key={aiCustomerInitial ? "ai-contract" : (selectedQuoteId ?? "new")}
+          key={aiCustomerInitial ? "ai-contract" : nuovoDaRicerca ? "ricerca" : (selectedQuoteId ?? "new")}
           open
-          onOpenChange={setShowCreateCustomer}
+          onOpenChange={(o) => { setShowCreateCustomer(o); if (!o) setNuovoDaRicerca(undefined); }}
           onCustomerCreated={handleCustomerCreated}
-          initialValues={aiCustomerInitial ?? quoteCustomerInitial}
+          onClienteEsistente={(c) => setValue("customer_id", c.id, { shouldValidate: true })}
+          initialValues={aiCustomerInitial ?? nuovoDaRicerca ?? quoteCustomerInitial}
           defaultCreatePortalAccount={(aiCustomerInitial ?? quoteCustomerInitial) ? false : undefined}
         />
       )}

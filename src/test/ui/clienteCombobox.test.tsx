@@ -19,7 +19,7 @@ describe("Scelta del cliente", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Cliente" }));
     expect(await screen.findByText("Anna Bianchi")).toBeInTheDocument();
     expect(screen.queryByText(/no-email/)).not.toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText("Cerca per nome o email…"), { target: { value: "rossi" } });
+    fireEvent.change(screen.getByPlaceholderText("Cerca per nome, telefono, indirizzo, email o P.IVA…"), { target: { value: "rossi" } });
     expect(screen.queryByText("Anna Bianchi")).not.toBeInTheDocument();
     fireEvent.click(screen.getByText("Mario Rossi"));
     expect(onChange).toHaveBeenCalledWith("1");

@@ -24,12 +24,12 @@ describe("La ricerca del cliente nel popup di Silvio", () => {
     render(<SceltaCliente companyId="azienda-test" piano={pianoVuoto("azienda-test")} onScegli={onScegli} />);
     fireEvent.click(screen.getByRole("combobox", { name: "Cliente" }));
     expect(screen.queryByRole("option", { name: "Collaudo Beta" })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByPlaceholderText("Cerca per nome o email…"), { target: { value: "Collaudo Beta" } });
+    fireEvent.change(screen.getByPlaceholderText("Cerca per nome, telefono, indirizzo, email o P.IVA…"), { target: { value: "Collaudo Beta" } });
     expect(screen.queryByText(/no-email\.ediliziaincloud\.local/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: "Collaudo Beta" }));
     expect(onScegli).toHaveBeenCalledWith("cliente-beta", "Collaudo Beta", {
       id: "cliente-beta", first_name: "Collaudo", last_name: "Beta", email: "cliente-beta@no-email.ediliziaincloud.local",
     });
-    expect(screen.queryByPlaceholderText("Cerca per nome o email…")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Cerca per nome, telefono, indirizzo, email o P.IVA…")).not.toBeInTheDocument();
   });
 });

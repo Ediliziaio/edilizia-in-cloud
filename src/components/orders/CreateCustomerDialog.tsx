@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { User, Copy, Check, ShieldCheck, ShieldOff, FileCheck2 } from "lucide-react";
+import { User, Copy, Check, ShieldCheck, ShieldOff, FileCheck2, Building2, AlertTriangle } from "lucide-react";
 import { DocumentiClienteInput } from "@/components/clients/DocumentiClienteInput";
 import { caricaDocumentiCliente, contaFileDocumentiCliente, type FileDocumentiCliente } from "@/lib/clienti/documentiCliente";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,9 @@ import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { companyCustomersKeys, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
+import { companyCustomersKeys, useCompanyCustomers, type CompanyCustomer } from "@/hooks/useCompanyCustomers";
+import { RigaCliente } from "@/components/orders/RigaCliente";
+import { clientiSimili } from "@/lib/orders/nuovaCommessaProposte";
 import {
   CustomerAddressFields,
   type CustomerAddresses,
@@ -72,6 +74,11 @@ interface CreateCustomerDialogProps {
   defaultCreatePortalAccount?: boolean;
   /** Recupero storico: niente accesso portale/email, identità verificata e riuso sul server. */
   importedInvoiceId?: string;
+  /**
+   * Se c'è, quando il cliente sembra già in anagrafica (stesso telefono, email, P.IVA o nome)
+   * compare «Usa questo»: si sceglie quello invece di crearne un doppione.
+   */
+  onClienteEsistente?: (customer: CompanyCustomer) => void;
 }
 
 export function CreateCustomerDialog({
@@ -81,8 +88,10 @@ export function CreateCustomerDialog({
   initialValues,
   defaultCreatePortalAccount,
   importedInvoiceId,
+  onClienteEsistente,
 }: CreateCustomerDialogProps) {
   const { effectiveCompany, user } = useAuth();
+  const { data: clientiEsistenti = [] } = useCompanyCustomers(effectiveCompany?.id, open);
   const queryClient = useQueryClient();
 
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
@@ -200,6 +209,10 @@ export function CreateCustomerDialog({
      phone.trim() !== "" || hasAnyAddress(custAddresses.billing) || fiscalCode.trim() !== "" || vatNumber.trim() !== "" ||
      hasAnyAddress(custAddresses.site) || notes.trim() !== "" || selectedDocumentCount > 0 || isBusiness);
   const shouldRequireEmail = !importedInvoiceId && companyPortalEnabled && createPortalAccount;
+  const simili = useMemo(
+    () => clientiSimili(clientiEsistenti, { nome: fullName || `${firstName} ${lastName}`, telefono: phone, email, partitaIva: vatNumber, codiceFiscale: fiscalCode }),
+    [clientiEsistenti, fullName, firstName, lastName, phone, email, vatNumber, fiscalCode],
+  );
 
   const handleClose = () => {
     resetForm();
@@ -403,39 +416,49 @@ export function CreateCustomerDialog({
     <>
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}>
       <DialogContent
-        className="max-w-md max-h-[85vh] overflow-y-auto"
+        className="max-w-3xl w-[calc(100vw-1.5rem)] max-h-[92vh] overflow-y-auto p-0 gap-0"
         onPointerDownOutside={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
         onEscapeKeyDown={(e) => { if (isDirty) { e.preventDefault(); setShowConfirmClose(true); } }}
       >
         {!showSuccessStep ? (
           <>
-            <DialogHeader>
+            <DialogHeader className="sticky top-0 z-10 border-b bg-background px-6 py-4">
               <div className="flex items-start gap-3">
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                   <User className="h-5 w-5 text-primary" />
                 </div>
                 <div className="min-w-0">
-                  <DialogTitle>Nuovo Cliente</DialogTitle>
+                  <DialogTitle>Nuovo cliente</DialogTitle>
                   <DialogDescription>
-                    Aggiungi i dati: il cliente resta selezionato qui.
+                    Bastano il nome e un recapito; il resto si completa anche dopo. Il cliente resta selezionato qui.
                   </DialogDescription>
                 </div>
               </div>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-                <div>
-                  <Label htmlFor="dialog-isBusiness" className="cursor-pointer">Cliente azienda</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Ditta, società o partita IVA: si registra la ragione sociale, non un nome e cognome
-                  </p>
-                </div>
-                <Switch
-                  id="dialog-isBusiness"
-                  checked={isBusiness}
-                  onCheckedChange={setIsBusiness}
-                />
+            <form onSubmit={handleSubmit} className="space-y-6 px-6 py-5">
+              <section className="space-y-4">
+              <div role="radiogroup" aria-label="Tipo di cliente" className="grid grid-cols-2 gap-2">
+                {([
+                  { valore: false, Icona: User, titolo: "Privato", nota: "Persona fisica: nome e cognome" },
+                  { valore: true, Icona: Building2, titolo: "Azienda", nota: "Ditta, società, condominio, ente" },
+                ] as const).map(({ valore, Icona, titolo, nota }) => (
+                  <button
+                    key={titolo}
+                    type="button"
+                    role="radio"
+                    aria-checked={isBusiness === valore}
+                    id={valore ? "dialog-isBusiness" : undefined}
+                    onClick={() => setIsBusiness(valore)}
+                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${isBusiness === valore ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50"}`}
+                  >
+                    <Icona className={`mt-0.5 h-5 w-5 shrink-0 ${isBusiness === valore ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">{titolo}</span>
+                      <span className="block text-xs text-muted-foreground">{nota}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dialog-fullName">
@@ -460,7 +483,7 @@ export function CreateCustomerDialog({
                     : "Diviso in automatico in Nome/Cognome. Correggi sotto se serve (basta Nome o Cognome)."}
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="dialog-firstName">{isBusiness ? "Nome referente" : "Nome"}</Label>
                   <Input
@@ -483,6 +506,11 @@ export function CreateCustomerDialog({
                 </div>
               </div>
 
+              </section>
+
+              <section className="space-y-4">
+              <h3 className="text-sm font-semibold">Recapiti</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="dialog-email">Email {shouldRequireEmail ? "*" : ""}</Label>
                 <Input
@@ -516,6 +544,34 @@ export function CreateCustomerDialog({
                 />
                 {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
               </div>
+              </div>
+
+              {simili.length > 0 && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+                  <p className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {simili.length === 1 ? "Sembra già in anagrafica" : `${simili.length} clienti simili già in anagrafica`}
+                  </p>
+                  <ul className="mt-2 space-y-2">
+                    {simili.map(({ cliente, motivo }) => (
+                      <li key={cliente.id} className="flex items-start gap-3 rounded-md bg-background/80 p-2">
+                        <RigaCliente cliente={cliente} />
+                        <span className="shrink-0 text-[11px] text-muted-foreground">{motivo}</span>
+                        {onClienteEsistente && (
+                          <Button type="button" size="sm" variant="outline" className="h-7 shrink-0"
+                            onClick={() => { onClienteEsistente(cliente); handleClose(); }}>
+                            Usa questo
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              </section>
+
+              <section className="space-y-4">
+              <h3 className="text-sm font-semibold">Indirizzi</h3>
 
               {/* Indirizzi cliente: fatturazione + cantiere, con ricerca/autocompletamento */}
               <CustomerAddressFields value={custAddresses} onChange={setCustAddresses} />
@@ -525,8 +581,12 @@ export function CreateCustomerDialog({
                   partita IVA: finiva in fiscal_code e non combaciava mai con
                   quella della fattura, quindi il cliente restava irriconoscibile
                   fra commesse e fatturazione. */}
+              </section>
+
+              <section className="space-y-4">
+              <h3 className="text-sm font-semibold">Dati fiscali <span className="font-normal text-muted-foreground">(facoltativi, servono per fatturare)</span></h3>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
+                <div className={`space-y-2 ${isBusiness ? "sm:order-2" : ""}`}>
                   <Label htmlFor="dialog-fiscalCode">Codice fiscale</Label>
                   <Input
                     id="dialog-fiscalCode"
@@ -537,7 +597,7 @@ export function CreateCustomerDialog({
                   />
                   <p className="text-[11px] text-muted-foreground">Per il cliente privato.</p>
                 </div>
-                <div className="space-y-2">
+                <div className={`space-y-2 ${isBusiness ? "sm:order-1" : ""}`}>
                   <Label htmlFor="dialog-vatNumber">Partita IVA</Label>
                   <Input
                     id="dialog-vatNumber"
@@ -552,6 +612,9 @@ export function CreateCustomerDialog({
                 </div>
               </div>
 
+              </section>
+
+              <section className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
                 <div className="flex items-start gap-2">
                   <FileCheck2 className="h-4 w-4 text-emerald-600 mt-0.5" />
@@ -578,10 +641,12 @@ export function CreateCustomerDialog({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Note aggiuntive sul cliente..."
-                  rows={2}
+                  rows={5}
                   maxLength={500}
                 />
               </div>
+
+              </section>
 
               {/* Toggle area privata */}
               <div className="rounded-lg border p-3 space-y-3 bg-muted/30">
@@ -637,18 +702,18 @@ export function CreateCustomerDialog({
                 )}
               </div>
 
-              <DialogFooter>
+              <DialogFooter className="sticky bottom-0 -mx-6 -mb-5 gap-2 border-t bg-background px-6 py-3">
                 <Button type="button" variant="outline" onClick={requestClose}>
                   Annulla
                 </Button>
                 <Button type="submit" disabled={isSubmitting || !!emailError || !!phoneError}>
-                  {isSubmitting ? "Creazione..." : "Crea Cliente"}
+                  {isSubmitting ? "Creazione..." : simili.length > 0 ? "Crea comunque" : "Crea cliente"}
                 </Button>
               </DialogFooter>
             </form>
           </>
         ) : (
-          <>
+          <div className="p-6">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-emerald-500" />
@@ -710,7 +775,7 @@ export function CreateCustomerDialog({
                 Seleziona e Continua
               </Button>
             </DialogFooter>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>

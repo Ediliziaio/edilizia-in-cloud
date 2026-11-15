@@ -46,8 +46,8 @@ describe("scegliere il cliente, o crearlo", () => {
   it("cercando un nome che non c'è, si crea con quel nome", () => {
     render(<Prova consentiNuovo />);
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.change(screen.getByPlaceholderText("Nome del cliente…"), { target: { value: "Comune di Torino" } });
-    fireEvent.click(screen.getByRole("button", { name: "Crea «Comune di Torino»" }));
+    fireEvent.change(screen.getByPlaceholderText("Cerca per nome, telefono, indirizzo, email o P.IVA…"), { target: { value: "Comune di Torino" } });
+    fireEvent.click(screen.getByRole("button", { name: "Nuovo cliente «Comune di Torino»" }));
     expect(m.aperto).toHaveBeenCalledWith(expect.objectContaining({ initialValues: { fullName: "Comune di Torino", isBusiness: true, firstName: "", lastName: "" } }));
   });
 });
