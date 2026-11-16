@@ -435,12 +435,33 @@ movimenti di Demo Azienda 2 senza errori. Test: `tesoreriaEsitiRiconciliazione.t
 | Conferma automatica e con un clic | interruttore comune, `tesoreria_conferma_esito` | spento/acceso, cron/persona, clic, permesso perso |
 | Fatture importate | conferma + `allinea_banca` | importata con «esterne» |
 
+### Lotto 9 — punti aperti decisi il 16/11/2026
+
+Migrazioni `20290417100000` … `20290417100400`, applicate e riallineate (piano
+`docs/piano-punti-aperti-20261116.md` §3, §4, §5, §10).
+
+- **R-CODICE dentro R-DOC/R-PARZIALE**: `private.tes_codici_in_causale` trova le commesse il cui
+  codice del committente (`orders.codici_committente`, `riferimento_committente`, o dalla
+  descrizione del lavoro se vuoti) è nella causale di un incasso; `private.tes_ordini_riga` dice la
+  commessa del candidato. Codice + soggetto → forte; solo codice → media. Codice senza partite:
+  il «mancante» lo dice. Sui 182 movimenti aperti del 16/11 nessun esito è cambiato (nessuna
+  commessa ha ancora codici); 28 ms per incasso.
+- **Soglia della banca per azienda**: `private.soglia_banca_differenza` in R-DIFF, nella finestra
+  dei conflitti e in `bank_register_difference`.
+- **Costi annullati**: esclusi dai controlli 3, 6 e 7 di `cdg_controllo_doppi`; `cdg_da_verificare`
+  aggiunge a ogni rilievo i documenti da aprire.
+- **Prove su Demo Azienda 2** (transazioni annullate): annullo con scadenza e rata, modifica
+  bloccata, ripristino; pagamento in prima nota che blocca, storno e poi annullo (prima nota con
+  le due righe); codici dal campo e dalla descrizione, con e senza il nome del cliente, parziale,
+  doppioni (due fatture uguali sulla stessa commessa → scelta); soglia 1 € contro 5 €.
+- **Incidente**: la prima versione della riga «codice senza partite» usava alias che in
+  `tes_classifica` sono variabili; per circa un minuto la classificazione degli incassi senza
+  partite dava errore. Corretta in `…100150`.
+
 ### Cosa resta, e perché
 
-1. **Codici di cantiere del cliente nelle causali** («rif MMxxx»): l'azienda cliente con la banca
-   collegata li usa negli incassi, ma nel gestionale non esistono. Finché non c'è un campo dove
-   scriverli sulla commessa, il motore non può usarli. Serve una decisione: aggiungerli come
-   riferimento esterno della commessa.
+1. ~~**Codici di cantiere del cliente nelle causali**~~ — fatto nel lotto 9: vanno scritti sulle
+   commesse dell'azienda cliente (o nella descrizione del lavoro); il motore poi li usa da solo.
 2. **Acconti versati ai fornitori prima della fattura**: oggi non c'è dove registrarli (né sul
    costo né sull'ordine), quindi un'uscita di acconto resta «da gestire». Va deciso dove vive
    l'anticipo al fornitore (sull'ordine d'acquisto, area Acquisti).

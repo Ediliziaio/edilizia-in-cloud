@@ -38,7 +38,10 @@ export default function CompanyCosts() {
   // atterrano sulle variabili se portavano un preset operativo, sulle
   // fisse altrimenti.
   const legacySpese: CostsTab = searchParams.get("preset") ? "spese-variabili" : "spese-fisse";
-  const schedaRichiesta: CostsTab = rawTab === "spese"
+  // Un link a un costo (?costo=<id>) apre la sua scheda dentro le spese.
+  const schedaRichiesta: CostsTab = searchParams.get("costo") && rawTab !== "spese-fisse" && rawTab !== "spese-variabili"
+    ? "spese-variabili"
+    : rawTab === "spese"
     ? legacySpese
     : VALID_TABS.includes(rawTab as CostsTab)
       ? (rawTab as CostsTab)

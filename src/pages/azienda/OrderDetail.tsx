@@ -120,6 +120,7 @@ import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
 import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
 import { RiquadroRiferimentiPa } from "@/components/orders/riferimentiPa/RiquadroRiferimentiPa";
+import { CodiciCommittenteRiquadro } from "@/components/orders/CodiciCommittenteRiquadro";
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
@@ -1807,6 +1808,8 @@ function OrderDetailInner() {
             {/* Dati appalto e fatturazione PA: CIG, CUP, ufficio, contratto/ordine. Si vede per i clienti PA,
                 se acceso a mano o se contratto generale / computo hanno già dei codici. */}
             {id && <RiquadroRiferimentiPa orderId={id} puoModificare={permissions.canEditOrders} />}
+            {/* Codici del committente: la banca li cerca nelle causali degli incassi (16/11/2026). */}
+            {id && <CodiciCommittenteRiquadro orderId={id} puoModificare={permissions.canEditOrders} />}
 
             <div className="grid gap-4 lg:grid-cols-2 items-start">
               <div className="space-y-4">

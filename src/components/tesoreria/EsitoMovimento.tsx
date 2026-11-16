@@ -10,6 +10,7 @@ import { syncBankExternalPayments } from "@/lib/finance/bankExternalPayments";
 import { formatTreasuryCurrency as money } from "@/lib/treasury";
 import { formatDateIt } from "@/lib/formatters";
 import { FormPagante } from "@/components/tesoreria/RiferimentiVerificati";
+import { codiceDaRicordare } from "@/lib/orders/codiciCommittente";
 
 /**
  * Il motore degli esiti della tesoreria (tesoreria_esito_movimento): per ogni
@@ -28,6 +29,8 @@ export interface RigaEsito {
   controparte?: string | null;
   residuo: number;
   quota: number;
+  /** Le commesse della riga, dal motore (tes_commesse_riga). */
+  commesse?: { order_id: string; quota: number }[];
 }
 export interface CandidatoEsito {
   chiave: string;
@@ -92,6 +95,37 @@ const testoConflitto = (c: string | { titolo?: string; motivi?: string[] }) =>
 async function segnaDaRiallineare(company: string, m: BankMovement, esterne: { invoice_id: string }[]) {
   for (const e of esterne)
     await bankRpc("tesoreria_riallineo_segna", { p_company: company, p_invoice: e.invoice_id, p_tx: m.id, p_paid_date: m.booking_date, p_errore: "aggiornamento dall'interfaccia non riuscito" }).catch((): undefined => undefined);
+}
+
+/**
+ * «Ricorda questo codice» (16/11/2026): dopo un incasso collegato a mano a una sola commessa, se la
+ * causale ha un codice che la regola dei codici non ha usato, si propone di salvarlo sulla commessa.
+ * La prossima volta il motore lo riconosce da solo.
+ */
+export function codiceDaProporre(m: Pick<BankMovement, "amount" | "description" | "reference">, c: CandidatoEsito): { orderId: string; codice: string } | null {
+  if (!(Number(m.amount) > 0)) return null;
+  if (c.motivi.some((x) => x.startsWith("Codice del committente"))) return null;
+  const ordini = [...new Set(c.righe.flatMap((r) => (r.commesse ?? []).map((x) => x.order_id)))];
+  if (ordini.length !== 1) return null;
+  const codice = codiceDaRicordare([m.description, m.reference].filter(Boolean).join(" "));
+  return codice ? { orderId: ordini[0], codice } : null;
+}
+
+async function proponiCodice(m: BankMovement, c: CandidatoEsito) {
+  const p = codiceDaProporre(m, c);
+  if (!p) return;
+  toast(`Ricordare il codice «${p.codice}» su questa commessa?`, {
+    description: "Il prossimo bonifico con questo codice si collegherà da solo alla commessa.",
+    duration: 15000,
+    action: {
+      label: "Ricorda",
+      onClick: () => {
+        void bankRpc("commessa_ricorda_codice", { p_order: p.orderId, p_codice: p.codice })
+          .then(() => toast.success(`Codice «${p.codice}» salvato sulla commessa`))
+          .catch((e: unknown) => toast.error("Codice non salvato", { description: e instanceof Error ? e.message : undefined }));
+      },
+    },
+  });
 }
 
 /** Si conferma da qui solo un'alternativa fatta di fatture e scadenze con quota positiva. */
@@ -283,6 +317,7 @@ export function AlternativeEsito({ company, movement: m, esito, puoAbbinare, onA
       if (falliti.length) await segnaDaRiallineare(company, m, result?.esterne ?? []);
       toast.success(c.righe.length === 1 ? `Collegato a ${c.righe[0].titolo}` : `Collegato a ${c.righe.length} documenti`);
       if (falliti.length) toast.warning(`Pagamento salvato, aggiornamento esterno da riprovare: ${falliti.join(", ")}`);
+      void proponiCodice(m, c);
     } catch (err) {
       if (salvato) toast.warning("Collegamento salvato, aggiornamento esterno da riprovare");
       else toast.error(err instanceof Error ? err.message : "Collegamento non riuscito");

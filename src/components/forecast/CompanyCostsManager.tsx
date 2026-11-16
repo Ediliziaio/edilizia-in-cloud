@@ -474,6 +474,35 @@ export default function CompanyCostsManager({
     setDialogOpen(true);
   };
 
+  // «Apri il costo» da altre pagine (Contabilità → Da verificare, Costi → Utenze): /azienda/costi?costo=<id>.
+  // Si legge il costo da solo, così si apre anche se è fuori dal periodo mostrato.
+  const costoDaLink = searchParams.get("costo");
+  useEffect(() => {
+    if (!costoDaLink || !companyId) return;
+    let vivo = true;
+    void supabase
+      .from("company_costs")
+      .select("*, order:orders(id, order_code), supplier:suppliers(id, name, product_category, vat_rate)")
+      .eq("company_id", companyId)
+      .eq("id", costoDaLink)
+      .maybeSingle()
+      .then(({ data: trovato }) => {
+        if (!vivo) return;
+        if (trovato) openEdit(trovato as unknown as UnifiedCost);
+        else toast({ title: "Costo non trovato", variant: "destructive" });
+        // Si toglie il parametro ma si resta nelle spese: senza «tab» la pagina tornerebbe alla
+        // panoramica e chiuderebbe la scheda appena aperta.
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("costo");
+          if (!next.get("tab")) next.set("tab", typeLock === "fixed" ? "spese-fisse" : "spese-variabili");
+          return next;
+        }, { replace: true });
+      });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [costoDaLink, companyId]);
+
   const openDuplicate = (cost: UnifiedCost) => {
     const duplicableCost = cost as CostWithRelations;
     setEditingCost(null);

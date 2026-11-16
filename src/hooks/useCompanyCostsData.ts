@@ -368,11 +368,12 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       });
     }
 
+    // Un costo annullato (16/11/2026) non è da pagare né scaduto: resta solo in «tutti».
     if (statusFilter === "paid") filtered = filtered.filter((c: any) => c.is_paid);
-    else if (statusFilter === "unpaid") filtered = filtered.filter((c: any) => !c.is_paid && (!c.due_date || parseCostDate(c.due_date)! >= todayStart));
+    else if (statusFilter === "unpaid") filtered = filtered.filter((c: any) => !c.is_paid && !c.annullato_il && (!c.due_date || parseCostDate(c.due_date)! >= todayStart));
     else if (statusFilter === "overdue") filtered = filtered.filter((c: any) => {
       const dueDate = parseCostDate(c.due_date);
-      return !c.is_paid && !!dueDate && dueDate < todayStart;
+      return !c.is_paid && !c.annullato_il && !!dueDate && dueDate < todayStart;
     });
 
     if (supplierFilter !== "all") {

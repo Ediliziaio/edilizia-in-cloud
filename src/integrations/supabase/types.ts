@@ -28562,6 +28562,10 @@ export type Database = {
           allegato_path: string | null
           allocations: Json | null
           amount: number
+          annullato_da: string | null
+          annullato_dati: Json | null
+          annullato_il: string | null
+          annullato_motivo: string | null
           category: string | null
           company_id: string
           cost_type: string
@@ -28603,6 +28607,10 @@ export type Database = {
           allegato_path?: string | null
           allocations?: Json | null
           amount?: number
+          annullato_da?: string | null
+          annullato_dati?: Json | null
+          annullato_il?: string | null
+          annullato_motivo?: string | null
           category?: string | null
           company_id: string
           cost_type?: string
@@ -28644,6 +28652,10 @@ export type Database = {
           allegato_path?: string | null
           allocations?: Json | null
           amount?: number
+          annullato_da?: string | null
+          annullato_dati?: Json | null
+          annullato_il?: string | null
+          annullato_motivo?: string | null
           category?: string | null
           company_id?: string
           cost_type?: string
@@ -29698,6 +29710,10 @@ export type Database = {
       }
       company_governance_settings: {
         Row: {
+          acquisti_prezzo_toll_cent: number
+          acquisti_prezzo_toll_perc: number
+          acquisti_quantita_toll_perc: number
+          banca_differenza_max: number
           collegamento_automatico: boolean
           company_id: string
           created_at: string
@@ -29713,6 +29729,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          acquisti_prezzo_toll_cent?: number
+          acquisti_prezzo_toll_perc?: number
+          acquisti_quantita_toll_perc?: number
+          banca_differenza_max?: number
           collegamento_automatico?: boolean
           company_id: string
           created_at?: string
@@ -29728,6 +29748,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          acquisti_prezzo_toll_cent?: number
+          acquisti_prezzo_toll_perc?: number
+          acquisti_quantita_toll_perc?: number
+          banca_differenza_max?: number
           collegamento_automatico?: boolean
           company_id?: string
           created_at?: string
@@ -84767,6 +84791,7 @@ export type Database = {
           client_email: string | null
           client_name: string | null
           client_phone: string | null
+          codici_committente: string[]
           commessa_generale_id: string | null
           company_id: string
           created_at: string
@@ -84857,6 +84882,7 @@ export type Database = {
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
+          codici_committente?: string[]
           commessa_generale_id?: string | null
           company_id: string
           created_at?: string
@@ -84947,6 +84973,7 @@ export type Database = {
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
+          codici_committente?: string[]
           commessa_generale_id?: string | null
           company_id?: string
           created_at?: string
@@ -106872,8 +106899,9 @@ export type Database = {
           importo_coperto: number
           importo_previsto_prima: number
           previsione_id: string
-          reale_id: string
+          reale_id: string | null
           regola: string
+          stato: string
           stato_prima: string
         }
         Insert: {
@@ -106886,8 +106914,9 @@ export type Database = {
           importo_coperto: number
           importo_previsto_prima: number
           previsione_id: string
-          reale_id: string
+          reale_id?: string | null
           regola: string
+          stato?: string
           stato_prima: string
         }
         Update: {
@@ -106900,8 +106929,9 @@ export type Database = {
           importo_coperto?: number
           importo_previsto_prima?: number
           previsione_id?: string
-          reale_id?: string
+          reale_id?: string | null
           regola?: string
+          stato?: string
           stato_prima?: string
         }
         Relationships: [
@@ -123746,6 +123776,7 @@ export type Database = {
           contact_role: string | null
           country: string | null
           created_at: string
+          creato_dalla_fattura_id: string | null
           credit_limit: number | null
           default_qr_format: string | null
           email: string | null
@@ -123798,6 +123829,7 @@ export type Database = {
           contact_role?: string | null
           country?: string | null
           created_at?: string
+          creato_dalla_fattura_id?: string | null
           credit_limit?: number | null
           default_qr_format?: string | null
           email?: string | null
@@ -123850,6 +123882,7 @@ export type Database = {
           contact_role?: string | null
           country?: string | null
           created_at?: string
+          creato_dalla_fattura_id?: string | null
           credit_limit?: number | null
           default_qr_format?: string | null
           email?: string | null
@@ -127011,6 +127044,7 @@ export type Database = {
           regola: string
           risultato: Json
           scartato_at: string | null
+          scartato_chiavi: string[] | null
           scartato_da: string | null
           scartato_motivo: string | null
           transaction_id: string
@@ -127025,6 +127059,7 @@ export type Database = {
           regola: string
           risultato: Json
           scartato_at?: string | null
+          scartato_chiavi?: string[] | null
           scartato_da?: string | null
           scartato_motivo?: string | null
           transaction_id: string
@@ -127039,6 +127074,7 @@ export type Database = {
           regola?: string
           risultato?: Json
           scartato_at?: string | null
+          scartato_chiavi?: string[] | null
           scartato_da?: string | null
           scartato_motivo?: string | null
           transaction_id?: string
@@ -127337,6 +127373,81 @@ export type Database = {
           },
           {
             foreignKeyName: "tesoreria_paganti_autorizzati_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
+      tesoreria_riallineo_esterno: {
+        Row: {
+          aggiornato_at: string
+          company_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          paid_date: string | null
+          risolto_at: string | null
+          tentativi: number
+          transaction_id: string | null
+          ultimo_errore: string | null
+        }
+        Insert: {
+          aggiornato_at?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          paid_date?: string | null
+          risolto_at?: string | null
+          tentativi?: number
+          transaction_id?: string | null
+          ultimo_errore?: string | null
+        }
+        Update: {
+          aggiornato_at?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          paid_date?: string | null
+          risolto_at?: string | null
+          tentativi?: number
+          transaction_id?: string | null
+          ultimo_errore?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tesoreria_riallineo_esterno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_riallineo_esterno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tesoreria_riallineo_esterno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_riallineo_esterno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tesoreria_riallineo_esterno_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "v_insoluti"
@@ -140278,6 +140389,7 @@ export type Database = {
           client_email: string | null
           client_name: string | null
           client_phone: string | null
+          codici_committente: string[] | null
           commessa_generale_id: string | null
           company_id: string | null
           created_at: string | null
@@ -146095,6 +146207,18 @@ export type Database = {
         }
         Returns: string
       }
+      acquisti_commessa_della_fattura: {
+        Args: {
+          p_esito: string
+          p_fattura: string
+          p_motivo?: string
+          p_order: string
+          p_percorso?: Json
+          p_prove?: Json
+          p_regola: string
+        }
+        Returns: Json
+      }
       acquisti_conferma_impostazioni_salva: {
         Args: { p_company: string; p_giorni: number; p_tolleranza: number }
         Returns: undefined
@@ -146103,6 +146227,7 @@ export type Database = {
         Args: { p_chiave: string; p_company: string }
         Returns: Json
       }
+      acquisti_da_fare: { Args: { p_company: string }; Returns: Json }
       acquisti_data_italiana: { Args: { p: string }; Returns: string }
       acquisti_ddt_candidati: {
         Args: {
@@ -146139,6 +146264,10 @@ export type Database = {
       }
       acquisti_fornitori_automatici_lotto: {
         Args: { p_company: string; p_limite?: number }
+        Returns: Json
+      }
+      acquisti_fornitori_automatici_stato: {
+        Args: { p_company: string }
         Returns: Json
       }
       acquisti_fornitori_dalle_fatture_anteprima: {
@@ -146253,6 +146382,19 @@ export type Database = {
           identifica: boolean
           oda_id: string
           oda_numero: string
+        }[]
+      }
+      acquisti_ordine_ha_costo_proprio: {
+        Args: { p_costo_fattura: string; p_po: string }
+        Returns: boolean
+      }
+      acquisti_ordini_citati: {
+        Args: { p_xml: string }
+        Returns: {
+          anno: number
+          chiave: string
+          serie: string
+          testo: string
         }[]
       }
       acquisti_puo_collegare: { Args: { p_company: string }; Returns: boolean }
@@ -146383,6 +146525,7 @@ export type Database = {
           n_calls: number
         }[]
       }
+      admin_ai_prove_modelli: { Args: { p_giorni?: number }; Returns: Json }
       admin_ai_puo_vedere_costi: { Args: never; Returns: boolean }
       admin_ai_revenue_summary: {
         Args: { p_da: string }
@@ -147514,6 +147657,7 @@ export type Database = {
         Args: { p_id: string }
         Returns: number
       }
+      azienda_soglie_automazioni: { Args: { p_company: string }; Returns: Json }
       aziende_amministrate: { Args: never; Returns: string[] }
       aziende_area: { Args: { p_permessi: string[] }; Returns: string[] }
       aziende_con_permessi_dettagliati: { Args: never; Returns: string[] }
@@ -148344,6 +148488,7 @@ export type Database = {
       catalogo_immagini_valide: { Args: { v: Json }; Returns: boolean }
       categoria_storage: { Args: { p_bucket: string }; Returns: string }
       cdg_controllo_doppi: { Args: { p_company: string }; Returns: Json }
+      cdg_da_verificare: { Args: { p_company: string }; Returns: Json }
       cedenti_fatture_ricevute: {
         Args: { p_company_id: string }
         Returns: {
@@ -149056,6 +149201,10 @@ export type Database = {
         Args: { p_order_id: string; p_user_id: string }
         Returns: undefined
       }
+      commessa_codici_committente_salva: {
+        Args: { p_codici: string[]; p_order: string }
+        Returns: string[]
+      }
       commessa_collega_fattura_ricevuta: {
         Args: { p_fattura_id: string; p_order_id: string }
         Returns: Json
@@ -149195,6 +149344,10 @@ export type Database = {
         Returns: Json
       }
       commessa_quadro_pagamenti: { Args: { p_order_id: string }; Returns: Json }
+      commessa_ricorda_codice: {
+        Args: { p_codice: string; p_order: string }
+        Returns: string[]
+      }
       commessa_salva: {
         Args: {
           p_bonus?: Json
@@ -149779,6 +149932,11 @@ export type Database = {
         }
         Returns: Json
       }
+      costo_annulla: {
+        Args: { p_costo: string; p_motivo: string }
+        Returns: Json
+      }
+      costo_annullo_anteprima: { Args: { p_costo: string }; Returns: Json }
       costo_nome_parte: {
         Args: { p_company: string; p_valore: string }
         Returns: string
@@ -149824,6 +149982,7 @@ export type Database = {
         }
         Returns: Json
       }
+      costo_ripristina: { Args: { p_costo: string }; Returns: Json }
       costo_stornato_da_note: { Args: { p_costo: string }; Returns: number }
       count_listino_usages_for_tipo_impianto: {
         Args: { p_tipo_impianto_id: string }
@@ -161036,6 +161195,10 @@ export type Database = {
         Args: { p_company: string; p_tx: string }
         Returns: Json
       }
+      tesoreria_conferma_alternativa: {
+        Args: { p_company: string; p_note?: string; p_rows: Json; p_tx: string }
+        Returns: Json
+      }
       tesoreria_conferma_automatica: {
         Args: { p_company: string; p_limite?: number }
         Returns: Json
@@ -161065,6 +161228,24 @@ export type Database = {
       }
       tesoreria_revoca_pagante: {
         Args: { p_company: string; p_id: string }
+        Returns: undefined
+      }
+      tesoreria_riallineo_da_fare: {
+        Args: { p_company: string; p_limite?: number }
+        Returns: Json
+      }
+      tesoreria_riallineo_risolto: {
+        Args: { p_company: string; p_invoice: string }
+        Returns: undefined
+      }
+      tesoreria_riallineo_segna: {
+        Args: {
+          p_company: string
+          p_errore: string
+          p_invoice: string
+          p_paid_date: string
+          p_tx: string
+        }
         Returns: undefined
       }
       tesoreria_ricorda_iban_cliente: {

@@ -28,6 +28,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { DaVerificareCard } from "@/components/contabilita/DaVerificareCard";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { NavyStatCard } from "@/components/costi/KpiCard";
@@ -335,6 +336,9 @@ function PrimaNotaInner() {
         </div>
         </div>
       </div>
+
+      {/* Contabilità → Da verificare (16/11/2026): le anomalie di cdg_controllo_doppi, ognuna col pulsante che apre il documento. */}
+      <DaVerificareCard companyId={effectiveCompany?.id} />
 
       {stampa && (
         <PrintPreviewModal

@@ -17,6 +17,8 @@ import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AnnullaCostoDialog } from "@/components/costi/AnnullaCostoDialog";
+import { motivoBolletta } from "@/lib/costi/annulloCosto";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -24,7 +26,9 @@ const db = supabase as any;
 export interface Utenza { id: string; tipo: string; codice: string; fornitore_nome: string | null; indirizzo_fornitura: string | null; numero_contratto: string | null }
 export interface Destinazione { id: string; utenza_id: string; destinazione_tipo: "sede" | "immobile" | "commessa"; sede_id: string | null; unita_id: string | null; order_id: string | null; valido_dal: string; valido_al: string | null }
 export interface RigaBolletta { bolletta_id: string; utenza_id: string | null; periodo_dal: string | null; periodo_al: string | null; importo: number }
-export interface Bolletta { id: string; numero: string | null; data: string | null; stato: string; tipo?: string | null; costo_esito: string | null; avvisi: Array<{ codice: string; testo: string }> }
+export interface Bolletta { id: string; numero: string | null; data: string | null; stato: string; tipo?: string | null; costo_esito: string | null; fattura_ricevuta_id?: string | null; avvisi: Array<{ codice: string; testo: string; costo_id?: string | null }> }
+/** Il costo ancora nei conti di una bolletta scartata o doppia (16/11/2026): si annulla da qui. */
+export interface CostoDaAnnullare { bolletta: Bolletta; costo: { id: string; name: string; amount: number } }
 interface Scelta { id: string; nome: string }
 
 const COSTO: Record<string, string> = {
@@ -64,13 +68,32 @@ export default function UtenzeTab() {
         db.from("utenze").select("id, tipo, codice, fornitore_nome, indirizzo_fornitura, numero_contratto").eq("company_id", companyId).order("codice"),
         db.from("utenze_destinazioni").select("id, utenza_id, destinazione_tipo, sede_id, unita_id, order_id, valido_dal, valido_al").eq("company_id", companyId).eq("stato", "collegato"),
         db.from("bollette_righe").select("bolletta_id, utenza_id, periodo_dal, periodo_al, importo").eq("company_id", companyId).limit(5000),
-        db.from("bollette").select("id, numero, data, stato, tipo, costo_esito, avvisi").eq("company_id", companyId).order("data", { ascending: false }).limit(5000),
+        db.from("bollette").select("id, numero, data, stato, tipo, costo_esito, avvisi, fattura_ricevuta_id").eq("company_id", companyId).order("data", { ascending: false }).limit(5000),
         db.from("sedi").select("id, nome").eq("company_id", companyId).order("nome"),
         db.from("orders").select("id, order_code, description").eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).limit(500),
         db.from("unita_immobiliari").select("id, sigla, edificio").eq("company_id", companyId).order("sigla").limit(1000),
       ]);
       for (const x of [u, d, r, b]) if (x.error) throw x.error;
+      // Bollette scartate o doppie col costo già registrato: il costo dalla decisione (avvisi.costo_id)
+      // o dalla fattura; restano in elenco finché il costo non è annullato.
+      const dubbie = ((b.data ?? []) as Bolletta[]).filter((x) => x.stato === "scartata" || x.stato === "doppione_sospetto");
+      const daFattura = new Map<string, string>();
+      const fattureIds = dubbie.map((x) => x.fattura_ricevuta_id).filter((x): x is string => !!x);
+      if (fattureIds.length) {
+        const f = await db.from("fatture_ricevute").select("id, company_cost_id").eq("company_id", companyId).in("id", fattureIds);
+        for (const x of (f.data ?? []) as Array<{ id: string; company_cost_id: string | null }>) if (x.company_cost_id) daFattura.set(x.id, x.company_cost_id);
+      }
+      const costoDi = (x: Bolletta) => [...(x.avvisi ?? [])].reverse().find((a) => a.costo_id)?.costo_id ?? (x.fattura_ricevuta_id ? daFattura.get(x.fattura_ricevuta_id) : undefined) ?? null;
+      const costiIds = [...new Set(dubbie.map(costoDi).filter((x): x is string => !!x))];
+      let costiDaAnnullare: CostoDaAnnullare[] = [];
+      if (costiIds.length) {
+        const c = await db.from("company_costs").select("id, name, amount, annullato_il").eq("company_id", companyId).in("id", costiIds);
+        const attivi = new Map(((c.data ?? []) as Array<{ id: string; name: string; amount: number; annullato_il: string | null }>)
+          .filter((x) => !x.annullato_il).map((x) => [x.id, x]));
+        costiDaAnnullare = dubbie.flatMap((x) => { const k = costoDi(x); const cc = k ? attivi.get(k) : undefined; return cc ? [{ bolletta: x, costo: { id: cc.id, name: cc.name, amount: Number(cc.amount) } }] : []; });
+      }
       return {
+        costiDaAnnullare,
         utenze: (u.data ?? []) as Utenza[], destinazioni: (d.data ?? []) as Destinazione[],
         righe: (r.data ?? []) as RigaBolletta[], bollette: (b.data ?? []) as Bolletta[],
         sedi: ((sedi.data ?? []) as Array<{ id: string; nome: string }>).map((s) => ({ id: s.id, nome: s.nome })),
@@ -100,6 +123,7 @@ export default function UtenzeTab() {
   });
 
   const daDecidere = (data?.bollette ?? []).filter((b) => b.stato === "doppione_sospetto");
+  const [daAnnullare, setDaAnnullare] = useState<CostoDaAnnullare | null>(null);
 
   if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento utenze…</p>;
   if (isError || !data) return <div role="alert" className="rounded-lg border p-4 text-sm">Utenze non disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>;
@@ -127,6 +151,29 @@ export default function UtenzeTab() {
           </ul>
         </section>
       )}
+
+      {data.costiDaAnnullare.length > 0 && (
+        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" aria-label="Costi da annullare">
+          <h3 className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="h-4 w-4 text-amber-600" />Costi ancora nei conti ({data.costiDaAnnullare.length})</h3>
+          <p className="mt-1 text-xs text-muted-foreground">La bolletta è scartata o doppia, ma il suo costo era già registrato: annullalo, così esce da conti, commesse e cassa.</p>
+          <ul className="mt-2 space-y-2 text-sm">
+            {data.costiDaAnnullare.map((x) => (
+              <li key={`${x.bolletta.id}-${x.costo.id}`} className="flex flex-wrap items-center justify-between gap-2">
+                <span>Bolletta {x.bolletta.numero ?? "senza numero"}{x.bolletta.data ? ` del ${formatDateShort(x.bolletta.data)}` : ""} ({x.bolletta.stato === "scartata" ? "scartata" : "possibile doppione"}): costo «{x.costo.name}», {formatCurrency(x.costo.amount)}</span>
+                {puoDecidere && <Button size="sm" variant="outline" onClick={() => setDaAnnullare(x)}>Annulla costo</Button>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <AnnullaCostoDialog
+        costId={daAnnullare?.costo.id ?? null}
+        nome={daAnnullare?.costo.name}
+        open={!!daAnnullare}
+        onOpenChange={(o) => { if (!o) setDaAnnullare(null); }}
+        motivoIniziale={motivoBolletta(daAnnullare?.bolletta.stato)}
+        onFatto={aggiorna}
+      />
 
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full text-sm">

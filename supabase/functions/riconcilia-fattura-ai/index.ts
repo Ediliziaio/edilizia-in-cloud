@@ -13,7 +13,7 @@ import { eseguiLottoRiconciliazione } from "../_shared/eseguiLottoRiconciliazion
 import { pianificaLotti } from "../_shared/lottiRiconciliazione.ts";
 import type { PropostaRiconciliazione } from "../_shared/riconciliazioneFattureAI.ts";
 import { scenarioRiconciliazione } from "../_shared/riconciliazioneFattureScenari.ts";
-import { MODELLO_REGOLE, propostaDaRegole } from "../_shared/riconciliazioneRegole.ts";
+import { MODELLO_REGOLE, propostaDaRegole, tolleranzeDaSoglie } from "../_shared/riconciliazioneRegole.ts";
 import { registraEsitoLavoroAi } from "../_shared/esitoLavoroAi.ts";
 
 const cors = {
@@ -107,9 +107,15 @@ Deno.serve(async (req) => {
           },
         }
       : context.contesto;
-    const impronta =
-      context.impronta + (esempio ? `:sim:${input.simulazione}` : "");
     const companyId = context.contesto.fattura.company_id;
+    // Soglie dell'azienda (Impostazioni → Automazioni, 16/11/2026). Con i valori di partenza
+    // l'impronta resta quella di prima, così le analisi già salvate valgono ancora.
+    const { data: soglie } = await supabaseAdmin.rpc("azienda_soglie_automazioni", { p_company: companyId });
+    const tolleranze = tolleranzeDaSoglie(soglie);
+    const soglieProprie = tolleranze && (tolleranze.quantitaPerc !== 0 || tolleranze.prezzoPerc !== 0.5 || tolleranze.importoCent !== 2);
+    const impronta =
+      context.impronta + (esempio ? `:sim:${input.simulazione}` : "") +
+      (soglieProprie ? `:toll:${tolleranze!.quantitaPerc}/${tolleranze!.prezzoPerc}/${tolleranze!.importoCent}` : "");
     const { data: cached, error: cacheError } = await supabaseAdmin
       .from("fattura_riconciliazioni_ai")
       .select("*")
@@ -123,7 +129,7 @@ Deno.serve(async (req) => {
     let proposta: PropostaRiconciliazione, modello: string;
     // Prima le regole (codice, descrizione, quantità, equivalenze e conversioni confermate):
     // se chiudono TUTTE le righe, l'AI non si chiama e non si paga; altrimenti riceve solo le altre.
-    const regole = esempio ? null : propostaDaRegole(c);
+    const regole = esempio ? null : propostaDaRegole(c, { tolleranze });
     if (regole?.proposta) {
       proposta = validaPropostaRiconciliazione(regole.proposta, c);
       modello = MODELLO_REGOLE;

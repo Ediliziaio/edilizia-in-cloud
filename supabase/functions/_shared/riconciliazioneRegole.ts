@@ -18,7 +18,7 @@
  *     abbina da sola (la quantità residua la valuta chi conosce le altre fatture);
  *   - se sono stati scelti ordini, ogni riga deve trovare anche la riga d'ordine.
  */
-import { abbinaRigheFattura, type EquivalenzaCodice, type RigaDocumento } from "../../../shared/acquisti/righe.ts";
+import { abbinaRigheFattura, confrontaRiga, type EquivalenzaCodice, type RigaDocumento, type Tolleranze } from "../../../shared/acquisti/righe.ts";
 import type { ConversioneAutorizzata } from "../../../shared/acquisti/normalizza.ts";
 import { unitaCanonica } from "../../../shared/acquisti/normalizza.ts";
 import type { RigaFatturaLetta } from "../../../shared/acquisti/riferimentiFattura.ts";
@@ -56,7 +56,18 @@ export interface EsitoRegole {
   motivo: string | null;
 }
 
-export function propostaDaRegole(c: ContestoRiconciliazione): EsitoRegole {
+/**
+ * Soglie dell'azienda (Impostazioni → Automazioni, 16/11/2026) dalla risposta di
+ * azienda_soglie_automazioni; senza risposta valgono i default del codice.
+ */
+export function tolleranzeDaSoglie(s: unknown): Tolleranze | undefined {
+  if (!s || typeof s !== "object") return undefined;
+  const o = s as Record<string, unknown>;
+  const n = (v: unknown) => (v == null || !Number.isFinite(Number(v)) ? undefined : Number(v));
+  return { quantitaPerc: n(o.acquisti_quantita_toll_perc), prezzoPerc: n(o.acquisti_prezzo_toll_perc), importoCent: n(o.acquisti_prezzo_toll_cent) };
+}
+
+export function propostaDaRegole(c: ContestoRiconciliazione, impostazioni: { tolleranze?: Tolleranze } = {}): EsitoRegole {
   const d = datiRiconciliazione(c);
   const righe: RigaFatturaLetta[] = d.fattura.map((f, i): RigaFatturaLetta => ({
     numeroLinea: i + 1,
@@ -75,7 +86,8 @@ export function propostaDaRegole(c: ContestoRiconciliazione): EsitoRegole {
   const totale = righe.length;
   if (!totale) return { proposta: null, chiuseRighe: [], righe: 0, chiuse: 0, motivo: "fattura senza righe leggibili" };
 
-  const opz = { equivalenze: equivalenze(c), conversioni: conversioni(c) };
+  const tolleranze = Object.fromEntries(Object.entries(impostazioni.tolleranze ?? {}).filter(([, v]) => v != null)) as Tolleranze;
+  const opz = { equivalenze: equivalenze(c), conversioni: conversioni(c), tolleranze };
   const bolle: RigaDocumento[] = d.bolle
     .filter((b) => !b.residuoIncerto && b.giaFatturata === 0)
     .map((b) => ({ id: b.id, documentoId: b.documentoId, codice: b.codice, descrizione: b.descrizione, quantita: b.quantita, unita: b.um, prezzoUnitario: b.prezzo }));
@@ -105,12 +117,16 @@ export function propostaDaRegole(c: ContestoRiconciliazione): EsitoRegole {
     const okOda = !conOda || (od?.esito === "automatico" && !!od.sceltoId);
     if (okDdt && okOda) {
       chiuse++;
+      // Il prezzo non decide l'abbinamento, ma uno scarto oltre la tolleranza si scrive nel motivo.
+      const scelta = (conDdt ? bolle.find((b) => b.id === dd?.sceltoId) : ordini.find((o) => o.id === od?.sceltoId)) ?? null;
+      const prezzo = scelta ? confrontaRiga(righe[i], scelta, { tolleranze, conversioni: opz.conversioni }).find((x) => x.tipo === "prezzo") : undefined;
+      const notaPrezzo = prezzo && prezzo.tipo === "prezzo" ? ` · prezzo diverso del ${prezzo.scartoPerc.toFixed(2).replace(".", ",")}%, oltre la tolleranza` : "";
       out.push({
         fattura: f.id,
         ddt: conDdt && dd?.sceltoId ? [dd.sceltoId] : [],
         oda: conOda && od?.sceltoId ? [od.sceltoId] : [],
         affidabilita: "alta",
-        motivo: `Regola, senza AI: ${[dd?.motivo, od?.motivo].filter(Boolean).join(" · ")}`.slice(0, 700),
+        motivo: `Regola, senza AI: ${[dd?.motivo, od?.motivo].filter(Boolean).join(" · ")}${notaPrezzo}`.slice(0, 700),
       });
     } else if (!motivo) {
       const d0 = !okDdt ? dd : od;

@@ -1,4 +1,5 @@
 import { etichettaMetodoCosto } from "@/lib/costi/metodiPagamento";
+import { costoAnnullato, importoOriginale, type CostoForseAnnullato } from "@/lib/costi/annulloCosto";
 import { useMemo, useState } from "react";
 import { format, addDays, differenceInCalendarDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { usePagination } from "@/hooks/usePagination";
@@ -163,6 +164,7 @@ export function CostsTable({
     recurrence: (c: UnifiedCost) => c.recurrence,
     dueDate: (c: UnifiedCost) => parseCostDate(c.due_date),
     status: (c: UnifiedCost) => {
+      if (costoAnnullato(c as unknown as CostoForseAnnullato)) return "Annullato";
       if (c.is_paid) return "Pagato";
       const d = parseCostDate(c.due_date);
       if (!d) return "Da pianificare";
@@ -245,6 +247,10 @@ export function CostsTable({
   const badgeStato = (cost: UnifiedCost) => {
     const dueDate = parseCostDate(cost.due_date);
     const uscita = statoUscitaById?.get(cost.id);
+
+    if (costoAnnullato(cost as unknown as CostoForseAnnullato)) {
+      return <Badge variant="outline" className="border-slate-400 text-slate-600">Annullato</Badge>;
+    }
 
     if (cost.is_paid) {
       const paidLabel = cost.paid_date ? `Pagato il ${format(parseISO(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
@@ -443,9 +449,10 @@ export function CostsTable({
             const vatRate = Number(cost.vat_rate ?? (cost as any).supplier?.vat_rate ?? 0) || 0;
             const grossM = calculateGrossFromNet(Number(cost.amount) || 0, vatRate).grossAmount;
             const dueM = parseCostDate(cost.due_date);
-            const ritardo = !cost.is_paid && dueM && dueM < todayRef ? differenceInCalendarDays(todayRef, dueM) : null;
+            const ritardo = !cost.is_paid && !costoAnnullato(cost as unknown as CostoForseAnnullato) && dueM && dueM < todayRef ? differenceInCalendarDays(todayRef, dueM) : null;
             const modificabile = !cost.isFromOrder && !soloLettura;
-            const payable = modificabile && !cost.is_paid && !cost.id.startsWith(COST_ID_PREFIX.EMPLOYEE_SALARY);
+            const annullatoM = costoAnnullato(cost as unknown as CostoForseAnnullato);
+            const payable = modificabile && !annullatoM && !cost.is_paid && !cost.id.startsWith(COST_ID_PREFIX.EMPLOYEE_SALARY);
             return (
               <div
                 key={cost.id}
@@ -478,7 +485,7 @@ export function CostsTable({
                       Paga
                     </button>
                   ) : (
-                    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">Da pagare</p>
+                    <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{annullatoM ? "Annullato" : "Da pagare"}</p>
                   )}
                 </div>
               </div>
@@ -528,8 +535,10 @@ export function CostsTable({
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
                 const dueDate = parseCostDate(cost.due_date);
-                const isOverdue = !cost.is_paid && dueDate && dueDate < todayRef;
-                const isExpiring = !cost.is_paid && dueDate && dueDate >= todayRef && dueDate <= soonRef;
+                // Un costo annullato (16/11/2026) resta in elenco ma non scade e non si paga.
+                const annullatoRiga = costoAnnullato(cost as unknown as CostoForseAnnullato);
+                const isOverdue = !annullatoRiga && !cost.is_paid && dueDate && dueDate < todayRef;
+                const isExpiring = !annullatoRiga && !cost.is_paid && dueDate && dueDate >= todayRef && dueDate <= soonRef;
                 return (
                   <TableRow key={cost.id} className={`${isOverdue ? "bg-red-50/60 dark:bg-red-900/10" : isExpiring ? "bg-orange-50/60 dark:bg-orange-900/10" : cost.isFromOrder ? "bg-orange-50/30 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
                     <TableCell>
@@ -540,7 +549,12 @@ export function CostsTable({
                       )}
                     </TableCell>
                     <TableCell title={cost.name}>
-                      <p className="truncate font-medium">{cost.name}</p>
+                      <p className={cn("truncate font-medium", annullatoRiga && "text-muted-foreground line-through")}>{cost.name}</p>
+                      {annullatoRiga && (
+                        <Badge variant="outline" className="mt-0.5 border-slate-400 px-1.5 text-[10px] text-slate-600" title={(cost as unknown as CostoForseAnnullato).annullato_motivo ?? undefined}>
+                          Annullato · era {formatCurrency(importoOriginale(cost as unknown as CostoForseAnnullato))}
+                        </Badge>
+                      )}
                       {/* Categoria e origine vivono qui sotto: così le colonne
                           dedicate possono restare spente senza perdere nulla. */}
                       <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
@@ -670,7 +684,7 @@ export function CostsTable({
                       <div className="flex items-center justify-end gap-1">
                         {!cost.isFromOrder && !soloLettura && (
                           <>
-                            {!cost.is_paid ? (
+                            {annullatoRiga ? null : !cost.is_paid ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onMarkPaid(cost.id)} aria-label="Segna come pagato">

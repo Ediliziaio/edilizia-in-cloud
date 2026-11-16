@@ -13,6 +13,7 @@ import { it } from "date-fns/locale";
 import { AUTOMATISMI, type Automatismo } from "@/components/settings/automazioni/registroAutomatismi";
 import { MisuraAutomazioni } from "@/components/settings/automazioni/MisuraAutomazioni";
 import { DaFareAcquisti } from "@/components/settings/automazioni/DaFareAcquisti";
+import { SoglieCollegamentiCard } from "@/components/settings/automazioni/SoglieCollegamenti";
 
 const TONO: Record<string, string> = {
   neutro: "text-muted-foreground",
@@ -105,6 +106,7 @@ export default function SettingsAutomazioni() {
         </ul>
       </div>
       {!puoModificare && <p className="text-xs text-muted-foreground">Gli interruttori li cambia l&apos;amministratore dell&apos;azienda.</p>}
+      <SoglieCollegamentiCard companyId={companyId} puoModificare={puoModificare} />
       {puoConfermare && <DaFareAcquisti companyId={companyId} />}
       <MisuraAutomazioni companyId={companyId} />
     </div>

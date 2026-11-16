@@ -105,6 +105,17 @@ Lo stesso «Annulla costo» serve poi ovunque, non solo per le bollette.
 **Ti chiedo:** va bene questa regola (si annulla solo se niente è stato pagato)?
 **Lavoro:** M.
 
+**Fatto il 16/11** (migrazioni `20290417100000`, `…100400`). `costo_annulla(costo, motivo)` /
+`costo_ripristina(costo)`, anteprima `costo_annullo_anteprima`. Il costo resta nella tabella con
+`annullato_il/_da/_motivo`; l'importo va a 0 e quello vero resta in `annullato_dati` (così esce da
+ogni somma: CdG, commesse, cassa, senza toccare le ottanta letture di `company_costs`); scadenze
+non pagate «annullata», rate aperte «stornata»; tutto torna com'era col ripristino. Un pagamento
+già registrato ferma l'annullamento e dice perché: se è solo in prima nota, «Storna il pagamento»
+(dalla stessa finestra) scrive la riga di storno, poi si annulla; con un bonifico collegato si
+scollega prima dalla Tesoreria. Mentre è annullato il costo non cambia importo e non si paga
+(trigger). Pulsante nella scheda del costo (tutti i costi) e in Costi → Utenze, accanto a ogni
+bolletta scartata o doppia che ha ancora il costo nei conti; l'avviso della bolletta lo dice.
+
 ---
 
 ## 4. Codici di cantiere nelle causali della banca
@@ -119,6 +130,16 @@ codice trovato + cliente giusto + importo che torna → automatico; solo il codi
 Una proposta confermata a mano può aggiungere il codice alla commessa («ricorda questo
 codice»), così la volta dopo è automatico.
 **Ti chiedo:** va bene un campo libero sulla commessa? **Lavoro:** S.
+
+**Fatto il 16/11** (`20290417100100`, correzione `…100150`). `orders.codici_committente` (anche in
+`orders_visibili`), riquadro «Codici del committente» nella Panoramica della commessa
+(`commessa_codici_committente_salva`). Il motore (`tes_classifica`) cerca negli incassi i codici
+scritti (più `riferimento_committente`); se il campo è vuoto, quelli nella descrizione del lavoro
+(sigla maiuscola + almeno tre cifre: «MM 311»). Codice + cliente + importo esatto → candidato
+forte, esito automatico (si conferma da solo solo con l'interruttore comune acceso); solo il
+codice → proposta (anche parziale). Dopo una proposta confermata a mano su una commessa, un
+messaggio offre «Ricorda» per il codice della causale (`commessa_ricorda_codice`). L'acconto su
+rata (R-ACCONTO) resta proposta anche col codice: la conferma automatica vale per le fatture.
 
 ---
 
@@ -136,6 +157,15 @@ Impostazioni → Automazioni, con questi default:
 
 **Ti chiedo:** vanno bene? Per fornitore serve davvero (per esempio il calcestruzzo, che si
 fattura sul peso)? **Lavoro:** S.
+
+**Fatto il 16/11** (`20290417100200`), per azienda e non per fornitore. Colonne
+`banca_differenza_max`, `acquisti_quantita_toll_perc`, `acquisti_prezzo_toll_perc`,
+`acquisti_prezzo_toll_cent` in `company_governance_settings` (limiti nel database), riquadro
+«Soglie dei collegamenti» in Impostazioni → Automazioni (scrive l'amministratore). Le leggono:
+`tes_classifica` (R-DIFF e finestra dei conflitti) e `bank_register_difference` (arrotondamento);
+`riconcilia-fattura-ai` via `azienda_soglie_automazioni` (la quantità entro tolleranza chiude la
+riga; uno scarto di prezzo oltre tolleranza si scrive nel motivo, senza cambiare l'abbinamento).
+L'indirizzo del cantiere resta solo proposta e non ha una colonna.
 
 ---
 
@@ -212,6 +242,13 @@ Il controllo dei doppi di CdG ha trovato tre cose che nessuna regola corregge da
 
 **Proposta:** una lista in Contabilità → «Da verificare», ognuna con il pulsante che la apre.
 Le guardo io con te, una per una. **Lavoro:** S.
+
+**Fatto il 16/11** (`20290417100300`). Contabilità → Prima nota, in testa: «Da verificare» con le
+anomalie di `cdg_controllo_doppi` lette da `cdg_da_verificare` (una riga per anomalia, un pulsante
+per documento: fattura emessa o importata, costo, movimento, fattura ricevuta, scadenza). Nessuna
+correzione automatica. I costi annullati non sono più anomalie. Il 16/11 la lista trova: la fattura
+incassata per il lordo (7.333,37 €), il costo con due calendari (335,40 €, su Demo Azienda 2) e
+dieci ripartizioni sotto il 100% (277.124,08 €).
 
 ---
 

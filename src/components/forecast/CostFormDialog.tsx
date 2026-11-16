@@ -42,6 +42,8 @@ import {
   validateCostFormData,
 } from "@/hooks/useCompanyCostsMutations";
 import type { UnifiedCost } from "@/hooks/useCompanyCostsData";
+import { AnnullaCostoDialog } from "@/components/costi/AnnullaCostoDialog";
+import { costoAnnullato, importoOriginale, type CostoForseAnnullato } from "@/lib/costi/annulloCosto";
 
 interface CostFormDialogProps {
   open: boolean;
@@ -71,6 +73,10 @@ export function CostFormDialog({
   onClose,
 }: CostFormDialogProps) {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [annulloAperto, setAnnulloAperto] = useState(false);
+  // «Annulla costo» vale per i costi veri (non le voci che vengono da ordini o stipendi).
+  const costoVero = !!editingCost && !editingCost.isFromOrder && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(editingCost.id);
+  const annullato = costoVero && costoAnnullato(editingCost as unknown as CostoForseAnnullato);
   const [categorySearch, setCategorySearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [allocations, setAllocations] = useState<Array<{ order_id: string; pct: number }>>(
@@ -176,6 +182,12 @@ export function CostFormDialog({
         {/* Mobile: via titoletti di sezione, anteprima IVA, termini di
             pagamento, generazione automatica, note e allocazione a commesse
             (restano i valori predefiniti). */}
+        {annullato && (
+          <div role="status" className="rounded-md border border-amber-300 bg-amber-50/70 p-3 text-sm dark:bg-amber-950/20">
+            <p className="font-medium">Costo annullato · era {formatCurrency(importoOriginale(editingCost as unknown as CostoForseAnnullato))}</p>
+            <p className="text-muted-foreground">{(editingCost as unknown as CostoForseAnnullato).annullato_motivo ?? ""} Non conta in controllo di gestione, commesse e cassa. Per cambiarlo, prima ripristinalo.</p>
+          </div>
+        )}
         <div className="space-y-5 max-sm:space-y-3">
           {/* Basic Info */}
           <div className="space-y-3">
@@ -550,15 +562,29 @@ export function CostFormDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
+        <DialogFooter className="gap-2">
+          {costoVero && (
+            <Button variant="ghost" className="text-destructive sm:mr-auto" onClick={() => setAnnulloAperto(true)}>
+              {annullato ? "Ripristina costo" : "Annulla costo"}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Chiudi</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name.trim() || !formData.amount || (!formData.due_date && !aTermine) || isSaving}
+            disabled={annullato || !formData.name.trim() || !formData.amount || (!formData.due_date && !aTermine) || isSaving}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>
         </DialogFooter>
+        {costoVero && (
+          <AnnullaCostoDialog
+            costId={editingCost!.id}
+            nome={editingCost!.name}
+            open={annulloAperto}
+            onOpenChange={setAnnulloAperto}
+            onFatto={() => onOpenChange(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

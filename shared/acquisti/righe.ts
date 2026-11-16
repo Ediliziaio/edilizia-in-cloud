@@ -74,8 +74,10 @@ function codiciDellaRiga(r: RigaFatturaLetta, equivalenze: EquivalenzaCodice[]):
 export function abbinaRigaFattura(
   riga: RigaFatturaLetta,
   righeAmmesse: RigaDocumento[],
-  opz: { equivalenze?: EquivalenzaCodice[]; conversioni?: ConversioneAutorizzata[]; giaUsate?: Set<string> } = {},
+  opz: { equivalenze?: EquivalenzaCodice[]; conversioni?: ConversioneAutorizzata[]; giaUsate?: Set<string>; tolleranze?: Tolleranze } = {},
 ): Decisione<RigaDocumento> {
+  // Tolleranza di quantità dell'azienda (Impostazioni → Automazioni, default 0%: uguale).
+  const tollQ = Math.max(0, opz.tolleranze?.quantitaPerc ?? 0);
   const codici = codiciDellaRiga(riga, opz.equivalenze ?? []);
   const descr = nomeConfrontabile(riga.descrizione);
   const candidati: Candidato<RigaDocumento>[] = [];
@@ -96,12 +98,16 @@ export function abbinaRigaFattura(
     if (riga.quantita != null && d.quantita != null) {
       const f = fattoreConversione(riga.unitaLetta ?? riga.unita, d.unita, opz.conversioni, riga.codici[0]?.valore);
       if (f != null) {
-        const uguale = Math.abs(riga.quantita * f - d.quantita) < 1e-6 * Math.max(1, d.quantita);
+        const scarto = Math.abs(riga.quantita * f - d.quantita);
+        const identica = scarto < 1e-6 * Math.max(1, d.quantita);
+        const uguale = identica || scarto <= (Math.abs(d.quantita) * tollQ) / 100 + 1e-9;
         prove.push({
           campo: "quantita",
           ruolo: "conferma",
           esito: uguale ? "uguale" : "diverso",
-          testo: uguale ? `stessa quantità (${d.quantita} ${d.unita ?? ""})`.trim() : `quantità diversa (${riga.quantita} / ${d.quantita})`,
+          testo: identica ? `stessa quantità (${d.quantita} ${d.unita ?? ""})`.trim()
+            : uguale ? `quantità entro la tolleranza del ${tollQ}% (${riga.quantita} / ${d.quantita})`
+            : `quantità diversa (${riga.quantita} / ${d.quantita})`,
         });
       }
     }
@@ -128,7 +134,7 @@ export function abbinaRigaFattura(
 export function abbinaRigheFattura(
   righe: RigaFatturaLetta[],
   righeAmmesse: (r: RigaFatturaLetta) => RigaDocumento[],
-  opz: { equivalenze?: EquivalenzaCodice[]; conversioni?: ConversioneAutorizzata[] } = {},
+  opz: { equivalenze?: EquivalenzaCodice[]; conversioni?: ConversioneAutorizzata[]; tolleranze?: Tolleranze } = {},
 ): Array<{ numeroLinea: number; decisione: Decisione<RigaDocumento> }> {
   const usate = new Set<string>();
   const out: Array<{ numeroLinea: number; decisione: Decisione<RigaDocumento> }> = [];
