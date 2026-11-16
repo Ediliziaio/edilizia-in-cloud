@@ -735,12 +735,6 @@ function DocumentiFiscaliListInner() {
           mesiAnnoPrima={timelineMonthsPrima}
           meseScelto={selectedMonth}
           isMobile={isMobile}
-          onSelectMonth={(m) => {
-            setSelectedMonth(m);
-            setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
-            setPage(0);
-            clearSelection();
-          }}
         />
       )}
 

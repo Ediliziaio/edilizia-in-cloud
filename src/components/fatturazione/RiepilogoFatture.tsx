@@ -1,27 +1,24 @@
 /**
  * Numeri veloci sopra l'elenco delle fatture (16/11/2026): fatturato, imponibile,
- * IVA, incassato, da incassare e scaduto dell'anno (o del mese scelto nella
- * striscia), e il grafico fatturato/incassato mese per mese. Stessa veste dei
- * grafici del Controllo di Gestione (`charts/grafici/comune.tsx`).
+ * IVA, incassato, da incassare e scaduto dell'anno, o del mese scelto nella
+ * striscia. Niente grafico (scelta del titolare): i sei numeri e la striscia.
+ * Contano solo le fatture davvero emesse (niente bozze né native da inviare).
+ *
+ * L'incassato è quello DELLE fatture del periodo, anche se arrivato il mese
+ * dopo: l'incasso per data di arrivo sta nel Registro incassi e in Tesoreria.
  *
  * I numeri vengono dalla striscia dei mesi (`get_documenti_monthly_timeline`):
  * nativi e importate insieme, come l'elenco. Nessuna query in più, salvo l'anno
  * prima per la variazione, e solo da tablet in su.
  *
- * Sul telefono niente grafico (regola del progetto): solo i numeri.
+ * Sul telefono tre numeri.
  */
-import { useId, useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
-import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
-import {
-  AnelloPercentuale, COLORI_GRAFICO, Comparsa, PillolaVariazione, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg,
-} from "@/components/charts/grafici/comune";
-
-const MESI_BREVI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+import { AnelloPercentuale, Comparsa, PillolaVariazione } from "@/components/charts/grafici/comune";
 
 interface Somme {
   doc: number; totale: number; imponibile: number; iva: number; incassato: number; daIncassare: number; scaduto: number;
@@ -82,17 +79,14 @@ function Numero({
 }
 
 export function RiepilogoFatture({
-  mesi, mesiAnnoPrima, meseScelto, onSelectMonth, isMobile, etichettaDocumenti = "fatture",
+  mesi, mesiAnnoPrima, meseScelto, isMobile, etichettaDocumenti = "fatture",
 }: {
   mesi: MonthSummary[];
   mesiAnnoPrima?: MonthSummary[];
   meseScelto: string | null;
-  onSelectMonth?: (mese: string | null) => void;
   isMobile?: boolean;
   etichettaDocumenti?: string;
 }) {
-  const id = idSvg(useId());
-  const fermo = usePreferisceMenoMovimento();
   const anno = mesi[0]?.year ?? new Date().getFullYear();
 
   const periodo = useMemo(
@@ -110,13 +104,6 @@ export function RiepilogoFatture({
     ? `${periodo[0]?.label ?? ""} ${anno}`.trim()
     : String(anno);
 
-  const dati = useMemo(
-    () => mesi.map(m => ({
-      key: m.key, mese: MESI_BREVI[m.month - 1], Fatturato: m.totalAmount, Incassato: m.incassato, Scaduto: m.scaduto,
-    })),
-    [mesi],
-  );
-  const conGrafico = !isMobile && mesi.some(m => m.totalAmount > 0);
 
   if (s.doc === 0 && !mesi.some(m => m.docCount > 0)) return null;
 
@@ -159,10 +146,10 @@ export function RiepilogoFatture({
         etichetta="Incassato"
         valore={s.incassato}
         tono="buono"
-        nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% del da incassare` : undefined}
+        nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% di queste fatture, anche dopo` : "di queste fatture"}
         extra={daIncassareTot > 0 ? <AnelloPercentuale pct={pctIncassato} dimensione={22} /> : undefined}
       />
-      <Numero indice={4} etichetta="Da incassare" valore={s.daIncassare} nota="non ancora arrivato" />
+      <Numero indice={4} etichetta="Da incassare" valore={s.daIncassare} nota="di queste fatture" />
       <Numero
         indice={5}
         etichetta="Scaduto"
@@ -173,51 +160,5 @@ export function RiepilogoFatture({
     </div>
   );
 
-  if (!conGrafico) return <section aria-label="Numeri delle fatture">{numeri}</section>;
-
-  return (
-    <section aria-label="Numeri delle fatture" className="space-y-2">
-      {numeri}
-      <Comparsa indice={6} className="rounded-2xl border bg-card px-3 pb-2 pt-3">
-        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2 px-1">
-          <p className="text-sm font-semibold">Fatturato e incassato, mese per mese</p>
-          <p className="text-[11px] text-muted-foreground">
-            {onSelectMonth ? "Clicca un mese per vedere solo le sue fatture" : null}
-          </p>
-        </div>
-        <ResponsiveContainer width="100%" height={180}>
-          <BarChart
-            data={dati}
-            barGap={2}
-            margin={{ top: 6, right: 6, left: 0, bottom: 0 }}
-            onClick={(e) => {
-              // recharts 3: lo stato del clic porta l'etichetta (e l'indice) della colonna, non più il payload.
-              const stato = e as { activeLabel?: string | number | null; activeIndex?: number | string | null } | null;
-              const perEtichetta = stato?.activeLabel != null ? dati.find(d => d.mese === String(stato.activeLabel)) : undefined;
-              const i = stato?.activeIndex == null || stato.activeIndex === "" ? NaN : Number(stato.activeIndex);
-              const k = perEtichetta?.key ?? (Number.isInteger(i) ? dati[i]?.key : undefined);
-              if (k && onSelectMonth) onSelectMonth(k === meseScelto ? null : k);
-            }}
-            className={cn("outline-none [&_*]:outline-none", onSelectMonth && "cursor-pointer")}
-          >
-            {defsGrafico(id, { blu: COLORI_GRAFICO.blu, verde: COLORI_GRAFICO.verde })}
-            <rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}-punti)`} />
-            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-            <XAxis dataKey="mese" tick={TESTO_ASSE} axisLine={false} tickLine={false} />
-            <YAxis tick={TESTO_ASSE} axisLine={false} tickLine={false} tickFormatter={euroAsse} width={56} />
-            <Tooltip
-              cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
-              content={<TooltipScheda />}
-            />
-            <Bar dataKey="Fatturato" fill={`url(#${id}-barra-blu)`} radius={[4, 4, 0, 0]} isAnimationActive={!fermo} maxBarSize={22}>
-              {dati.map(d => <Cell key={d.key} fillOpacity={meseScelto && d.key !== meseScelto ? 0.3 : 1} />)}
-            </Bar>
-            <Bar dataKey="Incassato" fill={`url(#${id}-barra-verde)`} radius={[4, 4, 0, 0]} isAnimationActive={!fermo} maxBarSize={22}>
-              {dati.map(d => <Cell key={d.key} fillOpacity={meseScelto && d.key !== meseScelto ? 0.3 : 1} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Comparsa>
-    </section>
-  );
+  return <section aria-label="Numeri delle fatture">{numeri}</section>;
 }
