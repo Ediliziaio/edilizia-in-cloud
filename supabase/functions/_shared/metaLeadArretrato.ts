@@ -10,8 +10,12 @@
 // Il lead va comunque salvato — è una richiesta vera che era andata persa —
 // ma non deve svegliare le automazioni come se fosse fresco.
 
-/** Oltre queste ore il lead non è più «appena arrivato». */
-export const ORE_LEAD_FRESCO = 24;
+/**
+ * Oltre queste ore il lead non è più «appena arrivato».
+ * Dal 16/11/2026 la soglia è 72 ore (prima 24): un modulo compilato ieri o l'altro ieri, entrato in
+ * ritardo per la pagina scollegata, scrive ancora come un contatto fresco; oltre i tre giorni no.
+ */
+export const ORE_LEAD_FRESCO = 72;
 
 export function isLeadArretrato(createdTime: unknown, adesso: Date = new Date(), oreFresco = ORE_LEAD_FRESCO): boolean {
   if (!createdTime) return false; // senza data non si indovina: si tratta come fresco

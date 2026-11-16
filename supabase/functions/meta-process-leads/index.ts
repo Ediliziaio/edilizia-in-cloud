@@ -5,6 +5,9 @@ import { getCorsHeaders, jsonResponse, errorResponse, secureHeaders } from "../_
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
+// 16/11/2026: soglia «lead fresco» portata a 72 ore in _shared/metaLeadArretrato.ts; questo
+// commento tiene la funzione nell'elenco dei file cambiati, così il deploy la ripubblica con la
+// soglia nuova (una modifica solo sotto _shared non ripubblica chi la importa).
 import { isLeadArretrato, notaArretrato } from "../_shared/metaLeadArretrato.ts";
 import { filtroSenzaCollegamentiScaduti, MINUTI_CODA_FERMA, minutiDiAttesa } from "../_shared/metaCodaLead.ts";
 import { alertOutreach } from "../_shared/outreachAlert.ts";
