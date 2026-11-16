@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { leggiModelloPdf } from "@/lib/modelliPdf/repository";
-import { corpoDocumento, erroriDocumento, nomeFileDocumento, TITOLI, type DocumentoOperativo, type AziendaDocumento } from "./modello";
+import { applicaModelloAlDocumento, corpoDocumento, erroriDocumento, nomeFileDocumento, TITOLI, type DocumentoOperativo, type AziendaDocumento } from "./modello";
 import type { ComposeContext, ComposeAttachment } from "@/pages/azienda/email/components/EmailComposeDialog";
 
 /** Prepara una bozza completa. L'invio resta esclusivamente nel compositore email. */
@@ -15,7 +15,7 @@ export async function preparaEmailDocumento({documento:d,azienda,context,modo,us
   try {
     const modello=await leggiModelloPdf(azienda.id,d.tipo);
     signal?.throwIfAborted();
-    const documento={...d,condizioni:d.condizioni?.trim() || modello.condizioni || d.condizioni};
+    const documento=applicaModelloAlDocumento(d,modello);
     const allegati:ComposeAttachment[]=[];
     if(modo === "pdf") {
       if(!userId) throw new Error("Accedi di nuovo per preparare l’allegato.");

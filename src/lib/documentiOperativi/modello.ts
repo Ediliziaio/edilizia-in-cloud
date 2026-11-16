@@ -1,4 +1,6 @@
 import type { Company } from "@/types/auth";
+import type { SceltaClausola } from "../../../supabase/functions/_shared/modelliPdfOperativi";
+export type { SceltaClausola };
 export type TipoDocumentoOperativo =
   "richiesta" | "materiali" | "servizi" | "trasporti" | "economia";
 export const TITOLI: Record<TipoDocumentoOperativo, string> = {
@@ -75,6 +77,11 @@ export interface DocumentoOperativo {
   noteConsegna?: string | null;
   noteNelMessaggio?: boolean;
   condizioni?: string | null;
+  /**
+   * Le scelte dell'azienda sulle clausole standard (Modelli PDF): le copia
+   * `applicaModelloAlDocumento`, non si salvano sul singolo documento.
+   */
+  clausole?: Record<string, SceltaClausola>;
   inversioneContabile?: boolean;
   /** Quale lettera dell'art. 17 c. 6 cita il documento; senza, la dicitura generica. */
   clausolaInversione?: ClausolaInversione | null;
@@ -206,27 +213,111 @@ export const senzaPrezzi = (d: DocumentoOperativo) =>
   !!d.prezziDaConfermare && (d.tipo === "materiali" || d.tipo === "servizi");
 export const TESTO_PREZZI_DA_CONFERMARE =
   "Prezzi da confermare dal fornitore. Vi chiediamo di inviare la vostra conferma d’ordine originale con prezzi, importi e condizioni economiche.";
-export function condizioniDocumento(d: DocumentoOperativo): string {
-  const rif = `${d.numero}${d.commessa ? ` - Commessa ${d.commessa}` : ""}`;
-  const standard =
-    d.tipo === "richiesta"
-      ? `Rispondete alla email con cui avete ricevuto questa richiesta, lasciando il riferimento ${d.numero} nell'oggetto.\nLe voci che non fornite lasciatele vuote o segnatele come «non disponibile».\nQuesta è una richiesta di prezzo: non è un ordine e non ci impegna all'acquisto.`
-      : d.tipo === "materiali"
-        ? `Confermateci data di consegna e prezzi rispondendo alla email con cui ricevete questo ordine.\nRiportate «Ordine ${rif}» su DDT e fattura: così li abbiniamo subito all'ordine.\nAvvisateci almeno il giorno prima dello scarico. Merce diversa dall'ordine o prezzi diversi vanno concordati prima della consegna.`
-        : d.tipo === "servizi"
-          ? `Il prezzo comprende quanto descritto in questo ordine e nel preventivo richiamato.\nLavori extra o varianti si eseguono e si pagano solo se approvati da noi per iscritto prima di farli.\nIn fattura riportate «Ordine ${rif}».`
-          : d.tipo === "trasporti"
-            ? "Riepilogo dei trasporti eseguiti: non è una fattura. Verificate i DDT citati e allegateli prima dell'invio. Si richiede conferma delle quantità e degli importi prima della fatturazione."
-            : "La firma vale come conferma delle quantità eseguite in economia. Il rapporto non è una fattura.";
+/** Una riga delle condizioni standard: l'azienda può toglierla o riscriverla nei Modelli PDF. */
+export interface ClausolaStandard {
+  id: string;
+  etichetta: string;
+  testo: string;
+  /** Vale solo sui documenti inviati senza prezzi (la dicitura sui prezzi da confermare). */
+  soloSenzaPrezzi?: boolean;
+}
+/** I segnaposto ammessi nel testo di una clausola, mostrati anche nell'editor. */
+export const SEGNAPOSTO_CLAUSOLE = ["{riferimento}", "{numero}", "{commessa}"] as const;
+export const riferimentoDocumento = (
+  d: Pick<DocumentoOperativo, "numero" | "commessa">,
+) => `${testo(d.numero)}${d.commessa ? ` - Commessa ${testo(d.commessa)}` : ""}`;
+export function compilaClausola(
+  valore: string,
+  d: Pick<DocumentoOperativo, "numero" | "commessa">,
+): string {
+  return valore
+    .replace(/\{riferimento\}/g, riferimentoDocumento(d))
+    .replace(/\{numero\}/g, testo(d.numero))
+    .replace(/\{commessa\}/g, testo(d.commessa));
+}
+/** Le clausole standard del tipo di documento, col testo originale e i segnaposto non compilati. */
+export function clausoleStandard(
+  tipo: TipoDocumentoOperativo,
+): ClausolaStandard[] {
+  const prezzi: ClausolaStandard = {
+    id: "prezzi",
+    etichetta: "Dicitura sui prezzi da confermare",
+    testo: TESTO_PREZZI_DA_CONFERMARE,
+    soloSenzaPrezzi: true,
+  };
+  if (tipo === "richiesta")
+    return [
+      { id: "risposta", etichetta: "Come rispondere", testo: "Rispondete alla email con cui avete ricevuto questa richiesta, lasciando il riferimento {numero} nell'oggetto." },
+      { id: "non-disponibili", etichetta: "Voci non disponibili", testo: "Le voci che non fornite lasciatele vuote o segnatele come «non disponibile»." },
+      { id: "non-impegna", etichetta: "Non è un ordine", testo: "Questa è una richiesta di prezzo: non è un ordine e non ci impegna all'acquisto." },
+    ];
+  if (tipo === "materiali")
+    return [
+      prezzi,
+      { id: "conferma", etichetta: "Conferma di data e prezzi", testo: "Confermateci data di consegna e prezzi rispondendo alla email con cui ricevete questo ordine." },
+      { id: "riferimento", etichetta: "Riferimento su DDT e fattura", testo: "Riportate «Ordine {riferimento}» su DDT e fattura: così li abbiniamo subito all'ordine." },
+      { id: "preavviso", etichetta: "Preavviso dello scarico", testo: "Avvisateci almeno il giorno prima dello scarico. Merce diversa dall'ordine o prezzi diversi vanno concordati prima della consegna." },
+    ];
+  if (tipo === "servizi")
+    return [
+      prezzi,
+      { id: "prezzo-compreso", etichetta: "Che cosa comprende il prezzo", testo: "Il prezzo comprende quanto descritto in questo ordine e nel preventivo richiamato." },
+      { id: "varianti", etichetta: "Lavori extra e varianti", testo: "Lavori extra o varianti si eseguono e si pagano solo se approvati da noi per iscritto prima di farli." },
+      { id: "riferimento", etichetta: "Riferimento in fattura", testo: "In fattura riportate «Ordine {riferimento}»." },
+    ];
+  if (tipo === "trasporti")
+    return [
+      { id: "conferma", etichetta: "Conferma del rapporto", testo: "Riepilogo dei trasporti eseguiti: non è una fattura. Verificate i DDT citati e allegateli prima dell'invio. Si richiede conferma delle quantità e degli importi prima della fatturazione." },
+    ];
   return [
-    senzaPrezzi(d) &&
-    !(d.condizioni ?? "").startsWith(TESTO_PREZZI_DA_CONFERMARE)
-      ? TESTO_PREZZI_DA_CONFERMARE
-      : null,
-    d.condizioni ?? standard,
+    { id: "firma", etichetta: "Valore della firma", testo: "La firma vale come conferma delle quantità eseguite in economia. Il rapporto non è una fattura." },
+  ];
+}
+/** Le clausole del documento con la scelta dell'azienda già applicata (testo compilato). */
+export function clausoleDocumento(
+  d: DocumentoOperativo,
+): (ClausolaStandard & { attiva: boolean })[] {
+  return clausoleStandard(d.tipo)
+    .filter((c) => !c.soloSenzaPrezzi || senzaPrezzi(d))
+    .map((c) => {
+      const scelta = d.clausole?.[c.id];
+      return {
+        ...c,
+        attiva: scelta?.attiva !== false,
+        testo: compilaClausola(scelta?.testo?.trim() || c.testo, d),
+      };
+    });
+}
+export function condizioniDocumento(d: DocumentoOperativo): string {
+  const clausole = clausoleDocumento(d);
+  const rigaPrezzi = clausole.find((c) => c.soloSenzaPrezzi && c.attiva)?.testo;
+  const corpo =
+    d.condizioni ??
+    clausole
+      .filter((c) => !c.soloSenzaPrezzi && c.attiva)
+      .map((c) => c.testo)
+      .join("\n");
+  return [
+    rigaPrezzi && !(corpo ?? "").startsWith(rigaPrezzi) ? rigaPrezzi : null,
+    corpo,
   ]
     .filter(Boolean)
     .join("\n");
+}
+/**
+ * Applica al documento il modello PDF dell'azienda: le condizioni scritte a mano sul
+ * documento vincono, poi quelle del modello, altrimenti restano le clausole standard
+ * con le scelte dell'azienda. Unico punto per PDF, email e anteprima.
+ */
+export function applicaModelloAlDocumento<T extends DocumentoOperativo>(
+  d: T,
+  modello?: { condizioni?: string; clausole?: Record<string, SceltaClausola> },
+): T {
+  return {
+    ...d,
+    clausole: d.clausole ?? modello?.clausole,
+    condizioni: d.condizioni?.trim() || modello?.condizioni || d.condizioni,
+  };
 }
 export function dettagliDocumento(d: DocumentoOperativo): [string, string][] {
   return (

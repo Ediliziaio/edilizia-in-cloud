@@ -25,8 +25,13 @@ import {
   modelloPdfStandard,
   normalizzaModelloPdf,
   type ModelloPdf,
+  type SceltaClausola,
   type TipoModelloPdf,
 } from "@/lib/modelliPdf/catalogo";
+import {
+  clausoleStandard,
+  type TipoDocumentoOperativo,
+} from "@/lib/documentiOperativi/modello";
 import type { ModelloPdfSalvato } from "@/lib/modelliPdf/repository";
 import { anteprimaModello } from "@/lib/modelliPdf/anteprima";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
@@ -239,6 +244,22 @@ function EditorModello({
   const render = async () =>
     createPdfPreviewUrl(await anteprimaModello(tipo, draft, effectiveCompany!));
   const isRapporto = tipo === "rapportino" || tipo === "fine_lavori";
+  const clausole = isRapporto
+    ? []
+    : clausoleStandard(tipo as TipoDocumentoOperativo);
+  // Il riquadro delle righe da compilare esiste solo dove il documento può partire senza prezzi.
+  const haDaIndicare =
+    tipo === "richiesta" || tipo === "materiali" || tipo === "servizi";
+  const patchClausola = (id: string, value: Partial<SceltaClausola>) => {
+    const unite = { ...(draft.clausole[id] ?? {}), ...value };
+    const pulita: SceltaClausola = {};
+    if (unite.attiva === false) pulita.attiva = false;
+    if (unite.testo) pulita.testo = unite.testo;
+    const clausole = { ...draft.clausole };
+    if (Object.keys(pulita).length) clausole[id] = pulita;
+    else delete clausole[id];
+    patch({ clausole });
+  };
   return (
     <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]">
       <Card className="min-w-0 xl:max-h-[calc(75vh+32px)] xl:overflow-y-auto">
@@ -518,19 +539,100 @@ function EditorModello({
               />
             </div>
             {!isRapporto && (
+              <div className="space-y-3 rounded-xl border bg-slate-50/60 p-4">
+                <div>
+                  <h3 className="font-medium">Condizioni stampate sul documento</h3>
+                  <p className="text-xs text-slate-500">
+                    Spegni l’interruttore per non stamparle. Il testo si può
+                    riscrivere: <code>{"{riferimento}"}</code> diventa «numero
+                    dell’ordine - Commessa …», <code>{"{numero}"}</code> e{" "}
+                    <code>{"{commessa}"}</code> solo l’uno o l’altra.
+                  </p>
+                </div>
+                {clausole.map((c) => {
+                  const scelta = draft.clausole[c.id] ?? {};
+                  const attiva = scelta.attiva !== false;
+                  return (
+                    <div
+                      key={c.id}
+                      className="space-y-2 rounded-lg border bg-white p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <Label
+                          htmlFor={`pdf-clausola-${c.id}`}
+                          className="text-sm"
+                        >
+                          {c.etichetta}
+                        </Label>
+                        <Switch
+                          id={`pdf-clausola-${c.id}`}
+                          checked={attiva}
+                          onCheckedChange={(value) =>
+                            patchClausola(c.id, { attiva: value })
+                          }
+                        />
+                      </div>
+                      {attiva && (
+                        <Textarea
+                          aria-label={`Testo della clausola ${c.etichetta}`}
+                          rows={2}
+                          maxLength={600}
+                          placeholder={c.testo}
+                          value={scelta.testo ?? ""}
+                          onChange={(e) =>
+                            patchClausola(c.id, { testo: e.target.value })
+                          }
+                        />
+                      )}
+                      {c.soloSenzaPrezzi && (
+                        <p className="text-xs text-slate-500">
+                          Compare solo sui documenti inviati senza prezzi.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+                {haDaIndicare && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border bg-white p-3">
+                    <div className="min-w-0">
+                      <Label htmlFor="pdf-da-indicare" className="text-sm">
+                        Riquadro «Da indicare nella vostra{" "}
+                        {tipo === "richiesta" ? "offerta" : "conferma"}»
+                      </Label>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Le righe vuote per tempi di consegna, validità
+                        dell’offerta e trasporto. Solo sui documenti senza
+                        prezzi.
+                      </p>
+                    </div>
+                    <Switch
+                      id="pdf-da-indicare"
+                      checked={draft.mostraDaIndicare}
+                      onCheckedChange={(value) =>
+                        patch({ mostraDaIndicare: value })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            {!isRapporto && (
               <div className="space-y-2">
-                <Label htmlFor="pdf-condizioni">Condizioni predefinite</Label>
+                <Label htmlFor="pdf-condizioni">
+                  Condizioni predefinite (sostituiscono le clausole)
+                </Label>
                 <Textarea
                   id="pdf-condizioni"
                   rows={5}
                   maxLength={4000}
-                  placeholder="Condizioni da usare quando il documento non ne specifica altre…"
+                  placeholder="Lascia vuoto per usare le clausole qui sopra…"
                   value={draft.condizioni}
                   onChange={(e) => patch({ condizioni: e.target.value })}
                 />
                 <p className="text-xs text-slate-500">
-                  Le condizioni specifiche del documento hanno precedenza. La
-                  dicitura sui prezzi da confermare rimane automatica.
+                  Se scrivi qui, questo testo prende il posto di tutte le
+                  clausole qui sopra. Le condizioni scritte sul singolo
+                  documento hanno comunque la precedenza.
                 </p>
               </div>
             )}

@@ -13,6 +13,7 @@ import {
   senzaPrezzi,
   footerAzienda,
   condizioniDocumento,
+  applicaModelloAlDocumento,
   totaliDocumento,
   importoRiga,
   euro,
@@ -55,10 +56,7 @@ export function creaPdfOperativo(
   personalizzazione?: ModelloPdf,
 ): jsPDF {
   const modello = normalizzaModelloPdf(d.tipo, personalizzazione);
-  d = {
-    ...d,
-    condizioni: d.condizioni?.trim() || modello.condizioni || d.condizioni,
-  };
+  d = applicaModelloAlDocumento(d, modello);
   if (!modello.mostraLogo) logo = undefined;
   const veste = personalizzazioneDocumento(a.id);
   const logoDellaVeste = Boolean(logo && veste.logoAltezza && veste.logoLarghezzaMax);
@@ -712,7 +710,7 @@ export function creaPdfOperativo(
     // Cosa conta il totale (11/11/2026): il rendiconto d'appalto conta altro.
     if (d.tipo === "economia") paragraph(NOTA_TOTALE_ECONOMIA, true);
     fine = y;
-  } else if (emptyPrices) {
+  } else if (emptyPrices && modello.mostraDaIndicare) {
     const x = d.tipo === "richiesta" ? left : left + width - 86;
     const w = d.tipo === "richiesta" ? width / 2 - 6 : 86;
     let oy = titoloSezioneA(
@@ -751,12 +749,15 @@ export function creaPdfOperativo(
     paragraph(d.noteConsegna);
   }
   // Le istruzioni e le firme formano un blocco: niente pagina finale con sole firme.
-  font(corpo);
-  const altezzaCondizioni =
-    lines(condizioniDocumento(d), width).length * passoCorpo + 36;
-  ensure(Math.min(altezzaCondizioni, bottom - 52));
-  section(standard.condizioni);
-  paragraph(condizioniDocumento(d));
+  const condizioni = condizioniDocumento(d);
+  if (condizioni.trim()) {
+    font(corpo);
+    const altezzaCondizioni = lines(condizioni, width).length * passoCorpo + 36;
+    ensure(Math.min(altezzaCondizioni, bottom - 52));
+    // Niente titolo di sezione senza condizioni sotto: l'azienda può averle tolte tutte.
+    section(standard.condizioni);
+    paragraph(condizioni);
+  }
   if (modello.conclusione) {
     font(corpo);
     ensure(

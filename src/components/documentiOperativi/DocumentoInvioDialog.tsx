@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { DestinazioneDocumento } from "./DestinazioneDocumento";
 import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import {
+  applicaModelloAlDocumento,
   condizioniDocumento,
   footerAzienda,
 } from "@/lib/documentiOperativi/modello";
@@ -118,6 +119,24 @@ function DocumentoInvioContent({
     },
     [preview],
   );
+  // Le clausole scelte nei Modelli PDF, per mostrare qui le stesse condizioni che finiranno nel PDF.
+  const [modelloAzienda, setModelloAzienda] = useState<ModelloPdf | null>(null);
+  const aziendaId = effectiveCompany?.id;
+  useEffect(() => {
+    let vivo = true;
+    const carica = async (id: string): Promise<void> => {
+      try {
+        const m = await leggiModelloPdf(id, d.tipo);
+        if (vivo) setModelloAzienda(m);
+      } catch {
+        // Senza modello restano le condizioni standard: non è un errore da mostrare qui.
+      }
+    };
+    if (aziendaId) void carica(aziendaId);
+    return () => {
+      vivo = false;
+    };
+  }, [aziendaId, d.tipo]);
   if (!effectiveCompany) return null;
   const cambia = <K extends keyof DocumentoOperativo>(
     key: K,
@@ -161,7 +180,7 @@ function DocumentoInvioContent({
     let uploaded: string | null = null;
     try {
       const modello = await leggiModelloPdf(effectiveCompany.id, d.tipo);
-      const documentoInvio = { ...d, condizioni: d.condizioni?.trim() || modello.condizioni || d.condizioni };
+      const documentoInvio = applicaModelloAlDocumento(d, modello);
       const allegati: ComposeAttachment[] = [];
       if (modo === "pdf") {
         if (!user?.id)
@@ -726,10 +745,12 @@ function DocumentoInvioContent({
                   <Textarea
                     id="doc-condizioni"
                     rows={4}
-                    value={condizioniDocumento({
-                      ...d,
-                      prezziDaConfermare: false,
-                    })}
+                    value={condizioniDocumento(
+                      applicaModelloAlDocumento(
+                        { ...d, prezziDaConfermare: false },
+                        modelloAzienda ?? undefined,
+                      ),
+                    )}
                     onChange={(e) => cambia("condizioni", e.target.value)}
                   />
                 </div>

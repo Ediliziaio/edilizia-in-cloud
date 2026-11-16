@@ -267,3 +267,15 @@ it("l’azione rapida PDF apre direttamente la modalità allegato", () => {
  expect(screen.getByRole("radio", {name:"Testo completo nell’email"})).toHaveAttribute("aria-checked","false");
  expect(mock.upload).not.toHaveBeenCalled();
 });
+
+it("le clausole depennate nei Modelli PDF spariscono anche dalla copia e dall'email",async()=>{
+ mock.modello.mockResolvedValue({condizioni:"",clausole:{conferma:{attiva:false},preavviso:{attiva:false},riferimento:{testo:"Riportate «Ordine {riferimento}» su DDT e fattura."}}});
+ render(<DocumentoInvioDialog {...props}/>);
+ await waitFor(()=>expect(screen.getByLabelText("Condizioni da riportare nella copia")).toHaveValue("Riportate «Ordine ODA-TEST» su DDT e fattura."));
+ fireEvent.click(screen.getByRole("button",{name:"Prepara email"}));
+ await waitFor(()=>expect(screen.getByTestId("email")).toBeInTheDocument());
+ const ctx=JSON.parse(screen.getByTestId("email").textContent!);
+ expect(ctx.initialBodyHtml).toContain("su DDT e fattura.");
+ expect(ctx.initialBodyHtml).not.toContain("Confermateci data di consegna");
+ expect(ctx.initialBodyHtml).not.toContain("Avvisateci almeno");
+});

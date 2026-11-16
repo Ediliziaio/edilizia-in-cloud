@@ -198,3 +198,51 @@ it("applica uno stile senza cancellare i testi e salva le nuove opzioni", async 
     ),
   );
 });
+
+it("depenna una clausola, ne riscrive un'altra e toglie il riquadro da compilare", async () => {
+  open();
+  expect(screen.getByLabelText("Conferma di data e prezzi")).toBeChecked();
+  fireEvent.click(screen.getByLabelText("Conferma di data e prezzi"));
+  expect(
+    screen.queryByLabelText("Testo della clausola Conferma di data e prezzi"),
+  ).toBeNull();
+  fireEvent.change(
+    screen.getByLabelText("Testo della clausola Riferimento su DDT e fattura"),
+    { target: { value: "Riportate «Ordine {riferimento}» su DDT e fattura." } },
+  );
+  fireEvent.click(
+    screen.getByLabelText("Riquadro «Da indicare nella vostra conferma»"),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
+  await waitFor(() =>
+    expect(m.save).toHaveBeenCalledWith(
+      "materiali",
+      expect.objectContaining({
+        mostraDaIndicare: false,
+        clausole: {
+          conferma: { attiva: false },
+          riferimento: {
+            testo: "Riportate «Ordine {riferimento}» su DDT e fattura.",
+          },
+        },
+      }),
+      null,
+    ),
+  );
+});
+
+it("i rapportini non hanno clausole, le richieste parlano di offerta", () => {
+  open();
+  fireEvent.click(
+    screen.getByRole("button", { name: /Standard Richieste d’offerta/ }),
+  );
+  expect(
+    screen.getByLabelText("Riquadro «Da indicare nella vostra offerta»"),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("Come rispondere")).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: /Standard Rapportino giornaliero/ }),
+  );
+  expect(screen.queryByLabelText("Come rispondere")).toBeNull();
+  expect(screen.queryByText("Condizioni stampate sul documento")).toBeNull();
+});

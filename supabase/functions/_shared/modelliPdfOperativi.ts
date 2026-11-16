@@ -9,6 +9,15 @@ export const TIPI_MODELLI_PDF = [
   "fine_lavori",
 ] as const;
 export type TipoModelloPdf = (typeof TIPI_MODELLI_PDF)[number];
+/**
+ * Una clausola standard del documento, come l'azienda l'ha scelta nei Modelli PDF:
+ * `attiva: false` la toglie dal PDF e dall'email, `testo` la riscrive. Gli identificativi
+ * sono quelli di `clausoleStandard` (src/lib/documentiOperativi/modello.ts).
+ */
+export interface SceltaClausola {
+  attiva?: boolean;
+  testo?: string;
+}
 export interface ModelloPdf {
   nome: string;
   titolo: string;
@@ -25,6 +34,10 @@ export interface ModelloPdf {
   introduzione: string;
   conclusione: string;
   condizioni: string;
+  /** Scelte sulle clausole standard, per identificativo. Vuoto = tutte attive col testo standard. */
+  clausole: Record<string, SceltaClausola>;
+  /** Il riquadro «Da indicare nella vostra conferma / offerta» sui documenti senza prezzi. */
+  mostraDaIndicare: boolean;
   mostraFirma: boolean;
   etichettaFirma: string;
 }
@@ -54,9 +67,29 @@ export function modelloPdfStandard(tipo: TipoModelloPdf): ModelloPdf {
     introduzione: "",
     conclusione: "",
     condizioni: "",
+    clausole: {},
+    mostraDaIndicare: true,
     mostraFirma: true,
     etichettaFirma: "",
   };
+}
+/** Whitelist delle scelte sulle clausole: identificativi brevi, testi corti, niente altro. */
+function normalizzaClausole(value: unknown): Record<string, SceltaClausola> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, SceltaClausola> = {};
+  for (const [id, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!/^[a-z][a-z0-9-]{0,39}$/.test(id) || Object.keys(out).length >= 12) continue;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const v = raw as Record<string, unknown>;
+    const scelta: SceltaClausola = {};
+    if (typeof v.attiva === "boolean") scelta.attiva = v.attiva;
+    if (typeof v.testo === "string") {
+      const testo = v.testo.trim().slice(0, 600);
+      if (testo) scelta.testo = testo;
+    }
+    if (scelta.attiva !== undefined || scelta.testo !== undefined) out[id] = scelta;
+  }
+  return out;
 }
 /** Whitelist: dati non validi nel database non possono alterare il renderer. */
 export function normalizzaModelloPdf(
@@ -104,6 +137,9 @@ export function normalizzaModelloPdf(
     introduzione: testo("introduzione", 1200),
     conclusione: testo("conclusione", 1200),
     condizioni: testo("condizioni", 4000),
+    clausole: normalizzaClausole(v.clausole),
+    mostraDaIndicare:
+      typeof v.mostraDaIndicare === "boolean" ? v.mostraDaIndicare : true,
     mostraFirma: typeof v.mostraFirma === "boolean" ? v.mostraFirma : true,
     etichettaFirma: testo("etichettaFirma", 90),
   };

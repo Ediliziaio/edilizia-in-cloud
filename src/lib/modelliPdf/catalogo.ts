@@ -7,4 +7,5 @@ export {
 export type {
   ModelloPdf,
   TipoModelloPdf,
+  SceltaClausola,
 } from "../../../supabase/functions/_shared/modelliPdfOperativi";
