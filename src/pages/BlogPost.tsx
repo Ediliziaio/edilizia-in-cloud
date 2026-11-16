@@ -504,15 +504,15 @@ export default function BlogPost() {
                 }
 
                 case "image":
+                  if (!section.src) return null;
                   return (
                     <figure key={i} className="my-10">
-                      <img
+                      <BlogCover
                         src={section.src}
                         alt={section.alt ?? ""}
                         loading="lazy"
-                        decoding="async"
-                        width={1200}
-                        height={675}
+                        width={section.width ?? 1200}
+                        height={section.height ?? 675}
                         className="w-full h-auto rounded-xl border border-gray-200 shadow-sm bg-gray-50"
                       />
                       {section.caption && (

@@ -83,7 +83,7 @@ function renderPost(post) {
         break;
       case "image":
         if (block.src?.startsWith("/") && !block.src.startsWith("//"))
-          parts.push(`<figure><img src="${esc(block.src)}" alt="${esc(block.alt || "")}" loading="lazy">${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ""}</figure>`);
+          parts.push(`<figure><img src="${esc(block.src)}" alt="${esc(block.alt || "")}" width="${block.width ?? 1200}" height="${block.height ?? 675}" loading="lazy">${block.caption ? `<figcaption>${esc(block.caption)}</figcaption>` : ""}</figure>`);
         break;
       case "callout":
         if (block.heading) parts.push(`<h2>${esc(block.heading)}</h2>`);

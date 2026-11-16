@@ -160,31 +160,20 @@
           var canonicalUrl = base + (path === '/' ? '/' : path);
           var head = document.head || document.getElementsByTagName('head')[0];
           if (!head) return;
-          // Insert canonical link
-          var lc = document.createElement('link');
-          lc.rel = 'canonical';
-          lc.setAttribute('data-dynamic', '1');
-          lc.href = canonicalUrl;
-          head.appendChild(lc);
-          // hreflang it + x-default
-          var lit = document.createElement('link');
-          lit.rel = 'alternate';
-          lit.hreflang = 'it-IT';
-          lit.setAttribute('data-dynamic', '1');
-          lit.href = canonicalUrl;
-          head.appendChild(lit);
-          var lx = document.createElement('link');
-          lx.rel = 'alternate';
-          lx.hreflang = 'x-default';
-          lx.setAttribute('data-dynamic', '1');
-          lx.href = canonicalUrl;
-          head.appendChild(lx);
-          // og:url
-          var om = document.createElement('meta');
-          om.setAttribute('property', 'og:url');
-          om.setAttribute('data-dynamic', '1');
-          om.setAttribute('content', canonicalUrl);
-          head.appendChild(om);
+          // Prerender already contains these tags. Reuse them when this
+          // bootstrap runs again in the browser, including cached duplicates.
+          function upsert(selector, tag, attributes) {
+            var matches = head.querySelectorAll(selector);
+            var element = matches[0] || document.createElement(tag);
+            for (var i = 1; i < matches.length; i++) matches[i].remove();
+            for (var key in attributes) element.setAttribute(key, attributes[key]);
+            element.setAttribute('data-dynamic', '1');
+            if (!element.parentNode) head.appendChild(element);
+          }
+          upsert('link[rel="canonical"]', 'link', { rel: 'canonical', href: canonicalUrl });
+          upsert('link[rel="alternate"][hreflang="it-IT"]', 'link', { rel: 'alternate', hreflang: 'it-IT', href: canonicalUrl });
+          upsert('link[rel="alternate"][hreflang="x-default"]', 'link', { rel: 'alternate', hreflang: 'x-default', href: canonicalUrl });
+          upsert('meta[property="og:url"]', 'meta', { property: 'og:url', content: canonicalUrl });
         } catch (e) { /* no-op: fallback statico sotto */ }
       })();
     </script>

@@ -107,7 +107,9 @@ function upsertMeta(attr: "name" | "property", key: string, value: string): Meta
 }
 
 function upsertLink(rel: string, href: string) {
-  let el = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+  const matches = [...document.querySelectorAll<HTMLLinkElement>(`link[rel="${rel}"]`)];
+  let el = matches.shift() ?? null;
+  matches.forEach((duplicate) => duplicate.remove());
   if (!el) { el = document.createElement("link"); el.rel = rel; document.head.appendChild(el); }
   el.href = href;
 }

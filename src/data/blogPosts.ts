@@ -29,6 +29,8 @@ export interface BlogPost {
     src?: string;
     alt?: string;
     caption?: string;
+    width?: number;
+    height?: number;
     /** Solo per type "callout": tono del box (default "info"). */
     variant?: "info" | "warning" | "success";
   }>;
@@ -72,6 +74,14 @@ export const blogPosts: BlogPost[] = [
     {
       "type": "intro",
       "body": "Questa guida propone un processo operativo per l’ufficio di una piccola impresa edile: raccogliere i dati, controllare le anomalie e consegnare un riepilogo leggibile. Trovi un esempio numerico illustrativo e una scheda CSV vuota da adattare. La classificazione delle voci di paga e gli adempimenti restano da verificare con il consulente del lavoro; il foglio aiuta a preparare quel confronto e non calcola un cedolino."
+    },
+    {
+      type: "image",
+      src: "/blog/covers/controllo-ore-cantiere-prima-paghe.jpg",
+      alt: "Schede orarie, orologio e cartella su una scrivania",
+      caption: "Copertina illustrativa generata con AI.",
+      width: 1200,
+      height: 630,
     },
     {
       "type": "section",

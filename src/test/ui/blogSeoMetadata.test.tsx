@@ -17,6 +17,17 @@ const values = () => [...document.querySelectorAll<HTMLMetaElement>('meta[proper
 afterEach(() => { if (root) act(() => root!.unmount()); host?.remove(); root = undefined; host = undefined; });
 
 describe("autore e metadati degli articoli", () => {
+  it("keeps one canonical when prerendered duplicates exist before a route change", () => {
+    document.querySelectorAll('link[rel="canonical"]').forEach(node => node.remove());
+    document.head.insertAdjacentHTML("beforeend", '<link rel="canonical" href="https://www.ediliziaincloud.com/old/"><link rel="canonical" href="https://www.ediliziaincloud.com/old/">');
+    render({ title: "Guida", description: "Articolo", canonical: "/blog/controllo-ore-cantiere-prima-paghe/" });
+    expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+    expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href).toBe("https://www.ediliziaincloud.com/blog/controllo-ore-cantiere-prima-paghe/");
+    render({ title: "Blog", description: "Archivio", canonical: "/blog/" });
+    expect(document.querySelectorAll('link[rel="canonical"]')).toHaveLength(1);
+    expect(document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href).toBe("https://www.ediliziaincloud.com/blog/");
+    document.querySelectorAll('link[rel="canonical"]').forEach(node => node.remove());
+  });
   it("nessun articolo firmato Flo resta escluso dall'archivio di Florin Andriciuc", () => {
     expect(blogPosts.length).toBeGreaterThan(0);
     expect(blogPosts.every((post) => post.author.name === BLOG_AUTHOR.name)).toBe(true);
