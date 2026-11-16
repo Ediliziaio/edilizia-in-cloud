@@ -231,6 +231,7 @@ const TECNICA = "tecnica: la scrive il database o l'app, non è un dato della co
 
 /** Le colonne di `orders` che Silvio non compila, ognuna col motivo. */
 export const COLONNE_IGNORATE: Readonly<Record<string, string>> = {
+  codici_committente: "codici del committente: dato amministrativo, non serve a Silvio",
   id: TECNICA,
   company_id: TECNICA,
   created_at: TECNICA,
