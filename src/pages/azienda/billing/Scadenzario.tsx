@@ -25,28 +25,50 @@ import type { Scadenza } from "@/hooks/useScadenzario";
 import { useAuth } from "@/contexts/AuthContext";
 import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrareCard";
 import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
-import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, addDays, addMonths, format } from "date-fns";
+import { GRUPPI_METODO, etichettaMetodo, filtroMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
+// Periodi rapidi (16/11/2026): quelli che servono davvero a chi paga e incassa. «Da» e «A»
+// restano sempre visibili accanto: toccarli rende il periodo «Personalizzato».
 const DATE_PRESETS = [
+  { label: "Oggi", value: "oggi" },
+  { label: "Questa settimana", value: "settimana" },
+  { label: "Settimana prossima", value: "settimana_prossima" },
   { label: "Questo mese", value: "questo_mese" },
+  { label: "Mese prossimo", value: "mese_prossimo" },
   { label: "Prossimi 30gg", value: "30gg" },
   { label: "Prossimi 90gg", value: "90gg" },
+  { label: "Questo trimestre", value: "trimestre" },
   { label: "Personalizzato", value: "custom" },
 ];
 
-function getDateRange(preset: string): { from: string; to: string } | null {
-  const today = new Date();
+function getDateRange(preset: string, today = new Date()): { from: string; to: string } | null {
+  const f = (d: Date) => format(d, "yyyy-MM-dd");
   switch (preset) {
+    case "oggi":
+      return { from: f(today), to: f(today) };
+    case "settimana":
+      return { from: f(startOfWeek(today, { weekStartsOn: 1 })), to: f(endOfWeek(today, { weekStartsOn: 1 })) };
+    case "settimana_prossima": {
+      const d = addDays(today, 7);
+      return { from: f(startOfWeek(d, { weekStartsOn: 1 })), to: f(endOfWeek(d, { weekStartsOn: 1 })) };
+    }
     case "questo_mese":
-      return { from: format(startOfMonth(today), "yyyy-MM-dd"), to: format(endOfMonth(today), "yyyy-MM-dd") };
+      return { from: f(startOfMonth(today)), to: f(endOfMonth(today)) };
+    case "mese_prossimo": {
+      const d = addMonths(today, 1);
+      return { from: f(startOfMonth(d)), to: f(endOfMonth(d)) };
+    }
     case "30gg":
-      return { from: format(today, "yyyy-MM-dd"), to: format(addDays(today, 30), "yyyy-MM-dd") };
+      return { from: f(today), to: f(addDays(today, 30)) };
     case "90gg":
-      return { from: format(today, "yyyy-MM-dd"), to: format(addDays(today, 90), "yyyy-MM-dd") };
+      return { from: f(today), to: f(addDays(today, 90)) };
+    case "trimestre":
+      return { from: f(startOfQuarter(today)), to: f(endOfQuarter(today)) };
     default:
       return null;
   }
@@ -56,7 +78,9 @@ export default function Scadenzario() {
   const isMobile = useIsMobile();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [tab, setTab] = useState("tutte");
+  // Si apre su «Aperte» (16/11/2026): quello che resta da incassare e da pagare, scadute comprese.
+  // Lo scadenzario serve a vedere cosa manca; le pagate stanno in «Tutte» e «Pagate».
+  const [tab, setTab] = useState("aperte");
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
   const [newOpen, setNewOpen] = useState(false);
@@ -72,11 +96,12 @@ export default function Scadenzario() {
   const [customTo, setCustomTo] = useState("");
   const [filterTipo, setFilterTipo] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterMetodo, setFilterMetodo] = useState("");
 
-  const hasActiveFilters = datePreset || filterTipo || filterStatus;
+  const hasActiveFilters = datePreset || filterTipo || filterStatus || filterMetodo;
   // Mobile: linguette, periodo e tipo in un pannello dal basso.
   const [filtriMobileAperti, setFiltriMobileAperti] = useState(false);
-  const nFiltriMobile = [tab !== "tutte", !!datePreset && datePreset !== "all", !!filterTipo && filterTipo !== "all"].filter(Boolean).length;
+  const nFiltriMobile = [tab !== "aperte", !!datePreset && datePreset !== "all", !!filterTipo && filterTipo !== "all"].filter(Boolean).length;
 
   const clearFilters = useCallback(() => {
     setDatePreset("");
@@ -84,6 +109,7 @@ export default function Scadenzario() {
     setCustomTo("");
     setFilterTipo("");
     setFilterStatus("");
+    setFilterMetodo("");
     setPage(1);
   }, []);
 
@@ -140,9 +166,10 @@ export default function Scadenzario() {
     dateTo: serverDateRange?.to ?? null,
     search: searchServer || null,
     soloScadute: tab === "scadute",
-    soloAperte: tab === "da_incassare" || tab === "da_pagare",
+    soloAperte: tab === "aperte" || tab === "da_incassare" || tab === "da_pagare",
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
-  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo]);
+    metodo: filterMetodo && filterMetodo !== "all" ? (filterMetodo as GruppoMetodo) : null,
+  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo]);
 
   const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
@@ -215,6 +242,7 @@ export default function Scadenzario() {
       if (serverFilters.soloAperte || serverFilters.soloScadute) q = q.in("status", ["da_pagare", "parziale"]);
       if (serverFilters.soloScadute) q = q.lt("due_date", format(new Date(), "yyyy-MM-dd"));
       if (serverFilters.tipo) q = q.eq("tipo", serverFilters.tipo);
+      if (serverFilters.metodo) q = q.or(filtroMetodo(serverFilters.metodo));
       if (serverFilters.search) q = q.ilike("description", `%${serverFilters.search}%`);
       return await q.range(from, to);
       });
@@ -226,6 +254,7 @@ export default function Scadenzario() {
           tipo: r.direction === "entrata" ? "Incasso" : "Pagamento",
           descrizione: r.description || "",
           riferimento: r.invoices?.invoice_number ? `Fatt. ${r.invoices.invoice_number}` : r.orders?.order_code ? `Ord. ${r.orders.order_code}` : "",
+          metodo: etichettaMetodo(r.payment_method) ?? "",
           importo: String(r.amount ?? 0).replace(".", ","),
           residuo: String(Math.round((Number(r.amount || 0) - Number(r.paid_amount || 0)) * 100) / 100).replace(".", ","),
           stato: r.status === "da_pagare" ? (r.direction === "entrata" ? "Da incassare" : "Da pagare") : r.status === "pagata" ? (r.direction === "entrata" ? "Incassata" : "Pagata") : r.status === "parziale" ? "Parziale" : r.status === "annullata" ? "Annullata" : r.status || "",
@@ -236,6 +265,7 @@ export default function Scadenzario() {
         { key: "tipo", label: "Tipo" },
         { key: "descrizione", label: "Descrizione" },
         { key: "riferimento", label: "Riferimento" },
+        { key: "metodo", label: "Modalità" },
         { key: "importo", label: "Importo" },
         { key: "residuo", label: "Residuo" },
         { key: "stato", label: "Stato" },
@@ -266,6 +296,7 @@ export default function Scadenzario() {
   const counts = useMemo(() => {
     return {
       tutte: summary?.tutte_count ?? (tab === "tutte" ? totalCount : 0),
+      aperte: summary ? (summary.da_incassare_count ?? 0) + (summary.da_pagare_count ?? 0) : (tab === "aperte" ? totalCount : 0),
       da_incassare: summary?.da_incassare_count ?? (tab === "da_incassare" ? totalCount : 0),
       da_pagare: summary?.da_pagare_count ?? (tab === "da_pagare" ? totalCount : 0),
       scadute: summary?.scadute_count ?? (tab === "scadute" ? totalCount : 0),
@@ -308,7 +339,7 @@ export default function Scadenzario() {
           <p>Riepilogo scadenze non disponibile. I totali non sono aggiornati.</p>
           <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>Riprova riepilogo</Button>
         </div>
-      ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" scaduteAttive={tab === "scadute"} onScadute={() => { setTab((t) => (t === "scadute" ? "tutte" : "scadute")); setPage(1); }} />)}
+      ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" scaduteAttive={tab === "scadute"} onScadute={() => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); }} />)}
       {summary && !isSummaryError && tab !== "settimane" && (
         <KpiMobili
           className="sm:hidden"
@@ -318,7 +349,7 @@ export default function Scadenzario() {
               label: "Scadenze scadute",
               valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0),
               tono: (summary.scadute_entrata_amount ?? summary.scadute_amount ?? 0) > 0 ? "text-rose-600" : undefined,
-              onClick: () => { setTab((t) => (t === "scadute" ? "tutte" : "scadute")); setPage(1); },
+              onClick: () => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); },
               attivo: tab === "scadute",
             },
             {
@@ -363,6 +394,7 @@ export default function Scadenzario() {
               {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side).
                   Sotto 1280 resta solo quello delle scadute: con tutti i numeri la
                   riga era 753px e a 768/1024 usciva dal riquadro. */}
+              <TabsTrigger value="aperte">Aperte<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
               <TabsTrigger value="tutte">Tutte<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
               <TabsTrigger value="da_incassare">Da Incassare<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
               <TabsTrigger value="da_pagare">Da Pagare<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
@@ -413,11 +445,11 @@ export default function Scadenzario() {
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Periodo</label>
               <Select value={datePreset} onValueChange={(v) => { setDatePreset(v); setPage(1); }}>
-                <SelectTrigger aria-label="Periodo scadenze" className="w-[160px] h-9 text-sm">
-                  <SelectValue placeholder="Tutti" />
+                <SelectTrigger aria-label="Periodo scadenze" className="w-[170px] h-9 text-sm">
+                  <SelectValue placeholder={yearFilter === "all" ? "Tutti gli anni" : `Tutto il ${yearFilter}`} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti</SelectItem>
+                  <SelectItem value="all">{yearFilter === "all" ? "Tutti gli anni" : `Tutto il ${yearFilter}`}</SelectItem>
                   {DATE_PRESETS.map((p) => (
                     <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                   ))}
@@ -425,18 +457,43 @@ export default function Scadenzario() {
               </Select>
             </div>
 
-            {datePreset === "custom" && (
-              <>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Da</label>
-                  <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-[140px] h-9 text-sm" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">A</label>
-                  <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-[140px] h-9 text-sm" />
-                </div>
-              </>
-            )}
+            {/* «Da» e «A» sempre a vista, con le date del periodo scelto: cambiarle lo rende «Personalizzato». */}
+            {(() => {
+              const r = datePreset && datePreset !== "custom" && datePreset !== "all" ? getDateRange(datePreset) : null;
+              const da = datePreset === "custom" ? customFrom : r?.from ?? (yearFilter !== "all" && !datePreset ? `${yearFilter}-01-01` : "");
+              const a = datePreset === "custom" ? customTo : r?.to ?? (yearFilter !== "all" && !datePreset ? `${yearFilter}-12-31` : "");
+              const personalizza = (campo: "da" | "a", v: string) => {
+                setDatePreset("custom");
+                setCustomFrom(campo === "da" ? v : da);
+                setCustomTo(campo === "a" ? v : a);
+                setPage(1);
+              };
+              return (
+                <>
+                  <div className="space-y-1">
+                    <label htmlFor="scad-da" className="text-xs font-medium text-muted-foreground">Da</label>
+                    <Input id="scad-da" type="date" value={da} onChange={(e) => personalizza("da", e.target.value)} className="h-9 w-[150px] text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <label htmlFor="scad-a" className="text-xs font-medium text-muted-foreground">A</label>
+                    <Input id="scad-a" type="date" value={a} min={da || undefined} onChange={(e) => personalizza("a", e.target.value)} className="h-9 w-[150px] text-sm" />
+                  </div>
+                </>
+              );
+            })()}
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Modalità</label>
+              <Select value={filterMetodo} onValueChange={(v) => { setFilterMetodo(v); setPage(1); }}>
+                <SelectTrigger aria-label="Modalità di pagamento" className="w-[150px] h-9 text-sm">
+                  <SelectValue placeholder="Tutte" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte</SelectItem>
+                  {GRUPPI_METODO.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Tipo</label>
@@ -543,15 +600,16 @@ export default function Scadenzario() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
-        onAzzera={() => { setTab("tutte"); clearFilters(); }}
+        onAzzera={() => { setTab("aperte"); clearFilters(); }}
         risultati={isLoading ? undefined : totalCount}
       >
         <PilloleFiltro
           titolo="Mostra"
-          valore={tab === "adempimenti" || tab === "settimane" ? "tutte" : tab}
+          valore={tab === "adempimenti" || tab === "settimane" ? "aperte" : tab}
           onScegli={(v) => { setTab(v); setPage(1); }}
           scelte={[
             { value: "settimane", label: "Per settimana" },
+            { value: "aperte", label: "Aperte", n: counts.aperte },
             { value: "tutte", label: "Tutte", n: counts.tutte },
             { value: "da_incassare", label: "Da incassare", n: counts.da_incassare },
             { value: "da_pagare", label: "Da pagare", n: counts.da_pagare },
@@ -590,6 +648,7 @@ export default function Scadenzario() {
           onClose={() => setDettaglio(null)}
           onMarkPaid={(x) => { setDettaglio(null); setPayDialog(x); }}
           onAnnullaIncasso={(x) => { setDettaglio(null); setDaAnnullare(x); }}
+          onNota={(x, nota) => updateNotes(x.id, nota)}
         />
       )}
       <MarkPaidDialog

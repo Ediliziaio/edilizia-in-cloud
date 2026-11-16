@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useMemo } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
 import { CLASSE_TONO, giorniDaOggi, statoScadenza } from "@/lib/finance/collegamentiFinanza";
 import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
 import { formatCurrency } from "@/lib/formatters";
+import { etichettaMetodo, gruppoMetodo } from "@/lib/finance/metodoScadenza";
 
 const fmtEur = (n: number) => formatCurrency(n);
 
@@ -38,7 +39,25 @@ const monthLabel = (d: Date) => {
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
+/** I totali di un mese nella riga del titolo: quanto entra, quanto esce, quanto resta aperto. */
+interface TotaliMese { incassi: number; pagamenti: number; apertoIn: number; apertoOut: number }
+
 export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnnullaIncasso, onAdd, onRowClick, onNota }: Props) {
+  // Totali per mese delle righe in pagina (16/11/2026): si legge il mese senza sommare a mente.
+  const totaliMese = useMemo(() => {
+    const m = new Map<string, TotaliMese>();
+    for (const s of scadenze) {
+      if (s.status === "annullata") continue;
+      const k = monthLabel(new Date(s.due_date));
+      const t = m.get(k) ?? { incassi: 0, pagamenti: 0, apertoIn: 0, apertoOut: 0 };
+      const resto = Math.max(0, Number(s.amount) - Number(s.paid_amount || 0));
+      if (s.direction === "entrata") { t.incassi += Number(s.amount); t.apertoIn += s.status === "pagata" ? 0 : resto; }
+      else { t.pagamenti += Number(s.amount); t.apertoOut += s.status === "pagata" ? 0 : resto; }
+      m.set(k, t);
+    }
+    return m;
+  }, [scadenze]);
+
   if (scadenze.length === 0) {
     return (
       // Mobile: una riga di testo, senza icona, spiegazione e bottone (c'è «Nuova» in testata).
@@ -100,6 +119,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                 <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                   {format(dueDate, "dd/MM", { locale: it })}
                   {refLabel ? ` · ${refLabel}` : ""}
+                  {etichettaMetodo(s.payment_method) ? ` · ${etichettaMetodo(s.payment_method)}` : ""}
                   {isOverdue && <span className="font-medium text-destructive"> · da {Math.abs(daysLeft)} gg</span>}
                   {isDueToday && <span className="font-medium text-amber-600"> · oggi</span>}
                 </p>
@@ -148,7 +168,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             <th className="py-2 font-medium">Cliente / fornitore</th>
             <th className="py-2 font-medium">Descrizione</th>
             <th className="hidden py-2 font-medium lg:table-cell">Documento · commessa</th>
-            <th className="hidden py-2 font-medium 2xl:table-cell">Metodo</th>
+            <th className="hidden py-2 font-medium xl:table-cell">Modalità</th>
             <th className="py-2 text-right font-medium">Importo</th>
             <th className="py-2 text-right font-medium">Residuo</th>
             <th className="py-2 font-medium">Stato</th>
@@ -173,11 +193,26 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             const documento = s.invoices?.invoice_number ? `Fatt. ${s.invoices.invoice_number}` : s.company_costs?.name ? "Costo" : null;
             return (
               <Fragment key={s.id}>
-                {showMonthHeader && (
-                  <tr className="bg-muted/20">
-                    <td colSpan={10} className="!py-1 text-xs font-semibold text-muted-foreground">{monthLabel(dueDate)}</td>
-                  </tr>
-                )}
+                {showMonthHeader && (() => {
+                  const t = totaliMese.get(monthLabel(dueDate));
+                  return (
+                    <tr className="bg-muted/30">
+                      <td colSpan={10} className="!py-1.5 text-xs">
+                        <span className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+                          <span className="font-semibold text-foreground">{monthLabel(dueDate)}</span>
+                          {t && t.incassi > 0 && <span className="tabular-nums text-emerald-700 dark:text-emerald-400">↓ {fmtEur(t.incassi)} da clienti</span>}
+                          {t && t.pagamenti > 0 && <span className="tabular-nums text-rose-700 dark:text-rose-400">↑ {fmtEur(t.pagamenti)} a fornitori</span>}
+                          {/* «Ancora aperto» solo se non è tutto il mese: in «Aperte» ripeterebbe le stesse cifre. */}
+                          {t && (t.apertoIn > 0 || t.apertoOut > 0) && (Math.abs(t.apertoIn - t.incassi) > 0.005 || Math.abs(t.apertoOut - t.pagamenti) > 0.005) && (
+                            <span className="tabular-nums text-muted-foreground">
+                              ancora aperto: {[t.apertoIn > 0 ? `${fmtEur(t.apertoIn)} da incassare` : null, t.apertoOut > 0 ? `${fmtEur(t.apertoOut)} da pagare` : null].filter(Boolean).join(" · ")}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })()}
               <tr
                 className={`border-b hover:bg-muted/30 ${rowStyle} ${onRowClick ? "cursor-pointer" : ""}`}
                 onClick={onRowClick ? () => onRowClick(s) : undefined}
@@ -200,14 +235,18 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     {tipoInfo.label}
                   </Badge>
                 </td>
-                <td><span className="block max-w-[130px] truncate 2xl:max-w-[200px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
-                <td><span className="block max-w-[170px] truncate font-medium 2xl:max-w-[320px]" title={s.description}>{s.description}</span></td>
+                <td><span className="block max-w-[130px] truncate xl:max-w-[180px] 2xl:max-w-[220px]" title={controparte ?? undefined}>{controparte ?? <span className="text-muted-foreground">—</span>}</span></td>
+                <td><span className="block max-w-[170px] truncate font-medium xl:max-w-[280px] 2xl:max-w-[360px]" title={s.description}>{s.description}</span></td>
                 <td className="hidden lg:table-cell">
                   <span className="block max-w-[120px] truncate font-mono text-xs 2xl:max-w-[260px]" title={[documento === "Costo" ? `Costo · ${s.company_costs?.name}` : documento, s.orders?.order_code ? `Commessa ${s.orders.order_code}` : null].filter(Boolean).join(" · ") || undefined}>
                     {[documento, s.orders?.order_code].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </span>
                 </td>
-                <td className="hidden 2xl:table-cell text-xs">{s.payment_method || <span className="text-muted-foreground">—</span>}</td>
+                <td className="hidden xl:table-cell text-xs" title={s.payment_method ?? undefined}>
+                  {etichettaMetodo(s.payment_method)
+                    ? <span className={gruppoMetodo(s.payment_method) === "riba" ? "rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300" : ""}>{etichettaMetodo(s.payment_method)}</span>
+                    : <span className="text-muted-foreground">—</span>}
+                </td>
                 <td className={`text-right tabular-nums ${s.direction === "entrata" ? "text-green-700" : ""}`}>
                   {s.direction === "uscita" ? "−" : "+"}{fmtEur(s.amount)}
                 </td>

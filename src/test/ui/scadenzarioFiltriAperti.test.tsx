@@ -56,6 +56,10 @@ afterEach(cleanup);
 describe("Scadenzario: viste aperte e recupero errori", () => {
   it("Da incassare e Da pagare escludono saldati e annullati, anche nell'export", async () => {
     setup();
+    // Si apre su «Aperte» (16/11/2026): il saldato non c'è; con «Tutte» compare.
+    await screen.findByText("Incasso aperto");
+    expect(screen.queryByText("Incasso già saldato")).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /^Tutte/ }), { button: 0, ctrlKey: false });
     await screen.findByText("Incasso già saldato");
     fireEvent.mouseDown(screen.getByRole("tab", { name: /^Da Incassare/ }), { button: 0, ctrlKey: false });
     await screen.findByText("Incasso aperto");

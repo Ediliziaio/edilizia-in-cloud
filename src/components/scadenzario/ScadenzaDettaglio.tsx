@@ -7,8 +7,11 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import {
-  CLASSE_TONO, linkCommessa, linkFattura, linkFornitore, linkTesoreriaMovimento, statoScadenza,
+  CLASSE_TONO, giorniDaOggi, linkCommessa, linkFattura, linkFornitore, linkTesoreriaMovimento, statoScadenza,
 } from "@/lib/finance/collegamentiFinanza";
+import { NotaRiga } from "@/components/shared/NotaRiga";
+import { notaLeggibile, tempoScadenza } from "@/lib/finance/dettaglioScadenza";
+import { etichettaMetodo } from "@/lib/finance/metodoScadenza";
 import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
 import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
 
@@ -23,11 +26,13 @@ interface Abbinamento {
  * commessa, gli incassi o pagamenti registrati e il bonifico abbinato. Ogni
  * voce porta alla sua scheda; il bonifico si apre in Tesoreria.
  */
-export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso }: {
+export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota }: {
   scadenza: Scadenza;
   onClose: () => void;
   onMarkPaid: (s: Scadenza) => void;
   onAnnullaIncasso?: (s: Scadenza) => void;
+  /** Scrive la nota dal dettaglio (16/11/2026): prima si poteva solo dall'elenco. */
+  onNota?: (s: Scadenza, nota: string | null) => Promise<unknown>;
 }) {
   const entrata = s.direction === "entrata";
   const stato = statoScadenza(s);
@@ -68,6 +73,23 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
     },
   });
 
+  // Le altre rate dello stesso documento (stessa fattura o stesso costo): si vede subito il quadro.
+  const altre = useQuery({
+    queryKey: ["scadenza-dettaglio", "altre", s.id, s.invoice_id, s.cost_id],
+    enabled: !!(s.invoice_id || s.cost_id),
+    queryFn: async () => {
+      let q = supabase.from("scadenze").select("id, due_date, amount, paid_amount, status, direction")
+        .eq("company_id", s.company_id).neq("id", s.id).neq("status", "annullata");
+      q = s.invoice_id ? q.eq("invoice_id", s.invoice_id) : q.eq("cost_id", s.cost_id!);
+      const { data, error } = await q.order("due_date", { ascending: true }).limit(24);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; due_date: string; amount: number; paid_amount: number; status: Scadenza["status"]; direction: Scadenza["direction"] }>;
+    },
+  });
+  const tempo = tempoScadenza(s);
+  const pct = s.amount > 0 ? Math.min(100, Math.max(0, (Number(s.paid_amount || 0) / s.amount) * 100)) : 0;
+  const nota = notaLeggibile(s.notes);
+
   const controparte = controparteScadenza(s);
   const voci: [string, React.ReactNode][] = [
     [entrata ? "Cliente" : "Fornitore", s.supplier_id && controparte
@@ -79,10 +101,9 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
     ["Data documento", s.invoices?.issue_date ? formatDateIt(s.invoices.issue_date) : "—"],
     ["Commessa", s.order_id && s.orders
       ? <Link to={linkCommessa(s.order_id)} className="text-primary hover:underline">{s.orders.order_code}</Link> : "—"],
-    ["Scadenza", <>{formatDateIt(s.due_date)}{stato.giorniRitardo > 0 && <span className="text-destructive"> · {stato.giorniRitardo} gg di ritardo</span>}</>],
-    ["Metodo", s.payment_method || "—"],
-    [entrata ? "Incassato" : "Pagato", formatCurrency(s.paid_amount)],
-    ["Residuo", formatCurrency(residuo)],
+    ["Scadenza", formatDateIt(s.due_date)],
+    ["Modalità", etichettaMetodo(s.payment_method) ?? "—"],
+    // Incassato e residuo stanno nella barra qui sopra: non si ripetono.
     [entrata ? "Incassata il" : "Pagata il", s.paid_date ? formatDateIt(s.paid_date) : "—"],
   ];
   const aperta = s.status !== "pagata" && s.status !== "annullata" && residuo > 0;
@@ -98,14 +119,27 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
           <DialogDescription>{entrata ? "Incasso" : "Pagamento"} in scadenza il {formatDateIt(s.due_date)}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 p-4">
-            <div>
-              <p className={`text-2xl font-semibold tabular-nums ${entrata ? "text-emerald-700" : "text-red-700"}`}>
-                {entrata ? "+" : "−"}{formatCurrency(s.amount)}
-              </p>
-              {residuo > 0 && residuo < s.amount && <p className="text-xs text-muted-foreground">Restano {formatCurrency(residuo)}</p>}
+          <section className="space-y-3 rounded-xl border bg-muted/30 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className={`text-2xl font-semibold tabular-nums ${entrata ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                  {entrata ? "+" : "−"}{formatCurrency(s.amount)}
+                </p>
+                <p className={`text-sm ${tempo.tono === "cattivo" ? "font-medium text-destructive" : tempo.tono === "attenzione" ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>{tempo.testo}</p>
+              </div>
+              <Badge variant="outline" className={CLASSE_TONO[stato.tono]}>{stato.label}</Badge>
             </div>
-            <Badge variant="outline" className={CLASSE_TONO[stato.tono]}>{stato.label}</Badge>
+            {s.status !== "annullata" && (
+              <div>
+                <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={entrata ? "Quanto è incassato" : "Quanto è pagato"}>
+                  <div className={`h-full rounded-full ${entrata ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${pct}%` }} />
+                </div>
+                <p className="mt-1 flex justify-between text-xs tabular-nums text-muted-foreground">
+                  <span>{entrata ? "Incassati" : "Pagati"} {formatCurrency(s.paid_amount)}</span>
+                  <span>{residuo > 0 ? `restano ${formatCurrency(residuo)}` : "saldata"}</span>
+                </p>
+              </div>
+            )}
           </section>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
             {voci.map(([k, v]) => (
@@ -115,7 +149,35 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
               </div>
             ))}
           </dl>
-          {s.notes && <p className="whitespace-pre-wrap rounded-lg border p-3 text-sm"><span className="text-xs text-muted-foreground">Nota · </span>{s.notes}</p>}
+          {(nota || onNota) && (
+            <div className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+              <p className="min-w-0 flex-1 whitespace-pre-wrap">
+                <span className="text-xs text-muted-foreground">Nota · </span>
+                {nota || <span className="text-muted-foreground">nessuna</span>}
+              </p>
+              {onNota && <NotaRiga nota={s.notes} titolo={`Scadenza ${formatDateIt(s.due_date)} · ${s.description}`} onSalva={(n) => onNota(s, n)} />}
+            </div>
+          )}
+
+          {altre.data && altre.data.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold">Altre rate dello stesso documento</h3>
+              <ul className="divide-y rounded-lg border text-sm">
+                {altre.data.map((r) => {
+                  const st = statoScadenza(r);
+                  const ritardo = st.tono === "scaduta" ? -giorniDaOggi(r.due_date) : 0;
+                  return (
+                    <li key={r.id} className="flex items-center gap-3 px-3 py-2 whitespace-nowrap">
+                      <span className="tabular-nums">{formatDateIt(r.due_date)}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{ritardo > 0 ? `scaduta da ${ritardo} gg` : ""}</span>
+                      <span className="font-medium tabular-nums">{formatCurrency(r.amount)}</span>
+                      <Badge variant="outline" className={`px-1.5 text-[11px] ${CLASSE_TONO[st.tono]}`}>{st.label}</Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">{entrata ? "Incassi registrati" : "Pagamenti registrati"}</h3>

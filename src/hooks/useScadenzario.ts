@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { filtroMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -90,6 +91,8 @@ export interface ScadenzarioFilters {
   /** Tipo di scadenza (incasso_cliente, pagamento_fornitore…): il filtro
    *  «Tipo» della pagina esisteva ma non arrivava alla query. */
   tipo?: string | null;
+  /** RiBa, bonifico…: il gruppo del modo di pagamento (16/11/2026). */
+  metodo?: GruppoMetodo | null;
 }
 
 export function useScadenzario(page: number = 1, pageSize: number = 50, filters: ScadenzarioFilters = {}) {
@@ -97,10 +100,10 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null],
     queryFn: async () => {
       let query = supabase
         .from("scadenze")
@@ -130,6 +133,7 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
           .lt("due_date", new Date().toLocaleDateString("en-CA"));
       }
       if (tipo) query = query.eq("tipo", tipo);
+      if (metodo) query = query.or(filtroMetodo(metodo));
 
       const { data, error, count } = await query
         .range((page - 1) * pageSize, page * pageSize - 1);
