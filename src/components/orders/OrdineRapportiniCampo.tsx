@@ -472,7 +472,12 @@ export function OrdineRapportiniCampo({ orderId, azioniInRiga = false, soloDaApp
                             <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                               {canViewCosts && <div className="w-full"><QuadroEconomicoRapportino rapportinoId={r.id} puoModificare={stato !== "rifiutato" && canEditOrders} /></div>}
                               <StoricoSpazio rapportinoId={r.id} />
-                              {puoDecidereSu(r.user_id) && stato === "approvato" && <CorreggiRapportino rapportinoId={r.id} orderId={orderId} />}
+                              {/* Anche sugli inviati (16/11/2026): l'ufficio che apre la commessa per
+                                  sistemare un rapportino appena arrivato qui non trovava niente, e la
+                                  stessa correzione era già possibile dalla pagina «Rapportini commesse».
+                                  I controlli in più (motivo, rendiconti, giornale firmato) il database
+                                  li fa solo sugli approvati. */}
+                              {puoDecidereSu(r.user_id) && stato !== "rifiutato" && <CorreggiRapportino rapportinoId={r.id} orderId={orderId} />}
                               <PulsantePdfRapportino report={r} orderId={orderId} />
                               {/* Le ore annullate dall'ufficio non si riapprovano: si reinseriscono da «Ore e persone». */}
                               {canApprove && !r.annullato_at && (
