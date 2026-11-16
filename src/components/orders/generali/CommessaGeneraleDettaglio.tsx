@@ -11,6 +11,9 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
+import { QuadroPrevisionale } from "@/components/orders/generali/design/QuadroPrevisionale";
+import { numeriOperazione, superficieOperazione } from "@/lib/orders/generali/numeriOperazione";
+import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
@@ -343,6 +346,35 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
   const penale = appalto && contratto.data ? penaleMaturata(contratto.data.contratto, contratto.data.atti, oggi) : null;
   const giorniAllaFine = fineContratto && !ultimati ? giorniTra(oggi, fineContratto) : null;
 
+  // ── Previsionale e reale, col €/m² (16/11/2026) ──────────────────────────
+  // I metri quadri: la somma delle unità (si aggiorna da sola), se no quelli scritti a mano
+  // nella scheda Dati, se no la superficie dell'immobile comprato.
+  const unita = useUnitaGenerale(r.permessi.importi ? r.generale.id : undefined);
+  const superficie = superficieOperazione({
+    unitaMq: unita.data?.unita?.map((u) => u.mq),
+    mqVendibili: r.generale.dati?.area?.mq_vendibili,
+    immobileMq: r.generale.dati?.immobile?.mq,
+  });
+  // Venduto davvero: le unità non più libere. Per un appalto è quello che si è fatturato.
+  const vendutoUnita = r.figlie
+    .filter((f) => f.statoVendita && f.statoVendita !== "libera")
+    .reduce((somma, f) => somma + (f.importo ?? 0), 0);
+  const venduto = !r.permessi.importi ? null : appalto ? t.fatturato : vendutoUnita > 0 ? vendutoUnita : t.fatturato;
+  const numeriPrevReale = numeriOperazione({
+    venditaPrevista: r.permessi.importi ? r.generale.valore ?? t.assegnato : null,
+    costiPrevisti: budget,
+    venduto,
+    speso,
+    superficie,
+  });
+  // Il quadro si mostra quando c'è qualcosa da confrontare: commesse dentro, un budget nel piano
+  // o qualcosa di speso. Su una generale appena nata vale di più il prossimo passo di una
+  // tabella di trattini. Serve comunque almeno una colonna piena.
+  const conPrevReale = r.permessi.importi
+    && (r.figlie.length > 0 || budget !== null || (speso ?? 0) > 0)
+    && (numeriPrevReale.previsionale.vendita !== null || numeriPrevReale.previsionale.costi !== null
+      || numeriPrevReale.reale.vendita !== null || numeriPrevReale.reale.costi !== null);
+
   const righe = [
     ...(appalto || r.figlie.length ? [{ etichetta: appalto ? "Assegnato" : "Prezzi delle unità", valore: t.assegnato, tono: "bg-blue-300" }] : []),
     ...(appalto ? [{ etichetta: "Eseguito", valore: t.eseguito, tono: "bg-sky-400" }] : []),
@@ -437,6 +469,16 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
           <Numero etichetta="Avanzamento" valore={`${Math.round(t.avanzamento)}%`} />
         )}
       </div>
+
+      {conPrevReale && (
+        <QuadroPrevisionale
+          n={numeriPrevReale}
+          etichettaVendita={appalto ? "Fatturato" : "Venduto"}
+          incassato={t.incassato}
+          budgetParziale={!budgetCompleto}
+          notaCostiPrevisti={r.permessi.costi ? "il piano non ha ancora un budget" : "costi non visibili"}
+        />
+      )}
 
       {r.permessi.importi && barre.length > 0 && (
         <div className="generale-hero-progress">

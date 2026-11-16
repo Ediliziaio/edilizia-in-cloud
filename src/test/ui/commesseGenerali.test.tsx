@@ -10,6 +10,7 @@ import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
  */
 const m = vi.hoisted(() => ({
   riepilogo: null as RiepilogoGenerale | null,
+  unita: undefined as undefined | { unita: { mq: number | null }[] },
   mobile: false,
   contratto: undefined as undefined | { contratto: { importoBase: number; ribassoPct: number; oneriSicurezza: number }; atti: never[]; sal: { diContratto: boolean; stato: string; numero: number; cumulativo: number; netto: number; al: string | null }[] },
   canEditOrders: true,
@@ -62,6 +63,13 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({
   useScollegaCommessa: () => ({ mutate: vi.fn(), isPending: false }),
   messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`,
   useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: m.salva, isPending: false }, commessaCliente: m.commessaCliente, salvaCommessaCliente: { mutate: m.salvaCliente, isPending: false } }),
+  // Usato da PerLavorare: senza questo export il mock fa fallire l'intero file.
+  usePrerequisitiGenerale: () => ({ data: undefined, isLoading: false, isError: false }),
+}));
+
+// I metri quadri del quadro previsionale/reale vengono dalle unità (16/11/2026).
+vi.mock("@/hooks/useGeneraleUnita", () => ({
+  useUnitaGenerale: () => ({ data: m.unita, isLoading: false, isError: false }),
 }));
 
 import { CommessaGeneraleDettaglio } from "@/components/orders/generali/CommessaGeneraleDettaglio";
@@ -93,6 +101,7 @@ beforeEach(() => {
   m.salva.mockReset();
   m.navigate.mockReset();
   m.quote = null;
+  m.unita = undefined;
 });
 afterEach(cleanup);
 
@@ -138,6 +147,28 @@ describe("la pagina della commessa generale", () => {
     disegna();
     expect(screen.queryByRole("button", { name: /Nuovo ordine di lavoro|Collega|Modifica/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Scuola Rodari/ })).toHaveAttribute("href", "/azienda/ordini/a");
+  });
+
+  it("previsionale e reale affiancati, col €/m² dalle unità", () => {
+    m.unita = { unita: [{ mq: 600 }, { mq: 400 }, { mq: null }] };
+    disegna();
+    expect(screen.getByRole("table", { name: "Previsionale e reale" })).toBeVisible();
+    // 1.000 m² da due unità; la terza non ha la superficie e lo si dice.
+    expect(screen.getByText(/1000 m²/, { selector: ".quadro-prev-mq" })).toBeVisible();
+    expect(screen.getByText(/2 unità, 1 senza metri quadri/)).toBeVisible();
+    // Previsto: il valore della generale (2.970.000) su 1.000 m².
+    expect(screen.getByText("2970 €/m²")).toBeVisible();
+    // Reale: fatturato 1.194.000 e costi 1.120.000, sempre su 1.000 m².
+    expect(screen.getByText(/1194 €\/m²/)).toBeVisible();
+    expect(screen.getByText(/1120 €\/m²/)).toBeVisible();
+  });
+
+  it("senza superficie dice come averla, e nessun importo è diviso per i metri", () => {
+    m.unita = { unita: [] };
+    disegna();
+    expect(screen.getByText(/scrivi la superficie vendibile nella scheda Dati/)).toBeVisible();
+    // Nessun valore al metro quadro: il testo d'aiuto non è un numero.
+    expect(screen.queryByText(/^[\d.]+ €\/m²/)).not.toBeInTheDocument();
   });
 
   it("generale vuota: il prossimo passo, non una tabella di zeri", () => {

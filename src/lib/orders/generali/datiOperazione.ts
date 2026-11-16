@@ -53,8 +53,17 @@ const AREA: SezioneDati = {
   descrizione: "Il terreno o l'edificio su cui si costruisce.",
   campi: [
     { chiave: "catasto", etichetta: "Dati catastali", tipo: "testo", esempio: "Foglio 12, particella 345" },
-    { chiave: "superficie", etichetta: "Superficie", tipo: "numero", unita: "m²" },
+    { chiave: "superficie", etichetta: "Superficie del lotto", tipo: "numero", unita: "m²" },
     { chiave: "cubatura", etichetta: "Cubatura", tipo: "numero", unita: "m³" },
+    // I €/m² del quadro in cima si calcolano su questa (16/11/2026). Quando ci sono le unità
+    // immobiliari vince la somma dei loro metri quadri: si aggiorna da sola.
+    {
+      chiave: "mq_vendibili",
+      etichetta: "Superficie vendibile",
+      tipo: "numero",
+      unita: "m²",
+      esempio: "per i €/m²; senza unità inserite",
+    },
   ],
 };
 

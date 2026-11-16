@@ -1183,3 +1183,119 @@ button.generale-indicator[aria-pressed="true"] {
   padding-bottom: 6px;
   border-bottom: 1px solid hsl(var(--border));
 }
+
+/* ── Previsionale e reale (16/11/2026) ─────────────────────────────────────
+   Due righe allineate per colonna sotto i numeri in cima: si legge in verticale
+   quanto la realtà si scosta dal piano. Sotto ogni importo il suo €/m². */
+.quadro-prev {
+  padding: 15px 22px 17px;
+  border-top: 1px solid hsl(0 0% 100% / 0.12);
+  background: hsl(0 0% 0% / 0.055);
+}
+.quadro-prev-testata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+.quadro-prev-titolo {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: hsl(214 50% 87%);
+}
+.quadro-prev-mq {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(0 0% 100%);
+  white-space: nowrap;
+}
+.quadro-prev-mq-fonte {
+  font-size: 11px;
+  font-weight: 400;
+  color: hsl(213 45% 78%);
+}
+.quadro-prev-griglia {
+  display: grid;
+  grid-template-columns: 7.5rem repeat(3, minmax(0, 1fr));
+  gap: 6px 10px;
+  align-items: stretch;
+}
+.quadro-prev-angolo {
+  display: block;
+}
+.quadro-prev-intestazione {
+  padding: 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(214 50% 80%);
+}
+.quadro-prev-riga-nome {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(214 50% 90%);
+}
+.quadro-prev-riga-sotto {
+  font-size: 10px;
+  font-weight: 400;
+  color: hsl(213 45% 76%);
+}
+.quadro-prev-cella {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid hsl(0 0% 100% / 0.12);
+  border-radius: 9px;
+  background: hsl(0 0% 100% / 0.055);
+}
+.quadro-prev-valore {
+  font-size: clamp(0.95rem, 1.15vw, 1.2rem);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quadro-prev-nota {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: hsl(213 45% 80%);
+}
+.quadro-prev-scarto {
+  margin-top: 10px;
+  font-size: 11px;
+  color: hsl(213 45% 80%);
+}
+/* Da telefono le tre colonne non ci stanno: il nome della riga va sopra, a tutta larghezza. */
+@media (max-width: 760px) {
+  .quadro-prev {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .quadro-prev-griglia {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* L'angolo vuoto sparisce: le tre intestazioni prendono le tre colonne e restano leggibili. */
+  .quadro-prev-angolo {
+    display: none;
+  }
+  .quadro-prev-riga-nome {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .quadro-prev-valore {
+    font-size: 15px;
+  }
+}
