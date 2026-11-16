@@ -343,7 +343,7 @@ Il titolare ha approvato le proposte («per i prezzi AI va bene come proponi»):
 
 | # | Domanda | Decisione | Stato |
 |---|---|---|---|
-| 1 | Ricarico unico o per compito? | Un ricarico per compito in una tabella (`ai_ricarico_compito`), stesso minimo di 3× il costo vero su tutte le strade | Meccanismo applicato; **prezzi in attesa del sì sull'anteprima** (§10) |
+| 1 | Ricarico unico o per compito? | Un ricarico per compito in una tabella (`ai_ricarico_compito`), stesso minimo di 3× il costo vero su tutte le strade | Applicato (prezzi dal 16/11, migrazione `20290417120100`) |
 | 2 | Errore nostro dopo che il provider ha lavorato | Si rimborsa, con una riga di rimborso | Applicato |
 | 3 | Consumo incluso nel piano (letture per piano) | Il numero lo decide il titolare | Fuori da questo lavoro |
 | 4 | Chiamata fatta a credito finito | Diventa un debito, scalato alla ricarica successiva (omaggio compreso) | Applicato |
@@ -435,8 +435,8 @@ Effetti fuori dai 30 giorni:
   (es. `serramenti_photo_to_quote` 24,1×, i `template_*` su t4 a 3×);
 - `bot_operativo_titolare` passa sulle due strade allo stesso 3,02× (oggi 3× diretta, 13,95× router su 2 chiamate).
 
-I valori sono nella migrazione `20290417120100_ai_ricarico_per_compito_prezzi.sql`, **non ancora
-applicata**: si applica dopo il sì del titolare su questa anteprima.
+I valori sono nella migrazione `20290417120100_ai_ricarico_per_compito_prezzi.sql`, applicata il
+16/11/2026 dopo il sì del titolare su questa anteprima (78 compiti con prezzo più `default` a 3×).
 
 ### Test
 
