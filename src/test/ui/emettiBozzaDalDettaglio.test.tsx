@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FatturaElettronicaPannello } from "@/components/fatturazione/FatturaElettronicaPannello";
 import sorgenteDettaglio from "@/pages/azienda/fatturazione/DocumentoDetail.tsx?raw";
+import type { ReactNode } from "react";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
 /**
@@ -17,19 +19,27 @@ const doc = (x: Record<string, unknown>) =>
   ({ numero: "1", sdi_errori: [], ...x }) as unknown as DocumentoFiscale;
 const noop = () => {};
 
+/**
+ * Il riquadro adesso contiene AvvisoNumerazione, che legge col react-query: senza il
+ * Provider il test muore con «No QueryClient set» (16/11/2026).
+ */
+const conQuery = (ui: ReactNode) => (
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
+);
+
 afterEach(cleanup);
 
 describe("FatturaElettronicaPannello: «Emetti» per una bozza", () => {
   it("una bozza col gancio onEmetti mostra «Emetti» e chiede conferma prima di assegnare il numero", async () => {
     const onEmetti = vi.fn();
     render(
-      <FatturaElettronicaPannello
+      conQuery(<FatturaElettronicaPannello
         doc={doc({ tipo: "fattura", stato: "bozza", numero: "Bozza TEST0001" })}
         azienda={null}
         tipoLabel="Fattura"
         onEsportaXml={noop}
         onEmetti={onEmetti}
-      />,
+      />),
     );
 
     // Il riquadro dice che è una bozza modificabile ed espone «Emetti».
@@ -48,12 +58,12 @@ describe("FatturaElettronicaPannello: «Emetti» per una bozza", () => {
 
   it("senza il gancio onEmetti il riquadro resta com'era: nessun pulsante «Emetti»", () => {
     render(
-      <FatturaElettronicaPannello
+      conQuery(<FatturaElettronicaPannello
         doc={doc({ tipo: "fattura", stato: "bozza" })}
         azienda={null}
         tipoLabel="Fattura"
         onEsportaXml={noop}
-      />,
+      />),
     );
     expect(screen.queryByRole("button", { name: "Emetti" })).not.toBeInTheDocument();
   });
@@ -61,14 +71,14 @@ describe("FatturaElettronicaPannello: «Emetti» per una bozza", () => {
   it("una volta emessa (da inviare allo SDI) compare «Invia allo SDI» e non più «Emetti»", () => {
     // Anche passando onEmetti, lo stato comanda: a documento emesso tocca l'invio.
     render(
-      <FatturaElettronicaPannello
+      conQuery(<FatturaElettronicaPannello
         doc={doc({ tipo: "fattura", stato: "emessa" })}
         azienda={null}
         tipoLabel="Fattura"
         onEsportaXml={noop}
         onInvia={noop}
         onEmetti={noop}
-      />,
+      />),
     );
     expect(screen.getByRole("button", { name: /Invia allo SDI/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Emetti" })).not.toBeInTheDocument();
