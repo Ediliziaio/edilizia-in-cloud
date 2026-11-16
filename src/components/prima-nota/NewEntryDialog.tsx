@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AllegatoPrimaNota } from "./AllegatoPrimaNota";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +51,20 @@ const residuo = (f: FatturaAperta) => Math.max(0, Math.round(((f.total ?? 0) - (
 const euro = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "");
 
+const METODI = [
+  { value: "bonifico", label: "Bonifico" },
+  { value: "contanti", label: "Contanti" },
+  { value: "carta", label: "Carta" },
+  { value: "assegno", label: "Assegno" },
+  { value: "ri.ba", label: "Ri.Ba." },
+  { value: "altro", label: "Altro" },
+];
+/** Il verso del movimento tinge il segno e l'importo: si legge prima di leggere le parole. */
+const VERSO = {
+  entrata: { etichetta: "↓ Entrata", segno: "+", testo: "text-emerald-700", bordo: "border-emerald-300", pieno: "bg-emerald-600 text-white" },
+  uscita: { etichetta: "↑ Uscita", segno: "−", testo: "text-rose-700", bordo: "border-rose-300", pieno: "bg-rose-600 text-white" },
+} as const;
+
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -79,6 +94,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [fatturaOpen, setFatturaOpen] = useState(false);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  // Riferimento, note e allegato stanno piegati: si aprono da soli se la registrazione ne ha già.
+  const [dettagliAperti, setDettagliAperti] = useState(false);
 
   // Combobox data
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
@@ -150,6 +167,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setOrderId("");
     setInvoiceId("");
     setAttachmentFile(null);
+    setDettagliAperti(false);
   };
 
   // In modifica, quello che questa registrazione ha già messo sulla sua fattura torna disponibile.
@@ -171,6 +189,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setDescription(`Incasso fattura ${f.invoice_number ?? ""}${f.client_company_name ? ` - ${f.client_company_name}` : ""}`.trim());
     setReference(`Fatt. ${f.invoice_number ?? ""}`.trim());
     setFatturaOpen(false);
+    // Scegliere la fattura riscrive anche il riferimento: si apre, così si vede cosa è cambiato.
+    setDettagliAperti(true);
   };
 
   // Reset all'APERTURA: con dialog controllato Radix non invoca onOpenChange quando il
@@ -192,6 +212,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       setSupplierId(entry.supplier_id ?? "");
       setOrderId(entry.order_id ?? "");
       setInvoiceId(entry.invoice_id ?? "");
+      // Quello che la registrazione ha già scritto non si nasconde dietro un «Altri dettagli».
+      setDettagliAperti(Boolean(entry.notes || entry.reference_number || entry.attachment_url));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry?.id]);
@@ -205,8 +227,17 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   // Più del residuo non si incassa: l'eccedenza farebbe risultare pagata una fattura
   // con un importo che non torna, e il cliente in credito senza che nessuno lo sappia.
   const oltreResiduo = !!fatturaScelta && Number(amount) > residuoPer(fatturaScelta) + 0.005;
-  const isValid = description.trim() && Number(amount) > 0 && entryDate && !oltreResiduo
-    && (!invoiceId || direction === "entrata");
+  // Un solo posto decide se si può salvare, e sa dire perché: il pulsante spento senza
+  // motivo lasciava l'utente a indovinare quale campo mancasse.
+  const blocco: { testo: string; errore: boolean } | null =
+    oltreResiduo ? { testo: "L’importo supera quanto resta da incassare su questa fattura.", errore: true }
+    : invoiceId && direction !== "entrata" ? { testo: "L’incasso di una fattura è un’entrata: cambia il verso o togli la fattura.", errore: true }
+    : !description.trim() ? { testo: "Manca la descrizione.", errore: false }
+    : !(Number(amount) > 0) ? { testo: "Manca l’importo.", errore: false }
+    : !entryDate ? { testo: "Manca la data.", errore: false }
+    : null;
+  const isValid = !blocco;
+  const verso = VERSO[direction];
 
   const handleConfirm = async () => {
     if (attachmentFile && !companyId) {
@@ -258,33 +289,48 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      {/* Un filo più largo di prima (lg): la descrizione e le voci delle tendine si leggono intere. */}
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{entry ? "Modifica registrazione" : "Nuova Registrazione"}</DialogTitle>
+          <DialogDescription>
+            {entry
+              ? `Registrata il ${dataIt(entry.entry_date)}${entry.is_auto ? " dal programma" : " a mano"}. Le modifiche valgono subito in Prima nota.`
+              : "Un movimento di cassa o banca scritto a mano."}
+          </DialogDescription>
         </DialogHeader>
-        {/* Mobile: via riferimento e note; metodo accanto al conto. */}
         <div className="space-y-4 max-sm:space-y-3">
+          {/* La categoria decide il verso e quali campi servono: viene prima. */}
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
-              <Label>Direzione</Label>
-              <Select value={direction} onValueChange={(v) => setDirection(v as "entrata" | "uscita")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="entrata">↓ Entrata</SelectItem>
-                  <SelectItem value="uscita">↑ Uscita</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Categoria</Label>
+              <Label htmlFor="pn-categoria">Categoria</Label>
               <Select value={category} onValueChange={scegliCategoria}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="pn-categoria"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label asChild><span>Entra o esce</span></Label>
+              <div role="group" aria-label="Entra o esce" className="grid grid-cols-2 gap-1 rounded-md border bg-muted/40 p-1">
+                {(["entrata", "uscita"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={direction === v}
+                    onClick={() => setDirection(v)}
+                    className={cn(
+                      "h-8 rounded text-sm font-medium transition-colors",
+                      direction === v ? VERSO[v].pieno : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {VERSO[v].etichetta}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -364,8 +410,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
               ) : (
                 <p className="text-xs text-muted-foreground">Senza fattura l'incasso resta solo in Prima nota: non chiude né la fattura né la scadenza.</p>
               )}
-              {oltreResiduo && <p className="text-xs text-destructive">L'importo supera quanto resta da incassare su questa fattura.</p>}
-              {invoiceId && direction !== "entrata" && <p className="text-xs text-destructive">L'incasso di una fattura è un'entrata.</p>}
+              {/* I due errori di questa fattura li dice una volta sola il messaggio sopra il pulsante. */}
             </div>
           )}
 
@@ -402,61 +447,52 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           )}
 
           <div className="space-y-2">
-            <Label>Descrizione</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Pagamento fornitore ABC" />
+            <Label htmlFor="pn-descrizione">Descrizione</Label>
+            <Input id="pn-descrizione" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Pagamento fornitore ABC" />
           </div>
 
-          {/* 2 colonne su mobile: con 3 i campi scendevano a ~98px (data clippata) */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 max-sm:gap-2">
+          {/* L'importo è il dato che si legge per primo: grande, col segno del verso.
+              Con la larghezza nuova data, metodo e conto gli stanno accanto su una riga sola. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 max-sm:gap-2 sm:grid-cols-[minmax(11rem,1.1fr)_minmax(0,1fr)]">
             <div className="space-y-2">
-              <Label>Importo (€)</Label>
-              <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Label htmlFor="pn-importo">Importo</Label>
+              <div className={cn("flex h-12 items-center gap-2 rounded-md border bg-background px-3 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2", verso.bordo)}>
+                <span aria-hidden className={cn("text-xl font-semibold tabular-nums", verso.testo)}>{verso.segno}</span>
+                <Input
+                  id="pn-importo"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0.01"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onWheel={(e) => e.currentTarget.blur()}
+                  placeholder="0,00"
+                  className={cn("h-full border-0 px-0 text-xl font-semibold tabular-nums shadow-none focus-visible:ring-0 focus-visible:ring-offset-0", verso.testo)}
+                />
+                <span aria-hidden className="text-base text-muted-foreground">€</span>
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Data</Label>
-              <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
-            </div>
-            <div className="space-y-2 max-sm:hidden">
-              <Label>Metodo</Label>
-              <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger><SelectValue placeholder="Non indicato" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bonifico">Bonifico</SelectItem>
-                  <SelectItem value="contanti">Contanti</SelectItem>
-                  <SelectItem value="carta">Carta</SelectItem>
-                  <SelectItem value="assegno">Assegno</SelectItem>
-                  <SelectItem value="ri.ba">Ri.Ba.</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="pn-data">Data</Label>
+              <Input id="pn-data" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="h-12" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
-            <div className="space-y-2 max-sm:hidden">
-              <Label>Riferimento (opzionale)</Label>
-              <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
-            </div>
-            {/* Mobile: il metodo sta qui, accanto al conto (sopra resterebbe
-                da solo su mezza riga). */}
-            <div className="space-y-2 sm:hidden">
-              <Label>Metodo</Label>
+            <div className="space-y-2">
+              <Label htmlFor="pn-metodo">Metodo</Label>
               <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger><SelectValue placeholder="Non indicato" /></SelectTrigger>
+                <SelectTrigger id="pn-metodo"><SelectValue placeholder="Non indicato" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bonifico">Bonifico</SelectItem>
-                  <SelectItem value="contanti">Contanti</SelectItem>
-                  <SelectItem value="carta">Carta</SelectItem>
-                  <SelectItem value="assegno">Assegno</SelectItem>
-                  <SelectItem value="ri.ba">Ri.Ba.</SelectItem>
-                  <SelectItem value="altro">Altro</SelectItem>
+                  {METODI.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Conto</Label>
+              <Label htmlFor="pn-conto">Conto</Label>
               <Select value={accountLabel} onValueChange={setAccountLabel}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="pn-conto"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="banca">Banca</SelectItem>
                   <SelectItem value="cassa">Cassa</SelectItem>
@@ -465,47 +501,72 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           </div>
 
-          {/* Attachment */}
-          <div className="space-y-2">
-            <Label>Allegato<span className="max-sm:hidden"> (opzionale)</span></Label>
-            {entry?.attachment_name && !attachmentFile ? (
-              <p className="text-xs text-muted-foreground">Allegato attuale: {entry.attachment_name}. Scegli un file solo per sostituirlo.</p>
-            ) : null}
-            {attachmentFile ? (
-              <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30">
-                <Paperclip className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm truncate flex-1">{attachmentFile.name}</span>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setAttachmentFile(null)}>
-                  <X className="h-3.5 w-3.5" />
-                </Button>
+          {/* Riferimento, allegato e note: ci sono anche sul telefono, ma piegati. */}
+          <details
+            open={dettagliAperti}
+            onToggle={(e) => setDettagliAperti(e.currentTarget.open)}
+            className="rounded-lg border bg-muted/20 px-3 py-2"
+          >
+            <summary className="cursor-pointer text-sm font-medium">Riferimento, allegato e note</summary>
+            <div className="mt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="pn-riferimento">Riferimento</Label>
+                <Input id="pn-riferimento" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="es. Fatt. 2025/001" />
               </div>
-            ) : (
-              <div className="relative">
-                <Input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      if (file.size > 10 * 1024 * 1024) {
-                        toast.error("File troppo grande (max 10MB)");
-                        return;
-                      }
-                      setAttachmentFile(file);
-                    }
-                  }}
-                  className="text-sm"
-                />
+              <div className="space-y-2">
+                <Label asChild><span>Allegato</span></Label>
+                {entry?.attachment_url && !attachmentFile && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border bg-background px-2 py-1">
+                    <AllegatoPrimaNota url={entry.attachment_url} nome={entry.attachment_name} />
+                    <span className="shrink-0 text-xs text-muted-foreground">già allegato</span>
+                  </div>
+                )}
+                {attachmentFile ? (
+                  <div className="flex items-center gap-2 rounded-md border bg-background p-2">
+                    <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-sm">{attachmentFile.name}</span>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 shrink-0 p-0" aria-label="Togli il file scelto" onClick={() => setAttachmentFile(null)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted/40">
+                    <Paperclip className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {entry?.attachment_url ? "Scegli un file per sostituirlo" : "Scegli un file — PDF, immagine, Word o Excel, max 10 MB"}
+                    </span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 10 * 1024 * 1024) {
+                          toast.error("File troppo grande: il massimo è 10 MB.");
+                          e.currentTarget.value = "";
+                          return;
+                        }
+                        setAttachmentFile(file);
+                      }}
+                    />
+                  </label>
+                )}
               </div>
-            )}
-          </div>
-
-          <div className="space-y-2 max-sm:hidden">
-            <Label>Note (opzionale)</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="pn-note">Note</Label>
+                <Textarea id="pn-note" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+              </div>
+            </div>
+          </details>
         </div>
 
+        {/* Perché il pulsante è spento, sopra il pulsante stesso e su una riga sua. */}
+        {blocco && (
+          <p role={blocco.errore ? "alert" : undefined} className={cn("text-xs", blocco.errore ? "text-destructive" : "text-muted-foreground")}>
+            {blocco.testo}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
           <Button

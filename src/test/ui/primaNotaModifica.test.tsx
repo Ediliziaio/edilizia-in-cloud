@@ -23,6 +23,8 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   },
 } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
+// Le tendine di Radix scorrono fino all'opzione scelta: jsdom non sa farlo.
+Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
 
 const entry = {
   id: "pn1", company_id: "demo", direction: "entrata", category: "incasso", description: "Incasso fattura 17",
@@ -51,4 +53,43 @@ it("dice perché una registrazione automatica non si modifica da qui", () => {
   expect(perchePrimaNotaNonModificabile({ ...entry, is_auto: true })).toMatch(/automatica/);
   expect(perchePrimaNotaNonModificabile({ ...entry, documento_fiscale_id: "d" })).toMatch(/fattura emessa dal programma/);
   expect(perchePrimaNotaNonModificabile({ ...entry, bank_transaction_id: "b" })).toMatch(/Tesoreria/);
+});
+
+it("la categoria decide il verso, e il pulsante spento dice cosa manca", async () => {
+  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} />);
+  // Appena aperta: uscita, e il motivo per cui non si può registrare è scritto.
+  expect(screen.getByRole("button", { name: "↑ Uscita" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText("Manca la descrizione.")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Registra" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "Acconto cliente" } });
+  expect(screen.getByText("Manca l’importo.")).toBeTruthy();
+  fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "120" } });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Registra" })).toBeEnabled());
+  // Il verso si cambia anche a mano, e i due pulsanti si escludono.
+  fireEvent.click(screen.getByRole("button", { name: "↓ Entrata" }));
+  expect(screen.getByRole("button", { name: "↓ Entrata" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "↑ Uscita" })).toHaveAttribute("aria-pressed", "false");
+});
+
+it("scegliere «Incasso cliente» gira il verso da sé e chiede la fattura", async () => {
+  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} />);
+  expect(screen.getByRole("button", { name: "↑ Uscita" })).toHaveAttribute("aria-pressed", "true");
+  fireEvent.keyDown(screen.getByLabelText("Categoria"), { key: "ArrowDown" });
+  fireEvent.click(await screen.findByRole("option", { name: "Incasso cliente" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "↓ Entrata" })).toHaveAttribute("aria-pressed", "true"));
+  expect(screen.getByRole("button", { name: "↑ Uscita" })).toHaveAttribute("aria-pressed", "false");
+  // E compare la fattura da incassare, che prima non c'era.
+  expect(screen.getByText("Fattura incassata")).toBeTruthy();
+});
+
+it("in modifica apre già i dettagli quando la registrazione ha note, riferimento o allegato", () => {
+  const conNote = { ...entry, notes: "Pari entrata solo contabile", attachment_url: "prima-nota-attachments/a/b.pdf", attachment_name: "b.pdf" };
+  const { unmount } = render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} entry={conNote} />);
+  expect(screen.getByLabelText("Note")).toHaveValue("Pari entrata solo contabile");
+  expect(screen.getByLabelText("Riferimento")).toHaveValue("17");
+  // L'allegato già caricato si apre, non è più solo una scritta.
+  expect(screen.getByRole("button", { name: /Apri allegato b\.pdf/ })).toBeTruthy();
+  unmount();
+  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} entry={{ ...entry, reference_number: null }} />);
+  expect(screen.getByText("Riferimento, allegato e note").closest("details")?.open).toBe(false);
 });
