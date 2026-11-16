@@ -34,5 +34,15 @@ export function filtroRicercaMezzo(ricerca: string): string | null {
     .slice(0, 100);
   if (!testo) return null;
   const targa = testo.replace(/[^a-z0-9]/gi, "");
-  return `nome.ilike.%${testo}%,targa.ilike.%${targa.split("").join("%") || testo}%`;
+  // La targa si cerca lettera per lettera (scritta con o senza spazi); matricola e codice
+  // servono alle macchine, che una targa non ce l'hanno: all'Impresa Vulcano 21 mezzi su 38
+  // sono escavatori, gru, ponteggi e muletti, e in fattura li chiamano col numero di
+  // matricola o col codice interno (16/11/2026).
+  const sparso = targa.split("").join("%") || testo;
+  return [
+    `nome.ilike.%${testo}%`,
+    `targa.ilike.%${sparso}%`,
+    `matricola.ilike.%${testo}%`,
+    `codice.ilike.%${testo}%`,
+  ].join(",");
 }

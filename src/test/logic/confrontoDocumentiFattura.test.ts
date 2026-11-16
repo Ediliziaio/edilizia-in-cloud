@@ -181,8 +181,12 @@ describe("salvataggio e ricerca", () => {
   });
   it("cerca la targa con e senza spazi e impedisce l’iniezione di filtri", () => {
     expect(filtroRicercaMezzo("AB123CD")).toBe(
-      "nome.ilike.%AB123CD%,targa.ilike.%A%B%1%2%3%C%D%",
+      "nome.ilike.%AB123CD%,targa.ilike.%A%B%1%2%3%C%D%,matricola.ilike.%AB123CD%,codice.ilike.%AB123CD%",
     );
+    // Le macchine la targa non ce l'hanno: in fattura le chiamano col numero di
+    // matricola o col codice interno (16/11/2026).
+    expect(filtroRicercaMezzo("WF002527")).toContain("matricola.ilike.%WF002527%");
+    expect(filtroRicercaMezzo("MZ-0029")).toContain("codice.ilike.%MZ-0029%");
     expect(filtroRicercaMezzo("AB 123 CD")).toContain(
       "targa.ilike.%A%B%1%2%3%C%D%",
     );

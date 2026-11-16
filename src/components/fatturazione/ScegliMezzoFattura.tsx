@@ -31,7 +31,7 @@ export function ScegliMezzoFattura({
     queryFn: async () => {
       let query = supabase
         .from("mezzi")
-        .select("id, nome, targa")
+        .select("id, nome, targa, matricola, codice")
         .eq("company_id", companyId)
         .is("deleted_at", null)
         .order("nome")
@@ -43,7 +43,11 @@ export function ScegliMezzoFattura({
       return data ?? [];
     },
   });
-  const voci = (q.data ?? []).filter((m) => !collegati.has(m.id)).slice(0, 100);
+  // I mezzi già collegati restano in elenco, spenti e con l'etichetta (16/11/2026).
+  // Prima sparivano: all'Impresa Vulcano cercavano la targa che vedevano in fattura,
+  // leggevano «Nessun mezzo disponibile» e concludevano che il mezzo non c'era — mentre
+  // era lì sopra, già collegato.
+  const voci = (q.data ?? []).slice(0, 100);
   return (
     <Command shouldFilter={false}>
       <CommandInput
@@ -74,24 +78,32 @@ export function ScegliMezzoFattura({
             Nessun mezzo disponibile per questa ricerca.
           </p>
         ) : (
-          voci.map((m) => (
-            <CommandItem
-              key={m.id}
-              value={m.id}
-              disabled={occupato}
-              onSelect={() => onSelect(m.id)}
-              className="items-start py-2.5"
-            >
-              <span className="min-w-0">
-                <span className="block truncate">{m.nome}</span>
-                {m.targa && (
-                  <span className="text-xs text-muted-foreground">
-                    {m.targa}
+          voci.map((m) => {
+            const gia = collegati.has(m.id);
+            return (
+              <CommandItem
+                key={m.id}
+                value={m.id}
+                disabled={occupato || gia}
+                onSelect={() => !gia && onSelect(m.id)}
+                className="items-start py-2.5"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{m.nome}</span>
+                  {(m.targa || m.matricola || m.codice) && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {m.targa ?? [m.codice, m.matricola].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </span>
+                {gia && (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    già collegato
                   </span>
                 )}
-              </span>
-            </CommandItem>
-          ))
+              </CommandItem>
+            );
+          })
         )}
       </CommandList>
       {(q.data?.length ?? 0) > 100 && (
