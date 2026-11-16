@@ -274,8 +274,19 @@ export function matchesAutomationTriggerConfig(tcfg: Record<string, any>, payloa
     // Pagina/moduli Facebook (campagna_facebook_lead → page_id / form_ids,
     // stile GHL): il payload dell'evento porta page_id e form_id dal
     // processore lead (meta-process-leads).
-    if (tcfg.page_id && String((payload as Record<string, unknown>)?.page_id ?? "") !== String(tcfg.page_id)) return false;
-    if (Array.isArray(tcfg.form_ids) && tcfg.form_ids.length > 0) {
+    // 16/11/2026: il lead del RECUPERO (Graph /leads) non porta il page_id — la
+    // chiamata non lo restituisce per singolo lead — quindi arriva a null. In quel
+    // caso il filtro pagina non si può applicare e ci si affida al form_id, che
+    // identifica già una sola pagina. Prima il confronto page_id ("" ≠ id) scartava
+    // tutti i lead recuperati, e le automazioni «Lead Facebook» non partivano per
+    // una pagina rientrata solo dallo storico (Edilizia in Cloud, 16/11).
+    const evPageId = String((payload as Record<string, unknown>)?.page_id ?? "");
+    const haForm = Array.isArray(tcfg.form_ids) && tcfg.form_ids.length > 0;
+    if (tcfg.page_id && evPageId && evPageId !== String(tcfg.page_id)) return false;
+    // Se il trigger filtra per pagina ma non per moduli, e il lead non ha page_id,
+    // non è attribuibile: resta fuori (nessun allentamento del filtro).
+    if (tcfg.page_id && !evPageId && !haForm) return false;
+    if (haForm) {
       const evFormId = String((payload as Record<string, unknown>)?.form_id ?? "");
       if (!tcfg.form_ids.map(String).includes(evFormId)) return false;
     }

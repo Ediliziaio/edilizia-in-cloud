@@ -47,4 +47,26 @@ describe("Filtri automazioni: contratto editor/motore", () => {
     expect(matchesAutomationTriggerConfig({ pipeline_id: "p" }, {})).toBe(false);
     expect(matchesAutomationTriggerConfig({ pipeline_id: "p" }, { pipeline_id: "p" })).toBe(true);
   });
+
+  describe("lead Facebook per pagina e moduli", () => {
+    const cfg = { page_id: "1101078226430320", form_ids: ["1420331953583006", "919832507543777"] };
+    it("passa quando pagina e modulo combaciano", () => {
+      expect(matchesAutomationTriggerConfig(cfg, { page_id: "1101078226430320", form_id: "919832507543777" })).toBe(true);
+    });
+    it("scarta un modulo di un'altra campagna", () => {
+      expect(matchesAutomationTriggerConfig(cfg, { page_id: "1101078226430320", form_id: "000" })).toBe(false);
+    });
+    it("scarta un'altra pagina", () => {
+      expect(matchesAutomationTriggerConfig(cfg, { page_id: "999", form_id: "919832507543777" })).toBe(false);
+    });
+    it("lead del recupero senza page_id: basta che il modulo sia dei nostri (16/11/2026)", () => {
+      expect(matchesAutomationTriggerConfig(cfg, { form_id: "919832507543777" })).toBe(true);
+      expect(matchesAutomationTriggerConfig(cfg, { page_id: null, form_id: "919832507543777" })).toBe(true);
+      expect(matchesAutomationTriggerConfig(cfg, { form_id: "000" })).toBe(false);
+    });
+    it("filtro solo per pagina, senza moduli: un lead senza page_id resta fuori", () => {
+      expect(matchesAutomationTriggerConfig({ page_id: "1101078226430320" }, { form_id: "919832507543777" })).toBe(false);
+      expect(matchesAutomationTriggerConfig({ page_id: "1101078226430320" }, { page_id: "1101078226430320" })).toBe(true);
+    });
+  });
 });

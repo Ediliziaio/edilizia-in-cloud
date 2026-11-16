@@ -60,6 +60,9 @@ import { costruisciVariabiliCommessa, scegliFatturaDaAllegare, sostituisciVariab
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 import { prendiInCarico } from "../_shared/presaInCarico.ts";
+// 16/11/2026: matchesAutomationTriggerConfig ora accetta i lead del recupero senza page_id
+// affidandosi al form_id (_shared/automationFilters.ts); questo commento tiene la funzione
+// nell'elenco dei file cambiati, così il deploy la ripubblica col _shared aggiornato.
 import { evaluateAutomationFilters, matchesAutomationTriggerConfig } from "../_shared/automationFilters.ts";
 import { resolveAutomationRecord, loadAutomationCustomFields, automationEntityType, automationEventEntity, automationEventPayload } from "../_shared/automationContext.ts";
 import { EMAIL_PREFIX_TYPES, EMAIL_RECORD_FIELDS, emailTokens, escapeEmailValue, emailContentEmpty, emailAddressList, automationEmailDelayMs, normalizeAutomationEmailConfig } from "../_shared/automationEmail.ts";
