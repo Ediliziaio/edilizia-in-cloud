@@ -49,7 +49,10 @@ function calcoloInverso(prezzoLordo: number, aliquotaStr: string): number {
   return Math.round((prezzoLordo / (1 + aliquota / 100)) * 10000) / 10000;
 }
 
-const UNITA_MISURA = ["pz", "h", "gg", "mese", "km", "kg", "l", "m", "m²", "m³", "kWh", "%"];
+// «a corpo» (16/11/2026, chiesto da un'azienda mentre emetteva una fattura): in edilizia è la
+// forma più comune dopo i pezzi — una prestazione a forfait, non misurata. L'XML della fattura
+// elettronica accetta l'unità di misura come testo libero, quindi passa così com'è.
+const UNITA_MISURA = ["pz", "a corpo", "h", "gg", "mese", "km", "kg", "l", "m", "m²", "m³", "kWh", "%"];
 const IVA_RATES = ["22", "10", "5", "4", "0"];
 
 // IVA options combining aliquote + nature codes for the combined dropdown
