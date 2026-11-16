@@ -64,3 +64,6 @@ docs/mobile-store-assets/android/*.aab
 *.tsbuildinfo
 __pycache__/
 *.py[cod]
+
+# File temporaneo delle verifiche di tipo (tsconfig.tmp-*.json): si crea e si cancella da sé.
+tsconfig.tmp-*.json
