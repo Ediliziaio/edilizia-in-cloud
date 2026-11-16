@@ -101,11 +101,15 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
   const aggiungi = useMutation({
     mutationFn: async (nome: string) => {
       const righe = contiDaCreare(nome, proprie);
-      if (righe.length === 0) return nome.trim();
-      const { error } = await supabase.from("cost_categories").insert(righe.map((name) => ({ company_id: companyId, name })));
-      if (error) throw error;
-      await qc.invalidateQueries({ queryKey: queryKeys.costCategories.list(companyId) });
-      return nome.trim();
+      // Scritto un conto che c'è già (anche con altre maiuscole), si usa quello che c'è.
+      const gia = [...proprie, ...(proprie.length === 0 ? CATEGORIE_DI_BASE : [])]
+        .find((c) => c.trim().toLowerCase() === nome.trim().toLowerCase());
+      if (righe.length > 0) {
+        const { error } = await supabase.from("cost_categories").insert(righe.map((name) => ({ company_id: companyId, name })));
+        if (error) throw error;
+        await qc.invalidateQueries({ queryKey: queryKeys.costCategories.list(companyId) });
+      }
+      return gia ?? nome.trim();
     },
     onSuccess: (nome) => { setNuovo(null); cambia.mutate(nome); },
     onError: (e) => toast.error("Conto non aggiunto", {
