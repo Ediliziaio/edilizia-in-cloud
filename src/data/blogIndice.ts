@@ -7,6 +7,27 @@ export type BlogPostScheda = Omit<BlogPost, "content" | "faqs">;
 
 export const blogIndice: BlogPostScheda[] = [
   {
+    "id": "seo-20261116-richieste-preventivi",
+    "slug": "gestione-richieste-preventivi-edilizia-2027",
+    "title": "Gestione richieste e preventivi edilizi: il processo da preparare per il 2027",
+    "excerpt": "Organizza richieste, sopralluoghi e preventivi per il 2027: scheda minima, responsabili, versioni delle offerte e passaggio alla commessa.",
+    "category": "Commerciale",
+    "tags": [
+      "gestione richieste",
+      "preventivi edilizi",
+      "CRM",
+      "2027"
+    ],
+    "publishedAt": "2026-11-16",
+    "readTime": 12,
+    "coverImage": "/blog/covers/gestione-richieste-preventivi-edilizia-2027.jpg",
+    "author": {
+      "name": "Florin Andriciuc",
+      "role": "Founder",
+      "avatar": FLO_AVATAR
+    }
+  },
+  {
     "id": "t1",
     "slug": "modello-preventivo-edile",
     "title": "Modello Preventivo Edile: il Fac Simile che Chiude i Lavori",

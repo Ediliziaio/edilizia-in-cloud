@@ -49,6 +49,231 @@ import { blogPostsCantierePmi } from "./blogPostsCantierePmi";
 export { FLO_AVATAR };
 
 export const blogPosts: BlogPost[] = [
+{
+  "id": "seo-20261116-richieste-preventivi",
+  "slug": "gestione-richieste-preventivi-edilizia-2027",
+  "title": "Gestione richieste e preventivi edilizi: il processo da preparare per il 2027",
+  "excerpt": "Organizza richieste, sopralluoghi e preventivi per il 2027: scheda minima, responsabili, versioni delle offerte e passaggio alla commessa.",
+  "category": "Commerciale",
+  "tags": [
+    "gestione richieste",
+    "preventivi edilizi",
+    "CRM",
+    "2027"
+  ],
+  "publishedAt": "2026-11-16",
+  "readTime": 12,
+  "coverImage": "/blog/covers/gestione-richieste-preventivi-edilizia-2027.jpg",
+  "content": [
+    {
+      "type": "intro",
+      "body": "La gestione delle richieste e dei preventivi edilizi collega il marketing al lavoro dell’impresa. Se una persona compila un modulo, telefona e poi scrive un messaggio, devi poter riconoscere la stessa opportunità, capire chi la segue e sapere quale passaggio è stato concordato. Altrimenti aumentare le richieste significa anche aumentare duplicati, attese e informazioni disperse."
+    },
+    {
+      "type": "intro",
+      "body": "Questa guida ti aiuta a preparare il processo commerciale per il 2027, dalla prima richiesta alla consegna della commessa a chi organizza il cantiere. L’anno indica il periodo di pianificazione, non una previsione di nuove funzioni o obblighi. Gli esempi sono illustrativi e vanno adattati a servizi, persone e strumenti effettivamente disponibili nella tua azienda."
+    },
+    {
+      "type": "section",
+      "heading": "Disegna il percorso prima di scegliere lo strumento",
+      "body": "Prendi cinque richieste recenti e ricostruisci che cosa è successo. Da dove sono arrivate? Chi ha risposto? Dove sono rimaste fotografie e misure? Quale preventivo è stato inviato? In quale momento hai saputo che il cliente aveva deciso? Segna i punti che non riesci a ricostruire senza chiamare un collega."
+    },
+    {
+      "type": "section",
+      "body": "Disegna quindi un percorso semplice: richiesta ricevuta, primo confronto, sopralluogo da organizzare, informazioni complete, preventivo in preparazione, offerta condivisa e decisione. Non tutti i servizi richiedono gli stessi passaggi. La sostituzione di un elemento e una ristrutturazione articolata possono avere livelli di verifica differenti."
+    },
+    {
+      "type": "section",
+      "body": "Assegna a ogni stato un significato e una condizione di avanzamento. “Preventivo pronto” non dovrebbe indicare contemporaneamente una bozza tecnica e un documento già controllato. La chiarezza delle definizioni riduce gli equivoci prima ancora dell’introduzione di un CRM e permette di verificare se lo strumento scelto rappresenta davvero il processo."
+    },
+    {
+      "type": "section",
+      "heading": "Crea una scheda minima per ogni opportunità",
+      "body": "Una scheda utile contiene identificativo, referente del cliente, recapito necessario al contatto, servizio richiesto, zona, data di ingresso e provenienza. Aggiungi il responsabile interno, lo stato e il prossimo passaggio concordato. Se mancano questi ultimi tre elementi, la richiesta rischia di essere visibile a tutti ma seguita da nessuno."
+    },
+    {
+      "type": "section",
+      "body": "Raccogli le informazioni gradualmente. Nel primo scambio può bastare capire se il servizio è pertinente; misure, documentazione e dettagli arriveranno durante l’approfondimento. Non trasformare ogni campo disponibile nel software in un obbligo per il cliente. Un modulo troppo complesso può raccogliere risposte approssimative e rendere meno leggibile il dato importante."
+    },
+    {
+      "type": "section",
+      "body": "Definisci anche come trattare informazioni mancanti e provvisorie. Una cifra indicata dal cliente non è automaticamente un budget verificato; una data desiderata non è una disponibilità confermata dell’impresa. Usa note e stati che mantengano questa distinzione, così chi riprende la conversazione non attribuisce alla richiesta un livello di precisione che ancora non possiede."
+    },
+    {
+      "type": "section",
+      "heading": "Riconosci i duplicati fra modulo, telefono e messaggi",
+      "body": "La stessa persona può cambiare canale perché non ha ricevuto risposta oppure perché deve inviare una fotografia. Prima di creare un’altra opportunità controlla i riferimenti disponibili e chiedi chiarimenti quando necessario. Distingui il duplicato da una nuova richiesta reale: il medesimo cliente può avere due interventi diversi da valutare separatamente."
+    },
+    {
+      "type": "section",
+      "body": "Scegli una regola per collegare conversazioni e allegati alla scheda. Evita di lasciare l’unica copia di una misura nel telefono personale di chi ha ricevuto il messaggio. Se il passaggio richiede una registrazione manuale, definisci chi la esegue e in quale momento, senza dare per presente un’integrazione automatica non ancora verificata."
+    },
+    {
+      "type": "section",
+      "body": "Ogni volta che unisci due registrazioni, conserva i riferimenti utili e controlla quale responsabile rimane assegnato. La bonifica non deve cancellare il prossimo appuntamento o una preferenza del cliente. Un numero inferiore di schede non dimostra da solo un miglioramento: conta che le opportunità distinte siano rappresentate correttamente e rimangano gestibili dal gruppo."
+    },
+    {
+      "type": "section",
+      "heading": "Qualifica la richiesta con poche domande pertinenti",
+      "body": "La qualificazione serve a capire se puoi offrire un aiuto concreto. Chiedi tipo di intervento, localizzazione, stato iniziale e tempi desiderati. Spiega quali informazioni sono utili per il passo successivo. Evita di promettere un importo o una data di partenza prima che le condizioni necessarie siano state controllate."
+    },
+    {
+      "type": "section",
+      "body": "Se la richiesta è fuori perimetro, registra un motivo comprensibile: territorio non coperto, servizio non disponibile oppure informazioni insufficienti. Questi casi richiedono letture diverse. Un elenco indistinto di contatti persi non aiuta a capire se il marketing comunica male il servizio o se occorre migliorare il primo confronto."
+    },
+    {
+      "type": "section",
+      "body": "Prepara una breve traccia condivisa, lasciando spazio alla conversazione. La persona deve comprendere perché chiedi un dato e che cosa succede dopo. Quando serve una valutazione tecnica, indirizzala al soggetto competente invece di trasformare la scheda commerciale in una diagnosi dell’edificio basata soltanto su un’immagine o una descrizione telefonica."
+    },
+    {
+      "type": "section",
+      "heading": "Organizza il sopralluogo come un’attività tracciabile",
+      "body": "Collega l’appuntamento alla richiesta e indica luogo, referente, scopo e informazioni già disponibili. Definisci quali aspetti andranno verificati durante la visita. Un sopralluogo privo di obiettivo può produrre molte fotografie ma non gli elementi necessari per preparare un’offerta confrontabile con la richiesta iniziale."
+    },
+    {
+      "type": "section",
+      "body": "Al termine raccogli un riepilogo: ciò che hai osservato, ciò che resta da verificare e i passaggi concordati. Distingui osservazioni, misure e ipotesi. Se un dato è stato fornito da terzi, conserva il riferimento. Questa disciplina aiuta chi redige il preventivo a capire quale informazione può usare e quale richiede un controllo ulteriore."
+    },
+    {
+      "type": "section",
+      "body": "Non serve trasferire al cliente tutti i dettagli interni. Serve condividere un seguito comprensibile e una modalità per eventuali integrazioni. Se l’appuntamento viene rinviato, aggiorna la scheda anziché creare un percorso parallelo nell’agenda personale: il collega incaricato della sostituzione deve trovare una situazione coerente senza ricostruire le ultime telefonate."
+    },
+    {
+      "type": "section",
+      "heading": "Mantieni distinguibili le versioni del preventivo",
+      "body": "Ogni revisione dovrebbe avere un riferimento e una data. Conserva il collegamento fra il documento inviato e la richiesta a cui risponde. Se cambiano materiali, quantità o perimetro, descrivi la differenza invece di sostituire il file precedente con un documento dal nome identico e senza indicazione della revisione."
+    },
+    {
+      "type": "section",
+      "body": "Prima dell’invio controlla lavorazioni comprese, esclusioni, dati ancora provvisori e condizioni applicabili. Un’offerta non dovrebbe nascondere un’incertezza tecnica dentro una voce generica. La guida alle [funzioni per preventivi edilizi](/funzionalita/preventivi-edilizia/) può aiutarti a confrontare queste esigenze con gli strumenti del prodotto, senza presumere che il software sostituisca la valutazione del lavoro."
+    },
+    {
+      "type": "section",
+      "body": "Quando il cliente chiede una modifica, collega la richiesta alla versione che ha letto. Una revisione commerciale e una variante successiva all’avvio della commessa non sono lo stesso passaggio. Mantenere il contesto aiuta anche a evitare che il responsabile operativo riceva una bozza superata come se fosse il perimetro effettivamente concordato."
+    },
+    {
+      "type": "section",
+      "heading": "Concorda il ricontatto con il cliente",
+      "body": "Al momento dell’invio chiedi se è utile fissare un confronto per chiarire l’offerta. Il prossimo passaggio dovrebbe avere una ragione concreta: verificare un’esclusione, raccogliere un documento oppure rispondere a una domanda. Evita messaggi ripetuti che non aggiungono informazioni e urgenze commerciali non corrispondenti alla situazione reale."
+    },
+    {
+      "type": "section",
+      "body": "Registra data, responsabile e contenuto essenziale del confronto. Se il cliente chiede di non essere ricontattato, fai in modo che l’informazione sia visibile a chi potrebbe intervenire successivamente. Il metodo di gestione deve rispettare preferenze e condizioni del rapporto, anche quando distribuisci il lavoro fra più persone o valuti strumenti di automazione."
+    },
+    {
+      "type": "section",
+      "body": "Se non ricevi risposta, non segnare automaticamente l’offerta come rifiutata. Definisci uno stato coerente e una regola interna per le opportunità inattive. Conserva l’ultimo passaggio conosciuto senza inventare la ragione del silenzio. Una causa non conosciuta è un dato diverso da un rifiuto esplicito dovuto al prezzo o alla data di avvio."
+    },
+    {
+      "type": "section",
+      "heading": "Una pipeline che mostri le azioni necessarie",
+      "body": "La pipeline è utile quando rende visibili attività e ostacoli. Per ogni opportunità dovresti poter rispondere a tre domande: dove si trova, chi se ne occupa e che cosa manca per avanzare. Il colore della colonna non sostituisce questa informazione e un importo complessivo non rappresenta automaticamente vendite future."
+    },
+    {
+      "type": "section",
+      "body": "Controlla le richieste ferme in ciascuna fase. Un accumulo prima del sopralluogo può indicare un problema di agenda; molte offerte in preparazione possono richiedere un confronto sulla capacità tecnica. Prima di modificare il marketing, verifica se il ritardo dipende da informazioni mancanti, assegnazione o organizzazione delle persone."
+    },
+    {
+      "type": "section",
+      "body": "Le [funzioni della pipeline vendite](/funzionalita/pipeline-vendite/) vanno valutate rispetto al percorso adottato dalla tua impresa. Inizia con poche fasi e aggiungine una quando serve a prendere una decisione diversa. Colonne quasi identiche complicano l’aggiornamento e possono dare un’impressione di controllo senza chiarire chi debba intervenire."
+    },
+    {
+      "type": "section",
+      "heading": "Esempio di una settimana commerciale",
+      "body": "Immaginiamo, per esercizio, dodici richieste distinte: due fuori zona, una su un servizio non offerto e nove da approfondire. Quattro delle nove hanno informazioni sufficienti per organizzare un sopralluogo; le altre cinque richiedono un chiarimento. La lettura utile non è soltanto “dodici contatti”, ma la distribuzione delle azioni necessarie."
+    },
+    {
+      "type": "section",
+      "body": "Il referente assegna gli appuntamenti e concorda chi raccoglie le integrazioni. Dopo le visite, tre opportunità passano alla preparazione dell’offerta e una rimane in verifica tecnica. La scheda deve conservare questa differenza: spostarle tutte nella colonna preventivo farebbe sembrare pronto un lavoro per cui manca ancora un presupposto."
+    },
+    {
+      "type": "section",
+      "body": "Nella revisione successiva il gruppo controlla se i chiarimenti sono arrivati e se le offerte sono state condivise. Non somma automaticamente nuovi contatti e richieste precedenti come se fossero dodici nuove vendite possibili. L’esempio mostra come un sistema semplice possa trasformare il volume in una lista di attività, senza attribuire percentuali di successo non osservate."
+    },
+    {
+      "type": "section",
+      "heading": "Collega acquisizione e apertura della commessa",
+      "body": "Quando il cliente conferma, verifica quali documenti definiscono il lavoro e quale versione economica è stata accettata. Il passaggio alla commessa deve conservare referenti, perimetro, esclusioni, informazioni ancora aperte e calendario concordato. Non trasferire soltanto il totale del preventivo e una cartella di allegati non ordinati."
+    },
+    {
+      "type": "section",
+      "body": "Prepara una breve consegna fra chi ha venduto e chi organizza il lavoro. Chiedi quali ipotesi influenzano tempi e risorse e quali verifiche devono precedere l’avvio. L’obiettivo è evitare che una promessa nata nella conversazione commerciale venga scoperta dalla squadra quando il cantiere è già in organizzazione."
+    },
+    {
+      "type": "section",
+      "body": "Se il tuo strumento permette un passaggio automatico, controlla quali dati effettivamente trasferisce e quali richiedono verifica manuale. Non dare per scontato che il cambio di stato risolva ogni incoerenza. Anche un processo digitale ha bisogno di una responsabilità chiara sul contenuto della consegna e sul controllo dei riferimenti contrattuali pertinenti."
+    },
+    {
+      "type": "section",
+      "heading": "Misura il processo senza perdere il contesto",
+      "body": "Scegli indicatori leggibili: richieste uniche, richieste pertinenti, appuntamenti, offerte inviate e acquisizioni. Affianca opportunità prive di responsabile, prossimi passaggi scaduti e informazioni mancanti. Questi ultimi dati possono aiutarti a correggere l’organizzazione prima di interpretare ogni rallentamento come un problema del canale pubblicitario."
+    },
+    {
+      "type": "section",
+      "body": "Per confrontare le conversioni osserva gruppi di richieste entrati nello stesso periodo e lascia il tempo necessario al percorso. Una vendita di oggi può derivare da una conversazione iniziata mesi prima. Attribuirla automaticamente alle richieste della settimana rende difficile capire quale processo stai migliorando e quale confronto sia realmente possibile."
+    },
+    {
+      "type": "section",
+      "body": "Conserva numeri assoluti e definizioni accanto alle percentuali. Se il campione è piccolo, una sola decisione modifica molto il rapporto. Inizia da domande operative: quali informazioni mancano più spesso, quale fase richiede più passaggi e quali richieste risultano incompatibili? La risposta può suggerire modifiche al sito e al modulo più utili di un’altra campagna."
+    },
+    {
+      "type": "section",
+      "heading": "Come valutare Edilizia in Cloud per questo processo",
+      "body": "Confronta il percorso descritto con le [funzioni CRM per imprese edili](/funzionalita/crm-edilizia/). Porta un esempio di richiesta, un preventivo revisionato e il riepilogo di un sopralluogo: sono una base concreta per verificare organizzazione delle informazioni, assegnazione e continuità del lavoro."
+    },
+    {
+      "type": "section",
+      "body": "Non occorre trasferire subito tutti gli archivi. Parti da un servizio e da un gruppo limitato di opportunità, controllando con chi lo usa se i dati restano comprensibili. Valuta nella dimostrazione quali passaggi sono disponibili, quali richiedono configurazione e quali rimangono responsabilità delle persone. Lo strumento deve rendere sostenibile il metodo che hai definito."
+    },
+    {
+      "type": "section",
+      "heading": "Un piano di avvio in quattro settimane",
+      "body": "Nella prima settimana ricostruisci alcune richieste e concorda stati, campi minimi e responsabili. Nella seconda applica il metodo alle nuove opportunità di un solo servizio. Mantieni una lista dei problemi osservati: doppioni, documenti mancanti e passaggi non chiari sono informazioni utili per correggere il processo."
+    },
+    {
+      "type": "section",
+      "body": "Nella terza settimana rivedi le schede con chi segue clienti e preventivi. Elimina i campi inutili e chiarisci quelli interpretati in modi diversi. Nella quarta verifica se un collega può prendere in carico una richiesta leggendo la scheda, senza dipendere dalla memoria di chi ha parlato con il cliente."
+    },
+    {
+      "type": "section",
+      "body": "Il risultato atteso di questa prova è un percorso ricostruibile, non un aumento garantito delle vendite in un mese. Se il metodo funziona, estendilo gradualmente agli altri servizi e aggiorna le istruzioni. Prima dell’inizio del 2027 avrai una base osservabile con cui collegare marketing, offerte e organizzazione della commessa."
+    },
+    {
+      "type": "section",
+      "body": "Serve un CRM anche con poche richieste?"
+    },
+    {
+      "type": "section",
+      "body": "\nDipende dalle difficoltà effettive. Se le informazioni sono ricostruibili e i passaggi chiari, puoi prima definire il metodo. Quando aumentano persone, canali e revisioni, verifica se uno strumento condiviso riduce dispersione e duplicazioni nel tuo processo concreto."
+    },
+    {
+      "type": "section",
+      "body": "Tutte le richieste devono diventare preventivi?"
+    },
+    {
+      "type": "section",
+      "body": "\nNo. Prima va verificato se il servizio è disponibile e se ci sono informazioni sufficienti. Registrare correttamente una richiesta non compatibile evita lavoro inutile e aiuta a correggere il messaggio che l’ha generata, senza confonderla con un’offerta effettivamente rifiutata."
+    },
+    {
+      "type": "section",
+      "body": "Posso automatizzare i ricontatti?"
+    },
+    {
+      "type": "section",
+      "body": "\nValuta solo passaggi pertinenti e compatibili con preferenze del cliente, configurazione e strumenti disponibili. Mantieni un responsabile e un modo chiaro per interrompere il percorso. Un’automazione non dovrebbe inviare richieste superate dopo una decisione già comunicata all’impresa."
+    },
+    {
+      "type": "section",
+      "body": "Da quale prova posso iniziare?"
+    },
+    {
+      "type": "section",
+      "body": "\nScegli una richiesta reale e verifica se riesci a ricostruire conversazioni, versione del preventivo e prossimo passaggio. Per confrontare il processo con il prodotto puoi partire dal [sito di Edilizia in Cloud](/) e richiedere un approfondimento delle funzioni pertinenti, portando le informazioni necessarie senza esporre dati personali superflui."
+    }
+  ]
+,
+ author: { name: BLOG_AUTHOR.name, role: "Founder", avatar: FLO_AVATAR }
+},
   ...blogPostsTemplateGratis,
   ...blogPostsNormativa,
   ...blogPostsConfrontoMercato,
