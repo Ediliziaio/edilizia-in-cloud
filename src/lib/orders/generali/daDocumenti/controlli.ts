@@ -5,10 +5,10 @@
  *
  * Due regole:
  * - un campo letto con valori diversi in punti diversi è un CONFLITTO: non si sceglie da soli,
- *   nemmeno «vince il contratto» (punto aperto `penale_due_valori`);
+ *   nemmeno «vince il contratto» (scelta del titolare `penale_due_valori`);
  * - un controllo che non ha i dati per decidere dice «non verificabile», non «ok».
  */
-import { catalogoPer, campoDelCatalogo, type PuntoApertoId, type TipoDaDocumenti } from "./catalogo.ts";
+import { catalogoPer, campoDelCatalogo, type SceltaId, type TipoDaDocumenti } from "./catalogo.ts";
 
 export type Valore = string | number | boolean;
 
@@ -35,7 +35,7 @@ export interface EsitoCampo {
   /** I valori distinti trovati, ognuno con le sue occorrenze. */
   valori: { valore: Valore; occorrenze: Occorrenza[] }[];
   valore: Valore | null;
-  puntoAperto?: PuntoApertoId;
+  scelta?: SceltaId;
 }
 
 export type EsitoControllo = "ok" | "errore" | "avviso" | "non_verificabile";
@@ -106,16 +106,16 @@ function raggruppa(occ: Occorrenza[], testo = false): EsitoCampo["valori"] {
 
 export function statoCampo(tipo: TipoDaDocumenti, chiave: string, dati: DatiLetti, scelte: Scelte = {}): EsitoCampo {
   const def = campoDelCatalogo(tipo, chiave);
-  const puntoAperto = def?.puntoAperto;
-  if (def?.escluso) return { chiave, stato: "escluso", valori: [], valore: null, puntoAperto };
+  const scelta = def?.scelta;
+  if (def?.escluso) return { chiave, stato: "escluso", valori: [], valore: null, scelta };
   const valori = raggruppa(dati[chiave] ?? [], def?.tipo === "testo" && !def.rigido);
   if (Object.prototype.hasOwnProperty.call(scelte, chiave) && scelte[chiave] !== null) {
-    return { chiave, stato: "scelto", valori, valore: scelte[chiave], puntoAperto };
+    return { chiave, stato: "scelto", valori, valore: scelte[chiave], scelta };
   }
-  if (valori.length === 0) return { chiave, stato: "non_trovato", valori, valore: null, puntoAperto };
-  if (valori.length > 1) return { chiave, stato: "conflitto", valori, valore: null, puntoAperto };
+  if (valori.length === 0) return { chiave, stato: "non_trovato", valori, valore: null, scelta };
+  if (valori.length > 1) return { chiave, stato: "conflitto", valori, valore: null, scelta };
   const aMano = valori[0].occorrenze.some((o) => o.aMano);
-  return { chiave, stato: aMano ? "a_mano" : "letto", valori, valore: valori[0].valore, puntoAperto };
+  return { chiave, stato: aMano ? "a_mano" : "letto", valori, valore: valori[0].valore, scelta };
 }
 
 export function statoCampi(tipo: TipoDaDocumenti, dati: DatiLetti, scelte: Scelte = {}): EsitoCampo[] {

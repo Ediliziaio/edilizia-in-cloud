@@ -24,7 +24,7 @@ export interface BozzaCostruisci {
   confermati: string[];
   /** Controlli rossi che l'utente ha visto e accettato, con la nota. */
   accettati: string[];
-  /** RTI: la quota dell'impresa, in %. Null = tutto (impresa singola). Scelta provvisoria n. 4. */
+  /** RTI: la quota dell'impresa, in %. Null = tutto (impresa singola). Scelta del titolare n. 4 (16/11/2026). */
   quotaPct: number | null;
   /** Dal computo strutturato: elenco prezzi e fasi (lotto 6). */
   conElenco: boolean;
@@ -102,7 +102,7 @@ export function pianoDiScrittura(
   };
 
   if (appalto) {
-    // RTI (scelta provvisoria n. 4): la commessa vale per la quota; il totale resta nel contratto.
+    // RTI (scelta del titolare n. 4): la commessa vale per la quota; il totale resta nel contratto.
     const quota = bozza.quotaPct !== null && bozza.quotaPct > 0 && bozza.quotaPct < 100 ? bozza.quotaPct / 100 : 1;
     const contrattuale = num(v.importo_contrattuale);
     const base = num(v.importo_base);
@@ -147,7 +147,7 @@ export function pianoDiScrittura(
     }
     piano.valore = contrattuale !== null ? tondo(contrattuale * quota) : null;
 
-    // Accordo quadro (scelta provvisoria n. 1): la generale vale l'importo massimo dell'accordo e
+    // Accordo quadro (scelta del titolare n. 1): la generale vale l'importo massimo dell'accordo e
     // ogni contratto applicativo, figlia, lo «scala» (Assegnato / Da assegnare della generale). Il
     // contratto della generale non ha una base da ribassare: il ribasso unico resta come dato.
     if (tipo === "appalto_pubblico" && bozza.forma === "accordo_quadro") {

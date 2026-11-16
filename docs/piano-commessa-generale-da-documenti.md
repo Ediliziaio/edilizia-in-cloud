@@ -569,22 +569,22 @@ gruppi, lettura delle risposte (`datiDaRisposta`), stati dei campi e controlli.
   il modello l'ha presa dal timbro, al limite della regola «non dedurre». La regola dei
   documenti d'identità va provata su testi OCR veri, che qui non sono stati conservati.
 
-## 7. Domande per il titolare e scelte provvisorie
+## 7. Le scelte del titolare (decise il 16/11/2026)
 
-Il titolare non ha ancora risposto. Fino alla risposta il codice segue queste **scelte
-provvisorie, cambiabili**: ognuna si legge in `PUNTI_APERTI`
-(`src/lib/orders/generali/daDocumenti/catalogo.ts`), e il popup la dice dove pesa.
+Il 16/11/2026 il titolare ha confermato tutte le otto scelte così come erano state proposte.
+Stanno in `SCELTE_DECISE` (`src/lib/orders/generali/daDocumenti/catalogo.ts`), e il popup le
+dice dove pesano.
 
-| # | Domanda | Scelta provvisoria | Dove si cambia |
+| # | Domanda | Decisione | Dove sta nel codice |
 |---|---|---|---|
-| 1 | Accordo quadro: una generale per l'accordo, o una per applicativo? | La generale è l'accordo quadro; ogni contratto applicativo è una sua **figlia** con il proprio CIG derivato (`generale_applicativo_crea`). | forma nel popup «Costruisci»; RPC |
-| 2 | Capitolato speciale sempre? | **Facoltativo**: si legge solo se l'utente lo carica, dopo la stima del costo. I campi che di solito stanno lì restano «non trovati», col motivo. | `PUNTI_APERTI.capitolato` |
+| 1 | Accordo quadro: una generale per l'accordo, o una per applicativo? | La generale è l'accordo quadro, col suo importo massimo; ogni contratto applicativo è una sua **figlia**, col proprio CIG derivato, e ne scala l'importo (`generale_applicativo_crea`). | forma nel popup «Costruisci»; RPC |
+| 2 | Capitolato speciale sempre? | **Facoltativo**: si legge solo se l'utente lo carica, dopo la stima del costo. I campi che di solito stanno lì restano «non trovati», col motivo. | `SCELTE_DECISE.capitolato` |
 | 3 | Costo: stima e «Leggi», o partenza da sola? | Si mostra **sempre** la stima, poi l'utente preme «Leggi». Niente partenze da sole. | `Partenza` nel popup di lettura |
 | 4 | RTI: quota o tutto? | La commessa vale per la **quota** dell'impresa; il totale dell'appalto resta nel contratto (`importo_totale_appalto`, `quota_pct`). | campo «La nostra quota» nel popup |
 | 5 | Stesso dato con valori diversi (es. penale contratto/verbale)? | Si fa **sempre scegliere**, mostrando le fonti. Mai una scelta automatica. | `controlli.ts` (conflitto) |
-| 6 | Conti dedicati e delegati? | **Non si estraggono**; le pagine con documenti d'identità o autocertificazioni si escludono. | `catalogo.ts` (`escluso`), `pagine.ts` |
+| 6 | Conti dedicati e delegati? | **Non si leggono**: IBAN e codici fiscali di persone si coprono, le pagine con documenti d'identità o autocertificazioni si escludono («Includi questa pagina» se serve). | `catalogo.ts` (`escluso`), `pagine.ts` |
 | 7 | Fasi e figlie dal computo subito o dopo? | Il popup **propone** elenco prezzi e fasi dal computo strutturato, con due spunte accese; si tolgono con un clic e si scrivono solo alla conferma. | `BozzaCostruisci.conElenco/conFasi` |
-| 8 | Da dove si avvia? | Dal popup «Nuova commessa generale» («Crea dai documenti»), per tutti i tipi; una generale esistente si completa con la forma «applicativo» (accordo quadro). «Completa dai documenti» su qualsiasi generale resta da fare. | `CreaDaDocumenti` |
+| 8 | Da dove si avvia? | Dal popup «Nuova commessa generale» («Crea dai documenti»), per tutti i tipi; un contratto applicativo si aggiunge a un accordo quadro esistente con la forma «applicativo». «Completa dai documenti» su qualsiasi generale non c'è. | `CreaDaDocumenti` |
 
 ## 8. Cosa questo piano non fa
 

@@ -27,6 +27,10 @@
  * - `domanda` { lettura_id, domanda }   utente: una domanda sulle pagine già lette (Silvio nel
  *                                       popup, lotto 8). Una chiamata, addebitata a chi chiede.
  *
+ * 16/11/2026: le scelte del titolare sono decise (`SCELTE_DECISE` in catalogo.ts) e le istruzioni
+ * dell'estrazione non citano più la regola dei conflitti: questo commento ripubblica la funzione,
+ * che importa da src/lib/orders/generali/daDocumenti/ (il job di deploy guarda solo questa cartella).
+ *
  * L'azienda che paga è quella della lettura, letta dal database: mai dal corpo della richiesta.
  * A credito finito la lettura va «in pausa» con il motivo; le pagine fatte restano.
  */

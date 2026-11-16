@@ -2,7 +2,7 @@
 // Tutti i dati sono inventati: riproducono solo le FORME di errore viste in un contratto vero
 // (penale con due valori, somma del computo che non torna, un giorno di differenza sulla fine).
 import { describe, expect, it } from "vitest";
-import { catalogoPer, PUNTI_APERTI, tipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
+import { catalogoPer, SCELTE_DECISE, tipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 import { aggiungiGiorni, controlli, riepilogo, statoCampi, statoCampo, type DatiLetti, type Occorrenza } from "@/lib/orders/generali/daDocumenti/controlli";
 
 const o = (valore: Occorrenza["valore"], pagina = 1, file = "contratto.pdf", extra: Partial<Occorrenza> = {}): Occorrenza =>
@@ -41,11 +41,11 @@ describe("catalogo", () => {
     expect(pri).toContain("totale_rate");
   });
 
-  it("le chiavi non si ripetono e ogni punto aperto citato esiste", () => {
+  it("le chiavi non si ripetono e ogni scelta citata esiste", () => {
     for (const tipo of ["appalto_pubblico", "appalto_privato", "sviluppo", "compravendita"] as const) {
       const campi = catalogoPer(tipo).campi;
       expect(new Set(campi.map((c) => c.chiave)).size).toBe(campi.length);
-      for (const c of campi) if (c.puntoAperto) expect(PUNTI_APERTI[c.puntoAperto]).toBeDefined();
+      for (const c of campi) if (c.scelta) expect(SCELTE_DECISE[c.scelta]).toBeDefined();
     }
   });
 
@@ -61,13 +61,13 @@ describe("catalogo", () => {
 });
 
 describe("stato dei campi", () => {
-  it("due valori diversi della penale sono un conflitto, con il punto aperto", () => {
+  it("due valori diversi della penale sono un conflitto, con la scelta del titolare", () => {
     const dati: DatiLetti = { penale_permille: [o(0.5, 5), o(1, 3, "verbale.pdf")] };
     const s = statoCampo("appalto_pubblico", "penale_permille", dati);
     expect(s.stato).toBe("conflitto");
     expect(s.valore).toBeNull();
     expect(s.valori).toHaveLength(2);
-    expect(s.puntoAperto).toBe("penale_due_valori");
+    expect(s.scelta).toBe("penale_due_valori");
   });
 
   it("lo stesso valore letto due volte non è un conflitto", () => {

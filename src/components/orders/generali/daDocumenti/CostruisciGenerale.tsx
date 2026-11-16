@@ -17,7 +17,7 @@ import { ScegliCliente } from "@/components/orders/generali/ScegliCliente";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { catalogoPer, PUNTI_APERTI, SEZIONI, type CampoCatalogo, type SezioneId, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
+import { catalogoPer, SCELTE_DECISE, SEZIONI, type CampoCatalogo, type SezioneId, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 import { controlli, statoCampi, statoCampo, type Controllo, type EsitoCampo, type Occorrenza, type Valore } from "@/lib/orders/generali/daDocumenti/controlli";
 import { dataIso, numeroItaliano, numeroPercentuale } from "@/lib/orders/generali/daDocumenti/estrazione";
 import { bozzaDa, mancaPerCreare, pianoDiScrittura, type BozzaCostruisci } from "@/lib/orders/generali/daDocumenti/scritture";
@@ -247,7 +247,7 @@ function IntestazioneCostruisci({ dove, tipo, bozza, setBozza, campi, accordo, s
       )}
       {tipo === "appalto_pubblico" && (
         <div className="space-y-1">
-          <Label className="text-xs">Forma <span className="font-normal text-muted-foreground">(scelta provvisoria: l'accordo quadro è la generale, ogni applicativo una figlia)</span></Label>
+          <Label className="text-xs">Forma <span className="font-normal text-muted-foreground">(l'accordo quadro è la generale, ogni applicativo una figlia che ne scala l'importo)</span></Label>
           <div className="flex flex-wrap gap-1.5" role="radiogroup">
             {(["singolo", "accordo_quadro", "applicativo"] as const).map((f) => (
               <button key={f} type="button" role="radio" aria-checked={bozza.forma === f} onClick={() => setBozza((b) => ({ ...b, forma: f }))}
@@ -267,7 +267,7 @@ function IntestazioneCostruisci({ dove, tipo, bozza, setBozza, campi, accordo, s
       )}
       {appalto && (rti || bozza.quotaPct !== null) && (
         <div className="space-y-1">
-          <Label htmlFor={`cg-quota-${dove}`} className="text-xs">La nostra quota nel raggruppamento <span className="font-normal text-muted-foreground">(scelta provvisoria: la commessa vale per la quota)</span></Label>
+          <Label htmlFor={`cg-quota-${dove}`} className="text-xs">La nostra quota nel raggruppamento <span className="font-normal text-muted-foreground">(la commessa vale per la quota; il totale resta nel contratto)</span></Label>
           <div className="flex items-center gap-2">
             <Input id={`cg-quota-${dove}`} inputMode="decimal" className="w-24" value={bozza.quotaPct ?? ""} placeholder="100"
               onChange={(e) => { const n = numeroItaliano(e.target.value); setBozza((b) => ({ ...b, quotaPct: e.target.value.trim() === "" ? null : n })); }} />
@@ -314,7 +314,7 @@ function Sezione({ id, campi, esiti, bozza, onCambia, onConferma, onConfermaTutt
       {extra}
       {mancanti.length > 0 && !mostraMancanti && (
         <button className="w-full px-3 py-2 text-left text-xs text-muted-foreground hover:bg-slate-50" onClick={() => setMostraMancanti(true)}>
-          {mancanti.length} non trovati nei documenti{mancanti.some((m) => m.puntoAperto === "capitolato") ? " (alcuni stanno di solito nel capitolato speciale: caricalo, è facoltativo)" : ""} — scrivili a mano
+          {mancanti.length} non trovati nei documenti{mancanti.some((m) => m.scelta === "capitolato") ? " (alcuni stanno di solito nel capitolato speciale: caricalo, è facoltativo)" : ""} — scrivili a mano
         </button>
       )}
     </div>
@@ -368,7 +368,7 @@ function RigaCampo({ def, esito, confermato, onCambia, onConferma, onFonte }: {
                   </span>
                 </label>
               ))}
-              {def.puntoAperto && <p className="flex gap-1 text-[11px] text-amber-900"><CircleHelp className="mt-0.5 h-3 w-3 shrink-0" />Scelta provvisoria: {PUNTI_APERTI[def.puntoAperto].finoAllaRisposta}</p>}
+              {def.scelta && <p className="flex gap-1 text-[11px] text-amber-900"><CircleHelp className="mt-0.5 h-3 w-3 shrink-0" />{SCELTE_DECISE[def.scelta].regola}</p>}
             </div>
           ) : (
             <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2">

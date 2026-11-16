@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { catalogoPer, campoDelCatalogo, PUNTI_APERTI, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
+import { catalogoPer, campoDelCatalogo, SCELTE_DECISE, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 import { controlli, statoCampi, type Controllo, type Valore } from "@/lib/orders/generali/daDocumenti/controlli";
 import { useLetturaGenerale } from "@/hooks/useLetturaGenerale";
 import { fotoDaDb } from "@/lib/orders/generali/daDocumenti/foto";
@@ -212,10 +212,10 @@ function Partenza({ foto, onLeggi, onAnnulla, inCorso, stimaVera, tipo }: { foto
           <Numero etichetta={stimaVera ? "Da leggere con l'OCR" : "Letti senza AI"} valore={stimaVera ? `${daOcr} pagine` : String(foto.file.filter((f) => f.strutturato).length) + " file"} />
           <Numero etichetta="Costo stimato" valore={euro(foto.stimaCosto)} />
         </div>
-        {/* Soglia di costo: domanda aperta per il titolare. Fino alla risposta si mostra sempre la stima. */}
+        {/* Soglia di costo: deciso il 16/11/2026, prima si vede sempre la stima. */}
         <p className="flex gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
           <CircleHelp className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span><b>Scelta provvisoria:</b> {PUNTI_APERTI.soglia_costo.finoAllaRisposta} Il costo è addebitato all'azienda; le pagine già lette in passato non si pagano due volte.</span>
+          <span>{SCELTE_DECISE.soglia_costo.regola} Il costo è addebitato all'azienda; le pagine già lette in passato non si pagano due volte.</span>
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onAnnulla}>Annulla</Button>
@@ -437,9 +437,9 @@ function Riepilogo({ foto, tipo }: { foto: FotoLettura; tipo: TipoDaDocumenti })
                 <ul className="mt-0.5 text-xs">
                   {c.valori.map((v) => <li key={String(v.valore)}>{formatta(v.valore, def?.tipo)} — {v.occorrenze.map((o) => `pag. ${o.pagina} di ${o.file}`).join(", ")}</li>)}
                 </ul>
-                {c.puntoAperto && (
+                {c.scelta && (
                   <p className="mt-1 flex gap-1.5 text-[11px] text-amber-900"><CircleHelp className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                    <span><b>Scelta provvisoria:</b> {PUNTI_APERTI[c.puntoAperto].finoAllaRisposta}</span></p>
+                    <span>{SCELTE_DECISE[c.scelta].regola}</span></p>
                 )}
               </div>
             );

@@ -5,8 +5,8 @@
  * finisce ognuno. È la stessa lista che l'estrazione (lotto 3) userà come schema e il grande popup
  * (lotto 4) come elenco delle sezioni. Qui non c'è AI: solo la descrizione di cosa cercare.
  *
- * Le scelte che dipendono dal titolare (§7 del piano) NON si fissano qui: stanno in
- * `PUNTI_APERTI` e i campi che ne dipendono lo dicono con `puntoAperto`.
+ * Le scelte del titolare (§7 del piano, decise il 16/11/2026) stanno in `SCELTE_DECISE`;
+ * i campi che ne dipendono lo dicono con `scelta`.
  */
 
 /** Il tipo letto dai documenti: l'appalto si divide in pubblico e privato, gli altri come i modelli. */
@@ -37,8 +37,8 @@ export interface CampoCatalogo {
   destinazione: Destinazione;
   /** Dove si trova di solito: aiuta l'utente quando il campo manca. */
   doveCercare?: string;
-  /** Il campo dipende da una domanda ancora aperta per il titolare. */
-  puntoAperto?: PuntoApertoId;
+  /** Il campo segue una delle scelte decise dal titolare (`SCELTE_DECISE`). */
+  scelta?: SceltaId;
   /** Dato personale di terzi: non si estrae (piano §2.1, «Tracciabilità»). */
   escluso?: boolean;
   /**
@@ -59,42 +59,43 @@ export interface DocumentoAtteso {
 
 export interface SezioneCatalogo { id: SezioneId; titolo: string; diventa: string }
 
-// ─── Punti aperti (domande del §7) ─────────────────────────────────────────────
+// ─── Scelte decise dal titolare il 16/11/2026 (§7 del piano) ──────────────────
 
-export type PuntoApertoId = "accordo_quadro" | "capitolato" | "soglia_costo" | "rti" | "penale_due_valori" | "conti_dedicati" | "fasi_subito" | "dove_si_avvia";
+export type SceltaId = "accordo_quadro" | "capitolato" | "soglia_costo" | "rti" | "penale_due_valori" | "conti_dedicati" | "fasi_subito" | "dove_si_avvia";
 
-export const PUNTI_APERTI: Record<PuntoApertoId, { domanda: string; finoAllaRisposta: string }> = {
+/** Le otto scelte, confermate dal titolare il 16/11/2026: la domanda e la regola che vale. */
+export const SCELTE_DECISE: Record<SceltaId, { domanda: string; regola: string }> = {
   accordo_quadro: {
-    domanda: "Accordo quadro: la generale è l'accordo e ogni contratto applicativo una figlia, o ogni applicativo è una generale a sé?",
-    finoAllaRisposta: "I due CIG si leggono separati; non si crea nessuna figlia.",
+    domanda: "Accordo quadro: una commessa generale per l'accordo o una per contratto applicativo?",
+    regola: "La generale è l'accordo quadro, con il suo importo massimo; ogni contratto applicativo è una figlia, col proprio CIG derivato, e ne scala l'importo.",
   },
   capitolato: {
-    domanda: "Il capitolato speciale si chiede sempre quando le regole di pagamento stanno lì?",
-    finoAllaRisposta: "I campi rimandati al capitolato restano «non trovati», con il motivo.",
+    domanda: "Il capitolato speciale si chiede sempre?",
+    regola: "È facoltativo: si legge solo se lo carichi, dopo la stima del costo. I campi che stanno lì restano «non trovati», col motivo.",
   },
   soglia_costo: {
-    domanda: "Prima di leggere si mostra la stima e si chiede «Leggi», o si parte da soli sotto una soglia?",
-    finoAllaRisposta: "Si mostra sempre la stima.",
+    domanda: "Prima di leggere si mostra la stima, o si parte da soli sotto una soglia?",
+    regola: "Prima si vede sempre la stima del costo, poi si parte con «Leggi».",
   },
   rti: {
-    domanda: "In un RTI di cui siamo mandanti, la commessa vale per la nostra quota o per tutto?",
-    finoAllaRisposta: "Si leggono mandataria, mandanti e quote; l'importo della commessa non si tocca.",
+    domanda: "In un raggruppamento, la commessa vale per la nostra quota o per tutto?",
+    regola: "La commessa vale per la quota dell'impresa; il totale dell'appalto resta nel contratto.",
   },
   penale_due_valori: {
-    domanda: "Se contratto e verbale danno due penali diverse, vince il contratto o si fa scegliere?",
-    finoAllaRisposta: "Si fa scegliere: è un conflitto come gli altri.",
+    domanda: "Se due documenti danno valori diversi, chi vince?",
+    regola: "Si sceglie sempre a mano, guardando le due pagine.",
   },
   conti_dedicati: {
-    domanda: "I conti dedicati e i delegati della tracciabilità si salvano?",
-    finoAllaRisposta: "Non si estraggono.",
+    domanda: "Conti dedicati e delegati della tracciabilità si salvano?",
+    regola: "Non si leggono: IBAN e codici fiscali di persone si coprono, le pagine con documenti d'identità si escludono.",
   },
   fasi_subito: {
-    domanda: "Fasi e figlie dal computo si creano subito o dopo, dalla pagina?",
-    finoAllaRisposta: "Non riguarda la lettura.",
+    domanda: "Elenco prezzi e fasi dal computo si creano subito?",
+    regola: "Si propongono con le spunte accese e si scrivono alla conferma; si possono togliere.",
   },
   dove_si_avvia: {
-    domanda: "Si avvia solo dalla nuova commessa generale o anche da una già esistente?",
-    finoAllaRisposta: "Solo dalla nuova commessa generale.",
+    domanda: "Da dove si parte?",
+    regola: "Da «Nuova commessa generale» → «Crea dai documenti»; un contratto applicativo si aggiunge a un accordo quadro esistente.",
   },
 };
 
@@ -126,7 +127,7 @@ const CAMPI_APPALTO_COMUNI: CampoCatalogo[] = [
   c("luogo", "Luogo dei lavori", "testo", "generale", "dati.indirizzo"),
   c("committente", "Committente", "testo", "parti", "anagrafica.cliente"),
   c("committente_piva", "P.IVA o CF del committente", "codice", "parti", "anagrafica.cliente"),
-  c("esecutore_forma", "Esecutore (singola, RTI, consorzio)", "testo", "parti", "nuovo:dati.appalto.esecutore", { puntoAperto: "rti" }),
+  c("esecutore_forma", "Esecutore (singola, RTI, consorzio)", "testo", "parti", "nuovo:dati.appalto.esecutore", { scelta: "rti" }),
   c("contratto_numero", "Numero o repertorio del contratto", "testo", "codici", "generale_contratti.riferimento", { rigido: true }),
   c("contratto_data", "Data di stipula", "data", "codici", "generale_contratti.data_firma"),
   c("direttore_lavori", "Direttore lavori", "testo", "figure", "dati.appalto.direttore_lavori"),
@@ -141,22 +142,22 @@ const CAMPI_APPALTO_COMUNI: CampoCatalogo[] = [
   c("durata_giorni", "Durata", "giorni", "tempi", "nuovo:generale_contratti.durata_giorni"),
   c("data_consegna", "Consegna lavori", "data", "tempi", "generale_contratti.data_consegna_lavori", { doveCercare: "verbale di consegna" }),
   c("data_fine_prevista", "Fine lavori prevista", "data", "tempi", "generale_contratti.data_fine_prevista"),
-  c("penale_permille", "Penale giornaliera (per mille)", "permille", "penali", "generale_contratti.penale_giornaliera", { puntoAperto: "penale_due_valori" }),
+  c("penale_permille", "Penale giornaliera (per mille)", "permille", "penali", "generale_contratti.penale_giornaliera", { scelta: "penale_due_valori" }),
   c("penale_massima_pct", "Penale massima", "percentuale", "penali", "generale_contratti.penale_massima_pct"),
-  c("anticipazione_pct", "Anticipazione", "percentuale", "pagamenti", "generale_contratti.anticipazione_pct", { doveCercare: "capitolato speciale", puntoAperto: "capitolato" }),
+  c("anticipazione_pct", "Anticipazione", "percentuale", "pagamenti", "generale_contratti.anticipazione_pct", { doveCercare: "capitolato speciale", scelta: "capitolato" }),
   c("sal_soglia", "SAL: importo minimo", "importo", "pagamenti", "nuovo:generale_contratti.sal_soglia_importo"),
   c("sal_cadenza_giorni", "SAL: ogni quanti giorni", "giorni", "pagamenti", "nuovo:generale_contratti.sal_cadenza_giorni"),
-  c("ritenuta_pct", "Ritenuta di garanzia", "percentuale", "pagamenti", "generale_contratti.ritenuta_pct", { doveCercare: "capitolato speciale", puntoAperto: "capitolato" }),
-  c("termini_pagamento_giorni", "Termini di pagamento", "giorni", "pagamenti", "nuovo:generale_contratti.termini_pagamento_giorni", { doveCercare: "capitolato speciale", puntoAperto: "capitolato" }),
+  c("ritenuta_pct", "Ritenuta di garanzia", "percentuale", "pagamenti", "generale_contratti.ritenuta_pct", { doveCercare: "capitolato speciale", scelta: "capitolato" }),
+  c("termini_pagamento_giorni", "Termini di pagamento", "giorni", "pagamenti", "nuovo:generale_contratti.termini_pagamento_giorni", { doveCercare: "capitolato speciale", scelta: "capitolato" }),
   c("cauzione_definitiva", "Cauzione definitiva", "importo", "garanzie", "generale_contratto_garanzie.importo"),
   c("car_somma_lavori", "Polizza CAR: somma assicurata (lavori)", "importo", "garanzie", "generale_contratto_garanzie.importo"),
   c("rct_massimale", "Massimale RCT", "importo", "garanzie", "nuovo:generale_contratto_garanzie.massimale"),
   c("rct_massimale_contratto", "Massimale RCT richiesto dal contratto", "importo", "garanzie", "solo_controllo"),
   c("totale_computo", "Totale del computo dei lavori", "importo", "computo", "solo_controllo"),
   c("totale_sicurezza", "Totale della stima della sicurezza", "importo", "computo", "solo_controllo"),
-  c("subappalto", "Subappalto (limiti, pagamento diretto)", "testo", "pagamenti", "generale_contratti.note", { doveCercare: "capitolato speciale", puntoAperto: "capitolato" }),
+  c("subappalto", "Subappalto (limiti, pagamento diretto)", "testo", "pagamenti", "generale_contratti.note", { doveCercare: "capitolato speciale", scelta: "capitolato" }),
   c("revisione_prezzi", "Revisione prezzi", "testo", "pagamenti", "nuovo:generale_contratti.revisione_prezzi"),
-  c("conti_dedicati", "Conti dedicati e delegati", "testo", "pagamenti", "solo_controllo", { escluso: true, puntoAperto: "conti_dedicati" }),
+  c("conti_dedicati", "Conti dedicati e delegati", "testo", "pagamenti", "solo_controllo", { escluso: true, scelta: "conti_dedicati" }),
 ];
 
 const CAMPI_SOLO_PUBBLICO: CampoCatalogo[] = [
@@ -164,9 +165,9 @@ const CAMPI_SOLO_PUBBLICO: CampoCatalogo[] = [
   c("codice_ipa", "Codice IPA", "codice", "codici", "anagrafica.codice_ipa"),
   c("codice_univoco", "Codice univoco dell'ufficio", "codice", "codici", "order_riferimenti_pa.codice_univoco_ufficio"),
   c("cig", "CIG", "codice", "codici", "generale_contratti.cig"),
-  c("cig_accordo", "CIG dell'accordo quadro", "codice", "codici", "nuovo:dati.appalto.cig_accordo", { puntoAperto: "accordo_quadro" }),
+  c("cig_accordo", "CIG dell'accordo quadro", "codice", "codici", "nuovo:dati.appalto.cig_accordo", { scelta: "accordo_quadro" }),
   // Accordo quadro: l'importo massimo è il valore della generale; gli applicativi lo scalano.
-  c("tetto_accordo", "Importo massimo dell'accordo quadro", "importo", "importi", "generale_contratti.tetto_accordo", { doveCercare: "accordo quadro", puntoAperto: "accordo_quadro" }),
+  c("tetto_accordo", "Importo massimo dell'accordo quadro", "importo", "importi", "generale_contratti.tetto_accordo", { doveCercare: "accordo quadro", scelta: "accordo_quadro" }),
   c("cup", "CUP", "codice", "codici", "generale_contratti.cup"),
   c("rup", "RUP", "testo", "figure", "dati.appalto.rup"),
   c("split_payment", "Scissione dei pagamenti", "si_no", "pagamenti", "generale_contratti.split_payment"),
