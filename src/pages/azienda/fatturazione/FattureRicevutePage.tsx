@@ -1409,9 +1409,10 @@ export default function FattureRicevutePage() {
                       onCheckedChange={(v) => (v === true ? selezionaTutte() : setSelezionate(new Set()))} />
                   </TableHead>
                 )}
-                <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
+                {/* Numero, data, fornitore (16/11/2026): come si cerca una fattura su carta. */}
                 <TableHead>Numero</TableHead>
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Emessa il</IntestazioneOrdinabile>
+                <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
                 <TableHead>Arrivata il</TableHead>
                 {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
                 <IntestazioneOrdinabile campo="totale" ordinamento={ordinamento} onOrdina={ordinaPer} className="text-right">Totale</IntestazioneOrdinabile>
@@ -1439,18 +1440,6 @@ export default function FattureRicevutePage() {
                     </TableCell>
                   )}
                   <TableCell>
-                    {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
-                    <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
-                      title={[
-                        f.cedente_ragione_sociale,
-                        f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf,
-                        f.fornitore_id ? etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) : null,
-                        f.categoria_ai ? `${etichettaCategoria(f.categoria_ai)}${f.sottocategoria_ai ? ` · ${f.sottocategoria_ai}` : ""}` : null,
-                      ].filter(Boolean).join("\n")}>
-                      {f.cedente_ragione_sociale}
-                    </button>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center gap-1.5">
                       <span className="block max-w-[190px] truncate font-mono text-sm" title={f.numero_fattura}>{f.numero_fattura}</span>
                       {integrazioni?.get(f.id) ? (
@@ -1465,6 +1454,18 @@ export default function FattureRicevutePage() {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <DataEmissione f={f} />
+                  </TableCell>
+                  <TableCell>
+                    {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
+                    <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
+                      title={[
+                        f.cedente_ragione_sociale,
+                        f.cedente_piva ? `P.IVA ${f.cedente_piva}` : f.cedente_cf,
+                        f.fornitore_id ? etichettaTipoFornitore(tipiFornitori[f.fornitore_id]) : null,
+                        f.categoria_ai ? `${etichettaCategoria(f.categoria_ai)}${f.sottocategoria_ai ? ` · ${f.sottocategoria_ai}` : ""}` : null,
+                      ].filter(Boolean).join("\n")}>
+                      {f.cedente_ragione_sociale}
+                    </button>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <DataArrivo f={f} />
