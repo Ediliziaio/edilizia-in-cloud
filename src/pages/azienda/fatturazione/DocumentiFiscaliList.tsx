@@ -22,6 +22,7 @@ import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
 import { RiepilogoFatture } from "@/components/fatturazione/RiepilogoFatture";
+import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { useEmesseSenzaIncasso } from "@/components/fatturazione/EmesseSenzaIncasso";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
@@ -761,6 +762,11 @@ function DocumentiFiscaliListInner() {
             }}
           />
         </div>
+      )}
+
+      {/* Numeri saltati e mesi sospetti nelle emesse (16/11/2026): stavano in cima alle ricevute. */}
+      {!isTrash && activeTab === "fattura" && effectiveCompany?.id && (
+        <div className="max-md:hidden"><CompletezzaFatture companyId={effectiveCompany.id} /></div>
       )}
 
       {/* ── Tabs ───────────────────────────────────────── */}

@@ -78,14 +78,33 @@ function Numero({
   );
 }
 
+/** Le parole dei riquadri: le emesse si incassano, le ricevute si pagano. */
+export interface TestiRiepilogo {
+  totale: string;
+  incassato: string;
+  daIncassare: string;
+  notaIncassato: string;
+  /** Per le ricevute pagare di più non è «buono»: il pagato resta neutro. */
+  incassatoBuono: boolean;
+}
+
+export const TESTI_EMESSE: TestiRiepilogo = {
+  totale: "Fatturato", incassato: "Incassato", daIncassare: "Da incassare", notaIncassato: "di queste fatture, anche dopo", incassatoBuono: true,
+};
+
+export const TESTI_RICEVUTE: TestiRiepilogo = {
+  totale: "Ricevuto", incassato: "Pagato", daIncassare: "Da pagare", notaIncassato: "di queste fatture", incassatoBuono: false,
+};
+
 export function RiepilogoFatture({
-  mesi, mesiAnnoPrima, meseScelto, isMobile, etichettaDocumenti = "fatture",
+  mesi, mesiAnnoPrima, meseScelto, isMobile, etichettaDocumenti = "fatture", testi = TESTI_EMESSE,
 }: {
   mesi: MonthSummary[];
   mesiAnnoPrima?: MonthSummary[];
   meseScelto: string | null;
   isMobile?: boolean;
   etichettaDocumenti?: string;
+  testi?: TestiRiepilogo;
 }) {
   const anno = mesi[0]?.year ?? new Date().getFullYear();
 
@@ -112,8 +131,8 @@ export function RiepilogoFatture({
     return (
       <section aria-label="Numeri delle fatture" className="grid grid-cols-3 gap-2">
         {[
-          { e: "Fatturato", v: s.totale, c: "" },
-          { e: "Incassato", v: s.incassato, c: "text-emerald-600 dark:text-emerald-400" },
+          { e: testi.totale, v: s.totale, c: "" },
+          { e: testi.incassato, v: s.incassato, c: testi.incassatoBuono ? "text-emerald-600 dark:text-emerald-400" : "" },
           { e: "Scaduto", v: s.scaduto, c: s.scaduto > 0 ? "text-rose-600 dark:text-rose-400" : "" },
         ].map((n, i) => (
           <Comparsa key={n.e} indice={i} className="min-w-0 rounded-xl border bg-card px-2.5 py-2">
@@ -129,7 +148,7 @@ export function RiepilogoFatture({
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
       <Numero
         indice={0}
-        etichetta={`Fatturato ${nomePeriodo}`}
+        etichetta={`${testi.totale} ${nomePeriodo}`}
         valore={s.totale}
         nota={`${s.doc} ${etichettaDocumenti}`}
         extra={
@@ -143,13 +162,13 @@ export function RiepilogoFatture({
       <Numero indice={2} etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? `${((s.iva / s.imponibile) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% dell'imponibile` : undefined} />
       <Numero
         indice={3}
-        etichetta="Incassato"
+        etichetta={testi.incassato}
         valore={s.incassato}
-        tono="buono"
-        nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% di queste fatture, anche dopo` : "di queste fatture"}
+        tono={testi.incassatoBuono ? "buono" : "neutro"}
+        nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% ${testi.notaIncassato}` : "di queste fatture"}
         extra={daIncassareTot > 0 ? <AnelloPercentuale pct={pctIncassato} dimensione={22} /> : undefined}
       />
-      <Numero indice={4} etichetta="Da incassare" valore={s.daIncassare} nota="di queste fatture" />
+      <Numero indice={4} etichetta={testi.daIncassare} valore={s.daIncassare} nota="di queste fatture" />
       <Numero
         indice={5}
         etichetta="Scaduto"

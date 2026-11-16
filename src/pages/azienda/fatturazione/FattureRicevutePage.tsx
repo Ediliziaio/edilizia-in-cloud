@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +14,6 @@ import { COLONNE_RICEVUTE, leggiColonne, metodiPagamento, prossimaScadenza, salv
 import { useConteggiAllegatiRicevute } from "@/components/fatturazione/AllegatiFattura";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UsciteSenzaFattura } from "@/components/fatturazione/UsciteSenzaFattura";
-import { CompletezzaFatture } from "@/components/fatturazione/CompletezzaFatture";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useLetturaRicevuta } from "@/hooks/useLetturaRicevuta";
 import { ricevutaDaLeggere } from "@/lib/fatturazione/letturaRicevuta";
@@ -35,6 +35,9 @@ import { leggiVerificheRicevute } from "@/lib/fatturazione/leggiVerificheRicevut
 import { StatoPill } from "@/components/orders/TabellaCommessa";
 import { fatturaVerificata, quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { RiepilogoFatturaRicevuta } from "@/components/fatturazione/RiepilogoFatturaRicevuta";
+import { RiepilogoFatture, TESTI_RICEVUTE } from "@/components/fatturazione/RiepilogoFatture";
+import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
+import { mesiRicevute } from "@/lib/fatturazione/mesiRicevute";
 import { etichettaTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import type { QuotaOrdine } from "@/lib/fatturazione/quoteOrdini";
 import { Card } from "@/components/ui/card";
@@ -363,6 +366,9 @@ export default function FattureRicevutePage() {
   // dall'anno corrente, gli altri restano un clic più in là.
   const annoCorrente = String(new Date().getFullYear());
   const [annoFilter, setAnnoFilter] = useState(annoCorrente);
+  // Il mese scelto nella striscia (16/11/2026): filtra l'elenco e i sei numeri; cambia anno = si toglie.
+  const [meseScelto, setMeseScelto] = useState<string | null>(null);
+  useEffect(() => { setMeseScelto(null); }, [annoFilter]);
   // La fattura aperta nel riepilogo leggibile (righe, totali, collegamenti).
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
   const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
@@ -588,6 +594,16 @@ export default function FattureRicevutePage() {
     return { totale, nonLette, contabilizzate, importoTotale, imponibile, iva, altro, senzaImporto, daClassificare };
   }, [fatture]);
 
+  // I dodici mesi dell'anno scelto, dalle fatture già caricate (stesse regole della tabella).
+  const mesi = useMemo(
+    () => annoFilter === "all" ? null : mesiRicevute(fatture, Number(annoFilter), {
+      pagata: (f) => !!pagataIl(f.id) || pagataSulCosto(f as FatturaRicevuta),
+      stornata: (f) => stornataDelTutto(f as FatturaRicevuta),
+      rate: (f) => parziali?.get(f.id),
+    }, oggiIso),
+    [fatture, annoFilter, pagataIl, pagataSulCosto, stornataDelTutto, parziali, oggiIso],
+  );
+
   // ─── Filters ────────────────────────────────────────────
 
   const opzioniTipo = useMemo(
@@ -626,6 +642,7 @@ export default function FattureRicevutePage() {
     (metodoFilter !== "all" ? 1 : 0) +
     (allegatiFilter !== "all" ? 1 : 0);
   const azzeraFiltri = () => {
+    setMeseScelto(null);
     setSoloDaVerificare(false);
     setSoloDaRettificare(false);
     setMetodoFilter("all");
@@ -648,6 +665,7 @@ export default function FattureRicevutePage() {
 
   const filtered = useMemo(() => {
     let result = fatture;
+    if (meseScelto) result = result.filter((f) => f.data_fattura?.startsWith(meseScelto));
     if (statoFilter !== "all") {
       result = result.filter((f) => statoFilter === "non_letta" ? ricevutaDaLeggere(f) : statoFilter === "letta" ? !ricevutaDaLeggere(f) : f.stato === statoFilter);
     }
@@ -696,7 +714,7 @@ export default function FattureRicevutePage() {
       }
       return segno * (a.data_fattura < b.data_fattura ? -1 : a.data_fattura > b.data_fattura ? 1 : 0);
     });
-  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine]);
+  }, [fatture, haCollegamento, verificata, verifiche, verifichePronte, metodoFilter, allegatiFilter, conteggiAllegati, soloDaRettificare, pagataSulCosto, soloDaVerificare, statoFilter, tipoFilter, categoriaFilter, ordineFilter, contabFilter, pagamentoFilter, pagataIl, stornataDelTutto, storni, searchQuery, ordinamento, haOrdine, meseScelto]);
 
   // Modifiche in blocco: si selezionano le fatture che l'elenco mostra, anche dopo aver filtrato.
   const puoInBlocco = !permessiCosti.solaLettura;
@@ -1091,14 +1109,21 @@ export default function FattureRicevutePage() {
         </div>
       )}
 
-      {/* Controlli da ufficio: da telefono si parte dall'elenco. */}
-      <div className="space-y-4 max-md:hidden">
-        {companyId && <CompletezzaFatture companyId={companyId} />}
-        {companyId && permessiCosti.canViewCosts && <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} />}
-      </div>
-
-      {/* Testata navy di famiglia. Mobile: due numeri (vedi sotto). */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
+      {/* Sei numeri e striscia dei mesi, come nelle emesse (16/11/2026). Con «tutti gli anni»
+          resta la testata di prima: la striscia è di un anno. */}
+      {mesi && !isMobile ? (
+        <div className="space-y-3">
+          <RiepilogoFatture mesi={mesi} meseScelto={meseScelto} testi={TESTI_RICEVUTE} etichettaDocumenti="fatture ricevute" />
+          <MonthlyTimeline
+            months={mesi}
+            selectedMonth={meseScelto}
+            onSelectMonth={setMeseScelto}
+            year={Number(annoFilter)}
+            onYearChange={(y) => setAnnoFilter(String(y))}
+          />
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
         {/* Senza il titoletto «Fatture ricevute — Quello che i fornitori ti
             mandano»: ripeteva il titolo della pagina. */}
         <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
@@ -1126,10 +1151,8 @@ export default function FattureRicevutePage() {
           </div>
         </div>
       </div>
-
-      {companyId && permessiCosti.canViewCosts && (
-        <FattureDaAssegnare companyId={companyId} puoModificare={!permessiCosti.solaLettura} />
       )}
+
 
       {/* Mobile: «Da leggere» (filtra) e l'importo del periodo, nome e cifra. */}
       <KpiMobili
@@ -1294,7 +1317,16 @@ export default function FattureRicevutePage() {
               <X className="mr-1 h-3.5 w-3.5" />Azzera
             </Button>
           )}
-          <p className="ml-auto text-xs tabular-nums text-muted-foreground">
+          {/* Cose da sistemare che non sono filtri dell'elenco: pulsanti compatti che aprono una
+              finestra, non fasce sopra la tabella (16/11/2026). I numeri mancanti nelle emesse
+              stanno nella pagina delle emesse. */}
+          {companyId && permessiCosti.canViewCosts && (
+            <span className="ml-auto flex items-center gap-2 max-md:hidden">
+              <FattureDaAssegnare companyId={companyId} puoModificare={!permessiCosti.solaLettura} variante="pillola" />
+              <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} variante="pillola" />
+            </span>
+          )}
+          <p className={cn("text-xs tabular-nums text-muted-foreground", !(companyId && permessiCosti.canViewCosts) && "ml-auto")}>
             <span className="font-medium text-foreground">{filtered.length}</span> di {fatture.length}
           </p>
         </div>

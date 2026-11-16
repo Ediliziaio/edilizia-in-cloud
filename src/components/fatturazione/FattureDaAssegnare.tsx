@@ -19,7 +19,8 @@ import { formatCurrency, formatDateIt } from "@/lib/formatters";
 import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, FolderInput } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Riga {
   id: string;
@@ -40,7 +41,11 @@ export function eSpesaGenerale(tipo: string | null | undefined): boolean {
   return isTipoFornitore(tipo) && INFO_TIPO_FORNITORE[tipo].commessa === "no";
 }
 
-export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: string; puoModificare: boolean }) {
+/**
+ * `variante="pillola"` (16/11/2026): un pulsante compatto con il conteggio, accanto ai filtri, che
+ * apre l'elenco in una finestra. La fascia gialla sopra l'elenco spingeva giù la tabella.
+ */
+export function FattureDaAssegnare({ companyId, puoModificare, variante = "fascia" }: { companyId: string; puoModificare: boolean; variante?: "fascia" | "pillola" }) {
   const qc = useQueryClient();
   const [tutte, setTutte] = useState(false);
   const [aperto, setAperto] = useState(false);
@@ -107,17 +112,8 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
   const totale = righe.reduce((t, r) => t + (Number(r.totale_documento) || 0), 0);
   const visibili = tutte ? conProposta : conProposta.slice(0, 5);
 
-  // Di norma chiuso: è un promemoria, non deve spingere la tabella fuori dallo schermo.
-  return (
-    <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2 max-md:hidden dark:border-amber-900/50 dark:bg-amber-950/20">
-      <button type="button" aria-expanded={aperto} onClick={() => setAperto((v) => !v)} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left">
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "" : "-rotate-90"}`} aria-hidden="true" />
-        <span className="text-sm font-semibold">
-          {righe.length} {righe.length === 1 ? "fattura registrata" : "fatture registrate"} senza commessa · {formatCurrency(totale)}
-        </span>
-        <span className="text-xs text-muted-foreground">In tutti gli anni. {conProposta.length > 0 ? `${conProposta.length} con la commessa proposta. ` : ""}Il margine non le conta finché non hanno la commessa.</span>
-      </button>
-      {aperto && <>
+  const contenuto = (
+    <>
       {conProposta.length > 0 ? (
         <>
           <ul className="divide-y rounded-lg border bg-background text-sm">
@@ -134,7 +130,7 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
                     </span>
                   </span>
                 </span>
-                <span className="tabular-nums">{formatCurrency(Number(r.totale_documento) || 0)}</span>
+                <span className="shrink-0 tabular-nums">{formatCurrency(Number(r.totale_documento) || 0)}</span>
                 {puoModificare && r.costo && r.suggerito && (
                   <Button
                     size="sm"
@@ -168,7 +164,49 @@ export function FattureDaAssegnare({ companyId, puoModificare }: { companyId: st
           )}
         </p>
       )}
-      </>}
+    </>
+  );
+  const descrizione = `In tutti gli anni. ${conProposta.length > 0 ? `${conProposta.length} con la commessa proposta. ` : ""}Il margine non le conta finché non hanno la commessa.`;
+
+  if (variante === "pillola") {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setAperto(true)}
+          title={`${righe.length} fatture senza commessa · ${formatCurrency(totale)}`}
+          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 text-xs font-medium text-amber-900 hover:bg-amber-100 max-md:hidden dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          <FolderInput className="h-3.5 w-3.5" aria-hidden="true" />
+          Senza commessa
+          <span className="tabular-nums">{righe.length}</span>
+        </button>
+        <Dialog open={aperto} onOpenChange={setAperto}>
+          <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>
+                {righe.length} {righe.length === 1 ? "fattura registrata" : "fatture registrate"} senza commessa · {formatCurrency(totale)}
+              </DialogTitle>
+              <DialogDescription>{descrizione}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">{contenuto}</div>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // Di norma chiuso: è un promemoria, non deve spingere la tabella fuori dallo schermo.
+  return (
+    <section className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-2 max-md:hidden dark:border-amber-900/50 dark:bg-amber-950/20">
+      <button type="button" aria-expanded={aperto} onClick={() => setAperto((v) => !v)} className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 text-left">
+        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${aperto ? "" : "-rotate-90"}`} aria-hidden="true" />
+        <span className="text-sm font-semibold">
+          {righe.length} {righe.length === 1 ? "fattura registrata" : "fatture registrate"} senza commessa · {formatCurrency(totale)}
+        </span>
+        <span className="text-xs text-muted-foreground">{descrizione}</span>
+      </button>
+      {aperto && contenuto}
     </section>
   );
 }

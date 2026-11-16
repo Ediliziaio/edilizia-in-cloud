@@ -4,7 +4,7 @@
  */
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Paperclip, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, Paperclip, Pencil, Plus, Receipt, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
@@ -35,7 +35,11 @@ interface Uscita {
   suppliers: { name: string } | null; orders: { order_code: string | null } | null; mezzi: { nome: string } | null;
 }
 
-export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: string; puoModificare: boolean }) {
+/**
+ * `variante="pillola"` (16/11/2026): pulsante compatto accanto ai filtri delle ricevute, con
+ * conteggio e totale; l'elenco e «Nuova uscita» si aprono in una finestra.
+ */
+export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fascia" }: { companyId: string; puoModificare: boolean; variante?: "fascia" | "pillola" }) {
   const qc = useQueryClient();
   const [aperto, setAperto] = useState(false);
   const [dialogo, setDialogo] = useState(false);
@@ -121,17 +125,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
   const errore = erroreUscita(form);
   const opzioniCommesse = useMemo(() => (scelte?.commesse ?? []).map((x) => ({ value: x.id, label: [x.order_code, x.description].filter(Boolean).join(" · ") || "Commessa" })), [scelte]);
   const totale = uscite.reduce((s, u) => s + Number(u.amount ?? 0), 0);
-  return (
-    <Card>
-      <CardContent className="p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="flex flex-1 items-center gap-2 text-left text-sm font-medium" aria-expanded={aperto} onClick={() => setAperto((v) => !v)}>
-            <ChevronDown className={`h-4 w-4 transition-transform ${aperto ? "rotate-180" : ""}`} />
-            Uscite senza fattura · {uscite.length}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}
-          </button>
-          {puoModificare && <Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Nuova uscita</Button>}
-        </div>
-        {aperto && (
+  const elenco = (
           <div className="mt-3 divide-y rounded-md border">
             {!uscite.length && <p className="p-3 text-sm text-muted-foreground">Bollo, tasse, spese senza fattura: registrale qui, con i documenti. Non entrano nel registro IVA.</p>}
             {uscite.map((u) => (
@@ -147,8 +141,10 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
               </div>
             ))}
           </div>
-        )}
-      </CardContent>
+  );
+
+  const dialoghi = (
+    <>
       <Dialog open={dialogo} onOpenChange={(v) => (v ? setDialogo(true) : chiudi())}>
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
@@ -229,6 +225,52 @@ export function UsciteSenzaFattura({ companyId, puoModificare }: { companyId: st
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </>
+  );
+
+  if (variante === "pillola") {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setAperto(true)}
+          title={uscite.length ? `${uscite.length} uscite senza fattura · ${formatCurrency(totale)}` : "Bollo, tasse, spese senza fattura"}
+          className="inline-flex h-7 items-center gap-1.5 rounded-full border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted max-md:hidden"
+        >
+          <Receipt className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          Uscite senza fattura
+          <span className="tabular-nums text-muted-foreground">{uscite.length}</span>
+        </button>
+        <Dialog open={aperto} onOpenChange={setAperto}>
+          <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Uscite senza fattura · {uscite.length}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}</DialogTitle>
+              <DialogDescription>Bollo, tasse, spese senza fattura, con i loro documenti. Non entrano nel registro IVA.</DialogDescription>
+            </DialogHeader>
+            {puoModificare && (
+              <div><Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Nuova uscita</Button></div>
+            )}
+            {elenco}
+          </DialogContent>
+        </Dialog>
+        {dialoghi}
+      </>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="flex flex-1 items-center gap-2 text-left text-sm font-medium" aria-expanded={aperto} onClick={() => setAperto((v) => !v)}>
+            <ChevronDown className={`h-4 w-4 transition-transform ${aperto ? "rotate-180" : ""}`} />
+            Uscite senza fattura · {uscite.length}{uscite.length > 0 ? ` · ${formatCurrency(totale)}` : ""}
+          </button>
+          {puoModificare && <Button size="sm" variant="outline" onClick={() => setDialogo(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Nuova uscita</Button>}
+        </div>
+        {aperto && elenco}
+      </CardContent>
+      {dialoghi}
     </Card>
   );
 }

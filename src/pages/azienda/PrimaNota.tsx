@@ -11,12 +11,12 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
 import { AllegatoPrimaNota } from "@/components/prima-nota/AllegatoPrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { NotaRiga } from "@/components/shared/NotaRiga";
@@ -380,42 +380,11 @@ function PrimaNotaInner() {
         </div>
       </div>
 
-      {/* Chart andamento 6 mesi: vetrina → non su mobile (i 3 KPI Entrate/
-          Uscite/Saldo sopra bastano). */}
+      {/* Entrate e uscite degli ultimi 6 mesi (16/11/2026): stessa veste dei grafici del
+          Controllo di Gestione e delle fatture (fondo a puntini, barre sfumate, tooltip a
+          scheda, totali sopra). Vetrina → non su mobile (bastano i numeri sopra). */}
       {!isMobile && chartData.some((d) => d.entrate > 0 || d.uscite > 0) && (
-        // Un titolo solo (erano «ANDAMENTO 6 MESI» e «Entrate e uscite di
-        // cassa») e il grafico direttamente nel riquadro, non in un secondo
-        // riquadro bianco dentro il primo.
-        <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-base font-semibold text-slate-950">Entrate e uscite, ultimi 6 mesi</h3>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Entrate</span>
-              <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-rose-500" /> Uscite</span>
-            </div>
-          </div>
-          <div className="mt-3 h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
-                <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" tickFormatter={formatCurrencyCompact} />
-                <Tooltip
-                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                  }}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name === "entrate" ? "Entrate" : "Uscite"]}
-                  labelFormatter={(label) => `Mese: ${label}`}
-                />
-                <Bar dataKey="entrate" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                <Bar dataKey="uscite" fill="#f43f5e" radius={[6, 6, 0, 0]} maxBarSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <GraficoEntrateUscite dati={chartData} />
       )}
 
       {/* Mobile: entrate e uscite del periodo, nome e cifra (al posto del

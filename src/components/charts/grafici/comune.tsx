@@ -21,6 +21,17 @@ export const TESTO_ASSE = { fontSize: 11, fill: "hsl(var(--muted-foreground))" }
 /** Etichette brevi sugli assi: «−200k €», «1,2M €». */
 export const euroAsse = (v: number) => formatCurrencyCompact(v);
 
+/**
+ * Il colore di una serie per il pallino del tooltip: le barre hanno per colore la
+ * sfumatura («url(#id-barra-verde)»), che in HTML non vale; si risale al colore dal
+ * nome della sfumatura (prima tutte prendevano il blu, anche l'incassato verde).
+ */
+export function coloreDaRiempimento(colore: string | undefined): string | undefined {
+  if (!colore?.startsWith("url(")) return colore;
+  const nome = /-(?:barra|sfuma)-([a-z]+)\)?\s*$/i.exec(colore)?.[1];
+  return (nome && nome in COLORI_GRAFICO ? COLORI_GRAFICO[nome as keyof typeof COLORI_GRAFICO] : undefined) ?? COLORI_GRAFICO.blu;
+}
+
 /** Id SVG validi anche da useId (che contiene i due punti). */
 export const idSvg = (base: string) => base.replace(/[^a-zA-Z0-9_-]/g, "");
 
@@ -92,11 +103,9 @@ export function TooltipScheda({
       <ul className="space-y-1">
         {righe.map((p) => (
           <li key={String(p.dataKey)} className="flex items-center gap-2">
-            {/* Le barre hanno per colore la sfumatura («url(#…)»), che in HTML
-                non vale: il pallino prende il blu delle barre. */}
             <span
               className="h-2 w-2 shrink-0 rounded-full"
-              style={{ background: p.color?.startsWith("url(") ? COLORI_GRAFICO.blu : p.color }}
+              style={{ background: coloreDaRiempimento(p.color) }}
             />
             <span className="flex-1 text-muted-foreground">{p.name}</span>
             <span className="font-semibold tabular-nums">{formato(p.value as number, String(p.name ?? ""))}</span>
