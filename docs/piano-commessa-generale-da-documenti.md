@@ -540,6 +540,31 @@ pagina»; formula con la manodopera fuori dal ribasso; computi sommati ed elenco
 totali; percentuali col punto decimale e sotto 100; stima per gruppi veri; pagine e foto sotto gli
 8 MB, OCR una pagina alla volta, tre tentativi anche per i giri morti, estrazione con 100 secondi.
 
+### Prova dal vivo su Demo Azienda 2 (16/11/2026)
+
+Con documenti inventati (il contratto vero lo prova il titolare di persona), utente vero, AI
+vera: un accordo quadro da 2.000.000 € (solo testo) e due contratti applicativi, uno con una pagina
+scansionata.
+
+- **Lettura:** stima giusta prima di «Leggi» (0,05-0,07 €); accordo letto in 4 secondi, applicativo
+  con OCR in 8. Tutti i campi giusti, con la citazione ritrovata nella pagina (importo massimo,
+  ribasso, CIG dell'accordo e derivati, base, oneri, consegna, fine, penale, ritenuta, RUP).
+- **Addebito:** ogni chiamata in `ai_call_ledger` su Demo 2 (estrazione circa 0,01 € a gruppo, OCR
+  0,0015 € a pagina, Gemini 2.5 Flash).
+- **Accordo quadro:** generale da 2.000.000 €, contratto con ribasso e importo massimo; le due figlie
+  da 365.000 € e 520.000 € con il loro CIG derivato nei riferimenti PA: la pagina della generale
+  mostra assegnato 885.000 € (44%) e da assegnare 1.115.000 €; il «Costruisci» del secondo
+  applicativo mostrava lo stesso residuo prima di creare.
+- **Corretti** (migrazione `20290416200500` e codice): le figlie nascevano senza il nome del cliente
+  e senza stato di lavorazione; l'accordo quadro non portava il suo CIG nei riferimenti PA; un
+  applicativo si poteva creare senza importo; il menu degli accordi mostrava tutte le generali;
+  avvisi su penale e base d'asta che per accordo e applicativo non servono; il committente letto non
+  compariva quando c'era solo la stazione appaltante; nome proposto in minuscolo e col punto;
+  l'articolato classificato come «stima della sicurezza»; identificativo del documento al posto
+  del nome; «1 pagine», «1 applicativi».
+- **Da sapere:** il cron notturno della tesoreria non passa da Demo 2 (non ha un conto collegato);
+  la conferma automatica su Demo 2, provata come la chiama il cron, ora risponde «attiva» col titolare.
+
 ### Lotto 9: il contratto vero, in locale
 
 Fatto senza scritture in produzione e senza dati del documento nel repository. L'OCR e il modello

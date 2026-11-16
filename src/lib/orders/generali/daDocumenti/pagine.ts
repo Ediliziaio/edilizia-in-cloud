@@ -70,6 +70,8 @@ export function riconosciPagina(testo: string | null | undefined, opzioni: { inc
     const personale = datiPersonali(t);
     if (personale) return personale;
   }
+  // Un articolato cita spesso oneri, polizze o consegna: con più articoli numerati è l'articolato.
+  if ((t.match(/\bart(icolo|\.)\s*\d+/g) ?? []).length >= 2) return { classe: "Articolato", esclusa: false };
   for (const r of REGOLE) {
     if (r.parole.test(t)) {
       return r.esclusa

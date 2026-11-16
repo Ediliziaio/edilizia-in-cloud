@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { catalogoPer, campoDelCatalogo, SCELTE_DECISE, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
+import { catalogoPer, campoDelCatalogo, nomeDocumento, SCELTE_DECISE, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 import { controlli, statoCampi, type Controllo, type Valore } from "@/lib/orders/generali/daDocumenti/controlli";
 import { useLetturaGenerale } from "@/hooks/useLetturaGenerale";
 import { fotoDaDb } from "@/lib/orders/generali/daDocumenti/foto";
@@ -209,7 +209,7 @@ function Partenza({ foto, onLeggi, onAnnulla, inCorso, stimaVera, tipo }: { foto
         </ul>
         <div className="grid grid-cols-3 gap-2">
           <Numero etichetta="Pagine" valore={String(pagine)} />
-          <Numero etichetta={stimaVera ? "Da leggere con l'OCR" : "Letti senza AI"} valore={stimaVera ? `${daOcr} pagine` : String(foto.file.filter((f) => f.strutturato).length) + " file"} />
+          <Numero etichetta={stimaVera ? "Da leggere con l'OCR" : "Letti senza AI"} valore={stimaVera ? (daOcr === 1 ? "1 pagina" : `${daOcr} pagine`) : String(foto.file.filter((f) => f.strutturato).length) + " file"} />
           <Numero etichetta="Costo stimato" valore={euro(foto.stimaCosto)} />
         </div>
         {/* Soglia di costo: deciso il 16/11/2026, prima si vede sempre la stima. */}
@@ -321,7 +321,7 @@ function StrisciaFile({ file }: { file: FileLettura }) {
     <div className="rounded-lg border bg-white p-3">
       <div className="mb-2 flex items-baseline gap-2 text-sm">
         <span className="min-w-0 flex-1 truncate font-medium">{file.nome}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{file.documento} · <span className="tabular-nums">{chiuse}/{file.pagine.length}</span></span>
+        <span className="shrink-0 text-xs text-muted-foreground">{nomeDocumento(file.documento)} · <span className="tabular-nums">{chiuse}/{file.pagine.length}</span></span>
       </div>
       <ul className="flex flex-wrap gap-1.5">
         {file.pagine.map((p) => <Miniatura key={p.numero} pagina={p} strutturato={!!file.strutturato} />)}
@@ -423,7 +423,7 @@ function Riepilogo({ foto, tipo }: { foto: FotoLettura; tipo: TipoDaDocumenti })
   ].filter(Boolean).join(", ");
   return (
     <div className="space-y-3 rounded-lg border bg-white p-3 sm:p-4">
-      <p className="text-sm"><b>{conto.totale} pagine lette tutte:</b> {pezzi}.{fileSenzaAi > 0 && ` In più ${fileSenzaAi === 1 ? "1 file letto" : `${fileSenzaAi} file letti`} senza AI.`}</p>
+      <p className="text-sm"><b>{conto.totale === 1 ? "1 pagina letta tutta" : `${conto.totale} pagine lette tutte`}:</b> {pezzi}.{fileSenzaAi > 0 && ` In più ${fileSenzaAi === 1 ? "1 file letto" : `${fileSenzaAi} file letti`} senza AI.`}</p>
       {conto.illeggibile > 0 && <p className="text-xs text-red-700">Le pagine illeggibili si ricaricano una per una con una foto migliore (nella prova no).</p>}
 
       {conflitti.length > 0 && (

@@ -293,3 +293,21 @@ describe("revisione finale del 15/11", () => {
     expect(d.totale_computo[0].valore).toBe(150);
   });
 });
+
+describe("prova dal vivo del 16/11", () => {
+  it("una pagina con più articoli numerati è l'articolato, anche se cita gli oneri", () => {
+    expect(riconosciPagina("Art. 1 - Oggetto dei lavori. Art. 2 - Importo, di cui oneri della sicurezza euro 15.000,00.").classe).toBe("Articolato");
+  });
+  it("l'accordo quadro porta il CIG dell'accordo nei riferimenti PA; niente avvisi sulla penale o sulla base", () => {
+    const d: DatiLetti = { cig_accordo: [o("Y9X8W7V6U5")], contratto_numero: [o("900/2027")], penale_permille: [o(1)], tetto_accordo: [o(2000000)] };
+    const p = pianoDiScrittura("appalto_pubblico", d, conferma({ ...BOZZA_VUOTA, clienteId: "c1", forma: "accordo_quadro" }, "cig_accordo", "contratto_numero", "penale_permille", "tetto_accordo"));
+    expect(p.riferimenti_pa[0]).toMatchObject({ cig: "Y9X8W7V6U5", numero: "900/2027" });
+    expect(p.note.join(" ")).not.toContain("serve l'importo contrattuale");
+  });
+  it("un applicativo senza importo confermato non si crea; il nome proposto è pulito", async () => {
+    const { nomeDaOggetto } = await import("@/lib/orders/generali/daDocumenti/scritture");
+    const p = pianoDiScrittura("appalto_pubblico", datiAppalto(), { ...BOZZA_VUOTA, forma: "applicativo", nome: "x" });
+    expect(mancaPerCreare(p, 0, true)).toContain("l'importo contrattuale confermato");
+    expect(nomeDaOggetto("rifacimento del manto stradale.")).toBe("Rifacimento del manto stradale");
+  });
+});

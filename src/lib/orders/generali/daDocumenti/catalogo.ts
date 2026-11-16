@@ -260,6 +260,15 @@ export function tipoDaDocumenti(modello: "appalto" | "sviluppo" | "compravendita
   return modello;
 }
 
+/** Il nome di un tipo di documento (per l'interfaccia), da qualunque tipo di commessa. */
+export function nomeDocumento(id: string): string {
+  for (const docs of Object.values(DOCUMENTI)) {
+    const d = docs.find((x) => x.id === id);
+    if (d) return d.nome;
+  }
+  return id;
+}
+
 export function campoDelCatalogo(tipo: TipoDaDocumenti, chiave: string): CampoCatalogo | undefined {
   return CAMPI[tipo].find((x) => x.chiave === chiave);
 }

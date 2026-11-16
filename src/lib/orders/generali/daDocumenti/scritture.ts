@@ -110,7 +110,9 @@ export function pianoDiScrittura(
     // La penale si legge per mille al giorno; nel contratto è in euro al giorno, sull'importo contrattuale.
     const permille = num(v.penale_permille);
     const penaleEuro = permille !== null && contrattuale !== null ? tondo((permille / 1000) * contrattuale * quota) : null;
-    if (permille !== null && contrattuale === null) note.push("Penale: serve l'importo contrattuale confermato per calcolarla in euro al giorno.");
+    // Nell'accordo quadro la penale vale sugli applicativi; nell'applicativo il contratto resta sull'accordo.
+    const contrattoQui = !(tipo === "appalto_pubblico" && (bozza.forma === "accordo_quadro" || bozza.forma === "applicativo"));
+    if (permille !== null && contrattuale === null && contrattoQui) note.push("Penale: serve l'importo contrattuale confermato per calcolarla in euro al giorno.");
     piano.contratto = {
       riferimento: txt(v.contratto_numero),
       data_firma: txt(v.contratto_data),
@@ -143,7 +145,7 @@ export function pianoDiScrittura(
       // Senza base, il valore del contratto si porta come base con ribasso zero, oneri compresi.
       piano.contratto.importo_base = tondo((contrattuale - (oneri ?? 0)) * quota);
       piano.contratto.ribasso_pct = 0;
-      note.push("Base d'asta non confermata: nel contratto l'importo contrattuale vale come base senza ribasso.");
+      if (contrattoQui) note.push("Base d'asta non confermata: nel contratto l'importo contrattuale vale come base senza ribasso.");
     }
     piano.valore = contrattuale !== null ? tondo(contrattuale * quota) : null;
 
@@ -187,12 +189,13 @@ export function pianoDiScrittura(
       piano.garanzie.push({ tipo: "car", importo: num(v.car_somma_lavori), massimale: num(v.rct_massimale), note: "Polizza CAR/RCT letta dai documenti" });
     }
 
-    if (tipo === "appalto_pubblico" && (txt(v.cig) || txt(v.cup) || txt(v.codice_univoco) || txt(v.contratto_numero))) {
+    if (tipo === "appalto_pubblico" && (txt(v.cig) || txt(v.cup) || txt(v.codice_univoco) || txt(v.contratto_numero) || (bozza.forma === "accordo_quadro" && txt(v.cig_accordo)))) {
       piano.riferimenti_pa.push({
         tipo: "contratto",
         numero: txt(v.contratto_numero),
         data: txt(v.contratto_data),
-        cig: txt(v.cig),
+        // L'accordo quadro senza CIG proprio porta quello dell'accordo; gli applicativi il derivato.
+        cig: txt(v.cig) ?? (bozza.forma === "accordo_quadro" ? txt(v.cig_accordo) : null),
         cup: txt(v.cup),
         codice_univoco_ufficio: txt(v.codice_univoco),
       });
@@ -267,9 +270,17 @@ export function pianoDiScrittura(
 }
 
 /** Cosa manca per poter creare. Vuoto = si può. */
-export function mancaPerCreare(piano: PianoScrittura, bloccanti: number): string[] {
+/** Il nome proposto dall'oggetto letto: iniziale maiuscola, senza il punto finale. */
+export function nomeDaOggetto(oggetto: string): string {
+  const t = oggetto.trim().replace(/[.;:,\s]+$/, "").slice(0, 200);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+export function mancaPerCreare(piano: PianoScrittura, bloccanti: number, applicativo = false): string[] {
   const out: string[] = [];
-  if (!piano.nome.trim()) out.push("il nome della commessa generale");
+  if (!piano.nome.trim()) out.push(applicativo ? "il nome del contratto applicativo" : "il nome della commessa generale");
+  // Un applicativo scala l'accordo del suo importo: senza, la figlia nascerebbe a zero.
+  if (applicativo && !(typeof piano.valore === "number" && piano.valore > 0)) out.push("l'importo contrattuale confermato");
   if (piano.modello === "appalto" && !piano.cliente_id) out.push("il committente");
   if (bloccanti > 0) out.push(bloccanti === 1 ? "una scelta fra valori diversi o un controllo rosso" : `${bloccanti} scelte o controlli rossi`);
   return out;

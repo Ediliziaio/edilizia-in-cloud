@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { catalogoPer, SCELTE_DECISE, SEZIONI, type CampoCatalogo, type SezioneId, type TipoDaDocumenti } from "@/lib/orders/generali/daDocumenti/catalogo";
 import { controlli, statoCampi, statoCampo, type Controllo, type EsitoCampo, type Occorrenza, type Valore } from "@/lib/orders/generali/daDocumenti/controlli";
 import { dataIso, numeroItaliano, numeroPercentuale } from "@/lib/orders/generali/daDocumenti/estrazione";
-import { bozzaDa, mancaPerCreare, pianoDiScrittura, type BozzaCostruisci } from "@/lib/orders/generali/daDocumenti/scritture";
+import { bozzaDa, mancaPerCreare, nomeDaOggetto, pianoDiScrittura, type BozzaCostruisci } from "@/lib/orders/generali/daDocumenti/scritture";
 import type { Strutturati } from "@/lib/orders/generali/daDocumenti/strutturati";
 import type { RigaLettura, RigaPagina } from "@/lib/orders/generali/daDocumenti/foto";
 import { BUCKET_LETTURE } from "@/lib/orders/generali/daDocumenti/prepara";
@@ -51,7 +51,7 @@ export function CostruisciGenerale({ lettura, pagine, onIndietro, onChiudi, onCr
     const b = bozzaDa(lettura.bozza);
     // Il nome proposto: l'oggetto letto, se c'è e non ne è stato scritto uno.
     const oggetto = statoCampo(tipo, "oggetto", lettura.dati ?? {}, b.scelte).valore;
-    if (!b.nome && typeof oggetto === "string") b.nome = oggetto.slice(0, 200);
+    if (!b.nome && typeof oggetto === "string") b.nome = nomeDaOggetto(oggetto);
     if (!b.forma && tipo === "appalto_pubblico") b.forma = (lettura.forma as BozzaCostruisci["forma"]) ?? "singolo";
     return b;
   });
@@ -81,7 +81,7 @@ export function CostruisciGenerale({ lettura, pagine, onIndietro, onChiudi, onCr
   const rossi = ctrl.filter((c) => c.esito === "errore" && !bozza.accettati.includes(c.id) && c.campi.some((k) => confermati.has(k)));
   const piano = useMemo(() => pianoDiScrittura(tipo, dati, bozza, lettura.strutturati as Strutturati), [tipo, dati, bozza, lettura.strutturati]);
   const applicativo = tipo === "appalto_pubblico" && bozza.forma === "applicativo";
-  const manca = mancaPerCreare({ ...piano, cliente_id: applicativo ? "figlia" : piano.cliente_id }, rossi.length);
+  const manca = mancaPerCreare({ ...piano, cliente_id: applicativo ? "figlia" : piano.cliente_id }, rossi.length, applicativo);
   const [accordo, setAccordo] = useState<string | null>(lettura.generale_id);
   if (applicativo && !accordo) manca.push("l'accordo quadro a cui aggiungere il contratto applicativo");
 
@@ -221,16 +221,24 @@ function IntestazioneCostruisci({ dove, tipo, bozza, setBozza, campi, accordo, s
 }) {
   const { effectiveCompany } = useAuth();
   const appalto = tipo === "appalto_pubblico" || tipo === "appalto_privato";
-  const committenteLetto = campi.find((c) => c.chiave === "committente" || c.chiave === "stazione_appaltante");
+  // Il committente letto; se manca, la stazione appaltante (negli appalti pubblici è lei).
+  const committenteLetto = campi.find((c) => c.chiave === "committente" && c.valore) ?? campi.find((c) => c.chiave === "stazione_appaltante" && c.valore);
   const esecutore = campi.find((c) => c.chiave === "esecutore_forma");
   const rti = typeof esecutore?.valore === "string" && /rti|raggrupp|ati\b|mandataria|mandante/i.test(esecutore.valore);
   const generali = useQuery({
     queryKey: ["generali-appalto", effectiveCompany?.id],
     enabled: tipo === "appalto_pubblico" && bozza.forma === "applicativo" && !!effectiveCompany?.id,
     queryFn: async () => {
-      const { data } = await db.from("orders").select("id, description, order_code").eq("company_id", effectiveCompany!.id)
-        .eq("workflow_kind", "generale").is("deleted_at", null).order("created_at", { ascending: false }).limit(100);
-      return (data ?? []) as { id: string; description: string | null; order_code: string | null }[];
+      // Solo le generali d'appalto; gli accordi quadro in cima.
+      const { data: generali } = await db.from("commesse_generali").select("order_id, dati").eq("company_id", effectiveCompany!.id).eq("modello", "appalto").limit(500);
+      const forma = new Map<string, string | null>(((generali ?? []) as { order_id: string; dati: { appalto?: { forma?: string } } | null }[])
+        .map((g) => [g.order_id, g.dati?.appalto?.forma ?? null]));
+      if (forma.size === 0) return [];
+      const { data } = await db.from("orders").select("id, description, order_code").in("id", [...forma.keys()])
+        .is("deleted_at", null).order("created_at", { ascending: false }).limit(200);
+      return ((data ?? []) as { id: string; description: string | null; order_code: string | null }[])
+        .map((o) => ({ ...o, accordo: forma.get(o.id) === "Accordo quadro" }))
+        .sort((a, b) => Number(b.accordo) - Number(a.accordo));
     },
   });
   return (
@@ -260,7 +268,7 @@ function IntestazioneCostruisci({ dove, tipo, bozza, setBozza, campi, accordo, s
           {bozza.forma === "applicativo" && (
             <select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm" value={accordo ?? ""} onChange={(e) => setAccordo(e.target.value || null)} aria-label="Accordo quadro">
               <option value="">Scegli l'accordo quadro…</option>
-              {(generali.data ?? []).map((g) => <option key={g.id} value={g.id}>{[g.order_code, g.description].filter(Boolean).join(" · ")}</option>)}
+              {(generali.data ?? []).map((g) => <option key={g.id} value={g.id}>{[g.order_code, g.description].filter(Boolean).join(" · ")}{g.accordo ? " (accordo quadro)" : ""}</option>)}
             </select>
           )}
         </div>
@@ -559,7 +567,7 @@ function ResiduoAccordo({ accordoId, importo }: { accordoId: string; importo: Va
   const e = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
   return (
     <p className={cn("mt-1 text-xs", tono)}>
-      Accordo da {e(valore)}: già assegnati {e(t.assegnato ?? 0)} in {t.figlie} applicativi. Con questo ne restano {e(dopo)}{dopo < 0 ? ": si supera l'importo massimo" : dopo < valore * 0.1 ? ": meno del 10%" : ""}.
+      Accordo da {e(valore)}: già assegnati {e(t.assegnato ?? 0)} in {t.figlie === 1 ? "1 applicativo" : `${t.figlie} applicativi`}. Con questo ne restano {e(dopo)}{dopo < 0 ? ": si supera l'importo massimo" : dopo < valore * 0.1 ? ": meno del 10%" : ""}.
     </p>
   );
 }
