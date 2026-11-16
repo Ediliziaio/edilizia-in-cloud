@@ -29,6 +29,23 @@ describe("Chi vede e registra i costi", () => {
     }
   });
 
+  it("per i rapportini: la stessa regola nel salvataggio e nelle voci libere", () => {
+    // 16/11/2026: il popup mostrava «Voci e costi» a chi gestisce gli acquisti, il database
+    // chiedeva solo can_view_costs e il rapportino non si salvava (Impresa Vulcano).
+    const fn = leggi("supabase/migrations/20290417090000_costi_rapportini_anche_a_chi_gestisce_acquisti.sql");
+    expect(fn).toContain("'can_view_costs', p_company) is true");
+    expect(fn).toContain("'can_manage_purchasing', p_company) is true");
+    for (const nome of ["ufficio_crea_rapportini", "ufficio_leggi_ore", "ufficio_da_approvare", "voci_abbina_listino"]) {
+      expect(fn, nome).toContain(nome);
+    }
+    const pol = leggi("supabase/migrations/20290417090100_voci_libere_regola_costi_unica.sql");
+    for (const nome of ["voci_libere_lettura", "voci_libere_scrittura"]) {
+      const da = pol.indexOf(`create policy ${nome}`);
+      expect(da, nome).toBeGreaterThan(-1);
+      expect(pol.slice(da, pol.indexOf(";", da)), nome).toContain("public.puo_vedere_costi(company_id)");
+    }
+  });
+
   it("chi è in sola lettura resta fuori dalle scritture", () => {
     const sql = leggi("supabase/migrations/20290315100000_costi_anche_a_chi_gestisce_acquisti.sql");
     for (const nome of ["inserisce", "modifica", "elimina"]) {
