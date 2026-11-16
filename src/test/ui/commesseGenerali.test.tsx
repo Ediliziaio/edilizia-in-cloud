@@ -64,7 +64,7 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({
   messaggioGenerale: (_e: unknown, cosa: string) => `errore ${cosa}`,
   useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: m.salva, isPending: false }, commessaCliente: m.commessaCliente, salvaCommessaCliente: { mutate: m.salvaCliente, isPending: false } }),
   // Usato da PerLavorare: senza questo export il mock fa fallire l'intero file.
-  usePrerequisitiGenerale: () => ({ data: undefined, isLoading: false, isError: false }),
+  usePrerequisitiGenerale: () => ({ data: undefined as unknown, isLoading: false, isError: false }),
 }));
 
 // I metri quadri del quadro previsionale/reale vengono dalle unità (16/11/2026).
