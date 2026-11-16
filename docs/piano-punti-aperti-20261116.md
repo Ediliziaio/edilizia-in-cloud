@@ -62,7 +62,8 @@ Un cron lo fa ogni 15 minuti sulle fatture nuove.
 
 **Cosa resta:**
 
-**2a. Le 241 fatture vecchie dei subappaltatori.** Sono arrivate prima di queste regole e non
+**2a. Le 241 fatture vecchie dei subappaltatori.** **Rimandato** (titolare, 16/11: per ora
+non si tocca niente). Sono arrivate prima di queste regole e non
 sono collegate a nessun contratto. Nessuna si collega da sola, perché per le vecchie molti
 contratti non sono nemmeno caricati. Proposta: un'anteprima per azienda («queste N si
 collegherebbero a questo contratto, queste M non hanno un contratto») e si conferma a lotti,
