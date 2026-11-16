@@ -14,14 +14,19 @@ export function legacyActionPermissionError(action: string, permissions: Record<
     send_overdue_reminder: ["can_view_orders", "can_view_order_amounts", "can_manage_payments"],
     send_quote_followup: ["can_view_preventivi", "can_edit_preventivi"],
     create_quote_draft: ["can_view_preventivi", "can_edit_preventivi"],
-    create_purchase_order: ["can_view_warehouse", "can_edit_warehouse", "can_view_costs"],
+    create_purchase_order: ["can_view_warehouse", "can_edit_warehouse"],
     update_purchase_order_delay: ["can_view_warehouse", "can_edit_warehouse"],
     create_logistics_task: ["can_view_team_tasks"],
     make_voice_call_lead: ["can_view_marketing_contacts", "can_edit_marketing_contacts", "can_view_marketing_ai_agent"],
   };
   if (!required[action]) return null; // Registry-only tools keep their own gate; admin-only legacy actions are checked by role.
+  // I costi: il permesso Costi OPPURE Gestione acquisti, la stessa regola dell'app
+  // (usePermissions.canViewCosts) e del database (public.puo_vedere_costi).
+  const vedeCosti = permissions?.can_view_costs === true || permissions?.can_manage_purchasing === true;
+  const costiRichiesti: Record<string, boolean> = { create_purchase_order: true };
   if (!permissions || permissions.sola_lettura !== false ||
-      required[action].some(key => permissions[key] !== true)) {
+      required[action].some(key => permissions[key] !== true) ||
+      (costiRichiesti[action] && !vedeCosti)) {
     return "Permessi insufficienti per questa operazione. Chiedi all’amministratore di verificare i permessi dell’area.";
   }
   // These legacy handlers cannot safely enforce per-row scopes on every linked

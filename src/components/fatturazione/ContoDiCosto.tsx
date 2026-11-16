@@ -14,12 +14,18 @@
  *   si rifà col conto nuovo (`contabilita_riregistra_documento`): prima restava
  *   sul conto vecchio e il bilancio non vedeva il cambio.
  */
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
-import { CATEGORIE_DI_BASE } from "@/lib/fatturazione/contoPerRiga";
+import { CATEGORIE_DI_BASE, contiDaCreare } from "@/lib/fatturazione/contoPerRiga";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+/** La voce in fondo al menu: non è un conto, apre il campo per scriverne uno nuovo. */
+const VOCE_NUOVO = "__nuovo_conto__";
 
 /** Quella che il database usa quando nessuno ha scelto (contabilizza_fattura_ricevuta). */
 export const CATEGORIA_PREDEFINITA = "materiali";
@@ -44,6 +50,8 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
       return (data ?? []) as Array<{ name: string }>;
     },
   });
+
+  const proprie = categorie.map((c) => c.name).filter(Boolean);
 
   const cambia = useMutation({
     mutationFn: async (categoria: string) => {
@@ -88,15 +96,47 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
     onError: (e) => toast.error("Conto di costo non cambiato", { description: e instanceof Error ? e.message : String(e) }),
   });
 
+  // Un conto che non c'è: si scrive qui, senza passare dalle impostazioni (16/11/2026).
+  const [nuovo, setNuovo] = useState<string | null>(null);
+  const aggiungi = useMutation({
+    mutationFn: async (nome: string) => {
+      const righe = contiDaCreare(nome, proprie);
+      if (righe.length === 0) return nome.trim();
+      const { error } = await supabase.from("cost_categories").insert(righe.map((name) => ({ company_id: companyId, name })));
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: queryKeys.costCategories.list(companyId) });
+      return nome.trim();
+    },
+    onSuccess: (nome) => { setNuovo(null); cambia.mutate(nome); },
+    onError: (e) => toast.error("Conto non aggiunto", {
+      description: e instanceof Error && /permission|policy|row-level/i.test(e.message)
+        ? "Per creare un conto di costo serve il permesso Costi o Gestione acquisti."
+        : e instanceof Error ? e.message : String(e),
+    }),
+  });
+
   // Il conto appena scelto si vede subito: prima restava quello vecchio finché la fattura non si
   // rileggeva, e sembrava che il cambio non fosse passato.
   const valore = (cambia.isSuccess ? cambia.variables : null) ?? attuale ?? CATEGORIA_PREDEFINITA;
-  const proprie = categorie.map((c) => c.name).filter(Boolean);
   const nomi = Array.from(new Set([...(proprie.length > 0 ? proprie : CATEGORIE_DI_BASE), valore]));
+
+  if (nuovo !== null) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Input autoFocus value={nuovo} onChange={(e) => setNuovo(e.target.value)} placeholder="Nome del conto, per esempio Leasing"
+          className="h-7 w-56 text-xs" aria-label="Nome del conto di costo nuovo"
+          onKeyDown={(e) => { if (e.key === "Enter" && nuovo.trim()) aggiungi.mutate(nuovo); if (e.key === "Escape") setNuovo(null); }} />
+        <Button size="sm" className="h-7 text-xs" disabled={!nuovo.trim() || aggiungi.isPending} onClick={() => aggiungi.mutate(nuovo)}>
+          {aggiungi.isPending ? "Aggiungo…" : "Aggiungi"}
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setNuovo(null)}>Annulla</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={valore} onValueChange={(v) => v !== valore && cambia.mutate(v)} disabled={cambia.isPending}>
+      <Select value={valore} onValueChange={(v) => { if (v === VOCE_NUOVO) setNuovo(""); else if (v !== valore) cambia.mutate(v); }} disabled={cambia.isPending}>
         <SelectTrigger className="h-7 w-auto min-w-[10rem] text-xs" aria-label="Conto di costo">
           <SelectValue />
         </SelectTrigger>
@@ -104,6 +144,7 @@ export function ContoDiCosto({ companyId, fatturaId, costoId, attuale, onCambiat
           {nomi.map((n) => (
             <SelectItem key={n} value={n}>{n}</SelectItem>
           ))}
+          <SelectItem value={VOCE_NUOVO}>+ Nuovo conto di costo…</SelectItem>
         </SelectContent>
       </Select>
       {!attuale ? <span className="text-xs text-muted-foreground">predefinito, nessuno l'ha scelto</span> : null}

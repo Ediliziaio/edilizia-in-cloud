@@ -211,7 +211,7 @@ export async function executeToolWithRouting(
         nascondiImporti:staffPerms.can_view_order_amounts!==true,
         nascondiMargini:staffPerms.can_view_margins!==true,
         nascondiCosti:staffPerms.can_view_costs!==true && staffPerms.can_manage_purchasing!==true,
-        nascondiPersonale:staffPerms.can_view_costs!==true || (staffPerms.can_view_employees!==true && staffPerms.can_view_persone!==true),
+        nascondiPersonale:(staffPerms.can_view_costs!==true && staffPerms.can_manage_purchasing!==true) || (staffPerms.can_view_employees!==true && staffPerms.can_view_persone!==true),
         nascondiIncassi:staffPerms.can_view_order_amounts!==true,
       },tool.domain);
       if ((JSON.stringify(restrictedInput) ?? "").includes(VALORE_NASCOSTO)) return {success:false,toolName,durationMs:Date.now()-t0,error:{code:"forbidden_data",message:"L’azione contiene campi economici o personali che non puoi modificare. Nessuna azione eseguita."}};

@@ -99,10 +99,14 @@ export function creaGestore(
       }
       if (mode === "archivia") {
         // Archiviare scrive: non basta la scheda Subappaltatori.
+        const nega = () =>
+          new Errore(
+            "Non hai il permesso di archiviare documenti della commessa",
+            403,
+          );
         for (
           const permission of [
             "can_view_subappaltatori_amministrazione",
-            "can_view_costs",
             "can_edit_orders",
           ]
         ) {
@@ -111,13 +115,14 @@ export function creaGestore(
             _permission: permission,
             _company_id: input.company_id,
           });
-          if (w.error || w.data !== true) {
-            throw new Errore(
-              "Non hai il permesso di archiviare documenti della commessa",
-              403,
-            );
-          }
+          if (w.error || w.data !== true) throw nega();
         }
+        // I costi: Costi oppure Gestione acquisti, la stessa regola dell'app.
+        const costi = await db.rpc("puo_vedere_costi", {
+          p_user: u,
+          p_company: input.company_id,
+        });
+        if (costi.error || costi.data !== true) throw nega();
       }
       const link = async (r: any) => {
         const obj = await db.storage.from(BUCKET).download(r.pdf_path);

@@ -58,6 +58,29 @@ describe("Chi vede e registra i costi", () => {
     }
   });
 
+  it("nel database non resta nessun'altra regola col solo can_view_costs", () => {
+    // Le migrazioni del 16/11 convertono funzioni, policy e schema private; le uniche
+    // escluse sono scritte nei loro commenti (finanza e amministrazione).
+    const fn = leggi("supabase/migrations/20290417140000_regola_unica_costi_funzioni.sql");
+    expect(fn).toContain("Restano funzioni con la vecchia regola");
+    for (const lasciata of ["puo_vedere_finanza", "puo_vedere_scadenze", "_cg_assert_lettura",
+                            "puo_vedere_documenti_fornitore", "puo_caricare_fattura_ricevuta", "has_cost_permission"]) {
+      expect(fn, lasciata).toContain(lasciata);
+    }
+    const pol = leggi("supabase/migrations/20290417140100_regola_unica_costi_regole_righe.sql");
+    expect(pol).toContain("alter policy");
+    expect(pol).toContain("Sostituzione non riuscita");
+    const priv = leggi("supabase/migrations/20290417140200_regola_unica_costi_funzioni_private.sql");
+    expect(priv).toContain("Restano funzioni private con la vecchia regola");
+  });
+
+  it("anche le edge function chiedono Costi oppure Gestione acquisti", () => {
+    expect(leggi("supabase/functions/genera-verbale-sal-sub/handler.ts")).toContain("puo_vedere_costi");
+    const silvio = leggi("supabase/functions/_shared/silvioActionPermission.ts");
+    expect(silvio).toContain("can_view_costs === true || permissions?.can_manage_purchasing === true");
+    expect(silvio).not.toMatch(/create_purchase_order:.*can_view_costs/);
+  });
+
   it("chi è in sola lettura resta fuori dalle scritture", () => {
     const sql = leggi("supabase/migrations/20290315100000_costi_anche_a_chi_gestisce_acquisti.sql");
     for (const nome of ["inserisce", "modifica", "elimina"]) {

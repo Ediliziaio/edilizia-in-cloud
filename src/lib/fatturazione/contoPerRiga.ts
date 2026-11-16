@@ -12,9 +12,31 @@
 /** Le categorie di base, per l'azienda che non ne ha create di sue (nomi della classificazione automatica). */
 export const CATEGORIE_DI_BASE = [
   "materiali", "materie_prime", "materiali_edili", "materiali_di_consumo", "attrezzature", "subappalti",
-  "consulenze_professionali", "noli_attrezzature", "carburanti", "trasporti", "utenze", "manutenzioni",
+  "consulenze_professionali", "noli_attrezzature", "leasing", "carburanti", "trasporti", "utenze", "manutenzioni",
   "assicurazioni", "affitti", "servizi_generali", "provvigioni", "personale", "tasse_imposte", "spese_bancarie", "altro",
 ];
+
+/**
+ * I conti da salvare quando se ne aggiunge uno a mano (16/11/2026).
+ *
+ * Il menu mostra i conti dell'azienda se ne ha, altrimenti quelli di base: chi aggiungeva il
+ * primo conto suo si ritrovava il menu con quella sola voce e tutte le altre sparite. Quindi
+ * il primo si salva insieme ai conti di base, e da lì in poi si aggiunge e basta.
+ * Il nome si confronta senza maiuscole e senza spazi ai lati: niente doppioni.
+ */
+export function contiDaCreare(nuovo: string, proprie: string[]): string[] {
+  const nome = nuovo.trim();
+  if (!nome) return [];
+  const chiave = (x: string) => x.trim().toLowerCase();
+  const viste = new Set(proprie.map(chiave));
+  const fuori: string[] = [];
+  for (const c of [...(proprie.length === 0 ? CATEGORIE_DI_BASE : []), nome]) {
+    if (viste.has(chiave(c))) continue;
+    viste.add(chiave(c));
+    fuori.push(c.trim());
+  }
+  return fuori;
+}
 
 /** «materiali_di_consumo» → «Materiali di consumo». */
 export function etichettaCategoria(c: string): string {
