@@ -21,6 +21,7 @@ import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { MonthlyTimeline } from "@/components/fatturazione/MonthlyTimeline";
+import { RiepilogoFatture } from "@/components/fatturazione/RiepilogoFatture";
 import { StatoBadge } from "@/components/fatturazione/StatoBadge";
 import { useEmesseSenzaIncasso } from "@/components/fatturazione/EmesseSenzaIncasso";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
@@ -374,6 +375,10 @@ function DocumentiFiscaliListInner() {
   const showSlowLoading = isLoading && slowLoadingKey === loadingKey;
   const { data: counts } = useDocumentCounts();
   const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear);
+  // L'anno prima serve solo alla variazione dei numeri veloci, e solo da tablet in su.
+  const { data: timelineMonthsPrima } = useMonthlyTimeline(currentTab.tipos, timelineYear - 1, {
+    enabled: !isTrash && activeTab === "fattura" && !isMobile,
+  });
 
   useEffect(() => {
     if (!isLoading) return;
@@ -722,6 +727,22 @@ function DocumentiFiscaliListInner() {
       </div>
 
       {esterna && effectiveCompany?.id && <ImportInCorsoBanner companyId={effectiveCompany.id} />}
+
+      {/* ── Numeri veloci (solo Fatture) ───────────────── */}
+      {!isTrash && activeTab === "fattura" && timelineMonths && (
+        <RiepilogoFatture
+          mesi={timelineMonths}
+          mesiAnnoPrima={timelineMonthsPrima}
+          meseScelto={selectedMonth}
+          isMobile={isMobile}
+          onSelectMonth={(m) => {
+            setSelectedMonth(m);
+            setFiltriEmesse(v => ({ ...v, dal: "", al: "" }));
+            setPage(0);
+            clearSelection();
+          }}
+        />
+      )}
 
       {/* ── Monthly Timeline ───────────────────────────── */}
       {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.

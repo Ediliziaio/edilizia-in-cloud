@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { formatCurrencyCompact } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
@@ -24,12 +24,14 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
 
   // Yearly totals
   const yearTotals = useMemo(() => {
-    let docs = 0, amount = 0;
+    let docs = 0, amount = 0, imponibile = 0, iva = 0;
     for (const m of months) {
       docs += m.docCount;
       amount += m.totalAmount;
+      imponibile += m.imponibile;
+      iva += m.iva;
     }
-    return { docs, amount };
+    return { docs, amount, imponibile, iva };
   }, [months]);
 
   return (
@@ -71,8 +73,9 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
       </div>
 
       {/* Month grid — su mobile scorre in orizzontale: con grid-cols-12 fisse le celle
-          scendevano a ~31px (testo su 3-4 righe, tap impossibile) */}
-      <div role="group" aria-label="Filtra documenti per mese" className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-12">
+          scendevano a ~31px (testo su 3-4 righe, tap impossibile). In fondo, la colonna
+          del totale dell'anno con imponibile e IVA (16/11/2026). */}
+      <div role="group" aria-label="Filtra documenti per mese" className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-[repeat(12,minmax(0,1fr))_minmax(0,1.7fr)]">
         {months.map((month) => {
           const isSelected = selectedMonth === month.key;
           const isCurrent = month.key === currentMonthKey;
@@ -81,6 +84,9 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
             <button
               key={month.key}
               aria-pressed={isSelected}
+              title={month.docCount > 0
+                ? `${month.label} ${month.year}: ${month.docCount} doc · totale ${formatCurrency(month.totalAmount)} · imponibile ${formatCurrency(month.imponibile)} · IVA ${formatCurrency(month.iva)}`
+                : `${month.label} ${month.year}: nessun documento`}
               onClick={() => onSelectMonth(isSelected ? null : month.key)}
               className={cn(
                 "min-w-[64px] flex-1 shrink-0 sm:min-w-0 border-r last:border-r-0 border-border px-1 py-2.5 text-center transition-colors hover:bg-accent/50 relative",
@@ -117,6 +123,21 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
             </button>
           );
         })}
+        <div
+          className="min-w-[132px] shrink-0 bg-muted/40 px-2 py-2.5 text-center sm:min-w-0"
+          aria-label={`Totale ${year}`}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Totale {year}</p>
+          <p className="mt-0.5 text-sm font-bold tabular-nums leading-tight" title={formatCurrency(yearTotals.amount)}>
+            {formatCurrencyCompact(yearTotals.amount)}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] tabular-nums text-muted-foreground" title={`Imponibile ${formatCurrency(yearTotals.imponibile)}`}>
+            Imp. {formatCurrencyCompact(yearTotals.imponibile)}
+          </p>
+          <p className="truncate text-[10px] tabular-nums text-muted-foreground" title={`IVA ${formatCurrency(yearTotals.iva)}`}>
+            IVA {formatCurrencyCompact(yearTotals.iva)}
+          </p>
+        </div>
       </div>
 
       {selectedMonth && (
