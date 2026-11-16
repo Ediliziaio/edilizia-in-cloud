@@ -12,7 +12,7 @@ import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, eu
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Download, FileInput, Lock, Plus, Printer, Trash2, Undo2 } from "lucide-react";
+import { Download, FileInput, Lock, Plus, Printer, Search, Trash2, Undo2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFiscalPeriod } from "@/hooks/useFiscalPeriod";
@@ -144,7 +144,7 @@ export default function ContabilitaGenerale() {
         title="Contabilità generale"
         actions={
           <Select value={String(p.anno)} onValueChange={(v) => p.set({ anno: v })}>
-            <SelectTrigger className="h-8 w-28" aria-label="Esercizio"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-40" aria-label="Esercizio"><SelectValue /></SelectTrigger>
             <SelectContent>
               {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() + 1 - i).map((a) => (
                 <SelectItem key={a} value={String(a)}>Esercizio {a}</SelectItem>
@@ -153,9 +153,19 @@ export default function ContabilitaGenerale() {
           </Select>
         }
       />
-      <div className="flex flex-wrap gap-2">
+      {/* Le viste su una riga sola, come linguette (16/11/2026): prima andavano a capo e sembravano pulsanti d'azione. */}
+      <div role="tablist" aria-label="Viste della contabilità" className="flex gap-1 overflow-x-auto rounded-xl border bg-card p-1">
         {([["scritture", "Scritture"], ["giornale", "Libro giornale"], ["mastrini", "Mastrini e partitari"], ["iva", "Liquidazione IVA"], ["bilancio", "Bilancio"], ["fine", "Fine anno e chiusura"], ["conti", "Piano dei conti"]] as const).map(([k, l]) => (
-          <Button key={k} size="sm" variant={vista === k ? "default" : "outline"} onClick={() => p.set({ vista: k })}>{l}</Button>
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={vista === k}
+            onClick={() => p.set({ vista: k })}
+            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition-colors ${vista === k ? "bg-primary font-medium text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+          >
+            {l}
+          </button>
         ))}
       </div>
       <StatoEsercizio companyId={companyId} anno={p.anno} />
@@ -343,6 +353,9 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const [mostra, setMostra] = useState(300);
   const [definitiva, setDefinitiva] = useState(false);
   const [filtro, setFiltro] = useState<GruppoOrigine>("tutte");
+  // Ricerca e mese (16/11/2026): con un migliaio di scritture l'elenco senza filtri non si legge.
+  const [cerca, setCerca] = useState("");
+  const [mese, setMese] = useState("");
   const nomi = useMemo(() => new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   // Fatture emesse e ricevute, incassi e pagamenti, movimenti di prima nota e F24 pagati
   // dell'esercizio diventano scritture.
@@ -384,10 +397,21 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
     return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
   }
   const elenco = scritture.data ?? [];
-  const g = costruisciGiornale(elenco, conti);
-  // Il filtro vale per l'elenco delle scritture; il libro giornale resta intero.
-  const visibili = filtro === "tutte" ? elenco : elenco.filter((s) => gruppoDi(s.origine) === filtro);
-  const quante = (k: GruppoOrigine) => (k === "tutte" ? elenco.length : elenco.filter((s) => gruppoDi(s.origine) === k).length);
+  const q = cerca.trim().toLowerCase();
+  const filtrate = !q && !mese ? elenco : elenco.filter((s) => {
+    if (mese && s.data_registrazione.slice(5, 7) !== mese) return false;
+    if (!q) return true;
+    return `${s.numero}/${s.esercizio}`.includes(q)
+      || s.causale.toLowerCase().includes(q)
+      || (s.descrizione ?? "").toLowerCase().includes(q)
+      || (s.documento_numero ?? "").toLowerCase().includes(q)
+      || s.contabilita_righe.some((r) => (nomi.get(r.conto_id) ?? "").toLowerCase().includes(q) || (r.descrizione ?? "").toLowerCase().includes(q));
+  });
+  const conFiltri = !!q || !!mese;
+  const g = costruisciGiornale(filtrate, conti);
+  // Il filtro dell'origine vale per l'elenco delle scritture; ricerca e mese valgono anche nel libro giornale.
+  const visibili = filtro === "tutte" ? filtrate : filtrate.filter((s) => gruppoDi(s.origine) === filtro);
+  const quante = (k: GruppoOrigine) => (k === "tutte" ? filtrate.length : filtrate.filter((s) => gruppoDi(s.origine) === k).length);
   // Per i riquadri: ultima data registrata e quante scritture per mese (fino al mese dell'ultima).
   const ultima = elenco.reduce<string | null>((u, s) => (!u || s.data_registrazione > u ? s.data_registrazione : u), null);
   const fino = ultima ? Number(ultima.slice(5, 7)) : 0;
@@ -431,12 +455,28 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           />
         </div>
       )}
+      {elenco.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <Input value={cerca} onChange={(e) => { setCerca(e.target.value); setMostra(300); }} placeholder="Cerca numero, causale, conto, cliente…" aria-label="Cerca nelle scritture" className="h-9 pl-8" />
+          </div>
+          <Select value={mese || "tutti"} onValueChange={(v) => { setMese(v === "tutti" ? "" : v); setMostra(300); }}>
+            <SelectTrigger className="h-9 w-40" aria-label="Mese"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutto il {anno}</SelectItem>
+              {MESI.map((m, i) => <SelectItem key={m} value={String(i + 1).padStart(2, "0")}>{m.charAt(0).toUpperCase() + m.slice(1)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {conFiltri && <Button size="sm" variant="ghost" className="h-9 text-muted-foreground" onClick={() => { setCerca(""); setMese(""); }}><X className="mr-1 h-3.5 w-3.5" />Azzera</Button>}
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
-          {anno}: {g.scritture} scritture · dare {euro(g.totaleDare)} · avere {euro(g.totaleAvere)}
+          {anno}: {g.scritture} scritture{conFiltri ? ` su ${elenco.length}` : ""} · dare {euro(g.totaleDare)} · avere {euro(g.totaleAvere)}
           {esercizio?.generato_il ? <> · {aggiornataAlle(esercizio.generato_il)}</> : null}
         </span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={apriStampa}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale</Button>
           {giornale ? (
             <>
@@ -462,7 +502,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             </thead>
             <tbody>
               {g.righe.length === 0 ? (
-                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nessuna scrittura nel {anno}.</td></tr>
+                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura nel ${anno}.`}</td></tr>
               ) : g.righe.slice(0, mostra * 5).map((r) => (
                 <tr key={r.progressivo} className={r.primaDellaScrittura ? "border-t" : ""}>
                   <td className="p-2 font-mono text-xs">{r.primaDellaScrittura ? r.numero : ""}</td>
@@ -491,7 +531,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           {elenco.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
           ) : visibili.length === 0 ? (
-            <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura di questo tipo nel {anno}.</p>
+            <p className="rounded-xl border p-4 text-sm text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura di questo tipo nel ${anno}.`}</p>
           ) : visibili.slice(0, mostra).map((s) => {
             const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
             return (
@@ -949,6 +989,8 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
   const [soggetto, setSoggetto] = useState<string | null>(null);
   const [stampa, setStampa] = useState<string | null>(null);
   const [mostra, setMostra] = useState(500);
+  // Cerca un cliente/fornitore nel partitario o un movimento nel mastrino (16/11/2026).
+  const [cercaM, setCercaM] = useState("");
   const movimentati = useMemo(() => {
     const usati = new Set((scritture.data ?? []).flatMap((s) => s.contabilita_righe.map((r) => r.conto_id)));
     return conti.filter((c) => c.movimentabile && usati.has(c.id));
@@ -960,8 +1002,14 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
   const conto = movimentati.find((c) => c.id === contoId) ?? movimentati.find((c) => contoAPartite(c)) ?? movimentati[0];
   if (!conto) return <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessun conto movimentato nel {anno}.</p>;
   const aPartite = contoAPartite(conto) && soggetto === null;
-  const partite = aPartite ? partitario(elenco, conto.id) : [];
-  const m = aPartite ? null : mastrino(elenco, conto.id, soggetto ?? undefined);
+  const qm = cercaM.trim().toLowerCase();
+  const partiteTutte = aPartite ? partitario(elenco, conto.id) : [];
+  const partite = qm ? partiteTutte.filter((x) => x.soggetto.toLowerCase().includes(qm)) : partiteTutte;
+  const totPartite = partite.reduce((t, x) => ({ dare: t.dare + x.dare, avere: t.avere + x.avere, saldo: t.saldo + x.saldo, movimenti: t.movimenti + x.movimenti }), { dare: 0, avere: 0, saldo: 0, movimenti: 0 });
+  const mTutto = aPartite ? null : mastrino(elenco, conto.id, soggetto ?? undefined);
+  const m = mTutto && qm
+    ? { ...mTutto, movimenti: mTutto.movimenti.filter((x) => `${x.causale} ${x.descrizione ?? ""} ${x.numero}`.toLowerCase().includes(qm)) }
+    : mTutto;
   const saldoTesto = (n: number) => (n === 0 ? euro(0) : `${euro(Math.abs(n))} ${n > 0 ? "D" : "A"}`);
   return (
     <div className="space-y-3">
@@ -979,6 +1027,11 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
         {soggetto !== null ? (
           <Button size="sm" variant="outline" onClick={() => setSoggetto(null)}>← Tutti i soggetti</Button>
         ) : null}
+        <div className="relative w-64">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Input value={cercaM} onChange={(e) => { setCercaM(e.target.value); setMostra(500); }}
+            placeholder={aPartite ? "Cerca cliente o fornitore…" : "Cerca nei movimenti…"} aria-label="Cerca nel mastrino" className="h-8 pl-8" />
+        </div>
         {!aPartite ? (
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => setStampa(htmlMastrino({
             azienda: intestazioneDa(anagrafica.data), scritture: elenco, conto, soggetto: soggetto ?? undefined,
@@ -993,8 +1046,11 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
               <tr><th className="p-2">{conto.codice_standard === "13.04" || /fornitor/i.test(conto.descrizione) ? "Fornitore" : "Cliente"}</th><th className="p-2 text-right">Movimenti</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
             </thead>
             <tbody>
+              {partite.length === 0 && (
+                <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">Nessun soggetto con «{cercaM}».</td></tr>
+              )}
               {partite.map((x) => (
-                <tr key={x.soggetto} className="cursor-pointer border-t hover:bg-muted/40" onClick={() => setSoggetto(x.soggetto)}>
+                <tr key={x.soggetto} className="cursor-pointer border-t hover:bg-muted/40" title="Apri la scheda di questo soggetto" onClick={() => { setSoggetto(x.soggetto); setCercaM(""); }}>
                   <td className="p-2">{x.soggetto}</td>
                   <td className="p-2 text-right tabular-nums text-muted-foreground">{x.movimenti}</td>
                   <td className="p-2 text-right tabular-nums">{euro(x.dare)}</td>
@@ -1003,6 +1059,17 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
                 </tr>
               ))}
             </tbody>
+            {partite.length > 1 && (
+              <tfoot className="border-t-2 bg-muted/40 font-medium">
+                <tr>
+                  <td className="p-2">Totale {qm ? "dei trovati" : "del conto"} · {partite.length} soggetti</td>
+                  <td className="p-2 text-right tabular-nums text-muted-foreground">{totPartite.movimenti}</td>
+                  <td className="p-2 text-right tabular-nums">{euro(totPartite.dare)}</td>
+                  <td className="p-2 text-right tabular-nums">{euro(totPartite.avere)}</td>
+                  <td className="p-2 text-right tabular-nums">{saldoTesto(totPartite.saldo)}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       ) : m ? (
@@ -1417,9 +1484,26 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
   const f = fine.data!;
   // Anche ammortamenti da rifare (registro cambiato dopo, o sceso a zero): «Registra» li riallinea.
   const daRegistrare = (f.totale_ammortamenti > 0 && !f.ammortamenti_registrati) || !!f.ammortamenti_da_aggiornare || (f.tfr > 0 && !f.tfr_registrato) || !!f.tfr_da_aggiornare;
+  // L'indice dei cinque passi in cima (16/11/2026): la pagina è lunga, così si salta al passo.
+  const passi: Array<[string, string, boolean | null]> = [
+    ["fine-1", "Ammortamenti e TFR", !daRegistrare],
+    ["fine-2", "Rimanenze", null],
+    ["fine-3", "Ratei e risconti", null],
+    ["fine-4", "Imposte", null],
+    ["fine-5", "Chiusura", chiuso],
+  ];
   return (
     <div className="space-y-4">
-      <section className="space-y-2">
+      <nav aria-label="Passi di fine anno" className="flex gap-1 overflow-x-auto rounded-xl border bg-muted/30 p-1">
+        {passi.map(([id, testo, fatto], i) => (
+          <button key={id} type="button" onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-background hover:text-foreground">
+            <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold ${fatto ? "bg-emerald-500 text-white" : "bg-background text-foreground ring-1 ring-border"}`}>{fatto ? "✓" : i + 1}</span>
+            {testo}
+          </button>
+        ))}
+      </nav>
+      <section id="fine-1" className="scroll-mt-20 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">1. Ammortamenti e TFR al 31/12/{anno}</h3>
           <Button size="sm" variant="outline" disabled={chiuso || !daRegistrare || registraFine.isPending} onClick={() => registraFine.mutate()}>
@@ -1441,22 +1525,22 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
         </p>
       </section>
 
-      <section className="space-y-2">
+      <section id="fine-2" className="scroll-mt-20 space-y-2">
         <h3 className="text-sm font-semibold">2. Rimanenze finali al 31/12/{anno}</h3>
         <RimanenzeFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
-      <section className="space-y-2">
+      <section id="fine-3" className="scroll-mt-20 space-y-2">
         <h3 className="text-sm font-semibold">3. Ratei e risconti al 31/12/{anno}</h3>
         <RateiRiscontiFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
-      <section className="space-y-2">
+      <section id="fine-4" className="scroll-mt-20 space-y-2">
         <h3 className="text-sm font-semibold">4. Imposte dell'esercizio (IRES e IRAP)</h3>
         <ImposteFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
-      <section className="space-y-2 rounded-xl border p-4">
+      <section id="fine-5" className="scroll-mt-20 space-y-2 rounded-xl border p-4">
         <h3 className="text-sm font-semibold">5. Chiusura dell'esercizio {anno}</h3>
         {chiuso ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
