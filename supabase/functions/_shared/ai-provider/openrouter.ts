@@ -18,6 +18,16 @@ export interface OpenRouterParams {
   max_tokens?: number;
   response_format?: { type: "json_object" };
   session_id?: string;
+  /**
+   * Quanto aspettare la risposta, per questa chiamata sola (16/11/2026).
+   *
+   * Il valore di serie, 25 secondi, va bene per una domanda a Silvio ma non per la lettura
+   * di un PDF: 16 allegati di fattura di quattro aziende sono morti su «Timeout dopo
+   * 25000ms» e, finiti i sei tentativi, nessuno li ha più ripresi. Chi legge un documento
+   * chiede più tempo qui, senza allungarlo a tutti. Il tetto vero resta quello di chi
+   * chiama: pg_net chiude la connessione alla sua scadenza e il lavoro si perde.
+   */
+  timeoutMs?: number;
 }
 
 export interface OpenRouterResult {
@@ -83,7 +93,8 @@ async function chiamaOpenRouter(
 
   for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
     const attemptId = metadata.turnControl?.beginAttempt(JSON.stringify([params.messages, params.tools ?? []]).length, params.max_tokens ?? 1500);
-    const timeoutMs = Math.min(DEFAULT_TIMEOUT_MS, metadata.turnControl?.remainingMs() ?? DEFAULT_TIMEOUT_MS);
+    const chiesto = params.timeoutMs && params.timeoutMs > 0 ? params.timeoutMs : DEFAULT_TIMEOUT_MS;
+    const timeoutMs = Math.min(chiesto, metadata.turnControl?.remainingMs() ?? chiesto);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const startMs = Date.now();

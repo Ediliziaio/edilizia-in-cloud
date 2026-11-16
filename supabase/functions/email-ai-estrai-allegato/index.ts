@@ -164,6 +164,11 @@ Deno.serve(async (req) => {
         // costa: si paga l'uscita prodotta, non il massimo concesso.
         max_tokens: 4000,
         temperature: 0,
+        // Leggere un PDF non è una domanda a Silvio: coi 25 secondi di serie sedici
+        // allegati di quattro aziende sono morti su «Timeout dopo 25000ms» e, finiti i
+        // sei tentativi, non li ha più ripresi nessuno (16/11/2026). Chi ci manda qui
+        // (silvio_email_dispatch_fatture) aspetta 120 secondi: 90 stanno dentro.
+        timeoutMs: 90_000,
         messages: [
           { role: "system", content: SYSTEM_ESTRAI },
           { role: "user", content: [
