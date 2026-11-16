@@ -174,11 +174,8 @@ telefono), `bolletteLettura.test.ts` (lettura e giro, con acqua e telefono),
   canoni o traffico; codice = codice cliente (`RiferimentoAmministrazione`, uno per contratto),
   altrimenti il numero di linea, altrimenti il gestore. I soli telefoni a rate non sono bollette.
 - POD e PDR vincono (Fastweb vende anche luce).
-- Il filtro del giro (`private.sembra_bolletta`) sta in
-  `docs/migrazioni-da-applicare/20290416210000_bollette_acqua_telefono.sql`: **non applicata**
-  (16/11 l'accesso al database era spento). Finché non lo è, il giro non vede acqua e telefono.
-  Dopo l'applicazione e il riallineamento si sposta in `supabase/migrations/` e si aggiorna il
-  percorso in `bolletteSql.test.ts`.
+- Il filtro del giro (`private.sembra_bolletta`) è la migrazione `20290416210000_bollette_acqua_telefono`,
+  applicata e riallineata il 16/11/2026 col via del titolare.
 - Un gestore telefonico non in elenco non si riconosce: si aggiunge a `GESTORI_TELEFONO` e alla
   funzione SQL insieme.
 
@@ -204,7 +201,10 @@ la scelta è della persona).
      da quella data prendono il costo nuovo quando vengono approvati; quelli già approvati
      restano come sono, e la scheda dice quanti hanno ancora il costo di prima. Aggiornarli è un
      passaggio esplicito ancora da costruire;
-   - `rapportino_costo_recupera` (il costo che mancava e arriva dopo) usa il primo costo noto.
+   - ~~`rapportino_costo_recupera` usava il costo di adesso~~ e ~~il costo calcolato dei mezzi senza storia~~ —
+     **fatti il 16/11/2026** (migrazione `20290415180000_costi_orari_completamento`): il costo che arriva
+     dopo vale alla data del lavoro; il costo calcolato dei mezzi si fotografa il 1° di ogni mese
+     (cron `mezzi-costo-calcolato-mensile`).
 2. ~~**Periodo del SAL del subappaltatore**~~ — **fatto il 15/11/2026** senza colonne nuove: il
    periodo del SAL si ricava dalle date di emissione (dal giorno dopo il SAL precedente alla data
    di questo), e una fattura che dichiara lavori dopo la data del SAL che cita ha l'avviso

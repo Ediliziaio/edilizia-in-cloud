@@ -3,7 +3,7 @@
 // validità, costo sulla commessa sotto l'interruttore, isolamento fra aziende. Nessuna AI.
 // Dal 16/11/2026 anche le regole della revisione (20290415210000: blocco della contabilizzazione,
 // scarto, ripartizione col segno, periodo senza fine), il filtro del giro (20290415200000) e acqua e
-// telefono (docs/migrazioni-da-applicare/20290416210000, non ancora applicata).
+// telefono (20290416210000).
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -85,7 +85,7 @@ beforeAll(async () => {
   // Della revisione si caricano le parti delle bollette (dalla 3 in poi): le prime due sono dei subappalti.
   const revisione = readFileSync("supabase/migrations/20290415210000_area_d_correzioni_revisione.sql", "utf8");
   await db.exec(senzaSet(revisione.slice(revisione.indexOf("-- ── 3."))));
-  await db.exec(senzaSet(readFileSync("docs/migrazioni-da-applicare/20290416210000_bollette_acqua_telefono.sql", "utf8")));
+  await db.exec(senzaSet(readFileSync("supabase/migrations/20290416210000_bollette_acqua_telefono.sql", "utf8")));
 });
 afterAll(async () => { await db.close(); });
 beforeEach(async () => {

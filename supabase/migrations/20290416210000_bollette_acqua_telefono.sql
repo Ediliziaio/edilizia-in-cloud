@@ -1,9 +1,6 @@
 -- Bollette di acqua e telefono nel giro delle bollette (16/11/2026).
 --
--- NON ANCORA APPLICATA. Sta fuori da supabase/migrations/ perché un file lì dentro va in
--- produzione al primo push: si applica con apply_migration, si riallinea la versione e poi si
--- sposta in supabase/migrations/ con lo stesso nome (vedi CLAUDE.md). Il test
--- src/test/logic/bolletteSql.test.ts la carica da qui; dopo lo spostamento, aggiornare il percorso.
+-- Applicata il 16/11/2026 con apply_migration e riallineata.
 --
 -- Fino a oggi `bollette_da_leggere` passava al giro solo le fatture con un POD o un PDR. Acqua e
 -- telefono non hanno un codice di formato fisso: le riconosce la lettura (shared/bollette/lettura.ts)
