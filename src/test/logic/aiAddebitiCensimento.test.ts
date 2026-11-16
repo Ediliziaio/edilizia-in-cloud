@@ -344,15 +344,13 @@ describe("revisione finale (15/11 notte)", () => {
     expect(s).toMatch(/rows = data\.filter\(\(r: any\) => creditoAzienda\.get\(r\.company_id\)\)/);
   });
 
-  it("credito prima di Whisper (WhatsApp) e degli embedding che girano da soli", () => {
+  it("credito prima di Whisper (WhatsApp); gli embedding sono regalati dal 16/11 e non lo controllano", () => {
     const wa = leggi("whatsapp-ai-processor/media.ts");
     expect(wa.indexOf("await precallCheck(")).toBeGreaterThan(0);
     expect(wa.indexOf("await precallCheck(")).toBeLessThan(wa.indexOf("await transcribeAudioWhisper("));
     expect(leggi("whatsapp-ai-processor/index.ts")).toMatch(/e instanceof CreditoTrascrizioneEsaurito/);
-    const ss = leggi("semantic-search-global/index.ts");
-    expect(ss.indexOf("await precallCheck(")).toBeLessThan(ss.indexOf("await generateEmbedding(query)"));
-    const eb = leggi("email-ai-embed-backfill/index.ts");
-    expect(eb.indexOf("await precallCheck(")).toBeLessThan(eb.indexOf("await generateEmbedding(text)"));
+    expect(leggi("semantic-search-global/index.ts")).not.toMatch(/precallCheck/);
+    expect(leggi("email-ai-embed-backfill/index.ts")).not.toMatch(/precallCheck/);
   });
 
   it("ricerca semantica: l'azienda del corpo vale se l'utente può accedervi", () => {

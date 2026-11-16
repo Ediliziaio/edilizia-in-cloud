@@ -40,7 +40,8 @@ export async function transcribeQuoteAudio(request: QuoteAudioRequest, db: Guard
         // Billing follows the verified requested company, never the profile's default.
         const charge = await chargeAndLogDirect({ supabase: db as Parameters<typeof chargeAndLogDirect>[0]['supabase'], company_id: request.companyId, task_kind: 'audio_transcription', model_used: QUOTE_AUDIO_MODEL, cost_usd_real: costUsd, cost_is_estimated: true,
           metadata: { user_id: userId, scope: 'quote_chat_audio', request_key: guard.key, audio_sha256: audioHash, audio_seconds: data.duration, file_size_bytes: blob.size, duration_ms: Date.now() - started } });
-        if (!charge.charged || !charge.usage_log_id) throw new Error('AudioLedgerUnconfirmed');
+        // «a_debito» (16/11/2026): credito finito dopo la trascrizione, l'importo si scala alla prossima ricarica.
+        if ((!charge.charged && charge.reason !== 'a_debito') || !charge.usage_log_id) throw new Error('AudioLedgerUnconfirmed');
         if (data.duration > 125 || !data.text.trim() || data.text.length > 12000) throw new Error('AudioDurationOrTranscriptInvalid');
         transcript = data.text.trim();
         // Durable deduplication stores receipt/hash only, no audio or transcript.

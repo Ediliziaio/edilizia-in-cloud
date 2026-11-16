@@ -337,13 +337,120 @@ La revisione dei commit `4d1618e04` e `1a2d2e449` ha segnalato nove difetti. Ogn
 8. **Ricerca semantica sempre sull'azienda del profilo.** Vero. Ora vale l'azienda del corpo se `user_can_access_company` lo consente.
 9. **Ripiego su `ad_video_jobs` per i video avviati prima del deploy.** **Non si può fare**: la tabella non esiste nel database, e l'inserimento in `ai-ads-video-generate` è sempre fallito senza dirlo. Non c'è un registro dei video vecchi da consultare. Un video avviato prima del deploy lo vede solo chi ha l'id della previsione, e non è mai stato addebitato.
 
-## 9. Decisioni commerciali aperte (per il titolare)
+## 9. Decisioni commerciali (approvate il 16/11/2026)
 
-1. **Ricarico unico?** Oggi il ricarico effettivo va da +80% (`vision_po`, diretta) a +2.382% (`documento_contratto`, router). La regola del router è «il più alto fra il listino del tier e 3× il costo». Si vuole un solo ricarico per tutto (per esempio 3× il costo vero, sempre), o un ricarico per compito scritto in una tabella?
-2. **Errore dopo che il provider ha lavorato**: oggi si addebita (il JSON non si legge, il salvataggio fallisce, il video Replicate fallisce dopo l'avvio). Va bene o si rimborsa?
-3. **Consumo incluso nel piano**: oggi c'è solo l'omaggio mensile in euro. Si vuole un numero di letture o chiamate incluse per piano, e oltre cosa succede: blocco, credito o avviso?
-4. **Consumo a credito finito dopo la chiamata** (riga `non_addebitato`): si lascia a carico nostro, si scala in negativo o si recupera alla ricarica successiva?
-5. **Video**: il prezzo si basa sulla stima del codice (3 e 20 centesimi a video) col ricarico del tier `t2_vision`. È il prezzo voluto per il video?
-6. **Embedding**: dal 15/11 quelli fatti per un'azienda (ricerca, email, computo, preventivi, contesto di Silvio) si addebitano col ricarico di `ai_pricing_markup` (`default`), come le altre chiamate dirette: millesimi di euro al mese. Si tengono o si regalano? Rerank Cohere e KB della piattaforma restano a carico nostro.
-7. **Silvio dei super admin**: resta costo interno. Proposta: sì, dichiarato com'è ora.
-8. **Analisi della foto dei render**: oggi è inclusa nel credito render (registrata, non addebitata come AI). Si tiene inclusa o si fa pagare a parte?
+Il titolare ha approvato le proposte («per i prezzi AI va bene come proponi»):
+
+| # | Domanda | Decisione | Stato |
+|---|---|---|---|
+| 1 | Ricarico unico o per compito? | Un ricarico per compito in una tabella (`ai_ricarico_compito`), stesso minimo di 3× il costo vero su tutte le strade | Meccanismo applicato; **prezzi in attesa del sì sull'anteprima** (§10) |
+| 2 | Errore nostro dopo che il provider ha lavorato | Si rimborsa, con una riga di rimborso | Applicato |
+| 3 | Consumo incluso nel piano (letture per piano) | Il numero lo decide il titolare | Fuori da questo lavoro |
+| 4 | Chiamata fatta a credito finito | Diventa un debito, scalato alla ricarica successiva (omaggio compreso) | Applicato |
+| 5 | Prezzo dei video | Da decidere quando i video tornano a funzionare (`ad_video_jobs` non esiste) | Fuori da questo lavoro |
+| 6 | Embedding | Regalati: costo della piattaforma, registrato | Applicato |
+| 7 | Silvio dei super admin | Costo nostro, dichiarato | Com'era |
+| 8 | Analisi della foto dei render | Inclusa nel credito render | Com'era |
+
+## 10. Come funzionano adesso (16/11/2026)
+
+Migrazione `20290417120000_ai_ricarico_rimborsi_debito.sql` (applicata, versione riallineata).
+
+**Ricarico per compito.** `ai_ricarico_compito(compito, moltiplicatore, regalato)`, letta da
+`ai_ricarico_per(compito, modello)`:
+
+- c'è la riga del compito → prezzo = costo vero × moltiplicatore;
+- altrimenti la riga `default`;
+- un `CHECK` impedisce un moltiplicatore sotto 3, e la funzione lo rialza comunque a 3;
+- un modello `*embed*` o una riga `regalato` → costo della piattaforma (vedi sotto).
+
+La leggono `charge_ai_call` (router, unità) e `deduct_ai_credits_with_markup` (quindi anche
+`addebita_ai_diretta` e `chat()` di `ai-provider`). Senza riga del compito e senza `default`
+valgono le regole di prima (tier con pavimento, `ai_pricing_markup`); il pavimento del tier non
+scende mai sotto 3×. Gli override per azienda (`ai_pricing_overrides`, oggi nessuno) restano sul
+listino del tier. Ogni riga del registro scrive la regola usata (`metadata.regola_ricarico`:
+`compito`, `default`, `tier`, `override`).
+
+**Anteprima.** `ai_ricarico_anteprima(giorni)` (super admin): per compito, ricarico di oggi
+(addebitato / costo vero), quello nuovo (dalla tabella, o la proposta: il prezzo di oggi, mai sotto
+3×), e la differenza in euro.
+
+**Rimborso.** `ai_rimborsa_addebito(motivo, chiave | ledger_id | usage_log_id)`, solo service role,
+dal codice `rimborsaAddebitoAi` (`_shared/rimborsoAi.ts`, non lancia mai):
+
+- la riga originale resta; si scrive una riga nuova: `status = 'refunded'` e importo negativo nel
+  router (il `CHECK` su `cost_billed_eur` ora lo permette solo per `refunded`), `error_code = 'rimborso'`
+  nella diretta; chiave `rimborso:<chiave originale>`, quindi è idempotente;
+- torna l'omaggio se è ancora il suo mese, torna il portafoglio (riga `in` nel registro del
+  portafoglio, senza contare come ricarica), si annulla l'eventuale debito ancora aperto;
+- nello storico crediti compare «Rimborso AI — compito: motivo» (`rimborso_ai`).
+
+Agganciato in: router (JSON chiesto e non leggibile sull'ultimo modello: `rimborsato: true` nel
+risultato), `ai-ads-video-status` (video fallito o senza file), `ai-fattura-classify` (JSON non
+leggibile, salvataggio fallito), `ddt-ai-extract` (lettura non leggibile). **Regola per i flussi
+nuovi:** se dopo una chiamata addebitata il lavoro fallisce per colpa nostra, `rimborsaAddebitoAi`
+con `ledgerId` (router) o `usageLogId` (diretta). Gli errori del provider non si addebitano già.
+
+**Debito.** Quando il credito (omaggio + portafoglio) non basta per una chiamata già fatta:
+
+- router: la riga si scrive col prezzo intero e `metadata.da_debito`, niente esce dal portafoglio;
+- diretta: riga `error_code = 'a_debito'` (prima era `non_addebitato`), `reason = 'a_debito'`;
+- in entrambi i casi una riga in `ai_debiti` (residuo, saldato, annullato);
+- `ai_credits_salda_debito`, trigger differito su `ai_credits`: quando saldo o omaggio crescono
+  (ricarica, omaggio del mese, rimborso) `ai_debito_salda` scala i debiti, prima dall'omaggio poi
+  dal portafoglio, anche a pezzi. Non fa mai fallire la ricarica;
+- il titolare lo vede in Crediti (`DebitoAiAlert`): «AI a debito: € …, si scala da solo alla
+  prossima ricarica». In «Consumo AI del team» la nota dice «a debito».
+
+`blocked` (tetto mensile o blocco dell'azienda) resta `non_addebitato`: chi ha messo un tetto non
+deve trovarsi un debito. Il 16/11 non c'era nessuna riga `non_addebitato` da convertire.
+
+**Embedding.** Non si addebitano più: la riga resta col costo vero e l'azienda, a 0
+(`status = 'skipped'` nel router, `error_code = 'interno_piattaforma'` nella diretta, nota «non
+addebitato: embedding…»). La ricerca semantica e l'embedding storico delle email non controllano
+più il credito.
+
+### Anteprima dei prezzi (ultimi 30 giorni, 16/11/2026)
+
+Totale addebitato in 30 giorni: 85,5 € su 25,6 € di costo vero (+234%). Con i nuovi ricarichi:
+**+0,44 €** in tutto. Cambia solo dove oggi si sta sotto 3×:
+
+| Compito | Strada | Chiamate | Costo vero | Addebitato oggi | Ricarico oggi | Nuovo | Addebitato nuovo |
+|---|---|---|---|---|---|---|---|
+| `vision_po` | diretta | 5 | 0,357 € | 0,643 € | 1,80× | 3× | 1,072 € (+0,43) |
+| `email_ai_digest` | diretta | 2 | 0,009 € | 0,017 € | 1,80× | 3× | 0,028 € (+0,01) |
+| `chat_routine` | diretta | 2 | 0,0007 € | 0,0018 € | 2,50× | 3× | 0,0021 € |
+| embedding (`email_embedding`, `memory_summary_embedding`, …) | entrambe | 78 | 0,0004 € | 0,0027 € | 3× / 43× | regalati | 0 |
+
+Tutti gli altri compiti mantengono il ricarico medio di oggi (es. `persona_silvio` 3,32×,
+`preventivo_genera` 3,06×, `pdf_vision_extract` 4,09×, `email_triage` 13,6×, `fattura_classify` 10×,
+`documento_contratto` 24,8×). Il prezzo di una singola chiamata può spostarsi di poco intorno alla
+media, perché oggi dipende dal modello che ha risposto; il totale per compito resta quello.
+
+Effetti fuori dai 30 giorni:
+
+- i compiti senza riga passano a 3× (riga `default`). Prima la strada diretta usava il ricarico del
+  modello (da 1,3× su Opus a 15× su Llama 8B), il router il listino del tier;
+- per i compiti mai visti la tabella usa la stima del listino del tier sul modello configurato
+  (es. `serramenti_photo_to_quote` 24,1×, i `template_*` su t4 a 3×);
+- `bot_operativo_titolare` passa sulle due strade allo stesso 3,02× (oggi 3× diretta, 13,95× router su 2 chiamate).
+
+I valori sono nella migrazione `20290417120100_ai_ricarico_per_compito_prezzi.sql`, **non ancora
+applicata**: si applica dopo il sì del titolare su questa anteprima.
+
+### Test
+
+- `src/test/logic/aiDecisioniCommerciali.test.ts`: rimborso del JSON non leggibile nel router (e
+  nessun rimborso col JSON leggibile o senza JSON chiesto), `rimborsaAddebitoAi` che non lancia,
+  punti agganciati, minimo 3×, funzioni chiuse ad anon, debito su router e diretta, avviso in Crediti,
+  ogni compito di embedding nel codice regalato.
+- Sul database, in transazioni annullate su Demo 2:
+  - embedding sul router `skipped` a 0;
+  - addebito di prima (0,0455 €), rimborso di 0,0455 € tornato nel portafoglio, secondo rimborso
+    `gia_rimborsato`;
+  - riga `default` a 4×: 0,0368 € (= 0,01 $ × 0,92 × 4); riga sotto 3× bloccata dal `CHECK`;
+  - portafoglio a zero: router e diretta a debito, embedding regalato anche a zero, rimborso della
+    diretta che annulla il debito, ricarica di 1 € che salda il debito del router (pool 0,9545 €);
+  - omaggio del mese di 0,03 € che salda 0,03 € di un debito di 0,0455 € (residuo 0,0155 €);
+  - con la tabella piena: `preventivo_genera` 3,06×, `email_triage` 13,63×, compito nuovo 3×
+    (`default`), `vision_po` 3×.

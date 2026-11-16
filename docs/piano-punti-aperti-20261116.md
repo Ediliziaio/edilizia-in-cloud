@@ -187,6 +187,8 @@ Il costo di ogni chiamata ora finisce all'azienda giusta; restano le scelte di p
 **Ti chiedo:** una risposta per riga, anche solo «ok».
 **Lavoro:** S–M a seconda delle risposte.
 
+**Stato (16/11):** approvate. Fatte 2, 4, 6 (rimborso, debito, embedding regalati) e il meccanismo dell'1; i prezzi per compito aspettano il sì sull'anteprima (`docs/ai-addebiti-censimento.md` §10). 3 e 5 restano fuori; 7 e 8 com'erano.
+
 ---
 
 ## 7. Video degli annunci rotti

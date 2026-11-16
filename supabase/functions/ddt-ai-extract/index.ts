@@ -14,6 +14,7 @@
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { rimborsaAddebitoAi } from "../_shared/rimborsoAi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_ANALISI_DOCUMENTI, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
@@ -141,6 +142,9 @@ Deno.serve(async (req) => {
     const letto = leggiJsonDalModello(aiResult.content);
     if (!letto) {
       console.error("[ddt-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
+      // Il provider ha lavorato ma la lettura non serve: errore nostro, si rimborsa (16/11/2026).
+      // deno-lint-ignore no-explicit-any
+      await rimborsaAddebitoAi(supabaseAdmin as any, { ledgerId: aiResult.ledgerId, motivo: "risposta JSON non leggibile" });
       const e = letturaNonRiuscita();
       return jsonResponse(e.body, e.status, cors);
     }

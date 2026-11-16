@@ -355,3 +355,17 @@ scritto nel censimento.
   un retry, non si richiama il provider (cache, `runGuardedAiRequest`, dato già letto).
 - Un flusso che sa chiudere un lavoro senza AI lo dice con `registraEsitoLavoroAi`:
   è il numero che il titolare vede in «Consumo AI del team».
+
+Dal 16/11/2026 (censimento §9-§10):
+- **Il prezzo lo decide `ai_ricarico_compito`**: costo vero × moltiplicatore del
+  compito, mai sotto 3× (un `CHECK` e `ai_ricarico_per`). Un compito nuovo senza riga
+  prende la riga `default`. Per cambiare un prezzo si cambia la riga, dopo
+  `ai_ricarico_anteprima(30)`, non i tier né `ai_pricing_markup`.
+- **Errore nostro dopo che il provider ha lavorato** (JSON non leggibile, salvataggio
+  fallito, video fallito): `rimborsaAddebitoAi(admin, { ledgerId | usageLogId, motivo })`
+  da `_shared/rimborsoAi.ts`. Scrive una riga di rimborso, mai cancellare la riga.
+- **Credito finito dopo la chiamata**: diventa un debito (`ai_debiti`), scalato da solo
+  alla ricarica o all'omaggio successivo. `reason = 'a_debito'` dalla strada diretta non
+  è un addebito mancato: chi controlla `charged` deve accettarlo.
+- **Embedding regalati**: modello `*embed*` → registrato a 0. Non controllare il credito
+  prima di un embedding.

@@ -8,6 +8,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { rimborsaAddebitoAi } from "../_shared/rimborsoAi.ts";
 
 const STORAGE_BUCKET = "ad-media";
 
@@ -115,7 +116,14 @@ Deno.serve(async (req) => {
         .eq("company_id", body.company_id)
         .catch(() => { /* table might not exist */ });
 
-      return fn({ status: "failed", error: prediction.error ?? "Generation failed or canceled" }, 200, corsHeaders);
+      // Video avviato e poi fallito: si rimborsa (decisione del 16/11/2026).
+      // Idempotente: il frontend interroga ogni 4 secondi, il rimborso è uno.
+      const rimborso = await rimborsaAddebitoAi(admin, {
+        idempotencyKey: `video_replicate_${body.replicate_id}`,
+        motivo: "video non generato",
+      });
+
+      return fn({ status: "failed", error: prediction.error ?? "Generation failed or canceled", rimborsato: rimborso.rimborsato }, 200, corsHeaders);
     }
 
     // ── succeeded ──────────────────────────────────────────────────────────────
@@ -127,7 +135,11 @@ Deno.serve(async (req) => {
       : (rawOutput ?? null);
 
     if (!videoUrl) {
-      return fn({ status: "failed", error: "No video URL in Replicate output" }, 200, corsHeaders);
+      const rimborso = await rimborsaAddebitoAi(admin, {
+        idempotencyKey: `video_replicate_${body.replicate_id}`,
+        motivo: "video senza file in uscita",
+      });
+      return fn({ status: "failed", error: "No video URL in Replicate output", rimborsato: rimborso.rimborsato }, 200, corsHeaders);
     }
 
     // Download video from Replicate CDN

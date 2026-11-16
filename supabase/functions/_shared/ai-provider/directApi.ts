@@ -119,7 +119,9 @@ export async function chargeAndLogDirect(
     balance_before?: number; balance_after?: number; cost_billed_eur?: number;
     margin_eur?: number; usage_log_id?: string;
   };
-  if (row.charged !== true && row.reason !== "idempotent_replay" && row.reason !== "no_company") {
+  // «regalato» (embedding) e «a_debito» (credito finito: si scala alla prossima
+  // ricarica) sono esiti previsti dal 16/11/2026, non un addebito mancato.
+  if (row.charged !== true && !["idempotent_replay", "no_company", "regalato", "a_debito"].includes(row.reason ?? "")) {
     console.warn(JSON.stringify({
       level: "warn", fn: "chargeAndLogDirect", msg: "consumo registrato ma non addebitato",
       task_kind: args.task_kind, company_id: args.company_id, reason: row.reason,

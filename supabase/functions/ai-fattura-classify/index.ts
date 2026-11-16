@@ -32,6 +32,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { rimborsaAddebitoAi } from "../_shared/rimborsoAi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { commessaFinale, decidiClassificazione, type CommessaDaRegole, type ConflittoDaRegole } from "../_shared/regolePrimaDellAi.ts";
 import { catenaDellaFattura } from "../_shared/catenaFatturaServer.ts";
@@ -265,6 +266,8 @@ async function classifyOne(
   try {
     parsed = JSON.parse(aiResult.content);
   } catch {
+    // Errore nostro dopo che il provider ha lavorato: si rimborsa (16/11/2026).
+    await rimborsaAddebitoAi(supabase, { ledgerId: aiResult.ledgerId, motivo: "risposta JSON non leggibile" });
     throw new Error("AI returned invalid JSON");
   }
 
@@ -282,8 +285,8 @@ async function classifyOne(
   const commessa = commessaFinale(regola, { orderId: orderMatchAi, confidenza: orderConf }, conflitto);
   const orderMatch = commessa.orderId;
 
-  // Persist
-  await supabase
+  // Persist. Se il salvataggio fallisce l'azienda non riceve niente: si rimborsa.
+  const { error: erroreSalvataggio } = await supabase
     .from("fatture_ricevute")
     .update({
       categoria_ai: cat,
@@ -297,6 +300,10 @@ async function classifyOne(
       ai_classify_model: aiResult.modelUsed,
     })
     .eq("id", fattura.id);
+  if (erroreSalvataggio) {
+    await rimborsaAddebitoAi(supabase, { ledgerId: aiResult.ledgerId, motivo: "salvataggio fallito" });
+    throw new Error(`Salvataggio della classificazione fallito: ${erroreSalvataggio.message}`);
+  }
 
   // Il costo nasce quando si contabilizza la fattura, e in quel momento prende
   // `categoria_ai` — ma se la fattura viene classificata DOPO (com'e' normale

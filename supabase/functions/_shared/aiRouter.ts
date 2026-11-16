@@ -38,6 +38,7 @@
 
 import { checkPaymentMethod } from "./requirePaymentMethod.ts";
 import { segnalaErroreAI } from "./allarmeAI.ts";
+import { rimborsaAddebitoAi } from "./rimborsoAi.ts";
 import { effectiveOutputTokens, isReasoningModel as modelUsesReasoning, precheckOutputTokens } from "./aiModelBudget.ts";
 import { AiTurnControl, AiTurnLimitError } from "./aiTurnControl.ts";
 import { AiProviderCreditError, AiRequestGuardError, aiRequestHash, isProviderCreditError, providerAttempt, runGuardedAiRequest, type GuardContext, type ProviderAttempt } from "./aiRequestGuard.ts";
@@ -189,6 +190,12 @@ export interface AiRouterCompleteResult {
   failedAttempts?: Array<{ model: string; error: string }>;
   idempotentReplay?: boolean;
   costSource?: "provider" | "tier_estimate" | "unknown";
+  /**
+   * True se l'addebito è stato stornato (16/11/2026): JSON chiesto e non
+   * leggibile. Il chiamante che poi fallisce il salvataggio usa
+   * `rimborsaAddebitoAi(supabase, { ledgerId, motivo })` (`_shared/rimborsoAi.ts`).
+   */
+  rimborsato?: boolean;
 }
 
 /** Errore custom con metadati per debug. */
@@ -1593,6 +1600,25 @@ export async function aiRouterComplete(
         }
       }
 
+      // ── JSON chiesto e non leggibile sull'ultimo modello: si rimborsa ──
+      // Decisione del 16/11/2026: il provider ha lavorato, ma la risposta non
+      // serve a niente. È un errore nostro (prompt, schema, modello scelto), non
+      // dell'azienda: l'addebito si storna con una riga di rimborso nel registro.
+      // Sui modelli prima dell'ultimo il caso non arriva qui (si passa al
+      // fallback prima dell'addebito).
+      let rimborsato = false;
+      if (_wantsJson && !hasToolCalls && ledgerId && costBilledEur > 0 && extractJson(content) === undefined) {
+        const esito = await rimborsaAddebitoAi(opts.supabase, {
+          ledgerId,
+          motivo: "risposta JSON non leggibile",
+        });
+        if (esito.rimborsato) {
+          rimborsato = true;
+          costBilledEur = 0;
+          marginEur = -costRealEur;
+        }
+      }
+
       // ── AI Test Lab — scrittura granulare per Demo Azienda ────────────
       // Best-effort: ogni errore qui non blocca il return della risposta.
       await writeTestRun(opts.supabase, {
@@ -1649,6 +1675,7 @@ export async function aiRouterComplete(
         durationMs,
         ledgerId,
         chargeSkipped,
+        ...(rimborsato ? { rimborsato: true } : {}),
         failedAttempts: attempts.length > 0 ? [...attempts] : undefined,
         costSource,
       };

@@ -13,7 +13,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
-import { precallCheck } from "../_shared/ai-provider/billing.ts";
 
 import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -53,9 +52,7 @@ serveConMetricheRapida("email-ai-embed-backfill", async (req) => {
       .is("embedding", null)
       .eq("is_personale", false)
       .order("received_at", { ascending: false })
-      // Selezione larga: le email delle aziende senza credito si scartano sotto,
-      // così non occupano il lotto delle altre.
-      .limit(Math.max(limit * 4, 200));
+      .limit(limit);
     if (body.company_id) q = q.eq("company_id", body.company_id);
 
     const { data: rows, error } = await q;
@@ -63,23 +60,15 @@ serveConMetricheRapida("email-ai-embed-backfill", async (req) => {
     if (!rows || rows.length === 0) return json({ processed: 0, embedded: 0 }, 200, cors);
 
     let embedded = 0;
-    // Credito PRIMA dell'embedding, una volta per azienda (revisione del 15/11/2026).
-    const credito = new Map<string, boolean>();
-    const senzaCredito: string[] = [];
+    // Embedding regalati dal 16/11/2026: nessun controllo del credito, il costo
+    // resta registrato come costo della piattaforma.
     for (const e of rows) {
-      const cid = (e as any).company_id as string | null;
-      if (cid && !credito.has(cid)) {
-        const pre = await precallCheck(supabase, { company_id: cid, task_kind: "email_embedding" as never, estimated_tokens_total: 2000 });
-        credito.set(cid, pre.allow);
-        if (!pre.allow) senzaCredito.push(cid);
-      }
-      if (cid && !credito.get(cid)) continue;
       if (embedded >= limit) break;
       const text = `${e.subject || ""}\n${stripHtml(e.raw_text, e.raw_html)}`.slice(0, 8000).trim();
       if (text.length < 10) continue;
       const emb = await generateEmbedding(text);
       if (!emb) continue;
-      // Embedding addebitato all'azienda della email (15/11/2026).
+      // Registrato all'azienda della email, a 0 sul portafoglio (regalato dal 16/11/2026).
       const uso = estimateEmbeddingUsage(text);
       await chargeAndLogDirect({
         supabase, company_id: (e as any).company_id ?? null, task_kind: "email_embedding",
@@ -94,7 +83,7 @@ serveConMetricheRapida("email-ai-embed-backfill", async (req) => {
       embedded++;
     }
 
-    return json({ processed: rows.length, embedded, aziende_senza_credito: senzaCredito }, 200, cors);
+    return json({ processed: rows.length, embedded }, 200, cors);
   } catch (e) {
     console.error("[email-ai-embed-backfill] error", e);
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, cors);

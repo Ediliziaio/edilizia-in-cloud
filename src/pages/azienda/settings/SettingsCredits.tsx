@@ -30,6 +30,7 @@ import { CreditsHistory } from "@/components/credits/CreditsHistory";
 import { ConsumoForecastChart } from "@/components/credits/ConsumoForecastChart";
 import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget";
 import TeamAIUsage from "@/components/credits/TeamAIUsage";
+import { DebitoAiAlert } from "@/components/credits/DebitoAiAlert";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -145,6 +146,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
           </AlertDescription>
         </Alert>
       )}
+
+      {/* AI fatta a credito finito: si scala alla prossima ricarica (16/11/2026). */}
+      <DebitoAiAlert companyId={companyId} />
 
       {/* ─── 1. RICARICA (in alto): saldo totale + ricarica manuale + auto ── */}
       <div className="space-y-5">

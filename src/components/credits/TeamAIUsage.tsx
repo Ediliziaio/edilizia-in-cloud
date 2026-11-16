@@ -166,10 +166,13 @@ export default function TeamAIUsage() {
   // ─── Aggregazioni ─────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const rows = ledger ?? [];
-    const successful = rows.filter(r => r.status === "success");
+    // Le righe di rimborso (16/11/2026: errore nostro dopo che il provider ha
+    // lavorato) hanno importo negativo: entrano nella spesa, non nelle chiamate.
+    const successful = rows.filter(r => r.status === "success" || r.status === "refunded");
+    const isChiamata = (r: LedgerRow) => r.status === "success" && Number(r.cost_billed_eur ?? 0) >= 0;
 
     const totalCost = successful.reduce((s, r) => s + Number(r.cost_billed_eur ?? 0), 0);
-    const totalCalls = successful.length;
+    const totalCalls = successful.filter(isChiamata).length;
     const avgCost = totalCalls > 0 ? totalCost / totalCalls : 0;
     const totalTokensIn = successful.reduce((s, r) => s + (r.tokens_in ?? 0), 0);
     const totalTokensOut = successful.reduce((s, r) => s + (r.tokens_out ?? 0), 0);
@@ -179,7 +182,7 @@ export default function TeamAIUsage() {
     successful.forEach(r => {
       const key = r.user_id ?? "_system_";
       const cur = byUser.get(key) ?? { calls: 0, cost: 0, tokens: 0, userId: r.user_id };
-      cur.calls += 1;
+      if (isChiamata(r)) cur.calls += 1;
       cur.cost += Number(r.cost_billed_eur ?? 0);
       cur.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
       byUser.set(key, cur);
@@ -189,7 +192,7 @@ export default function TeamAIUsage() {
     const byTask = new Map<string, { calls: number; cost: number; tokens: number }>();
     successful.forEach(r => {
       const cur = byTask.get(r.task_key) ?? { calls: 0, cost: 0, tokens: 0 };
-      cur.calls += 1;
+      if (isChiamata(r)) cur.calls += 1;
       cur.cost += Number(r.cost_billed_eur ?? 0);
       cur.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
       byTask.set(r.task_key, cur);
@@ -200,7 +203,7 @@ export default function TeamAIUsage() {
     successful.forEach(r => {
       if (!r.persona_key) return;
       const cur = byPersona.get(r.persona_key) ?? { calls: 0, cost: 0 };
-      cur.calls += 1;
+      if (isChiamata(r)) cur.calls += 1;
       cur.cost += Number(r.cost_billed_eur ?? 0);
       byPersona.set(r.persona_key, cur);
     });

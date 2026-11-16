@@ -5632,6 +5632,84 @@ export type Database = {
           },
         ]
       }
+      ai_debiti: {
+        Row: {
+          annullato_eur: number
+          chiuso_il: string | null
+          company_id: string
+          compito: string | null
+          created_at: string
+          id: string
+          importo_eur: number
+          origine: string
+          residuo_eur: number
+          riferimento_id: string
+          saldato_eur: number
+        }
+        Insert: {
+          annullato_eur?: number
+          chiuso_il?: string | null
+          company_id: string
+          compito?: string | null
+          created_at?: string
+          id?: string
+          importo_eur: number
+          origine: string
+          residuo_eur: number
+          riferimento_id: string
+          saldato_eur?: number
+        }
+        Update: {
+          annullato_eur?: number
+          chiuso_il?: string | null
+          company_id?: string
+          compito?: string | null
+          created_at?: string
+          id?: string
+          importo_eur?: number
+          origine?: string
+          residuo_eur?: number
+          riferimento_id?: string
+          saldato_eur?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_debiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_debiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_debiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_debiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_debiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+        ]
+      }
       ai_demo_default_models: {
         Row: {
           company_id: string
@@ -8906,6 +8984,33 @@ export type Database = {
             referencedColumns: ["azienda_id"]
           },
         ]
+      }
+      ai_ricarico_compito: {
+        Row: {
+          aggiornato_il: string
+          compito: string
+          moltiplicatore: number | null
+          note: string | null
+          origine: string | null
+          regalato: boolean
+        }
+        Insert: {
+          aggiornato_il?: string
+          compito: string
+          moltiplicatore?: number | null
+          note?: string | null
+          origine?: string | null
+          regalato?: boolean
+        }
+        Update: {
+          aggiornato_il?: string
+          compito?: string
+          moltiplicatore?: number | null
+          note?: string | null
+          origine?: string | null
+          regalato?: boolean
+        }
+        Relationships: []
       }
       ai_router_config: {
         Row: {
@@ -147170,6 +147275,7 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: undefined
       }
+      ai_debito_salda: { Args: { p_company_id: string }; Returns: number }
       ai_default_action_policy: {
         Args: { p_action_type: string }
         Returns: Json
@@ -147247,6 +147353,38 @@ export type Database = {
           regola: string
           ricarico_effettivo_pct: number
         }[]
+      }
+      ai_ricarico_anteprima: {
+        Args: { p_giorni?: number }
+        Returns: {
+          addebitato_nuovo_eur: number
+          addebitato_oggi_eur: number
+          chiamate: number
+          compito: string
+          costo_reale_eur: number
+          differenza_eur: number
+          fonte_nuovo: string
+          ricarico_nuovo: number
+          ricarico_oggi: number
+          strade: string
+        }[]
+      }
+      ai_ricarico_per: {
+        Args: { p_compito: string; p_modello: string }
+        Returns: {
+          moltiplicatore: number
+          regalato: boolean
+          regola: string
+        }[]
+      }
+      ai_rimborsa_addebito: {
+        Args: {
+          p_idempotency_key?: string
+          p_ledger_id?: string
+          p_motivo: string
+          p_usage_log_id?: string
+        }
+        Returns: Json
       }
       ai_test_lab_kpi: {
         Args: { p_company_id: string; p_from?: string; p_to?: string }
@@ -156605,6 +156743,7 @@ export type Database = {
       }
       puo_vedere_clienti: { Args: { p_company_id: string }; Returns: boolean }
       puo_vedere_commessa: { Args: { p_order_id: string }; Returns: boolean }
+      puo_vedere_costi: { Args: { p_company: string }; Returns: boolean }
       puo_vedere_ddt: { Args: { p_ddt: string }; Returns: boolean }
       puo_vedere_documenti_fornitore: { Args: never; Returns: boolean }
       puo_vedere_finanza: { Args: { p_company_id: string }; Returns: boolean }

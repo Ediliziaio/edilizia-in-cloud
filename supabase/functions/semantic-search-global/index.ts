@@ -29,7 +29,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { chargeAndLogDirect, estimateEmbeddingUsage } from "../_shared/ai-provider/directApi.ts";
-import { precallCheck } from "../_shared/ai-provider/billing.ts";
 
 interface SearchBody {
   query: string;
@@ -145,15 +144,8 @@ Deno.serve(async (req) => {
 
   const t0Total = Date.now();
 
-  // Credito PRIMA dell'embedding (revisione del 15/11/2026).
-  if (companyId) {
-    const pre = await precallCheck(admin, { company_id: companyId, task_kind: "semantic_search_embedding" as never, estimated_tokens_total: 500 });
-    if (!pre.allow) {
-      return new Response(JSON.stringify({ results: [], error: "insufficient_credits", message: pre.user_message_it || "Crediti AI esauriti." }), {
-        status: 402, headers: { ...cors, "Content-Type": "application/json" },
-      });
-    }
-  }
+  // Embedding regalato (decisione del 16/11/2026): nessun controllo del credito.
+  // Il costo vero resta registrato come costo della piattaforma (ai_ricarico_per).
 
   // 1) Embed query
   const tEmbStart = Date.now();
@@ -161,7 +153,8 @@ Deno.serve(async (req) => {
   const queryEmbMs = Date.now() - tEmbStart;
 
   if (queryEmbedding) {
-    // Embedding addebitato all'azienda che cerca (strada diretta, ai_pricing_markup).
+    // Registrato all'azienda che cerca, a 0 sul portafoglio: gli embedding sono
+    // regalati dal 16/11/2026 (addebita_ai_diretta → «regalato»).
     const uso = estimateEmbeddingUsage(query.substring(0, 8000));
     await chargeAndLogDirect({
       supabase: admin, company_id: companyId, task_kind: "semantic_search_embedding",
