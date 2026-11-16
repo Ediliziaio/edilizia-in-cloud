@@ -226,7 +226,7 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
       </table>`
     : "";
   const pagamentoHtml = doc.metodo_pagamento_codice
-    ? `<div class="fd-riquadro">
+    ? `<div class="fd-riquadro fd-pagamento">
       <div class="fd-etichetta">Pagamento</div>
       <div class="fd-metodo">${esc(nomeModalitaPagamento(doc.metodo_pagamento_codice, doc.metodo_pagamento_nome))}</div>
       ${doc.iban_pagamento ? `<div>IBAN <span class="fd-iban">${esc(ibanLeggibile(doc.iban_pagamento))}</span></div>` : ""}
@@ -237,7 +237,7 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
     </div>`
     : "";
   const noteHtml = doc.note_documento
-    ? `<div class="fd-riquadro">
+    ? `<div class="fd-riquadro fd-note">
       <div class="fd-etichetta">Note</div>
       <div class="fd-testo">${esc(doc.note_documento)}</div>
     </div>`
@@ -273,11 +273,15 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   ${tabellaRighe}
 
   <div class="fd-conti">
-    ${riepilogoHtml}
-    <div class="fd-totali"><table><tbody>${totaliHtml}</tbody></table></div>
+    <div class="fd-colonna fd-sinistra">
+      ${riepilogoHtml}
+      ${pagamentoHtml}
+    </div>
+    <div class="fd-colonna fd-destra">
+      <div class="fd-totali"><table><tbody>${totaliHtml}</tbody></table></div>
+      ${noteHtml}
+    </div>
   </div>
-
-  ${pagamentoHtml || noteHtml ? `<div class="fd-info">${pagamentoHtml}${noteHtml}</div>` : ""}
 
   ${azienda.regime_fiscale === "RF19" ? `<div class="fd-forfettario">Operazione effettuata ai sensi dell'art. 1, commi da 54 a 89, L. n. 190/2014. Non soggetta a ritenuta d'acconto ai sensi del comma 67, L. n. 190/2014.</div>` : ""}
 

@@ -357,9 +357,10 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-valore.fd-evidenza { font-size: 11pt; font-weight: 800; color: ${t.accentoTesto}; }
 .fd-riquadro { border: 1px solid #e2e8f0; border-radius: 2mm; padding: 3.4mm 4.2mm; }
 .fd-destinatario { text-align: left; }
-.fd-fascia { display: flex; align-items: stretch; gap: 5mm; margin: 0 0 3.5mm; }
+.fd-fascia { display: flex; align-items: flex-start; gap: 5mm; margin: 0 0 3.5mm; }
 .fd-fascia > * { flex: 1 1 0; min-width: 0; margin: 0; }
 .fd-fascia > .fd-riferimenti { display: block; }
+.fd-fascia > .fd-destinatario:only-child { flex: 0 1 50%; }
 .fd-etichetta { margin-bottom: 1.2mm; font-size: 6.8pt; font-weight: 600; line-height: 1.3; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
 .fd-cliente { margin-bottom: 0.8mm; font-size: 10.5pt; font-weight: 700; line-height: 1.25; color: #0f172a; }
 .fd-cliente-dati { font-size: 8pt; line-height: 1.55; color: #475569; }
@@ -382,11 +383,14 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-sotto { margin-top: 0.6mm; font-size: 7.4pt; color: #64748b; }
 .fd-sotto-nota { font-style: italic; }
 .fd-conti { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; margin-top: 3.6mm; break-inside: avoid; page-break-inside: avoid; }
-.fd-riepilogo { flex: 1 1 auto; min-width: 0; }
+.fd-colonna { display: flex; flex-direction: column; gap: 4mm; min-width: 0; }
+.fd-colonna.fd-sinistra { flex: 1 1 auto; }
+.fd-colonna.fd-destra { flex: 0 0 82mm; margin-left: auto; }
+.fd-riepilogo { min-width: 0; }
 .fd-riepilogo table { width: 100%; font-size: 8.2pt; }
 .fd-riepilogo th { padding: 1.3mm 2mm; border-bottom: 1px solid #cbd5e1; text-align: left; font-size: 6.8pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
 .fd-riepilogo td { padding: 1.5mm 2mm; border-bottom: 1px solid #eef2f6; color: #334155; }
-.fd-totali { flex: 0 0 82mm; margin-left: auto; }
+.fd-totali { min-width: 0; }
 .fd-totali table { width: 100%; font-size: 9pt; }
 .fd-totali td { padding: 1.3mm 2.5mm; color: #334155; white-space: nowrap; }
 .fd-totali td.fd-d { color: #0f172a; }
@@ -395,8 +399,7 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-totali .fd-finale td:first-child { border-radius: 1.5mm 0 0 1.5mm; }
 .fd-totali .fd-finale td:last-child { border-radius: 0 1.5mm 1.5mm 0; }
 .fd-totali .fd-stacco td { height: 1.6mm; padding: 0; }
-.fd-info { display: flex; align-items: stretch; gap: 5mm; margin-top: 4mm; break-inside: avoid; page-break-inside: avoid; }
-.fd-info > .fd-riquadro { flex: 1 1 0; min-width: 0; font-size: 8.2pt; line-height: 1.55; color: #334155; }
+.fd-riquadro.fd-pagamento, .fd-riquadro.fd-note { font-size: 8.2pt; line-height: 1.55; color: #334155; }
 .fd-metodo { margin-bottom: 1mm; font-size: 9pt; font-weight: 600; color: #0f172a; }
 .fd-iban { font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 8.6pt; font-weight: 600; letter-spacing: 0.02em; color: #0f172a; }
 .fd-rate { width: 100%; margin-top: 2mm; font-size: 8pt; }

@@ -203,55 +203,27 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
         )}
 
         {!isDdt && <div className="fd-conti">
-          {riepilogo.length > 0 && (
-            <div className="fd-riepilogo">
-              <table>
-                <thead>
-                  <tr><th>Aliquota IVA</th><th className="fd-d">Imponibile</th><th className="fd-d">Imposta</th></tr>
-                </thead>
-                <tbody>
-                  {riepilogo.map((r, i) => (
-                    <tr key={i}>
-                      <td>{aliquota(r.aliquota, r.natura)}</td>
-                      <td className="fd-d">{euro(r.imponibile)}</td>
-                      <td className="fd-d">{euro(r.imposta)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div className="fd-totali">
-            <table>
-              <tbody>
-                {vociTotali(doc).map((v, i) => (
-                  <FragmentoTotale key={i} voce={v.voce} importo={v.importo} tipo={v.tipo} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>}
-
-        {isDdt && (
-          <div className="fd-riquadro">
-            <div className="fd-etichetta">Trasporto</div>
-            <Righe righe={[
-              `Causale: ${etichettaCausale(doc.ddt_causale_trasporto) || "—"}`,
-              `Aspetto dei beni: ${doc.ddt_aspetto_beni || "—"}`,
-              `Colli: ${doc.ddt_numero_colli ?? "—"}`,
-              `Peso: ${doc.ddt_peso || "—"}`,
-              `Porto: ${doc.ddt_porto || "—"}`,
-              `Mezzo: ${doc.ddt_mezzo_trasporto || "—"}`,
-              `Vettore: ${doc.ddt_vettore?.ragione_sociale || doc.ddt_vettore?.denominazione || doc.ddt_vettore?.descrizione || doc.ddt_vettore?.tipo || "—"}`,
-              `Data consegna: ${doc.ddt_data_ora_consegna ? new Date(doc.ddt_data_ora_consegna).toLocaleString("it-IT") : "—"}`,
-              `Consegna: ${(typeof doc.ddt_indirizzo_consegna === "string" ? doc.ddt_indirizzo_consegna : doc.ddt_indirizzo_consegna?.indirizzo) || "—"}`,
-            ]} />
-          </div>
-        )}
-        {((!isDdt && doc.metodo_pagamento_codice) || doc.note_documento) && (
-          <div className="fd-info">
-            {!isDdt && doc.metodo_pagamento_codice && (
-              <div className="fd-riquadro">
+          <div className="fd-colonna fd-sinistra">
+            {riepilogo.length > 0 && (
+              <div className="fd-riepilogo">
+                <table>
+                  <thead>
+                    <tr><th>Aliquota IVA</th><th className="fd-d">Imponibile</th><th className="fd-d">Imposta</th></tr>
+                  </thead>
+                  <tbody>
+                    {riepilogo.map((r, i) => (
+                      <tr key={i}>
+                        <td>{aliquota(r.aliquota, r.natura)}</td>
+                        <td className="fd-d">{euro(r.imponibile)}</td>
+                        <td className="fd-d">{euro(r.imposta)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {doc.metodo_pagamento_codice && (
+              <div className="fd-riquadro fd-pagamento">
                 <div className="fd-etichetta">Pagamento</div>
                 <div className="fd-metodo">{nomeModalitaPagamento(doc.metodo_pagamento_codice, doc.metodo_pagamento_nome)}</div>
                 {doc.iban_pagamento && <div>IBAN <span className="fd-iban">{ibanLeggibile(doc.iban_pagamento)}</span></div>}
@@ -274,12 +246,46 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
                 )}
               </div>
             )}
+          </div>
+          <div className="fd-colonna fd-destra">
+            <div className="fd-totali">
+              <table>
+                <tbody>
+                  {vociTotali(doc).map((v, i) => (
+                    <FragmentoTotale key={i} voce={v.voce} importo={v.importo} tipo={v.tipo} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {doc.note_documento && (
-              <div className="fd-riquadro">
+              <div className="fd-riquadro fd-note">
                 <div className="fd-etichetta">Note</div>
                 <div className="fd-testo">{doc.note_documento}</div>
               </div>
             )}
+          </div>
+        </div>}
+
+        {isDdt && (
+          <div className="fd-riquadro">
+            <div className="fd-etichetta">Trasporto</div>
+            <Righe righe={[
+              `Causale: ${etichettaCausale(doc.ddt_causale_trasporto) || "—"}`,
+              `Aspetto dei beni: ${doc.ddt_aspetto_beni || "—"}`,
+              `Colli: ${doc.ddt_numero_colli ?? "—"}`,
+              `Peso: ${doc.ddt_peso || "—"}`,
+              `Porto: ${doc.ddt_porto || "—"}`,
+              `Mezzo: ${doc.ddt_mezzo_trasporto || "—"}`,
+              `Vettore: ${doc.ddt_vettore?.ragione_sociale || doc.ddt_vettore?.denominazione || doc.ddt_vettore?.descrizione || doc.ddt_vettore?.tipo || "—"}`,
+              `Data consegna: ${doc.ddt_data_ora_consegna ? new Date(doc.ddt_data_ora_consegna).toLocaleString("it-IT") : "—"}`,
+              `Consegna: ${(typeof doc.ddt_indirizzo_consegna === "string" ? doc.ddt_indirizzo_consegna : doc.ddt_indirizzo_consegna?.indirizzo) || "—"}`,
+            ]} />
+          </div>
+        )}
+        {isDdt && doc.note_documento && (
+          <div className="fd-riquadro fd-note">
+            <div className="fd-etichetta">Note</div>
+            <div className="fd-testo">{doc.note_documento}</div>
           </div>
         )}
 
