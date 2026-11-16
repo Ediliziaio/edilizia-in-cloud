@@ -1,9 +1,17 @@
 // src/components/orders/generali/unita/TabellaUnita.tsx
 // Le unità in tabella (da tablet e computer): prezzi, stato, acquirente, pagato, margine.
 // Una riga si apre come una casella del tabellone.
+//
+// I m² si scrivono qui, nella cella (16/11/2026): servono ai €/m² dell'operazione e finora si
+// potevano mettere solo aprendo l'unità, una finestra per volta — su 26 unità nessuno lo fa, e
+// infatti nel database 50 unità su 77 non hanno i metri quadri. Invio salva e passa alla
+// successiva, così si compila la colonna di seguito.
+import { useState } from "react";
 import { NOMI_STATO, confrontaSigle, etichettaPiano, prezzoConVarianti, unitaVive, type ElencoUnita } from "@/lib/orders/generali/unita";
 import { formattaNumero, pagamentiUnita, type ContiUnita, type RiepilogoVendite } from "@/lib/orders/generali/unitaConti";
 import { STILE_STATO, euro } from "@/components/orders/generali/unita/aspetto";
+import { useSalvaUnita } from "@/hooks/useGeneraleUnita";
+import { leggiMq } from "@/components/orders/generali/design/SuperficieAMano";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -11,11 +19,18 @@ interface Props {
   conti: ContiUnita;
   riepilogo: RiepilogoVendite;
   onApri: (orderId: string) => void;
+  /** Con questo i m² si scrivono nella cella. */
+  generaleId?: string;
+  puoModificare?: boolean;
 }
 
-export function TabellaUnita({ elenco, conti, riepilogo, onApri }: Props) {
+export function TabellaUnita({ elenco, conti, riepilogo, onApri, generaleId, puoModificare }: Props) {
   const p = elenco.permessi;
   const vive = [...unitaVive(elenco.unita)].sort((a, b) => confrontaSigle(a.sigla, b.sigla));
+  const [inModifica, setInModifica] = useState<string | null>(null);
+  const salvaMq = useSalvaUnita(generaleId ?? "");
+  const mqScrivibili = !!generaleId && !!puoModificare;
+  const dopo = (orderId: string) => vive[vive.findIndex((u) => u.orderId === orderId) + 1]?.orderId ?? null;
   const margini = p.margini && conti.costiComuni !== null;
   const totaleMargine = margini ? vive.reduce((t, u) => t + (conti.perUnita.get(u.orderId)?.margine ?? 0), 0) : null;
   const somma = (f: (u: (typeof vive)[number]) => number | null) => vive.reduce((t, u) => t + (f(u) ?? 0), 0);
@@ -51,7 +66,43 @@ export function TabellaUnita({ elenco, conti, riepilogo, onApri }: Props) {
                   {u.edificio && <p className="text-xs text-muted-foreground">{u.edificio}</p>}
                 </td>
                 <td className="px-2 py-2 text-xs">{u.piano ? etichettaPiano(u.piano) : "—"}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{u.mq !== null ? formattaNumero(u.mq) : "—"}</td>
+                <td className="px-2 py-2 text-right tabular-nums" onClick={(ev) => mqScrivibili && ev.stopPropagation()}>
+                  {!mqScrivibili ? (
+                    u.mq !== null ? formattaNumero(u.mq) : "—"
+                  ) : inModifica === u.orderId ? (
+                    <input
+                      autoFocus
+                      inputMode="decimal"
+                      aria-label={`Metri quadri di ${u.sigla}`}
+                      defaultValue={u.mq !== null ? String(u.mq) : ""}
+                      disabled={salvaMq.isPending}
+                      className="w-20 rounded border bg-background px-1.5 py-0.5 text-right tabular-nums"
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Escape") { ev.preventDefault(); setInModifica(null); }
+                        if (ev.key === "Enter") { ev.preventDefault(); (ev.target as HTMLInputElement).blur(); }
+                      }}
+                      onBlur={(ev) => {
+                        const testo = ev.target.value.trim();
+                        const mq = leggiMq(testo);
+                        // Testo illeggibile: si lascia com'era, non si cancella il valore buono.
+                        // Campo svuotato di proposito: si cancella. Uguale a prima: niente scrittura.
+                        if ((testo === "" || mq !== null) && mq !== u.mq) {
+                          salvaMq.mutate({ orderId: u.orderId, dati: { mq_commerciali: mq } });
+                        }
+                        setInModifica(dopo(u.orderId));
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className={cn("w-full rounded px-1 text-right hover:bg-muted", u.mq === null && "text-muted-foreground")}
+                      title="Scrivi i metri quadri"
+                      onClick={() => setInModifica(u.orderId)}
+                    >
+                      {u.mq !== null ? formattaNumero(u.mq) : "—"}
+                    </button>
+                  )}
+                </td>
                 <td className="px-2 py-2 text-right tabular-nums">{u.millesimi !== null ? formattaNumero(u.millesimi) : "—"}</td>
                 {p.importi && <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{euro(u.listino)}</td>}
                 {p.importi && <td className="px-2 py-2 text-right tabular-nums">{u.stato === "libera" ? "—" : euro(prezzoConVarianti(u))}</td>}

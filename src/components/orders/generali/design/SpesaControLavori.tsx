@@ -14,12 +14,14 @@ const pct = (v: number) => `${v.toLocaleString("it-IT", { maximumFractionDigits:
 interface Props {
   speso: number;
   budget: number;
-  /** Avanzamento dei lavori, 0-100. Null quando non lo si sa ancora. */
+  /** Avanzamento dei lavori, 0-100. Null quando non c'è nessuna fase di cantiere da cui dedurlo. */
   avanzamento: number | null;
+  /** Quante fasi di cantiere lo dicono: zero fasi non è «0% fatto», è «non lo sappiamo». */
+  fasi?: number;
   budgetParziale?: boolean;
 }
 
-export function SpesaControLavori({ speso, budget, avanzamento, budgetParziale }: Props) {
+export function SpesaControLavori({ speso, budget, avanzamento, fasi, budgetParziale }: Props) {
   const spesoPct = budget > 0 ? (speso / budget) * 100 : 0;
   const resta = budget - speso;
   // Lo scarto fra i due: spendere più di quanto si costruisce è il segnale da dare.
@@ -56,6 +58,11 @@ export function SpesaControLavori({ speso, budget, avanzamento, budgetParziale }
       </div>
       <div className="generale-hero-note mt-3 text-[11px]">
         <span>Importi al netto dell'IVA.</span>
+        {/* Senza fasi di cantiere non si disegna una barra a zero, che sembrerebbe un cantiere
+            fermo: si dice che manca il termine di paragone (16/11/2026). */}
+        {avanzamento === null && fasi === 0 && (
+          <span> Per confrontare la spesa coi lavori fatti, dividi il lavoro in fasi nel cantiere.</span>
+        )}
       </div>
     </div>
   );

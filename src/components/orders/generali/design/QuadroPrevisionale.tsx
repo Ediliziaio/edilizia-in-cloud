@@ -12,6 +12,7 @@
  */
 import { cn } from "@/lib/utils";
 import { noteSuperficie, type NumeriOperazione } from "@/lib/orders/generali/numeriOperazione";
+import { SuperficieAMano } from "@/components/orders/generali/design/SuperficieAMano";
 
 const euro = (v: number | null) =>
   v === null ? "—" : v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -42,9 +43,11 @@ interface Props {
   budgetParziale?: boolean;
   /** Nessun costo previsto nel piano: si dice cosa manca invece di lasciare un trattino muto. */
   notaCostiPrevisti?: string | null;
+  /** Con questo la superficie si scrive da qui, senza passare dalla scheda Dati. */
+  superficieAMano?: { generaleId: string; area: Record<string, string | number | boolean | null> | undefined };
 }
 
-export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, notaCostiPrevisti }: Props) {
+export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParziale, notaCostiPrevisti, superficieAMano }: Props) {
   const { previsionale: p, reale: r } = n;
   const mq = n.superficie;
   const tonoMargine = (m: number | null) => (m === null ? undefined : m < 0 ? "rosso" : "verde");
@@ -59,10 +62,16 @@ export function QuadroPrevisionale({ n, etichettaVendita, incassato, budgetParzi
           <span className="quadro-prev-mq">
             {mq.mq.toLocaleString("it-IT", { maximumFractionDigits: 0 })} m²
             <span className="quadro-prev-mq-fonte"> · {noteSuperficie(mq)}</span>
+            {superficieAMano && mq.fonte !== "unita" && (
+              <SuperficieAMano {...superficieAMano} etichetta="correggi" />
+            )}
           </span>
         ) : (
           <span className="quadro-prev-mq-fonte">
-            Per i €/m² scrivi la superficie vendibile nella scheda Dati, o inserisci le unità
+            Per i €/m² serve la superficie vendibile:{" "}
+            {superficieAMano
+              ? <SuperficieAMano {...superficieAMano} />
+              : "scrivila nella scheda Dati, o metti i metri quadri delle unità"}
           </span>
         )}
       </div>

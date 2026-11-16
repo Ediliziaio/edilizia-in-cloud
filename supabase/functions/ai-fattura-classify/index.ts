@@ -79,6 +79,14 @@ REGOLE:
 - confidenza: 0.0-1.0 (1.0 = certezza assoluta)
 - order_id_match: dall'elenco "ordini_aperti" forniti, scegli quello più probabile (o null)
 - order_match_confidenza: 0.0-1.0
+- Ogni voce di "ordini_aperti" ha un "tipo": "operazione" è una commessa generale (tutta
+  l'operazione immobiliare), "unita_o_lotto" è una singola unità o lotto dentro un'operazione,
+  "commessa" è una commessa normale. Un costo che riguarda l'intera operazione — progettazione,
+  geologo, collaudo, direzione lavori, oneri, utenze di cantiere, acquisto dell'immobile o del
+  terreno, materiali generici — va sull'"operazione", MAI su una singola unità o posto auto.
+  Scegli "unita_o_lotto" solo se la fattura nomina proprio quell'unità.
+- Se nessun ordine corrisponde davvero, rispondi null: un abbinamento inventato costa più di
+  nessun abbinamento.
 - ai_riassunto: 1-2 frasi che riassumono cosa fattura il fornitore (max 200 char)
 
 OUTPUT JSON ESATTO (no markdown):
@@ -219,9 +227,13 @@ async function classifyOne(
       righe: Array.isArray(fattura.righe) ? fattura.righe.slice(0, 15) : null,
       note: fattura.note,
     },
-    ordini_aperti: openOrders.slice(0, 20).map((o) => ({
+    ordini_aperti: openOrders.slice(0, 25).map((o) => ({
       id: o.id,
       codice: o.order_code,
+      // «operazione» = commessa generale (il contenitore), «unita_o_lotto» = una commessa dentro
+      // un'operazione, «commessa» = una commessa normale. Serve a non attribuire a un posto auto
+      // la parcella del geologo di tutta l'operazione.
+      tipo: o.tipo_commessa ?? "commessa",
       cliente: o.client_name ?? o.client_company,
       descrizione: (o.description ?? "").slice(0, 200),
       indirizzo: o.work_address ?? o.client_address ?? null,
@@ -397,13 +409,33 @@ Deno.serve(async (req: Request) => {
       .in("id", ids);
     if (fetchErr) return errorResponse(`Fetch error: ${fetchErr.message}`, 500, cors);
 
-    // Fetch open orders for matching
-    const { data: openOrders } = await supabaseAdmin
+    // I candidati per l'abbinamento alla commessa.
+    //
+    // Prima qui si prendevano 50 ordini senza ordinamento e se ne mandavano all'AI i primi 20:
+    // per un'azienda che sviluppa immobili quei 20 erano «Unità 3», «Posto auto 7» — le unità in
+    // vendita, che sono commesse figlie — e la commessa generale, l'unica a cui quelle fatture
+    // appartengono, poteva non esserci affatto. Risultato misurato il 16/11/2026 su URBAN VISION:
+    // 0 suggerimenti su 38 fatture importate. Ora: niente cancellate, ordine stabile, e prima le
+    // operazioni (commesse generali), poi le commesse normali, poi le unità.
+    const { data: ordiniGrezzi } = await supabaseAdmin
       .from("orders")
-      .select("id, order_code, client_name, client_company, description, work_address, client_address")
+      .select("id, order_code, client_name, client_company, description, work_address, client_address, commessa_generale_id, created_at")
       .eq("company_id", company_id)
+      .is("deleted_at", null)
       .in("status", ["active", "confermato", "in_corso", "in_lavorazione", "nuovo"])
-      .limit(50);
+      .order("created_at", { ascending: false })
+      .limit(400);
+    const { data: generaliRighe } = await supabaseAdmin
+      .from("commesse_generali")
+      .select("order_id")
+      .eq("company_id", company_id);
+    const idGenerali = new Set(((generaliRighe ?? []) as AnyObj[]).map((g) => String(g.order_id)));
+    const tipoDi = (o: AnyObj) =>
+      idGenerali.has(String(o.id)) ? "operazione" : o.commessa_generale_id ? "unita_o_lotto" : "commessa";
+    const peso = (o: AnyObj) => (tipoDi(o) === "operazione" ? 0 : tipoDi(o) === "commessa" ? 1 : 2);
+    const openOrders = [...(((ordiniGrezzi ?? []) as AnyObj[]))]
+      .sort((a, b) => peso(a) - peso(b))
+      .map((o) => ({ ...o, tipo_commessa: tipoDi(o) }));
 
     const results: ClassifiedFattura[] = [];
     let totTokens = 0;

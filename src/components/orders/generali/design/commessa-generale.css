@@ -1218,6 +1218,42 @@ button.generale-indicator[aria-pressed="true"] {
   font-weight: 400;
   color: hsl(213 45% 78%);
 }
+/* La superficie si scrive da qui: la scheda «Dati» non la compila nessuno (16/11/2026). */
+.quadro-prev-mq-azione {
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(0 0% 100%);
+  background: hsl(213 45% 100% / 0.14);
+  transition: background-color 120ms ease;
+}
+.quadro-prev-mq-azione:hover {
+  background: hsl(213 45% 100% / 0.26);
+}
+.quadro-prev-mq-azione svg {
+  width: 11px;
+  height: 11px;
+}
+.quadro-prev-mq-modifica {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+.quadro-prev-mq-modifica input {
+  background: hsl(213 45% 100% / 0.14);
+  border-color: hsl(213 45% 100% / 0.3);
+  color: hsl(0 0% 100%);
+}
+.quadro-prev-mq-modifica span,
+.quadro-prev-mq-modifica button {
+  color: hsl(213 45% 85%);
+}
 .quadro-prev-griglia {
   display: grid;
   grid-template-columns: 7.5rem repeat(3, minmax(0, 1fr));

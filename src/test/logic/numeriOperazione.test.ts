@@ -9,9 +9,17 @@ describe("superficie dell'operazione", () => {
   });
 
   it("dice quante unità non hanno i metri quadri: la somma è parziale", () => {
-    const s = superficieOperazione({ unitaMq: [80, null, 0, undefined] });
-    expect(s).toMatchObject({ mq: 80, fonte: "unita", unitaContate: 1, unitaSenzaMq: 3 });
-    expect(noteSuperficie(s)).toBe("1 unità, 3 senza metri quadri");
+    const s = superficieOperazione({ unitaMq: [80, 95, null, 0] });
+    expect(s).toMatchObject({ mq: 175, fonte: "unita", unitaContate: 2, unitaSenzaMq: 2 });
+    expect(noteSuperficie(s)).toBe("2 unità, 2 senza metri quadri");
+  });
+
+  it("una somma parziale non batte il totale scritto a mano", () => {
+    // 1 unità su 4 coi metri quadri: 80 m² non è la superficie dell'operazione.
+    expect(superficieOperazione({ unitaMq: [80, null, null, null], mqVendibili: 1200 }))
+      .toEqual({ mq: 1200, fonte: "manuale" });
+    // E senza un totale completo è meglio nessun €/m² che uno calcolato su un quarto delle unità.
+    expect(superficieOperazione({ unitaMq: [80, null, null, null] })).toBeNull();
   });
 
   it("senza unità usa quella scritta a mano, poi quella dell'immobile", () => {

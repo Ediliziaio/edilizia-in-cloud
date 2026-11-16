@@ -11,10 +11,12 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoAxesCombined, ClipboardList, CircleDollarSign, FileCheck2, FolderOpen, HardHat, Info, Landmark, LayoutDashboard, Link2, ListChecks, MoreHorizontal, Pencil, Plus, TrendingUp, Unlink, Wallet } from "lucide-react";
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
+import { FattureOperazione } from "@/components/orders/generali/design/FattureOperazione";
 import { QuadroPrevisionale } from "@/components/orders/generali/design/QuadroPrevisionale";
 import { SpesaControLavori } from "@/components/orders/generali/design/SpesaControLavori";
 import { numeriOperazione, superficieOperazione } from "@/lib/orders/generali/numeriOperazione";
 import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
+import { useAvanzamentoCantiere } from "@/hooks/useAvanzamentoCantiere";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
 import { RiquadroCantiereOperazione } from "@/components/orders/generali/design/RiquadroCantiereOperazione";
 import { STILE_STATO } from "@/components/orders/generali/unita/aspetto";
@@ -130,7 +132,7 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
   const panoramica = (
     <>
-      <QuadroGenerale r={r} t={totali} quote={quote} />
+      <QuadroGenerale r={r} t={totali} quote={quote} puoModificare={puoModificare} />
 
       {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il
           resto». «Completa l'operazione» sta attaccato ai numeri perché spiega proprio perché
@@ -161,6 +163,10 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
 
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
       {immobiliare && schede.some(s => s.id === "cantiere") && <RiquadroCantiereOperazione riepilogo={r} puoModificare={puoModificare} />}
+
+      {/* Le fatture dei fornitori dell'operazione, e quelle che non hanno ancora una commessa
+          (16/11/2026): una fattura importata senza commessa non entra nello speso di nessuno. */}
+      <FattureOperazione riepilogo={r} />
 
       {(r.permessi.costi || r.permessi.importi) && <div className="generale-appare" style={{ "--i": 0 } as React.CSSProperties}><GraficoSpesa riepilogo={r} /></div>}
 
@@ -323,7 +329,7 @@ function Numero({ etichetta, valore, nota, tono, tipo = "valore" }: { etichetta:
  * Il quadro in cima: una card sola con i quattro numeri (valore, come va, cosa devono pagarti,
  * cosa resta) e sotto il valore che «scala», dall'assegnato all'incassato, sulla stessa base.
  */
-function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenerale; quote: QuoteCostiComuni | null }) {
+function QuadroGenerale({ r, t, quote, puoModificare }: { r: RiepilogoGenerale; t: TotaliGenerale; quote: QuoteCostiComuni | null; puoModificare: boolean }) {
   const def = DEFINIZIONI_MODELLI[r.generale.modello];
   const appalto = r.generale.modello === "appalto";
   const n = useGeneralePianoNumeri(r);
@@ -356,6 +362,10 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
   // I metri quadri: la somma delle unità (si aggiorna da sola), se no quelli scritti a mano
   // nella scheda Dati, se no la superficie dell'immobile comprato.
   const unita = useUnitaGenerale(r.permessi.importi ? r.generale.id : undefined);
+  // «Lavori fatti»: dalle fasi di cantiere, non da `percentuale_avanzamento` delle figlie — su
+  // un'operazione immobiliare le figlie sono le unità in vendita, e lì quella percentuale è
+  // zero per tutti (16/11/2026).
+  const lavori = useAvanzamentoCantiere(r.generale.id, r.figlie.map((f) => f.id));
   const superficie = superficieOperazione({
     unitaMq: unita.data?.unita?.map((u) => u.mq),
     mqVendibili: r.generale.dati?.area?.mq_vendibili,
@@ -481,13 +491,14 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
           incassato={t.incassato}
           budgetParziale={!budgetCompleto}
           notaCostiPrevisti={r.permessi.costi ? "il piano non ha ancora un budget" : "costi non visibili"}
+          superficieAMano={puoModificare ? { generaleId: r.generale.id, area: r.generale.dati?.area } : undefined}
         />
       )}
 
       {/* In costruzione: speso contro lavori fatti, non due barre di cui una sempre al 100%. */}
       {/* La compravendita tiene la sua catena acquisto → lavori → rivendita. */}
       {conBudget && !catena ? (
-        <SpesaControLavori speso={speso!} budget={budget!} avanzamento={t.avanzamento} budgetParziale={!budgetCompleto} />
+        <SpesaControLavori speso={speso!} budget={budget!} avanzamento={lavori.percento} fasi={lavori.fasi} budgetParziale={!budgetCompleto} />
       ) : r.permessi.importi && barre.length > 0 && (
         <div className="generale-hero-progress">
           <dl className={cn("space-y-1.5 lg:grid lg:gap-5 lg:space-y-0", colonne)}>

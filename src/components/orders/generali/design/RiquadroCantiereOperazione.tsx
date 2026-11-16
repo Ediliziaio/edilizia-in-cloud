@@ -4,30 +4,21 @@
 // quanto si è speso questo mese contro quanto prevedeva il piano, gli ultimi costi arrivati.
 // Prima la Panoramica parlava solo di vendite (la tabella delle unità) a chi stava costruendo.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { ArrowRight, HardHat } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { useGeneralePianoNumeri } from "@/hooks/useGeneralePiano";
+import { faseFinita, faseInCorso, useFasiCantiere, type FaseCantiere } from "@/hooks/useAvanzamentoCantiere";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
 import { cn } from "@/lib/utils";
 import { dataBreve, euro, nomeMese } from "../piano/formato";
 import { FasiDalPianoDialog } from "./FasiDalPianoDialog";
 
-interface Fase {
-  id: string;
-  order_id: string;
-  name: string;
-  status: string;
-  percentuale: number;
-  start_date: string | null;
-  end_date: string | null;
-}
+type Fase = FaseCantiere;
 
-const FINITA = (f: Fase) => f.status === "completata" || f.percentuale >= 100;
-const IN_CORSO = (f: Fase) => !FINITA(f) && (f.status === "in_corso" || f.percentuale > 0);
+const FINITA = faseFinita;
+const IN_CORSO = faseInCorso;
 
 export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }: { riepilogo: RiepilogoGenerale; puoModificare?: boolean }) {
   const [dalPiano, setDalPiano] = useState(false);
@@ -37,23 +28,10 @@ export function RiquadroCantiereOperazione({ riepilogo, puoModificare = false }:
   const n = useGeneralePianoNumeri(riepilogo);
   // Le fasi della generale e quelle delle commesse dentro (lotto C, 14/11/2026): prima
   // l'avanzamento contava solo la generale, e un lotto finito non muoveva niente.
-  const ids = [generaleId, ...riepilogo.figlie.map((f) => f.id)];
   const codici = new Map(riepilogo.figlie.map((f) => [f.id, f.codice] as const));
-  const fasi = useQuery({
-    queryKey: ["generale-cantiere-fasi", generaleId, ids.length],
-    staleTime: 60_000,
-    queryFn: async (): Promise<Fase[]> => {
-      const { data, error } = await supabase
-        .from("order_work_phases")
-        .select("id, order_id, name, status, percentuale, start_date, end_date")
-        .in("order_id", ids)
-        .order("position")
-        .limit(500);
-      if (error) throw error;
-      // Prima quelle della generale, nel loro ordine; poi quelle delle commesse.
-      return ((data ?? []) as Fase[]).sort((a, b) => Number(a.order_id !== generaleId) - Number(b.order_id !== generaleId));
-    },
-  });
+  // La stessa lettura che usa la testata per «Lavori fatti» (useAvanzamentoCantiere): una sola
+  // query condivisa, e due numeri che non si contraddicono.
+  const fasi = useFasiCantiere(generaleId, riepilogo.figlie.map((f) => f.id));
   const nome = (f: Fase) => (f.order_id === generaleId ? f.name : `${f.name} (${codici.get(f.order_id) ?? "commessa"})`);
   // Il riquadro vive nella Panoramica: una risposta strana non deve farla cadere.
   const sulleFiglie = Array.isArray(fasi.data) && fasi.data.some((f) => f.order_id !== generaleId);

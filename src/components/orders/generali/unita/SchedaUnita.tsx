@@ -6,7 +6,7 @@ import { CaricaFileUnita } from "@/components/orders/generali/unita/CaricaFileUn
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FiltroAttivo, IntestazioneScheda } from "../design/ElementiScheda";
-import { LayoutGrid, Plus, ShieldAlert, Table2, FolderUp, ListChecks } from "lucide-react";
+import { LayoutGrid, Plus, Ruler, ShieldAlert, Table2, FolderUp, ListChecks } from "lucide-react";
 import { useUnitaDalPiano } from "@/hooks/useUnitaDalPiano";
 import type { RigaSerie } from "@/lib/orders/generali/unitaSerie";
 import { Button } from "@/components/ui/button";
@@ -82,12 +82,26 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
   const unitaAperta = e.unita.find((u) => u.orderId === aperta) ?? null;
   const divise = e.unita.filter((u) => u.divisaIl).sort((a, b) => confrontaSigle(a.sigla, b.sigla));
   const vuota = vendite.unita === 0;
+  const senzaMq = e.unita.filter((u) => !u.divisaIl && u.mq === null).length;
   const elencoInVista = filtroStato ? { ...e, unita: e.unita.filter(u => !u.divisaIl && u.stato === filtroStato) } : e;
   const venditeInVista = filtroStato ? riepilogoVendite(elencoInVista) : vendite;
 
   return (
     <div className="generale-sheet space-y-3">
       <IntestazioneScheda icona={LayoutGrid} titolo="Unità e vendite" descrizione="Disponibilità, acquirenti e incassi. L'analisi economica resta sull'intera operazione." />
+      {/* I m² mancanti: senza, l'operazione non ha i €/m² (16/11/2026). Si scrivono in tabella. */}
+      {gestisci && senzaMq > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm">
+          <Ruler className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            {senzaMq === 1 ? "Un'unità non ha i metri quadri" : `${senzaMq} unità su ${vendite.unita} non hanno i metri quadri`}:
+            <span className="text-muted-foreground"> senza, l'operazione non ha il costo e il prezzo al metro quadro.</span>
+          </span>
+          <Button size="sm" variant="outline" className="h-7" onClick={() => setVista("tabella")}>
+            Scrivili in tabella
+          </Button>
+        </div>
+      )}
       {!vuota && <div className="generale-table-toolbar"><label>Stato vendita<select aria-label="Filtra unità per stato vendita" value={filtroStato ?? ""} onChange={e => filtraStato(e.target.value)}><option value="">Tutte le unità</option>{STATI_VENDITA.map(s => <option value={s} key={s}>{NOMI_STATO[s].tante}</option>)}</select></label></div>}
       {filtroStato && <FiltroAttivo onReset={() => filtraStato("")}>{NOMI_STATO[filtroStato].tante}: {venditeInVista.unita} di {vendite.unita} unità. I conteggi in alto riguardano l'intera operazione.</FiltroAttivo>}
       {!vuota && (
@@ -171,7 +185,7 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
           )}
         </div>
       ) : elencoInVista.unita.length === 0 ? <div className="generale-panel p-6 text-sm text-muted-foreground">Nessuna unità con questo stato. Rimuovi il filtro per tornare all'elenco completo.</div> : vista === "tabella" && !telefono ? (
-        <TabellaUnita elenco={elencoInVista} conti={conti} riepilogo={venditeInVista} onApri={setAperta} />
+        <TabellaUnita elenco={elencoInVista} conti={conti} riepilogo={venditeInVista} onApri={setAperta} generaleId={generaleId} puoModificare={gestisci} />
       ) : (
         <div className={cn(!telefono && "rounded-lg border bg-card p-3")}>
           <TabelloneUnita unita={elencoInVista.unita} vedeImporti={e.permessi.importi} onApri={setAperta} telefono={telefono} />

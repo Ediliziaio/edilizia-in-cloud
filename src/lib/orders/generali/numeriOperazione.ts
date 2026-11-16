@@ -53,17 +53,27 @@ export function superficieOperazione(o: {
 }): SuperficieOperazione | null {
   const unita = o.unitaMq ?? [];
   const conMq = unita.map(numero).filter((x): x is number => x !== null);
-  if (conMq.length > 0) {
-    return {
-      mq: arrotonda(conMq.reduce((s, x) => s + x, 0)),
-      fonte: "unita",
-      unitaContate: conMq.length,
-      unitaSenzaMq: unita.length - conMq.length,
-    };
-  }
   const manuale = numero(o.mqVendibili);
-  if (manuale !== null) return { mq: manuale, fonte: "manuale" };
   const immobile = numero(o.immobileMq);
+  const dalleUnita = (): SuperficieOperazione => ({
+    mq: arrotonda(conMq.reduce((s, x) => s + x, 0)),
+    fonte: "unita",
+    unitaContate: conMq.length,
+    unitaSenzaMq: unita.length - conMq.length,
+  });
+
+  // Tutte le unità hanno i metri quadri: è la somma giusta, vince su tutto.
+  if (conMq.length > 0 && conMq.length === unita.length) return dalleUnita();
+  // Con qualche unità ancora senza metri quadri la somma è parziale, e un €/m² calcolato su
+  // una parte delle unità è semplicemente sbagliato: se c'è un totale scritto a mano, quello
+  // è completo e viene prima (16/11/2026).
+  if (manuale !== null) return { mq: manuale, fonte: "manuale" };
+  if (conMq.length > 0) {
+    // Nessun totale a mano: la somma parziale serve solo se copre la maggioranza delle unità.
+    // Sotto la metà si preferisce nessun €/m² a un €/m² gonfiato.
+    if (conMq.length * 2 >= unita.length) return dalleUnita();
+    return immobile !== null ? { mq: immobile, fonte: "immobile" } : null;
+  }
   if (immobile !== null) return { mq: immobile, fonte: "immobile" };
   return null;
 }

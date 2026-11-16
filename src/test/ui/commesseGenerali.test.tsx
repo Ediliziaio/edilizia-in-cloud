@@ -16,6 +16,7 @@ const m = vi.hoisted(() => ({
   canEditOrders: true,
   modelli: [] as string[],
   salva: vi.fn(),
+  salvaDati: vi.fn(),
   commessaCliente: true,
   salvaCliente: vi.fn(),
   navigate: vi.fn(),
@@ -65,6 +66,8 @@ vi.mock("@/hooks/useCommesseGenerali", () => ({
   useImpostazioniCommesseGenerali: () => ({ modelli: m.modelli, disponibile: true, isLoading: false, salva: { mutate: m.salva, isPending: false }, commessaCliente: m.commessaCliente, salvaCommessaCliente: { mutate: m.salvaCliente, isPending: false } }),
   // Usato da PerLavorare: senza questo export il mock fa fallire l'intero file.
   usePrerequisitiGenerale: () => ({ data: undefined as unknown, isLoading: false, isError: false }),
+  // La superficie si scrive dal quadro previsionale (SuperficieAMano, 16/11/2026).
+  useSalvaDatiGenerale: () => ({ mutate: m.salvaDati, isPending: false }),
 }));
 
 // I metri quadri del quadro previsionale/reale vengono dalle unità (16/11/2026).
@@ -99,6 +102,7 @@ beforeEach(() => {
   m.canEditOrders = true;
   m.modelli = [];
   m.salva.mockReset();
+  m.salvaDati.mockReset();
   m.navigate.mockReset();
   m.quote = null;
   m.unita = undefined;
@@ -163,12 +167,17 @@ describe("la pagina della commessa generale", () => {
     expect(screen.getByText(/1120 €\/m²/)).toBeVisible();
   });
 
-  it("senza superficie dice come averla, e nessun importo è diviso per i metri", () => {
+  it("senza superficie la si scrive da lì, e nessun importo è diviso per i metri", () => {
     m.unita = { unita: [] };
     disegna();
-    expect(screen.getByText(/scrivi la superficie vendibile nella scheda Dati/)).toBeVisible();
+    expect(screen.getByText(/Per i €\/m² serve la superficie vendibile/)).toBeVisible();
     // Nessun valore al metro quadro: il testo d'aiuto non è un numero.
     expect(screen.queryByText(/^[\d.]+ €\/m²/)).not.toBeInTheDocument();
+    // Il campo si apre lì, senza passare dalla scheda Dati (che nessuno compila).
+    fireEvent.click(screen.getByRole("button", { name: /metti la superficie/ }));
+    fireEvent.change(screen.getByLabelText(/Superficie vendibile in metri quadri/), { target: { value: "1.250" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salva la superficie/ }));
+    expect(m.salvaDati).toHaveBeenCalledWith({ area: { mq_vendibili: 1250 } }, expect.anything());
   });
 
   it("generale vuota: il prossimo passo, non una tabella di zeri", () => {
