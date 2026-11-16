@@ -15,7 +15,7 @@ vi.mock("@/hooks/useAnagraficheNative", () => ({ useAnagraficheNative: () => ({ 
 // l'avviso non compare, che è quello che questi test si aspettano.
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
+  useQuery: () => ({ data: undefined as unknown, isLoading: false, isError: false }),
 }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
