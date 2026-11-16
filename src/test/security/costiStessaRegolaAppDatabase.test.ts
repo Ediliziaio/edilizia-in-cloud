@@ -47,9 +47,11 @@ describe("Chi vede e registra i costi", () => {
   });
 
   it("per utenze, bollette e costi dei mezzi: la stessa regola in lettura", () => {
-    const pol = leggi("supabase/migrations/20290417090200_utenze_bollette_mezzi_regola_costi.sql");
+    const pol = leggi("supabase/migrations/20290417090200_utenze_bollette_mezzi_regola_costi.sql")
+      + leggi("supabase/migrations/20290417090300_catalogo_voci_rapportino_regola_costi.sql");
     for (const nome of ["utenze_lettura", "utenze_destinazioni_lettura", "bollette_lettura",
-                        "bollette_righe_lettura", "rapportino_mezzi_costi_lettura"]) {
+                        "bollette_righe_lettura", "rapportino_mezzi_costi_lettura",
+                        "voci_modello_lettura", "voci_impostazioni_lettura"]) {
       const da = pol.indexOf(`alter policy ${nome}`);
       expect(da, nome).toBeGreaterThan(-1);
       expect(pol.slice(da, pol.indexOf(";", da)), nome).toContain("public.puo_vedere_costi(company_id)");
