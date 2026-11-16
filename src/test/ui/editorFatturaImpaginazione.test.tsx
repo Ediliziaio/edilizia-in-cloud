@@ -11,7 +11,12 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: (): { effectiveCompany: null
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({ useEffectiveCompanyId: () => "az-1" }));
 vi.mock("@/hooks/useAnagraficheNative", () => ({ useAnagraficheNative: () => ({ data: [] as never[] }) }));
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+// useQuery serve all'avviso sulla numerazione nel popup di «Emetti» (16/11/2026): senza dati
+// l'avviso non compare, che è quello che questi test si aspettano.
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQuery: () => ({ data: undefined, isLoading: false, isError: false }),
+}));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
 import { EditorTopBar } from "@/pages/azienda/fatturazione/editor/EditorTopBar";

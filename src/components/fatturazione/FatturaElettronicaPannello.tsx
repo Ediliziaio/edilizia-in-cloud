@@ -28,6 +28,8 @@ import { verificaFormale, type RisultatoVerifica } from "@/lib/fatturazione/veri
 import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import type { AnagraficaAzienda, DocumentoFiscale } from "@/types/fatturazione";
 import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
+import { annoDelDocumento } from "@/lib/fatturazione/primaEmissione";
+import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
 
 interface Props {
   doc: DocumentoFiscale;
@@ -209,6 +211,8 @@ export function FatturaElettronicaPannello({ doc, azienda, tipoLabel, onInvia, i
                   <AlertDialogDescription>
                     Emetti questa {tipoLabel}? {avvisoEmissione(doc)} L'emissione non può essere annullata.
                   </AlertDialogDescription>
+                  {/* La numerazione, finché si è in tempo (16/11/2026). */}
+                  <AvvisoNumerazione companyId={doc.company_id} tipo={doc.tipo} anno={annoDelDocumento(doc)} />
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Annulla</AlertDialogCancel>

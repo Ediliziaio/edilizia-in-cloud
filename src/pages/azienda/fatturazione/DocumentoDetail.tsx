@@ -38,6 +38,8 @@ import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import type { AnagraficaAzienda, RigaDocumento } from "@/types/fatturazione";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
+import { annoDelDocumento } from "@/lib/fatturazione/primaEmissione";
+import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 const TIPI_PAGABILI = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
@@ -261,6 +263,8 @@ export default function DocumentoDetail() {
                 <AlertDialogDescription>
                   Emetti questa {tipoLabel}? {avvisoEmissione(doc)} L'emissione non può essere annullata.
                 </AlertDialogDescription>
+                {/* La numerazione, finché si è in tempo (16/11/2026). */}
+                <AvvisoNumerazione companyId={doc.company_id} tipo={doc.tipo} anno={annoDelDocumento(doc)} />
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Annulla</AlertDialogCancel>

@@ -32,6 +32,7 @@ import { SdiStatoBanner } from "@/components/fatturazione/SdiStatoBanner";
 import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
 import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
+import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
 const TIPO_LABELS: Record<string, string> = {
   fattura: "Fattura",
   fattura_pa: "Fattura PA",
@@ -127,6 +128,10 @@ export function EditorTopBar({
   // «emessa», e dopo l'invio la fascia diceva ancora «non inviata al SDI».
   const fase = faseSdi(state);
   const statoConfig = STATO_CONFIG[(state.stato as StatoDocumento) ?? "bozza"] ?? STATO_CONFIG.bozza;
+  // L'avviso sulla numerazione nel popup di «Emetti»: una bozza prende la data di oggi, quindi
+  // l'anno della serie è quello della data scritta, se c'è, altrimenti l'anno corrente.
+  const companyId = (effectiveCompany as Company | null)?.id ?? null;
+  const annoEmissione = Number(String(state.data_emissione ?? "").slice(0, 4)) || new Date().getFullYear();
   const companyLogo = (effectiveCompany as Company | null)?.logo_url;
   const [confermaEmissione, setConfermaEmissione] = useState(false);
 
@@ -366,6 +371,9 @@ export function EditorTopBar({
                     <AlertDialogDescription>
                       Emetti questa {TIPO_LABELS[tipo] ?? tipo}? {avvisoEmissione(state)} L'emissione non può essere annullata.
                     </AlertDialogDescription>
+                    {/* La numerazione, finché si è in tempo: dopo l'emissione il numero è bloccato
+                        (16/11/2026). Fuori dalla descrizione, che è un <p>. */}
+                    <AvvisoNumerazione companyId={companyId} tipo={state.tipo} anno={annoEmissione} />
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Annulla</AlertDialogCancel>
