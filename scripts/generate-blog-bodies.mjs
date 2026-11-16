@@ -17,6 +17,7 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { blogPosts } from "../src/data/blogPosts";
+import { getBlogProductPaths } from "../src/lib/seo/blogProductPaths";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT_BODIES = join(ROOT, "functions", "_blog-bodies.js");
@@ -98,6 +99,10 @@ function renderPost(post) {
     for (const f of post.faqs) {
       parts.push(`<h3>${esc(f.q)}</h3><p>${esc(f.a)}</p>`);
     }
+  }
+  const productPaths = getBlogProductPaths(post);
+  if (productPaths.length) {
+    parts.push(`<section aria-labelledby="strumenti-collegati"><h2 id="strumenti-collegati">Strumenti collegati in Edilizia in Cloud</h2><ul>${productPaths.map(link => `<li><a href="${esc(link.href)}">${esc(link.label)}</a><p>${esc(link.desc)}</p></li>`).join("")}</ul></section>`);
   }
   return parts.join("");
 }
