@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { readAllPages } from "@/lib/personale/readAllPages";
@@ -24,10 +24,13 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
 import { useAuth } from "@/contexts/AuthContext";
 import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrareCard";
+import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
 import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
+
 const DATE_PRESETS = [
   { label: "Questo mese", value: "questo_mese" },
   { label: "Prossimi 30gg", value: "30gg" },
@@ -149,6 +152,46 @@ export default function Scadenzario() {
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+
+  // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
+  // sopra l'elenco. Solo da tablet in su e con un anno scelto; le annullate non contano.
+  const conGraficoMesi = !isMobile && yearFilter !== "all" && tab !== "settimane" && tab !== "adempimenti";
+  const { data: mesiScadenze } = useQuery({
+    queryKey: ["scadenzario", "mesi", companyId, yearFilter],
+    enabled: !!companyId && conGraficoMesi,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const righe = await readAllPages<{ direction: string; amount: number | null; due_date: string }>((from, to) => supabase
+        .from("scadenze").select("direction, amount, due_date")
+        .eq("company_id", companyId!).neq("status", "annullata")
+        .gte("due_date", `${yearFilter}-01-01`).lte("due_date", `${yearFilter}-12-31`)
+        .order("id").range(from, to) as never);
+      const mesi = MESI_BREVI.map((m) => ({ month: m, entrate: 0, uscite: 0 }));
+      for (const r of righe) {
+        const i = Number(r.due_date?.slice(5, 7)) - 1;
+        if (!(i >= 0 && i < 12)) continue;
+        if (r.direction === "entrata") mesi[i].entrate += Number(r.amount ?? 0);
+        else if (r.direction === "uscita") mesi[i].uscite += Number(r.amount ?? 0);
+      }
+      return mesi;
+    },
+  });
+  // Il mese scelto nel grafico è il filtro «Personalizzato» di quel mese esatto.
+  const meseGrafico = useMemo(() => {
+    if (datePreset !== "custom" || !customFrom || !customTo || !customFrom.startsWith(yearFilter)) return null;
+    const m = Number(customFrom.slice(5, 7));
+    const fine = format(endOfMonth(new Date(Number(yearFilter), m - 1, 1)), "yyyy-MM-dd");
+    return customFrom.endsWith("-01") && customTo === fine ? m - 1 : null;
+  }, [datePreset, customFrom, customTo, yearFilter]);
+  const scegliMeseGrafico = (i: number) => {
+    if (meseGrafico === i) { clearFilters(); return; }
+    const inizio = new Date(Number(yearFilter), i, 1);
+    setDatePreset("custom");
+    setCustomFrom(format(inizio, "yyyy-MM-dd"));
+    setCustomTo(format(endOfMonth(inizio), "yyyy-MM-dd"));
+    setShowFilters(true);
+    setPage(1);
+  };
   const [exporting, setExporting] = useState(false);
 
   // Export CSV di TUTTE le scadenze che rispettano i filtri correnti (anno/tab/ricerca),
@@ -265,7 +308,7 @@ export default function Scadenzario() {
           <p>Riepilogo scadenze non disponibile. I totali non sono aggiornati.</p>
           <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>Riprova riepilogo</Button>
         </div>
-      ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" />)}
+      ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" scaduteAttive={tab === "scadute"} onScadute={() => { setTab((t) => (t === "scadute" ? "tutte" : "scadute")); setPage(1); }} />)}
       {summary && !isSummaryError && tab !== "settimane" && (
         <KpiMobili
           className="sm:hidden"
@@ -283,6 +326,18 @@ export default function Scadenzario() {
               valore: new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: true }).format(summary.prossimi_30gg_amount ?? 0),
             },
           ]}
+        />
+      )}
+
+      {conGraficoMesi && mesiScadenze && mesiScadenze.some((m) => m.entrate > 0 || m.uscite > 0) && (
+        <GraficoEntrateUscite
+          dati={mesiScadenze}
+          titolo={`Incassi e pagamenti per mese di scadenza, ${yearFilter}`}
+          nomeEntrate="Incassi"
+          nomeUscite="Pagamenti"
+          notaPeriodo={`scadenze del ${yearFilter}`}
+          onMese={scegliMeseGrafico}
+          meseScelto={meseGrafico}
         />
       )}
 

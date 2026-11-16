@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BookOpen, Bot, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, FileText, Loader2, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search, Trash2 } from "lucide-react";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
@@ -31,7 +31,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { DaVerificareCard } from "@/components/contabilita/DaVerificareCard";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
-import { NavyStatCard } from "@/components/costi/KpiCard";
+import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -297,6 +297,8 @@ function PrimaNotaInner() {
           {/* Mobile: solo «Nuova»; CSV, XBRL e importa automatico al desktop,
               in un menu «⋯» accanto a «Nuova registrazione»: erano tre
               bottoni in fila prima dell'azione principale. */}
+          {/* Contabilità → Da verificare: un pulsante con il numero, l'elenco in una finestra (16/11/2026). */}
+          <span className="max-sm:hidden"><DaVerificareCard companyId={effectiveCompany?.id} variante="pillola" /></span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="max-sm:hidden" aria-label="Altre azioni" title="Altre azioni">
@@ -337,9 +339,6 @@ function PrimaNotaInner() {
         </div>
       </div>
 
-      {/* Contabilità → Da verificare (16/11/2026): le anomalie di cdg_controllo_doppi, ognuna col pulsante che apre il documento. */}
-      <DaVerificareCard companyId={effectiveCompany?.id} />
-
       {stampa && (
         <PrintPreviewModal
           open
@@ -350,34 +349,20 @@ function PrimaNotaInner() {
           soloPdf
         />
       )}
-      {/* Testata navy di famiglia (stessa dei Costi e delle Commesse):
-          i tre numeri della cassa in card di vetro, senza troncamenti. */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm max-sm:hidden">
-        {/* Senza il titoletto «Prima Nota — La cassa, giorno per giorno» e
-            senza «periodo filtrato» sotto ogni numero: il periodo è nei
-            filtri qui sotto. */}
-        <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
-            <NavyStatCard
-              label="Entrate"
-              value={isSaldoLoading ? "..." : eurTondo(saldo?.entrate || 0)}
-              icon={TrendingUp}
-              tone="text-emerald-200"
-            />
-            <NavyStatCard
-              label="Uscite"
-              value={isSaldoLoading ? "..." : eurTondo(saldo?.uscite || 0)}
-              icon={TrendingDown}
-              tone="text-rose-300"
-            />
-            <NavyStatCard
-              label="Saldo netto"
-              value={isSaldoLoading ? "..." : eurTondo(saldo?.saldo || 0)}
-              icon={Wallet}
-              tone={(saldo?.saldo || 0) >= 0 ? "text-emerald-200" : "text-rose-300"}
-            />
-          </div>
-        </div>
+      {/* I numeri del periodo filtrato, nella stessa veste delle fatture e dello Scadenzario
+          (16/11/2026): riquadri chiari con l'entrata a cascata, al posto della testata blu. */}
+      <div className="grid grid-cols-2 gap-2 max-sm:hidden lg:grid-cols-4">
+        <NumeroVeloce indice={0} etichetta="Entrate" valore={saldo?.entrate || 0} testo={isSaldoLoading ? "…" : undefined} tono="buono" nota="nel periodo filtrato" />
+        <NumeroVeloce indice={1} etichetta="Uscite" valore={saldo?.uscite || 0} testo={isSaldoLoading ? "…" : undefined} tono={(saldo?.uscite || 0) > 0 ? "cattivo" : "neutro"} nota="nel periodo filtrato" />
+        <NumeroVeloce
+          indice={2}
+          etichetta="Saldo netto"
+          valore={saldo?.saldo || 0}
+          testo={isSaldoLoading ? "…" : undefined}
+          tono={(saldo?.saldo || 0) >= 0 ? "buono" : "cattivo"}
+          nota="entrate meno uscite"
+        />
+        <NumeroVeloce indice={3} etichetta="Movimenti" testo={String(totalCount ?? 0)} nota="registrazioni nel periodo" />
       </div>
 
       {/* Entrate e uscite degli ultimi 6 mesi (16/11/2026): stessa veste dei grafici del

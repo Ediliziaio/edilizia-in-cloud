@@ -15,10 +15,10 @@
  */
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/formatters";
 import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
 import type { MonthSummary } from "@/hooks/billing/useMonthlyTimeline";
 import { AnelloPercentuale, Comparsa, PillolaVariazione } from "@/components/charts/grafici/comune";
+import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
 
 interface Somme {
   doc: number; totale: number; imponibile: number; iva: number; incassato: number; daIncassare: number; scaduto: number;
@@ -50,32 +50,6 @@ export function variazioneStessoPeriodo(
   const prima = somma(mesiPrima.filter(m => m.month >= da && m.month <= fino)).totale;
   if (prima <= 0) return null;
   return ((ora - prima) / prima) * 100;
-}
-
-function Numero({
-  etichetta, valore, nota, tono = "neutro", extra, indice,
-}: {
-  etichetta: string; valore: number; nota?: string; tono?: "neutro" | "buono" | "cattivo"; extra?: React.ReactNode; indice: number;
-}) {
-  return (
-    <Comparsa indice={indice} className="min-w-0 rounded-xl border bg-card px-3 py-2.5">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{etichetta}</p>
-      <div className="mt-0.5 flex items-center gap-1.5">
-        <p
-          className={cn(
-            "truncate text-base font-bold tabular-nums leading-tight",
-            tono === "buono" && "text-emerald-600 dark:text-emerald-400",
-            tono === "cattivo" && "text-rose-600 dark:text-rose-400",
-          )}
-          title={formatCurrency(valore)}
-        >
-          {formatEuroRiquadro(valore)}
-        </p>
-        {extra}
-      </div>
-      {nota && <p className="truncate text-[10px] text-muted-foreground">{nota}</p>}
-    </Comparsa>
-  );
 }
 
 /** Le parole dei riquadri: le emesse si incassano, le ricevute si pagano. */
@@ -146,7 +120,7 @@ export function RiepilogoFatture({
 
   const numeri = (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-      <Numero
+      <NumeroVeloce
         indice={0}
         etichetta={`${testi.totale} ${nomePeriodo}`}
         valore={s.totale}
@@ -158,9 +132,9 @@ export function RiepilogoFatture({
           />
         }
       />
-      <Numero indice={1} etichetta="Imponibile" valore={s.imponibile} nota="senza IVA" />
-      <Numero indice={2} etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? `${((s.iva / s.imponibile) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% dell'imponibile` : undefined} />
-      <Numero
+      <NumeroVeloce indice={1} etichetta="Imponibile" valore={s.imponibile} nota="senza IVA" />
+      <NumeroVeloce indice={2} etichetta="IVA" valore={s.iva} nota={s.imponibile > 0 ? `${((s.iva / s.imponibile) * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}% dell'imponibile` : undefined} />
+      <NumeroVeloce
         indice={3}
         etichetta={testi.incassato}
         valore={s.incassato}
@@ -168,8 +142,8 @@ export function RiepilogoFatture({
         nota={daIncassareTot > 0 ? `${Math.round(pctIncassato)}% ${testi.notaIncassato}` : "di queste fatture"}
         extra={daIncassareTot > 0 ? <AnelloPercentuale pct={pctIncassato} dimensione={22} /> : undefined}
       />
-      <Numero indice={4} etichetta={testi.daIncassare} valore={s.daIncassare} nota="di queste fatture" />
-      <Numero
+      <NumeroVeloce indice={4} etichetta={testi.daIncassare} valore={s.daIncassare} nota="di queste fatture" />
+      <NumeroVeloce
         indice={5}
         etichetta="Scaduto"
         valore={s.scaduto}

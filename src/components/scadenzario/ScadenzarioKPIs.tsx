@@ -1,6 +1,5 @@
-import { AlertTriangle, CalendarClock, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import type { ScadenzarioSummary } from "@/hooks/useScadenzario";
-import { NavyStatCard } from "@/components/costi/KpiCard";
+import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +19,9 @@ interface Props {
   isLoading: boolean;
   /** Es. "max-sm:hidden": su telefono la pagina mostra due numeri suoi. */
   className?: string;
+  /** Premere lo scaduto filtra l'elenco sulle scadute. */
+  onScadute?: () => void;
+  scaduteAttive?: boolean;
 }
 
 /** Da oggi a domenica, con le stesse settimane della vista «Per settimana». */
@@ -42,7 +44,7 @@ function useSettimanaScadenzario() {
   return data;
 }
 
-export default function ScadenzarioKPIs({ summary, isLoading, className }: Props) {
+export default function ScadenzarioKPIs({ summary, isLoading, className, onScadute, scaduteAttive }: Props) {
   // I due versi separati arrivano dalla RPC. Se una risposta vecchia non li
   // porta ancora, si ricade sul totale: meglio il numero di prima che nessuno.
   const settimana = useSettimanaScadenzario();
@@ -61,67 +63,54 @@ export default function ScadenzarioKPIs({ summary, isLoading, className }: Props
 
   if (isLoading || !summary) {
     return (
-      <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
-        <div className="bg-eic-navy-deep p-4 sm:p-5">
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-xl border border-white/12 bg-white/9" />
-            ))}
-          </div>
-        </div>
+      <div className={cn("grid grid-cols-2 gap-2 xl:grid-cols-4", className)}>
+        {[...Array(4)].map((_, i) => <div key={i} className="h-[68px] animate-pulse rounded-xl border bg-muted/40" />)}
       </div>
     );
   }
 
   const saldoNetto = summary.entrate_previste - summary.uscite_previste;
 
+  // Riquadri chiari con l'entrata a cascata, come nelle fatture e in Prima nota (16/11/2026).
+  // Il numero grosso dello scaduto è il credito scaduto — la cosa su cui si può agire — e il
+  // debito scaduto sta nella nota, dichiarato (prima si sommavano i due, un numero senza senso).
   return (
-    <div className={cn("overflow-hidden rounded-2xl border border-slate-200 shadow-sm", className)}>
-      {/* Senza il titoletto «Scadenzario — Cosa entra, cosa esce, quando»:
-          ripeteva il titolo della pagina subito sopra. */}
-      <div className="bg-eic-navy-deep p-4 text-white sm:p-5">
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-          {/* Prima questa scheda mostrava "Scadute" sommando quello che i
-              clienti devono all'azienda con quello che l'azienda deve ai
-              fornitori: un numero che non e' il credito, non e' il debito e non
-              e' il saldo, ma era il piu' grande della pagina. Ora il numero
-              grosso e' il credito scaduto — la cosa su cui si puo' agire — e il
-              debito scaduto sta nella riga sotto, dichiarato. */}
-          <NavyStatCard
-            label="Scaduto da incassare"
-            value={fmtEur(scadutoTotale ?? scadutoEntrata)}
-            sub={
-              (scadutoTotale != null
-                ? `di cui ${fmtEur(scadutoEntrata)} in ${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"} di questo elenco`
-                : `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"}`)
-              + (scadutoUscita > 0 ? ` · e ${fmtEur(scadutoUscita)} da pagare` : "")
-            }
-            icon={AlertTriangle}
-            tone={entrataCount > 0 ? "text-orange-300" : "text-emerald-200"}
-          />
-          <NavyStatCard
-            // Prima sommava incassi e pagamenti in un numero solo, che non diceva né l'uno né l'altro.
-            label="Da incassare questa settimana"
-            value={settimana ? fmtEur(settimana.incassare) : "—"}
-            sub={settimana ? `e ${fmtEur(settimana.pagare)} da pagare` : "Non caricato"}
-            icon={CalendarClock}
-            tone="text-amber-200"
-          />
-          <NavyStatCard
-            label="Prossimi 30gg"
-            value={fmtEur(summary.prossimi_30gg_amount)}
-            sub={`${summary.prossimi_30gg_count} scadenz${summary.prossimi_30gg_count === 1 ? "a" : "e"}`}
-            icon={Clock}
-          />
-          <NavyStatCard
-            label="Saldo netto atteso"
-            value={fmtEur(saldoNetto)}
-            sub={`entrate ${fmtEur(summary.entrate_previste)} · uscite ${fmtEur(summary.uscite_previste)}`}
-            icon={saldoNetto >= 0 ? TrendingUp : TrendingDown}
-            tone={saldoNetto >= 0 ? "text-emerald-200" : "text-rose-300"}
-          />
-        </div>
-      </div>
+    <div className={cn("grid grid-cols-2 gap-2 xl:grid-cols-4", className)}>
+      <NumeroVeloce
+        indice={0}
+        etichetta="Scaduto da incassare"
+        valore={scadutoTotale ?? scadutoEntrata}
+        tono={entrataCount > 0 ? "cattivo" : "buono"}
+        onClick={onScadute}
+        attivo={scaduteAttive}
+        nota={
+          (scadutoTotale != null
+            ? `di cui ${fmtEur(scadutoEntrata)} in ${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"} qui`
+            : `${entrataCount} scadenz${entrataCount === 1 ? "a" : "e"}`)
+          + (scadutoUscita > 0 ? ` · ${fmtEur(scadutoUscita)} da pagare` : "")
+        }
+      />
+      <NumeroVeloce
+        indice={1}
+        etichetta="Da incassare questa settimana"
+        valore={settimana?.incassare}
+        testo={settimana ? undefined : "—"}
+        tono="attenzione"
+        nota={settimana ? `e ${fmtEur(settimana.pagare)} da pagare` : "non caricato"}
+      />
+      <NumeroVeloce
+        indice={2}
+        etichetta="Prossimi 30 giorni"
+        valore={summary.prossimi_30gg_amount}
+        nota={`${summary.prossimi_30gg_count} scadenz${summary.prossimi_30gg_count === 1 ? "a" : "e"}`}
+      />
+      <NumeroVeloce
+        indice={3}
+        etichetta="Saldo netto atteso"
+        valore={saldoNetto}
+        tono={saldoNetto >= 0 ? "buono" : "cattivo"}
+        nota={`entrate ${fmtEur(summary.entrate_previste)} · uscite ${fmtEur(summary.uscite_previste)}`}
+      />
     </div>
   );
 }

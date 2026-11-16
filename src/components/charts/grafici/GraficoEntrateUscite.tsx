@@ -4,7 +4,7 @@
  * periodo (entrate, uscite, saldo). Stessa veste degli altri grafici di questa cartella.
  */
 import { useId, useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/lib/formatters";
 import { formatEuroRiquadro } from "@/lib/controlloGestione/formatCG";
 import { usePreferisceMenoMovimento } from "@/hooks/usePreferisceMenoMovimento";
@@ -21,11 +21,24 @@ export interface MeseEntrateUscite {
 
 export function GraficoEntrateUscite({
   dati, titolo = "Entrate e uscite, ultimi 6 mesi", altezza = 200,
-}: { dati: MeseEntrateUscite[]; titolo?: string; altezza?: number }) {
+  nomeEntrate = "Entrate", nomeUscite = "Uscite", notaPeriodo = "nei 6 mesi", onMese, meseScelto,
+}: {
+  dati: MeseEntrateUscite[];
+  titolo?: string;
+  altezza?: number;
+  /** Nello Scadenzario: «Da incassare» / «Da pagare». */
+  nomeEntrate?: string;
+  nomeUscite?: string;
+  notaPeriodo?: string;
+  /** Clic su una colonna: l'indice del mese (per filtrare). */
+  onMese?: (indice: number) => void;
+  /** Indice del mese scelto: gli altri si attenuano. */
+  meseScelto?: number | null;
+}) {
   const id = idSvg(useId());
   const fermo = usePreferisceMenoMovimento();
 
-  const righe = useMemo(() => dati.map((d) => ({ mese: d.month, Entrate: d.entrate, Uscite: d.uscite })), [dati]);
+  const righe = useMemo(() => dati.map((d) => ({ mese: d.month, [nomeEntrate]: d.entrate, [nomeUscite]: d.uscite })), [dati, nomeEntrate, nomeUscite]);
   const tot = useMemo(() => {
     const entrate = dati.reduce((s, d) => s + d.entrate, 0);
     const uscite = dati.reduce((s, d) => s + d.uscite, 0);
@@ -38,17 +51,17 @@ export function GraficoEntrateUscite({
         <h3 className="text-base font-semibold">{titolo}</h3>
         <div className="flex items-center gap-3 text-xs">
           <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.verde }} /> Entrate
+            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.verde }} /> {nomeEntrate}
           </span>
           <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.rosso }} /> Uscite
+            <span className="h-2 w-2 rounded-full" style={{ background: COLORI_GRAFICO.rosso }} /> {nomeUscite}
           </span>
         </div>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-3 rounded-xl border bg-muted/30 px-3 py-2">
-        <StatGrafico etichetta="Entrate" valore={formatEuroRiquadro(tot.entrate)} nota="nei 6 mesi" tono="buono" />
-        <StatGrafico etichetta="Uscite" valore={formatEuroRiquadro(tot.uscite)} nota="nei 6 mesi" />
+        <StatGrafico etichetta={nomeEntrate} valore={formatEuroRiquadro(tot.entrate)} nota={notaPeriodo} tono="buono" />
+        <StatGrafico etichetta={nomeUscite} valore={formatEuroRiquadro(tot.uscite)} nota={notaPeriodo} />
         <StatGrafico
           etichetta="Saldo"
           valore={`${tot.saldo > 0 ? "+" : ""}${formatEuroRiquadro(tot.saldo)}`}
@@ -59,7 +72,18 @@ export function GraficoEntrateUscite({
 
       <div className="mt-3" style={{ height: altezza }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={righe} barGap={3} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} className="outline-none [&_*]:outline-none">
+          <BarChart
+            data={righe}
+            barGap={3}
+            margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
+            className={onMese ? "cursor-pointer outline-none [&_*]:outline-none" : "outline-none [&_*]:outline-none"}
+            onClick={(e) => {
+              // recharts 3: l'etichetta della colonna, non più il payload.
+              const stato = e as { activeLabel?: string | number | null } | null;
+              const i = stato?.activeLabel != null ? righe.findIndex((r) => r.mese === String(stato.activeLabel)) : -1;
+              if (i >= 0) onMese?.(i);
+            }}
+          >
             {defsGrafico(id, { verde: COLORI_GRAFICO.verde, rosso: COLORI_GRAFICO.rosso })}
             <rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}-punti)`} />
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
@@ -70,7 +94,7 @@ export function GraficoEntrateUscite({
               content={
                 <TooltipScheda
                   extra={(r) => {
-                    const saldo = Number(r.Entrate ?? 0) - Number(r.Uscite ?? 0);
+                    const saldo = Number(r[nomeEntrate] ?? 0) - Number(r[nomeUscite] ?? 0);
                     return (
                       <p className="mt-1.5 border-t pt-1.5 text-[11px] text-muted-foreground">
                         Saldo del mese{" "}
@@ -83,8 +107,12 @@ export function GraficoEntrateUscite({
                 />
               }
             />
-            <Bar dataKey="Entrate" fill={`url(#${id}-barra-verde)`} radius={[5, 5, 0, 0]} maxBarSize={26} isAnimationActive={!fermo} />
-            <Bar dataKey="Uscite" fill={`url(#${id}-barra-rosso)`} radius={[5, 5, 0, 0]} maxBarSize={26} isAnimationActive={!fermo} />
+            <Bar dataKey={nomeEntrate} fill={`url(#${id}-barra-verde)`} radius={[5, 5, 0, 0]} maxBarSize={26} isAnimationActive={!fermo}>
+              {righe.map((r, i) => <Cell key={r.mese} fillOpacity={meseScelto != null && i !== meseScelto ? 0.3 : 1} />)}
+            </Bar>
+            <Bar dataKey={nomeUscite} fill={`url(#${id}-barra-rosso)`} radius={[5, 5, 0, 0]} maxBarSize={26} isAnimationActive={!fermo}>
+              {righe.map((r, i) => <Cell key={r.mese} fillOpacity={meseScelto != null && i !== meseScelto ? 0.3 : 1} />)}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
