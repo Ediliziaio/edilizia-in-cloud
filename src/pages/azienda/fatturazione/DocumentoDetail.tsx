@@ -38,6 +38,7 @@ import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import type { AnagraficaAzienda, RigaDocumento } from "@/types/fatturazione";
 import { KpiMobili } from "@/components/mobile/FiltriMobile";
 import { avvisoEmissione } from "@/lib/fatturazione/emissioneBozza";
+import { emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { annoDelDocumento } from "@/lib/fatturazione/primaEmissione";
 import { AvvisoNumerazione } from "@/components/fatturazione/AvvisoNumerazione";
 
@@ -114,7 +115,10 @@ export default function DocumentoDetail() {
   const credito = creditoCliente(doc);
   const dovuto = doc.totale_da_pagare - (doc.stornato ?? 0);
   const paymentProgress = dovuto > 0 ? Math.min(100, (doc.importo_pagato / dovuto) * 100) : 0;
-  const modificabile = doc.stato === "bozza" || fase === "scartata";
+  // Emessa ma mai uscita (16/11/2026): niente SDI, niente incassi. Per l'Agenzia non esiste
+  // ancora, quindi si corregge come una scartata — numero e data restano quelli.
+  const maiUscita = emessaMaiUscita(doc);
+  const modificabile = doc.stato === "bozza" || fase === "scartata" || maiUscita;
   const isProforma = doc.tipo === "proforma";
   const isPreventivo = doc.tipo === "preventivo";
   // Una bozza fiscale si emette direttamente dal dettaglio: assegna il numero
@@ -236,14 +240,14 @@ export default function DocumentoDetail() {
       {fatturazioneEsterna && <p role="status" className="mx-auto w-full max-w-4xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">L'azienda usa la fatturazione esterna. Puoi consultare e scaricare questo documento; per completare le bozze nell'editor verifica la <Link className="font-medium underline" to="/azienda/impostazioni/fatturazione">modalità di fatturazione</Link>.</p>}
       {/* Le azioni sul documento, tutte in fila e con il loro nome. */}
       <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-center gap-2 max-sm:gap-1.5 max-sm:[&_a]:h-8 max-sm:[&_a]:text-xs max-sm:[&_button]:h-8 max-sm:[&_button]:px-2.5 max-sm:[&_button]:text-xs">
-        {/* Modifica: solo finché non è partita allo SDI (bozza) o se lo SDI l'ha scartata. */}
+        {/* Modifica: finché non è uscita — bozza, scartata dallo SDI, oppure emessa e mai trasmessa. */}
         {!isPreventivo && !isProforma || doc.stato === "bozza" ? (
           modificabile && !fatturazioneEsterna ? (
             <Button size="sm" asChild className="gap-1.5">
               <Link to={`/azienda/documenti/${doc.id}`}><Pencil className="h-4 w-4" />{fase === "scartata" ? "Correggi" : "Modifica"}</Link>
             </Button>
           ) : (
-            <span title={fatturazioneEsterna ? "L'editor richiede la fatturazione nativa. Verifica la modalità nelle impostazioni di fatturazione." : "Una fattura già emessa o inviata allo SDI non si modifica. Per correggerla emetti una nota di credito."} className="inline-flex">
+            <span title={fatturazioneEsterna ? "L'editor richiede la fatturazione nativa. Verifica la modalità nelle impostazioni di fatturazione." : "Questa fattura è già uscita (inviata allo SDI, incassata o con una nota collegata): non si modifica. Per correggerla emetti una nota di credito."} className="inline-flex">
               <Button size="sm" disabled className="gap-1.5"><Lock className="h-4 w-4" />Modifica</Button>
             </span>
           )

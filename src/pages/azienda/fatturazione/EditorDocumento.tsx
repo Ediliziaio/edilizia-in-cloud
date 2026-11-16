@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { scaricaXmlFattura } from "@/lib/fatturazione/scaricaXml";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
+import { emessaMaiUscita } from "@/lib/fatturazione/correggibile";
 import { useInvioSdi, useAggiornaStatoSdi } from "@/hooks/useInvioSdi";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
@@ -204,7 +205,11 @@ function EditorDelDocumento() {
   // emessa: si corregge qui (tranne numero e data) e si rimanda.
   const fase = faseSdi(state)?.fase;
   const scartata = fase === "scartata";
-  const modificabile = isBozza || scartata;
+  // Emessa ma mai uscita (16/11/2026): niente SDI, niente incassi. Per l'Agenzia non esiste
+  // ancora, quindi si corregge come una scartata — numero e data restano quelli. L'ultima
+  // parola è del database (trigger documenti_fiscali_proteggi_emessi).
+  const maiUscita = emessaMaiUscita(state);
+  const modificabile = isBozza || scartata || maiUscita;
   const aziendaAllegati = useEffectiveCompanyId();
   const { data: aziendaAnagrafica } = useAnagraficaAzienda();
 
@@ -604,7 +609,7 @@ function EditorDelDocumento() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
-                <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} />
+                <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata || maiUscita} />
                 <EditorDDTOpzioniCard state={state} dispatch={dispatch} disabled={!modificabile} />
               </div>
 
@@ -627,7 +632,7 @@ function EditorDelDocumento() {
                 <div id="ed-cliente" className="min-w-0">
                   <EditorClienteSection state={state} dispatch={dispatch} disabled={!modificabile} />
                 </div>
-                <div id="ed-dati"><EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata} /></div>
+                <div id="ed-dati"><EditorDatiDocumento state={state} dispatch={dispatch} disabled={!modificabile} dataBloccata={scartata || maiUscita} /></div>
               </div>
 
               {/* Commessa e riferimenti PA (fatture e note); per preventivi e proforma il solo collegamento. */}

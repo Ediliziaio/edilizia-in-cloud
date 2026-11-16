@@ -79,7 +79,7 @@ export function EditorDatiDocumento({ state, dispatch, disabled, dataBloccata }:
                       !state.data_emissione && "text-muted-foreground"
                     )}
                     disabled={disabled || dataBloccata}
-                    title={dataBloccata ? "Una fattura scartata si rimanda con la stessa data" : undefined}
+                    title={dataBloccata ? "Una fattura già numerata tiene la sua data: si corregge il contenuto, non il numero né la data" : undefined}
                   >
                     <CalendarIcon className="mr-1 h-3 w-3 shrink-0" />
                     {state.data_emissione
