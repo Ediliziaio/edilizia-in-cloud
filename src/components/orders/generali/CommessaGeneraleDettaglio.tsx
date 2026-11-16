@@ -12,6 +12,7 @@ import { AlertTriangle, ArrowLeft, ArrowRightLeft, Banknote, Building2, ChartNoA
 import { ComposizioneCosti } from "@/components/orders/generali/design/ComposizioneCosti";
 import { GraficoSpesa } from "@/components/orders/generali/design/GraficoSpesa";
 import { QuadroPrevisionale } from "@/components/orders/generali/design/QuadroPrevisionale";
+import { SpesaControLavori } from "@/components/orders/generali/design/SpesaControLavori";
 import { numeriOperazione, superficieOperazione } from "@/lib/orders/generali/numeriOperazione";
 import { useUnitaGenerale } from "@/hooks/useGeneraleUnita";
 import { AvvisiPiano } from "@/components/orders/generali/design/AvvisiPiano";
@@ -130,6 +131,13 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
   const panoramica = (
     <>
       <QuadroGenerale r={r} t={totali} quote={quote} />
+
+      {/* 16/11/2026: l'ordine della panoramica è «dove siamo → cosa manca → cosa non va → il
+          resto». «Completa l'operazione» sta attaccato ai numeri perché spiega proprio perché
+          sono incompleti (margine finale e fabbisogno di capitale sospesi): prima stava sotto
+          due blocchi di avvisi e si leggeva dopo. */}
+      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
+
       <div className="generale-attention" aria-label="Da seguire"><AvvisiPiano riepilogo={r} dalPiano={dalPiano} puoModificare={puoModificare} />{riquadri.filter(x => x.id === "documenti").map(x => x.Riquadro && <x.Riquadro key={x.id} {...propsScheda} />)}</div>
 
       {avvisi.length > 0 && (
@@ -149,8 +157,6 @@ export function CommessaGeneraleDettaglio({ generaleId }: { generaleId: string }
         </section>
       )}
 
-      {/* Da subito, anche senza lotti: un appalto non vedeva «completa il contratto» finché non creava un ordine. */}
-      {puoModificare && <PerPartire riepilogo={r} nuovaFiglia={nuovaFiglia} />}
       {puoModificare && <PerLavorare riepilogo={r} />}
 
       {/* Sviluppo e compravendita: finché si costruisce, il lavoro si segue dal cantiere. */}
@@ -382,12 +388,10 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
     { etichetta: "Fatturato", valore: t.fatturato, tono: "bg-indigo-300" },
     { etichetta: "Incassato", valore: t.incassato, tono: "bg-emerald-400" },
   ];
-  // Lo speso è già nel numero in alto: le barre dicono il budget e quanto ne resta.
+  // In costruzione lo speso si legge contro il budget E contro i lavori fatti
+  // (SpesaControLavori, 16/11/2026): le due barre di prima dicevano il budget — sempre al
+  // 100%, è la base — e il resto da spendere.
   const conBudget = costruzione && speso !== null && budget !== null && budget > 0;
-  const righeCostruzione = conBudget ? [
-    { etichetta: budgetCompleto ? "Budget dei costi" : "Budget (stime da completare)", valore: budget, tono: "bg-slate-300" },
-    { etichetta: "Ancora da spendere", valore: Math.max(0, budget! - speso!), tono: "bg-orange-400" },
-  ] : [];
   // Compravendita: la catena acquisto → lavori → rivendita sulla stessa base (T4, 14/11/2026).
   const prezzoDati = r.generale.dati?.immobile?.prezzo;
   const prezzoAcquisto = typeof prezzoDati === "number" ? prezzoDati
@@ -400,7 +404,7 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
     ...(budget !== null && budget > prezzoAcquisto! ? [{ etichetta: budgetCompleto ? "Lavori e spese" : "Lavori e spese (stime da completare)", valore: budget - prezzoAcquisto!, tono: "bg-orange-400" }] : []),
     { etichetta: "Rivendita", valore: rivendita, tono: "bg-emerald-400" },
   ] : [];
-  const barre = catena ? righeCatena : costruzione ? righeCostruzione : righe;
+  const barre = catena ? righeCatena : costruzione ? [] : righe;
   const baseBarre = catena ? rivendita : costruzione ? budget : t.base;
   const colonne = barre.length === 5 ? "lg:grid-cols-5" : barre.length === 3 ? "lg:grid-cols-3" : barre.length === 2 ? "lg:grid-cols-2" : barre.length === 1 ? "lg:grid-cols-1" : "lg:grid-cols-4";
   const quantiNumeri = costruzione
@@ -480,7 +484,11 @@ function QuadroGenerale({ r, t, quote }: { r: RiepilogoGenerale; t: TotaliGenera
         />
       )}
 
-      {r.permessi.importi && barre.length > 0 && (
+      {/* In costruzione: speso contro lavori fatti, non due barre di cui una sempre al 100%. */}
+      {/* La compravendita tiene la sua catena acquisto → lavori → rivendita. */}
+      {conBudget && !catena ? (
+        <SpesaControLavori speso={speso!} budget={budget!} avanzamento={t.avanzamento} budgetParziale={!budgetCompleto} />
+      ) : r.permessi.importi && barre.length > 0 && (
         <div className="generale-hero-progress">
           <dl className={cn("space-y-1.5 lg:grid lg:gap-5 lg:space-y-0", colonne)}>
             {barre.map((riga) => {
