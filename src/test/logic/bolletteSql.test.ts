@@ -1,6 +1,9 @@
 // La migrazione 20290415160000_bollette_utenze su un database vero (PGlite): utenza dal POD/PDR,
 // più utenze nello stesso documento, doppione o conguaglio, nota di credito, destinazioni con
 // validità, costo sulla commessa sotto l'interruttore, isolamento fra aziende. Nessuna AI.
+// Dal 16/11/2026 anche le regole della revisione (20290415210000: blocco della contabilizzazione,
+// scarto, ripartizione col segno, periodo senza fine), il filtro del giro (20290415200000) e acqua e
+// telefono (docs/migrazioni-da-applicare/20290416210000, non ancora applicata).
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -56,7 +59,8 @@ beforeAll(async () => {
     create table unita_immobiliari(id uuid primary key, company_id uuid, order_id uuid);
     create table company_costs(id uuid primary key, company_id uuid, order_id uuid, purchase_order_id uuid, allocations jsonb, updated_at timestamptz);
     create table fatture_ricevute(id uuid primary key, company_id uuid, cedente_piva text, cedente_ragione_sociale text, numero_fattura text, data_fattura date,
-      tipo_documento text, totale_documento numeric, imponibile_totale numeric, company_cost_id uuid, order_id_suggerito uuid, updated_at timestamptz);
+      tipo_documento text, totale_documento numeric, imponibile_totale numeric, company_cost_id uuid, order_id_suggerito uuid, updated_at timestamptz,
+      stato text, xml_raw text, indice_corpo int, created_at timestamptz default now());
     create table governo(company_id uuid primary key, acceso boolean);
     create table traccia(company_id uuid, da_id uuid, a_id uuid, regola text, esito text, importo numeric);
     create function partner_tax_key(v text) returns text language sql immutable as $$select regexp_replace(upper(regexp_replace(coalesce(v,''),'[^A-Za-z0-9]','','g')),'^IT(?=[0-9]{11}$)','')$$;
@@ -74,13 +78,18 @@ beforeAll(async () => {
   await db.query(`insert into orders values ($1,$3,null), ($2,$3,null), ($4,$5,null)`, [COMM_A, COMM_B, AZ, COMM_ALTRA, ALTRA]);
   await db.query(`insert into sedi values ($1,$2)`, [SEDE, AZ]);
   await db.query(`insert into unita_immobiliari values ($1,$2,$3)`, [UNITA, AZ, COMM_B]);
-  for (const f of ["20290415160000_bollette_utenze.sql", "20290415190000_bolletta_registra_robusta.sql"]) {
-    await db.exec(readFileSync(`supabase/migrations/${f}`, "utf8").replace(/^SET LOCAL .*$/gm, ""));
+  const senzaSet = (t: string) => t.replace(/^SET LOCAL .*$/gm, "");
+  for (const f of ["20290415160000_bollette_utenze.sql", "20290415190000_bolletta_registra_robusta.sql", "20290415200000_bollette_da_leggere_veloce.sql"]) {
+    await db.exec(senzaSet(readFileSync(`supabase/migrations/${f}`, "utf8")));
   }
+  // Della revisione si caricano le parti delle bollette (dalla 3 in poi): le prime due sono dei subappalti.
+  const revisione = readFileSync("supabase/migrations/20290415210000_area_d_correzioni_revisione.sql", "utf8");
+  await db.exec(senzaSet(revisione.slice(revisione.indexOf("-- ── 3."))));
+  await db.exec(senzaSet(readFileSync("docs/migrazioni-da-applicare/20290416210000_bollette_acqua_telefono.sql", "utf8")));
 });
 afterAll(async () => { await db.close(); });
 beforeEach(async () => {
-  await db.exec(`delete from bollette_righe; delete from bollette; delete from utenze_destinazioni; delete from utenze; delete from traccia; delete from governo;`);
+  await db.exec(`delete from bollette_righe; delete from bollette; delete from utenze_destinazioni; delete from utenze; delete from traccia; delete from governo; delete from bollette_viste;`);
 });
 
 describe("utenza dal POD/PDR", () => {
@@ -274,5 +283,104 @@ describe("isolamento fra aziende", () => {
     const altra = await fattura({ company: ALTRA });
     expect(await registra(altra.f, [sett])).toMatchObject({ stato: "riconosciuta" });
     expect((await db.query(`select count(*)::int n from utenze`)).rows[0]).toEqual({ n: 2 });
+  });
+});
+
+describe("regole della revisione (20290415210000)", () => {
+  const sett = { codice: "IT001E00000001", periodo_dal: "2026-09-01", periodo_al: "2026-09-30" };
+  async function doppione() {
+    const a = await fattura();
+    await registra(a.f, [{ ...sett, importo: 100 }]);
+    const b = await fattura({ costo: false });
+    await registra(b.f, [{ ...sett, importo: 100 }]);
+    return b;
+  }
+
+  it("una bolletta doppione sospetto non si contabilizza: il database rifiuta il costo", async () => {
+    const b = await doppione();
+    const c = id(prossimo++);
+    await db.query(`insert into company_costs(id, company_id) values ($1, $2)`, [c, AZ]);
+    await expect(db.query(`update fatture_ricevute set company_cost_id=$1 where id=$2`, [c, b.f])).rejects.toThrow(/possibile doppione/);
+  });
+
+  it("scartata: la fattura diventa «rifiutata», resta non contabilizzabile e la bolletta lo dice", async () => {
+    const b = await doppione();
+    await db.exec(`select set_config('test.company', '${AZ}', false)`);
+    await come(UTENTE);
+    const r = (await db.query<{ r: Record<string, unknown> }>(`select bolletta_decidi($1, 'scarta') as r`, [(await bolletta(b.f)).id])).rows[0].r;
+    expect(r).toMatchObject({ esito: "scartata", costo_da_annullare: null });
+    expect((await db.query(`select stato from fatture_ricevute where id=$1`, [b.f])).rows[0]).toEqual({ stato: "rifiutata" });
+    expect(await bolletta(b.f)).toMatchObject({ stato: "scartata", costo_esito: "sospesa" });
+    const c = id(prossimo++);
+    await db.query(`insert into company_costs(id, company_id) values ($1, $2)`, [c, AZ]);
+    await expect(db.query(`update fatture_ricevute set company_cost_id=$1 where id=$2`, [c, b.f])).rejects.toThrow(/scartata/);
+  });
+
+  it("un rimborso su una commessa e un costo su un'altra: «misto», niente scritto", async () => {
+    await db.query(`insert into governo values ($1, true)`, [AZ]);
+    await registra((await fattura()).f, [{ codice: "IT001E00000001", importo: 1 }, { codice: "IT001E00000002", importo: 1 }]);
+    await collega((await utenzaDi("IT001E00000001"))!, "commessa", COMM_A);
+    await collega((await utenzaDi("IT001E00000002"))!, "commessa", COMM_B);
+    const a = await fattura();
+    expect(await registra(a.f, [{ codice: "IT001E00000001", importo: 80 }, { codice: "IT001E00000002", importo: -30 }]))
+      .toMatchObject({ costo: { esito: "misto" } });
+    expect(await costo(a.costo!)).toEqual({ order_id: null, allocations: null });
+  });
+
+  it("periodo senza data di fine: la sovrapposizione si vede lo stesso", async () => {
+    await registra((await fattura()).f, [{ codice: "IT001E00000001", periodo_dal: "2026-09-01", importo: 100 }]);
+    expect(await registra((await fattura()).f, [{ codice: "IT001E00000001", periodo_dal: "2026-09-01", importo: 100 }]))
+      .toMatchObject({ stato: "doppione_sospetto" });
+  });
+});
+
+describe("acqua e telefono", () => {
+  it("l'utenza ha il suo tipo; un'altra bolletta dello stesso contratto la ritrova", async () => {
+    await registra((await fattura({ piva: "13378520152" })).f, [{ codice: "Cliente 600000001", tipo_utenza: "telefono", periodo_dal: "2026-08-01", periodo_al: "2026-09-30", importo: 27 }]);
+    await registra((await fattura({ piva: "13378520152" })).f, [{ codice: "Cliente 600000001", tipo_utenza: "telefono", periodo_dal: "2026-10-01", periodo_al: "2026-11-30", importo: 27 }]);
+    await registra((await fattura({ piva: "07937540016" })).f, [{ codice: "0100999900001111", tipo_utenza: "acqua", importo: 25 }]);
+    expect((await db.query(`select tipo, codice_chiave from utenze order by tipo`)).rows).toEqual([
+      { tipo: "acqua", codice_chiave: "0100999900001111" },
+      { tipo: "telefono", codice_chiave: "CLIENTE600000001" },
+    ]);
+  });
+
+  it("telefono: stesso contratto, stesso bimestre, stesso canone = doppione sospetto, come per la luce", async () => {
+    const t = { codice: "Cliente 600000001", tipo_utenza: "telefono", periodo_dal: "2026-08-01", periodo_al: "2026-09-30", importo: 27 };
+    await registra((await fattura()).f, [t]);
+    expect(await registra((await fattura()).f, [t])).toMatchObject({ stato: "doppione_sospetto" });
+  });
+});
+
+describe("filtro del giro (bollette_da_leggere)", () => {
+  beforeEach(async () => { await db.exec(`delete from fatture_ricevute where xml_raw is not null`); });
+  async function arrivata(piva: string, xml: string | null, company = AZ) {
+    const f = id(prossimo++);
+    await db.query(`insert into fatture_ricevute(id, company_id, cedente_piva, numero_fattura, data_fattura, tipo_documento, xml_raw) values ($1,$2,$3,$4,'2026-10-10','TD01',$5)`,
+      [f, company, piva, `G${prossimo}`, xml]);
+    return f;
+  }
+  const leggi = async () => {
+    await come(null, "service_role");
+    return (await db.query<{ id: string }>(`select id from bollette_da_leggere(30)`)).rows.map((r) => r.id);
+  };
+
+  it("passano POD, gestori di acqua e telefono e il servizio idrico; non il fornitore di cemento né la fattura senza XML", async () => {
+    const pod = await arrivata("01111111111", "<x>POD IT001E00000001</x>");
+    const tel = await arrivata("IT13378520152", "<x>Infinito</x>");
+    const acqua = await arrivata("07937540016", "<x>Acquedotto</x>");
+    const idrico = await arrivata("01234567890", "<x>Servizio idrico integrato</x>");
+    const cemento = await arrivata("01234567890", "<x>Cemento</x>");
+    const fogna = await arrivata("01234567890", "<x>Lavori di fognatura</x>");
+    const senzaXml = await arrivata("13378520152", null);
+    expect((await leggi()).sort()).toEqual([pod, tel, acqua, idrico].sort());
+    expect((await db.query(`select count(*)::int n from bollette_viste where fattura_ricevuta_id = any($1)`, [[cemento, fogna, senzaXml]])).rows[0]).toEqual({ n: 2 });
+  });
+
+  it("una volta letta, la bolletta non torna al giro", async () => {
+    const tel = await arrivata("13378520152", "<x>Infinito</x>");
+    expect(await leggi()).toEqual([tel]);
+    await registra(tel, []);
+    expect(await leggi()).toEqual([]);
   });
 });

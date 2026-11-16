@@ -1,5 +1,6 @@
 /**
- * Costi → Utenze (15/11/2026): i contatori dell'azienda letti dalle bollette (POD luce, PDR gas),
+ * Costi → Utenze (15/11/2026): i contatori dell'azienda letti dalle bollette (POD luce, PDR gas;
+ * dal 16/11 acqua e telefono col codice del gestore),
  * dove va il loro costo (sede, immobile o commessa, con la data da cui vale) e le bollette da
  * decidere (doppioni sospetti). Le bollette le legge da sé il giro del server; qui si collega
  * l'utenza e si decide sui dubbi. Le scritture passano da utenza_collega_destinazione e
@@ -8,7 +9,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Flame, Plug, Zap } from "lucide-react";
+import { AlertTriangle, Droplet, Flame, Phone, Plug, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -31,7 +32,12 @@ const COSTO: Record<string, string> = {
   da_collegare: "da collegare", senza_costo: "fattura da contabilizzare", gia_assegnato: "costo già assegnato",
   misto: "da ripartire a mano", sospesa: "sospesa",
 };
-const Icona = ({ tipo }: { tipo: string }) => (tipo === "luce" ? <Zap className="h-4 w-4 text-amber-500" /> : tipo === "gas" ? <Flame className="h-4 w-4 text-orange-600" /> : <Plug className="h-4 w-4 text-muted-foreground" />);
+const Icona = ({ tipo }: { tipo: string }) =>
+  tipo === "luce" ? <Zap className="h-4 w-4 text-amber-500" />
+  : tipo === "gas" ? <Flame className="h-4 w-4 text-orange-600" />
+  : tipo === "acqua" ? <Droplet className="h-4 w-4 text-sky-600" />
+  : tipo === "telefono" ? <Phone className="h-4 w-4 text-violet-600" />
+  : <Plug className="h-4 w-4 text-muted-foreground" />;
 // La data di oggi in Italia, non in UTC: dopo mezzanotte italiana UTC è ancora «ieri».
 const oggi = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
@@ -98,7 +104,7 @@ export default function UtenzeTab() {
   if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento utenze…</p>;
   if (isError || !data) return <div role="alert" className="rounded-lg border p-4 text-sm">Utenze non disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div>;
   if (!data.utenze.length) {
-    return <p className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">Nessuna utenza ancora. Le utenze nascono da sole dalle bollette di luce e gas che arrivano (dal POD o dal PDR nella fattura elettronica).</p>;
+    return <p className="rounded-xl border bg-muted/30 p-6 text-sm text-muted-foreground">Nessuna utenza ancora. Le utenze nascono da sole dalle bollette che arrivano: luce e gas dal POD o dal PDR, acqua e telefono dal codice del gestore nella fattura elettronica.</p>;
   }
 
   return (

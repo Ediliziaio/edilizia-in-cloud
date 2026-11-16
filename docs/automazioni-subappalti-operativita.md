@@ -161,12 +161,29 @@ riga in Impostazioni → Automazioni.
 0 doppioni, 1 nota di credito con la sua bolletta, 3 periodi sovrapposti (avviso), 6 utenze.
 Nessun costo toccato: le utenze aspettano la destinazione («da collegare»).
 
-Test: `bolletteSql.test.ts` (18 casi su PGlite, migrazione vera), `bolletteLettura.test.ts`
-(lettura e giro), `utenzeTab.test.tsx`, `impostazioniAutomazioni.test.tsx`.
+Test: `bolletteSql.test.ts` (27 casi su PGlite, migrazioni vere: dal 16/11 anche blocco della
+contabilizzazione, scarto, ripartizione col segno, periodo senza fine, filtro del giro, acqua e
+telefono), `bolletteLettura.test.ts` (lettura e giro, con acqua e telefono),
+`utenzeTab.test.tsx`, `impostazioniAutomazioni.test.tsx`.
 
-Restano fuori: acqua e telefono (il codice cliente non ha un formato riconoscibile: si possono
-aggiungere a mano quando servirà la riga), la proposta di destinazione dall'indirizzo di
-fornitura (oggi si mostra l'indirizzo, la scelta è della persona).
+**Acqua e telefono (16/11/2026).** Senza AI, dalle fatture vere: una sola utenza per documento.
+- Acqua: gestore idrico (partita IVA) o «servizio idrico»; codice da `AltriDatiGestionali`
+  «Fornitura»/«COD.UTENZA» o «codice utenza» scritto; periodo dalla causale. Dal gestore senza
+  codice (allacciamenti, contributi) non è una bolletta; le sole parole («fognatura») nemmeno.
+- Telefono: solo gestori noti per partita IVA (TIM, Wind Tre, Fastweb, Vodafone, Iliad) e righe con
+  canoni o traffico; codice = codice cliente (`RiferimentoAmministrazione`, uno per contratto),
+  altrimenti il numero di linea, altrimenti il gestore. I soli telefoni a rate non sono bollette.
+- POD e PDR vincono (Fastweb vende anche luce).
+- Il filtro del giro (`private.sembra_bolletta`) sta in
+  `docs/migrazioni-da-applicare/20290416210000_bollette_acqua_telefono.sql`: **non applicata**
+  (16/11 l'accesso al database era spento). Finché non lo è, il giro non vede acqua e telefono.
+  Dopo l'applicazione e il riallineamento si sposta in `supabase/migrations/` e si aggiorna il
+  percorso in `bolletteSql.test.ts`.
+- Un gestore telefonico non in elenco non si riconosce: si aggiunge a `GESTORI_TELEFONO` e alla
+  funzione SQL insieme.
+
+Resta fuori la proposta di destinazione dall'indirizzo di fornitura (oggi si mostra l'indirizzo,
+la scelta è della persona).
 
 ## 5. Lacune trovate, non ancora corrette
 

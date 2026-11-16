@@ -1,17 +1,18 @@
 // La lettura delle bollette dall'XML (shared/bollette/lettura.ts) e il giro del server che le
 // registra (supabase/functions/bollette-riconosci/handler.ts). Nessuna AI, nessun servizio esterno.
 import { describe, expect, it, vi } from "vitest";
-import { leggiBolletta, periodoDaMese, sembraBolletta } from "../../../shared/bollette/lettura.ts";
+import { leggiBolletta, periodoDaMese, periodoDalTesto, sembraBolletta } from "../../../shared/bollette/lettura.ts";
 import { giroBollette } from "../../../supabase/functions/bollette-riconosci/handler";
 
-type Riga = { n: number; descr: string; totale: number; codice?: [string, string]; dal?: string; al?: string; qta?: number; um?: string; altri?: [string, string] };
-function xml(righe: Riga[], testata: { causale?: string; contratto?: string; collegate?: string[]; tipo?: string } = {}) {
+type Riga = { n: number; descr: string; totale: number; codice?: [string, string]; dal?: string; al?: string; qta?: number; um?: string; altri?: [string, string] | Array<[string, string]> };
+function xml(righe: Riga[], testata: { causale?: string; contratto?: string; collegate?: string[]; tipo?: string; piva?: string; cliente?: string } = {}) {
   const linee = righe.map((r) => `<DettaglioLinee><NumeroLinea>${r.n}</NumeroLinea>${r.codice ? `<CodiceArticolo><CodiceTipo>${r.codice[0]}</CodiceTipo><CodiceValore>${r.codice[1]}</CodiceValore></CodiceArticolo>` : ""}
     <Descrizione>${r.descr}</Descrizione>${r.qta != null ? `<Quantita>${r.qta}</Quantita>` : ""}${r.um ? `<UnitaMisura>${r.um}</UnitaMisura>` : ""}
     ${r.dal ? `<DataInizioPeriodo>${r.dal}</DataInizioPeriodo>` : ""}${r.al ? `<DataFinePeriodo>${r.al}</DataFinePeriodo>` : ""}
     <PrezzoUnitario>${r.totale}</PrezzoUnitario><PrezzoTotale>${r.totale}</PrezzoTotale><AliquotaIVA>22.00</AliquotaIVA>
-    ${r.altri ? `<AltriDatiGestionali><TipoDato>${r.altri[0]}</TipoDato><RiferimentoTesto>${r.altri[1]}</RiferimentoTesto></AltriDatiGestionali>` : ""}</DettaglioLinee>`).join("");
-  return `<p:FatturaElettronica xmlns:p="x"><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>${testata.tipo ?? "TD01"}</TipoDocumento>
+    ${(r.altri ? (Array.isArray(r.altri[0]) ? r.altri as Array<[string, string]> : [r.altri as [string, string]]) : []).map((a) => `<AltriDatiGestionali><TipoDato>${a[0]}</TipoDato><RiferimentoTesto>${a[1]}</RiferimentoTesto></AltriDatiGestionali>`).join("")}</DettaglioLinee>`).join("");
+  const cedente = testata.piva ? `<FatturaElettronicaHeader><CedentePrestatore><DatiAnagrafici><IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>${testata.piva}</IdCodice></IdFiscaleIVA></DatiAnagrafici>${testata.cliente ? `<RiferimentoAmministrazione>${testata.cliente}</RiferimentoAmministrazione>` : ""}</CedentePrestatore></FatturaElettronicaHeader>` : "";
+  return `<p:FatturaElettronica xmlns:p="x">${cedente}<FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>${testata.tipo ?? "TD01"}</TipoDocumento>
     ${testata.causale ? `<Causale>${testata.causale}</Causale>` : ""}</DatiGeneraliDocumento>
     ${testata.contratto ? `<DatiContratto><IdDocumento>${testata.contratto}</IdDocumento></DatiContratto>` : ""}
     ${(testata.collegate ?? []).map((c) => `<DatiFattureCollegate><IdDocumento>${c}</IdDocumento></DatiFattureCollegate>`).join("")}
@@ -65,6 +66,92 @@ describe("lettura della bolletta dall'XML", () => {
   it("mese scritto in lettere", () => {
     expect(periodoDaMese("consumi febbraio 2028")).toEqual({ dal: "2028-02-01", al: "2028-02-29" });
     expect(periodoDaMese("nessun mese")).toBeNull();
+  });
+});
+
+// Acqua e telefono: casi presi dalle fatture vere (15/11/2026), con codici e indirizzi inventati.
+const SMAT = "07937540016";
+const CAP = "13187590156";
+const WINDTRE = "13378520152";
+const FASTWEB = "12878470157";
+
+describe("acqua", () => {
+  it("gestore idrico col codice «Fornitura»: una sola utenza acqua, periodo dalla causale, indirizzo col comune", () => {
+    const b = leggiBolletta(xml([
+      { n: 1, descr: "Acquedotto", totale: 20, altri: [["Fornitura", "0100999900001111"], ["Indirizzo", "VIA DEI PINI, 3"], ["Comune", "Torino"]] },
+      { n: 2, descr: "Depurazione", totale: 10 },
+      { n: 3, descr: "Acconti bollette precedenti", totale: -5 },
+    ], { piva: SMAT, causale: "Bolletta servizio Idrico periodo 02/06/2026 - 01/09/2026" }));
+    expect(b.utenze).toEqual([expect.objectContaining({
+      codice: "0100999900001111", tipo_utenza: "acqua", importo: 25, periodo_dal: "2026-06-02", periodo_al: "2026-09-01",
+      indirizzo: "VIA DEI PINI, 3, Torino", righe: [1, 2, 3],
+    })]);
+  });
+
+  it("«COD.UTENZA» in una riga sola vale per tutto il documento", () => {
+    const b = leggiBolletta(xml([
+      { n: 1, descr: "Quota fissa acqua", totale: 12, altri: ["COD.UTENZA", "0009999999"] },
+      { n: 2, descr: "Tariffa acquedotto", totale: 30, qta: 18, um: "MC" },
+    ], { piva: CAP }));
+    expect(b.utenze).toEqual([expect.objectContaining({ codice: "0009999999", tipo_utenza: "acqua", importo: 42, consumo: 18 })]);
+  });
+
+  it("dal gestore idrico senza codice (allacciamento, contributo) non è una bolletta", () => {
+    expect(leggiBolletta(xml([{ n: 1, descr: "Allacciamento fognario", totale: 900 }], { piva: CAP })).utenze).toEqual([]);
+  });
+
+  it("un altro gestore: le parole dell'acqua bastano solo col codice utenza scritto", () => {
+    expect(leggiBolletta(xml([{ n: 1, descr: "Servizio idrico integrato - codice utenza: 77001234", totale: 40 }], { piva: "01234567890" })).utenze[0])
+      .toMatchObject({ codice: "77001234", tipo_utenza: "acqua" });
+    // Un'impresa che fattura lavori di fognatura non è un gestore idrico.
+    expect(leggiBolletta(xml([{ n: 1, descr: "Lavori di fognatura via Roma", totale: 4000 }], { piva: "01234567890" })).utenze).toEqual([]);
+  });
+});
+
+describe("telefono", () => {
+  it("codice cliente del gestore: un'utenza per contratto, periodo dalle righe «dal … al …»", () => {
+    const righe: Riga[] = [
+      { n: 1, descr: "Infinito dal 01/08/2026 al 31/08/2026", totale: 13 },
+      { n: 2, descr: "Infinito dal 01/09/2026 al 30/09/2026", totale: 13 },
+      { n: 3, descr: "Costi e oneri di invio fattura", totale: 1 },
+    ];
+    const a = leggiBolletta(xml(righe, { piva: WINDTRE, cliente: "600000001" }));
+    expect(a.utenze).toEqual([expect.objectContaining({ codice: "Cliente 600000001", tipo_utenza: "telefono", importo: 27, periodo_dal: "2026-08-01", periodo_al: "2026-09-30" })]);
+    // Stesso gestore, altro contratto della stessa azienda: altra utenza.
+    expect(leggiBolletta(xml(righe, { piva: WINDTRE, cliente: "5800000002" })).utenze[0].codice).toBe("Cliente 5800000002");
+  });
+
+  it("senza codice cliente: il numero di linea, se è uno solo; altrimenti il gestore", () => {
+    expect(leggiBolletta(xml([{ n: 1, descr: "Prima Ricarica del 14/10/2026 sul numero 3401234567", totale: 10 }], { piva: FASTWEB })).utenze[0].codice).toBe("Linea 3401234567");
+    const b = leggiBolletta(xml([{ n: 1, descr: "Costi fissi", totale: 50 }, { n: 2, descr: "Costi variabili", totale: 6 }],
+      { piva: FASTWEB, causale: "Periodo fatturazione: 01 agosto 2026 - 30 settembre 2026" }));
+    expect(b.utenze).toEqual([expect.objectContaining({ codice: `Fastweb ${FASTWEB}`, tipo_utenza: "telefono", importo: 56, periodo_dal: "2026-08-01", periodo_al: "2026-09-30" })]);
+  });
+
+  it("lo stesso gestore che vende luce: vince il POD", () => {
+    const b = leggiBolletta(xml([{ n: 1, descr: "Fornitura energia", totale: 80 }],
+      { piva: FASTWEB, causale: "Fattura per la fornitura di energia elettrica consumi gennaio 2026", contratto: POD1 }));
+    expect(b.utenze.map((u) => [u.codice, u.tipo_utenza])).toEqual([[POD1, "luce"]]);
+  });
+
+  it("i soli telefoni a rate, senza canoni né traffico, non sono una bolletta; né un fornitore qualunque con «abbonamento»", () => {
+    expect(leggiBolletta(xml([{ n: 1, descr: "Terminale modello X", totale: 300 }], { piva: WINDTRE, cliente: "600000001" })).utenze).toEqual([]);
+    expect(leggiBolletta(xml([{ n: 1, descr: "Abbonamento software gestionale", totale: 30 }], { piva: "01234567890" })).utenze).toEqual([]);
+  });
+});
+
+describe("filtro veloce e periodi scritti", () => {
+  it("sembraBolletta: POD, gestori di acqua e telefono, «servizio idrico»; non un fornitore qualunque", () => {
+    expect(sembraBolletta(xml([{ n: 1, descr: "x", totale: 1 }], { piva: WINDTRE }))).toBe(true);
+    expect(sembraBolletta(xml([{ n: 1, descr: "x", totale: 1 }], { piva: SMAT }))).toBe(true);
+    expect(sembraBolletta(xml([{ n: 1, descr: "Servizio idrico integrato", totale: 1 }], { piva: "01234567890" }))).toBe(true);
+    expect(sembraBolletta(xml([{ n: 1, descr: "Cemento", totale: 1 }], { piva: "01234567890" }))).toBe(false);
+  });
+
+  it("periodoDalTesto: più righe = dal primo inizio all'ultima fine; date impossibili scartate", () => {
+    expect(periodoDalTesto(["dal 01/09/2026 al 30/09/2026", "dal 01/08/2026 al 31/08/2026"])).toEqual({ dal: "2026-08-01", al: "2026-09-30" });
+    expect(periodoDalTesto(["periodo 31/02/2026 - 10/03/2026"])).toBeNull();
+    expect(periodoDalTesto(["09 dicembre 2025 - 08 febbraio 2026"])).toEqual({ dal: "2025-12-09", al: "2026-02-08" });
   });
 });
 

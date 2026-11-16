@@ -1,6 +1,8 @@
 /**
  * bollette-riconosci — il giro del cron (ogni 15 minuti) che legge le bollette appena arrivate.
  * Le regole stanno in handler.ts e nel database (bolletta_registra). Solo il cron la chiama.
+ * La lettura è in shared/bollette/lettura.ts (dal 16/11 anche acqua e telefono): toccare questo
+ * file a ogni cambio lì, perché il deploy guarda solo supabase/functions/.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { cronSecretValido } from "../_shared/cronAuth.ts";
