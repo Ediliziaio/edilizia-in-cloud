@@ -81,9 +81,13 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
   });
 
   if (!riepilogo.permessi.costi) return null;
-  const d = q.data;
+  // Il riquadro vive nella Panoramica: qualunque cosa torni, non deve farla cadere.
+  const fatture = Array.isArray(q.data?.fatture) ? q.data!.fatture : [];
+  const senzaCommessa = q.data?.senzaCommessa ?? { quante: 0, totale: 0 };
+  const totale = typeof q.data?.totale === "number" ? q.data.totale : 0;
   // Niente fatture e niente da assegnare: non si occupa spazio per dire zero.
-  if (!d || (d.fatture.length === 0 && d.senzaCommessa.quante === 0)) return null;
+  if (fatture.length === 0 && senzaCommessa.quante === 0) return null;
+  const d = { fatture, senzaCommessa, totale };
 
   const codici = new Map(riepilogo.figlie.map((f) => [f.id, f.codice] as const));
   const dove = (orderId: string | null) =>
