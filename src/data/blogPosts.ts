@@ -50,6 +50,194 @@ export { FLO_AVATAR };
 
 export const blogPosts: BlogPost[] = [
 {
+  "id": "seo-20261116-ore-paghe",
+  "slug": "controllo-ore-cantiere-prima-paghe",
+  "title": "Controllo ore di cantiere prima delle paghe: metodo e scheda",
+  "excerpt": "Controlla ore di cantiere, presenze e riepilogo paghe: fonti, anomalie, esempio e scheda CSV per preparare il confronto con il consulente.",
+  "category": "HR & Personale",
+  "tags": [
+    "controllo ore cantiere",
+    "presenze",
+    "paghe",
+    "Cassa Edile"
+  ],
+  "publishedAt": "2026-11-16",
+  "readTime": 12,
+  "coverImage": "/blog/covers/controllo-ore-cantiere-prima-paghe.jpg",
+  "content": [
+    {
+      "type": "intro",
+      "body": "Il controllo delle ore di cantiere prima delle paghe serve a ricostruire le differenze fra presenze, rapportini e riepilogo destinato al consulente. Quando questi documenti arrivano da persone e strumenti diversi, due totali differenti possono segnalare un errore oppure descrivere grandezze diverse. Per capire quale dei due casi hai davanti servono riferimenti, responsabilità e una sequenza di verifica."
+    },
+    {
+      "type": "intro",
+      "body": "Questa guida propone un processo operativo per l’ufficio di una piccola impresa edile: raccogliere i dati, controllare le anomalie e consegnare un riepilogo leggibile. Trovi un esempio numerico illustrativo e una scheda CSV vuota da adattare. La classificazione delle voci di paga e gli adempimenti restano da verificare con il consulente del lavoro; il foglio aiuta a preparare quel confronto e non calcola un cedolino."
+    },
+    {
+      "type": "section",
+      "body": "La presenza descrive il tempo registrato secondo la procedura adottata dall’impresa. Il rapportino attribuisce attività e ore al lavoro svolto, possibilmente distinguendo le commesse. Il riepilogo per le paghe contiene le informazioni che il consulente deve trattare secondo l’inquadramento applicabile. Prima di confrontarli, scrivi che cosa comprende ciascuno e quale periodo copre.",
+      "heading": "Tre documenti possono misurare tre cose differenti"
+    },
+    {
+      "type": "section",
+      "body": "Un’ora assegnata a una commessa non dimostra, da sola, che il dato amministrativo sia completo. Allo stesso modo, una presenza registrata non spiega automaticamente su quale lavoro attribuire il costo. La riconciliazione mette in relazione questi livelli e rende visibili le parti che richiedono un chiarimento. Non consiste nel modificare un totale finché coincide con un altro."
+    },
+    {
+      "type": "section",
+      "body": "Se devi orientarti sul ruolo della bilateralità di settore, parti dalla [guida alla Cassa Edile](/blog/cassa-edile-come-funziona/). Per questo articolo il problema è più circoscritto: preparare dati operativi coerenti prima di consegnarli a chi segue l’amministrazione del personale. Mantenere distinta questa domanda evita di trasformare un controllo interno in un’interpretazione delle regole retributive."
+    },
+    {
+      "type": "section",
+      "body": "Scegli una competenza e un elenco preciso di persone incluse. Usa un identificativo interno stabile, la commessa e la data dell’attività. Se i nomi dei cantieri vengono scritti liberamente, crea una tabella di corrispondenza: “Villetta Rossi” e “Cantiere 024” potrebbero indicare lo stesso lavoro, ma il controllo non dovrebbe dipendere dalla memoria di una sola persona.",
+      "heading": "Definisci prima il perimetro del controllo"
+    },
+    {
+      "type": "section",
+      "body": "Indica anche quali fonti sono disponibili: timbrature, rapportini confermati, fogli del caposquadra, autorizzazioni e riepilogo dell’ufficio. Per ciascuna annota il responsabile e la versione utilizzata. Il file esportato venerdì e quello corretto lunedì non sono intercambiabili, anche se hanno lo stesso nome. Una data di estrazione aiuta a capire quale stato stai confrontando."
+    },
+    {
+      "type": "section",
+      "body": "Prima di iniziare escludi dal confronto i dati che appartengono a un’altra impresa o a un rapporto differente, mantenendo comunque il riferimento organizzativo necessario. Le ore dichiarate da un subappaltatore non diventano presenze dei tuoi dipendenti. Questa separazione serve sia alla qualità del riepilogo sia alla lettura dei costi della commessa, che può includere soggetti con ruoli diversi."
+    },
+    {
+      "type": "section",
+      "body": "Il referente di cantiere chiarisce che cosa è stato svolto e dove; l’ufficio verifica completezza, periodi e corrispondenze; il consulente tratta gli aspetti di propria competenza. Definisci chi può correggere una registrazione e chi deve confermare il chiarimento. Se tutti possono cambiare tutto, una differenza può scomparire dal foglio senza che sia stato compreso il motivo.",
+      "heading": "Assegna responsabilità piccole e riconoscibili"
+    },
+    {
+      "type": "section",
+      "body": "Ogni anomalia dovrebbe avere una domanda concreta, una persona incaricata e uno stato. “Controllare ore” è troppo generico. “Il rapportino del giorno 12 riporta sei ore sulla commessa A; la presenza ne indica otto: manca il passaggio alla commessa B?” è una richiesta che può ricevere una risposta verificabile. Riduce anche il numero di telefonate necessarie per ricostruire il contesto."
+    },
+    {
+      "type": "section",
+      "body": "Stabilisci un momento di consegna concordato con chi elabora le paghe e una finestra interna per i chiarimenti. Le date organizzative non sostituiscono le scadenze applicabili, che vanno controllate separatamente. Il vantaggio è sapere quando raccogliere le informazioni e come segnalare ciò che resta aperto, invece di presentare come definitivo un riepilogo ancora incompleto."
+    },
+    {
+      "type": "section",
+      "body": "Una verifica breve durante la settimana è spesso più semplice della ricostruzione dell’intero mese. Cerca giornate senza attribuzione, registrazioni duplicate e passaggi fra cantieri che non risultano nei rapportini. Non interpretare automaticamente un campo vuoto come assenza o come zero ore: può indicare una registrazione mancante, un’attività diversa oppure un dato ancora da confermare.",
+      "heading": "Controlla le registrazioni mentre il lavoro è ricordabile"
+    },
+    {
+      "type": "section",
+      "body": "Quando una squadra lavora su due commesse nella stessa giornata, registra il passaggio con il livello di dettaglio utile alla tua organizzazione. Se una presenza di otto ore viene copiata integralmente su entrambi i cantieri, il totale dei costi attribuiti può raddoppiare. Il controllo deve cercare anche queste sovrapposizioni, non soltanto le giornate che sembrano troppo brevi."
+    },
+    {
+      "type": "section",
+      "body": "Per impostare la raccolta sul campo puoi approfondire la [gestione delle presenze e delle ore degli operai](/blog/gestione-operai-cantiere-presenze-ore/). Qui aggiungi un passaggio: distinguere la registrazione iniziale dalla sua verifica. Un dato inserito sul telefono può essere tempestivo, ma ha comunque bisogno di un significato condiviso e di una procedura per le eccezioni."
+    },
+    {
+      "type": "section",
+      "body": "Decidi se il foglio lavora con ore decimali oppure con ore e minuti. Quattro ore e trenta minuti corrispondono a 4,5 ore decimali; la scrittura 4,30 può essere interpretata come quattro ore e diciotto minuti da una formula che la legge come numero decimale. Questo equivoco produce scarti anche quando tutte le persone hanno annotato correttamente il tempo.",
+      "heading": "Normalizza formati e unità prima di sommare"
+    },
+    {
+      "type": "section",
+      "body": "Controlla i separatori utilizzati nell’esportazione e conserva il file originale. La virgola decimale e il punto non sono trattati allo stesso modo da tutti gli strumenti. Una colonna importata come testo può inoltre non entrare nel totale. Verifica alcune righe note prima di affidarti alla somma mensile e documenta la conversione applicata, così chi riprende il lavoro può ripeterla."
+    },
+    {
+      "type": "section",
+      "body": "Rendi esplicita anche la granularità. Se un sistema registra minuti e un altro usa intervalli più ampi, le differenze vanno analizzate con la procedura concordata, senza inventare arrotondamenti per ottenere coincidenze. Conserva il dato di partenza, il dato trasformato e il motivo della trasformazione. La tracciabilità conta più di un prospetto che appare perfettamente allineato."
+    },
+    {
+      "type": "section",
+      "body": "Le ore operative attribuite al cantiere e le altre informazioni destinate alle paghe possono avere perimetri differenti. Assenze, trasferte, spostamenti, formazione e altre situazioni richiedono una classificazione coerente con il rapporto e con le indicazioni del consulente. Non attribuire automaticamente una voce alla commessa solo perché il software permette di selezionarla da un menu.",
+      "heading": "Tieni separate le voci da verificare"
+    },
+    {
+      "type": "section",
+      "body": "Per una voce dubbia conserva la descrizione del fatto e il riferimento del documento, poi formula la domanda a chi deve qualificarla. Ad esempio: luogo dell’attività, intervallo registrato e autorizzazione disponibile sono informazioni operative; il relativo trattamento retributivo è una valutazione distinta. Questa separazione aiuta a non trasformare una nota del caposquadra in una decisione amministrativa involontaria."
+    },
+    {
+      "type": "section",
+      "body": "Evita di inserire nel foglio condiviso dettagli personali che non servono al controllo delle ore. La scheda può contenere un codice di eccezione e il referente incaricato di verificarla, mentre la documentazione riservata resta nei canali appropriati. Anche chi deve controllare il costo della commessa può avere bisogno di un totale verificato senza dover leggere il contenuto di ogni documento del personale."
+    },
+    {
+      "type": "section",
+      "body": "Prepara un primo confronto per persona e periodo: ore operative confermate dalle fonti di presenza, ore attribuite nei rapportini e differenza da chiarire. La formula gestionale è “ore operative confermate meno ore attribuite alle commesse”. Il risultato indica quanto resta da spiegare in quel perimetro. Non rappresenta automaticamente un credito del lavoratore o un errore nel cedolino.",
+      "heading": "Usa una riconciliazione con differenze spiegate"
+    },
+    {
+      "type": "section",
+      "body": "Apri poi un secondo prospetto per il riepilogo amministrativo, con le voci che il consulente ha chiesto di tenere distinte. Se il totale destinato alle paghe comprende elementi diversi dalle sole ore lavorate in cantiere, confrontalo attraverso un raccordo esplicito. Una differenza motivata può essere corretta; una coincidenza ottenuta eliminando una voce legittima può invece nascondere un problema."
+    },
+    {
+      "type": "section",
+      "body": "Conserva gli esiti del controllo: dato confermato, correzione documentata, domanda aperta oppure differenza spiegata. Non usare un generico stato “a posto” per casi diversi. Alla chiusura del periodo dovresti poter capire quali righe sono state modificate, quale informazione le giustifica e quali punti attendono ancora una risposta prima dell’elaborazione definitiva."
+    },
+    {
+      "type": "section",
+      "body": "Immagina un periodo costruito solo per spiegare il metodo, senza attribuirlo a un’azienda reale. Per la persona identificata come P-017 risultano 160 ore operative confermate, mentre i rapportini attribuiscono 158 ore alle commesse. La differenza è di due ore. L’ufficio apre una domanda sulla giornata in cui la squadra ha lavorato in due cantieri.",
+      "heading": "Un esempio illustrativo con tre totali diversi"
+    },
+    {
+      "type": "section",
+      "body": "Il referente conferma che quel giorno sono state svolte sei ore sulla commessa A e due sulla B, ma il secondo passaggio non era stato registrato nel rapportino. La correzione documentata porta l’attribuzione complessiva a 160 ore. Nel riepilogo preparato per il consulente compare però un totale di 168 ore, perché sono presenti altre otto ore di una voce distinta già segnalata e da trattare nel suo contesto."
+    },
+    {
+      "type": "section",
+      "body": "Il raccordo spiega quindi 160 ore operative e otto ore della voce separata. Non si devono aggiungere queste ultime al costo operativo di un cantiere soltanto per far coincidere le colonne. L’esempio non indica un orario mensile standard né come retribuire la voce: mostra perché una differenza deve essere letta attraverso le definizioni, non cancellata dal prospetto."
+    },
+    {
+      "type": "section",
+      "body": "Consegna il riepilogo con competenza, versione, identificativi utilizzati e stato delle anomalie. Aggiungi un elenco breve delle domande che richiedono una valutazione, indicando i riferimenti disponibili. Se hai concordato un formato di scambio, rispettane nomi delle colonne, unità e codici: cambiare struttura ogni mese rende più difficile distinguere un’informazione nuova da un errore di compilazione.",
+      "heading": "Prepara un passaggio chiaro verso il consulente"
+    },
+    {
+      "type": "section",
+      "body": "Per i flussi verso le Casse Edili verifica il sistema e le indicazioni pertinenti al caso. Il [manuale operativo MUT della CNCE](https://mutssl2.cnce.it/admin/docs/MUT_ManualeOperativeUser4.pdf) descrive il servizio di trasmissione delle denunce e il ruolo delle regole definite dalle Casse. Una scheda interna di controllo non coincide con quel tracciato e non dimostra da sola che una denuncia sia stata compilata o trasmessa correttamente."
+    },
+    {
+      "type": "section",
+      "body": "Richiedi un riscontro sulle informazioni che hanno modificato il riepilogo. Se emerge una correzione dopo la consegna, invia una nuova versione identificabile e specifica le righe interessate. Evita l’invio di un altro file con lo stesso nome e senza spiegazioni: il destinatario potrebbe aver già iniziato a lavorare sulla versione precedente, creando due ricostruzioni divergenti dello stesso periodo."
+    },
+    {
+      "type": "section",
+      "body": "Il costo della manodopera attribuito alla commessa può essere provvisorio mentre il periodo è ancora aperto. Indica quale base hai usato e quando è stata aggiornata. Se impieghi una tariffa gestionale, tienila distinta dal costo definitivo che emergerà dai dati amministrativi. Il confronto economico ha senso quando sai quali importi sono stimati e quali sono stati verificati.",
+      "heading": "Collega le ore ai costi senza confondere le date"
+    },
+    {
+      "type": "section",
+      "body": "Una correzione delle ore può cambiare il consuntivo della commessa anche se il totale aziendale resta invariato. È il caso del passaggio di due ore dalla commessa A alla B: non genera nuovo lavoro, ma cambia la lettura dei due interventi. Annota il motivo della riallocazione, così una variazione di margine non viene interpretata automaticamente come un cambiamento della produttività."
+    },
+    {
+      "type": "section",
+      "body": "Per valutare gli strumenti parti dalle pagine dedicate a [HR e personale](/funzionalita/hr-personale/) e alle [timbrature per cantiere](/funzionalita/timbrature-gps/). Porta al confronto un esempio del tuo flusso, con dati anonimizzati: raccolta, verifica, correzione e consegna. È un modo concreto per discutere ciò che serve, invece di scegliere in base al numero di schermate disponibili."
+    },
+    {
+      "type": "section",
+      "body": "La [scheda CSV di controllo ore e paghe](/risorse/scheda-controllo-ore-cantiere-paghe.csv) è vuota e contiene intestazioni per persona, competenza, fonti, ore, differenza, domanda aperta e responsabile. Adattala con chi riceve i dati prima di usarla. Non contiene formule fiscali, classificazioni retributive predefinite o un tracciato ufficiale di importazione nel sistema paghe.",
+      "heading": "Scarica la scheda e prova il processo su un periodo"
+    },
+    {
+      "type": "section",
+      "body": "Scegli inizialmente un periodo circoscritto e una squadra. Controlla quanto tempo serve a reperire le fonti e quali domande ricorrono. Se il dato manca sempre nello stesso passaggio, correggi la raccolta a monte; se il significato delle voci cambia fra persone, lavora sulle definizioni. Aggiungere colonne non risolve automaticamente un problema di responsabilità o di disponibilità dell’informazione."
+    },
+    {
+      "type": "section",
+      "body": "Al termine annota le anomalie rimaste aperte e la modifica organizzativa da provare nel periodo successivo. Puoi discutere questo flusso durante una [demo di Edilizia in Cloud](/demo/), verificando sul tuo caso quali passaggi e strumenti siano pertinenti. Il risultato da cercare è un raccordo comprensibile fra campo e ufficio, che permetta alle persone coinvolte di controllare i dati prima di usarli."
+    },
+    {
+      "type": "section",
+      "body": "Copertina illustrativa generata con AI."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Le ore dei rapportini devono coincidere con quelle delle paghe?",
+      "a": "Prima confronta i perimetri. I rapportini attribuiscono attività alle commesse; il riepilogo amministrativo può comprendere altre voci. Le differenze vanno raccordate e spiegate con il consulente, senza modificare i dati per ottenere una coincidenza."
+    },
+    {
+      "q": "Come si controlla una differenza fra presenze e rapportini?",
+      "a": "Usa lo stesso periodo e identificativo, verifica unità e duplicati, poi ricostruisci le giornate interessate. Annota fonte, chiarimento del referente, correzione e versione consegnata."
+    },
+    {
+      "q": "Il CSV può essere importato direttamente nel software paghe o nel MUT?",
+      "a": "La scheda è un supporto interno vuoto, con colonne da adattare. Non è un tracciato ufficiale. Formati di importazione, codici e adempimenti vanno verificati con il consulente e il servizio pertinente."
+    }
+  ],
+  author: { name: BLOG_AUTHOR.name, role: "Fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
+},
+{
   "id": "seo-20261116-richieste-preventivi",
   "slug": "gestione-richieste-preventivi-edilizia-2027",
   "title": "Gestione richieste e preventivi edilizi: il processo da preparare per il 2027",

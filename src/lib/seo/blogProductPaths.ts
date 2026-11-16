@@ -45,7 +45,7 @@ const STRUMENTI_PER_ARTICOLO: Record<string, BlogProductPath[]> = {
   "cassa-edile-come-funziona": [
     { href: "/funzionalita/hr-personale/", label: "Organizzare i dati del personale", desc: "Esamina le informazioni da raccogliere e mantenere aggiornate per le persone dell’impresa." },
     { href: "/funzionalita/timbrature-gps/", label: "Collegare le presenze al cantiere", desc: "Approfondisci la raccolta delle presenze da confrontare con i dati amministrativi." },
-    { href: "/funzionalita/cedolini-paga/", label: "Preparare il confronto sulle paghe", desc: "Leggi il percorso dedicato ai cedolini; inquadramento e adempimenti vanno verificati con il consulente del lavoro." },
+    { href: "/blog/controllo-ore-cantiere-prima-paghe/", label: "Controllare le ore prima delle paghe", desc: "Raccorda presenze, rapportini e riepilogo con un esempio e una scheda di controllo." },
   ],
   "ritenuta-di-garanzia-appalti-come-funziona": [
     { href: "/funzionalita/ritenute-garanzia/", label: "Seguire trattenute e svincoli", desc: "Collega gli importi registrati all’appalto e ai documenti del singolo caso." },

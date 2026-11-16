@@ -7,6 +7,27 @@ export type BlogPostScheda = Omit<BlogPost, "content" | "faqs">;
 
 export const blogIndice: BlogPostScheda[] = [
   {
+    "id": "seo-20261116-ore-paghe",
+    "slug": "controllo-ore-cantiere-prima-paghe",
+    "title": "Controllo ore di cantiere prima delle paghe: metodo e scheda",
+    "excerpt": "Controlla ore di cantiere, presenze e riepilogo paghe: fonti, anomalie, esempio e scheda CSV per preparare il confronto con il consulente.",
+    "category": "HR & Personale",
+    "tags": [
+      "controllo ore cantiere",
+      "presenze",
+      "paghe",
+      "Cassa Edile"
+    ],
+    "publishedAt": "2026-11-16",
+    "readTime": 12,
+    "coverImage": "/blog/covers/controllo-ore-cantiere-prima-paghe.jpg",
+    "author": {
+      "name": "Florin Andriciuc",
+      "role": "Fondatore di Edilizia in Cloud",
+      "avatar": FLO_AVATAR
+    }
+  },
+  {
     "id": "seo-20261116-richieste-preventivi",
     "slug": "gestione-richieste-preventivi-edilizia-2027",
     "title": "Gestione richieste e preventivi edilizi: il processo da preparare per il 2027",
