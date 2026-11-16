@@ -1,12 +1,29 @@
 /** «Quante ne mancano»: buchi nella numerazione delle emesse e mesi sospetti, a colpo d'occhio. */
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDateShort } from "@/lib/formatters";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
 import { buchiNumerazione, fatturePerMese, fuoriSequenza, testoIntervalli, totaleMancanti, type DocumentoNumerato } from "@/lib/fatturazione/completezzaFatture";
+
+/**
+ * «Ho controllato»: l'avviso si può togliere, e torna se i numeri cambiano (16/11/2026).
+ *
+ * All'Impresa Vulcano le emesse sono state importate dal vecchio gestionale: 59 numeri saltati
+ * che non si riempiranno mai, in cima alle Fatture Ricevute, senza modo di chiuderli. Chi ha
+ * guardato i buchi una volta non deve rivederli per sempre — ma se ne salta uno nuovo, l'avviso
+ * deve tornare. Perciò si ricorda il conto esatto che è stato visto, non un semplice «nascosto».
+ */
+const CHIAVE_VISTO = (companyId: string) => `eic.completezza-fatture.visto.${companyId}`;
+
+function leggiVisto(companyId: string): string | null {
+  try { return localStorage.getItem(CHIAVE_VISTO(companyId)); } catch { return null; }
+}
+function segnaVisto(companyId: string, firma: string): void {
+  try { localStorage.setItem(CHIAVE_VISTO(companyId), firma); } catch { /* niente: l'avviso resta */ }
+}
 
 const ETICHETTA_MESE = (k: string) => new Date(`${k}-15`).toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
 
@@ -55,11 +72,16 @@ export function CompletezzaFatture({ companyId }: { companyId: string }) {
   const dateRicevute = useMemo(() => (data?.ricevute ?? []).map((r) => r.data_fattura), [data]);
   const mancanti = totaleMancanti(buchi);
   const mesiSospetti = useMemo(() => [...fatturePerMese(dateEmesse, oggi), ...fatturePerMese(dateRicevute, oggi)].filter((m) => m.sospetto).length, [dateEmesse, dateRicevute, oggi]);
+  // Quello che si sta guardando adesso: se cambia, l'avviso torna anche se era stato tolto.
+  const firma = `${mancanti}-${mesiSospetti}-${fuori.length}`;
+  const [visto, setVisto] = useState<string | null>(() => leggiVisto(companyId));
   if (!data || (!docs.length && !dateRicevute.length)) return null;
   const tuttoOk = mancanti === 0 && mesiSospetti === 0 && fuori.length === 0;
+  if (visto === firma) return null;
   return (
     <Card className={tuttoOk ? undefined : "border-amber-300"}>
-      <CardContent className="p-3">
+      <CardContent className="flex items-start gap-2 p-3">
+        <div className="min-w-0 flex-1">
         <button type="button" className="flex w-full items-center gap-2 text-left text-sm font-medium" aria-expanded={aperto} onClick={() => setAperto((v) => !v)}>
           {tuttoOk ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />}
           <span className="flex-1">
@@ -84,6 +106,16 @@ export function CompletezzaFatture({ companyId }: { companyId: string }) {
             </p>
           </div>
         )}
+        </div>
+        <button
+          type="button"
+          aria-label="Ho controllato, non mostrare più questo avviso"
+          title="Ho controllato: torna solo se i numeri cambiano"
+          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => { segnaVisto(companyId, firma); setVisto(firma); }}
+        >
+          <X className="h-4 w-4" />
+        </button>
       </CardContent>
     </Card>
   );
