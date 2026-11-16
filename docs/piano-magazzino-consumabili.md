@@ -80,9 +80,11 @@ articolo con 10 pezzi di cui 8 impegnati e scorta minima 5 risulta **sopra** sco
 lista e **sotto** scorta nella statistica. Due numeri diversi nella stessa pagina. Da
 unificare su `quantity_available`, che è la domanda giusta: *quanto ne ho di libero.*
 
-**I materiali del rapportino non diventano costo.** L'operaio li scrive in
-`materiali_usati`, ma non c'è nessuno scarico di magazzino né costo di commessa. È la
-rilevazione puntuale che già esiste sul campo e che si butta via.
+**I materiali del rapportino non diventano costo.** Il campo `materiali_usati` esiste, ma non
+genera né scarico di magazzino né costo di commessa. Va detto però che oggi nessuno lo compila:
+nei rapportini delle aziende reali (Bonarrigo 26, Vulcano 8) i materiali sono sempre vuoti.
+Collegarlo serve solo se prima qualcuno comincia a usarlo — vedi
+`piano-acquisti-magazzino-potente.md`.
 
 **Le rimanenze non entrano nel controllo di gestione.** `cg_rimanenze_magazzino` è vuota: il
 valore del magazzino a fine periodo non è in nessun conto economico.
