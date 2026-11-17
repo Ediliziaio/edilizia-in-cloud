@@ -42,6 +42,11 @@ const STRUMENTI_PER_CATEGORIA: Record<string, BlogProductPath[]> = {
 
 // The next step follows the specific question answered by these guides.
 const STRUMENTI_PER_ARTICOLO: Record<string, BlogProductPath[]> = {
+  "sal-cantiere-come-funziona": [
+    { href: "/blog/registro-varianti-cantiere-versioni-costi/", label: "Collegare le varianti all’avanzamento", desc: "Confronta versioni, quantità e costi senza duplicare le voci della commessa." },
+    { href: "/funzionalita/gestione-cantieri/", label: "Organizzare i riferimenti del cantiere", desc: "Approfondisci il percorso dedicato alle informazioni della commessa." },
+    { href: "/funzionalita/giornale-lavori/", label: "Documentare il lavoro eseguito", desc: "Consulta la pagina dedicata al giornale dei lavori." },
+  ],
   "cassa-edile-come-funziona": [
     { href: "/funzionalita/hr-personale/", label: "Organizzare i dati del personale", desc: "Esamina le informazioni da raccogliere e mantenere aggiornate per le persone dell’impresa." },
     { href: "/funzionalita/timbrature-gps/", label: "Collegare le presenze al cantiere", desc: "Approfondisci la raccolta delle presenze da confrontare con i dati amministrativi." },

@@ -52,6 +52,205 @@ export { FLO_AVATAR };
 
 export const blogPosts: BlogPost[] = [
 {
+  "id": "seo-20261117-varianti",
+  "slug": "registro-varianti-cantiere-versioni-costi",
+  "title": "Registro varianti di cantiere: versioni, quantità e costi",
+  "excerpt": "Organizza le varianti di cantiere: versione di partenza, quantità, prezzi, costi e documenti. Esempio illustrativo e scheda CSV compilabile.",
+  "category": "Gestione Cantieri",
+  "tags": [
+    "registro varianti cantiere",
+    "costi commessa",
+    "versioni preventivo"
+  ],
+  "publishedAt": "2026-11-17",
+  "readTime": 12,
+  "coverImage": "/blog/covers/registro-varianti-cantiere-versioni-costi.jpg",
+  "content": [
+    {
+      "type": "intro",
+      "body": "Un registro delle varianti di cantiere collega ogni modifica alla lavorazione interessata, ai documenti di riferimento e agli effetti ancora da verificare. Serve quando una richiesta cambia mentre acquisti materiali, programmi le squadre o prepari il prossimo avanzamento. Senza un riferimento condiviso, una nota sul telefono può diventare un ordine, una quantità può essere conteggiata due volte e una decisione provvisoria può sembrare definitiva."
+    },
+    {
+      "type": "intro",
+      "body": "Questa guida propone un metodo organizzativo e una scheda CSV compilabile. Gli esempi numerici sono illustrativi. Il registro non determina chi abbia il potere di autorizzare una modifica e non sostituisce gli atti richiesti dal contratto o dalle condizioni dell’intervento. Aiuta l’impresa a raccogliere le informazioni necessarie per il confronto con committente, tecnici e responsabili, tenendo separati richiesta, valutazione ed esecuzione."
+    },
+    {
+      "type": "image",
+      "src": "/blog/covers/registro-varianti-cantiere-versioni-costi.jpg",
+      "alt": "Tavole di una ristrutturazione con revisioni evidenziate, matita e cartella su un tavolo di lavoro.",
+      "caption": "Immagine illustrativa generata con AI.",
+      "width": 1200,
+      "height": 630
+    },
+    {
+      "type": "section",
+      "body": "Assegna un identificativo alla richiesta quando emerge, prima di discuterne soltanto il costo. Può essere V-001 per la prima variazione della commessa, seguito da un titolo concreto: spostamento di un punto di consegna, diversa finitura o ampliamento di una lavorazione. Il codice non esprime approvazione; permette di ritrovare gli stessi riferimenti nelle conversazioni, nelle offerte e nei documenti successivi.",
+      "heading": "Parti da una modifica riconoscibile"
+    },
+    {
+      "type": "section",
+      "body": "Descrivi che cosa cambia rispetto alla base concordata. Una frase come “aggiungere lavori” non permette di capire quale parte della proposta precedente rimanga valida. Indica ambiente, elemento o voce interessata, quantità conosciuta e informazione ancora mancante. Se la richiesta contiene due scelte indipendenti, valuta se registrarle separatamente, mantenendo un collegamento fra le righe quando una dipende dall’altra."
+    },
+    {
+      "type": "section",
+      "body": "Conserva anche il riferimento di origine: data, interlocutore e documento o comunicazione disponibile. Una fotografia può chiarire una condizione osservata; non assegna automaticamente a chi la riceve una decisione tecnica o economica. Scrivere questo contesto aiuta a formulare la domanda successiva senza attribuire alla richiesta un significato che non era stato ancora verificato."
+    },
+    {
+      "type": "section",
+      "body": "Il confronto deve partire da una base identificabile: preventivo, computo, tavola o scheda di fornitura con data e revisione. Se il registro dice soltanto “come da progetto”, due persone possono usare elaborati differenti e arrivare entrambe a un risultato apparentemente corretto. Riporta il riferimento completo oppure un collegamento alla copia controllata, evitando allegati rinominati liberamente da ciascun destinatario.",
+      "heading": "Dichiara quale versione stai modificando"
+    },
+    {
+      "type": "section",
+      "body": "Tieni distinta la versione del documento dalla versione della proposta di modifica. Il preventivo iniziale può restare P-01, mentre la valutazione della variazione passa da V-001 revisione A a revisione B. La seconda revisione potrebbe cambiare soltanto la quantità o il materiale. Conservare la precedente permette di capire che cosa sia stato riformulato, senza sovrascrivere una proposta già inviata."
+    },
+    {
+      "type": "section",
+      "body": "Definisci come vengono segnalati i documenti superati. Non basta aggiungere “nuovo” al nome del file: occorre sapere quale riferimento utilizzare per il passaggio successivo. Per la preparazione dell’offerta resta utile la guida su [come fare un preventivo in edilizia](/blog/come-fare-preventivo-edilizia/); il registro aggiunge la memoria delle differenze emerse dopo quella prima descrizione del lavoro."
+    },
+    {
+      "type": "section",
+      "body": "Una condizione osservata, una richiesta del cliente e una proposta della squadra sono elementi diversi. Nel registro puoi dedicare una colonna alla descrizione del problema e un’altra all’opzione da valutare. Se le informazioni vengono mescolate, chi legge in seguito potrebbe interpretare come scelta definitiva ciò che era soltanto una delle possibilità discusse durante una telefonata.",
+      "heading": "Separa i fatti dalle ipotesi di soluzione"
+    },
+    {
+      "type": "section",
+      "body": "Annota le verifiche necessarie prima di trasformare l’opzione in un’attività da organizzare. Potrebbero riguardare misure, compatibilità con altre lavorazioni, disponibilità del materiale o documenti tecnici. Individua il referente della domanda e il dato atteso. “Da controllare” è meno utile di “il tecnico deve confermare la quota prima di aggiornare la quantità della voce”."
+    },
+    {
+      "type": "section",
+      "body": "Non costruire una soluzione tecnica nel registro quando manca la valutazione competente. La sua funzione è mantenere ordinato il percorso informativo. Una riga può restare aperta perché la misura non è ancora stata rilevata oppure perché due alternative richiedono un confronto. La visibilità di questo limite aiuta a evitare acquisti e programmazioni basati su un’informazione provvisoria."
+    },
+    {
+      "type": "section",
+      "body": "Prepara pochi stati comprensibili: richiesta raccolta, informazioni da completare, valutazione in preparazione, proposta condivisa, esito documentato, attività programmata e verifica finale. Adatta i nomi alla tua organizzazione. Ogni stato dovrebbe indicare quale informazione sia già disponibile e quale passaggio manchi, anziché limitarsi a un colore sullo schermo.",
+      "heading": "Usa stati che descrivono un passaggio concreto"
+    },
+    {
+      "type": "section",
+      "body": "Mantieni separata la descrizione organizzativa dall’effetto degli atti. “Proposta condivisa” significa che è stata trasmessa, non che è stata accettata. “Esito documentato” deve rimandare al riferimento pertinente e al responsabile che lo ha verificato. Il registro non deve inventare regole di approvazione automatica né trasformare l’assenza di una risposta in un consenso presunto."
+    },
+    {
+      "type": "section",
+      "body": "Per ogni avanzamento di stato annota data e riferimento. Se una modifica torna in valutazione, lascia visibile il motivo: misura aggiornata, materiale indisponibile o richiesta cambiata. Questa traccia consente di leggere il lavoro residuo senza attribuire un ritardo alla persona sbagliata e aiuta chi subentra a distinguere una richiesta nuova da una revisione della stessa questione."
+    },
+    {
+      "type": "section",
+      "body": "Descrivi l’incremento o la riduzione rispetto alla base. Riporta unità di misura, quantità precedente, quantità proposta e differenza. Se stai sostituendo una lavorazione, chiarisci quale voce viene meno e quale entra. Aggiungere soltanto la nuova voce può far apparire come incremento un importo che comprende anche una sostituzione, alterando il confronto economico.",
+      "heading": "Valuta quantità, prezzi e costi in colonne diverse"
+    },
+    {
+      "type": "section",
+      "body": "Il prezzo proposto al cliente e il costo previsto dall’impresa rispondono a domande differenti. Nel registro puoi mantenerli separati, indicando materiali, lavoro, servizi e altre componenti considerate. Non usare il prezzo del materiale come se descrivesse l’intero costo della modifica. Anche una scelta apparentemente piccola può richiedere un nuovo passaggio operativo o rendere inutilizzabile una fornitura già preparata."
+    },
+    {
+      "type": "section",
+      "body": "Specifica sempre il trattamento delle imposte nell’esempio o nella tabella utilizzata. Il confronto deve usare importi omogenei. Non ricavare automaticamente la redditività di una modifica dal solo incremento dei ricavi: prima chiarisci quali costi siano inclusi, quali siano ancora stimati e quali altri effetti riguardino la commessa. Per il quadro generale consulta la [guida alla contabilità di cantiere](/blog/contabilita-di-cantiere-guida/)."
+    },
+    {
+      "type": "section",
+      "body": "Immagina una lavorazione iniziale di dieci unità a 90 euro ciascuna e una proposta che la sostituisce con dodici unità a 110 euro. Usando soltanto questi dati, con la stessa base fiscale e lo stesso perimetro, gli importi sono 900 e 1.320 euro. La differenza economica della voce è 420 euro, non 1.320 euro aggiuntivi. L’esempio mostra un confronto, non un prezzo di mercato.",
+      "heading": "Un esempio illustrativo di sostituzione"
+    },
+    {
+      "type": "section",
+      "body": "Supponi poi che l’impresa debba valutare 240 euro di maggior costo del materiale e 80 euro di un servizio aggiuntivo. Il maggior costo stimato è 320 euro; la differenza fra incremento del prezzo e incremento dei costi considerati è 100 euro. Non chiamarla automaticamente utile finale: potrebbero mancare altre componenti, e l’importo dipende dalle ipotesi utilizzate per costruire il prospetto."
+    },
+    {
+      "type": "section",
+      "body": "La registrazione utile conserva entrambi i passaggi. La prima parte confronta la voce precedente e quella proposta; la seconda mostra l’effetto gestionale stimato. Se cambia la quantità, aggiorna la revisione mantenendo leggibili le ipotesi precedenti. Chi controlla il totale deve poter riconoscere da dove arrivi la variazione e quali informazioni debbano ancora essere confermate prima di usarla nel budget."
+    },
+    {
+      "type": "section",
+      "body": "Prima di programmare la modifica ricostruisci lo stato degli ordini interessati. Un materiale può essere ancora da ordinare, già confermato, in preparazione o consegnato. Queste situazioni richiedono domande diverse. Il registro dovrebbe collegare la modifica al riferimento dell’ordine e al referente che deve verificare disponibilità, condizioni del rapporto e possibili alternative.",
+      "heading": "Controlla gli acquisti già avviati"
+    },
+    {
+      "type": "section",
+      "body": "Non dare per scontato che un ordine precedente sia annullabile o che la differenza venga gestita senza costi. Sono aspetti da verificare nel caso concreto con il fornitore e con chi segue il rapporto. Fino a quel momento annota il punto come aperto, mantenendo distinta una risposta ricevuta da una semplice aspettativa dell’impresa."
+    },
+    {
+      "type": "section",
+      "body": "Se una fornitura già presente viene destinata a un’altra commessa, conserva la traccia del passaggio. La modifica può cambiare l’attribuzione dei costi anche senza un nuovo acquisto immediato. Evita di cancellare la riga originaria per rendere più ordinato il foglio: registra come viene trattato il materiale e quale documento permette di ricostruire la decisione."
+    },
+    {
+      "type": "section",
+      "body": "Una modifica può riguardare sequenza, accessi e disponibilità delle persone oltre al prezzo. Individua le lavorazioni che dipendono dalla scelta e le attività che possono procedere separatamente. Se il nuovo elemento richiede un tempo di fornitura da confermare, rendilo visibile nella programmazione senza trasformare una stima ricevuta in una data già garantita al cliente.",
+      "heading": "Leggi gli effetti sul programma del cantiere"
+    },
+    {
+      "type": "section",
+      "body": "Chiedi alla squadra quale informazione serve per lavorare correttamente. Può essere una quota, il riferimento del materiale o una condizione di accesso. Il registro economico non sostituisce la consegna tecnica delle istruzioni: può però segnalare quale documento deve essere aggiornato e chi deve riceverlo prima del passaggio operativo interessato."
+    },
+    {
+      "type": "section",
+      "body": "Se la modifica interferisce con altre imprese, annota il referente del coordinamento e l’esito del confronto. Non attribuire automaticamente alla stessa persona la decisione tecnica, la verifica economica e la disponibilità della squadra. Assegnare responsabilità diverse, dove necessario, rende più leggibile il percorso e impedisce che una riga apparentemente chiusa lasci un’attività ancora priva di istruzioni."
+    },
+    {
+      "type": "section",
+      "body": "Quando la variazione entra nei documenti della commessa, registra dove viene richiamata e con quale importo o quantità. Un registro separato dal computo e dagli avanzamenti rischia di restare un promemoria inutilizzato. Il collegamento consente di verificare che la stessa modifica non sia inclusa due volte e che una voce sostituita non continui a comparire come se fosse ancora attuale.",
+      "heading": "Collega l’esito ai documenti dell’avanzamento"
+    },
+    {
+      "type": "section",
+      "body": "Mantieni distinti esecuzione, verifica, fatturazione e incasso. La presenza della variazione nel registro non dimostra che questi passaggi siano completati. Usa i riferimenti pertinenti e segnala eventuali differenze fra quanto proposto, quanto eseguito e quanto riportato nei documenti successivi. La [guida al SAL di cantiere](/blog/sal-cantiere-come-funziona/) aiuta a collocare questo controllo nel processo complessivo."
+    },
+    {
+      "type": "section",
+      "body": "Una verifica periodica può partire dalle righe che hanno un esito documentato ma non un riferimento nei documenti successivi. Cerca anche il caso opposto: importi presenti nell’avanzamento senza un collegamento chiaro alla modifica. L’obiettivo è formulare domande precise e ricostruire il perimetro, senza decidere dal solo foglio se una somma sia dovuta o immediatamente esigibile."
+    },
+    {
+      "type": "section",
+      "body": "Conserva le copie di lavoro in un luogo riconoscibile e usa nomi coerenti. Una cartella per identificativo può contenere descrizione, proposta, riferimenti tecnici ed esito del confronto. Nei sistemi che consentono collegamenti ai documenti, verifica che il destinatario abbia accesso al materiale pertinente e che il collegamento continui a funzionare dopo eventuali spostamenti dei file.",
+      "heading": "Organizza allegati e accessi al registro"
+    },
+    {
+      "type": "section",
+      "body": "Definisci chi può aggiornare i dati e chi deve soltanto consultarli. Non tutte le persone coinvolte hanno bisogno delle stesse informazioni economiche o dei documenti del cliente. Il registro operativo può mostrare il riferimento necessario per organizzare il lavoro, lasciando gli altri elementi nei percorsi appropriati. Condividere un collegamento non dovrebbe significare aprire indiscriminatamente l’intera documentazione della commessa."
+    },
+    {
+      "type": "section",
+      "body": "Prima della chiusura del periodo controlla che le righe aperte abbiano un responsabile e una domanda. Le righe concluse devono invece rimandare a documenti recuperabili. Una copia esportata con data e versione aiuta a confrontare gli stati successivi e a riconoscere gli aggiornamenti effettuati dopo una riunione, evitando che il file inviato giorni prima venga interpretato come la situazione corrente."
+    },
+    {
+      "type": "section",
+      "body": "La [scheda del registro varianti](/risorse/registro-varianti-cantiere.csv) contiene intestazioni vuote per identificativo, base del confronto, descrizione, quantità, importi, stato e riferimenti. Adattala al tuo processo prima di usarla. Non è un modello di atto contrattuale e non contiene regole automatiche di autorizzazione, classificazioni fiscali o formule che possano sostituire le verifiche pertinenti.",
+      "heading": "Prova il metodo con una scheda compilabile"
+    },
+    {
+      "type": "section",
+      "body": "Nel primo utilizzo prova anche un caso che si interrompe. Una proposta può essere ritirata, rinviata o sostituita da un’alternativa: deve restare possibile capire perché non prosegua e quali attività già avviate richiedano ancora un riscontro. La chiusura della richiesta non cancella necessariamente un ordine da verificare, un materiale da riallocare o una comunicazione da inviare. Annota questi passaggi residui con un responsabile riconoscibile."
+    },
+    {
+      "type": "section",
+      "body": "Controlla inoltre il comportamento della scheda quando due richieste riguardano la stessa voce. Se la seconda modifica parte dalla quantità già aggiornata, scrivi il riferimento alla prima; se entrambe sono alternative alla base iniziale, dichiaralo esplicitamente. Questo semplice esercizio aiuta a individuare le dipendenze prima di sommare importi che descrivono scenari diversi. Durante il riesame porta al confronto le righe collegate, così chi controlla vede la sequenza completa."
+    },
+    {
+      "type": "section",
+      "body": "Parti da poche modifiche reali e chiedi a una persona non coinvolta nella prima conversazione di ricostruire il passaggio. Se non comprende cosa cambi rispetto alla base, il problema è nella descrizione. Se non trova il riferimento della decisione, manca un collegamento. Se una riga non ha un responsabile, il controllo successivo rischia di dipendere ancora dalla memoria del titolare."
+    },
+    {
+      "type": "section",
+      "body": "Per discutere il flusso nel gestionale consulta la pagina sulla [gestione dei cantieri](/funzionalita/gestione-cantieri/) e prepara una [demo di Edilizia in Cloud](/demo/) con una variazione anonimizzata. Porta base iniziale, aggiornamento e documenti da collegare. Il confronto sarà più utile se parte dal percorso che devi rendere verificabile, invece di limitarsi al numero di campi disponibili in una schermata."
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Che cosa contiene un registro delle varianti di cantiere?",
+      "a": "Un identificativo della modifica, la versione di partenza, la descrizione della differenza, quantità e importi omogenei, stato, responsabile e riferimenti documentali. Il registro organizza le informazioni; gli atti e le responsabilità vanno verificati per il caso concreto."
+    },
+    {
+      "q": "Come si evita di conteggiare due volte una variazione?",
+      "a": "Collega ogni modifica alla voce e alla versione di partenza, indica se sostituisce o integra il lavoro precedente e controlla i richiami nei documenti successivi. Quando due richieste dipendono l’una dall’altra, mantieni visibile il collegamento."
+    },
+    {
+      "q": "La differenza fra prezzo e costo della variante è l’utile finale?",
+      "a": "Il confronto descrive soltanto le componenti considerate. Prima di interpretarlo occorre chiarire quali costi siano inclusi, quali stimati e quali altri effetti riguardino la commessa."
+    }
+  ],
+  author: { name: BLOG_AUTHOR.name, role: "Fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
+},
+{
   "id": "seo-20261116-ore-paghe",
   "slug": "controllo-ore-cantiere-prima-paghe",
   "title": "Controllo ore di cantiere prima delle paghe: metodo e scheda",

@@ -2,6 +2,7 @@
 // Rigenera con: npx vite-node scripts/generate-blog-bodies.mjs
 // Fonte: src/data/blogPosts.ts (e i file batch che importa). Non modificare a mano.
 export const BLOG_POST_META = {
+  "registro-varianti-cantiere-versioni-costi": {"title":"Registro varianti di cantiere: versioni, quantità e costi","h1":"Registro varianti di cantiere: versioni, quantità e costi","description":"Organizza le varianti di cantiere: versione di partenza, quantità, prezzi, costi e documenti. Esempio illustrativo e scheda CSV compilabile.","publishedAt":"2026-11-17","updatedAt":"2026-11-17","coverImage":"https://www.ediliziaincloud.com/blog/covers/registro-varianti-cantiere-versioni-costi.jpg","tags":["registro varianti cantiere","costi commessa","versioni preventivo"],"category":"gestione-cantieri"},
   "controllo-ore-cantiere-prima-paghe": {"title":"Controllo ore di cantiere prima delle paghe: metodo e scheda","h1":"Controllo ore di cantiere prima delle paghe: metodo e scheda","description":"Controlla ore di cantiere, presenze e riepilogo paghe: fonti, anomalie, esempio e scheda CSV per preparare il confronto con il consulente.","publishedAt":"2026-11-16","updatedAt":"2026-11-16","coverImage":"https://www.ediliziaincloud.com/blog/covers/controllo-ore-cantiere-prima-paghe.jpg","tags":["controllo ore cantiere","presenze","paghe","Cassa Edile"],"category":"hr-personale"},
   "gestione-richieste-preventivi-edilizia-2027": {"title":"Gestione richieste e preventivi edilizi: il processo da preparare per il 2027","h1":"Gestione richieste e preventivi edilizi: il processo da preparare per il 2027","description":"Organizza richieste, sopralluoghi e preventivi per il 2027: scheda minima, responsabili, versioni delle offerte e passaggio alla commessa.","publishedAt":"2026-11-16","updatedAt":"2026-11-16","coverImage":"https://www.ediliziaincloud.com/blog/covers/gestione-richieste-preventivi-edilizia-2027.jpg","tags":["gestione richieste","preventivi edilizi","CRM","2027"],"category":"commerciale-edilizia"},
   "modello-preventivo-edile": {"title":"Modello Preventivo Edile: il Fac Simile che Chiude i Lavori","h1":"Modello Preventivo Edile: il Fac Simile che Chiude i Lavori","description":"Il preventivo scritto bene chiude il lavoro. Quello scritto male lo chiude al concorrente. Fac simile di preventivo edile sezione per sezione, con esempi.","publishedAt":"2026-07-25","updatedAt":"2026-07-25","coverImage":"https://www.ediliziaincloud.com/blog/covers/modello-preventivo-edile.jpg","tags":["modello preventivo edile","fac simile preventivo","preventivi edilizia","documenti impresa edile"],"category":"commerciale-edilizia"},
@@ -95,6 +96,7 @@ export const BLOG_POST_META = {
 
 // slug → categoria (pagine /blog/categoria/* + correlati nei post)
 export const BLOG_POST_CATEGORY = {
+  "registro-varianti-cantiere-versioni-costi": "gestione-cantieri",
   "controllo-ore-cantiere-prima-paghe": "hr-personale",
   "gestione-richieste-preventivi-edilizia-2027": "commerciale-edilizia",
   "modello-preventivo-edile": "commerciale-edilizia",

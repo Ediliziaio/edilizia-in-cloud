@@ -7,6 +7,26 @@ export type BlogPostScheda = Omit<BlogPost, "content" | "faqs">;
 
 export const blogIndice: BlogPostScheda[] = [
   {
+    "id": "seo-20261117-varianti",
+    "slug": "registro-varianti-cantiere-versioni-costi",
+    "title": "Registro varianti di cantiere: versioni, quantità e costi",
+    "excerpt": "Organizza le varianti di cantiere: versione di partenza, quantità, prezzi, costi e documenti. Esempio illustrativo e scheda CSV compilabile.",
+    "category": "Gestione Cantieri",
+    "tags": [
+      "registro varianti cantiere",
+      "costi commessa",
+      "versioni preventivo"
+    ],
+    "publishedAt": "2026-11-17",
+    "readTime": 12,
+    "coverImage": "/blog/covers/registro-varianti-cantiere-versioni-costi.jpg",
+    "author": {
+      "name": "Florin Andriciuc",
+      "role": "Fondatore di Edilizia in Cloud",
+      "avatar": FLO_AVATAR
+    }
+  },
+  {
     "id": "seo-20261116-ore-paghe",
     "slug": "controllo-ore-cantiere-prima-paghe",
     "title": "Controllo ore di cantiere prima delle paghe: metodo e scheda",
