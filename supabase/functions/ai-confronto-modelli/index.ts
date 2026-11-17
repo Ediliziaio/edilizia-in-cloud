@@ -32,6 +32,7 @@ Deno.serve(async (req) => {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     const body = await req.json().catch(() => ({})) as {
       storage_bucket?: string; storage_path?: string; mime_type?: string; company_id?: string; modello?: string; nota?: string;
+      in_attesa?: boolean;
     };
     const { storage_bucket, storage_path, mime_type, company_id, modello } = body;
     if (!storage_bucket || !storage_path || !company_id || !modello) return errorResponse("Servono storage_bucket, storage_path, company_id e modello", 400, cors);
@@ -67,6 +68,11 @@ Deno.serve(async (req) => {
     const chiave = await buildStableAiIdempotencyKey("ai_confronto_modelli", [
       company_id, userId, storage_bucket, storage_path, mime_type ?? null, modello, nota || null, VERSIONE_LETTURA_STANDARD,
     ]);
+    // L'esito si salva sempre accanto al documento: i modelli lenti (60-90 secondi) superano l'attesa del
+    // browser, e senza file il lavoro pagato andrebbe perso. Con in_attesa la funzione risponde subito (202)
+    // e lavora sotto waitUntil; l'esito si legge poi da percorso_esito.
+    const percorsoEsito = `${company_id}/ai-contratti/esiti/${chiave.slice(-24)}.json`;
+    const lavoro = async () => {
     const t0 = Date.now();
     const risposta = await aiRouterComplete({
       // deno-lint-ignore no-explicit-any
@@ -88,7 +94,7 @@ Deno.serve(async (req) => {
       cacheTtlDays: 30,
     });
     const estratto = leggiJsonDalModello(risposta.content);
-    return jsonResponse({
+    return {
       ok: !!estratto,
       estratto,
       testo_grezzo: estratto ? null : String(risposta.content ?? "").slice(0, 2000),
@@ -106,7 +112,23 @@ Deno.serve(async (req) => {
         ms: Date.now() - t0,
         versione: VERSIONE_LETTURA_STANDARD,
       },
-    }, 200, cors);
+    };
+    };
+    const salva = async (esito: unknown) => {
+      await supabaseAdmin.storage.from(storage_bucket).upload(
+        percorsoEsito, new Blob([JSON.stringify(esito)], { type: "application/json" }), { upsert: true, contentType: "application/json" },
+      );
+    };
+    const esegui = async () => {
+      try { const esito = await lavoro(); await salva(esito); return esito; }
+      catch (e) { const esito = { ok: false, errore: e instanceof Error ? e.message : String(e), modello }; await salva(esito).catch(() => {}); return esito; }
+    };
+    if (body.in_attesa) {
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime?.waitUntil?.(esegui());
+      return jsonResponse({ ok: true, in_corso: true, percorso_esito: percorsoEsito }, 202, cors);
+    }
+    return jsonResponse({ ...(await esegui()), percorso_esito: percorsoEsito }, 200, cors);
   } catch (e) {
     if (e instanceof Response) return e;
     return errorResponse(e instanceof Error ? e.message : String(e), 500, cors);
