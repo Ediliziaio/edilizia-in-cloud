@@ -11,14 +11,16 @@
  */
 import { CALENDARIO_NAZIONALE, lavorativiTra, lavorativo, primoGiornoUtile, spostaLavorativi, type CalendarioCantiere } from "../silvio-commessa/calendario.ts";
 import { somiglianzaFasi } from "../silvio-commessa/somiglianza.ts";
+import { MARGINE_PARTENZA, resaDiPartenza } from "./resePartenza.ts";
 
-export type FonteOre = "scritte" | "azienda" | "costo_voce" | "prezzario" | "storico" | "manca";
+export type FonteOre = "scritte" | "azienda" | "costo_voce" | "prezzario" | "partenza" | "storico" | "manca";
 
 export const FONTE_A_PAROLE: Record<FonteOre, string> = {
   scritte: "ore scritte sulla voce",
   azienda: "resa della tua azienda",
   costo_voce: "costo di manodopera della voce",
   prezzario: "stima dal prezzario regionale",
+  partenza: "resa di partenza del gestionale (da confermare)",
   storico: "corretta con le ore vere dei tuoi cantieri",
   manca: "nessun dato",
 };
@@ -146,6 +148,12 @@ export function oreDellaVoce(v: VoceCantiere, ip: Ipotesi): OreVoce | null {
   if (importo && f) {
     const ore = (x: number) => importo * x / ip.costoOrario;
     return { ore: ore(f), min: ore(positivo(v.incidenza?.min) || f), max: ore(positivo(v.incidenza?.max) || f), fonte: "prezzario" };
+  }
+  // Ultima: la resa di partenza del gestionale (17/11/2026). Una voce senza altri dati non vale zero ore.
+  const partenza = q ? resaDiPartenza(v.descrizione, v.unita) : null;
+  if (partenza) {
+    const h = partenza.ore * q;
+    return { ore: h, min: h * (1 - MARGINE_PARTENZA), max: h * (1 + MARGINE_PARTENZA), fonte: "partenza" };
   }
   return null;
 }

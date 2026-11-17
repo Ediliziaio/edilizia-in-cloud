@@ -145,9 +145,34 @@ export async function leggiPianoDellaCommessa(orderId: string): Promise<PianoDel
   }
   if (ordine.rst_progetto_id) {
     const { data: p } = await db.from("rst_progetti").select("cronoprogramma").eq("id", ordine.rst_progetto_id).maybeSingle();
-    return daFasi(p?.cronoprogramma, "preventivo di ristrutturazione");
+    const daRst = daFasi(p?.cronoprogramma, "preventivo di ristrutturazione");
+    if (daRst) return daRst;
   }
-  return null;
+  return pianoDalleVociDellaCommessa(orderId);
+}
+
+/**
+ * Senza cronoprogramma (commessa diretta dal computo, o preventivo senza tempi): le durate dalle voci
+ * delle fasi, con la resa di partenza del gestionale dove manca ogni altro dato (17/11/2026).
+ */
+async function pianoDalleVociDellaCommessa(orderId: string): Promise<PianoDellaCommessa | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const [{ data: fasi, error: e1 }, { data: voci, error: e2 }] = await Promise.all([
+    db.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
+    db.from("order_work_phase_voci_visibili").select("phase_id, descrizione, unita, quantita, costo_manodopera, importo").eq("order_id", orderId).limit(5000),
+  ]);
+  if (e1 || e2 || !fasi?.length || !voci?.length) return null;
+  const nome = new Map<string, string>((fasi as { id: string; name: string }[]).map((f) => [f.id, f.name]));
+  const { stimaFasi, pianoDalleStime } = await import("./pianoDalleLavorazioni");
+  const stime = stimaFasi((fasi as { name: string; position: number | null }[]).map((f) => ({ nome: f.name, position: f.position })),
+    (voci as { phase_id: string; descrizione: string; unita: string | null; quantita: number | null; costo_manodopera: number | null; importo: number | null }[])
+      .filter((v) => nome.has(v.phase_id) && Number(v.importo ?? 0) >= 0)
+      .map((v) => ({ fase: nome.get(v.phase_id)!, descrizione: v.descrizione, unita: v.unita, quantita: v.quantita, costo_manodopera: v.costo_manodopera, importo: v.importo })));
+  const piano = pianoDalleStime(stime);
+  if (!piano.length) return null;
+  const senzaDurata = stime.filter((s) => !s.tuttoIlCantiere && s.giorni === 0).map((s) => s.nome);
+  return { origine: "computo della commessa (rese di partenza, da confermare)", piano, senzaDurata, inizioSuggerito: null };
 }
 
 export interface EsitoPianificazione { datate: number; aggiunte: number; saltate: number; inizio: string | null; fine: string | null }

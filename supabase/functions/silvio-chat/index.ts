@@ -1,3 +1,4 @@
+// 17/11/2026: ripubblicata per shared/piano-cantiere (rese di partenza quando la voce non ha altri dati).
 import { publicSilvioReply } from "../_shared/silvioPublicReply.ts";
 import { silvioQuestionPermissionIssue } from "../_shared/silvioDataPermission.ts";
 /**

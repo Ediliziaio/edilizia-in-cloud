@@ -1,3 +1,4 @@
+// 17/11/2026: ripubblicata per shared/piano-cantiere (rese di partenza quando la voce non ha altri dati).
 /**
  * MP-CHAN-01 — Telegram Bot Processor
  *

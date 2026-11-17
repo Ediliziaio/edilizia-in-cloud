@@ -126,7 +126,7 @@ export function calcolaCrono(
     if (!primaLavorazione(senzaAccenti(v.descrizione)) && (APERTURA.test(testo) || CHIUSURA.test(testo))) {
       const o = oreDellaVoce(inCantiere(v), ip);
       if (APERTURA.test(testo)) oreApertura += o?.ore ?? 0; else oreChiusura += o?.ore ?? 0;
-      if (o?.fonte === "prezzario") stimate++;
+      if (o?.fonte === "prezzario" || o?.fonte === "partenza") stimate++;
       return;
     }
     if (!l) nonRiconosciute++;
@@ -136,7 +136,7 @@ export function calcolaCrono(
     g.voci++;
     if (o) {
       g.ore += o.ore; g.min += o.min; g.max += o.max;
-      if (o.fonte === "prezzario") { g.stimate++; stimate++; }
+      if (o.fonte === "prezzario" || o.fonte === "partenza") { g.stimate++; stimate++; }
     } else { g.senza++; senzaDati++; }
     gruppi.set(nome, g);
   });

@@ -1,3 +1,4 @@
+// 17/11/2026: ripubblicata per shared/piano-cantiere (rese di partenza quando la voce non ha altri dati).
 import {SILVIO_PERMISSION_CONTRACTS,STAFF_TOOL_ROLES,staffToolRoleAllowed} from "../_shared/silvioPermissionContracts.ts";
 import {silvioDataPermissionIssue} from "../_shared/silvioDataPermission.ts";
 /**

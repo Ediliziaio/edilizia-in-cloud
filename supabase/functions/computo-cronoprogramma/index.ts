@@ -1,3 +1,4 @@
+// 17/11/2026: ripubblicata per shared/piano-cantiere (rese di partenza quando la voce non ha altri dati).
 /**
  * computo-cronoprogramma — Silvio propone il cronoprogramma dei lavori di un
  * preventivo con computo (29/10/2026): dai capitoli e dalle voci (quantità e
