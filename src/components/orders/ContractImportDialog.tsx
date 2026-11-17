@@ -600,10 +600,10 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-orange-500" />
-            Carica contratto / copia commissione
+            Carica contratto / copia commissione / computo metrico
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Carica una foto o un PDF: l'AI legge i dati e precompila la commessa. Rivedi sempre prima di salvare.
+            Carica una foto o un PDF (anche il computo metrico): l'AI legge i dati e precompila la commessa. Rivedi sempre prima di salvare.
           </DialogDescription>
         </DialogHeader>
 

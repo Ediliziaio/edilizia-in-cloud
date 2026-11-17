@@ -110,17 +110,23 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
                     <tr className="text-left text-muted-foreground">
                       <th className="px-2 py-1.5 font-medium">Descrizione</th>
                       <th className="w-14 px-2 py-1.5 text-right font-medium">Q.tà</th>
-                      <th className="w-20 px-2 py-1.5 text-right font-medium">Unitario</th>
+                      <th className="w-24 px-2 py-1.5 text-right font-medium">Unitario</th>
                       <th className="w-24 px-2 py-1.5 text-right font-medium">Totale</th>
                     </tr>
                   </thead>
                   <tbody>
                     {extract.voci.map((v, i) => (
                       <tr key={i} className="border-t">
-                        <td className="truncate !whitespace-nowrap px-2 py-1" title={v.descrizione}>{v.descrizione}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{v.quantita.toLocaleString("it-IT")}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{v.prezzo_unitario_eur ? formatCurrency(v.prezzo_unitario_eur) : "—"}</td>
-                        <td className="px-2 py-1 text-right font-medium tabular-nums">{formatCurrency((v.quantita || 1) * (v.prezzo_unitario_eur || 0))}</td>
+                        <td className="px-2 py-1 align-top" title={v.descrizione}>
+                          {/* Due righe al massimo, il resto con un clic: una voce «a corpo» è spesso un paragrafo intero. */}
+                          <details className="group">
+                            <summary className="cursor-pointer list-none break-words group-open:hidden [&::-webkit-details-marker]:hidden"><span className="line-clamp-2">{v.descrizione}</span></summary>
+                            <span className="hidden break-words group-open:block">{v.descrizione}</span>
+                          </details>
+                        </td>
+                        <td className="px-2 py-1 text-right align-top tabular-nums">{v.quantita.toLocaleString("it-IT")}</td>
+                        <td className="px-2 py-1 text-right align-top tabular-nums">{v.prezzo_unitario_eur ? formatCurrency(v.prezzo_unitario_eur) : "—"}</td>
+                        <td className="px-2 py-1 text-right align-top font-medium tabular-nums">{formatCurrency((v.quantita || 1) * (v.prezzo_unitario_eur || 0))}</td>
                       </tr>
                     ))}
                   </tbody>
