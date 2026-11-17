@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { isSottoScorta } from "@/types/warehouse";
 
 type Tab = "furgone" | "magazzino" | "prelievi";
 
@@ -366,7 +367,8 @@ export default function CampoMagazzino() {
                   <div className="space-y-3 pb-24">
                     {stockFiltrato.map((item) => {
                       const disponibile = item.quantity_available ?? item.quantity ?? 0;
-                      const scarso = item.min_stock_level != null && disponibile <= item.min_stock_level;
+                      // Rosso se sotto scorta con la regola comune (isSottoScorta), o se non ne resta.
+                      const scarso = isSottoScorta(item) || disponibile <= 0;
                       const inCart = cart[item.id] ?? 0;
                       return (
                         <div key={item.id} className={cn("bg-muted border rounded-2xl p-4", inCart > 0 ? "border-primary" : "border-border")}>

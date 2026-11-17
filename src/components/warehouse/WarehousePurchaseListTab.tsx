@@ -48,7 +48,7 @@ import { useAcquistiAMano } from "@/hooks/warehouse/useAcquistiAMano";
 import type { ManualPurchaseItem } from "@/lib/magazzino/acquistiAMano";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { STATUS_CONFIG } from "@/types/warehouse";
+import { STATUS_CONFIG, isSottoScorta } from "@/types/warehouse";
 import type { OrderItemStatus, StockItem, WarehouseItem } from "@/types/warehouse";
 
 type PurchaseStatus = Extract<OrderItemStatus, "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino">;
@@ -363,11 +363,14 @@ export default function WarehousePurchaseListTab({
   }, [form.name, productSuggestions]);
 
   const rows = useMemo<PurchaseRow[]>(() => {
+    // Sotto scorta con la stessa regola del resto del magazzino (isSottoScorta, 17/11/2026):
+    // il disponibile — giacenza meno impegnato — sotto il minimo. Prima qui si guardava la
+    // giacenza con «<=»: un articolo con 10 pezzi di cui 8 impegnati e minimo 5 non entrava
+    // nella lista acquisti, mentre il riquadro in alto lo contava come sotto scorta.
     const stockRows = stockItems
-      .filter((item) => Number(item.min_stock_level ?? 0) > 0)
-      .filter((item) => Number(item.quantity ?? 0) <= Number(item.min_stock_level ?? 0))
+      .filter(isSottoScorta)
       .map((item): PurchaseRow => {
-        const currentQty = Number(item.quantity ?? 0);
+        const currentQty = Number(item.quantity_available ?? item.quantity ?? 0);
         const minQty = Number(item.min_stock_level ?? 0);
         const suggestedQty = Math.max(1, minQty - currentQty);
         const unitCost = Number(item.unit_cost ?? 0);
@@ -381,7 +384,7 @@ export default function WarehousePurchaseListTab({
           status: "da_ordinare",
           priority: currentQty <= 0 ? "alta" : "media",
           dueDate: null,
-          notes: `Giacenza ${currentQty} / soglia ${minQty}`,
+          notes: `Disponibili ${currentQty} / soglia ${minQty}`,
           estimatedCost: unitCost > 0 ? unitCost * suggestedQty : null,
           isPaid: false,
           paymentState: "unknown",

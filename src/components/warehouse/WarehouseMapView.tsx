@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Package, MapPin } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import type { StockItem } from "@/types/warehouse";
+import { isSottoScorta, type StockItem } from "@/types/warehouse";
 import type { WarehouseSection } from "@/hooks/useWarehouseSections";
 
 interface WarehouseMapViewProps {
@@ -31,7 +31,7 @@ function computeStats(items: StockItem[]): SectionStats {
       totalValue: acc.totalValue + item.unit_cost * item.quantity,
       lowStockCount:
         acc.lowStockCount +
-        (item.min_stock_level > 0 && item.quantity <= item.min_stock_level ? 1 : 0),
+        (isSottoScorta(item) ? 1 : 0),
     }),
     { itemCount: 0, totalQuantity: 0, totalValue: 0, lowStockCount: 0 }
   );
