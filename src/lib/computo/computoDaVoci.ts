@@ -128,7 +128,7 @@ export function rigaDaVoce(v: VoceImportata, i: number): { voce: RigaVoce; misur
   return {
     voce: {
       ordine: i,
-      numero_ordine: String(i + 1),
+      numero_ordine: v.numero?.trim() || String(i + 1),
       codice_voce: codice,
       codice_tariffa: codice,
       codice_prezzario: codice,

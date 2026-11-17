@@ -15,6 +15,8 @@ const voceSchema = z.object({
   id: z.string(), capitolo: testo, categoria: testo, sottocategoria: testo, tariffa: testo,
   descrizione: testo, unita: testo, quantita: testo, prezzo: testo,
   fonte: z.string().max(500).default(""),
+  /** Il numero d'ordine della voce nel computo d'origine (PriMus): resta anche se se ne tolgono altre (17/11/2026). */
+  numero: z.string().max(20).default(""),
   /** Costo unitario stimato dell'impresa: per i margini del passo Economia, mai nel PDF. */
   costo: z.string().max(40).default(""),
   /** Voce opzionale: si propone al cliente ma resta fuori dal totale (sezione a parte nel PDF). */

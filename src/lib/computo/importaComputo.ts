@@ -161,6 +161,7 @@ export function bozzaDaComputoStrutturato(c: ComputoStrutturato): EsitoImportCom
       categoria: nome(v, l2).slice(0, 300),
       sottocategoria: nome(v, l3).slice(0, 300),
       tariffa: (v.codice_tariffa || v.codici[0] || "").slice(0, 160),
+      numero: String(v.numero_ordine ?? "").trim().slice(0, 20),
       descrizione: v.descrizione.slice(0, MAX_TESTO),
       unita: (v.unita_misura || "").slice(0, 40),
       prezzo: cifra(v.prezzo_unitario === null ? null : Math.abs(v.prezzo_unitario)),

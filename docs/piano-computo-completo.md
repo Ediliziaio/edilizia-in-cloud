@@ -1,0 +1,67 @@
+# Dal computo al cantiere: piano completo (17/11/2026)
+
+Confronto fra quello che il gestionale fa oggi con un computo PriMus vero (226 voci, 182 di lavoro,
+1.948.331,82 €) e un'analisi operativa fatta a mano con un'altra AI sullo stesso computo. I numeri
+coincidono al centesimo; mancano il controllo del documento e la parte di cantiere (programma, noli,
+acquisti nel tempo).
+
+## Cosa c'è già (17/11/2026)
+
+| Pezzo | Stato |
+|---|---|
+| Lettura PriMus PDF/XPWE: voci, misure, capitoli, detrazioni, voci a percentuale | fatto, al centesimo |
+| Quadro economico (oneri tecnici, cassa, IVA, visto) spento all'import | fatto (`eNonLavoro`) |
+| Preventivo → commessa: fasi per capitolo, sottofasi e voci con importi | fatto |
+| Commessa diretta dal computo: lavorazioni, importi per fase | fatto (`commessa_lavorazioni_dal_computo`) |
+| Materiali: ricette dell'azienda, libreria, AI per le voci senza ricetta | fatto; errori di quantità su poche voci |
+| Costo previsto solo da listino a monte; margine «—» se parziale | fatto |
+| Ordini in bozza per fornitore dopo il salvataggio | fatto, senza date |
+
+## Cosa manca, in lotti
+
+### Lotto 1 — Controllo del computo (prima di generare materiali e ordini)
+Il computo contiene errori che il gestionale oggi trasforma in ordini. Regole pure, una per tipo,
+con la voce, il motivo e l'importo in gioco:
+1. **Metri usati come m²**: una voce in m seguita da voci in m² con la stessa quantità (spallette:
+   637,20 m sommati come m², 446 m² di ciclo in più).
+2. **Quantità frazionaria su pezzi**: unità cad/pz/n con decimali (inverter 0,88; cicogne 767,40).
+3. **Barre contate a pezzi ma misurate in metri**: «barra da 3 m» con la lunghezza dentro la misura.
+4. **Misura diversa dalla descrizione**: «larghezza 15 cm» nella descrizione, 0,30 nella misura.
+5. **Sovrapprezzo «per ogni cm»**: la quantità è m²×cm, non superficie da comprare.
+6. **A corpo con quantità diversa da 1** (1,50 a corpo).
+7. **Unità superficie con un numero di pezzi nella descrizione** («n. 45 cassonetti», unità m²).
+8. **Descrizione abbreviata** («…»): chiedere la voce integrale prima dell'offerta.
+9. **Perimetro**: il titolo cita lavori (sismico) che non hanno un capitolo.
+
+Dove: «Genera dal computo» (sezione «Da controllare nel computo», prima dei materiali) e il materiale
+che nasce da una voce segnalata porta l'avviso. Nessun blocco: l'impresa decide.
+
+### Lotto 2 — Materiali più fedeli
+1. Spessore dal sovrapprezzo «per ogni cm in più» (cappotto 3 cm + 9 cm = 12 cm), senza aggiungere
+   superficie.
+2. Serramenti: superficie contabile ≠ vani; il numero di pezzi dalla descrizione o dalle misure
+   (parti uguali), avviso «ordine da abaco».
+3. «Incluso nel pacchetto»: un componente che la voce dichiara compreso (comandi dei fancoil, raccordi)
+   non si ordina due volte.
+4. Sfrido per tipo (lastre/pannelli 5%, cavi 3-5%, su misura 0%) al posto di uno unico.
+5. Quantità netta = fabbisogno + sfrido − magazzino − già ordinato (in parte già c'è: copertura).
+
+### Lotto 3 — Noli, servizi e manodopera
+Le voci della sicurezza e delle opere provvisionali (ponteggi, baracche, bagno chimico, piattaforma
+con operatore, ore di installatore) non sono materiali: diventano noli/servizi con una durata in mesi
+(«per 13 mesi», «mesi successivi 8») e il fornitore, nel piano costi della commessa.
+
+### Lotto 4 — Piano di cantiere e cronoprogramma preliminare
+1. Proposta AI di **macrofasi operative** (verifiche e acquisti, cantierizzazione, rimozioni, coperture,
+   serramenti, cappotto, impianti, collaudi) con le voci assegnate; la vista per capitolo resta per i conti.
+2. **Durata stimata** per sottofase: quantità × produttività (tabella per lavorazione, modificabile)
+   e squadra; finestre e dipendenze (rilievi → produzione infissi → posa → cappotto).
+3. Il piano si applica alle date delle fasi (esiste già `commessa_pianifica_fasi`).
+
+### Lotto 5 — Piano acquisti nel tempo
+Per ogni lotto (infissi, pompe di calore, VMC, cappotto, FV…): anticipo tipico, data in cui serve in
+cantiere (dal cronoprogramma), data entro cui ordinare. Sulle bozze d'ordine e nello scadenzario acquisti.
+
+## Ordine di lavoro
+Lotto 1 → Lotto 2 → Lotto 3 → Lotto 4 → Lotto 5. Ogni lotto si prova sul computo PriMus di prova
+(fixture `computoPrimusGenzano.tsv`) e dal vivo su Demo Azienda 2.

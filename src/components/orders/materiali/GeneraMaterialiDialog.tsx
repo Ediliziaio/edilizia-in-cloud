@@ -41,6 +41,7 @@ import {
 } from "@/lib/distinta/collegaArticoli";
 import { MaterialiProposti } from "./MaterialiProposti";
 import { computoDelPreventivo } from "@/lib/distinta/computoDelPreventivo";
+import { controllaComputo, importoInGioco, voceDaCommessa } from "@/lib/computo/controlloComputo";
 import { avvisiCosto as calcolaAvvisiCosto, type VoceConImporto } from "@/lib/distinta/controlloCostiVoci";
 import { DopoIlSalvataggio } from "./DopoIlSalvataggio";
 import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
@@ -524,6 +525,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   };
 
   const capitoli = [...new Set(vociComputo.map((v) => capitoloVoce(v as never)))];
+  // Il controllo del computo (17/11/2026): gli errori che diventerebbero ordini sbagliati.
+  const incongruenze = useMemo(() => controllaComputo(vociComputo.map((v) => voceDaCommessa(v as never))), [vociComputo]);
+  const daVerificare = incongruenze.filter((x) => x.gravita === "verifica");
   // Le voci senza scomposizione hanno il loro elenco: negli avvisi resterebbero due volte.
   const avvisiAltri = (risultato?.avvisi ?? []).filter((a) => a.tipo !== "senza_scomposizione");
   const nienteDaLeggere = !caricamento && !letti.length && !(dati.data?.conteggi.length);
@@ -661,6 +665,29 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                         </li>
                       );
                     })}
+                  </ul>
+                </details>
+              )}
+
+              {incongruenze.length > 0 && (
+                <details className="group rounded-md border border-amber-300 bg-amber-50/70 text-xs text-amber-950" open={daVerificare.length > 0}>
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-1.5">
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform group-open:rotate-0" aria-hidden />
+                    <span className="font-semibold">Da controllare nel computo ({daVerificare.length})</span>
+                    {mostraPrezzi && importoInGioco(incongruenze) > 0 && <span>· {importoInGioco(incongruenze).toLocaleString("it-IT", { style: "currency", currency: "EUR" })} in gioco</span>}
+                    <span className="text-amber-900/80">Prima di ordinare: queste voci hanno quantità o unità che non tornano.</span>
+                  </summary>
+                  <ul className="max-h-56 divide-y divide-amber-200 overflow-auto border-t border-amber-200 bg-white">
+                    {incongruenze.map((x, i) => (
+                      <li key={`${x.voce_id}-${x.regola}-${i}`} className="flex gap-3 px-3 py-1.5">
+                        <span className="w-16 shrink-0 tabular-nums text-slate-500">voce {x.numero.length > 12 ? "varie" : x.numero}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className={x.gravita === "verifica" ? "font-medium text-amber-900" : "font-medium text-slate-700"}>{x.titolo}</span>
+                          <span className="block text-slate-600">{x.messaggio}</span>
+                        </span>
+                        {mostraPrezzi && x.importo ? <span className="shrink-0 tabular-nums text-slate-700">{x.importo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span> : null}
+                      </li>
+                    ))}
                   </ul>
                 </details>
               )}
