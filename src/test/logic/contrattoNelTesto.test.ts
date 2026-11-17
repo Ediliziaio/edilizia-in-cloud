@@ -93,3 +93,39 @@ describe("preventivo a corpo con il computo sotto (4 preventivi veri, 17/11/2026
     expect(e.voci.map((v) => v.prezzo_unitario_eur)).toEqual([21.17, 400]);
   });
 });
+
+describe("documento firmato: note a mano, firma, allegato (17/11/2026)", () => {
+  const e = parseContractExtract({
+    importo_totale_eur: 23950, importo_totale_ivato_eur: 27500,
+    voci: [{ descrizione: "Sola fornitura infissi in PVC", quantita: 1, prezzo_unitario_eur: 23950 }],
+    note_a_mano: [
+      { testo: "con serratura!!", pagina: 4, riferimento: "Porta 002", contraddice: null },
+      { testo: "guarnizioni grigie", pagina: 14, riferimento: null, contraddice: "guarnizione nera" },
+      { testo: "", pagina: 2 },
+    ],
+    posizioni_allegato: [{ codice: "Finestra 001", quantita: 1, dimensioni: "2100x2200" }, { codice: "Zanzariere", quantita: 13 }, { codice: "x", quantita: 0 }],
+    firma: { presente: true, firmatario: "Bertoli Claudio", data: "2026-09-20", pagine: [1, 2, "x"] },
+  });
+
+  it("si leggono e si puliscono", () => {
+    expect(e.note_a_mano?.map((n) => n.testo)).toEqual(["con serratura!!", "guarnizioni grigie"]);
+    expect(e.posizioni_allegato?.map((p) => [p.codice, p.quantita])).toEqual([["Finestra 001", 1], ["Zanzariere", 13]]);
+    expect(e.firma).toEqual({ presente: true, firmatario: "Bertoli Claudio", data: "2026-09-20", pagine: [1, 2] });
+  });
+
+  it("finiscono nelle note interne e la nota che cambia lo stampato è un avviso", async () => {
+    const { righeDocumentoFirmato } = await import("@/lib/orders/contractPreparation");
+    const { contractCoherenceWarnings } = await import("@/lib/orders/contractExtract");
+    const righe = righeDocumentoFirmato(e).join("\n");
+    expect(righe).toContain("Firmato da Bertoli Claudio il 20/09/2026");
+    expect(righe).toContain("Porta 002: con serratura!! (pag. 4)");
+    expect(righe).toContain("CAMBIA LO STAMPATO: guarnizione nera");
+    expect(righe).toContain("ALLEGATO TECNICO: 2 posizioni, 14 pezzi");
+    expect(contractCoherenceWarnings(e).join(" ")).toContain("«guarnizioni grigie» (stampato: guarnizione nera)");
+  });
+
+  it("un contratto letto prima (senza i campi nuovi) non cambia", async () => {
+    const { righeDocumentoFirmato } = await import("@/lib/orders/contractPreparation");
+    expect(righeDocumentoFirmato(parseContractExtract({ importo_totale_eur: 100 }))).toEqual([]);
+  });
+});

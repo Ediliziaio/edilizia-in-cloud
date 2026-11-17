@@ -27,6 +27,26 @@ export interface ContractExtractWorkPhase {
   giorni: number | null;
   sottofasi: string[];
 }
+export interface ContractExtractNota {
+  testo: string;
+  pagina: number | null;
+  riferimento: string | null;
+  /** Cosa dello stampato la nota cambia; null se aggiunge e basta. */
+  contraddice: string | null;
+}
+export interface ContractExtractPosizione {
+  codice: string;
+  quantita: number;
+  dimensioni: string | null;
+  descrizione: string | null;
+  pagina: number | null;
+}
+export interface ContractExtractFirma {
+  presente: boolean;
+  firmatario: string | null;
+  data: string | null;
+  pagine: number[];
+}
 export interface ContractExtractItem {
   descrizione: string;
   quantita: number;
@@ -87,6 +107,12 @@ export interface ContractExtract {
   data_fine_lavori: string | null;
   /** Facoltativo: i contratti letti prima del 15/11/2026 non lo hanno. */
   fasi_lavoro?: ContractExtractWorkPhase[];
+  /** Le scritte a mano sul documento firmato (17/11/2026): cambiano spesso lo stampato. */
+  note_a_mano?: ContractExtractNota[];
+  /** Le posizioni dell'allegato tecnico quando il prezzo è a corpo (17/11/2026). */
+  posizioni_allegato?: ContractExtractPosizione[];
+  /** La firma del cliente: c'è, chi, quando (17/11/2026). */
+  firma?: ContractExtractFirma | null;
   summary: string;
   confidence: number;
   warnings: string[];
@@ -132,6 +158,36 @@ export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
     out.push({ nome, giorni: g != null && g > 0 && g <= 365 ? Math.round(g) : null, sottofasi });
   }
   return out;
+}
+
+const oggetti = (v: unknown): Record<string, unknown>[] =>
+  (Array.isArray(v) ? v : []).filter((x): x is Record<string, unknown> => !!x && typeof x === "object");
+const pagina = (v: unknown): number | null => { const n = toNum(v); return n != null && n >= 1 && n <= 2000 ? Math.round(n) : null; };
+
+function noteDalTesto(v: unknown): ContractExtractNota[] {
+  return oggetti(v)
+    .map((n) => ({ testo: (toStr(n.testo) ?? "").slice(0, 300), pagina: pagina(n.pagina), riferimento: toStr(n.riferimento)?.slice(0, 80) ?? null, contraddice: toStr(n.contraddice)?.slice(0, 200) ?? null }))
+    .filter((n) => n.testo.length > 0)
+    .slice(0, 40);
+}
+
+function posizioniDalTesto(v: unknown): ContractExtractPosizione[] {
+  return oggetti(v)
+    .map((p) => ({ codice: (toStr(p.codice) ?? "").slice(0, 60), quantita: toNum(p.quantita) ?? 1, dimensioni: toStr(p.dimensioni)?.slice(0, 40) ?? null, descrizione: toStr(p.descrizione)?.slice(0, 120) ?? null, pagina: pagina(p.pagina) }))
+    .filter((p) => p.codice.length > 0 && p.quantita > 0)
+    .slice(0, 200);
+}
+
+function firmaDalTesto(v: unknown): ContractExtractFirma | null {
+  if (!v || typeof v !== "object") return null;
+  const f = v as Record<string, unknown>;
+  const data = toStr(f.data);
+  return {
+    presente: f.presente === true,
+    firmatario: toStr(f.firmatario)?.slice(0, 120) ?? null,
+    data: data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : null,
+    pagine: (Array.isArray(f.pagine) ? f.pagine : []).map(pagina).filter((n): n is number => n != null).slice(0, 50),
+  };
 }
 
 export function parseContractExtract(raw: unknown): ContractExtract {
@@ -223,6 +279,9 @@ export function parseContractExtract(raw: unknown): ContractExtract {
     data_inizio_lavori: toStr(r.data_inizio_lavori),
     data_fine_lavori: toStr(r.data_fine_lavori),
     fasi_lavoro: fasiLavoroDalTesto(r.fasi_lavoro),
+    note_a_mano: noteDalTesto(r.note_a_mano),
+    posizioni_allegato: posizioniDalTesto(r.posizioni_allegato),
+    firma: firmaDalTesto(r.firma),
     summary: toStr(r.summary) ?? "",
     confidence: toNum(r.confidence) ?? 0,
     warnings: Array.isArray(r.warnings) ? r.warnings.map((w) => String(w)) : [],
@@ -401,6 +460,10 @@ export function importiDaEsempio(extract: ContractExtract): string[] {
 
 export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   const out: string[] = [];
+  const cambiano = (extract.note_a_mano ?? []).filter((n) => n.contraddice);
+  if (cambiano.length) {
+    out.push(`${cambiano.length === 1 ? "Una nota scritta a mano cambia" : `${cambiano.length} note scritte a mano cambiano`} lo stampato: ${cambiano.map((n) => `«${n.testo.slice(0, 50)}» (stampato: ${n.contraddice!.slice(0, 50)})`).join("; ")}. Decidi quale vale prima di ordinare.`);
+  }
   const esempio = importiDaEsempio(extract);
   if (esempio.length) {
     out.push(`Importo sospetto (1.234,56 € è un numero d'esempio, non letto dal documento): ${esempio.join("; ")}. Controllalo sul documento.`);

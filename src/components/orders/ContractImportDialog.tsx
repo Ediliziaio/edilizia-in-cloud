@@ -763,6 +763,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
               );
             })()}
             {verifica && !verifica.senzaTesto && verifica.campi.length > 0 && <ControlloSulTesto verifica={verifica} />}
+            <DocumentoFirmato extract={extract} />
             {extract.warnings.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
                 <p className="font-semibold mb-1">⚠️ Da verificare</p>
@@ -855,6 +856,49 @@ function ControlloSulTesto({ verifica }: { verifica: VerificaNelTesto }) {
           </ul>
         </details>
       )}
+    </div>
+  );
+}
+
+/** Firma, note scritte a mano e allegato tecnico letti dal documento (17/11/2026): finiscono nelle note interne. */
+function DocumentoFirmato({ extract }: { extract: ContractExtract }) {
+  const note = extract.note_a_mano ?? [];
+  const pos = extract.posizioni_allegato ?? [];
+  const firma = extract.firma;
+  if (!note.length && !pos.length && !firma) return null;
+  const pezzi = pos.reduce((t, x) => t + x.quantita, 0);
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/30 p-2.5 text-xs">
+      {firma && (
+        <p className={firma.presente ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300"}>
+          {firma.presente
+            ? <>✓ Firmato{firma.firmatario ? <> da <strong>{firma.firmatario}</strong></> : null}{firma.data ? ` il ${firma.data.split("-").reverse().join("/")}` : ""}{firma.pagine.length ? ` · pagine ${firma.pagine.join(", ")}` : ""}</>
+            : "Non vedo la firma del cliente sul documento."}
+        </p>
+      )}
+      {note.length > 0 && (
+        <div>
+          <p className="mb-1 font-semibold">Scritto a mano ({note.length})</p>
+          <ul className="space-y-0.5">
+            {note.map((n, i) => (
+              <li key={i} className={n.contraddice ? "rounded bg-amber-100 px-1.5 py-0.5 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200" : ""}>
+                {n.riferimento && <span className="font-medium">{n.riferimento}: </span>}«{n.testo}»
+                {n.pagina ? <span className="text-muted-foreground"> · pag. {n.pagina}</span> : null}
+                {n.contraddice && <span> — cambia lo stampato: {n.contraddice}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {pos.length > 0 && (
+        <details>
+          <summary className="cursor-pointer font-semibold">Allegato tecnico: {pos.length} posizioni, {pezzi.toLocaleString("it-IT")} pezzi</summary>
+          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+            {pos.map((x, i) => <li key={i}><span className="text-foreground">{x.codice}</span> × {x.quantita.toLocaleString("it-IT")}{x.dimensioni ? ` · ${x.dimensioni}` : ""}{x.descrizione ? ` · ${x.descrizione}` : ""}</li>)}
+          </ul>
+        </details>
+      )}
+      <p className="text-muted-foreground">Finiscono nelle note interne della commessa.</p>
     </div>
   );
 }
