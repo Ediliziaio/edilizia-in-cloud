@@ -1,5 +1,6 @@
 import type { ContractPreparation, ConfirmedValues } from "@/lib/orders/contractPreparation";
 import { contractConfirmations } from "@/lib/orders/contractPreparation";
+import { eLavoroSingolo } from "@/lib/orders/confermeContratto";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList } from "lucide-react";
 
@@ -26,9 +27,7 @@ function RigaDaConfermare({ piano, confermati, nascondi }: { piano: ContractPrep
 }
 
 export function ContractPreparationCard({ piano, confermati = {}, nascondi = [] }: { piano: ContractPreparation; confermati?: ConfirmedValues; nascondi?: readonly string[] }) {
-  const lavoroSingolo = piano.profilo !== "manutenzione_stradale_su_ordine" && piano.organizzazione !== "interventi_su_ordine"
-    && !piano.extract.appalto_pubblico?.presente && piano.extract.appalto_pubblico?.durata_giorni == null;
-  if (lavoroSingolo) return <RigaDaConfermare piano={piano} confermati={confermati} nascondi={nascondi} />;
+  if (eLavoroSingolo(piano)) return <RigaDaConfermare piano={piano} confermati={confermati} nascondi={nascondi} />;
   const mancanti = contractConfirmations(piano, confermati);
   return <Card className="border-orange-200" aria-label="Preparazione dal contratto">
     <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ClipboardList className="h-5 w-5" />Proposta dal contratto</CardTitle></CardHeader>
