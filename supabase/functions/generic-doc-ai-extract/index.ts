@@ -380,7 +380,9 @@ Deno.serve(async (req) => {
       params: {
         temperature: 0.0,
         max_tokens: ["contratto_commessa", "business_plan"].includes(doc_type) ? (perContratto ? 16000 : 12000) : 6000,
-        ...(modello ? { timeoutMs: modello === MODELLO_LETTURA_ACCURATA ? 120_000 : 60_000 } : {}),
+        // Tutto deve stare nei 140 secondi (il gateway chiude a 150, il browser aspetta 155): Haiku ha 70
+        // secondi, Sonnet quello che resta, mai più di 120 e mai meno di 30.
+        ...(modello ? { timeoutMs: modello === MODELLO_LETTURA_ACCURATA ? Math.max(30_000, Math.min(120_000, 140_000 - (Date.now() - t0))) : 70_000 } : {}),
       },
       responseFormat: { type: "json_object" },
       companyId: company_id,

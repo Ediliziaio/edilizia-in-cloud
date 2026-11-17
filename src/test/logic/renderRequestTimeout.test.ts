@@ -13,6 +13,9 @@ describe("scadenze delle richieste render", () => {
   it("aspetta anche la lettura completa della planimetria, il cui budget server è 140 secondi", () => {
     expect(supabaseRequestTimeout("https://example.supabase.co/functions/v1/planimetria-genera")).toBe(155_000);
   });
+  it("aspetta la lettura dei contratti, che con Sonnet su un documento lungo supera i 60 secondi", () => {
+    expect(supabaseRequestTimeout("https://example.supabase.co/functions/v1/generic-doc-ai-extract")).toBe(155_000);
+  });
   it("non confonde un valore della query con l'endpoint invocato", () => {
     expect(supabaseRequestTimeout("https://example.supabase.co/rest/v1/items?note=/functions/v1/generate-facade-render")).toBe(25_000);
     expect(supabaseRequestTimeout({ url: "https://example.supabase.co/functions/v1/generate-facade-render/?test=1" } as Request)).toBe(155_000);
