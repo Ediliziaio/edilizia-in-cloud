@@ -3,7 +3,7 @@
  * (17/11/2026). Serve a scegliere con i numeri quale AI applica meglio lo standard operativo
  * (docs/piano-standard-operativo-commessa.md §5): voci, tipo, chi compra, costo e tempo.
  *
- * Solo super admin. Il costo è interno alla piattaforma (companyId null → registrato come interno,
+ * Solo super admin, o chi lavora nell'azienda di prova Demo 2 (solo su di essa). Il costo è interno alla piattaforma (companyId null → registrato come interno,
  * vedi docs/ai-addebiti-censimento.md): è uno strumento di prova, non una funzionalità per le aziende.
  * Il file si legge con le stesse regole di generic-doc-ai-extract (bucket e cartella dell'azienda).
  */
@@ -18,6 +18,9 @@ import { bytesToBase64 } from "../_shared/base64.ts";
 import { leggiJsonDalModello } from "../_shared/rispostaModello.ts";
 import { ISTRUZIONI_LETTURA_STANDARD, VERSIONE_LETTURA_STANDARD } from "../_shared/letturaStandardOperativo.ts";
 
+/** Demo Azienda 2: l'azienda delle prove (crediti illimitati, dati finti). */
+const AZIENDA_DI_PROVA = "d2000000-0000-4000-a000-000000000002";
+
 /** Solo provider noti, così un nome sbagliato non diventa una chiamata a chissà cosa. */
 const MODELLO_AMMESSO = /^(google|anthropic|openai|x-ai|deepseek|qwen|mistralai|meta-llama)\/[a-z0-9.:_-]{2,60}$/i;
 
@@ -27,13 +30,14 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return errorResponse("Metodo non ammesso", 405, cors);
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
-    await requireRole(supabaseAdmin, userId, ["super_admin"], cors);
     const body = await req.json().catch(() => ({})) as {
       storage_bucket?: string; storage_path?: string; mime_type?: string; company_id?: string; modello?: string; nota?: string;
     };
     const { storage_bucket, storage_path, mime_type, company_id, modello } = body;
     if (!storage_bucket || !storage_path || !company_id || !modello) return errorResponse("Servono storage_bucket, storage_path, company_id e modello", 400, cors);
     if (!MODELLO_AMMESSO.test(modello)) return errorResponse("Modello non ammesso", 400, cors);
+    // Super admin, oppure chi lavora nell'azienda di prova Demo 2 e solo su di essa (autorizzato dal titolare il 17/11/2026).
+    if (company_id !== AZIENDA_DI_PROVA) await requireRole(supabaseAdmin, userId, ["super_admin"], cors);
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
 
     const ammesso = valutaFile({ bucket: storage_bucket, path: storage_path }, BUCKET_LETTURA_GENERICA, { companyId: company_id, userId });
