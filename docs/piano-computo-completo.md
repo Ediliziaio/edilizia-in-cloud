@@ -87,10 +87,17 @@ cantiere (dal cronoprogramma), data entro cui ordinare. Sulle bozze d'ordine e n
 ### Decisioni prese
 - Rese: tabella di partenza del gestionale, superata dalle rese dell'azienda (scelta del 17/11/2026).
 
+### Fatto dopo (17/11/2026, sera)
+- «Incluso nel pacchetto»: un componente a pezzi della libreria o dell'AI che una voce vicina del computo
+  fornisce già (il comando dei ventilconvettori) non si ordina due volte; avviso «già nel computo».
+  I «compresi» non si estraggono più dai prodotti su misura né da frasi che non sono materiali.
+- Rese dell'azienda per lavorazione intera: Impostazioni → Silvio e le commesse → «Rese di cantiere», in
+  «m² al giorno con la squadra»; vincono sulla resa di partenza in tutti i calcoli dei tempi.
+- Noli a prezzo mensile senza mesi nelle misure: «2*13» = 2 pezzi per 13 mesi (da confermare).
+- Provato su Demo 2: «Pianifica» dà 9 fasi con le date (fine 2 agosto 2027) e «ordina entro» i serramenti
+  il giorno stesso, la pompa di calore già in ritardo.
+
 ### Resta
-- Lotto 2: «incluso nel pacchetto» (componenti dichiarati compresi da non ordinare due volte).
-- Le rese di partenza si correggono oggi voce per voce («Calcola come finire» → salva la resa); una
-  schermata per correggere la tabella intera per l'azienda non c'è ancora.
 - Il piano stimato è più corto dell'analisi a mano (9 contro 11-13 mesi): mancano stagionalità,
   struttura occupata e attese dei fornitori oltre la produzione dei serramenti.
 

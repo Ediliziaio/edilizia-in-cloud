@@ -18,6 +18,9 @@
 
 export interface ResaPartenza {
   nome: string;
+  unita: Unita;
+  /** La chiave con cui l'azienda salva la sua resa per tutta la lavorazione (vedi `chiavePartenza`). */
+  chiave: string;
   /** Chi la fa: mestieri diversi lavorano in parallelo nella stessa fase. */
   mestiere: string;
   /** Ore-persona per unità della voce. */
@@ -25,7 +28,7 @@ export interface ResaPartenza {
   squadra: number;
 }
 
-type Unita = "mq" | "m" | "pz" | "mc" | "kg" | "kwh";
+export type Unita = "mq" | "m" | "pz" | "mc" | "kg" | "kwh";
 interface Riga { nome: string; parole: RegExp; unita: Unita; ore: number; mestiere: string; squadra: number }
 
 /** In ordine: conta la prima riga che combacia con la parola E con l'unità. */
@@ -115,8 +118,31 @@ export function resaDiPartenza(descrizione: string, unita: string | null | undef
   // Vince la prima riga della tabella: le lavorazioni specifiche stanno prima di quelle generiche
   // («isolamento termico a cappotto» è cappotto, non isolamento di copertura).
   const scelta = TABELLA.find((r) => r.unita === u && r.parole.test(t));
-  return scelta ? { nome: scelta.nome, ore: scelta.ore, mestiere: scelta.mestiere, squadra: scelta.squadra } : null;
+  return scelta ? { nome: scelta.nome, unita: scelta.unita, chiave: chiavePartenza(scelta.nome, scelta.unita), ore: scelta.ore, mestiere: scelta.mestiere, squadra: scelta.squadra } : null;
 }
+
+/**
+ * La resa che l'azienda scrive per una lavorazione intera («Cappotto», a m²) vale per tutte le voci
+ * di quella lavorazione: si salva in rese_azienda con questa chiave (17/11/2026).
+ */
+export function chiavePartenza(nome: string, unita: Unita): string {
+  return `partenza:${senzaAccenti(nome).replace(/[^a-z0-9]+/g, " ").trim()}:${unita}`;
+}
+
+/** La tabella da mostrare all'azienda: una riga per lavorazione e unità. */
+export function tabellaPartenza(): (ResaPartenza)[] {
+  const viste = new Set<string>();
+  const out: ResaPartenza[] = [];
+  for (const r of TABELLA) {
+    const chiave = chiavePartenza(r.nome, r.unita);
+    if (viste.has(chiave)) continue;
+    viste.add(chiave);
+    out.push({ nome: r.nome, unita: r.unita, chiave, ore: r.ore, mestiere: r.mestiere, squadra: r.squadra });
+  }
+  return out;
+}
+
+export const UNITA_A_PAROLE: Record<Unita, string> = { mq: "m²", m: "m", pz: "pezzi", mc: "m³", kg: "kg", kwh: "kWh" };
 
 /** Quanto è larga la stima: ±35%. */
 export const MARGINE_PARTENZA = 0.35;

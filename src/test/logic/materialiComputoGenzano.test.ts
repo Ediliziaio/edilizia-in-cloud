@@ -103,3 +103,15 @@ describe("serramenti a superficie", () => {
     expect(serramenti.every((m) => m.note.some((n) => /abaco/.test(n)))).toBe(true);
   });
 });
+
+describe("incluso nel pacchetto e compresi", () => {
+  const r = generaDistinta({ voci: vociLavori(), scomposizioni: [], riserva: catalogoComeScomposizioni() });
+  it("il comando dei ventilconvettori non si ordina due volte: è già una voce del computo", () => {
+    expect(r.righe.some((m) => /^Comando a bordo o a parete/.test(m.descrizione))).toBe(false);
+    expect(r.avvisi.some((a) => a.tipo === "gia_nel_computo" && /Comando/.test(a.messaggio))).toBe(true);
+  });
+  it("niente «compresi» da voci a superficie o frasi che non sono materiali", () => {
+    expect(r.righe.some((m) => /^Maniglie/.test(m.descrizione) && m.unita_misura === "mq")).toBe(false);
+    expect(r.righe.some((m) => /installazione di appositi|accessori di fissaggio nei seguenti|^5 mmq|Pezzi speciali egli/i.test(m.descrizione))).toBe(false);
+  });
+});

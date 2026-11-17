@@ -1,4 +1,4 @@
-// 17/11/2026: ripubblicata per shared/piano-cantiere (rese di partenza quando la voce non ha altri dati).
+// 17/11/2026: ripubblicata per shared/piano-cantiere (rese di partenza e rese dell'azienda per lavorazione).
 import { publicSilvioReply } from "../_shared/silvioPublicReply.ts";
 import { silvioQuestionPermissionIssue } from "../_shared/silvioDataPermission.ts";
 /**

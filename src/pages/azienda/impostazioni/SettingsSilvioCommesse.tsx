@@ -36,6 +36,7 @@ import { AZIONI_SILVIO, SEMPRE_TU, livelloDi, sogliaDi, type AzioneSilvio, type 
 import { cn } from "@/lib/utils";
 
 const QuantoLavoraSilvio = lazy(() => import("@/components/silvio-commessa/QuantoLavoraSilvio"));
+const ReseCantiere = lazy(() => import("@/components/impostazioni/ReseCantiere").then((m) => ({ default: m.ReseCantiere })));
 
 const ETICHETTE: Record<LivelloAutonomia, string> = { vietata: "Mai", chiede: "Chiede", da_sola: "Da solo" };
 
@@ -220,6 +221,15 @@ export default function SettingsSilvioCommesse({ db }: { db?: ClientAutonomia } 
           </p>
         </div>
       </SezioneImpostazione>
+
+      {companyId && (
+        <SezioneImpostazione id="rese-cantiere" titolo="Rese di cantiere"
+          descrizione="Quanto fa una squadra al giorno, per lavorazione: danno i tempi delle commesse («Pianifica», «Calcola come finire», cronoprogramma del computo). Si salva quando esci dal campo.">
+          <Suspense fallback={<Skeleton className="h-24 w-full" />}>
+            <ReseCantiere companyId={companyId} puoModificare={!!permissions.canEditOrders && puoModificare} />
+          </Suspense>
+        </SezioneImpostazione>
+      )}
 
       {permissions.canEditOrders && companyId && (
         <SezioneImpostazione id="quanto-lavora-silvio" titolo="Quanto lavora Silvio" descrizione="I suoi numeri degli ultimi 90 giorni, sulle commesse.">

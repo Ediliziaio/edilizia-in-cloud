@@ -30,6 +30,9 @@
 import { applicaSovrapprezziSpessore } from "./sovrapprezziSpessore";
 import { classificaServizio, ETICHETTA_SERVIZIO } from "./serviziComputo";
 
+/** Unità a pezzi, comunque scritte («cad», «cadauno», «pz», «n.»). */
+const aPezzi = (u: string | null | undefined) => ["pz", "cad", "n", "nr"].includes(normalizzaUnita(u));
+
 export interface VoceComputo {
   id: string;
   codice_voce?: string | null;
@@ -165,7 +168,7 @@ export interface VoceEsclusa {
 }
 
 export interface AvvisoDistinta {
-  tipo: "senza_scomposizione" | "quantita_mancante" | "possibile_doppione" | "conteggio_senza_scomposizione";
+  tipo: "senza_scomposizione" | "quantita_mancante" | "possibile_doppione" | "conteggio_senza_scomposizione" | "gia_nel_computo";
   messaggio: string;
   voce_id?: string;
   conteggio_id?: string;
@@ -407,7 +410,7 @@ export function spessoreCm(testo: string): number | null {
 }
 
 /** Dopo «compreso…»: prestazioni, oneri e parole vaghe, non cose da comprare. */
-const COMPRESO_NON_MATERIALE = /^(?:posa|messa|post[oaie]|trasport|carico|scarico|allacci|collegament|assistenz|oner|ogni|quant|magister|pulizi|sfrid|tagl|sigillatur|fissaggi|montaggi|smontaggi|collaud|prov[ae]|certificaz|dichiaraz|opere|lavor|mano|ponteggi|nolo|noli|smaltim|accessori|minuteri|material|tracc|ripristin|assistenz|regolazion|messa in|avviament|stuccatur|fornitur|il tutto|tutto|e$|ed$)/;
+const COMPRESO_NON_MATERIALE = /^(?:posa|messa|post[oaie]|trasport|carico|scarico|allacci|collegament|assistenz|oner|ogni|quant|magister|pulizi|sfrid|tagl|sigillatur|fissaggi|montaggi|smontaggi|collaud|prov[ae]|certificaz|dichiaraz|opere|lavor|mano|ponteggi|nolo|noli|smaltim|accessori|minuteri|material|tracc|ripristin|assistenz|regolazion|messa in|avviament|stuccatur|fornitur|il tutto|tutto|e$|ed$|installazion|apposit|pezzi special|egli\b|di\b|\d|diam|nei seguenti|occorrent|necessari)/;
 
 /**
  * I materiali che una voce di fornitura nomina dopo «compreso», «incluso» o
@@ -423,7 +426,7 @@ export function materialiCompresi(descrizione: string): string[] {
   const resto = m[1].split(/[;.](?:\s|$)|\b(?:dat[oaie] in opera|a regola d'arte|per dare|e quant'altro|nonch[eé])\b/i)[0];
   const visti = new Set<string>();
   return resto.split(/\s*,\s*|\s+(?:e|ed)\s+/i)
-    .map((x) => x.trim().replace(/^(?:il|la|lo|i|gli|le|l'|un|una|uno|relativ[oaie]|necessari[oaie])\s+/i, "").replace(/[\s,.;:]+$/, ""))
+    .map((x) => x.trim().replace(/^l['’]\s*/i, "").replace(/^(?:il|la|lo|i|gli|le|un|una|uno|relativ[oaie]|necessari[oaie])\s+/i, "").replace(/[\s,.;:]+$/, ""))
     .filter((x) => x.length >= 3 && x.length <= 60 && /[a-zà-ù]{3}/i.test(x) && !COMPRESO_NON_MATERIALE.test(normalizzaTesto(x)))
     .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
     .filter((x) => { const k = normalizzaTesto(x); if (visti.has(k)) return false; visti.add(k); return true; });
@@ -557,7 +560,9 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
     tipo: "fornitura",
     nome: conVariante(nomeMateriale(v.descrizione_breve), v.descrizione_breve),
     nota: conPosa ? "Posa e manodopera della voce escluse: si compra solo il materiale" : null,
-    compresi: materialiCompresi(v.descrizione_breve),
+    // Un prodotto su misura (serramento, avvolgibile…) arriva con i suoi accessori: «compresa maniglia»
+    // non è un acquisto a parte, e «uno per m²» di maniglie non ha senso (17/11/2026).
+    compresi: SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(nomeMateriale(v.descrizione_breve))) || SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(testaVoce(v.descrizione_breve, 1).join(" "))) ? [] : materialiCompresi(v.descrizione_breve),
   });
   const fornituraPossibile = UNITA_MATERIALE.has(um) && !v.a_corpo;
   // «Fornitura di…» senza posa: è il materiale, la libreria non aggiunge collanti o accessori.
@@ -691,7 +696,10 @@ export function generaDistinta(input: {
   const senzaScomposizione: VoceComputo[] = [];
 
   // Lo spessore dei sovrapprezzi «per ogni cm in più» entra nella voce principale (17/11/2026).
-  for (const v of applicaSovrapprezziSpessore(input.voci)) {
+  const tutte = applicaSovrapprezziSpessore(input.voci);
+  // La testa di ogni voce: per non ricomprare un componente che il computo ha già come voce sua.
+  const teste = tutte.map((x) => testaVoce(x.descrizione_breve, 2));
+  for (const [i, v] of tutte.entries()) {
     const c = classificaVoce(v, attive, { riserva: input.riserva, proposteAI: input.proposteAI });
     const q = Number(v.quantita ?? 0);
     const codice = v.codice_prezzario || v.codice_tariffa || v.codice_voce || v.numero_ordine || null;
@@ -715,7 +723,26 @@ export function generaDistinta(input: {
     } else if (c.tipo === "esclusa") {
       escluse.push({ voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita: v.quantita ?? null, unita_misura: v.unita_misura ?? null, motivo: c.motivo });
     } else if (c.tipo === "scomposta") {
-      parti.push(...partiDaComponenti(c.scomposizione, q, base, (x) => origineComputo(x), categoriaVoce(v), c.fattore, `${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`));
+      // «Incluso nel pacchetto» (17/11/2026): un componente della libreria o dell'AI che una voce vicina
+      // del computo fornisce già (il comando dei ventilconvettori, contato a parte: 26+4+2+1) non si
+      // ordina due volte. Le scomposizioni dell'azienda restano come sono.
+      let scomposizione = c.scomposizione;
+      if (c.fonte === "libreria_standard" || c.fonte === "proposta_ai") {
+        const vicine = [...tutte.keys()].filter((k) => k !== i && Math.abs(k - i) <= 3 && tutte[k].id !== v.id);
+        const tenuti = c.scomposizione.componenti.filter((comp) => {
+          // Solo i componenti a pezzi (comandi, valvole, staffe) contro voci a pezzi: il cemento di un
+          // massetto resta anche se accanto c'è una «fornitura di cemento».
+          if (!aPezzi(comp.unita_misura)) return true;
+          const parola = normalizzaTesto(comp.descrizione).split(/[^a-z0-9]+/).find((w) => w.length >= 5 && !PAROLE_VUOTE.has(w));
+          const doppia = parola ? vicine.find((k) => aPezzi(tutte[k].unita_misura) && teste[k][0]?.startsWith(parola.slice(0, 6))) : undefined;
+          if (doppia == null) return true;
+          avvisi.push({ tipo: "gia_nel_computo", voce_id: v.id,
+            messaggio: `«${comp.descrizione}» della voce «${v.descrizione_breve.slice(0, 60)}» è già nel computo come voce sua (${tutte[doppia].numero_ordine ?? tutte[doppia].descrizione_breve.slice(0, 40)}): non si conta due volte` });
+          return false;
+        });
+        if (tenuti.length !== c.scomposizione.componenti.length) scomposizione = { ...c.scomposizione, componenti: tenuti };
+      }
+      parti.push(...partiDaComponenti(scomposizione, q, base, (x) => origineComputo(x), categoriaVoce(v), c.fattore, `${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`));
     } else if (c.tipo === "fornitura") {
       parti.push({
         ...base,

@@ -8,6 +8,7 @@ import { eNonLavoro } from "@/lib/computo/importaVoci";
 import { giorniDelPiano } from "@/lib/orders/pianoDalCronoprogramma";
 import { FASE_AVVIO, FASE_CHIUSURA, pianoDalleStime, stimaFasi } from "@/lib/orders/pianoDalleLavorazioni";
 import { resaDiPartenza } from "../../../shared/piano-cantiere/resePartenza";
+import type { VoceCantiere } from "../../../shared/piano-cantiere/calcolo";
 
 const FASI: Record<string, string> = {
   "ONERI DELLA SICUREZZA": "Oneri della sicurezza",
@@ -82,5 +83,21 @@ describe("piano della commessa diretta dal computo", () => {
     const giorni = giorniDelPiano(piano);
     expect(giorni).toBeGreaterThanOrEqual(170);
     expect(giorni).toBeLessThanOrEqual(350);
+  });
+});
+
+describe("la resa dell'azienda per una lavorazione intera", () => {
+  it("vince sulla resa di partenza per tutte le voci di quella lavorazione", async () => {
+    const { oreDellaVoce, IPOTESI_PREDEFINITE } = await import("../../../shared/piano-cantiere/calcolo");
+    const { chiavePartenza } = await import("../../../shared/piano-cantiere/resePartenza");
+    const voce: VoceCantiere = { fase: null, capitolo: null, descrizione: "Isolamento termico a cappotto con pannelli EPS", unita: "mq", quantita: 100,
+      importo: null, costo_manodopera: null, costo_materiali: null, ore_previste: null, incidenza: null, origine: "computo" };
+    const prima = oreDellaVoce(voce, IPOTESI_PREDEFINITE)!;
+    expect(prima.fonte).toBe("partenza");
+    expect(prima.ore).toBeCloseTo(55, 6);
+    const conResa = { ...IPOTESI_PREDEFINITE, rese: [{ chiave: chiavePartenza("Cappotto (pannelli, collante, tasselli)", "mq"), ore_per_unita: 0.4 }] };
+    const dopo = oreDellaVoce(voce, conResa)!;
+    expect(dopo.fonte).toBe("azienda");
+    expect(dopo.ore).toBeCloseTo(40, 6);
   });
 });

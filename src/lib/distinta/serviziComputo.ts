@@ -38,6 +38,7 @@ const NOLO_A_ORE = /(piattaforma|autogru|gru\b|escavator|sollevator|con operator
 const PRESTAZIONE = /(progettazion|pimus|verifica|ricerca sottoservizi|pratica|collaud|attivazion|messa in funzione|avviament|adeguament|prescrizion|smontaggio|trasporto|conferiment|discarica)/;
 const IMPIANTO_CANTIERE = /(impianto elettrico di cantiere|quadro elettrico generale|dispersori di terra)/;
 
+const PEZZI_O_MQ = /^(cad|cad\.|cadauno|cadauna|pz|n|nr|mq|m2|m²)$/i;
 const testoVoce = (v: VoceComputo) => normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`);
 const numero = (s: string) => Number(s.replace(",", "."));
 
@@ -86,6 +87,15 @@ export function classificaServizio(v: VoceServizio): ServizioComputo | null {
     else if (mesi && q > 0 && Math.abs(q / mesi - Math.round(q / mesi)) < 0.001) pezzi = q / mesi;
     else if (/successiv/.test(t) && f.length === 2) pezzi = f[1];
     const unitaPezzi = /^(mq|m2|m²)$/i.test(unita) ? "m²" : "pz";
+    // Prezzo «mensile» senza i mesi nelle misure: «2*13» sono 2 pezzi per 13 mesi, «13» è 1 pezzo per
+    // 13 mesi (come li legge chi conosce il computo). Da confermare: lo dice la nota.
+    if (!mesi && /(mensile|ogni mese|per mese)/.test(t) && PEZZI_O_MQ.test(unita)) {
+      const [a, b] = f.length === 2 ? [Math.min(...f), Math.max(...f)] : [1, q];
+      if (b > 1 && Number.isInteger(b) && b <= 60) {
+        return { ...base, tipo: "nolo", mesi: b, pezzi: a,
+          nota: `${a.toLocaleString("it-IT")} ${unitaPezzi} per ${b.toLocaleString("it-IT")} mesi (letto dal prezzo mensile, da confermare): un nolo, non ${q.toLocaleString("it-IT")} pezzi da comprare.` };
+      }
+    }
     const nota = mesi && pezzi
       ? `${pezzi.toLocaleString("it-IT")} ${unitaPezzi} per ${mesi.toLocaleString("it-IT")} mesi: un nolo, non ${q.toLocaleString("it-IT")} pezzi da comprare.`
       : mesi ? `Nolo per ${mesi.toLocaleString("it-IT")} mesi.` : "Nolo: la quantità è pezzi × mesi, chiarisci la durata.";

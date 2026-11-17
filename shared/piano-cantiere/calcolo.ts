@@ -151,6 +151,12 @@ export function oreDellaVoce(v: VoceCantiere, ip: Ipotesi): OreVoce | null {
   }
   // Ultima: la resa di partenza del gestionale (17/11/2026). Una voce senza altri dati non vale zero ore.
   const partenza = q ? resaDiPartenza(v.descrizione, v.unita) : null;
+  // La resa che l'azienda ha scritto per tutta la lavorazione vale come sua.
+  const perLavorazione = partenza ? ip.rese?.find((r) => r.chiave === partenza.chiave) : null;
+  if (partenza && perLavorazione && positivo(perLavorazione.ore_per_unita)) {
+    const h = perLavorazione.ore_per_unita * q;
+    return { ore: h, min: h, max: h, fonte: "azienda" };
+  }
   if (partenza) {
     const h = partenza.ore * q;
     return { ore: h, min: h * (1 - MARGINE_PARTENZA), max: h * (1 + MARGINE_PARTENZA), fonte: "partenza" };

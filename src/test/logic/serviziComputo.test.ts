@@ -36,7 +36,8 @@ describe("noli, servizi e manodopera del computo", () => {
   });
 
   it("bagno chimico: 1 per 13 mesi, non 13 bagni; cartelli: 20 per 13 mesi", () => {
-    expect(di("2")).toMatchObject({ tipo: "nolo", mesi: null });
+    expect(di("2")).toMatchObject({ tipo: "nolo", mesi: 13, pezzi: 1 });
+    expect(di("3")).toMatchObject({ tipo: "nolo", mesi: 13, pezzi: 2 });
     expect(di("9")).toMatchObject({ tipo: "nolo", mesi: 13, pezzi: 20 });
     expect(di("8")).toMatchObject({ tipo: "nolo", mesi: 12, pezzi: 2 });
   });
