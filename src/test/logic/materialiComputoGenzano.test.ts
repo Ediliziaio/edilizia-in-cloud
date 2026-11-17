@@ -110,6 +110,12 @@ describe("incluso nel pacchetto e compresi", () => {
     expect(r.righe.some((m) => /^Comando a bordo o a parete/.test(m.descrizione))).toBe(false);
     expect(r.avvisi.some((a) => a.tipo === "gia_nel_computo" && /Comando/.test(a.messaggio))).toBe(true);
   });
+  it("il prodotto della voce resta: ventilconvettori e inverter vicini non si tolgono a vicenda", () => {
+    const fancoil = r.righe.filter((m) => /^Ventilconvettore/.test(m.descrizione)).reduce((t, m) => t + m.quantita_calcolata, 0);
+    expect(fancoil).toBe(40); // 26 + 4 + 2 + 1 a parete + 7 a cassetta
+    expect(r.righe.some((m) => /^Inverter/.test(m.descrizione))).toBe(true);
+    expect(r.avvisi.some((a) => a.tipo === "gia_nel_computo" && /«(Ventilconvettore|Inverter fotovoltaico)»/.test(a.messaggio))).toBe(false);
+  });
   it("niente «compresi» da voci a superficie o frasi che non sono materiali", () => {
     expect(r.righe.some((m) => /^Maniglie/.test(m.descrizione) && m.unita_misura === "mq")).toBe(false);
     expect(r.righe.some((m) => /installazione di appositi|accessori di fissaggio nei seguenti|^5 mmq|Pezzi speciali egli/i.test(m.descrizione))).toBe(false);

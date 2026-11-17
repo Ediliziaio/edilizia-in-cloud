@@ -22,7 +22,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronDown, FileText, Loader2, Sparkles, Upload } from "lucide-react";
+import { Check, FileText, Loader2, Sparkles, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -181,6 +183,17 @@ async function caricaCatalogo(companyId: string, orderId: string): Promise<Catal
 }
 
 const RISERVA = catalogoComeScomposizioni();
+
+type Passo = "controllo" | "fasi" | "noli" | "materiali";
+const euro = (n: number) => formatCurrency(n);
+
+/** «ECO · ISOLAMENTO TERMICO SU STRUTTURE OPACHE» → etichetta «ECO» e «Isolamento termico su strutture opache». */
+function capitoloLeggibile(c: string): { tag: string | null; nome: string } {
+  const m = /^([A-Z0-9]{2,8})\s*[·•\-]\s*(.+)$/.exec(c.trim());
+  const tag = m ? m[1] : null;
+  const resto = (m ? m[2] : c).trim();
+  return { tag, nome: resto === resto.toUpperCase() && /[A-ZÀ-Ý]{3}/.test(resto) ? resto.charAt(0) + resto.slice(1).toLowerCase() : resto };
+}
 
 /** «ONERI DELLA SICUREZZA» → «Oneri della sicurezza»: il nome di una fase non si grida. */
 function nomeLeggibile(nome: string): string {
@@ -376,6 +389,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   ];
   const [ricorda, setRicorda] = useState(true);
   const [conLavorazioni, setConLavorazioni] = useState(true);
+  const [passo, setPasso] = useState<Passo | null>(null);
+  const [vediSenza, setVediSenza] = useState(false);
 
   const nomeFase = (id: string | null) => {
     if (!id) return "Senza fase";
@@ -482,7 +497,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         const fasiScelte: Record<string, { id?: string; nome?: string }> = {};
         for (const c of capitoli) {
           const m = mappa[c];
-          if (!m || m === SENZA) continue;
+          // Senza fase scelta, la funzione crea la fase del capitolo: col nome leggibile, non tutto maiuscolo.
+          if (!m || m === SENZA) { fasiScelte[c] = { nome: nomeLeggibile(capitoloLeggibile(c).nome) }; continue; }
           if (m.startsWith(NUOVA)) { const id = create.get(m); fasiScelte[c] = id ? { id } : { nome: nomeLeggibile(m.slice(NUOVA.length)) }; }
           else fasiScelte[c] = { id: m };
         }
@@ -495,6 +511,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             description: l.voci_con_costo ? `${l.voci_con_costo} con il costo dal listino aziendale.` : "Nessuna voce ha un costo nel listino aziendale: il costo previsto resta da scrivere.",
           });
           qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
+          // Le voci e le sottofasi nuove: costo previsto, margine e lavorazioni si rileggono.
+          qc.invalidateQueries({ queryKey: ["voci-previste-fasi"] });
+          qc.invalidateQueries({ queryKey: ["order_work_subphases"] });
         }
       }
       qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
@@ -537,6 +556,16 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   };
   // Le voci senza scomposizione hanno il loro elenco: negli avvisi resterebbero due volte.
   const avvisiAltri = (risultato?.avvisi ?? []).filter((a) => a.tipo !== "senza_scomposizione");
+  const totaleComputo = vociComputo.reduce((t, v) => t + (Number((v as { importo_computo?: number | null }).importo_computo) || 0) * ((v as { is_detrazione?: boolean | null }).is_detrazione ? -1 : 1), 0);
+  const passiVisibili: { id: Passo; etichetta: string; conteggio: number | null; tono: "attenzione" | "ok" | null }[] = [
+    { id: "controllo" as const, etichetta: "Controllo", conteggio: daVerificare.length, tono: daVerificare.length ? "attenzione" as const : "ok" as const },
+    ...(capitoli.length ? [{ id: "fasi" as const, etichetta: "Fasi", conteggio: capitoli.length, tono: null }] : []),
+    ...(servizi.length ? [{ id: "noli" as const, etichetta: "Noli e servizi", conteggio: servizi.length, tono: null }] : []),
+    { id: "materiali" as const, etichetta: "Materiali", conteggio: daSalvare.length, tono: risultato?.senzaScomposizione.length ? "attenzione" as const : null },
+  ];
+  // Si apre sul primo passo che chiede attenzione: il controllo se qualcosa non torna, se no i materiali.
+  const passoAttivo: Passo = passo && passiVisibili.some((p) => p.id === passo) ? passo : daVerificare.length ? "controllo" : "materiali";
+  const passoDopo = passiVisibili[passiVisibili.findIndex((p) => p.id === passoAttivo) + 1] ?? null;
   const nienteDaLeggere = !caricamento && !letti.length && !(dati.data?.conteggi.length);
   const fasiNuove = dati.data ? fasiDaCreare(vociComputo, propostaFasi(vociComputo, dati.data.fasi)) : [];
 
@@ -621,51 +650,111 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             ) : null}
           </div>
           <DialogDescription className="text-xs">
-            Niente è salvato finché non premi «Salva i materiali»: le righe generate prima e non ancora ordinate si sostituiscono, quelle inserite a mano restano.
+            Niente si salva finché non premi «Salva i materiali»; le righe generate prima e non ordinate si sostituiscono, quelle scritte a mano restano.
           </DialogDescription>
           {riprovaUltimo}
         </DialogHeader>
+
+        {/* I passi (17/11/2026): una cosa per volta, coi numeri in vista. Si salta liberamente fra i passi. */}
+        {!caricamento && risultato && !nienteDaLeggere && (
+          <nav aria-label="Passi" role="tablist" className="flex shrink-0 gap-1 overflow-x-auto border-b bg-slate-50/70 px-4 py-1.5">
+            {passiVisibili.map((p, i) => {
+              const attivo = p.id === passoAttivo;
+              return (
+                <button key={p.id} type="button" role="tab" aria-selected={attivo} onClick={() => setPasso(p.id)}
+                  className={cn("flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors",
+                    attivo ? "bg-white font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-600 hover:bg-white/70")}>
+                  <span className={cn("flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold",
+                    attivo ? "bg-primary text-primary-foreground" : "bg-slate-200 text-slate-700")}>{i + 1}</span>
+                  {p.etichetta}
+                  {p.conteggio != null && (
+                    <span className={cn("rounded-full px-1.5 tabular-nums text-[11px]", p.tono === "attenzione" ? "bg-amber-100 text-amber-900" : p.tono === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200/70 text-slate-700")}>
+                      {p.tono === "ok" ? <Check className="h-3 w-3" aria-label="Niente da controllare" /> : p.conteggio}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
           {caricamento && <p className="py-6 text-sm text-slate-500">Leggo computo, scomposizioni, catalogo e magazzino…</p>}
 
           {!caricamento && risultato && !nienteDaLeggere && (
-            <div className="space-y-3 text-sm">
-              {capitoli.length > 0 && (
-                <details className="group mt-3 rounded-md border" open={capitoli.length <= 3 || (fasiNuove.length > 0 && !(dati.data?.fasi.length))}>
-                  <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 text-xs">
-                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-slate-500 transition-transform group-open:rotate-0" aria-hidden />
-                    <span className="font-medium text-slate-800">Capitoli → fasi</span>
-                    <span className="text-slate-500">{capitoli.length} capitoli in {new Set(capitoli.map((c) => mappa[c] ?? SENZA)).size} fasi</span>
-                    {suggerimentiAI.isFetching && <span className="flex items-center gap-1 text-violet-700"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />l'AI propone {incerti.length}</span>}
-                  </summary>
-                  {fasiNuove.length > 0 && !(dati.data?.fasi.length) && (
-                    <p className="px-3 pb-2 text-xs text-slate-600">La commessa non ha fasi: le creo dai capitoli del computo (puoi cambiarle).</p>
+            <div className="space-y-3 pt-3 text-sm">
+              {passoAttivo === "controllo" && (
+                <section aria-label="Controllo del computo" className="space-y-2">
+                  <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-slate-600">
+                    <span className="font-semibold text-slate-900">{vociComputo.length} voci lette</span>
+                    {mostraPrezzi && totaleComputo > 0 && <span>· {euro(totaleComputo)}</span>}
+                    <span>· {capitoli.length} capitoli</span>
+                    {servizi.length > 0 && <span>· {servizi.length} noli e servizi</span>}
+                  </p>
+                  {daVerificare.length > 0 ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      <span className="font-semibold">{daVerificare.length} voci con quantità o unità che non tornano</span>
+                      {mostraPrezzi && importoInGioco(incongruenze) > 0 && <> · {euro(importoInGioco(incongruenze))} in gioco</>}
+                      {" "}— controllale col progettista prima di chiedere offerte. I materiali si generano lo stesso.
+                    </p>
+                  ) : (
+                    <p className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                      <Check className="h-3.5 w-3.5" aria-hidden />Nei numeri del computo non c'è niente che non torni.
+                    </p>
                   )}
-                  {suggerimentiAI.isError && <p className="px-3 pb-2 text-xs text-amber-800">Proposta dell'AI non disponibile: resta il confronto per parole, scegli tu la fase.</p>}
-                  <ul className="grid gap-x-4 border-t px-3 py-1 sm:grid-cols-2">
+                  {incongruenze.length > 0 && (
+                    <ul className="divide-y rounded-md border bg-white text-xs">
+                      {incongruenze.map((x, i) => (
+                        <li key={`${x.voce_id}-${x.regola}-${i}`} className="grid grid-cols-[4.5rem_1fr_auto] gap-3 px-3 py-2">
+                          <span className="tabular-nums text-slate-500">voce {x.numero.length > 12 ? "varie" : x.numero}</span>
+                          <span className="min-w-0">
+                            <span className={cn("font-medium", x.gravita === "verifica" ? "text-amber-900" : "text-slate-700")}>{x.titolo}</span>
+                            <span className="block text-slate-600">{x.messaggio}</span>
+                          </span>
+                          <span className="tabular-nums text-slate-700">{mostraPrezzi && x.importo ? euro(x.importo) : ""}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
+
+              {passoAttivo === "fasi" && (
+                <section aria-label="Capitoli e fasi" className="space-y-2">
+                  <p className="text-xs text-slate-600">
+                    {fasiNuove.length > 0 && !(dati.data?.fasi.length) ? "La commessa non ha fasi: ogni capitolo ne diventa una. " : "Ogni capitolo va in una fase della commessa. "}
+                    Le voci di un altro mestiere vanno comunque nella loro fase.
+                    {suggerimentiAI.isFetching && <span className="ml-2 inline-flex items-center gap-1 text-violet-700"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />l'AI propone {incerti.length}</span>}
+                    {suggerimentiAI.isError && <span className="ml-2 text-amber-800">Proposta dell'AI non disponibile: scegli tu la fase.</span>}
+                  </p>
+                  <ul className="divide-y rounded-md border bg-white">
                     {capitoli.map((c) => {
                       const s = suggerimenti.find((x) => x.capitolo === c);
                       const nuovaAI = s?.nuova_fase && s.nuova_fase !== c ? s.nuova_fase : null;
+                      const { tag, nome } = capitoloLeggibile(c);
+                      const quante = vociComputo.filter((v) => capitoloVoce(v as never) === c).length;
                       return (
-                        <li key={c} className="flex items-center gap-2 py-1 text-xs">
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate" title={c}>{c}</span>
-                            {!sicuri.has(c) && scelte[c] === undefined && (
-                              <span className="block text-[11px] text-slate-500">Ogni voce va nella fase del suo mestiere; qui la fase per le altre</span>
-                            )}
+                        <li key={c} className="grid grid-cols-1 items-center gap-2 px-3 py-2 sm:grid-cols-[1fr_auto_20rem]">
+                          <span className="min-w-0" title={c}>
+                            <span className="flex items-center gap-1.5">
+                              {tag && <span className="rounded bg-slate-100 px-1.5 text-[10px] font-semibold text-slate-600">{tag}</span>}
+                              <span className="truncate font-medium text-slate-900">{nome}</span>
+                            </span>
+                            <span className="text-xs text-slate-500">{quante} {quante === 1 ? "voce" : "voci"}</span>
+                          </span>
+                          <span className="text-[11px]">
                             {s && !sicuri.has(c) && (
-                              <span className="inline-flex items-center gap-1 text-[11px] text-violet-800" title={`Suggerimento dell'AI: ${s.motivo}`}>
-                                <Sparkles className="h-3 w-3" aria-hidden />AI · {Math.round(s.confidenza * 100)}%
+                              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-violet-800" title={`Suggerimento dell'AI: ${s.motivo}`}>
+                                <Sparkles className="h-3 w-3" aria-hidden />AI {Math.round(s.confidenza * 100)}%
                               </span>
                             )}
-                          </div>
+                          </span>
                           <Select value={mappa[c] ?? SENZA} onValueChange={(v) => setMappa({ ...mappa, [c]: v })}>
-                            <SelectTrigger className="h-7 w-52 text-xs" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-8 text-xs" aria-label={`Fase per ${c}`}><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {(dati.data?.fasi ?? []).map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-                              {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>Crea la fase «{nuovaAI}» (AI)</SelectItem>}
-                              {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Crea la fase «{c}»</SelectItem>}
+                              {nuovaAI && <SelectItem value={NUOVA + nuovaAI}>Nuova fase «{nuovaAI}» (AI)</SelectItem>}
+                              {c !== "Senza capitolo" && <SelectItem value={NUOVA + c}>Nuova fase «{nome}»</SelectItem>}
                               <SelectItem value={SENZA}>{c === "Senza capitolo" ? "Dal testo della voce" : "Senza fase"}</SelectItem>
                             </SelectContent>
                           </Select>
@@ -673,74 +762,53 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                       );
                     })}
                   </ul>
-                </details>
+                </section>
               )}
 
-              {incongruenze.length > 0 && (
-                <details className="group rounded-md border border-amber-300 bg-amber-50/70 text-xs text-amber-950" open={daVerificare.length > 0}>
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-1.5">
-                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform group-open:rotate-0" aria-hidden />
-                    <span className="font-semibold">Da controllare nel computo ({daVerificare.length})</span>
-                    {mostraPrezzi && importoInGioco(incongruenze) > 0 && <span>· {importoInGioco(incongruenze).toLocaleString("it-IT", { style: "currency", currency: "EUR" })} in gioco</span>}
-                    <span className="text-amber-900/80">Prima di ordinare: queste voci hanno quantità o unità che non tornano.</span>
-                  </summary>
-                  <ul className="max-h-56 divide-y divide-amber-200 overflow-auto border-t border-amber-200 bg-white">
-                    {incongruenze.map((x, i) => (
-                      <li key={`${x.voce_id}-${x.regola}-${i}`} className="flex gap-3 px-3 py-1.5">
-                        <span className="w-16 shrink-0 tabular-nums text-slate-500">voce {x.numero.length > 12 ? "varie" : x.numero}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className={x.gravita === "verifica" ? "font-medium text-amber-900" : "font-medium text-slate-700"}>{x.titolo}</span>
-                          <span className="block text-slate-600">{x.messaggio}</span>
-                        </span>
-                        {mostraPrezzi && x.importo ? <span className="shrink-0 tabular-nums text-slate-700">{x.importo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-
-              {servizi.length > 0 && (
-                <details className="group rounded-md border text-xs">
-                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-1.5">
-                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-slate-500 transition-transform group-open:rotate-0" aria-hidden />
-                    <span className="font-semibold text-slate-800">Noli, servizi e ore ({servizi.length})</span>
-                    <span className="text-slate-500">Non sono materiali: si contrattano con noleggiatori, imprese e professionisti, per la durata del cantiere.</span>
-                  </summary>
-                  <ul className="max-h-56 divide-y overflow-auto border-t bg-white">
+              {passoAttivo === "noli" && (
+                <section aria-label="Noli, servizi e ore" className="space-y-2">
+                  <p className="text-xs text-slate-600">Non sono materiali da ordinare: si contrattano con noleggiatori, imprese e professionisti, per la durata del cantiere.</p>
+                  <ul className="divide-y rounded-md border bg-white text-xs">
                     {servizi.map((x) => (
-                      <li key={x.voce_id} className="flex gap-3 px-3 py-1.5">
-                        <span className="w-24 shrink-0 font-medium text-slate-700">{ETICHETTA_SERVIZIO[x.tipo]}{x.mesi ? ` · ${x.mesi.toLocaleString("it-IT")} mesi` : ""}</span>
-                        <span className="min-w-0 flex-1">
+                      <li key={x.voce_id} className="grid grid-cols-[7.5rem_1fr_auto] gap-3 px-3 py-2">
+                        <span className="font-medium text-slate-700">{ETICHETTA_SERVIZIO[x.tipo]}{x.mesi ? ` · ${x.mesi.toLocaleString("it-IT")} mesi` : ""}</span>
+                        <span className="min-w-0">
                           <span className="block truncate text-slate-800" title={x.descrizione}>{x.numero ? `${x.numero} · ` : ""}{x.descrizione}</span>
                           <span className="block text-slate-500">{x.nota}</span>
                         </span>
-                        {mostraPrezzi && importoServizio(x.voce_id) ? <span className="shrink-0 tabular-nums text-slate-700">{importoServizio(x.voce_id)!.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-
-              {risultato.senzaScomposizione.length > 0 && (
-                <section aria-label="Voci senza materiali" className="rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-950">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">Voci senza materiali ({risultato.senzaScomposizione.length})</span>
-                    <span className="text-violet-900/80">Le regole non le riconoscono: l'AI propone i materiali di ciascuna, tu li accendi prima di salvarli.</span>
-                    <Button size="sm" className="ml-auto h-7 text-xs" disabled={proponendo} onClick={proponiAI}>
-                      {proponendo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden />}
-                      {proponendo ? "L'AI sta proponendo…" : "Proponi i materiali con l'AI"}
-                    </Button>
-                  </div>
-                  <ul className="mt-1.5 max-h-40 divide-y divide-violet-100 overflow-auto rounded border border-violet-100 bg-white">
-                    {risultato.senzaScomposizione.map((v) => (
-                      <li key={v.id} className="flex justify-between gap-2 px-2 py-1">
-                        <span className="min-w-0 truncate" title={v.descrizione_breve}>{v.codice_prezzario || v.codice_voce ? `${v.codice_prezzario || v.codice_voce} · ` : ""}{v.descrizione_breve}</span>
-                        <span className="shrink-0 tabular-nums text-slate-500">{v.quantita != null ? `${Number(v.quantita).toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${v.unita_misura ?? ""}` : ""}</span>
+                        <span className="tabular-nums text-slate-700">{mostraPrezzi && importoServizio(x.voce_id) ? euro(importoServizio(x.voce_id)!) : ""}</span>
                       </li>
                     ))}
                   </ul>
                 </section>
               )}
+
+              {passoAttivo === "materiali" && (
+                <>
+                  {risultato.senzaScomposizione.length > 0 && (
+                    <section aria-label="Voci senza materiali" className="rounded-md border border-violet-200 bg-violet-50/60 text-xs text-violet-950">
+                      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                        <Sparkles className="h-3.5 w-3.5 text-violet-700" aria-hidden />
+                        <span className="font-semibold">{risultato.senzaScomposizione.length} {risultato.senzaScomposizione.length === 1 ? "voce" : "voci"} senza materiali</span>
+                        <span className="text-violet-900/80">le regole non le riconoscono: l'AI propone, tu accendi.</span>
+                        <button type="button" className="text-violet-800 underline underline-offset-2" onClick={() => setVediSenza((v) => !v)}>{vediSenza ? "Nascondi" : "Quali"}</button>
+                        <Button size="sm" className="ml-auto h-7 text-xs" disabled={proponendo} onClick={proponiAI}>
+                          {proponendo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden />}
+                          {proponendo ? "L'AI sta proponendo…" : "Proponi con l'AI"}
+                        </Button>
+                      </div>
+                      {vediSenza && (
+                        <ul className="max-h-40 divide-y divide-violet-100 overflow-auto border-t border-violet-100 bg-white">
+                          {risultato.senzaScomposizione.map((v) => (
+                            <li key={v.id} className="flex justify-between gap-2 px-3 py-1">
+                              <span className="min-w-0 truncate" title={v.descrizione_breve}>{v.codice_prezzario || v.codice_voce ? `${v.codice_prezzario || v.codice_voce} · ` : ""}{v.descrizione_breve}</span>
+                              <span className="shrink-0 tabular-nums text-slate-500">{v.quantita != null ? `${Number(v.quantita).toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${v.unita_misura ?? ""}` : ""}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  )}
 
               <MaterialiProposti
                 materiali={materiali}
@@ -758,29 +826,31 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 avvisiCosto={mostraPrezzi ? avvisiCosto : undefined}
               />
 
-              {avvisiAltri.length > 0 && (
-                <section aria-label="Avvisi" className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">Da guardare ({avvisiAltri.length})</span>
-                  </div>
-                  <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-auto pl-5">
-                    {avvisiAltri.map((a, i) => <li key={i}>{a.messaggio}</li>)}
-                  </ul>
-                </section>
-              )}
+                  {avvisiAltri.length > 0 && (
+                    <section aria-label="Avvisi" className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">Da guardare ({avvisiAltri.length})</span>
+                      </div>
+                      <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-auto pl-5">
+                        {avvisiAltri.map((a, i) => <li key={i}>{a.messaggio}</li>)}
+                      </ul>
+                    </section>
+                  )}
 
-              {risultato.escluse.length > 0 && (
-                <details className="rounded-md border text-xs">
-                  <summary className="cursor-pointer px-3 py-1.5 font-medium">Escluse {risultato.escluse.length} voci, e perché</summary>
-                  <ul className="max-h-56 divide-y overflow-auto border-t">
-                    {risultato.escluse.map((e) => (
-                      <li key={e.voce_id} className="flex justify-between gap-2 px-3 py-1">
-                        <span className="min-w-0 truncate">{e.codice ? `${e.codice} · ` : ""}{e.descrizione}</span>
-                        <span className="shrink-0 text-slate-500">{e.motivo}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
+                  {risultato.escluse.length > 0 && (
+                    <details className="rounded-md border text-xs">
+                      <summary className="cursor-pointer px-3 py-1.5 font-medium">Escluse {risultato.escluse.length} voci, e perché</summary>
+                      <ul className="max-h-56 divide-y overflow-auto border-t">
+                        {risultato.escluse.map((e) => (
+                          <li key={e.voce_id} className="flex justify-between gap-2 px-3 py-1">
+                            <span className="min-w-0 truncate">{e.codice ? `${e.codice} · ` : ""}{e.descrizione}</span>
+                            <span className="shrink-0 text-slate-500">{e.motivo}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -813,7 +883,10 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           </div>
           <div className="flex shrink-0 gap-2">
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Chiudi</Button>
-            <Button size="sm" disabled={!daSalvare.length || salvando || salvaComputo.isPending} onClick={salva}>
+            {passoDopo && (
+              <Button size="sm" onClick={() => setPasso(passoDopo.id)}>Avanti: {passoDopo.etichetta}</Button>
+            )}
+            <Button size="sm" variant={passoDopo ? "outline" : "default"} disabled={!daSalvare.length || salvando || salvaComputo.isPending} onClick={salva}>
               {salvando ? "Salvo…" : `Salva i materiali (${daSalvare.length})`}
             </Button>
           </div>

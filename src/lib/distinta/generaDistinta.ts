@@ -734,6 +734,9 @@ export function generaDistinta(input: {
           // massetto resta anche se accanto c'è una «fornitura di cemento».
           if (!aPezzi(comp.unita_misura)) return true;
           const parola = normalizzaTesto(comp.descrizione).split(/[^a-z0-9]+/).find((w) => w.length >= 5 && !PAROLE_VUOTE.has(w));
+          // Il prodotto della voce stessa non si toglie mai: due ventilconvettori di taglie diverse uno
+          // accanto all'altro sono due prodotti, non un doppione (prova del 17/11/2026).
+          if (parola && teste[i][0]?.startsWith(parola.slice(0, 6))) return true;
           const doppia = parola ? vicine.find((k) => aPezzi(tutte[k].unita_misura) && teste[k][0]?.startsWith(parola.slice(0, 6))) : undefined;
           if (doppia == null) return true;
           avvisi.push({ tipo: "gia_nel_computo", voce_id: v.id,

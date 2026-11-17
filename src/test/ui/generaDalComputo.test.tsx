@@ -141,6 +141,14 @@ describe("Genera dal computo", () => {
     expect(screen.getAllByLabelText("Probabile 70%").length).toBe(2);
     expect(screen.getByText(/Spessore 2 cm invece di 1,5/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
+    // A passi (17/11/2026): niente da controllare → si apre sui materiali; gli altri passi a un clic.
+    const passi = screen.getByRole("tablist", { name: "Passi" });
+    expect(within(passi).getByRole("tab", { name: /Materiali/ })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(within(passi).getByRole("tab", { name: /Controllo/ }));
+    expect(screen.getByText("Nei numeri del computo non c'è niente che non torni.")).toBeInTheDocument();
+    fireEvent.click(within(passi).getByRole("tab", { name: /Fasi/ }));
+    expect(screen.getByText("Opere murarie")).toBeInTheDocument();
+    fireEvent.click(within(passi).getByRole("tab", { name: /Materiali/ }));
     expect(screen.queryByLabelText("Ricorda per i prossimi computi")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Includi Paraspigolo"));
     expect(screen.getByRole("button", { name: "Salva i materiali (1)" })).toBeEnabled();
