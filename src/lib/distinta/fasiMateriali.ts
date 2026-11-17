@@ -35,7 +35,8 @@ function radici(testo: string): Set<string> {
 /** Sinonimi di cantiere: la categoria «FM» o «forza motrice» va nella fase elettrica, ecc. */
 const SINONIMI: [RegExp, string][] = [
   [/\b(fm|forza motrice|luci|illuminazion|prese|quadri elettric|cavidott)/, "elettr"],
-  [/\b(cdz|condizionament|climatizzazion|riscaldament|termic|idrotermic|vmc|ventilazion)/, "termoi"],
+  // «Isolamento termico» è il cappotto, non l'impianto termico (17/11/2026, computo di Genzano).
+  [/\b(cdz|condizionament|climatizzazion|riscaldament|(?<!isolamento )termic|idrotermic|vmc|ventilazion)/, "termoi"],
   [/\b(antincendi|rivelazion|rilevazion fumi)/, "antinc"],
   [/\b(idric|sanitari|scarichi|adduzion)/, "idrico"],
   [/\b(fotovoltaic|fv)\b/, "fotovo"],
@@ -64,13 +65,18 @@ export function somiglianza(a: string, b: string): number {
  * capitolo «INTONACI E CARTONGESSI», anche se il sinonimo li rende pari (14/11/2026).
  */
 function punteggioFase(testo: string, fase: string): number {
+  // Lo stesso nome vince sempre: a Genzano «ECO · IMPIANTO TERMICO» finiva nella fase
+  // «ECO · ISOLAMENTO TERMICO…», che arrivava prima a pari punteggio (17/11/2026).
+  if (normalizzaTesto(testo) === normalizzaTesto(fase)) return 10;
   const s = somiglianza(testo, fase);
   if (!s) return 0;
   const rt = radici(testo);
   const rf = radici(fase);
   let dirette = 0;
   for (const x of rf) if (rt.has(x)) dirette++;
-  return s + dirette / 100;
+  // A parità, la fase con meno parole in più: «Impianto termico» batte «Isolamento termico su strutture opache».
+  const unione = new Set([...rt, ...rf]).size || 1;
+  return s + dirette / 100 + dirette / unione / 1000;
 }
 
 /** Per ogni capitolo del computo, la fase più simile (o null se nessuna lo è abbastanza). */

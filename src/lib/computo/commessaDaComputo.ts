@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getModuleQuote, upsertModuleQuote } from "@/lib/moduli/quoteBridge";
 import { personalizzazioneDocumento } from "../../../supabase/functions/_shared/personalizzazioneDocumenti";
 import { esitoOffertaModulo } from "@/lib/moduli/esitoOffertaModulo";
-import { calcolaVoce, numeroEditor, type BozzaComputo } from "./editorNativo";
+import { calcolaVoce, ePercentuale, numeroEditor, type BozzaComputo } from "./editorNativo";
 
 export const MODULO_COMPUTO = "computo";
 
@@ -35,20 +35,40 @@ export type DatiCommessaComputo = {
  * Il costo della voce, se manca, lo prende il database dal listino aziendale col codice (`codice_prezzario`).
  */
 export function righeDaComputo(d: Pick<DatiCommessaComputo, "bozza" | "aliquotaIva" | "conCosti" | "companyId">, quoteId: string) {
+  const fase = nomiFase(d.bozza.voci.map((v) => v.capitolo.trim() || "Lavorazioni"));
   return d.bozza.voci.map((v, k) => {
     const c = calcolaVoce(v);
     const [nome, ...resto] = v.descrizione.trim().split("\n");
     const costo = d.conCosti ? numeroEditor(v.costo ?? "") : null;
+    // Una voce in percentuale («30 % di 21.174,63 €») vale quantità × prezzo / 100. La riga del
+    // preventivo moltiplica e basta: a Genzano 6.352,39 € diventavano 635.238,90 € (17/11/2026).
+    // Si scrive a corpo, con l'importo giusto, e la base resta nella descrizione.
+    const percento = ePercentuale(v.unita) && c.importo !== null;
+    const notaPercento = percento ? `${c.prezzo ?? 0}% di ${(Math.abs(c.quantita ?? 0)).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : null;
     return {
       quote_id: quoteId, company_id: d.companyId, item_type: "service", item_category: "posa",
-      name: (nome || "Lavorazione").slice(0, 500), description: resto.join("\n").trim() || null,
-      quantity: c.quantita ?? 0, unit_price: c.prezzo ?? 0, unit_of_measure: v.unita || null, vat_rate: d.aliquotaIva,
+      name: (nome || "Lavorazione").slice(0, 500), description: [resto.join("\n").trim(), notaPercento].filter(Boolean).join("\n") || null,
+      quantity: percento ? (c.importo! < 0 ? -1 : 1) : (c.quantita ?? 0),
+      unit_price: percento ? Math.abs(c.importo!) : (c.prezzo ?? 0),
+      unit_of_measure: percento ? "a corpo" : (v.unita || null), vat_rate: d.aliquotaIva,
       discount_percent: 0, sort_order: k, is_optional: false, mostra_nel_pdf: true,
       codice_prezzario: v.tariffa.trim() || null, prezzo_acquisto: costo,
       // Il capitolo fa la fase della commessa, la voce la sua sottofase (crea_commessa_preventivo_atomic, 31/10/2026).
-      custom_field_values: { computo: { capitolo: v.capitolo.trim() || "Lavorazioni" } },
+      custom_field_values: { computo: { capitolo: fase(v.capitolo.trim() || "Lavorazioni") } },
     };
   });
+}
+
+/**
+ * Il nome della fase dal capitolo: «ECO · IMPIANTO TERMICO» diventa «IMPIANTO TERMICO» se nel
+ * preventivo non c'è un altro capitolo con lo stesso nome (la super-categoria serve solo a
+ * distinguere i lavori dagli oneri tecnici, quando ci sono entrambi).
+ */
+export function nomiFase(capitoli: string[]): (capitolo: string) => string {
+  const corto = (c: string) => { const i = c.indexOf(" · "); return i > 0 ? c.slice(i + 3) : c; };
+  const quanti = new Map<string, Set<string>>();
+  for (const c of capitoli) { const k = corto(c); quanti.set(k, (quanti.get(k) ?? new Set()).add(c)); }
+  return (c) => (quanti.get(corto(c))?.size === 1 ? corto(c) : c);
 }
 
 /** Una rata del computo come arriva qui: col momento del cantiere, non più solo con la percentuale. */

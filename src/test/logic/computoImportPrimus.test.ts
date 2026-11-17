@@ -82,9 +82,17 @@ describe("il PriMus vero di Genzano entra nell'editor al centesimo", () => {
     expect(esito.avvisi).toEqual([]);
   });
 
-  it("i capitoli sono le super-categorie del documento, non un capitolo unico", () => {
-    expect(new Set(esito.voci.map(v => v.capitolo)).size).toBeGreaterThan(1);
+  it("i capitoli sono le categorie dei lavori, non la super-categoria «ECO» (17/11/2026)", () => {
     expect(esito.voci.every(v => v.capitolo.trim())).toBe(true);
+    // Le 7 categorie dei lavori diventano 7 capitoli: prima erano un capitolo unico «ECO» da 182 voci.
+    const lavori = new Set(letto.voci.flatMap((v, i) => v.super_categoria?.nome?.trim() === "ECO" ? [esito.voci[i].capitolo] : []));
+    expect(lavori.size).toBe(7);
+    expect(lavori.has("ONERI DELLA SICUREZZA")).toBe(true);
+    // La stessa categoria fra lavori e oneri tecnici resta distinta, con la super-categoria davanti.
+    expect([...lavori].some(c => c.startsWith("ECO · ISOLAMENTO TERMICO"))).toBe(true);
+    expect(esito.voci.some(v => v.capitolo.startsWith("ONERI TECNICI ECO · ISOLAMENTO TERMICO"))).toBe(true);
+    // La sottocategoria scende a categoria dell'editor.
+    expect(esito.voci.some(v => v.categoria === "Centrale termica")).toBe(true);
   });
 });
 

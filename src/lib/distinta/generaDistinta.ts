@@ -325,6 +325,31 @@ const RIFACIMENTO = /\b(?:e|con|compreso il|compreso|per)\s+(?:successiv[oa]\s+)
 const CON_POSA = /\b(posa|in opera|messa in opera|posto in opera|posti in opera)\b/;
 
 /**
+ * L'oggetto della voce: le prime parole che contano, senza «Fornitura e posa in opera di»
+ * e senza articoli e preposizioni (17/11/2026). Una ricetta della libreria si abbina per
+ * parole chiave solo se una di queste sta qui: «Controsoglia in travertino a copertura del
+ * cappotto» non è un cappotto, «Bollitore… corredato di termostato» non è un termostato,
+ * «Sistema di montaggio… per modulo fotovoltaico» non sono moduli. Simulazione col computo
+ * PriMus di Genzano: 510 moduli invece di 160, mattoni da un controtelaio, rasante da un
+ * manto di coppi.
+ */
+const PAROLE_VUOTE = new Set(["di", "del", "della", "dello", "dei", "degli", "delle", "a", "al", "alla", "ai", "agli", "alle", "ad", "da", "dal", "in", "nel", "nella", "con", "per", "su", "e", "ed", "o", "il", "lo", "la", "i", "gli", "le", "un", "uno", "una", "tipo"]);
+export function testaVoce(breve: string, parole = 3): string[] {
+  const n = normalizzaTesto(breve);
+  const prefisso = PREFISSO_FORNITURA.exec(n);
+  const resto = prefisso ? n.slice(prefisso[0].length) : n;
+  return resto.split(/[^a-z0-9]+/).filter((w) => w && !PAROLE_VUOTE.has(w)).slice(0, parole);
+}
+function chiaveInTesta(s: Scomposizione, testa: string[]): boolean {
+  const chiavi = (s.parole_chiave ?? []).map(normalizzaTesto).filter(Boolean);
+  return chiavi.some((k) => testa.some((w) => w.startsWith(k.split(" ")[0])));
+}
+
+/** Sovrapprezzi, maggiorazioni, accessori: i materiali stanno nella voce principale. */
+const SOVRAPPREZZO = /\b(sovrapprezz|maggiorazion|supplemento per|per ogni cm in piu|per ogni centimetro in piu)/;
+const ACCESSORI_DI = /^(accessori|accessorio|kit|pannello decorativo|ricambi)\b/;
+
+/**
  * Il nome del materiale da una voce di fornitura: senza «Fornitura e posa in opera di»,
  * senza «compreso…», «dato in opera…» e il resto delle condizioni.
  */
@@ -335,6 +360,22 @@ export function nomeMateriale(descrizione: string): string {
   t = t.replace(/[\s,.;:–-]+$/, "").trim();
   if (!t) return descrizione.trim();
   return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/**
+ * La variante che PriMus scrive in fondo, dopo i due punti («…: finestra a 2 ante, a
+ * battente»): senza, cinque tipi di serramento diventavano un solo «Serramento» da 314 mq
+ * (17/11/2026). Si aggiunge solo se è breve e non ripete il nome.
+ */
+export function conVariante(nome: string, descrizione: string): string {
+  const i = descrizione.lastIndexOf(":");
+  if (i < 0) return nome;
+  // Dopo la variante il PDF attacca a volte la prima riga di misura («… a battente Da Abaco
+  // infissi»): ci si ferma alla prima parola con la maiuscola.
+  const variante = descrizione.slice(i + 1).trim().split(/\s(?=[A-ZÀ-Ý][a-zà-ý])/)[0].replace(/[\s,.;–-]+$/, "");
+  if (!variante || variante.length > 80 || /^\d+([.,]\d+)?$/.test(variante)) return nome;
+  if (normalizzaTesto(nome).includes(normalizzaTesto(variante))) return nome;
+  return `${nome} · ${variante}`;
 }
 
 /** Quanto pesa lo spessore scritto nella voce, per le scomposizioni a spessore noto. */
@@ -407,6 +448,9 @@ export function specificheDallaVoce(specifiche: string | null, testoVoce: string
   }
   const isolante = ISOLANTI.find(([re]) => re.test(n))?.[1];
   if (isolante) out = out.replace(/EPS o lana minerale/i, isolante);
+  // La potenza dei moduli scritta nella voce («510-580 Wp»), non quella di esempio della libreria.
+  const wp = n.match(/\b(\d{3})\s?-?\s?(\d{3})\s?wp\b/) ?? n.match(/\b(\d{3})\s?wp\b/);
+  if (wp) out = out.replace(/Potenza da progetto \([^)]*Wp\)/i, wp[2] ? `Potenza ${wp[1]}-${wp[2]} Wp` : `Potenza ${wp[1]} Wp`);
   const formato = n.match(/\b(\d+(?:\.\d+)?)\s?x\s?(\d+(?:\.\d+)?)\b/);
   if (formato) out = out.replace(/Formato da progetto/i, `Formato ${formato[1].replace(".", ",")}x${formato[2].replace(".", ",")}`);
   return out;
@@ -466,7 +510,20 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
 
   const testo = testoVoce(v);
   const datiVoce = { codice: v.codice_prezzario, codiceTariffa: v.codice_tariffa, codiceVoce: v.codice_voce, testo, unita: v.unita_misura };
-  const s = trovaScomposizione(scomposizioni, datiVoce);
+  const testa = testaVoce(v.descrizione_breve);
+  const breveN = normalizzaTesto(v.descrizione_breve);
+  let s = trovaScomposizione(scomposizioni, datiVoce);
+  const perCodiceAzienda = !!s && punteggioScomposizione(s, datiVoce) >= 900;
+  // Una ricetta dell'azienda nata dalla libreria, presa per parole chiave, vale solo se la
+  // parola sta nell'oggetto della voce (vedi testaVoce). Le ricette scritte dall'azienda no.
+  // Con una breve corta («Muri in c.a.») l'opera la dice l'estesa: lì la regola non vale.
+  const breveCompleta = breveN.length >= 25;
+  if (s && !perCodiceAzienda && s.codice_standard && breveCompleta && !chiaveInTesta(s, testa)) s = null;
+  // Un sovrapprezzo («…: sovrapprezzo per ogni cm in più di spessore») non è un'altra
+  // superficie: a Genzano 27.488 mq×cm diventavano 28.862 mq di pannelli e 169.877 tasselli.
+  if (!perCodiceAzienda && SOVRAPPREZZO.test(breveN)) {
+    return { tipo: "esclusa", motivo: "Sovrapprezzo: i materiali sono già nella voce principale" };
+  }
   if (s) {
     const perCodice = punteggioScomposizione(s, datiVoce) >= 900;
     // Una scomposizione dell'azienda nata dalla libreria (anche ricordata da «Genera dal
@@ -493,7 +550,7 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   const conPosa = (!!prefisso && CON_POSA.test(prefisso[0])) || /\b(?:post[oaie]|dat[oaie]|mess[oaie]) in opera\b/.test(breve);
   const fornitura = (): ClassificazioneVoce => ({
     tipo: "fornitura",
-    nome: nomeMateriale(v.descrizione_breve),
+    nome: conVariante(nomeMateriale(v.descrizione_breve), v.descrizione_breve),
     nota: conPosa ? "Posa e manodopera della voce escluse: si compra solo il materiale" : null,
     compresi: materialiCompresi(v.descrizione_breve),
   });
@@ -506,10 +563,12 @@ export function classificaVoce(v: VoceComputo, scomposizioni: Scomposizione[], o
   const breveConsiderato = breve.length >= 25 ? breve : normalizzaTesto(`${v.descrizione_breve} ${(v.descrizione_estesa ?? "").slice(0, 160)}`);
   // Se la breve non basta («Muri in c.a.», «Platea di fondazione»), si guarda anche
   // l'estesa: «compreso calcestruzzo, ferro, casseformi» dice di che opera si tratta.
-  const standard = opzioni.riserva?.length
-    ? trovaScomposizione(opzioni.riserva, { testo: breveConsiderato, unita: v.unita_misura })
+  // Solo ricette con la parola chiave nell'oggetto della voce, e niente per gli accessori.
+  const riserva = ACCESSORI_DI.test(testa.join(" ")) ? [] : (opzioni.riserva ?? []).filter((r) => !breveCompleta || chiaveInTesta(r, testa));
+  const standard = riserva.length
+    ? trovaScomposizione(riserva, { testo: breveConsiderato, unita: v.unita_misura })
       ?? (v.descrizione_estesa && !prefisso
-        ? trovaScomposizione(opzioni.riserva, { testo: normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa.slice(0, 400)}`), unita: v.unita_misura })
+        ? trovaScomposizione(riserva, { testo: normalizzaTesto(`${v.descrizione_breve} ${v.descrizione_estesa.slice(0, 400)}`), unita: v.unita_misura })
         : null)
     : null;
   if (standard) {

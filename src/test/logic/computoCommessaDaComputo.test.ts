@@ -84,3 +84,44 @@ describe("costi dal listino", () => {
      expect(() => prezzoConcordatoComputo({ subtotal: 648, vatAmount: 142.56, total: 878.4, aliquotaIva: 22 })).toThrow(/riconciliati/);
    });
  });
+
+// 17/11/2026: simulazione col computo PriMus vero di Genzano (riqualificazione, 182 voci di lavoro).
+describe("commessa dal computo PriMus di Genzano", () => {
+  it("la voce in percentuale passa a corpo con l'importo giusto, non quantità × prezzo", () => {
+    const bozza = { ...bozzaVuota(), voci: [
+      { ...voceVuota(), descrizione: "Sovrapprezzo 4+ ante", unita: "%", quantita: "21174,63", prezzo: "30" },
+    ] };
+    const [r] = righeDaComputo({ bozza, aliquotaIva: 0, conCosti: false, companyId: "c" }, "q");
+    expect(r).toMatchObject({ quantity: 1, unit_price: 6352.39, unit_of_measure: "a corpo" });
+    expect(r.description).toContain("30% di 21.174,63 €");
+  });
+
+  it("le righe sommano il totale del documento e le detrazioni restano negative", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const { leggiComputoPrimus } = await import("@/lib/computo/primusPdf");
+    const { bozzaDaComputoStrutturato } = await import("@/lib/computo/importaComputo");
+    const pagine: { page: number; items: { x: number; right: number; y: number; text: string }[] }[] = [];
+    for (const riga of readFileSync(resolve(__dirname, "../fixtures/computoPrimusGenzano.tsv"), "utf8").split("\n")) {
+      if (!riga || riga.startsWith("# ")) continue;
+      if (riga.startsWith("### ")) { pagine.push({ page: Number(riga.slice(4)), items: [] }); continue; }
+      const [x, right, y, ...testo] = riga.split("\t");
+      pagine.at(-1)!.items.push({ x: Number(x), right: Number(right), y: Number(y), text: testo.join("\t") });
+    }
+    const letto = leggiComputoPrimus(pagine);
+    const esito = bozzaDaComputoStrutturato(letto);
+    // Solo i lavori, come fa l'impresa: senza oneri tecnici, IVA e visto.
+    const voci = esito.voci.filter((_, i) => letto.voci[i].super_categoria?.nome?.trim() === "ECO");
+    const righe = righeDaComputo({ bozza: { ...bozzaVuota(), voci }, aliquotaIva: 0, conCosti: false, companyId: "c" }, "q");
+    // Come il database: ogni riga arrotondata al centesimo (line_total), poi la somma.
+    const totale = Math.round(righe.reduce((s, r) => s + Math.round(r.quantity * r.unit_price * 100), 0)) / 100;
+    expect(totale).toBe(1948331.82);
+    expect(righe.filter(r => r.quantity * r.unit_price < 0)).toHaveLength(5);
+    // Sette capitoli = sette fasi della commessa.
+    const fasi = new Set(righe.map(r => r.custom_field_values.computo.capitolo));
+    expect(fasi.size).toBe(7);
+    // Senza gli oneri tecnici la super-categoria davanti non serve più.
+    expect(fasi.has("IMPIANTO TERMICO")).toBe(true);
+    expect([...fasi].some(f => f.includes(" · "))).toBe(false);
+  });
+});

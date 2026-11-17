@@ -18,10 +18,15 @@ import { arrotondaDecimale, calcolaVoce, misuraVuota, voceVuota, type BozzaCompu
  *   («par.ug.=2*13»); l'editor ha una formula per riga intera. Il lettore ha
  *   già valutato i campi, quindi i numeri vanno nelle loro colonne e la
  *   formula originale resta accanto alla descrizione, come la stampa PriMus.
- * - **I livelli seguono il computo.** Il capitolo dell'editor è il livello più
- *   alto che il computo usa: le super-categorie se ci sono, altrimenti le
- *   categorie. Altrimenti, con un computo a sole categorie, finirebbe tutto in
- *   un capitolo unico.
+ * - **I livelli seguono il computo.** Il capitolo dell'editor è la categoria
+ *   (sicurezza, cappotto, impianto termico…), la categoria dell'editor la
+ *   sottocategoria. Le super-categorie di PriMus sono di solito una divisione
+ *   economica (ECO / SISMA, lavori / oneri tecnici / IVA): presa come capitolo,
+ *   a Genzano faceva di 182 voci di lavoro un capitolo unico «ECO», e la
+ *   commessa nasceva con una fase sola (17/11/2026). La super-categoria si mette
+ *   davanti al nome solo quando la stessa categoria compare in più
+ *   super-categorie («ECO · ISOLAMENTO…» e «ONERI TECNICI ECO · ISOLAMENTO…»).
+ *   Senza categorie, il capitolo è la super-categoria.
  *
  * PriMus arrotonda la quantità di ogni riga di misura prima di sommarla;
  * l'editor no. Le voci dove la differenza cambia la quantità sono riportate
@@ -92,9 +97,22 @@ type Livello = "super_categoria" | "categoria" | "sotto_categoria";
 
 /** I tre livelli dell'editor (capitolo, categoria, sottocategoria) presi dal computo. */
 function livelliDelComputo(voci: ComputoVoceStrutturata[]): [Livello | null, Livello | null, Livello | null] {
-  if (voci.some(v => v.super_categoria?.nome)) return ["super_categoria", "categoria", "sotto_categoria"];
   if (voci.some(v => v.categoria?.nome)) return ["categoria", "sotto_categoria", null];
+  if (voci.some(v => v.super_categoria?.nome)) return ["super_categoria", null, null];
   return [null, null, null];
+}
+
+/** Le categorie che compaiono sotto più super-categorie: lì il capitolo porta anche la super-categoria. */
+function categorieCondivise(voci: ComputoVoceStrutturata[]): Set<string> {
+  const supers = new Map<string, Set<string>>();
+  for (const v of voci) {
+    const cat = v.categoria?.nome?.trim();
+    if (!cat) continue;
+    const set = supers.get(cat) ?? new Set<string>();
+    set.add(v.super_categoria?.nome?.trim() ?? "");
+    supers.set(cat, set);
+  }
+  return new Set([...supers].filter(([, s]) => s.size > 1).map(([c]) => c));
 }
 
 function misuraDaDocumento(m: ComputoMisura): MisuraEditor {
@@ -124,9 +142,15 @@ export function bozzaDaComputoStrutturato(c: ComputoStrutturato): EsitoImportCom
   const avvisi = [...c.avvisi];
   const scostamenti: ScostamentoImport[] = [];
   const nome = (v: ComputoVoceStrutturata, l: Livello | null) => (l ? v[l]?.nome?.trim() : "") || "";
+  const condivise = categorieCondivise(c.voci);
+  const nomeCapitolo = (v: ComputoVoceStrutturata) => {
+    const base = nome(v, l1);
+    const sup = v.super_categoria?.nome?.trim();
+    return l1 === "categoria" && base && sup && condivise.has(base) ? `${sup} · ${base}` : base;
+  };
 
   const voci = c.voci.map((v, i): VoceEditor => {
-    const capitolo = nome(v, l1) || v.sezione?.trim() || "Opere edili";
+    const capitolo = nomeCapitolo(v) || v.super_categoria?.nome?.trim() || v.sezione?.trim() || "Opere edili";
     // PriMus usa un prezzo negativo per spostare importi fra categorie (es. «−1 €»
     // per l'incidenza della sicurezza). L'editor non ammette prezzi negativi:
     // lo stesso importo si ottiene col prezzo positivo e la voce in detrazione.
