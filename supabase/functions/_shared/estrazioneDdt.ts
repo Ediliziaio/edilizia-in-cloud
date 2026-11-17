@@ -2,7 +2,7 @@ export const DDT_EXTRACTION_PROMPT = `Sei un esperto di logistica e amministrazi
 Analizza il PDF/immagine allegato (Documento di Trasporto / DDT o CMR internazionale) ed estrai TUTTI i dati strutturati.
 
 REGOLE GENERALI:
-1. Numeri italiani: punto = migliaia, virgola = decimali. "1.234,56" → 1234.56
+1. Numeri italiani: il punto separa le migliaia, la virgola i decimali (scritto «N.NNN,NN» → numero NNNN.NN). I numeri di queste istruzioni non sono dati: ogni valore viene dal documento, e se non si legge è null.
 2. Date in ISO: YYYY-MM-DD (anche da formato 07.02.2026 → 2026-02-07)
 3. NON inventare. Se manca o è illeggibile, ritorna null + warning specifico.
 4. Per le righe merce: una riga per ogni item (anche se compatte sul DDT).

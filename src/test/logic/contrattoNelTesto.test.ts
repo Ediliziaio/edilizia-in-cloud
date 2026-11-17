@@ -57,3 +57,11 @@ describe("banco di prova", () => {
     expect(confronta({ "cliente.piva": null }, { "cliente.piva": "01234567890" })[0].esito).toBe("inventato");
   });
 });
+
+describe("importi da esempio", () => {
+  it("1.234,56 su una voce si segnala: è il numero d'esempio delle istruzioni", async () => {
+    const { contractCoherenceWarnings } = await import("@/lib/orders/contractExtract");
+    const e = parseContractExtract({ importo_totale_eur: 1798.59, voci: [{ descrizione: "Serramento 002 EKO", quantita: 1, prezzo_unitario_eur: 1234.56 }, { descrizione: "Serramento 017", quantita: 1, prezzo_unitario_eur: 564.03 }] });
+    expect(contractCoherenceWarnings(e).join(" ")).toContain("Serramento 002 EKO");
+  });
+});

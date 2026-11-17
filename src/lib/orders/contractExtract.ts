@@ -359,8 +359,28 @@ export function reconcileContractExtract(extract: ContractExtract): ContractExtr
   };
 }
 
+/**
+ * Importi «da esempio» (17/11/2026): l'AI ha scritto 1.234,56 € su un serramento che costava 564,03 €,
+ * copiando l'esempio delle sue istruzioni («"1.234,56" → 1234.56»). Un valore così, in un documento
+ * vero, è quasi sempre inventato: si dice.
+ */
+const IMPORTI_DA_ESEMPIO = [1234.56, 123.45, 12345.67, 123456.78, 1234.5];
+export function importiDaEsempio(extract: ContractExtract): string[] {
+  const sospetto = (n: number | null | undefined) => n != null && IMPORTI_DA_ESEMPIO.some((x) => Math.abs(n - x) < 0.005);
+  const dove: string[] = [];
+  extract.voci.forEach((v) => { if (sospetto(v.prezzo_unitario_eur) || sospetto(v.prezzo_unitario_eur * (v.quantita || 1))) dove.push(v.descrizione.slice(0, 50) || "voce"); });
+  extract.fasi_pagamento.forEach((f) => { if (sospetto(f.importo_eur)) dove.push(f.descrizione.slice(0, 50) || "rata"); });
+  if (sospetto(extract.importo_totale_eur)) dove.push("importo totale");
+  if (sospetto(extract.importo_totale_ivato_eur)) dove.push("totale con IVA");
+  return dove;
+}
+
 export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   const out: string[] = [];
+  const esempio = importiDaEsempio(extract);
+  if (esempio.length) {
+    out.push(`Importo sospetto (1.234,56 € è un numero d'esempio, non letto dal documento): ${esempio.join("; ")}. Controllalo sul documento.`);
+  }
   const imp = contractImponibile(extract);
   const atteso = contractTotaleAtteso(extract);
   if (imp != null && atteso != null) {

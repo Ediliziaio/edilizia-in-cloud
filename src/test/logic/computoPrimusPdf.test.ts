@@ -156,3 +156,18 @@ describe("computo PriMus vero (Genzano di Lucania, 39 pagine)", () => {
     expect(voci[0]).toMatchObject({ codice_voce: "1", capitolo_nome: "ONERI DELLA SICUREZZA", importo: 1500, is_sicurezza: true });
   });
 });
+
+describe("PriMus con il numero dell'elenco prezzi accanto («1 / 493»)", () => {
+  it("legge le voci come col numero semplice", () => {
+    // Lo stesso computo, ma con la numerazione «numero d'ordine / numero di tariffa» (17/11/2026: un
+    // computo di 501 voci così non si importava: «non contiene lavorazioni»).
+    let attesa = 1;
+    const pagine = pagineDalFixture().map((p) => ({
+      ...p,
+      items: p.items.map((it) => (it.x < 60 && it.text === String(attesa) ? { ...it, text: `${attesa++} / ${400 + attesa}` } : it)),
+    }));
+    const computo = leggiComputoPrimus(pagine);
+    expect(computo.voci).toHaveLength(226);
+    expect(computo.voci.map((v) => v.numero_ordine)).toEqual(Array.from({ length: 226 }, (_, i) => String(i + 1)));
+  });
+});

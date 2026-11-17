@@ -229,7 +229,7 @@ const PROMPT_TEMPLATE = (docType: string, schema: string) => `Sei un assistente 
 Analizza il contenuto allegato (PDF o immagine) e estrai i dati strutturati per un documento di tipo "${docType}".
 
 REGOLE:
-1. Numeri italiani: punto = migliaia, virgola = decimali. "1.234,56" → 1234.56
+1. Numeri italiani: il punto separa le migliaia, la virgola i decimali (scritto «N.NNN,NN» → numero NNNN.NN). I numeri di queste istruzioni non sono dati: ogni valore viene dal documento, e se non si legge è null.
 2. Date sempre in ISO YYYY-MM-DD
 3. NON inventare. Se manca, ritorna null o lista vuota.
 4. Per le immagini (foto_generale): descrivi solo ciò che VEDI realmente.
