@@ -73,3 +73,33 @@ describe("capitoli del computo nelle fasi della commessa (Genzano)", () => {
     expect(propostaFasi(voci, corte).get("ECO · IMPIANTO TERMICO")).toBe("c6");
   });
 });
+
+describe("spessore dal sovrapprezzo per ogni cm in più", () => {
+  it("senza misure: tutto il cappotto a 3 + 9 = 12 cm", () => {
+    const r = generaDistinta({ voci: vociLavori(), scomposizioni: [], riserva: catalogoComeScomposizioni() });
+    const pannelli = r.righe.filter((m) => /pannell/i.test(m.descrizione) && /cappotto/i.test(`${m.descrizione} ${m.specifiche}`));
+    expect(pannelli.some((m) => /12 cm/.test(m.specifiche ?? ""))).toBe(true);
+    expect(pannelli.some((m) => /\b3 cm/.test(m.specifiche ?? ""))).toBe(false);
+  });
+
+  it("con le misure: 3.054,24 m² a 12 cm, i 50,15 m² di aggetti restano a 3 cm", async () => {
+    const { applicaSovrapprezziSpessore } = await import("@/lib/distinta/sovrapprezziSpessore");
+    const base = { id: "32", descrizione_breve: "Isolamento termico a cappotto con pannelli EPS grafitato Spessore 3 cm", unita_misura: "mq", quantita: 3104.39,
+      misure: [{ quantita: 3054.24 }, { quantita: 50.15 }] };
+    const sovr = { id: "33", numero_ordine: "33", descrizione_breve: "Sovrapprezzo al cappotto per ogni cm in più di spessore", unita_misura: "mq", quantita: 27488.16,
+      misure: [{ parti_uguali: 9, quantita: 27488.16 }] };
+    const out = applicaSovrapprezziSpessore([base, sovr]);
+    expect(out.map((v) => [v.id, v.quantita])).toEqual([["32", 3054.24], ["32", 50.15], ["33", 27488.16]]);
+    expect(out[0].descrizione_breve).toContain("spessore 12 cm");
+    expect(out[1].descrizione_breve).toContain("Spessore 3 cm");
+  });
+});
+
+describe("serramenti a superficie", () => {
+  it("la superficie del computo è contabile: ordine dall'abaco", () => {
+    const r = generaDistinta({ voci: vociLavori(), scomposizioni: [], riserva: catalogoComeScomposizioni() });
+    const serramenti = r.righe.filter((m) => /^Serramento/.test(m.descrizione) && m.unita_misura === "mq");
+    expect(serramenti.length).toBeGreaterThan(0);
+    expect(serramenti.every((m) => m.note.some((n) => /abaco/.test(n)))).toBe(true);
+  });
+});

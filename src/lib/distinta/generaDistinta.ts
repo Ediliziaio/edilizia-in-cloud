@@ -27,6 +27,8 @@
  * due volte sarebbe comprata due volte, e lo segnala un avviso.
  */
 
+import { applicaSovrapprezziSpessore } from "./sovrapprezziSpessore";
+
 export interface VoceComputo {
   id: string;
   codice_voce?: string | null;
@@ -346,6 +348,8 @@ function chiaveInTesta(s: Scomposizione, testa: string[]): boolean {
 }
 
 /** Sovrapprezzi, maggiorazioni, accessori: i materiali stanno nella voce principale. */
+/** Prodotti fatti su misura per vano: serramenti, persiane, avvolgibili, oscuranti, cassonetti, zanzariere. */
+const SU_MISURA_A_SUPERFICIE = /^(serrament|finestr|portafinestr|porta finestr|infiss|persian|avvolgibil|tapparell|oscurant|scuri|cassonett|zanzarier|vetrat)/;
 const SOVRAPPREZZO = /\b(sovrapprezz|maggiorazion|supplemento per|per ogni cm in piu|per ogni centimetro in piu)/;
 const ACCESSORI_DI = /^(accessori|accessorio|kit|pannello decorativo|ricambi)\b/;
 
@@ -685,7 +689,8 @@ export function generaDistinta(input: {
   const avvisi: AvvisoDistinta[] = [];
   const senzaScomposizione: VoceComputo[] = [];
 
-  for (const v of input.voci) {
+  // Lo spessore dei sovrapprezzi «per ogni cm in più» entra nella voce principale (17/11/2026).
+  for (const v of applicaSovrapprezziSpessore(input.voci)) {
     const c = classificaVoce(v, attive, { riserva: input.riserva, proposteAI: input.proposteAI });
     const q = Number(v.quantita ?? 0);
     const codice = v.codice_prezzario || v.codice_tariffa || v.codice_voce || v.numero_ordine || null;
@@ -814,6 +819,13 @@ export function generaDistinta(input: {
       phase_id: prima.phase_id,
       ...fonteRiga(ps),
     });
+  }
+
+  // Prodotti su misura contati a superficie (17/11/2026): nel computo la superficie dei serramenti è
+  // contabile (minimi di fatturazione per vano), non l'area reale né il numero di pezzi.
+  for (const r of righe) {
+    if (r.unita_misura !== "mq" || !SU_MISURA_A_SUPERFICIE.test(normalizzaTesto(r.descrizione))) continue;
+    r.note = [...r.note, "Superficie contabile del computo (con i minimi per vano): ordina dall'abaco dei vani, non da questi m²."];
   }
 
   // Stesso materiale sia dal computo sia dalle planimetrie: possibile doppione.
