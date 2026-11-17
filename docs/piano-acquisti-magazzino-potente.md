@@ -123,6 +123,56 @@ muove, l'ondata dopo non parte.
 Oggi Innovasol 0%, Vulcano ~70%, renova ~5% su commessa. Obiettivo: **oltre il 90% per
 ogni azienda attiva**.
 
+#### Stato al 17/11/2026: misura in piedi, studio della registrazione
+
+**La metrica esiste**: `admin_copertura_acquisti(giorni)` (super admin o service role), per
+azienda: imponibile, registrato, su commesse, a magazzino, spese generali, fatture ferme da
+oltre 30 giorni. Ultimi 90 giorni:
+
+| Azienda | Registrato | Con destinazione | Ferme >30 gg |
+|---|---|---|---|
+| Innovasol | 0% | 0% | 264 (406 k€) |
+| Best Infissi | 0% | 0% | 226 (213 k€) |
+| renova solution | 14% | 5% | 66 (78 k€) |
+| Dimora Torino | 24% | 0% | — |
+| EDILIZIA SCAVOLO | 39% | 28% | — |
+| Impresa Vulcano | 59% | 34% | — |
+| Bonarrigo | 58% | 58% | — |
+
+(La correzione rispetto alla stima iniziale: Vulcano è al 34% con destinazione, non al 70%.)
+
+**Come una fattura diventa costo oggi**: una sola strada, `contabilizza_fattura_ricevuta(id)`.
+Crea (o aggiorna, se c'è un ordine d'acquisto) una riga di `company_costs` con fornitore,
+categoria dal tipo del fornitore, scadenza dal piano di pagamento dell'XML. La commessa la
+mette solo se la fattura è agganciata a un ordine d'acquisto: per tutte le altre il costo
+nasce **senza destinazione**, cioè spesa generale finché qualcuno non lo ripartisce. La
+funzione è già sicura da chiamare in automatico: idempotente, rifiuta le fatture senza
+importo, le note di credito senza fattura collegata e i fornitori ambigui.
+
+**Cosa dicono i dati sulle 14.861 fatture ferme (18,7 M€)**:
+- **Il 90% è di due aziende con l'archivio storico**: Innovasol (4.626, dal 2021) e Best
+  Infissi (7.234, dal 2020), zero registrate. Non sono fatture «dimenticate»: è il cassetto
+  fiscale importato tutto. Registrare in automatico fatture del 2020 sporcherebbe il
+  controllo di gestione di cinque anni.
+- **Le regole «dallo storico del fornitore» coprono poco**: il 96% dell'imponibile fermo è
+  di fornitori che quell'azienda non ha mai registrato. Solo 456 fatture (309 k€) hanno un
+  fornitore con una storia chiara (sempre spese generali, sempre la stessa commessa).
+- **L'AI non le ha mai viste**: `ai_classificata_at` è vuoto su tutte, tranne 25 della Demo 2.
+  La proposta di commessa (`order_id_suggerito`) c'è su 95.
+- Il 78% ha già il fornitore collegato; 654 non hanno importo (restano a mano).
+
+**Disegno conseguente** (da confermare, azienda per azienda):
+1. **Data di partenza per azienda.** Le fatture prima della data scelta dal titolare
+   diventano storico (`storico_esterno`): restano consultabili, non entrano nei margini, non
+   contano nella metrica. Per Innovasol e Best Infissi la proposta è l'inizio dell'anno in
+   corso.
+2. **Dalla data in poi, registrazione automatica** con `contabilizza_fattura_ricevuta`, con
+   anteprima prima di accendere: quante fatture, quanto imponibile, quante andrebbero su
+   commessa e quante resterebbero «da destinare».
+3. **Destinazione**: ordine d'acquisto → commessa (già oggi); codici CUP/CIG/commessa nella
+   fattura → commessa; fornitore con storia univoca → stessa destinazione; il resto nella
+   casella «Da destinare» con la proposta dell'AI, che va prima fatta girare.
+
 ### Ondata 2 — I consumabili condivisi (2 settimane)
 
 Il caso dei 1.000 € del documento sui consumabili, ma alimentato dall'ondata 1: le righe con
