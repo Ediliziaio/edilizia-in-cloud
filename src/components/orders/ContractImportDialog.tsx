@@ -28,6 +28,8 @@ import { prepareContract, readableContractWarning, dataFirmaVerificata, contract
 import { ContractPreparationCard } from "./ContractPreparationCard";
 import { confermeDelPiano, eLavoroSingolo } from "@/lib/orders/confermeContratto";
 import { RisultatoLettura } from "./contratto/RisultatoLettura";
+import { ETICHETTA_PARTE, partiPresenti, soloLeParti, type ParteContratto } from "@/lib/orders/sceltaContratto";
+import { REGOLA_VOCI, RILEGGI_VOCI, soloIlTotale } from "@/lib/orders/avvisiContratto";
 import { useAuth } from "@/contexts/AuthContext";
 import { BUCKET_ORIGINALI_AI } from "@/lib/orders/documentImportAi";
 
@@ -103,10 +105,13 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extract, setExtract] = useState<ContractExtract | null>(null);
+  // Le parti che entrano nella commessa: ogni scheda ha la sua spunta (17/11/2026). Partono tutte spuntate.
+  const [scelte, setScelte] = useState<Set<ParteContratto>>(new Set());
   // Il contratto letto, ricontrollato sul testo del PDF (17/11/2026): pagina per ogni valore trovato.
   const [verifica, setVerifica] = useState<VerificaNelTesto | null>(null);
   // Il testo del PDF: serve anche a capire se l'avviso «istruzioni rivolte all'AI» è vero (17/11/2026).
   const [testoDocumento, setTestoDocumento] = useState<string | null>(null);
+  const [rileggo, setRileggo] = useState(false);
   const [firmaVerificata, setFirmaVerificata] = useState(false);
   const [dataFirma, setDataFirma] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -157,8 +162,9 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     return {bucket,path,name:originale.name,mime:originale.type || "application/pdf",size:originale.size};
   };
 
-  const analyze = async () => {
+  const analyze = async (notaExtra = "") => {
     if ((!file && !remoteFile) || !companyId) return;
+    const note = [noteAi, notaExtra].filter(Boolean).join(" ");
     setBusy(true); setError(null);
     try {
       let bucket: string, path: string, fileName: string, mime: string;
@@ -180,40 +186,51 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         mime = remoteFile!.mime;
       }
 
-      const { data, error: fnErr } = await supabase.functions.invoke("generic-doc-ai-extract", {
-        body: {
-          storage_bucket: bucket,
-          storage_path: path,
-          file_name: fileName,
-          mime_type: mime,
-          company_id: companyId,
-          doc_type: "contratto_commessa",
-          user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, noteAi) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${noteAi}`.slice(0,600),
-        },
-      });
-      if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
-      if (data?.error) throw new Error(String(data.error));
-      const parsed = reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
+      const leggi = async (nota: string) => {
+        const { data, error: fnErr } = await supabase.functions.invoke("generic-doc-ai-extract", {
+          body: {
+            storage_bucket: bucket,
+            storage_path: path,
+            file_name: fileName,
+            mime_type: mime,
+            company_id: companyId,
+            doc_type: "contratto_commessa",
+            // La regola delle voci va sempre, dopo le note di chi carica (17/11/2026: con la regola 12 letture su 12
+            // complete, senza 11 su 12 e una volta una riga sola su 56). Se la nota è lunga, si taglia la regola.
+            user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, [nota, REGOLA_VOCI].filter(Boolean).join(" ")) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${nota}`.slice(0,600),
+          },
+        });
+        if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
+        if (data?.error) throw new Error(String(data.error));
+        return reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
+      };
+      let parsed = await leggi(note);
       if (!parsed.cliente.nome_completo && !parsed.descrizione_lavori && contractImponibile(parsed) == null && !parsed.voci.length && parsed.dati_appalto?.importo_base_eur == null && parsed.dati_appalto?.stima_eur == null) {
         throw new Error("Non sono stati letti dati utili del contratto. Controlla il documento e riprova: i campi della commessa non sono stati modificati.");
       }
+      // Il testo del PDF (gratis, nel browser): serve al controllo dei valori e a capire se l'AI ha letto
+      // solo il totale. In quel caso si rilegge da soli una volta, con l'indicazione delle voci.
+      let pagine: string[] | null = null;
+      if (/pdf/i.test(mime) || /\.pdf$/i.test(fileName)) {
+        try {
+          const dati = file ? await file.arrayBuffer() : await (await supabase.storage.from(bucket).download(path)).data?.arrayBuffer();
+          if (dati) pagine = await testoPaginePdf(dati);
+        } catch { /* controllo facoltativo */ }
+      }
+      const testo = pagine ? pagine.join("\n") : null;
+      if (destinazione === "cliente" && !notaExtra && soloIlTotale(parsed, testo)) {
+        setRileggo(true);
+        try {
+          const seconda = await leggi([note, RILEGGI_VOCI].filter(Boolean).join(" "));
+          if (seconda.voci.length > parsed.voci.length) parsed = seconda;
+        } catch { /* resta la prima lettura, con l'avviso e il bottone «Rileggi» */ }
+        finally { setRileggo(false); }
+      }
       setPathAnalizzato(`${bucket}/${path}`);
       setExtract(parsed);
-      setVerifica(null);
-      setTestoDocumento(null);
-      // Il controllo sul testo non ferma niente: se il PDF non si legge, semplicemente non c'è.
-      if (/pdf/i.test(mime) || /\.pdf$/i.test(fileName)) {
-        void (async () => {
-          try {
-            const dati = file ? await file.arrayBuffer() : await (await supabase.storage.from(bucket).download(path)).data?.arrayBuffer();
-            if (dati) {
-              const pagine = await testoPaginePdf(dati);
-              setVerifica(verificaContrattoNelTesto(parsed, pagine));
-              setTestoDocumento(pagine.join("\n"));
-            }
-          } catch { /* controllo facoltativo */ }
-        })();
-      }
+      setScelte(new Set(partiPresenti(parsed)));
+      setVerifica(pagine ? verificaContrattoNelTesto(parsed, pagine) : null);
+      setTestoDocumento(testo);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -585,7 +602,8 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     }
     if (source && sorgente) source.size = sorgente.size;
     if (source && firmaVerificata) source.firmaConfermataIl = dataFirma;
-    onApply(extract, sorgente, source);
+    // Solo le parti spuntate: le altre arrivano vuote, come se il documento non le avesse.
+    onApply(destinazione === "cliente" ? soloLeParti(extract, scelte) : extract, sorgente, source);
     onOpenChange(false);
     toast.success("Dati del contratto applicati alla commessa. Rivedi e salva.");
   };
@@ -677,7 +695,25 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
           <div className="space-y-3">
             {destinazione === "cliente" && !workflowProfilo.data && <p role="status" className="text-sm text-muted-foreground">{workflowProfilo.isError ? "Configurazione aziendale non disponibile. Riprova prima di applicare il contratto." : "Caricamento configurazione aziendale…"}</p>}
             {destinazione === "cliente" && pianoContratto && !eLavoroSingolo(pianoContratto) && <ContractPreparationCard piano={pianoContratto} />}
+            {soloIlTotale(extract, testoDocumento) && (
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">Il documento ha un elenco di voci con i prezzi, ma l'AI ha letto solo {extract.voci.length === 1 ? "la riga del totale" : `${extract.voci.length} righe`}.</span>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void analyze(RILEGGI_VOCI)}>
+                  {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}Rileggi con tutte le voci
+                </Button>
+              </div>
+            )}
             <RisultatoLettura extract={extract} verifica={verifica} testoDocumento={testoDocumento}
+              scelte={destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" ? scelte : undefined}
+              onModifica={(e) => {
+                // Una parte che era vuota e ora ha qualcosa (fasi aggiunte a mano) si spunta da sola.
+                const prima = new Set(partiPresenti(extract));
+                const nuove = partiPresenti(e).filter((p) => !prima.has(p));
+                if (nuove.length) setScelte((s) => new Set([...s, ...nuove]));
+                setExtract(e);
+              }}
+              onScelta={(parte, si) => setScelte((prima) => { const dopo = new Set(prima); if (si) dopo.add(parte); else dopo.delete(parte); return dopo; })}
               daConfermare={conferme?.brevi ?? []}
               extraAvvisi={[...(conferme?.altre ?? []), ...(extract.appalto_pubblico?.informazioni_da_confermare ?? []).map(readableContractWarning)]}
               dopoDati={<>
@@ -740,20 +776,14 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         )}
         <DialogFooter className="flex-wrap justify-between gap-2">
           {!extract ? (
-            <Button onClick={analyze} disabled={(!file && !remoteFile) || busy || !companyId}>
-              {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> L'AI sta leggendo…</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
+            <Button onClick={() => analyze()} disabled={(!file && !remoteFile) || busy || !companyId}>
+              {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {rileggo ? "Rileggo le voci, la prima lettura era incompleta…" : "L'AI sta leggendo…"}</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
             </Button>
           ) : <>
               <Button variant="outline" onClick={reset}>Ricarica un altro</Button>
               {destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" && (
                 <span className="min-w-0 flex-1 self-center text-xs text-muted-foreground">
-                  Entrano nella commessa: {[
-                    contractImponibile(extract) != null ? "importo" : null,
-                    extract.voci.length ? `${extract.voci.length} voci` : null,
-                    extract.fasi_pagamento.length ? `${extract.fasi_pagamento.length} rate` : null,
-                    extract.fasi_lavoro?.length ? `${extract.fasi_lavoro.length} fasi` : null,
-                    (extract.note_a_mano?.length || extract.posizioni_allegato?.length || extract.firma) ? "note dal documento" : null,
-                  ].filter(Boolean).join(", ") || "i dati del cliente"}
+                  {scelte.size ? <>Entrano nella commessa: {[...scelte].map((p) => ETICHETTA_PARTE[p].toLowerCase()).join(", ")}</> : "Non hai scelto niente da applicare"}
                 </span>
               )}
               <div className="flex flex-wrap gap-2">
@@ -763,7 +793,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                     Crea Ordine d'Acquisto
                   </Button>
                 )}
-                <Button onClick={apply} disabled={(destinazione === "cliente" && !workflowProfilo.data) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
+                <Button onClick={apply} disabled={(destinazione === "cliente" && (!workflowProfilo.data || (extract.natura_documento !== "offerta_fornitore" && scelte.size === 0))) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
               </div>
           </>}
         </DialogFooter>

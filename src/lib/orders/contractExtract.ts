@@ -51,6 +51,8 @@ export interface ContractExtractItem {
   descrizione: string;
   quantita: number;
   prezzo_unitario_eur: number;
+  /** Il capitolo sotto cui la voce è elencata nel documento (17/11/2026): diventa la fase. */
+  capitolo?: string | null;
 }
 export interface ContractExtractAltroCosto {
   descrizione: string;
@@ -139,6 +141,40 @@ const MAX_FASI_CONTRATTO = 15;
 const MAX_SOTTOFASI_CONTRATTO = 10;
 
 /** Parsing difensivo delle lavorazioni: nomi corti, niente doppioni, niente rate, tetti al numero. */
+const normaNome = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Le tappe di pagamento non sono fasi di lavoro (17/11/2026): su un preventivo vero l'AI ha restituito
+ * come fasi «INIZIO CANTIERE, INIZIO DEMOLIZIONI, INIZIO IMPIANTI…», cioè le tappe degli acconti. Una fase
+ * che si chiama come una rata si toglie.
+ */
+export function senzaTappeDiPagamento(fasi: ContractExtractWorkPhase[], rate: string[]): ContractExtractWorkPhase[] {
+  const tappe = new Set(rate.map(normaNome).filter(Boolean));
+  if (!rate.length) return fasi;
+  // Anche quando l'AI chiama le rate «SAL» e lascia i nomi delle tappe solo nelle fasi: una «fase» senza
+  // lavorazioni che comincia con «inizio» o «saldo», in un documento con le rate, è una tappa di pagamento.
+  const tappaDaNome = (f: ContractExtractWorkPhase) => f.sottofasi.length === 0 && /^(inizio|saldo|fine lavori|a fine|termine)\b/.test(normaNome(f.nome));
+  return fasi.filter((f) => !tappe.has(normaNome(f.nome)) && !tappaDaNome(f));
+}
+
+/**
+ * Le fasi dai capitoli degli articoli (17/11/2026): un preventivo o un computo è diviso in capitoli
+ * (allestimenti, demolizioni, impianti…) e dentro ci sono le lavorazioni. Nell'ordine del documento.
+ */
+export function fasiDaCapitoli(voci: ContractExtractItem[]): ContractExtractWorkPhase[] {
+  const perCapitolo = new Map<string, string[]>();
+  for (const v of voci) {
+    const c = v.capitolo?.trim();
+    if (!c) continue;
+    const nome = c.length > 3 && c === c.toUpperCase() ? c.charAt(0) + c.slice(1).toLowerCase() : c;
+    const breve = v.descrizione.replace(/\s+/g, " ").split(/(?<=\S)\s*(?:[.;:(]|,\s|\s-\s)/)[0].slice(0, 70).trim();
+    const lista = perCapitolo.get(nome) ?? [];
+    if (breve && !lista.includes(breve)) lista.push(breve);
+    perCapitolo.set(nome, lista);
+  }
+  return [...perCapitolo.entries()].slice(0, MAX_FASI_CONTRATTO).map(([nome, sottofasi]): ContractExtractWorkPhase => ({ nome: nome.slice(0, 80), giorni: null, sottofasi: sottofasi.slice(0, 30) }));
+}
+
 export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
   if (!Array.isArray(raw)) return [];
   const viste = new Set<string>();
@@ -240,6 +276,7 @@ export function parseContractExtract(raw: unknown): ContractExtract {
         descrizione: toStr(v.descrizione) ?? "",
         quantita: toNum(v.quantita) ?? 1,
         prezzo_unitario_eur: toNum(v.prezzo_unitario_eur) ?? 0,
+        capitolo: toStr(v.capitolo)?.replace(/\s+/g, " ").slice(0, 80) ?? null,
       }))
       .filter((v) => v.descrizione),
     sconto_globale_pct: toNum(r.sconto_globale_pct),
@@ -278,7 +315,7 @@ export function parseContractExtract(raw: unknown): ContractExtract {
       })),
     data_inizio_lavori: toStr(r.data_inizio_lavori),
     data_fine_lavori: toStr(r.data_fine_lavori),
-    fasi_lavoro: fasiLavoroDalTesto(r.fasi_lavoro),
+    fasi_lavoro: senzaTappeDiPagamento(fasiLavoroDalTesto(r.fasi_lavoro), fasi.map((f) => (f && typeof f === "object" ? toStr((f as Record<string, unknown>).descrizione) : null) ?? "")),
     note_a_mano: noteDalTesto(r.note_a_mano),
     posizioni_allegato: posizioniDalTesto(r.posizioni_allegato),
     firma: firmaDalTesto(r.firma),

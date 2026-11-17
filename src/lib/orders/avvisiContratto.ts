@@ -36,3 +36,23 @@ export function avvisiDaControllare(extract: ContractExtract, verifica: Verifica
   extra.forEach(aggiungi);
   return out;
 }
+
+/**
+ * La regola delle voci, mandata con ogni lettura (17/11/2026). Misura su 4 preventivi veri, 3 letture
+ * ciascuno: senza, 11 letture complete su 12 (e nella finestra una volta 1 riga su 56); con, 12 su 12.
+ */
+export const REGOLA_VOCI = "Riga a corpo + dettaglio con codici e prezzi: le voci sono le righe del dettaglio (col capitolo), non la riga a corpo. Le tappe degli acconti non sono fasi.";
+
+/** L'indicazione per la seconda lettura: entra nella chiave della cache, quindi è una lettura nuova. */
+export const RILEGGI_VOCI = "Il documento ha il dettaglio: estrai OGNI riga con codice, quantita e prezzo come voce, non solo la riga del totale a corpo.";
+
+/**
+ * L'AI ha letto solo il totale (17/11/2026): lo stesso preventivo da 56 voci una volta è tornato con 56
+ * voci, un'altra con la sola riga «Ristrutturazione… a corpo». Se il testo del PDF ha molti importi e le
+ * voci lette sono una o due, la lettura è incompleta: si dice e si propone di rileggere.
+ */
+export function soloIlTotale(extract: ContractExtract, testoDocumento: string | null): boolean {
+  if (!testoDocumento || extract.voci.length > 2) return false;
+  const importi = testoDocumento.match(/€\s*\d{1,3}(?:\.\d{3})*,\d{2}|\d{1,3}(?:\.\d{3})*,\d{2}\s*€/g) ?? [];
+  return importi.length >= 15;
+}

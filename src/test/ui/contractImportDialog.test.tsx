@@ -9,6 +9,8 @@ const mocks=vi.hoisted(()=>({invoke:vi.fn(),upload:vi.fn(),download:vi.fn(),mayb
 vi.mock("@/hooks/useContractWorkflowProfile",()=>({useContractWorkflowProfile:()=>({data:"standard"})}));
 vi.mock("@/hooks/useFasiDiPartenza",()=>({useFasiDiPartenza:()=>({perContratto:[] as unknown[]})}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"demo",name:"Demo Azienda S.r.l."}})}));
+const testo=vi.hoisted(()=>({pagine:[] as string[]}));
+vi.mock("@/lib/orders/testoPaginePdf",()=>({testoPaginePdf:async()=>testo.pagine}));
 vi.mock("sonner",()=>({toast:{error:mocks.toastError,success:vi.fn(),warning:vi.fn()}}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{
   functions:{invoke:mocks.invoke},
@@ -24,6 +26,7 @@ beforeEach(()=>{
   mocks.download.mockResolvedValue({data:new Blob(["PDF"]),error:null});
   mocks.maybeSingle.mockResolvedValue({data:null,error:null});
   mocks.invoke.mockResolvedValue({data:{extracted},error:null});
+  testo.pagine=[];
 });
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 function apri(initialAnalysisId?:string){
@@ -91,5 +94,18 @@ describe("import contratto dalla lettura all'applicazione",()=>{
     await waitFor(()=>expect(onApply).toHaveBeenCalledOnce());
     expect(mocks.upload).toHaveBeenCalledOnce();
     expect(onApply.mock.calls[0][2]).toMatchObject({bucket:"documenti-smart",path:expect.stringMatching(/^demo\/ai-contratti\/[a-f0-9]+-file\.pdf$/)});
+  });
+  it("manda sempre la regola delle voci; se l'AI legge solo il totale di un PDF pieno di prezzi, rilegge da sola",async()=>{
+    // Il preventivo vero (17/11/2026): la riga «a corpo» e sotto 56 righe con i prezzi.
+    testo.pagine=[Array.from({length:30},(_,i)=>`DEM_1.${i} Demolizione € ${(i+10).toLocaleString("it-IT")},50 Mq 10,00 € ${(i+100).toLocaleString("it-IT")},00`).join("\n")];
+    const dettaglio=Array.from({length:20},(_,i)=>({descrizione:`Voce ${i+1}`,quantita:1,prezzo_unitario_eur:50}));
+    mocks.invoke
+      .mockResolvedValueOnce({data:{extracted:{...extracted,voci:[{descrizione:"Ristrutturazione a corpo",quantita:1,prezzo_unitario_eur:1000}]}},error:null})
+      .mockResolvedValueOnce({data:{extracted:{...extracted,voci:dettaglio}},error:null});
+    apri();await leggi();
+    expect(mocks.invoke).toHaveBeenCalledTimes(2);
+    expect(mocks.invoke.mock.calls[0][1].body.user_hint).toContain("le voci sono le righe del dettaglio");
+    expect(mocks.invoke.mock.calls[1][1].body.user_hint).toContain("estrai OGNI riga");
+    expect(await screen.findByRole("tab",{name:/Articoli20/})).toBeInTheDocument();
   });
 });
