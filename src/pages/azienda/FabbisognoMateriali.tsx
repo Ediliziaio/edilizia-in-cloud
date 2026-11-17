@@ -1,6 +1,6 @@
 // /azienda/fabbisogno-materiali — l'ufficio acquisti: cosa manca da ordinare in
-// tutte le commesse, e entro quando. Solo i materiali delle fasi validate dal
-// tecnico. Ci porta anche il promemoria del mattino (materiali_promemoria_acquisti).
+// tutte le commesse, e entro quando. Le fasi validate dal tecnico e, dal 17/11/2026, quelle
+// che la validazione non la usano (si comprano subito anche nella commessa). Ci porta anche il promemoria del mattino (materiali_promemoria_acquisti).
 // Da qui si cambia la data in cui il materiale serve (materiali_data_fabbisogno_imposta)
 // e si creano le bozze d'ordine su più commesse insieme (ordinaDalFabbisogno).
 import { useMemo, useState } from "react";
@@ -91,7 +91,7 @@ export default function FabbisognoMateriali() {
           <h1 className="flex items-center gap-2 text-xl font-semibold"><CalendarClock className="h-5 w-5" aria-hidden /> Fabbisogno materiali</h1>
           <p className="text-sm text-muted-foreground">
             Cosa manca da ordinare nelle commesse, ed entro quando: l'inizio della fase (o la data scritta sul materiale)
-            meno i giorni di consegna del fornitore. Solo i materiali validati dal tecnico.
+            meno i giorni di consegna del fornitore. Se usi la validazione del tecnico, solo le fasi validate.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -171,7 +171,7 @@ export default function FabbisognoMateriali() {
           <PackageSearch className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden />
           <p className="mt-2 text-sm font-medium">Niente da ordinare</p>
           <p className="text-xs text-muted-foreground">
-            Qui compaiono i materiali delle fasi validate dal tecnico che non sono ancora coperti da un ordine.
+            Qui compaiono i materiali delle commesse non ancora coperti da un ordine (con la validazione del tecnico, solo delle fasi validate).
           </p>
         </div>
       ) : (
