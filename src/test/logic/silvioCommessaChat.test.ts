@@ -9,7 +9,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Frammento, PianoCommessa } from "../../../shared/silvio-commessa/piano.ts";
 import { annulla, applica, fondi, pianoVuoto } from "../../../shared/silvio-commessa/fondi.ts";
 import {
@@ -23,6 +23,13 @@ import { comeSiApre, paginaCitata, trovaCitazione } from "@/components/silvio-co
 import { fontiDallEmail } from "@/components/silvio-commessa/fontiDegliIngressi";
 import { fontiDaLink } from "@/components/silvio-commessa/useBozzaSilvio";
 import { SILVIO_TOOLS } from "../../../supabase/functions/_shared/silvioTools";
+
+beforeEach(() => {
+  // Le fixture partono a novembre 2026: il testo della chat non dipende dal giorno del runner.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+});
+afterEach(() => { vi.useRealTimers(); });
 
 const AZIENDA = "d2000000-0000-4000-a000-000000000002";
 const COMMESSA = "0a000000-0000-4000-a000-000000000034";

@@ -7,7 +7,7 @@
  * - la ⓘ apre il documento alla pagina citata (pdf.js finto);
  * - le porte: allegati di un'email, contratto dell'app, link della chat.
  */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -52,6 +52,13 @@ vi.mock("@/components/orders/CreateCustomerDialog", () => ({ CreateCustomerDialo
 import CreaConSilvioDialog from "@/components/silvio-commessa/CreaConSilvioDialog";
 
 const AZIENDA = "d2000000-0000-4000-a000-000000000002";
+beforeEach(() => {
+  // Fissa solo Date: i timer reali restano disponibili per i riscontri asincroni della UI.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+});
+afterEach(() => { vi.useRealTimers(); });
+
 const UTENTE = "u0000000-0000-4000-a000-000000000001";
 const PREVENTIVO = "q0000000-0000-4000-a000-000000000142";
 const COMMESSA = "0a000000-0000-4000-a000-000000000034";
