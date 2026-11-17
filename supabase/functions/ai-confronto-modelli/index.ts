@@ -77,7 +77,9 @@ Deno.serve(async (req) => {
         { role: "system", content: conRegoleDocumento(ISTRUZIONI_LETTURA_STANDARD) },
         { role: "user", content: contenuto },
       ],
-      params: { temperature: 0, max_tokens: 16000 },
+      // Un computo di 60 voci con tutti i campi chiede più dei 30 secondi di default del router: un
+      // tentativo solo, con il tempo lungo (il gateway chiude a 150).
+      params: { temperature: 0, max_tokens: 16000, timeoutMs: 130_000 },
       responseFormat: { type: "json_object" },
       companyId: null,
       userId,
