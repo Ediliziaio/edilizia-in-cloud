@@ -35,7 +35,7 @@ const SCONTO = /^(sconto|a detrarre|detrazione|detrarre|ribasso|abbuono)\b/i;
 
 // Servizi e oneri: trasporti, smaltimento, noli, cantiere, sicurezza, formazione, verifiche, pratiche.
 const SERVIZIO =
-  /^(oneri?\b|nolo\b|noleggio|trasporto|carico\b|carico e trasporto|conferimento|compenso alle discariche|smaltimento|riunion|formazione|corso\b|verifica|collaudo|analisi\b|prove?\b|assistenza (tecnica|al collaudo)|montaggio e smontaggio|ponteggio|piattaforma|autogru|gru\b|bagno chimico|prefabbricato|baracca|recinzione (provvisoria|di cantiere)|cartell[oi]|segnaletica di cantiere|pratica|pratiche|spese\b|tiro in alto|calo in basso|movimentazione|struttura provvisoria|protezion[ei] provvisori|opere provvisionali)|costo di utilizzo|per ogni mese|\bmensile\b|al mese\b|a nolo\b|\bnolo a caldo\b|\bnolo a freddo\b/i;
+  /^(oneri?\b|nolo\b|noleggio|trasport|carico\b|carico e trasporto|conferimento|compenso alle discariche|smaltimento|riunion|formazione|corso\b|verifica|collaudo|analisi\b|prove?\b|assistenza (tecnica|al collaudo)|montaggio e smontaggio|ponteggio|piattaforma|autogru|gru\b|bagno chimico|prefabbricato|baracca|recinzione (provvisoria|di cantiere)|cartell[oi]|segnaletica di cantiere|pratica|pratiche|spese\b|tiro in alto|calo in basso|movimentazione|struttura provvisoria|protezion[ei] provvisori|opere provvisionali)|costo di utilizzo|per ogni mese|\bmensile\b|al mese\b|a nolo\b|\bnolo a caldo\b|\bnolo a freddo\b/i;
 
 // Solo lavoro: demolire, rimuovere, smontare, pulire, preparare, posare materiale non fornito.
 const LAVORAZIONE =
@@ -60,7 +60,7 @@ export function naturaVoce(
   if (SERVIZIO.test(d)) return "servizio";
   if (LAVORAZIONE.test(d)) return "lavorazione";
   // «Posa rivestimenti», «Posa in opera di…» senza la fornitura: la sola manodopera.
-  if (/^posa\b/i.test(d) && !/fornitur|fornit[oa] e post/i.test(d)) return "lavorazione";
+  if (/^pos[ae]\b/i.test(d) && !/fornitur|fornit[oa] e post/i.test(d)) return "lavorazione";
   if (SOLA_FORNITURA.test(d)) return "fornitura";
   if (FORNITURA_E_POSA.test(d)) return "fornitura_e_posa";
   // Una voce che descrive una cosa (un serramento, un cappotto, una caldaia, una pittura) in un computo o un

@@ -174,6 +174,45 @@ export function vociDaComprare<T extends Pick<ContractExtractItem, "natura">>(vo
   return voci.filter((v) => siCompra(v.natura ?? "fornitura_e_posa"));
 }
 
+/** Una riga a corpo che rimanda all'allegato («come da disegno e scheda tecnica allegati»): è il prezzo, non la merce. */
+const RIMANDA_ALLEGATO = /allegat|come da disegno|scheda tecnica|come da (precedente )?preventivo|vedi allegato/i;
+
+export interface ArticoloDaPosizione {
+  riferimento: string;
+  nome: string;
+  quantita: number;
+  larghezza_mm: number | null;
+  altezza_mm: number | null;
+}
+
+/**
+ * Gli articoli da ordinare di un contratto (17/11/2026). Con l'allegato tecnico a posizioni (serramenti:
+ * «Finestra 001 2100×2200 ×1», «Porta 003 ×2», zanzariere) gli articoli sono le POSIZIONI, con quantità e
+ * misure, prezzo compreso nel totale a corpo; la riga a corpo che rimanda all'allegato resta il prezzo di
+ * vendita della commessa, non un articolo. Senza allegato, le voci che si comprano.
+ */
+export function articoliDalContratto(ex: Pick<ContractExtract, "voci" | "posizioni_allegato">): {
+  posizioni: ArticoloDaPosizione[];
+  voci: ContractExtractItem[];
+} {
+  const pos = (ex.posizioni_allegato ?? []).filter((p) => p.codice?.trim() && p.quantita > 0);
+  const voci = vociDaComprare(ex.voci).filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
+  if (!pos.length) return { posizioni: [], voci };
+  return {
+    posizioni: pos.map((p) => {
+      const m = /(\d{2,5})\s*[x×*]\s*(\d{2,5})/i.exec(p.dimensioni ?? "");
+      return {
+        riferimento: p.codice.trim().slice(0, 60),
+        nome: [p.codice.trim(), p.descrizione?.trim(), p.dimensioni?.trim()].filter(Boolean).join(" · ").slice(0, 300),
+        quantita: p.quantita,
+        larghezza_mm: m ? Number(m[1]) : null,
+        altezza_mm: m ? Number(m[2]) : null,
+      };
+    }),
+    voci: voci.filter((v) => !RIMANDA_ALLEGATO.test(v.descrizione ?? "")),
+  };
+}
+
 export function fasiDaCapitoli(voci: ContractExtractItem[]): ContractExtractWorkPhase[] {
   const perCapitolo = new Map<string, string[]>();
   for (const v of voci) {

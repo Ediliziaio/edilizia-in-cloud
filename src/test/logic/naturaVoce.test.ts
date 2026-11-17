@@ -35,3 +35,11 @@ describe("cos'è una voce: solo i materiali si comprano", () => {
     for (const n of ["lavorazione", "servizio", "sconto"] as const) expect(siCompra(n)).toBe(false);
   });
 });
+
+describe("contratto di serramenti con posa compresa (preventivo firmato del banco, 17/11/2026)", () => {
+  it("la fornitura è materiale, la posa compresa è lavoro, i trasporti sono un servizio", () => {
+    expect(naturaVoce("Sola fornitura infissi in PVC, doppio vetro con canalina calda")).toBe("fornitura");
+    expect(naturaVoce("Pose e materiali di consumo")).toBe("lavorazione");
+    expect(naturaVoce("Trasporti")).toBe("servizio");
+  });
+});

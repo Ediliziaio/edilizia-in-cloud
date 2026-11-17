@@ -17,7 +17,7 @@ import { codiceNormalizzato, indirizzoCantiereDalContratto, trovaClienteDaContra
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
 import { computoInCommessa } from "@/lib/orders/computoInCommessa";
-import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, vociDaComprare, type ContractExtract } from "@/lib/orders/contractExtract";
+import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, articoliDalContratto, type ContractExtract } from "@/lib/orders/contractExtract";
 import { prepareContract, contractPreparationNotes, fasiDalContratto, dateLavoriDalContratto, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
 import { saveContractOfficeTasks } from "@/lib/orders/contractOfficeTasks";
@@ -618,13 +618,32 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     setValue("vat_rate", ivaContratto != null ? String(ivaContratto) : "");
     // Da un computo gli articoli non si creano qui: i materiali da ordinare li calcola «Genera dal computo»
     // (scomposizioni, quantità, fasi), che troverà il computo già salvato nella commessa.
-    if (ex.voci.length > 0 && !contractNeedsAllocation(ex) && ex.origine_lettura !== "computo") {
+    if ((ex.voci.length > 0 || (ex.posizioni_allegato?.length ?? 0) > 0) && !contractNeedsAllocation(ex) && ex.origine_lettura !== "computo") {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
       // Solo i materiali (con o senza posa) diventano articoli: lavori, servizi, oneri e sconti restano nelle
       // fasi (17/11/2026: dal computo entravano anche «Riunioni di formazione» e il bagno chimico a noleggio).
-      const vociVere = vociDaComprare(ex.voci).filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
-      const itemsMerce = vociVere.map<OrderItem>((v, idx) => {
+      // Con l'allegato a posizioni (serramenti) gli articoli sono le posizioni, con quantità e misure; la riga a
+      // corpo che rimanda all'allegato è il prezzo di vendita, non merce (17/11/2026).
+      const { posizioni, voci: vociVere } = articoliDalContratto(ex);
+      const itemsPosizioni = posizioni.map<OrderItem>((p, idx) => ({
+        name: p.nome,
+        riferimento: p.riferimento,
+        quantity: p.quantita,
+        status: "da_ordinare",
+        position: idx,
+        // Prezzo compreso nel totale a corpo del contratto: non si inventa una ripartizione.
+        unit_price: 0,
+        vat_rate: ivaContratto ?? undefined,
+        family_id: null,
+        axis_selections: null,
+        misure_preventivo: p.larghezza_mm && p.altezza_mm
+          ? { larghezza_mm: p.larghezza_mm, altezza_mm: p.altezza_mm, mq: Math.round((p.larghezza_mm * p.altezza_mm) / 10_000) / 100 }
+          : null,
+        measure_status: null,
+      }));
+      const itemsMerce = [...itemsPosizioni, ...vociVere.map<OrderItem>((v, i) => {
+        const idx = itemsPosizioni.length + i;
         const match = mappaVoceSuListino(v.descrizione ?? "");
         return rigaConQuantitaIntera<OrderItem>({
           name: v.descrizione,
@@ -648,7 +667,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             : null,
           measure_status: null,
         });
-      });
+      })];
       // Imballaggio/trasporto/oneri: voci a sé, senza sconto (nel documento
       // sono calcolati DOPO lo sconto merce).
       const itemsAltriCosti = ex.altri_costi.map<OrderItem>((a, i) => ({

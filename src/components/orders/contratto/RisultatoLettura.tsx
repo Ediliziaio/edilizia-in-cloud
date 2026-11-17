@@ -11,7 +11,7 @@ import { ModificaArticoli, ModificaDate, ModificaFasi, ModificaImporto, Modifica
 import { ETICHETTA_PARTE, ORDINE_PARTI, partiPresenti, type ParteContratto } from "@/lib/orders/sceltaContratto";
 import { AlertTriangle, Check, CheckCircle2, FileText, Pencil } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { contractImponibile, contractSommaVoci, fasiDaCapitoli, vociDaComprare, type ContractExtract } from "@/lib/orders/contractExtract";
+import { articoliDalContratto, contractImponibile, contractSommaVoci, fasiDaCapitoli, vociDaComprare, type ContractExtract } from "@/lib/orders/contractExtract";
 import { ETICHETTA_NATURA, siCompra } from "@/lib/orders/naturaVoce";
 import type { VerificaNelTesto } from "@/lib/orders/contrattoNelTesto";
 import { avvisiDaControllare } from "@/lib/orders/avvisiContratto";
@@ -74,7 +74,7 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
   const conteggi: Partial<Record<ParteContratto, string>> = {
     lavorazioni: fasi.length ? String(fasi.length) : undefined,
     // Si contano gli articoli che nascerebbero: i materiali, non lavori, servizi e sconti.
-    articoli: String(vociDaComprare(extract.voci).length + pos.length),
+    articoli: String((() => { const a = articoliDalContratto(extract); return a.posizioni.length + a.voci.length; })()),
     pagamento: extract.fasi_pagamento.length ? String(extract.fasi_pagamento.length) : undefined,
     note: note.length ? String(note.length) : undefined,
   };
@@ -195,8 +195,16 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
               {extract.voci.length > 0 && (() => {
                 const daComprare = vociDaComprare(extract.voci).length;
                 const altre = extract.voci.length - daComprare;
+                const art = articoliDalContratto(extract);
+                const pezzi = art.posizioni.reduce((t, p) => t + p.quantita, 0);
                 return (
                   <div className="space-y-1">
+                    {art.posizioni.length > 0 && (
+                      <p className="rounded-md bg-emerald-50 px-2 py-1.5 text-xs text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+                        Diventano articoli da ordinare le <strong>{art.posizioni.length} posizioni dell'allegato</strong> ({pezzi.toLocaleString("it-IT")} pezzi),
+                        con quantità e misure. La riga a corpo resta il prezzo di vendita della commessa, non un articolo.
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       <span className="font-medium text-foreground">{daComprare} con materiale</span> (con o senza posa)
                       {altre > 0 && <> · {altre} lavori, servizi, oneri o sconti: restano nelle fasi, non diventano articoli</>}
@@ -255,7 +263,7 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
               )}
               {pos.length > 0 && (
                 <div>
-                  <p className="mb-1 text-[11px] text-muted-foreground">Dall'allegato tecnico · {pos.reduce((t, x) => t + x.quantita, 0).toLocaleString("it-IT")} pezzi, prezzo compreso nel totale</p>
+                  <p className="mb-1 text-[11px] text-muted-foreground">Posizioni dell'allegato tecnico · {pos.reduce((t, x) => t + x.quantita, 0).toLocaleString("it-IT")} pezzi, prezzo compreso nel totale a corpo</p>
                   <ul className="divide-y rounded-md border text-xs">
                     {pos.map((x, i) => (
                       <li key={i} className="flex items-center gap-2 px-2 py-1">
