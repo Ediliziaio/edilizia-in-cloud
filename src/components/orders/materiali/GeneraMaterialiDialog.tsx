@@ -42,6 +42,7 @@ import {
 import { MaterialiProposti } from "./MaterialiProposti";
 import { computoDelPreventivo } from "@/lib/distinta/computoDelPreventivo";
 import { controllaComputo, importoInGioco, voceDaCommessa } from "@/lib/computo/controlloComputo";
+import { ETICHETTA_SERVIZIO, serviziDelComputo } from "@/lib/distinta/serviziComputo";
 import { avvisiCosto as calcolaAvvisiCosto, type VoceConImporto } from "@/lib/distinta/controlloCostiVoci";
 import { DopoIlSalvataggio } from "./DopoIlSalvataggio";
 import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
@@ -528,6 +529,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   // Il controllo del computo (17/11/2026): gli errori che diventerebbero ordini sbagliati.
   const incongruenze = useMemo(() => controllaComputo(vociComputo.map((v) => voceDaCommessa(v as never))), [vociComputo]);
   const daVerificare = incongruenze.filter((x) => x.gravita === "verifica");
+  // Noli, ore e prestazioni: non materiali, ma da contrattare (17/11/2026).
+  const servizi = useMemo(() => serviziDelComputo(vociComputo as never).filter((x) => x.tipo !== "trasferimento"), [vociComputo]);
+  const importoServizio = (id: string) => {
+    const v = vociComputo.find((x) => x.id === id) as { quantita?: number | null; prezzo_unitario_computo?: number | null } | undefined;
+    return v?.quantita && v.prezzo_unitario_computo ? Math.round(v.quantita * v.prezzo_unitario_computo * 100) / 100 : null;
+  };
   // Le voci senza scomposizione hanno il loro elenco: negli avvisi resterebbero due volte.
   const avvisiAltri = (risultato?.avvisi ?? []).filter((a) => a.tipo !== "senza_scomposizione");
   const nienteDaLeggere = !caricamento && !letti.length && !(dati.data?.conteggi.length);
@@ -686,6 +693,28 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                           <span className="block text-slate-600">{x.messaggio}</span>
                         </span>
                         {mostraPrezzi && x.importo ? <span className="shrink-0 tabular-nums text-slate-700">{x.importo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+
+              {servizi.length > 0 && (
+                <details className="group rounded-md border text-xs">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-3 py-1.5">
+                    <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-slate-500 transition-transform group-open:rotate-0" aria-hidden />
+                    <span className="font-semibold text-slate-800">Noli, servizi e ore ({servizi.length})</span>
+                    <span className="text-slate-500">Non sono materiali: si contrattano con noleggiatori, imprese e professionisti, per la durata del cantiere.</span>
+                  </summary>
+                  <ul className="max-h-56 divide-y overflow-auto border-t bg-white">
+                    {servizi.map((x) => (
+                      <li key={x.voce_id} className="flex gap-3 px-3 py-1.5">
+                        <span className="w-24 shrink-0 font-medium text-slate-700">{ETICHETTA_SERVIZIO[x.tipo]}{x.mesi ? ` · ${x.mesi.toLocaleString("it-IT")} mesi` : ""}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-slate-800" title={x.descrizione}>{x.numero ? `${x.numero} · ` : ""}{x.descrizione}</span>
+                          <span className="block text-slate-500">{x.nota}</span>
+                        </span>
+                        {mostraPrezzi && importoServizio(x.voce_id) ? <span className="shrink-0 tabular-nums text-slate-700">{importoServizio(x.voce_id)!.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span> : null}
                       </li>
                     ))}
                   </ul>

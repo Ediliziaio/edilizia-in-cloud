@@ -28,6 +28,7 @@
  */
 
 import { applicaSovrapprezziSpessore } from "./sovrapprezziSpessore";
+import { classificaServizio, ETICHETTA_SERVIZIO } from "./serviziComputo";
 
 export interface VoceComputo {
   id: string;
@@ -705,7 +706,13 @@ export function generaDistinta(input: {
       origine: "computo" as const, computo_voce_id: v.id, documento_id: null as string | null, documento: null as string | null, locale: null as string | null,
       phase_id: input.faseVoce?.(v) ?? null, fonte, nota,
     };
-    if (c.tipo === "esclusa") {
+    // Noli, ore e prestazioni (17/11/2026): fuori dai materiali, col perché e la durata. Una ricetta
+    // dell'azienda per quella voce vince sempre.
+    const servizio = classificaServizio(v);
+    if (servizio && (c.tipo === "esclusa" || c.tipo === "senza_scomposizione" || (c.tipo === "scomposta" && c.fonte !== "scomposizione" && c.fonte !== "scomposizione_codice"))) {
+      escluse.push({ voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita: v.quantita ?? null, unita_misura: v.unita_misura ?? null,
+        motivo: `${c.tipo === "esclusa" ? `${c.motivo} — ` : ""}${ETICHETTA_SERVIZIO[servizio.tipo]}: ${servizio.nota}` });
+    } else if (c.tipo === "esclusa") {
       escluse.push({ voce_id: v.id, codice, descrizione: v.descrizione_breve, quantita: v.quantita ?? null, unita_misura: v.unita_misura ?? null, motivo: c.motivo });
     } else if (c.tipo === "scomposta") {
       parti.push(...partiDaComponenti(c.scomposizione, q, base, (x) => origineComputo(x), categoriaVoce(v), c.fattore, `${v.descrizione_breve} ${v.descrizione_estesa ?? ""}`));
