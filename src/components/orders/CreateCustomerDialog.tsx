@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { User, Copy, Check, ShieldCheck, ShieldOff, FileCheck2, Building2, AlertTriangle } from "lucide-react";
+import { User, Copy, Check, ShieldCheck, ShieldOff, FileCheck2, Building2, AlertTriangle, Landmark } from "lucide-react";
 import { DocumentiClienteInput } from "@/components/clients/DocumentiClienteInput";
 import { caricaDocumentiCliente, contaFileDocumentiCliente, type FileDocumentiCliente } from "@/lib/clienti/documentiCliente";
 import { supabase } from "@/integrations/supabase/client";
+import { salvaClienteFiscale } from "@/lib/clienti/salvaClienteFiscale";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
@@ -65,6 +66,8 @@ interface CreateCustomerDialogProps {
     fiscalCode?: string;
     vatNumber?: string;
     isBusiness?: boolean;
+    /** Tipo fiscale scelto altrove (preventivo): Privato, Azienda o Pubblica Amministrazione. */
+    tipo?: "B2C" | "B2B" | "PA";
     city?: string;
     postalCode?: string;
     country?: string;
@@ -102,8 +105,10 @@ export function CreateCustomerDialog({
   const _initialFullName = initialValues?.fullName ?? [initialValues?.firstName, initialValues?.lastName].filter(Boolean).join(" ");
   const _initialSplit = splitFullName(_initialFullName ?? "");
   const [fullName, setFullName] = useState(_initialFullName ?? "");
-  const [firstName, setFirstName] = useState(initialValues?.firstName ?? _initialSplit.first);
-  const [lastName, setLastName] = useState(initialValues?.lastName ?? _initialSplit.last);
+  // Un'azienda o un ente arriva col nome intero: niente referente inventato spezzandolo.
+  const _inizialeAzienda = !!initialValues?.isBusiness || (!!initialValues?.tipo && initialValues.tipo !== "B2C");
+  const [firstName, setFirstName] = useState(initialValues?.firstName ?? (_inizialeAzienda ? "" : _initialSplit.first));
+  const [lastName, setLastName] = useState(initialValues?.lastName ?? (_inizialeAzienda ? "" : _initialSplit.last));
   const [email, setEmail] = useState(initialValues?.email ?? "");
   const [phone, setPhone] = useState(initialValues?.phone ?? "");
   const [custAddresses, setCustAddresses] = useState<CustomerAddresses>(() => {
@@ -127,7 +132,15 @@ export function CreateCustomerDialog({
   // li gestisce da sempre — chiede la ragione sociale, rende nome e cognome
   // facoltativi e ci mette dentro il referente: mancava solo chi glieli
   // passasse.
-  const [isBusiness, setIsBusiness] = useState(initialValues?.isBusiness ?? false);
+  // Privato / Azienda / Pubblica Amministrazione (17/11/2026): la PA c'era nella pagina
+  // «Nuovo cliente» ma non qui, e un ente scelto nel preventivo arrivava come «Privato»
+  // col nome spezzato in nome e cognome. Il tipo finisce nell'anagrafica fiscale.
+  const [tipoCliente, setTipoCliente] = useState<"B2C" | "B2B" | "PA">(
+    initialValues?.tipo ?? (initialValues?.isBusiness ? "B2B" : "B2C"),
+  );
+  const isBusiness = tipoCliente !== "B2C";
+  const isPa = tipoCliente === "PA";
+  const setIsBusiness = (b: boolean) => setTipoCliente(b ? "B2B" : "B2C");
   const [customerDocuments, setCustomerDocuments] = useState<FileDocumentiCliente>({});
   const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
@@ -305,6 +318,21 @@ export function CreateCustomerDialog({
         throw new Error("Risposta non valida dal server (ID cliente mancante).");
       }
 
+      // L'anagrafica fiscale col tipo giusto (come la pagina «Nuovo cliente»): per un ente
+      // pubblico è quella che decide la fattura PA. Se non riesce il cliente resta creato.
+      if (isBusiness) {
+        try {
+          await salvaClienteFiscale({
+            clienteId: newCustomerId,
+            form: { tipo: isPa ? "PA" : "B2B", ragioneSociale: fullName.trim(), codiceFiscale: fiscalCode.trim() || undefined, partitaIva: vatNumber.trim() || undefined, email: email.trim() || undefined },
+            conUfficio: isPa,
+            aggiornaProfilo: true,
+          });
+        } catch (fiscErr) {
+          toast.warning("Cliente creato, dati per la fattura da completare", { description: fiscErr instanceof Error ? fiscErr.message : String(fiscErr) });
+        }
+      }
+
       // 🛠️ Cache invalidation v2 (2026-05-10): bug fix "cliente appena creato non visibile"
       //
       // Prima invalidavamo solo `["customers"]` e `customersList.all`, ma il
@@ -438,21 +466,29 @@ export function CreateCustomerDialog({
 
             <form onSubmit={handleSubmit} className="space-y-6 px-6 py-5">
               <section className="space-y-4">
-              <div role="radiogroup" aria-label="Tipo di cliente" className="grid grid-cols-2 gap-2">
+              <div role="radiogroup" aria-label="Tipo di cliente" className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {([
-                  { valore: false, Icona: User, titolo: "Privato", nota: "Persona fisica: nome e cognome" },
-                  { valore: true, Icona: Building2, titolo: "Azienda", nota: "Ditta, società, condominio, ente" },
+                  { valore: "B2C", Icona: User, titolo: "Privato", nota: "Persona fisica: nome e cognome" },
+                  { valore: "B2B", Icona: Building2, titolo: "Azienda", nota: "Ditta, società, condominio" },
+                  { valore: "PA", Icona: Landmark, titolo: "Pubblica Amministrazione", nota: "Comune, ente, scuola, ASL" },
                 ] as const).map(({ valore, Icona, titolo, nota }) => (
                   <button
                     key={titolo}
                     type="button"
                     role="radio"
-                    aria-checked={isBusiness === valore}
-                    id={valore ? "dialog-isBusiness" : undefined}
-                    onClick={() => setIsBusiness(valore)}
-                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${isBusiness === valore ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50"}`}
+                    aria-checked={tipoCliente === valore}
+                    id={valore === "B2B" ? "dialog-isBusiness" : undefined}
+                    onClick={() => {
+                      // Passando a Azienda o Ente, nome e cognome spezzati dal nome intero non sono un referente.
+                      if (valore !== "B2C" && tipoCliente === "B2C") {
+                        const auto = splitFullName(fullName);
+                        if (firstName === auto.first && lastName === auto.last) { setFirstName(""); setLastName(""); }
+                      }
+                      setTipoCliente(valore);
+                    }}
+                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${tipoCliente === valore ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted/50"}`}
                   >
-                    <Icona className={`mt-0.5 h-5 w-5 shrink-0 ${isBusiness === valore ? "text-primary" : "text-muted-foreground"}`} />
+                    <Icona className={`mt-0.5 h-5 w-5 shrink-0 ${tipoCliente === valore ? "text-primary" : "text-muted-foreground"}`} />
                     <span className="min-w-0">
                       <span className="block text-sm font-medium">{titolo}</span>
                       <span className="block text-xs text-muted-foreground">{nota}</span>
@@ -462,7 +498,7 @@ export function CreateCustomerDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="dialog-fullName">
-                  {isBusiness ? "Ragione sociale" : "Nome completo"}
+                  {isPa ? "Denominazione dell'ente" : isBusiness ? "Ragione sociale" : "Nome completo"}
                 </Label>
                 <Input
                   id="dialog-fullName"
@@ -470,11 +506,13 @@ export function CreateCustomerDialog({
                   onChange={(e) => {
                     const v = e.target.value;
                     setFullName(v);
+                    // Per un'azienda o un ente il nome non è «nome e cognome» del referente.
+                    if (isBusiness) return;
                     const s = splitFullName(v);
                     setFirstName(s.first);
                     setLastName(s.last);
                   }}
-                  placeholder={isBusiness ? "Es. Edilizia Rossi S.r.l." : "Es. Mario Rossi"}
+                  placeholder={isPa ? "Es. Comune di Bologna" : isBusiness ? "Es. Edilizia Rossi S.r.l." : "Es. Mario Rossi"}
                   autoComplete={isBusiness ? "organization" : "name"}
                 />
                 <p className="text-xs text-muted-foreground">

@@ -17,6 +17,7 @@ import ComputoEconomia from "./ComputoEconomia";
 import ComputoDocumento from "./ComputoDocumento";
 import ComputoRevisioni from "./ComputoRevisioni";
 import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
+const FirmatoSuCartaDialog = lazy(() => import("@/components/marketing/preventivi/FirmatoSuCarta").then(m => ({ default: m.FirmatoSuCartaDialog })));
 import { calcolaDetrazione } from "@/lib/computo/detrazioneComputo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
 import { analizzaEconomia, eventoPerCommessa, testoQuando, testoTermine } from "@/lib/computo/economiaComputo";
@@ -261,6 +262,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     return createPdfPreviewUrl(blob);
   }, [bozza, bozzaPdf, senzaPrezzi, storageKey, intestazione]);
   /** Dal preventivo alla commessa: righe e rate sul preventivo, poi la commessa nuova precompilata (`commessaDaComputo`). */
+  const [daFirmare, setDaFirmare] = useState<{ id: string; company_id: string; client_name: string | null; quote_number: string | null } | null>(null);
   const creaCommessa = async () => {
     if (!firmaOnline?.userId || !firmaOnline.onApriCommessa) return;
     // Le rate del preventivo diventano le scadenze della commessa: un piano che non quadra non ci può andare.
@@ -271,7 +273,13 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       subtotal: fiscaleDocumento.imponibile ?? 0, vatAmount: fiscaleDocumento.iva ?? 0, total: fiscaleDocumento.totale ?? fiscaleDocumento.imponibile ?? 0, aliquotaIva: aliquota,
       rate: rateCommessa, validityDays: modello?.giorniValidita ?? 30,
       conCosti: vediMargini, generaPdf: generaPdfDefinitivo });
-    firmaOnline.onApriCommessa(quoteId);
+    // La commessa nasce dal preventivo firmato (il firmato è il contratto): se non lo è ancora,
+    // prima la firma su carta, poi la commessa. Senza, il modulo della commessa rifiutava il salvataggio (17/11/2026).
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data: q, error } = await supabase.from("quotes").select("id, company_id, status, signed_at, client_name, quote_number").eq("id", quoteId).maybeSingle();
+    if (error || !q) throw new Error("Non riesco a leggere il preventivo: riprova.");
+    if (q.signed_at || ["accettata", "convertita"].includes(String(q.status))) { firmaOnline.onApriCommessa(quoteId); return; }
+    setDaFirmare({ id: q.id, company_id: q.company_id, client_name: q.client_name, quote_number: q.quote_number });
   };
   /** I costi delle voci senza costo dal listino aziendale, col codice della voce (31/10/2026). */
   const costiDalListino = async (): Promise<number> => {
@@ -561,6 +569,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           disabledReason="Completa il preventivo (voci, IVA, sconto e rate) prima di mandarlo in firma."
           generaPdfBlob={generaPdfDefinitivo} />}
         creaCommessa={firmaOnline?.userId && firmaOnline.onApriCommessa ? creaCommessa : undefined} />}
+      {daFirmare && <Suspense fallback={null}><FirmatoSuCartaDialog open onOpenChange={(o) => { if (!o) setDaFirmare(null); }} quote={daFirmare}
+        onFirmato={() => { const id = daFirmare.id; setDaFirmare(null); firmaOnline?.onApriCommessa?.(id); }} /></Suspense>}
     </fieldset>
     <nav aria-label="Navigazione fasi" className="flex items-center justify-between border-t pt-4">
       <Button variant="outline" disabled={step === 0 || caricando || esportando} onClick={() => cambiaFase(step - 1)}><ArrowLeft className="mr-1 h-4 w-4" />Indietro</Button>

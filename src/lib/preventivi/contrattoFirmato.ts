@@ -10,9 +10,10 @@ export type FirmaModo = "digitale" | "online" | "carta" | "importato";
 
 export interface ContrattoFirmato { bucket: string; path: string; name: string; mime?: string | null }
 
-/** Si firma su carta solo un preventivo non ancora contratto, del preventivatore classico. */
+/** Si firma su carta solo un preventivo non ancora contratto, del preventivatore classico o con computo. */
 export function puoFirmareSuCarta(status: string | null | undefined, source: string | null | undefined): boolean {
-  if ((source ?? "").startsWith("modulo:")) return false;
+  // Il preventivo con computo è una riga vera di quotes, con le sue righe: si firma come il classico (17/11/2026).
+  if ((source ?? "").startsWith("modulo:") && !(source ?? "").startsWith("modulo:computo:")) return false;
   return ["bozza", "inviata", "scaduta"].includes(status ?? "");
 }
 

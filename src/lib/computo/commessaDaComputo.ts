@@ -171,6 +171,8 @@ export async function preparaCommessaDaComputo(d: DatiCommessaComputo): Promise<
     // I dati fiscali del cliente passano alla commessa e poi alla fattura (30/10/2026).
     const cf = d.bozza.clienteCodiceFiscale?.replace(/\s+/g, "").toUpperCase(), piva = d.bozza.clientePartitaIva?.replace(/\s+/g, "").toUpperCase().replace(/^IT/, "");
     if (cf) patch.client_fiscal_code = cf;
+    // Il tipo del cliente arriva alla commessa: un ente pubblico non diventa un «Privato» (17/11/2026).
+    if (d.bozza.clienteTipo) patch.client_tipo = d.bozza.clienteTipo;
     if (d.bozza.clienteTipo === "azienda" || d.bozza.clienteTipo === "pa") {
       if (piva) patch.client_vat_number = piva;
       if (d.bozza.committente.trim()) patch.client_company = d.bozza.committente.trim();

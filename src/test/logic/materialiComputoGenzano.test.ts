@@ -49,7 +49,7 @@ describe("materiali dal computo di Genzano", () => {
     expect(righe(/^Blocco in laterizio|^Malta per muratura/)).toHaveLength(0); // dal controtelaio
     expect(righe(/^Rasante/)).toHaveLength(0);           // dal manto in coppi
     // La controsoglia in travertino non porta pannelli da cappotto.
-    expect(r.righe.some((m) => /cappotto/i.test(m.descrizione) && m.origini.some((p) => /travertino/i.test(p.descrizione ?? "")))).toBe(false);
+    expect(r.righe.some((m) => /cappotto/i.test(m.descrizione) && m.origini.some((p) => p.tipo === "computo" && /travertino/i.test(p.descrizione)))).toBe(false);
   });
 
   it("i cinque tipi di serramento restano distinti", () => {

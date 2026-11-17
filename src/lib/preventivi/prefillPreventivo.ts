@@ -53,6 +53,8 @@ export interface QuotePrefillClient {
   fiscalCode: string;
   vatNumber: string;
   contactId: string | null;
+  /** «privato», «azienda» o «pa», come scelto nel preventivo (17/11/2026); vuoto se non detto. */
+  tipo: "privato" | "azienda" | "pa" | null;
 }
 
 export interface QuotePrefill {
@@ -150,6 +152,7 @@ export function prefillDaPreventivo(quote: Record<string, unknown>, rows: Array<
       fiscalCode: quoteTyped.client_fiscal_code ?? "",
       vatNumber: quoteTyped.client_vat_number ?? "",
       contactId: quoteTyped.contact_id ?? null,
+      tipo: (["privato", "azienda", "pa"] as const).find((t) => t === (quoteTyped as { client_tipo?: string | null }).client_tipo) ?? null,
     },
   };
 }

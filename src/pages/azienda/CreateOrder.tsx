@@ -162,7 +162,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       email: c.email || undefined,
       phone: c.phone || undefined,
       address: c.address || undefined,
-      fiscalCode: c.fiscalCode || c.vatNumber || undefined,
+      fiscalCode: c.fiscalCode || undefined,
+      vatNumber: c.vatNumber || undefined,
+      tipo: c.tipo === "pa" ? "PA" as const : c.tipo === "azienda" || (!c.tipo && !!c.company.trim()) ? "B2B" as const : c.tipo === "privato" ? "B2C" as const : undefined,
     };
   })();
 

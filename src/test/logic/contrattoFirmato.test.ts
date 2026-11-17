@@ -10,6 +10,7 @@ describe("preventivo firmato su carta", () => {
     expect(puoFirmareSuCarta("convertita", null)).toBe(false);
     expect(puoFirmareSuCarta("rifiutata", null)).toBe(false);
     expect(puoFirmareSuCarta("inviata", "modulo:bagni:123")).toBe(false);
+    expect(puoFirmareSuCarta("inviata", "modulo:computo:123")).toBe(true);
   });
 
   it("la scansione va nella cartella dei contratti del preventivo, col nome pulito", () => {
