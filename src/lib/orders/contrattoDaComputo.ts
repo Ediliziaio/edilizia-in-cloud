@@ -22,10 +22,14 @@ export function eVoceNonLavoro(v: Pick<ComputoVoceStrutturata, "descrizione" | "
   return eNonLavoro([v.super_categoria?.nome, v.categoria?.nome, v.sotto_categoria?.nome], v.descrizione);
 }
 
-/** Il capitolo che diventa la fase: la categoria, poi la sotto-categoria, poi la super-categoria. */
+/**
+ * Il capitolo che diventa la fase: il livello più fine che il computo dà (sotto-categoria, poi categoria, poi
+ * super-categoria). È lo stesso che il computo salvato nella commessa chiama «categoria» (importaComputo:
+ * capitolo = categoria PriMus, categoria = sotto-categoria) e da cui `commessa_lavorazioni_dal_computo` fa le
+ * fasi: proposte e lavorazioni devono avere lo stesso nome, o la stessa fase nasce due volte (17/11/2026).
+ */
 function capitoloFase(v: ComputoVoceStrutturata): string | null {
-  // La sezione («LAVORI A MISURA») non è un capitolo: senza categorie la fase resta da scegliere.
-  return v.categoria?.nome?.trim() || v.sotto_categoria?.nome?.trim() || v.super_categoria?.nome?.trim() || null;
+  return v.sotto_categoria?.nome?.trim() || v.categoria?.nome?.trim() || v.super_categoria?.nome?.trim() || null;
 }
 
 const SUPER_FORMATO: Record<ComputoStrutturato["formato"], string> = { primus_pdf: "PDF di PriMus", xpwe: "file XPWE", excel: "foglio Excel" };
@@ -79,6 +83,7 @@ export function contrattoDaComputo(c: ComputoStrutturato): ContractExtract {
   avvisi.push(...c.avvisi.slice(0, 5));
 
   return parseContractExtract({
+    origine_lettura: "computo",
     cliente: { nome_completo: c.metadata.committente ?? "" },
     descrizione_lavori: c.metadata.oggetto_lavori ?? "",
     importo_totale_eur: totaleLavori || null,

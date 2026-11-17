@@ -118,6 +118,11 @@ export interface ContractExtract {
   posizioni_allegato?: ContractExtractPosizione[];
   /** La firma del cliente: c'è, chi, quando (17/11/2026). */
   firma?: ContractExtractFirma | null;
+  /**
+   * «computo» se il documento è un computo letto senza AI (PDF di PriMus, XPWE, Excel), 17/11/2026: alla creazione
+   * della commessa diventa il suo computo, con fasi, lavorazioni e importi, e i materiali si generano da lì.
+   */
+  origine_lettura?: "computo" | null;
   summary: string;
   confidence: number;
   warnings: string[];
@@ -290,6 +295,7 @@ export function parseContractExtract(raw: unknown): ContractExtract {
           : naturaVoce(toStr(v.descrizione), { capitolo: toStr(v.capitolo), detrazione: (toNum(v.prezzo_unitario_eur) ?? 0) < 0 }),
       }))
       .filter((v) => v.descrizione),
+    origine_lettura: r.origine_lettura === "computo" ? "computo" : null,
     sconto_globale_pct: toNum(r.sconto_globale_pct),
     altri_costi: (Array.isArray(r.altri_costi) ? r.altri_costi : [])
       .filter((a): a is Record<string, unknown> => !!a && typeof a === "object")

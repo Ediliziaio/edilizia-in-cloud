@@ -196,10 +196,18 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
                 const daComprare = vociDaComprare(extract.voci).length;
                 const altre = extract.voci.length - daComprare;
                 return (
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{daComprare} da comprare</span> (materiali, con o senza posa)
-                    {altre > 0 && <> · {altre} lavori, servizi, oneri o sconti: restano nelle fasi, non diventano articoli</>}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{daComprare} con materiale</span> (con o senza posa)
+                      {altre > 0 && <> · {altre} lavori, servizi, oneri o sconti: restano nelle fasi, non diventano articoli</>}
+                    </p>
+                    {extract.origine_lettura === "computo" && (
+                      <p className="rounded-md bg-sky-50 px-2 py-1.5 text-xs text-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                        È un computo: alla creazione diventa il computo della commessa, con fasi, lavorazioni e importi. I materiali
+                        da ordinare si calcolano poi da lì (Materiali › «Genera dal computo»), senza ricaricarlo.
+                      </p>
+                    )}
+                  </div>
                 );
               })()}
               {extract.voci.length > 0 && (

@@ -31,10 +31,13 @@ describe("computo caricato in «Carica contratto»: letto senza AI (17/11/2026)"
     expect(e.importo_totale_eur).toBeCloseTo(1948331.82, 2);
     expect(e.dati_appalto?.oneri_sicurezza_eur).toBeCloseTo(153873.55, 2);
     expect(e.cliente.nome_completo).toMatch(/Casa di Riposo/);
+    // Fasi al livello più fine di PriMus, come le chiama il computo salvato nella commessa (13 fasi).
     const fasi = (e.fasi_lavoro ?? []).map((f) => f.nome.toLowerCase());
-    expect(fasi).toContain("oneri della sicurezza");
-    expect(fasi.some((f) => f.startsWith("isolamento termico"))).toBe(true);
-    expect(fasi.some((f) => f.startsWith("impianto termico"))).toBe(true);
+    expect(fasi).toHaveLength(13);
+    expect(fasi).toContain("opere provvisionali per la sicurezza");
+    expect(fasi).toContain("isolamento termico di strutture opache verticali");
+    expect(fasi).toContain("centrale termica");
+    expect(fasi).toContain("ventilazione meccanica controllata (vmc)");
     expect(fasi.some((f) => /oneri tecnici|iva|visto/.test(f))).toBe(false);
     expect(fasi).not.toContain("eco");
     expect(e.warnings.join(" ")).toMatch(/Esclusi 44 importi/);
@@ -69,3 +72,23 @@ describe("computo caricato in «Carica contratto»: letto senza AI (17/11/2026)"
     }
   });
 });
+
+describe("fasi proposte = fasi create dal computo salvato", () => {
+  it("la finestra propone le fasi con gli stessi nomi con cui il database le crea: nessuna fase doppia", async () => {
+    const { daComputoStrutturato } = await import("@/lib/computo/importaVoci");
+    const { rigaDaVoce } = await import("@/lib/computo/computoDaVoci");
+    const computo = leggiComputoPrimus(pagineDalFixture());
+    const proposte = new Set((contrattoDaComputo(computo).fasi_lavoro ?? []).map((f) => f.nome.toLowerCase()));
+    // Come commessa_lavorazioni_dal_computo: coalesce(categoria, super_categoria, capitolo), senza onorari e IVA.
+    const { voci } = daComputoStrutturato(computo, "computo.pdf");
+    const create = new Set(voci.map((v, i) => rigaDaVoce(v, i).voce)
+      .filter((r) => !eNonLavoroRiga(r))
+      .map((r) => (r.categoria?.trim() || r.super_categoria?.trim() || "").toLowerCase()));
+    expect([...create].sort()).toEqual([...proposte].sort());
+  });
+});
+
+function eNonLavoroRiga(r: { super_categoria?: string | null; categoria?: string | null; sotto_categoria?: string | null; descrizione_breve?: string | null }) {
+  return /oneri tecnici|\biva\b|visto di conformit|asseveraz|inarcassa|\bcassa\b|progettazion|spese tecniche/i
+    .test([r.super_categoria, r.categoria, r.sotto_categoria].filter(Boolean).join(" | "));
+}
