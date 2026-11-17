@@ -106,7 +106,7 @@ import { indirizzoCantiereDaTesto, testoIndirizzoCantiere, indirizzoCantiereDaBo
 import { Skeleton } from "@/components/ui/skeleton";
 import { useComeSiPagaDiPartenza } from "@/hooks/useComeSiPagaDiPartenza";
 import { rateDaModello, ricalcolaRatePercentuali, type ModelloPagamento } from "@/lib/orders/modelliPagamento";
-import { conSaldoFinale, importoSaldoFinale, sommaRateNonSaldo } from "@/lib/orders/saldoFinale";
+import { conSaldoFinale, importoSaldoFinale, senzaRateVuote, sommaRateNonSaldo } from "@/lib/orders/saldoFinale";
 import { datiLavoroDaEmessa, riconciliaEmessa } from "@/lib/fatturazione/collegamentiImportate";
 import { isNotaCredito } from "@/lib/fatturazione/registroVendite";
 
@@ -1114,7 +1114,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // Compute legacy columns from installments for backward compat
       // Solo il saldo finale prende il residuo (se il contratto non ne dichiara già l'importo):
       // i SAL intermedi restano col loro importo.
-      const installmentsForSave = conSaldoFinale(installments, balance, i => !!i.amount_from_contract);
+      const installmentsForSave = conSaldoFinale(senzaRateVuote(installments), balance, i => !!i.amount_from_contract);
       const rateContrattoIncomplete = contrattoImportato ? contractInstallmentWarning(installmentsForSave, totalWithVat) : null;
       if (rateContrattoIncomplete) throw new Error(rateContrattoIncomplete);
       const legacy = installmentsToLegacyColumns(installmentsForSave);
@@ -1206,8 +1206,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // La scelta si perdeva in silenzio, e ricompariva solo se qualcuno
       // riapriva la commessa e la risalvava. `create_order_atomic` questi campi
       // li legge da sempre.
-      const installmentsPayload = installmentsForSave.map(i => ({
-        position: i.position,
+      const installmentsPayload = installmentsForSave.map((i, idx) => ({
+        // Tolte le rate vuote, le posizioni restano in fila (0, 1, 2…).
+        position: idx,
         label: i.label,
         type: i.type,
         amount: i.amount,

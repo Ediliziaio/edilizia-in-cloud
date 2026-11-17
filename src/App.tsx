@@ -587,7 +587,9 @@ const App = () => (
     <TooltipProvider>
      <ConfirmProvider>
       {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}
-      <Sonner mobileOffset={{ bottom: 88 }} />
+      {/* Anche sul computer gli avvisi stanno sopra le barre fisse in basso a destra (Crea commessa,
+          Salva…): un errore non deve coprire il pulsante che serve a correggerlo (17/11/2026). */}
+      <Sonner mobileOffset={{ bottom: 88 }} offset={{ bottom: 88 }} />
       <RilascioFileGlobale />
       <BrowserRouter>
         <BootGuardDismiss />

@@ -193,3 +193,18 @@ describe("variante approvata dopo il saldo pagato", () => {
     expect(r.find(x => x.id === "f")?.amount).toBe(4700);
   });
 });
+
+describe("le rate vuote non si salvano", () => {
+  it("toglie l'acconto da zero e tiene il saldo, le pagate e quelle a misura", async () => {
+    const { senzaRateVuote } = await import("@/lib/orders/saldoFinale");
+    const rate = [
+      { label: "Acconto 1", amount: 0 },
+      { label: "SAL a misura", amount: 0, importo_da_misurare: true },
+      { label: "Già pagata", amount: 0, is_paid: true },
+      { label: "SAL 1", amount: 100 },
+      { label: "Saldo", amount: 0 },
+    ];
+    expect(senzaRateVuote(rate).map((r) => r.label)).toEqual(["SAL a misura", "Già pagata", "SAL 1", "Saldo"]);
+    expect(senzaRateVuote([{ label: "Saldo", amount: 0 }])).toHaveLength(1);
+  });
+});

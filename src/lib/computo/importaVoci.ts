@@ -57,6 +57,18 @@ export interface VoceImportata extends VoceEditor {
   origine: string;
 }
 
+/**
+ * Le voci del quadro economico che non sono lavori (17/11/2026): oneri tecnici, cassa dei
+ * professionisti, visto di conformità, IVA. Un computo PriMus da bonus le porta in fondo come
+ * capitoli: prese per lavorazioni gonfiavano il contratto (2.642.936 € invece di 1.948.331 €)
+ * e mettevano l'IVA dentro l'imponibile. All'import partono spente; si possono riaccendere.
+ * Gli «Oneri della sicurezza» sono lavori e restano.
+ */
+const NON_LAVORI = /^(?:oneri tecnici|spese tecniche|inarcassa|cassa\b|i\.?v\.?a\.?\b|visto di conformit|asseverazion|parcell|competenze tecniche|onorari)/i;
+export function eNonLavoro(v: Pick<VoceEditor, "capitolo">): boolean {
+  return NON_LAVORI.test(v.capitolo.trim());
+}
+
 /** Fasi della lettura, sempre nello stesso ordine: quelle che si vedono nel popup. */
 export const FASI = ["apro", "leggo", "riconosco", "pronte"] as const;
 export type Fase = typeof FASI[number];

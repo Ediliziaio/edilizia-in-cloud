@@ -8,7 +8,7 @@ import { formatEuro } from "@/lib/computo/computoStrutturato";
 import { calcolaVoce, type VoceEditor } from "@/lib/computo/editorNativo";
 import type { EsitoImportComputo } from "@/lib/computo/importaComputo";
 import {
-  ACCEPT_IMPORTA_VOCI, ETICHETTA_FASE, FASI, correggi, instrada, totaleVoci, type VoceImportata,
+  ACCEPT_IMPORTA_VOCI, ETICHETTA_FASE, FASI, correggi, eNonLavoro, instrada, totaleVoci, type VoceImportata,
 } from "@/lib/computo/importaVoci";
 import { leggiVociDaFile, type Avanzamento, type EsitoFile } from "@/lib/computo/leggiVoci";
 import type { StatoServer } from "@/lib/computo/estrazioneServer";
@@ -215,6 +215,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
     }
     if (controllo.signal.aborted) return;
     setVoci(lette);
+    setEscluse(new Set(lette.filter(eNonLavoro).map(v => v.id)));
     if (lette.length) {
       // Un attimo per vedere «Pronte N voci» prima dell'elenco.
       await new Promise(r => setTimeout(r, 600));
@@ -226,6 +227,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   const visibili = useMemo(() => (soloIncerte ? voci.filter(v => v.avvisi.length) : voci), [voci, soloIncerte]);
   const mostrate = tutte ? visibili : visibili.slice(0, RIGHE_VISIBILI);
   const selezionate = useMemo(() => voci.filter(v => !escluse.has(v.id)), [voci, escluse]);
+  const nonLavori = useMemo(() => voci.filter(eNonLavoro).length, [voci]);
   const totale = useMemo(() => totaleVoci(selezionate), [selezionate]);
   /** I capitoli nell'ordine del file, con le voci mostrate di ciascuno. */
   const gruppi = useMemo(() => {
@@ -262,7 +264,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
   };
 
   const caricaDaFonte = (lette: VoceImportata[], f: FonteVoci) => {
-    setLavori([]); setVoci(lette); setEscluse(new Set()); setFonte(f); setPasso("anteprima");
+    setLavori([]); setVoci(lette); setEscluse(new Set(lette.filter(eNonLavoro).map(v => v.id))); setFonte(f); setPasso("anteprima");
   };
 
   const inLettura = lavori.some(l => l.stato === "lettura" || l.stato === "attesa");
@@ -346,6 +348,7 @@ export function ImportaVociDialog({ open, onOpenChange, onAggiungi, vociPresenti
               onChange={e => seleziona(voci.map(v => v.id), e.target.checked)} />
             <span className="tabular-nums" data-testid="contatore-selezione"><strong>{selezionate.length}</strong> selezionate su {voci.length}</span>
           </label>
+          {nonLavori > 0 && <span className="text-xs text-muted-foreground">Spente {nonLavori} voci di oneri tecnici, IVA e visto: non sono lavori. Riaccendile se servono.</span>}
           {!!incerte && <Button size="sm" variant={soloIncerte ? "default" : "outline"} aria-pressed={soloIncerte} onClick={() => setSoloIncerte(s => !s)}>
             <AlertTriangle className="mr-1 h-3.5 w-3.5" />Da controllare ({incerte})
           </Button>}

@@ -65,6 +65,17 @@ export function conSaldoFinale<T extends RataMinima>(
   return rate.map((r, i) => (i === finale && !rispetta?.(r) ? { ...r, amount: saldo } : r));
 }
 
+/**
+ * Le rate vuote non si salvano (17/11/2026): una commessa da un preventivo senza piano partiva
+ * con «Acconto 1 · 0,00 €» più il saldo, e lo scadenzario mostrava una rata da incassare di zero.
+ * Si tolgono le rate non pagate, non finali, con importo zero, che non aspettano una misura.
+ */
+export function senzaRateVuote<T extends { amount: number | null | undefined; is_paid?: boolean | null; importo_da_misurare?: boolean | null }>(rate: ReadonlyArray<T>): T[] {
+  if (rate.length < 2) return [...rate];
+  const ultima = rate.length - 1;
+  return rate.filter((r, i) => i === ultima || !!r.is_paid || !!r.importo_da_misurare || Math.abs(Number(r.amount) || 0) >= 0.005);
+}
+
 /** I dati della commessa che servono a calcolare il saldo finale. */
 export interface CommessaPerRate {
   total_amount: number | string | null;
