@@ -17,7 +17,8 @@ export function useCostoPrevistoCommessa(orderId: string, abilitato: boolean) {
     [phases, materials, allAssignments, voci.data],
   );
   const lavorazioniSenzaPrevisto = useMemo(
-    () => [...economia.perFase.values()].filter((f) => f.costoPrevisto <= 0).length,
+    // Anche quelle col previsto parziale: voci senza costo e lavoro non assegnato (17/11/2026).
+    () => [...economia.perFase.values()].filter((f) => f.costoPrevisto <= 0 || f.costoIncompleto).length,
     [economia],
   );
   // Per macro-voce (materiali, persone, ditte): il conto economico della commessa le confronta col consuntivo.

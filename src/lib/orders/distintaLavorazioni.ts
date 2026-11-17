@@ -21,6 +21,9 @@ export interface EconomiaDistinta {
   venduto: number;
   costoPrevisto: number;
   costoConsuntivo: number;
+  /** Previsto parziale: voci senza costo e lavoro non assegnato (vedi economiaFasi). */
+  costoIncompleto?: boolean;
+  vociSenzaCosto?: number;
 }
 
 export interface VoceDistinta {

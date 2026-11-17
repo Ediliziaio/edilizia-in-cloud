@@ -105,6 +105,9 @@ export function OrderFinancialOverview(props: Props) {
       : numeri.previsto.lavorazioniSenzaPrevisto > 0
         ? `Parziale: ${numeri.previsto.lavorazioniSenzaPrevisto} di ${previsto.lavorazioni} lavorazioni senza costo previsto`
         : "Dalle lavorazioni e dalle provvigioni";
+  // Tutte le lavorazioni senza un costo completo: il margine sarebbe il contratto meno quasi niente
+  // (99,7% su una commessa dal computo senza listino, 17/11/2026). Si mostra il costo, non il margine.
+  const margineIgnoto = !!numeri.previsto && previsto.lavorazioni > 0 && numeri.previsto.lavorazioniSenzaPrevisto >= previsto.lavorazioni;
   const toneMargine = (m: number, parziale: boolean) => (m < 0 ? "text-red-200" : parziale ? "text-amber-200" : "text-emerald-200");
 
   // Sul telefono i numeri di una riga stanno affiancati, sotto il nome della riga.
@@ -144,10 +147,10 @@ export function OrderFinancialOverview(props: Props) {
             <Cella label="Costo previsto" value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.costo) : "—"} hint={previstoHint} onClick={props.onOpenEconomics} />
             <Cella
               label="Margine previsto"
-              value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.margine) : "—"}
-              aside={previstoReady && numeri.previsto ? pctTesto(numeri.previsto.marginePct) : undefined}
-              hint={previstoReady && numeri.previsto ? "Se i costi restano quelli previsti" : previstoHint}
-              tone={previstoReady && numeri.previsto ? toneMargine(numeri.previsto.margine, numeri.previsto.lavorazioniSenzaPrevisto > 0) : "text-white"}
+              value={previstoReady && numeri.previsto && !margineIgnoto ? formatCurrency(numeri.previsto.margine) : "—"}
+              aside={previstoReady && numeri.previsto && !margineIgnoto ? pctTesto(numeri.previsto.marginePct) : undefined}
+              hint={previstoReady && numeri.previsto && !margineIgnoto ? "Se i costi restano quelli previsti" : margineIgnoto ? "Nessuna lavorazione ha il costo completo" : previstoHint}
+              tone={previstoReady && numeri.previsto && !margineIgnoto ? toneMargine(numeri.previsto.margine, numeri.previsto.lavorazioniSenzaPrevisto > 0) : "text-white"}
               onClick={props.onOpenEconomics}
             />
           </>}

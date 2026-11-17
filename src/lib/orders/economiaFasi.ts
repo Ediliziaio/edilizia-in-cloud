@@ -107,7 +107,14 @@ export interface EconomiaFase {
   vociPreviste: number;
   /** Consuntivo meno previsto: sopra zero il costo ha sforato. */
   scostamento: number;
-  /** Margine % sul venduto; null senza venduto. */
+  /**
+   * Voci previste senza costo (né lavoro né materiali) in una fase il cui lavoro non è previsto
+   * da assegnazioni: il costo previsto è parziale (17/11/2026). Una commessa dal computo senza
+   * listino aveva 5.251 € di materiali prezzati su 1,9 milioni e mostrava «Margine previsto 100%».
+   */
+  vociSenzaCosto: number;
+  costoIncompleto: boolean;
+  /** Margine % sul venduto; null senza venduto o con il costo previsto incompleto. */
   marginePrevistoPct: number | null;
   margineConsuntivoPct: number | null;
   /** Righe del contratto collegate alla fase, con o senza prezzo di vendita. */
@@ -141,7 +148,8 @@ interface Somme {
   fonte: FontePrevisto;
   /** La fase ha almeno una ditta: il lavoro del preventivo va alle ditte. */
   haDitta: boolean;
-  voci: { n: number; lavoro: number; materiali: number };
+  voci: { n: number; lavoro: number; materiali: number; senzaCosto: number };
+  incompleto?: boolean;
 }
 
 const vuote = (importo: number | null = null): Somme => ({
@@ -153,7 +161,7 @@ const vuote = (importo: number | null = null): Somme => ({
   righe: 0,
   fonte: { lavoro: null, materiali: null },
   haDitta: false,
-  voci: { n: 0, lavoro: 0, materiali: 0 },
+  voci: { n: 0, lavoro: 0, materiali: 0, senzaCosto: 0 },
 });
 
 /** Unisce le fonti delle fasi nel totale. */
@@ -255,8 +263,10 @@ function chiudi(s: Somme, { venduto: lordo, fonte }: { venduto: number; fonte: F
     consuntivo,
     fontePrevisto: { ...s.fonte },
     vociPreviste: s.voci.n,
+    vociSenzaCosto: s.voci.senzaCosto,
+    costoIncompleto: !!s.incompleto,
     scostamento: centesimi(costoConsuntivo - costoPrevisto),
-    marginePrevistoPct: margine(costoPrevisto),
+    marginePrevistoPct: s.incompleto ? null : margine(costoPrevisto),
     margineConsuntivoPct: margine(costoConsuntivo),
     righe: s.righe,
   };
@@ -348,8 +358,11 @@ export function economiaFasi(input: {
     s.voci.n += 1;
     s.voci.lavoro += q * Math.max(0, numero(v.costo_manodopera));
     s.voci.materiali += q * Math.max(0, numero(v.costo_materiali));
+    if (!(numero(v.costo_manodopera) > 0) && !(numero(v.costo_materiali) > 0)) s.voci.senzaCosto += 1;
   }
   for (const s of [...somme.values(), fuori]) {
+    // Il lavoro non scritto nelle assegnazioni e voci senza costo: il previsto è parziale.
+    s.incompleto = s.voci.senzaCosto > 0 && !(s.previsto.manodopera + s.previsto.ditte > 0);
     if (s.previsto.manodopera + s.previsto.ditte > 0) s.fonte.lavoro = "assegnazioni";
     else if (s.voci.lavoro > 0) {
       // Senza IVA, come sul preventivo: non si divide come i costi scritti sulle ditte.
@@ -378,6 +391,8 @@ export function economiaFasi(input: {
     totale.righePrezzate += s.righePrezzate;
     totale.righe += s.righe;
     totale.voci.n += s.voci.n;
+    totale.voci.senzaCosto += s.voci.senzaCosto;
+    if (s.incompleto && vendutoDi(s).venduto > 0) totale.incompleto = true;
     totale.fonte = { lavoro: unisci(totale.fonte.lavoro, s.fonte.lavoro), materiali: unisci(totale.fonte.materiali, s.fonte.materiali) };
     for (const voce of VOCI) {
       totale.previsto[voce] += s.previsto[voce];

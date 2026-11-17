@@ -270,8 +270,9 @@ export function DistintaLavorazioni({
   // Numeri di tutta la commessa.
   const economia = useMemo(() => fasi.reduce((t, f) => {
     const e = economiaDi?.get(f.id);
-    return { venduto: t.venduto + (e?.venduto ?? 0), previsto: t.previsto + (e?.costoPrevisto ?? 0), consuntivo: t.consuntivo + (e?.costoConsuntivo ?? 0) };
-  }, { venduto: 0, previsto: 0, consuntivo: 0 }), [fasi, economiaDi]);
+    return { venduto: t.venduto + (e?.venduto ?? 0), previsto: t.previsto + (e?.costoPrevisto ?? 0), consuntivo: t.consuntivo + (e?.costoConsuntivo ?? 0),
+      senzaCosto: t.senzaCosto + (e?.costoIncompleto ? e.vociSenzaCosto ?? 0 : 0) };
+  }, { venduto: 0, previsto: 0, consuntivo: 0, senzaCosto: 0 }), [fasi, economiaDi]);
   const sommaVoci = useMemo(() => tutte.reduce((s, r) => s + (r.venduto ?? 0), 0), [tutte]);
   const vendutoFasi = economia.venduto || sommaVoci;
   // Senza un venduto sulle fasi vale il contratto: zero sarebbe un numero falso.
@@ -284,7 +285,8 @@ export function DistintaLavorazioni({
   const avanzamento = medio === null ? null : Math.round(medio);
   const andamento = useMemo(() => (avanzamento === null ? null : andamentoLavori(avanzamento, fasi, oggi)), [avanzamento, fasi, oggi]);
   const daVersare = iva ? saldoIva(Math.max(iva.debito_previsto, iva.debito_fatturato), iva.credito_fatture + iva.credito_previsto_costi + iva.credito_previsto_ditte) : null;
-  const margine = venduto > 0 && economia.previsto > 0 ? Math.round(((venduto - economia.previsto) / venduto) * 100) : null;
+  // Con voci senza costo il previsto è parziale: un margine calcolato su quello sarebbe falso.
+  const margine = venduto > 0 && economia.previsto > 0 && !economia.senzaCosto ? Math.round(((venduto - economia.previsto) / venduto) * 100) : null;
   const importo = (n: number | null | undefined) => (n ? formatCurrency(conIva ? conAliquota(n, aliquota).totale : n) : "—");
 
   const elementi = useMemo(() => {
@@ -597,7 +599,7 @@ export function DistintaLavorazioni({
         {avanzamento !== null && <Stat etichetta="Avanzamento">{avanzamento}%</Stat>}
         {vedeVenduto && <Stat etichetta="Imponibile" nota={daRipartire > 0.5 && vendutoFasi > 0 ? `${formatCurrency(daRipartire)} da ripartire` : undefined}>{formatCurrency(venduto)}</Stat>}
         {vedeVenduto && iva && <Stat etichetta={`Con IVA ${aliquota.toLocaleString("it-IT")}%`}>{formatCurrency(conIvaTot.totale)}</Stat>}
-        {vedeCosti && <Stat etichetta="Previsto">{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
+        {vedeCosti && <Stat etichetta="Previsto" nota={economia.senzaCosto ? `parziale · ${economia.senzaCosto} voci senza costo` : undefined}>{economia.previsto > 0 ? formatCurrency(economia.previsto) : "—"}</Stat>}
         {vedeCosti && <Stat etichetta="Consuntivo" nota={consuntivoSenzaFase > 0 ? (onCostiSenzaFase
           ? <button type="button" onClick={onCostiSenzaFase} className="rounded font-medium text-amber-800 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">+ {formatCurrency(consuntivoSenzaFase)} senza fase</button>
           : `+ ${formatCurrency(consuntivoSenzaFase)} senza fase`) : undefined}>{formatCurrency(economia.consuntivo)}</Stat>}

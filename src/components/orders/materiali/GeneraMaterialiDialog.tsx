@@ -180,6 +180,12 @@ async function caricaCatalogo(companyId: string, orderId: string): Promise<Catal
 
 const RISERVA = catalogoComeScomposizioni();
 
+/** «ONERI DELLA SICUREZZA» → «Oneri della sicurezza»: il nome di una fase non si grida. */
+function nomeLeggibile(nome: string): string {
+  const t = nome.trim();
+  return t && t === t.toUpperCase() && /[A-ZÀ-Ý]{3}/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase() : t;
+}
+
 export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpenChange }: { orderId: string; orderCode?: string | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const { effectiveCompany, user } = useAuth();
   const permessi = usePermissions();
@@ -201,16 +207,19 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     queryKey: ["genera-materiali", orderId, companyId],
     enabled: open && !!companyId,
     queryFn: async () => {
-      const [scomposizioni, fasi, conteggi, catalogo] = await Promise.all([
+      const [scomposizioni, fasi, conteggi, catalogo, previste] = await Promise.all([
         caricaScomposizioni(companyId),
         supabase.from("order_work_phases").select("id, name, position").eq("order_id", orderId).order("position"),
         supabase.from("planimetrie_conteggi").select("id, simbolo, descrizione_legenda, locale, quantita, documento_id, documento_nome, scomposizione_id, phase_id, unita")
           .eq("order_id", orderId).eq("confermato", true),
         caricaCatalogo(companyId, orderId).catch((): Catalogo => ({ articoli: [], listini: [], giaUsati: [], fornitori: new Map() })),
+        // Le lavorazioni previste della commessa: senza, dal computo si creano anche quelle.
+        supabase.from("order_work_phase_voci").select("id", { count: "exact", head: true }).eq("order_id", orderId),
       ]);
       if (fasi.error) throw fasi.error;
       if (conteggi.error) throw conteggi.error;
-      return { scomposizioni, fasi: fasi.data ?? [], conteggi: (conteggi.data ?? []) as ConteggioConfermato[], catalogo };
+      return { scomposizioni, fasi: fasi.data ?? [], conteggi: (conteggi.data ?? []) as ConteggioConfermato[], catalogo,
+        senzaLavorazioni: !previste.error && (previste.count ?? 0) === 0 };
     },
   });
 
@@ -364,6 +373,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     ...aliasNuovi.map((a) => `«${a.alias_text}» → ${dati.data?.catalogo.articoli.find((x) => x.id === a.article_template_id)?.name ?? "articolo"}`),
   ];
   const [ricorda, setRicorda] = useState(true);
+  const [conLavorazioni, setConLavorazioni] = useState(true);
 
   const nomeFase = (id: string | null) => {
     if (!id) return "Senza fase";
@@ -465,13 +475,35 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         description: [esito.sostituite ? `${esito.sostituite} righe generate prima sostituite` : null,
           esito.saltate ? `${esito.saltate} già in offerta o in un ordine, lasciate com'erano` : null].filter(Boolean).join(" · ") || undefined,
       });
+      // Commessa nata senza preventivo: dal computo anche le lavorazioni (fasi, sottofasi, importi), 17/11/2026.
+      if (conLavorazioni && dati.data?.senzaLavorazioni && scelto?.id) {
+        const fasiScelte: Record<string, { id?: string; nome?: string }> = {};
+        for (const c of capitoli) {
+          const m = mappa[c];
+          if (!m || m === SENZA) continue;
+          if (m.startsWith(NUOVA)) { const id = create.get(m); fasiScelte[c] = id ? { id } : { nome: nomeLeggibile(m.slice(NUOVA.length)) }; }
+          else fasiScelte[c] = { id: m };
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: lav, error: errLav } = await (supabase as any).rpc("commessa_lavorazioni_dal_computo", { p_order_id: orderId, p_computo_id: scelto.id, p_fasi: fasiScelte });
+        if (errLav) toast.warning("Materiali salvati, lavorazioni non create", { description: messaggioErrore(errLav) });
+        else {
+          const l = lav as { fasi: number; fasi_nuove: number; voci: number; voci_con_costo: number };
+          toast.success(`${l.voci} lavorazioni in ${l.fasi} fasi, con gli importi del computo`, {
+            description: l.voci_con_costo ? `${l.voci_con_costo} con il costo dal listino aziendale.` : "Nessuna voce ha un costo nel listino aziendale: il costo previsto resta da scrivere.",
+          });
+          qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
+        }
+      }
       qc.invalidateQueries({ queryKey: chiaviMateriali.commessa(orderId) });
       qc.invalidateQueries({ queryKey: ["order-work-phases"] });
       // I materiali sono salvati: le scelte da ricordare non devono più fermarli.
       if (ricorda && righeRicordi.length) {
         try {
           const n = await ricordaScelte(companyId, ricordi, aliasNuovi);
-          toast.success(`Ricordato per i prossimi computi (${n})`, { description: righeRicordi.join(" · ") });
+          toast.success(`Ricordato per i prossimi computi (${n})`, {
+            description: righeRicordi.length > 3 ? `${righeRicordi.slice(0, 2).join(" · ")} · e altre ${righeRicordi.length - 2}` : righeRicordi.join(" · "),
+          });
           qc.invalidateQueries({ queryKey: ["scomposizioni"] });
           qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
         } catch (e) {
@@ -707,6 +739,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
               {mostraPrezzi && stima.totale > 0 && <> · stima <span className="font-semibold text-slate-900">{stima.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span></>}
               {mostraPrezzi && stima.senzaPrezzo > 0 && <span className="text-slate-500"> ({stima.senzaPrezzo} senza prezzo)</span>}
             </span>
+          )}
+          {risultato && !!scelto && dati.data?.senzaLavorazioni && (
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <Checkbox checked={conLavorazioni} onCheckedChange={(v) => setConLavorazioni(!!v)} aria-label="Crea anche le lavorazioni dal computo" />
+              <span><span className="font-medium text-slate-800">Crea anche le lavorazioni</span> · fasi, voci e importi del computo</span>
+            </label>
           )}
           {righeRicordi.length > 0 && risultato && (
             <label className="flex min-w-0 max-w-md items-center gap-2 text-xs text-slate-600">
