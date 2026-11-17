@@ -69,8 +69,8 @@ cantiere (dal cronoprogramma), data entro cui ordinare. Sulle bozze d'ordine e n
 | 1 Controllo del computo | **fatto** (e7a8c0fea): 8 regole, tutte le incongruenze dell'analisi a mano sul PriMus di prova |
 | 2 Materiali più fedeli | **fatto in parte** (a4125f720): spessore dai sovrapprezzi, serramenti dall'abaco. Restano «incluso nel pacchetto» e la quantità netta per riga d'ordine |
 | 3 Noli, servizi, ore | **fatto** (a35f187d0): tipo, mesi e pezzi dalle misure; fuori dai materiali; elenco in «Genera dal computo» |
-| 4 Piano di cantiere | **da decidere** — vedi sotto |
-| 5 Acquisti nel tempo | dopo il 4 (serve la data in cui il materiale va in cantiere) |
+| 4 Piano di cantiere | **fatto** (89f643381): rese di partenza (`shared/piano-cantiere/resePartenza.ts`, ultima fonte delle ore); «Pianifica» per la commessa senza cronoprogramma (`pianoDalleLavorazioni`), con avvio e collaudi. PriMus di prova: 185 giorni lavorativi (l'analisi a mano: 11-13 mesi prudenti) |
+| 5 Acquisti nel tempo | **fatto** (20290418170000): «ordina entro» usa l'anticipo tipico del materiale (serramenti 70 giorni, macchine 50, FV 45…) quando il fornitore non lo dice; prima 7 giorni per tutto |
 
 ### Cosa c'è già per il lotto 4 (da non rifare)
 - «Calcola come finire» (`shared/piano-cantiere`): ore per voce da ore scritte → rese dell'azienda →
@@ -84,11 +84,15 @@ cantiere (dal cronoprogramma), data entro cui ordinare. Sulle bozze d'ordine e n
 2. Una commessa **senza preventivo** non ha un piano delle date: `leggiPianoDellaCommessa` guarda solo il
    cronoprogramma del preventivo.
 
-### Decisioni aperte
-- Le rese: tabella di partenza del gestionale (es. cappotto 30-45 m²/giorno con 6-8 persone), solo rese
-  dell'azienda, o prezzario per tutte le voci?
-- Il piano della commessa diretta: dal cronoprogramma calcolato del computo (stessa sequenza del
-  preventivo) e poi «Pianifica» come oggi?
+### Decisioni prese
+- Rese: tabella di partenza del gestionale, superata dalle rese dell'azienda (scelta del 17/11/2026).
+
+### Resta
+- Lotto 2: «incluso nel pacchetto» (componenti dichiarati compresi da non ordinare due volte).
+- Le rese di partenza si correggono oggi voce per voce («Calcola come finire» → salva la resa); una
+  schermata per correggere la tabella intera per l'azienda non c'è ancora.
+- Il piano stimato è più corto dell'analisi a mano (9 contro 11-13 mesi): mancano stagionalità,
+  struttura occupata e attese dei fornitori oltre la produzione dei serramenti.
 
 ## Ordine di lavoro
 Lotto 1 → Lotto 2 → Lotto 3 → Lotto 4 → Lotto 5. Ogni lotto si prova sul computo PriMus di prova
