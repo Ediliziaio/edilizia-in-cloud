@@ -43,6 +43,7 @@ function sorgente(nome: string): string {
 
 /** Leggono documenti di terzi e accodano le regole condivise al messaggio di sistema. */
 const CON_REGOLE_CONDIVISE = [
+  "ai-confronto-modelli",
   "ai-bank-statement-parser",
   "ai-biz-card-ocr",
   "ai-customers-extract",
