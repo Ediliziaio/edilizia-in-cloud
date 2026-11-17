@@ -65,3 +65,31 @@ describe("importi da esempio", () => {
     expect(contractCoherenceWarnings(e).join(" ")).toContain("Serramento 002 EKO");
   });
 });
+
+describe("preventivo a corpo con il computo sotto (4 preventivi veri, 17/11/2026)", () => {
+  it("toglie la riga riassuntiva e non rovina i prezzi giusti; acconti sull'imponibile senza avviso", async () => {
+    const { contractCoherenceWarnings, reconcileContractExtract } = await import("@/lib/orders/contractExtract");
+    const e = reconcileContractExtract(parseContractExtract({
+      importo_totale_eur: 1000, iva_pct: 10, importo_totale_ivato_eur: 1100,
+      voci: [
+        { descrizione: "Ristrutturazione sita in via Roma 1", quantita: 1, prezzo_unitario_eur: 1000 },
+        { descrizione: "Demolizione tramezzi", quantita: 10, prezzo_unitario_eur: 21.17 },
+        { descrizione: "Carico macerie", quantita: 2, prezzo_unitario_eur: 127.01 },
+        { descrizione: "Rasatura", quantita: 20, prezzo_unitario_eur: 26.86 },
+      ],
+      fasi_pagamento: [{ descrizione: "Inizio", percentuale: 50, importo_eur: 500 }, { descrizione: "Saldo", percentuale: 50, importo_eur: 500 }],
+    }));
+    expect(e.voci.map((v) => v.prezzo_unitario_eur)).toEqual([21.17, 127.01, 26.86]);
+    expect(e.warnings.join(" ")).toContain("riga riassuntiva");
+    expect(contractCoherenceWarnings(e)).toEqual([]);
+  });
+
+  it("il riconciliatore non tocca niente se alla fine i conti non tornano lo stesso", async () => {
+    const { reconcileContractExtract } = await import("@/lib/orders/contractExtract");
+    const e = reconcileContractExtract(parseContractExtract({
+      importo_totale_eur: 500,
+      voci: [{ descrizione: "A", quantita: 10, prezzo_unitario_eur: 21.17 }, { descrizione: "B", quantita: 3, prezzo_unitario_eur: 400 }],
+    }));
+    expect(e.voci.map((v) => v.prezzo_unitario_eur)).toEqual([21.17, 400]);
+  });
+});

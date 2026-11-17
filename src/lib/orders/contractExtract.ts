@@ -312,10 +312,32 @@ export function contractTotaleAtteso(extract: ContractExtract): number | null {
  * si lascia stare (le voci giuste peggiorerebbero e non vengono toccate).
  * Ogni correzione produce un warning esplicito.
  */
-export function reconcileContractExtract(extract: ContractExtract): ContractExtract {
+/**
+ * La riga riassuntiva (17/11/2026): i preventivi «a corpo» hanno in testa una riga sola col totale
+ * («Ristrutturazione sita in via… · 1 a corpo · 34.504,00») e sotto il computo voce per voce. L'AI le
+ * legge tutte, e la somma raddoppia. Se una riga vale da sola il totale e le altre già lo fanno,
+ * quella riga è il riepilogo: si toglie, dicendolo. Prova del 17/11 su 4 preventivi veri: senza, il
+ * riconciliatore «correggeva» 29 prezzi giusti su 59.
+ */
+export function togliRigaRiassuntiva(extract: ContractExtract, imp: number | null): ContractExtract {
+  if (imp == null || imp <= 0 || extract.voci.length < 3) return extract;
+  const tot = (v: ContractExtractItem) => (v.quantita || 1) * (v.prezzo_unitario_eur || 0);
+  const somma = extract.voci.reduce((s, v) => s + tot(v), 0);
+  const i = extract.voci.findIndex((v) => Math.abs(tot(v) - imp) <= Math.max(1, imp * 0.005)
+    && Math.abs(somma - tot(v) - imp) <= Math.max(1, imp * 0.02));
+  if (i < 0) return extract;
+  return {
+    ...extract,
+    voci: extract.voci.filter((_, k) => k !== i),
+    warnings: [...extract.warnings, `Tolta la riga riassuntiva «${extract.voci[i].descrizione.slice(0, 60)}»: vale il totale, e le voci sotto lo fanno già.`],
+  };
+}
+
+export function reconcileContractExtract(estratto: ContractExtract): ContractExtract {
   // Bersaglio = l'imponibile più affidabile (scorporo dall'ivato prima di
   // tutto): inseguire un subtotale parziale fa sovracorreggere il greedy.
-  const imp = contractImponibile(extract) ?? extract.importo_totale_eur;
+  const imp = contractImponibile(estratto) ?? estratto.importo_totale_eur;
+  const extract = togliRigaRiassuntiva(estratto, imp);
   if (imp == null || imp <= 0 || extract.voci.length === 0) return extract;
 
   const attesoCon = (voci: ContractExtractItem[]) => {
@@ -348,7 +370,9 @@ export function reconcileContractExtract(extract: ContractExtract): ContractExtr
     }
   }
 
-  if (corrette.length === 0) return extract;
+  // Le correzioni valgono solo se alla fine i conti tornano: un greedy che insegue un totale che non
+  // torna per altri motivi (una riga in più, un prezzo inventato) rovina prezzi giusti (17/11/2026).
+  if (corrette.length === 0 || delta > Math.max(1, imp * 0.02)) return extract;
   return {
     ...extract,
     voci,
@@ -408,7 +432,11 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   const sommaFasi = round2(extract.fasi_pagamento.reduce((s, f) => s + (f.importo_eur ?? 0), 0));
   if (totaleRiferimento != null && sommaFasi > 0) {
     const delta = Math.abs(sommaFasi - totaleRiferimento);
-    if (delta > Math.max(1, totaleRiferimento * 0.02)) {
+    // Gli acconti calcolati sull'imponibile (IVA a parte, fattura per fattura) sono un piano giusto:
+    // 4 preventivi veri su 4 il 17/11/2026. Si avvisa solo se non tornano né col totale né con l'imponibile.
+    const imponibile = contractImponibile(extract);
+    const tornaImponibile = imponibile != null && Math.abs(sommaFasi - imponibile) <= Math.max(1, imponibile * 0.02);
+    if (delta > Math.max(1, totaleRiferimento * 0.02) && !tornaImponibile) {
       out.push(
         `Le fasi di pagamento sommano ${sommaFasi.toLocaleString("it-IT", { minimumFractionDigits: 2 })} € ma il totale documento è ${totaleRiferimento.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €: verifica acconti e saldo.`,
       );
