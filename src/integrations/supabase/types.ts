@@ -149677,6 +149677,15 @@ export type Database = {
         Args: { p_motivo: string; p_upload_id: string }
         Returns: undefined
       }
+      computo_voce_non_lavoro: {
+        Args: {
+          p_categoria: string
+          p_descrizione: string
+          p_sotto: string
+          p_super: string
+        }
+        Returns: boolean
+      }
       conferma_carico_ddt: {
         Args: { p_carico_id: string; p_utente?: string }
         Returns: Json

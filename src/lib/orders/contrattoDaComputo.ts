@@ -14,18 +14,11 @@
 import { leggiFileComputo } from "@/lib/computo/leggiFileComputo";
 import { arrotonda, controllaTotali, formatEuro, type ComputoStrutturato, type ComputoVoceStrutturata } from "@/lib/computo/computoStrutturato";
 import { fasiDaCapitoli, parseContractExtract, type ContractExtract } from "./contractExtract";
-
-const CAPITOLO_NON_LAVORI = /oneri tecnici|\biva\b|visto di conformit|asseveraz|inarcassa|\bcassa\b|progettazion|spese tecniche/i;
-const VOCE_NON_LAVORI =
-  /^(progettazione(\s+categoria|\s+[a-z]{1,2}\s?\d|\s*$)|d\.?\s?l\.?\s|direzione (dei )?lavori|coordinament[oi] (della )?sicurezza|responsabile (dei )?lavori|asseverazion|inarcassa|cassa\b|iva\b|visto di conformit|ape (ante|post)|r\.?\s?l\.?\s)/i;
+import { eNonLavoro } from "@/lib/computo/vociNonLavori";
 
 /** Una voce che sta nel computo del bonus ma non è un lavoro dell'impresa (onorari, casse, IVA). */
 export function eVoceNonLavoro(v: Pick<ComputoVoceStrutturata, "descrizione" | "super_categoria" | "categoria" | "sotto_categoria">): boolean {
-  const capitoli = [v.super_categoria?.nome, v.categoria?.nome, v.sotto_categoria?.nome].filter(Boolean).join(" | ");
-  // Con i capitoli decidono i capitoli: «Progettazione dell'impianto di ponteggio» sotto gli oneri della
-  // sicurezza è un costo del cantiere. La descrizione conta solo dove il PDF non stampa i capitoli.
-  if (capitoli) return CAPITOLO_NON_LAVORI.test(capitoli);
-  return VOCE_NON_LAVORI.test((v.descrizione ?? "").trim());
+  return eNonLavoro([v.super_categoria?.nome, v.categoria?.nome, v.sotto_categoria?.nome], v.descrizione);
 }
 
 /** Il capitolo che diventa la fase: la categoria, poi la sotto-categoria, poi la super-categoria. */

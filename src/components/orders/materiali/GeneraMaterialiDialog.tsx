@@ -47,6 +47,7 @@ import { controllaComputo, importoInGioco, voceDaCommessa } from "@/lib/computo/
 import { ETICHETTA_SERVIZIO, serviziDelComputo } from "@/lib/distinta/serviziComputo";
 import { avvisiCosto as calcolaAvvisiCosto, type VoceConImporto } from "@/lib/distinta/controlloCostiVoci";
 import { capitoloVoce, faseDaTesto, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
+import { eNonLavoro } from "@/lib/computo/vociNonLavori";
 import { sceltePerRicordare, testoRicordi, type SceltePerRicordare } from "@/lib/distinta/ricordaScelte";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
 
@@ -283,7 +284,11 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     );
   };
 
-  const vociComputo = useMemo(() => voci.data ?? [], [voci.data]);
+  // Onorari, casse e IVA dei computi dei bonus non sono lavori: né fasi né materiali (17/11/2026).
+  const vociComputo = useMemo(
+    () => (voci.data ?? []).filter((v) => !eNonLavoro([v.super_categoria, v.categoria, v.sotto_categoria], v.descrizione_breve)),
+    [voci.data],
+  );
   // La proposta automatica; le scelte dell'utente la sovrascrivono capitolo per capitolo.
   const proposta = useMemo(() => {
     const iniziale: Record<string, string> = {};
