@@ -62,6 +62,34 @@ con operatore, ore di installatore) non sono materiali: diventano noli/servizi c
 Per ogni lotto (infissi, pompe di calore, VMC, cappotto, FV…): anticipo tipico, data in cui serve in
 cantiere (dal cronoprogramma), data entro cui ordinare. Sulle bozze d'ordine e nello scadenzario acquisti.
 
+## Stato (17/11/2026, sera)
+
+| Lotto | Stato |
+|---|---|
+| 1 Controllo del computo | **fatto** (e7a8c0fea): 8 regole, tutte le incongruenze dell'analisi a mano sul PriMus di prova |
+| 2 Materiali più fedeli | **fatto in parte** (a4125f720): spessore dai sovrapprezzi, serramenti dall'abaco. Restano «incluso nel pacchetto» e la quantità netta per riga d'ordine |
+| 3 Noli, servizi, ore | **fatto** (a35f187d0): tipo, mesi e pezzi dalle misure; fuori dai materiali; elenco in «Genera dal computo» |
+| 4 Piano di cantiere | **da decidere** — vedi sotto |
+| 5 Acquisti nel tempo | dopo il 4 (serve la data in cui il materiale va in cantiere) |
+
+### Cosa c'è già per il lotto 4 (da non rifare)
+- «Calcola come finire» (`shared/piano-cantiere`): ore per voce da ore scritte → rese dell'azienda →
+  costo di manodopera → incidenza del prezzario regionale; giorni, persone, previsione di fine.
+- Cronoprogramma calcolato del computo (`cronoCalcolato`): lavorazioni in sequenza, attese fisse.
+- Piano delle date dal cronoprogramma del preventivo (`pianoDalCronoprogramma`, `commessa_pianifica_fasi`).
+
+### I due buchi
+1. Il prezzario si interroga per **40 voci al massimo** (`testiSenzaManodopera`): su 182 voci ~140 restano
+   senza ore. Alzarlo vuol dire più chiamate al database all'apertura (attenzione alla CPU del DB).
+2. Una commessa **senza preventivo** non ha un piano delle date: `leggiPianoDellaCommessa` guarda solo il
+   cronoprogramma del preventivo.
+
+### Decisioni aperte
+- Le rese: tabella di partenza del gestionale (es. cappotto 30-45 m²/giorno con 6-8 persone), solo rese
+  dell'azienda, o prezzario per tutte le voci?
+- Il piano della commessa diretta: dal cronoprogramma calcolato del computo (stessa sequenza del
+  preventivo) e poi «Pianifica» come oggi?
+
 ## Ordine di lavoro
 Lotto 1 → Lotto 2 → Lotto 3 → Lotto 4 → Lotto 5. Ogni lotto si prova sul computo PriMus di prova
 (fixture `computoPrimusGenzano.tsv`) e dal vivo su Demo Azienda 2.
