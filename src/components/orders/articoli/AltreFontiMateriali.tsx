@@ -4,15 +4,33 @@
  * computo»: la commessa deve esistere perché i materiali vadano nelle sue fasi.
  */
 import { useQuery } from "@tanstack/react-query";
-import { FileText } from "lucide-react";
+import { FileText, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 export interface ComputoDaCollegare {
-  /** Null: il file si carica subito dopo la creazione. */
+  /** Null: il file si carica subito dopo la creazione (o si usa il computo del preventivo). */
   id: string | null;
   nome: string;
+  /** Le voci vengono dal computo del preventivo: niente file da caricare. */
+  dalPreventivo?: boolean;
+}
+
+/**
+ * «Materiali con l'AI» (17/11/2026): appena creata la commessa si apre «Genera dal computo»,
+ * che legge le voci (dal computo del preventivo, se c'è, o dal file), applica le scomposizioni
+ * e fa proporre all'AI i materiali delle voci che le regole non riconoscono.
+ */
+export function PulsanteMaterialiAI({ quoteNumber, conComputo, onScegli }: { quoteNumber?: string | null; conComputo: boolean; onScegli: (c: ComputoDaCollegare) => void }) {
+  return (
+    <Button type="button" variant="outline" size="sm" className="gap-1.5 border-violet-200 text-violet-800 hover:bg-violet-50"
+      onClick={() => onScegli(conComputo
+        ? { id: null, nome: `computo del preventivo${quoteNumber ? ` ${quoteNumber}` : ""}`, dalPreventivo: true }
+        : { id: null, nome: "file da caricare" })}>
+      <Sparkles className="h-3.5 w-3.5" aria-hidden />Materiali con l'AI
+    </Button>
+  );
 }
 
 export function PulsanteDalComputo({ companyId, onScegli }: { companyId: string | undefined; onScegli: (c: ComputoDaCollegare) => void }) {

@@ -58,7 +58,7 @@ import { fontiDaLink } from "@/components/silvio-commessa/useBozzaSilvio";
 import { fontiDalLink } from "../../../shared/silvio-commessa/ingressi.ts";
 import { GeneraleNellaNuovaCommessa } from "@/components/orders/generali/GeneraleNellaNuovaCommessa";
 import { OrderItemsList, OrderItem } from "@/components/orders/OrderItemsList";
-import { PulsanteDalComputo, type ComputoDaCollegare } from "@/components/orders/articoli/AltreFontiMateriali";
+import { PulsanteDalComputo, PulsanteMaterialiAI, type ComputoDaCollegare } from "@/components/orders/articoli/AltreFontiMateriali";
 import { FinancialSummary, PaymentType } from "@/components/orders/FinancialSummary";
 import { ScegliPianoPagamento } from "@/components/orders/ScegliPianoPagamento";
 import {SalPlanInfo} from "@/components/orders/SalPlanInfo";
@@ -211,6 +211,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const [numInstallments, setNumInstallments] = useState(modelloIniziale?.righe.length ?? 2);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [computoDaCollegare, setComputoDaCollegare] = useState<ComputoDaCollegare | null>(null);
+  // Un preventivo con computo porta già le voci: i materiali con l'AI sono proposti da soli (si possono togliere).
+  const materialiAITolti = useRef(false);
   const [contrattoImportato, setContrattoImportato] = useState<ContractExtract | null>(null);
   const [contractSource, setContractSource] = useState<StoredContractFile | null>(null);
   const orderCodePrefilledRef = useRef(false);
@@ -471,6 +473,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     }
     // Contatto del preventivo → apri il dialog "Nuovo cliente" già precompilato (una volta).
     if (quotePrefill.client.name.trim()) setShowCreateCustomer(true);
+    // Preventivo con computo: le voci ci sono già, i materiali da ordinare li propone l'AI appena creata.
+    if (quotePrefill.computoDraftId && !materialiAITolti.current) {
+      setComputoDaCollegare({ id: null, nome: `computo del preventivo${quotePrefill.quoteNumber ? ` ${quotePrefill.quoteNumber}` : ""}`, dalPreventivo: true });
+    }
   }, [quotePrefill, selectedQuoteId, setValue]);
 
   // Import da preventivo via selettore: se ci sono già righe, chiede conferma
@@ -2069,12 +2075,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
         {/* Order Items */}
         {quotePrefill && quotePrefill.workLines.length > 0 && <div className="mb-4 rounded-lg border bg-muted/20 p-4 text-sm"><strong>{quotePrefill.workLines.length} lavorazioni dal preventivo</strong><p className="mt-1 text-muted-foreground">Verranno create come fasi in Cantiere{inizioLavori ? ", una dopo l'altra dall'inizio dei lavori" : ""}. Qui sotto trovi soltanto i materiali; il totale contrattuale resta quello del preventivo.</p><ul className="mt-2 list-inside list-disc">{quotePrefill.workLines.map((r,i)=><li key={i}>{r.name}</li>)}</ul></div>}
-        {computoDaCollegare && (
-          <p className="mb-3 flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-            <span className="min-w-0">Materiali dal computo ({computoDaCollegare.nome}): l'anteprima si apre appena la commessa è creata.</span>
-            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => setComputoDaCollegare(null)}>Togli</Button>
+        {computoDaCollegare ? (
+          <p className="mb-3 flex items-center justify-between gap-2 rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-sm">
+            <span className="min-w-0"><Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-violet-700" aria-hidden />
+              Materiali da ordinare dal {computoDaCollegare.nome}: appena la commessa è creata li genero, fase per fase, e l'AI propone quelli delle voci che le regole non riconoscono. Li rivedi prima di salvarli.</span>
+            <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => { materialiAITolti.current = true; setComputoDaCollegare(null); }}>Togli</Button>
           </p>
-        )}
+        ) : null}
         <OrderItemsList
           items={orderItems}
           onItemsChange={setOrderItems}
@@ -2082,9 +2089,13 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           showStatusControls={false}
           vista="compatta"
           canViewCosts={canViewCosts}
+          azioneTestata={!computoDaCollegare ? (
+            <PulsanteMaterialiAI quoteNumber={quotePrefill?.quoteNumber} conComputo={!!quotePrefill?.computoDraftId} onScegli={setComputoDaCollegare} />
+          ) : undefined}
           altreFonti={
             <>
               <span className="text-xs text-muted-foreground">Oppure</span>
+              <PulsanteMaterialiAI quoteNumber={quotePrefill?.quoteNumber} conComputo={!!quotePrefill?.computoDraftId} onScegli={setComputoDaCollegare} />
               <PulsanteDalComputo companyId={effectiveCompany?.id} onScegli={setComputoDaCollegare} />
               <PulsanteCreaConSilvio size="sm" variant="outline" etichetta="Chiedi a Silvio" iniziale={selectedQuoteId ? { tipo: "preventivo", id: selectedQuoteId } : null} />
             </>

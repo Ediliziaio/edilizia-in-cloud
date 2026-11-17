@@ -69,6 +69,8 @@ export interface QuotePrefill {
    * soli materiali, la commessa nascerebbe senza fasi: le mette il modello scelto (07/11/2026).
    */
   fasiDalServer: boolean;
+  /** Preventivo con computo: la bozza da cui «Genera dal computo» prende le voci (17/11/2026). */
+  computoDraftId: string | null;
   quoteNumber: string | null;
   orderItems: OrderItem[];
   paymentMethod: string | null;
@@ -137,6 +139,7 @@ export function prefillDaPreventivo(quote: Record<string, unknown>, rows: Array<
     // Le righe di quote_items hanno almeno nome e quantità: le stesse che leggeva l'hook.
     workLines: separaVoci(rows).lavorazioni as unknown as QuotePrefill["workLines"],
     fasiDalServer: String(q.source ?? "").startsWith("modulo:computo:") || separaVoci(rows).lavorazioni.length > 0,
+    computoDraftId: /^modulo:computo:([0-9a-f-]{36})$/i.exec(String(q.source ?? ""))?.[1] ?? null,
     quoteNumber: quoteTyped.quote_number ?? null,
     orderItems,
     paymentMethod,

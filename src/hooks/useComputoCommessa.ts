@@ -203,11 +203,15 @@ export function useScartaComputo(orderId: string, companyId: string) {
 export function useSalvaComputoImportato(orderId: string, companyId: string, userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ voci, file, totaleDocumento, sostituisce }: {
+    mutationFn: async ({ voci, file, totaleDocumento, sostituisce, titolo, origine }: {
       voci: VoceImportata[];
       file: { file: File; formato: string; via: "browser" | "server" }[];
       totaleDocumento: number | null;
       sostituisce?: Pick<ComputoCommessa, "id" | "stato"> | null;
+      /** Senza file (il computo del preventivo): il nome da mostrare. */
+      titolo?: string;
+      /** Da dove vengono le voci, se non da un file letto qui. */
+      origine?: string;
     }): Promise<{ id: string; riusato: boolean; nonArchiviati: string[] }> => {
       if (!userId) throw new Error("Accesso scaduto: rientra e riprova.");
       if (!voci.length) throw new Error("Nessuna voce da salvare.");
@@ -239,12 +243,12 @@ export function useSalvaComputoImportato(orderId: string, companyId: string, use
       const totale = righe.reduce((s, r) => s + (r.voce.importo_computo ?? 0) * (r.voce.is_detrazione ? -1 : 1), 0);
       const { data: riga, error } = await supabase.from("computo_uploads").insert({
         company_id: companyId, uploaded_by: userId, order_id: orderId,
-        titolo: titoloComputo(origini), file_name: origini.map(o => o.nome).join(", ").slice(0, 500) || "computo",
+        titolo: titolo ?? titoloComputo(origini), file_name: origini.map(o => o.nome).join(", ").slice(0, 500) || titolo || "computo",
         file_type: primo ? tipoFileComputo(primo.nome) : "pdf", file_size: origini.reduce((s, o) => s + o.dimensione, 0),
         storage_path: percorsi.find(Boolean) ?? "", extraction_status: "completed", extraction_method: primo ? metodoLettura(primo) : "xlsx_parse",
         extraction_completed_at: new Date().toISOString(), stato: "bozza",
         totale_calcolato: Math.round(totale * 100) / 100, totale_dichiarato: totaleDocumento,
-        raw_extracted_json: { impronta, origine: "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })) },
+        raw_extracted_json: { impronta, origine: origine ?? "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })) },
       }).select("id").single();
       if (error || !riga) throw new Error(`Computo non salvato: ${error?.message ?? "riprova"}`);
 

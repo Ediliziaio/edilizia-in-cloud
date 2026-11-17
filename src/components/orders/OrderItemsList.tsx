@@ -205,6 +205,8 @@ interface OrderItemsListProps {
   vista?: "schede" | "compatta";
   /** Altre strade per i materiali (computo, Silvio), in fondo al popup di inserimento. */
   altreFonti?: ReactNode;
+  /** Vista compatta: un'azione accanto ad «Aggiungi» (in Nuova Commessa, «Materiali con l'AI»). */
+  azioneTestata?: ReactNode;
 }
 
 export const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -297,6 +299,7 @@ export function OrderItemsList({
   richiesta = null,
   vista = "schede",
   altreFonti,
+  azioneTestata,
 }: OrderItemsListProps) {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1689,9 +1692,12 @@ export function OrderItemsList({
             {items.length > 0 && <span className="text-sm font-normal text-muted-foreground tabular-nums">{raggruppaRighe(items).length}</span>}
           </CardTitle>
           {editable && (
-            <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0">
-              <Plus className="mr-1 h-4 w-4" aria-hidden />Aggiungi
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              {azioneTestata}
+              <Button type="button" size="sm" onClick={openAddDialog} className="tap-compact shrink-0">
+                <Plus className="mr-1 h-4 w-4" aria-hidden />Aggiungi
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent className="p-0">

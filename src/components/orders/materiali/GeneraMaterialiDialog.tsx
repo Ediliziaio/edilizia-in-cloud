@@ -19,7 +19,7 @@
  * dell'azienda a cui è collegato. Le proposte dell'AI da approvare restano
  * spente finché non le si accende.
  */
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, FileText, Loader2, Sparkles, Upload } from "lucide-react";
@@ -40,6 +40,7 @@ import {
   type AliasMateriale, type ArticoloCatalogo, type DatiCatalogo, type MaterialeCollegato, type MaterialeGiaUsato, type SceltaArticolo, type VoceMagazzino,
 } from "@/lib/distinta/collegaArticoli";
 import { MaterialiProposti } from "./MaterialiProposti";
+import { computoDelPreventivo } from "@/lib/distinta/computoDelPreventivo";
 import { avvisiCosto as calcolaAvvisiCosto, type VoceConImporto } from "@/lib/distinta/controlloCostiVoci";
 import { DopoIlSalvataggio } from "./DopoIlSalvataggio";
 import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
@@ -219,11 +220,35 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   const [importa, setImporta] = useState(false);
   const [rinunciato, setRinunciato] = useState(false);
   const confermato = useRef(false);
-  const caricamento = computi.isLoading || voci.isLoading || dati.isLoading;
+
   // Non si aspettano le tavole: senza computo la finestra si apre subito (le tavole contate sono rare,
   // e se ci sono si torna all'anteprima appena lette).
-  const senzaNiente = !computi.isLoading && !!companyId && !letti.length && !inLettura && !(dati.data?.conteggi.length);
+  const senzaComputo = !computi.isLoading && !!companyId && !letti.length && !inLettura;
+  // La commessa nata da un preventivo con computo ha già le voci: si prendono da lì, senza
+  // ricaricare il file (17/11/2026). Solo se non c'è ancora un computo nella commessa.
+  const dalPreventivo = useQuery({
+    queryKey: ["computo-del-preventivo", orderId, companyId],
+    enabled: open && senzaComputo,
+    staleTime: 60_000,
+    queryFn: () => computoDelPreventivo(companyId, orderId),
+  });
+  const presoDalPreventivo = useRef(false);
+  useEffect(() => {
+    const c = dalPreventivo.data;
+    if (!open || !senzaComputo || !c?.voci.length || presoDalPreventivo.current || salvaComputo.isPending) return;
+    presoDalPreventivo.current = true;
+    salvaComputo.mutate(
+      { voci: c.voci, file: [], totaleDocumento: null, titolo: c.titolo, origine: "preventivo" },
+      {
+        onSuccess: ({ id }) => { setComputoId(id); toast.info(`Uso il computo del preventivo${c.quoteNumber ? ` ${c.quoteNumber}` : ""}`, { description: `${c.voci.length} voci, con misure e capitoli: il file non serve.` }); },
+        onError: (e) => toast.error("Computo del preventivo non copiato", { description: e instanceof Error ? e.message : String(e) }),
+      },
+    );
+  }, [open, senzaComputo, dalPreventivo.data, salvaComputo]);
+  const attendoPreventivo = senzaComputo && (dalPreventivo.isLoading || !!dalPreventivo.data?.voci.length);
+  const senzaNiente = senzaComputo && !attendoPreventivo && !(dati.data?.conteggi.length);
   const importaAperta = open && !salvaComputo.isPending && (importa || (senzaNiente && !rinunciato));
+  const caricamento = computi.isLoading || voci.isLoading || dati.isLoading || (attendoPreventivo && !letti.length);
 
   const chiudiImporta = () => {
     if (confermato.current) { confermato.current = false; return; }
@@ -364,7 +389,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     if (!risultato?.senzaScomposizione.length) return;
     setProponendo(true);
     try {
-      let create = 0;
+      let create = 0, soloLavoro = 0;
       const voci = risultato.senzaScomposizione;
       for (let i = 0; i < voci.length; i += 12) {
         const { data, error } = await supabase.functions.invoke("distinta-proponi-scomposizioni", {
@@ -375,8 +400,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         });
         if (error) throw error;
         create += Number((data as { create?: number })?.create ?? 0);
+        soloLavoro += ((data as { senza_materiali?: unknown[] })?.senza_materiali ?? []).length;
       }
-      toast.success(`${create} scomposizioni proposte dall'AI`, { description: "Compaiono qui sotto spente, «Da controllare»: accendile per salvarle. Restano in Scomposizioni da approvare, e al prossimo import non si richiedono." });
+      // L'AI può dire che una voce è solo lavoro (nolo, manodopera, oneri): va detto, non «0 proposte».
+      const lavoro = soloLavoro ? `${soloLavoro} ${soloLavoro === 1 ? "voce è" : "voci sono"} solo lavoro, senza materiali da comprare.` : "";
+      if (create) toast.success(`L'AI ha proposto i materiali di ${create} ${create === 1 ? "voce" : "voci"}`, { description: `Compaiono qui sotto spenti, «Da controllare»: accendili per salvarli. ${lavoro}`.trim() });
+      else toast.info(soloLavoro ? "Nessun materiale da comprare" : "L'AI non ha proposto materiali", { description: lavoro || "Riprova, o aggiungi i materiali a mano." });
       qc.invalidateQueries({ queryKey: ["scomposizioni"] });
       qc.invalidateQueries({ queryKey: ["genera-materiali", orderId, companyId] });
     } catch (e) {
@@ -463,6 +492,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
   };
 
   const capitoli = [...new Set(vociComputo.map((v) => capitoloVoce(v as never)))];
+  // Le voci senza scomposizione hanno il loro elenco: negli avvisi resterebbero due volte.
+  const avvisiAltri = (risultato?.avvisi ?? []).filter((a) => a.tipo !== "senza_scomposizione");
   const nienteDaLeggere = !caricamento && !letti.length && !(dati.data?.conteggi.length);
   const fasiNuove = dati.data ? fasiDaCreare(vociComputo, propostaFasi(vociComputo, dati.data.fasi)) : [];
 
@@ -602,6 +633,27 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 </details>
               )}
 
+              {risultato.senzaScomposizione.length > 0 && (
+                <section aria-label="Voci senza materiali" className="rounded-md border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-950">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">Voci senza materiali ({risultato.senzaScomposizione.length})</span>
+                    <span className="text-violet-900/80">Le regole non le riconoscono: l'AI propone i materiali di ciascuna, tu li accendi prima di salvarli.</span>
+                    <Button size="sm" className="ml-auto h-7 text-xs" disabled={proponendo} onClick={proponiAI}>
+                      {proponendo ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" aria-hidden />}
+                      {proponendo ? "L'AI sta proponendo…" : "Proponi i materiali con l'AI"}
+                    </Button>
+                  </div>
+                  <ul className="mt-1.5 max-h-40 divide-y divide-violet-100 overflow-auto rounded border border-violet-100 bg-white">
+                    {risultato.senzaScomposizione.map((v) => (
+                      <li key={v.id} className="flex justify-between gap-2 px-2 py-1">
+                        <span className="min-w-0 truncate" title={v.descrizione_breve}>{v.codice_prezzario || v.codice_voce ? `${v.codice_prezzario || v.codice_voce} · ` : ""}{v.descrizione_breve}</span>
+                        <span className="shrink-0 tabular-nums text-slate-500">{v.quantita != null ? `${Number(v.quantita).toLocaleString("it-IT", { maximumFractionDigits: 2 })} ${v.unita_misura ?? ""}` : ""}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               <MaterialiProposti
                 materiali={materiali}
                 accesa={accesa}
@@ -618,19 +670,13 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
                 avvisiCosto={mostraPrezzi ? avvisiCosto : undefined}
               />
 
-              {risultato.avvisi.length > 0 && (
+              {avvisiAltri.length > 0 && (
                 <section aria-label="Avvisi" className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">Da guardare ({risultato.avvisi.length})</span>
-                    {risultato.senzaScomposizione.length > 0 && (
-                      <Button size="sm" variant="outline" className="ml-auto h-7 bg-white text-xs" disabled={proponendo} onClick={proponiAI}>
-                        <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                        {proponendo ? "L'AI sta proponendo…" : `Proponi con l'AI i materiali delle voci che le regole non riconoscono (${risultato.senzaScomposizione.length})`}
-                      </Button>
-                    )}
+                    <span className="font-semibold">Da guardare ({avvisiAltri.length})</span>
                   </div>
                   <ul className="mt-1 max-h-32 list-disc space-y-0.5 overflow-auto pl-5">
-                    {risultato.avvisi.map((a, i) => <li key={i}>{a.messaggio}</li>)}
+                    {avvisiAltri.map((a, i) => <li key={i}>{a.messaggio}</li>)}
                   </ul>
                 </section>
               )}
