@@ -46,9 +46,6 @@ import { computoDelPreventivo } from "@/lib/distinta/computoDelPreventivo";
 import { controllaComputo, importoInGioco, voceDaCommessa } from "@/lib/computo/controlloComputo";
 import { ETICHETTA_SERVIZIO, serviziDelComputo } from "@/lib/distinta/serviziComputo";
 import { avvisiCosto as calcolaAvvisiCosto, type VoceConImporto } from "@/lib/distinta/controlloCostiVoci";
-import { DopoIlSalvataggio } from "./DopoIlSalvataggio";
-import { loadMaterialCoverage } from "@/hooks/useMaterialProcurement";
-import { pendingMaterials, type ProcurementItem } from "@/lib/orders/materialProcurement";
 import { capitoloVoce, faseDaTesto, fasiDaCreare, propostaFasi } from "@/lib/distinta/fasiMateriali";
 import { sceltePerRicordare, testoRicordi, type SceltePerRicordare } from "@/lib/distinta/ricordaScelte";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
@@ -127,22 +124,6 @@ async function ricordaScelte(companyId: string, r: SceltePerRicordare, alias: Al
   return fatte;
 }
 
-/**
- * Dopo il salvataggio, i materiali della commessa ancora da ordinare (14/11/2026):
- * generati dal computo o dalle tavole, «da ordinare», non coperti da offerte o
- * ordini. Si raggruppano per fornitore; quelli senza fornitore vanno in offerta.
- */
-async function materialiDaOrdinare(companyId: string, orderId: string): Promise<ProcurementItem[]> {
-  const { data, error } = await supabase.from("order_items")
-    .select("id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura")
-    .eq("order_id", orderId).eq("natura_riga", "materiale").in("origine_materiale", ["computo", "planimetria"]).eq("status", "da_ordinare");
-  if (error) throw error;
-  const righe = (data ?? []) as unknown as ProcurementItem[];
-  if (!righe.length) return [];
-  const copertura = await loadMaterialCoverage(companyId, righe.map((r) => r.id));
-  return pendingMaterials(righe, copertura);
-}
-
 /** Articoli, voci dei listini in corso e materiali già comprati: per collegare i materiali proposti. */
 type Catalogo = DatiCatalogo & { fornitori: Map<string, string> };
 
@@ -189,7 +170,7 @@ const euro = (n: number) => formatCurrency(n);
 
 /** «ECO · ISOLAMENTO TERMICO SU STRUTTURE OPACHE» → etichetta «ECO» e «Isolamento termico su strutture opache». */
 function capitoloLeggibile(c: string): { tag: string | null; nome: string } {
-  const m = /^([A-Z0-9]{2,8})\s*[·•\-]\s*(.+)$/.exec(c.trim());
+  const m = /^([A-Z0-9]{2,8})\s*[·•-]\s*(.+)$/.exec(c.trim());
   const tag = m ? m[1] : null;
   const resto = (m ? m[2] : c).trim();
   return { tag, nome: resto === resto.toUpperCase() && /[A-ZÀ-Ý]{3}/.test(resto) ? resto.charAt(0) + resto.slice(1).toLowerCase() : resto };
@@ -201,7 +182,11 @@ function nomeLeggibile(nome: string): string {
   return t && t === t.toUpperCase() && /[A-ZÀ-Ý]{3}/.test(t) ? t.charAt(0) + t.slice(1).toLowerCase() : t;
 }
 
-export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpenChange }: { orderId: string; orderCode?: string | null; open: boolean; onOpenChange: (o: boolean) => void }) {
+export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpenChange, onProposti }: {
+  orderId: string; orderCode?: string | null; open: boolean; onOpenChange: (o: boolean) => void;
+  /** Dopo il salvataggio: apre la scelta dei materiali proposti. */
+  onProposti?: () => void;
+}) {
   const { effectiveCompany, user } = useAuth();
   const permessi = usePermissions();
   const [apriComputo, setApriComputo] = useState(false);
@@ -457,15 +442,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
     return data.id;
   };
   const [salvando, setSalvando] = useState(false);
-  // Dopo «Salva i materiali», chi può comprare vede gli ordini da creare per fornitore.
-  const puoComprare = !!(permessi.canEditOrders || permessi.canManagePurchasing);
-  const [daOrdinare, setDaOrdinare] = useState<ProcurementItem[] | null>(null);
   const salva = async () => {
-    if (!risultato || !daSalvare.length) return;
+    if (!risultato || !materiali.length) return;
     setSalvando(true);
     try {
       // Le fasi nuove si creano prima, in fondo all'elenco, nell'ordine del computo.
-      const daCreare = [...new Set(daSalvare.map((r) => r.phase_id).filter((v): v is string => !!v?.startsWith(NUOVA)).map((v) => v.slice(NUOVA.length)))];
+      const daCreare = [...new Set(materiali.map((r) => r.phase_id).filter((v): v is string => !!v?.startsWith(NUOVA)).map((v) => v.slice(NUOVA.length)))];
       const create = new Map<string, string>();
       if (daCreare.length) {
         const base = Math.max(0, ...(dati.data?.fasi ?? []).map((f) => f.position ?? 0)) + 1;
@@ -475,22 +457,21 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         if (error) throw error;
         for (const f of data ?? []) create.set(NUOVA + f.name, f.id);
       }
-      const righe = daSalvare.map(rigaDaSalvare).map((r) => ({
-        ...r,
-        phase_id: r.phase_id?.startsWith(NUOVA) ? create.get(r.phase_id) ?? null : r.phase_id,
-      }));
-      const { data, error } = await supabase.rpc("materiali_salva_generazione", {
-        p_order: orderId,
-        p_righe: righe as never,
-        p_escluse: risultato.escluse as never,
-        p_avvisi: risultato.avvisi as never,
-        p_computo: scelto?.id,
+      // Dal 17/11/2026 i materiali non entrano subito negli articoli: diventano PROPOSTE, che si
+      // confermano nella scheda Articoli («Dal computo: N materiali da confermare»). Quelli spenti
+      // qui (le proposte dell'AI da controllare) arrivano senza spunta.
+      const righe = materiali.map((m) => {
+        const r = rigaDaSalvare(m);
+        return { ...r, consigliata: accesa(m), phase_id: r.phase_id?.startsWith(NUOVA) ? create.get(r.phase_id) ?? null : r.phase_id };
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("materiali_proponi", { p_order: orderId, p_righe: righe, p_computo: scelto?.id ?? null });
       if (error) throw error;
-      const esito = data as { inserite: number; sostituite: number; saltate: number };
-      toast.success(`${esito.inserite} materiali salvati nelle fasi`, {
-        description: [esito.sostituite ? `${esito.sostituite} righe generate prima sostituite` : null,
-          esito.saltate ? `${esito.saltate} già in offerta o in un ordine, lasciate com'erano` : null].filter(Boolean).join(" · ") || undefined,
+      const esito = data as { proposti: number; gia_decisi: number; gia_articoli: number };
+      toast.success(`${esito.proposti} materiali da confermare in Articoli`, {
+        description: [esito.gia_articoli ? `${esito.gia_articoli} erano già negli articoli` : null,
+          esito.gia_decisi ? `${esito.gia_decisi} già confermati o scartati prima` : null].filter(Boolean).join(" · ")
+          || "Spunta, fase per fase, quelli da comprare e premi «Inserisci negli articoli».",
       });
       // Commessa nata senza preventivo: dal computo anche le lavorazioni (fasi, sottofasi, importi), 17/11/2026.
       if (conLavorazioni && dati.data?.senzaLavorazioni && scelto?.id) {
@@ -531,12 +512,9 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           toast.error("Scelte non ricordate", { description: messaggioErrore(e) });
         }
       }
-      if (puoComprare) {
-        // Il passo dopo: gli ordini. Se la lettura non riesce, si chiude come prima.
-        const restano = await materialiDaOrdinare(companyId, orderId).catch((): ProcurementItem[] | null => null);
-        if (restano?.length) { setDaOrdinare(restano); return; }
-      }
+      await qc.invalidateQueries({ queryKey: ["materiali-proposti", orderId] });
       onOpenChange(false);
+      if (esito.proposti > 0) onProposti?.();
     } catch (e) {
       toast.error("Materiali non salvati", { description: messaggioErrore(e) });
     } finally {
@@ -591,28 +569,12 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
         notaDestinazione="Le voci diventano il computo della commessa."
         descrizione={scelto
           ? `Carica un altro computo: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare. «${scelto.titolo || scelto.file_name}» resta archiviato, non cancellato.`
-          : "Carica il computo della commessa: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare, divisi per fase. Niente è salvato come materiale finché non premi «Salva i materiali»."}
+          : "Carica il computo della commessa: le voci si leggono da sole, le rivedi e poi vedi i materiali da comprare, divisi per fase. I materiali arrivano come proposte da confermare nella scheda Articoli."}
         etichettaConferma={(n) => `Avanti: materiali da ${n} ${n === 1 ? "voce" : "voci"}`}
         altreFonti={<div className="space-y-2">
           {riprovaUltimo}
           <p className="text-xs text-muted-foreground">Senza computo puoi partire dalle tavole: «Tavole» nella barra degli articoli.</p>
         </div>}
-      />
-    );
-  }
-
-  if (daOrdinare) {
-    return (
-      <DopoIlSalvataggio
-        open={open}
-        onOpenChange={(o) => { if (!o) { setDaOrdinare(null); onOpenChange(false); } }}
-        materiali={daOrdinare}
-        companyId={companyId}
-        orderId={orderId}
-        orderCode={orderCode}
-        userId={user?.id}
-        fornitori={dati.data?.catalogo.fornitori ?? new Map()}
-        mostraPrezzi={mostraPrezzi}
       />
     );
   }
@@ -650,7 +612,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             ) : null}
           </div>
           <DialogDescription className="text-xs">
-            Niente si salva finché non premi «Salva i materiali»; le righe generate prima e non ordinate si sostituiscono, quelle scritte a mano restano.
+            Salvando, il computo crea le lavorazioni e propone i materiali: li confermi tu nella scheda Articoli, spuntando quelli da comprare.
           </DialogDescription>
           {riprovaUltimo}
         </DialogHeader>
@@ -861,7 +823,7 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
           {risultato && (
             <span className="text-xs tabular-nums text-slate-700">
-              <span className="font-semibold text-slate-900">{daSalvare.length} materiali</span>
+              <span className="font-semibold text-slate-900">{daSalvare.length} materiali da proporre</span>
               {mostraPrezzi && stima.totale > 0 && <> · stima <span className="font-semibold text-slate-900">{stima.totale.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}</span></>}
               {mostraPrezzi && stima.senzaPrezzo > 0 && <span className="text-slate-500"> ({stima.senzaPrezzo} senza prezzo)</span>}
             </span>
@@ -886,8 +848,8 @@ export default function GeneraMaterialiDialog({ orderId, orderCode, open, onOpen
             {passoDopo && (
               <Button size="sm" onClick={() => setPasso(passoDopo.id)}>Avanti: {passoDopo.etichetta}</Button>
             )}
-            <Button size="sm" variant={passoDopo ? "outline" : "default"} disabled={!daSalvare.length || salvando || salvaComputo.isPending} onClick={salva}>
-              {salvando ? "Salvo…" : `Salva i materiali (${daSalvare.length})`}
+            <Button size="sm" variant={passoDopo ? "outline" : "default"} disabled={!materiali.length || salvando || salvaComputo.isPending} onClick={salva}>
+              {salvando ? "Salvo…" : `Salva e proponi i materiali (${daSalvare.length})`}
             </Button>
           </div>
         </DialogFooter>

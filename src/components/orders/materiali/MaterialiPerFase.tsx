@@ -17,6 +17,7 @@
  * finestra dell'articolo è quella di OrderItemsList (soloFinestra).
  */
 import { MaterialiDaRegolarizzare } from "@/components/orders/materiali/MaterialiDaRegolarizzare";
+import { MaterialiDaConfermare, useMaterialiProposti } from "./MaterialiDaConfermare";
 import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
 import { RevisioneTecnico } from "./RevisioneTecnico";
 import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
@@ -713,6 +714,8 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   }, []);
   const [tavole, setTavole] = useState(false);
   const [fabbisogno, setFabbisogno] = useState(false);
+  // Il popup dei materiali proposti dal computo: si apre anche da solo dopo «Genera dal computo».
+  const [confermaProposti, setConfermaProposti] = useState(false);
   const [filtro, setFiltro] = useState<FiltroFonte>("tutti");
   const [ordine, setOrdine] = useState<Ordinamento>("posizione");
   const [richiesta, setRichiesta] = useState<RichiestaArticolo | null>(null);
@@ -731,7 +734,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const computoLettoCommessa = (computiCommessa.data ?? []).find(computoLetto) ?? null;
   const nomeComputo = computoLettoCommessa ? (computoLettoCommessa.titolo || computoLettoCommessa.file_name) : null;
   const generatiDalComputo = tutteRighe.some((m) => m.origine_materiale === "computo");
-  const invitoGenera = permessi.canEditOrders && !!computoLettoCommessa && !generatiDalComputo;
+  // Le proposte dal computo ancora da confermare (17/11/2026): se ci sono, l'invito a generare non serve.
+  const proposti = useMaterialiProposti(orderId, permessi.canEditOrders);
+  const invitoGenera = permessi.canEditOrders && !!computoLettoCommessa && !generatiDalComputo && !(proposti.data?.length);
   const scelti = tutteRighe.filter((m) => selezione.has(m.id));
   const sceltiMateriali = scelti.filter(eMateriale);
   const faseDi = (m: MaterialeFase) => fasi.find((f) => f.materiali.includes(m));
@@ -872,6 +877,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
       <div className="space-y-2" id="materiali-per-fase">
         <VariazioniVariante orderId={orderId} puoDecidere={permessi.canValidateBom} />
         <MaterialiDaRegolarizzare orderId={orderId} />
+        {permessi.canEditOrders && <MaterialiDaConfermare orderId={orderId} fasi={fasi.map((f) => ({ id: f.id, nome: f.nome }))} aperto={confermaProposti} onAperto={setConfermaProposti} />}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
           <h3 className="text-sm font-semibold text-foreground">Articoli e materiali per fase</h3>
           {tuttiMateriali.length > 0 && (
@@ -1077,8 +1083,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
           </div>
         ) : visibili.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-3 text-sm text-muted-foreground">
-            <span className="min-w-0 flex-1">{filtrato ? "Nessuna riga con questo filtro." : "Le fasi della commessa non hanno ancora materiali."}</span>
-            {!filtrato && permessi.canEditOrders && !invitoGenera && (
+            <span className="min-w-0 flex-1">{filtrato ? "Nessuna riga con questo filtro."
+              : proposti.data?.length ? "Le fasi non hanno ancora materiali: conferma quelli proposti dal computo, qui sopra."
+              : "Le fasi della commessa non hanno ancora materiali."}</span>
+            {!filtrato && permessi.canEditOrders && !invitoGenera && !proposti.data?.length && (
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGenera(true)}>
                 <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />{nomeComputo ? "Genera dal computo" : "Carica il computo e genera i materiali"}
               </Button>
@@ -1237,7 +1245,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
 
         <Suspense fallback={null}>
           {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
-          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} />}
+          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} onProposti={() => setConfermaProposti(true)} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
           {fabbisogno && (
             <Dialog open={fabbisogno} onOpenChange={setFabbisogno}>

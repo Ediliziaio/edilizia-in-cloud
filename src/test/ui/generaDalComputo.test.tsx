@@ -140,7 +140,7 @@ describe("Genera dal computo", () => {
     expect(screen.getAllByText(/da 01\.A10 · Intonaco civile premiscelato/).length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("Probabile 70%").length).toBe(2);
     expect(screen.getByText(/Spessore 2 cm invece di 1,5/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva e proponi i materiali (2)" })).toBeEnabled();
     // A passi (17/11/2026): niente da controllare → si apre sui materiali; gli altri passi a un clic.
     const passi = screen.getByRole("tablist", { name: "Passi" });
     expect(within(passi).getByRole("tab", { name: /Materiali/ })).toHaveAttribute("aria-selected", "true");
@@ -151,14 +151,15 @@ describe("Genera dal computo", () => {
     fireEvent.click(within(passi).getByRole("tab", { name: /Materiali/ }));
     expect(screen.queryByLabelText("Ricorda per i prossimi computi")).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Includi Paraspigolo"));
-    expect(screen.getByRole("button", { name: "Salva i materiali (1)" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva e proponi i materiali (1)" })).toBeEnabled();
     // Tolto il paraspigolo, la finestra propone di ricordarlo per i prossimi computi.
     expect(screen.getByLabelText("Ricorda per i prossimi computi")).toBeChecked();
     expect(screen.getByLabelText("Ricorda per i prossimi computi").closest("label")).toHaveTextContent("«Intonaco premiscelato (1,5 cm)» senza Paraspigolo");
     fireEvent.click(screen.getByLabelText("Seleziona tutti i materiali"));
-    expect(screen.getByRole("button", { name: "Salva i materiali (2)" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Salva e proponi i materiali (2)" })).toBeEnabled();
     fireEvent.click(screen.getByLabelText(/Seleziona i materiali di/));
-    expect(screen.getByRole("button", { name: "Salva i materiali (0)" })).toBeDisabled();
+    // Spenti restano proposte senza spunta: si salvano lo stesso, si decidono in Articoli.
+    expect(screen.getByRole("button", { name: "Salva e proponi i materiali (0)" })).toBeEnabled();
     fireEvent.click(screen.getByText(/Escluse 1 voci/));
     expect(screen.getByText(/Demolizione, rimozione/)).toBeInTheDocument();
   });
