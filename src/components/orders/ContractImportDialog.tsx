@@ -23,6 +23,8 @@ import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { formatCurrency } from "@/lib/formatters";
 import { parseContractExtract, reconcileContractExtract, contractImponibile, contractCoherenceWarnings, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
+import { daControllare, verificaContrattoNelTesto, type VerificaNelTesto } from "@/lib/orders/contrattoNelTesto";
+import { testoPaginePdf } from "@/lib/orders/testoPaginePdf";
 import { prepareContract, readableContractWarning, dataFirmaVerificata, contractAnalysisHint, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "./ContractPreparationCard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -100,6 +102,8 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extract, setExtract] = useState<ContractExtract | null>(null);
+  // Il contratto letto, ricontrollato sul testo del PDF (17/11/2026): pagina per ogni valore trovato.
+  const [verifica, setVerifica] = useState<VerificaNelTesto | null>(null);
   const [firmaVerificata, setFirmaVerificata] = useState(false);
   const [dataFirma, setDataFirma] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -192,6 +196,16 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
       }
       setPathAnalizzato(`${bucket}/${path}`);
       setExtract(parsed);
+      setVerifica(null);
+      // Il controllo sul testo non ferma niente: se il PDF non si legge, semplicemente non c'è.
+      if (/pdf/i.test(mime) || /\.pdf$/i.test(fileName)) {
+        void (async () => {
+          try {
+            const dati = file ? await file.arrayBuffer() : await (await supabase.storage.from(bucket).download(path)).data?.arrayBuffer();
+            if (dati) setVerifica(verificaContrattoNelTesto(parsed, await testoPaginePdf(dati)));
+          } catch { /* controllo facoltativo */ }
+        })();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -748,6 +762,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                 </>
               );
             })()}
+            {verifica && !verifica.senzaTesto && verifica.campi.length > 0 && <ControlloSulTesto verifica={verifica} />}
             {extract.warnings.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
                 <p className="font-semibold mb-1">⚠️ Da verificare</p>
@@ -808,5 +823,38 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Ogni valore letto dall'AI, cercato nel testo del PDF: quelli che non ci sono vanno guardati prima
+ * di applicare (l'AI può averli calcolati, letti male o inventati). Quelli trovati dicono la pagina.
+ */
+function ControlloSulTesto({ verifica }: { verifica: VerificaNelTesto }) {
+  const dubbi = daControllare(verifica);
+  const trovati = verifica.campi.filter((c) => c.pagina != null);
+  return (
+    <div className={`rounded-lg border p-2.5 text-xs ${dubbi.length ? "border-red-300 bg-red-50 text-red-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+      <p className="mb-1 font-semibold">
+        {dubbi.length
+          ? `${dubbi.length} ${dubbi.length === 1 ? "valore non è scritto" : "valori non sono scritti"} nel contratto: controllali prima di applicare`
+          : `Tutti i ${trovati.length} valori principali sono scritti nel contratto`}
+      </p>
+      {dubbi.length > 0 && (
+        <ul className="mb-1 list-inside list-disc space-y-0.5">
+          {dubbi.map((c) => <li key={c.chiave}><span className="font-medium">{c.etichetta}</span>: {c.valore}</li>)}
+        </ul>
+      )}
+      {trovati.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-muted-foreground">Dove li ho trovati ({trovati.length})</summary>
+          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+            {trovati.map((c) => (
+              <li key={c.chiave} title={c.citazione ?? undefined}><span className="font-medium text-foreground">{c.etichetta}</span> {c.valore} · pag. {c.pagina}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }
