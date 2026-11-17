@@ -19,6 +19,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { isProviderCreditError } from "../_shared/aiRequestGuard.ts";
+import { contaPaginePdf, MODELLO_LETTURA_ACCURATA, primoModelloLettura, serveLetturaAccurata } from "../_shared/sceltaModelloLettura.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
@@ -356,34 +358,62 @@ Deno.serve(async (req) => {
       // tornava dalla cache coi campi di prima per 90 giorni. Si mette il prompt intero, che la chiave riduce a hash.
       systemPrompt,
     ]);
-    const aiResult = await aiRouterComplete({
+    // Contratti, preventivi e computi (17/11/2026, banco work/banco-ai): Haiku 5.5 per i documenti brevi
+    // e testuali, Sonnet 5.5 per i lunghi e le scansioni, e Sonnet quando Haiku non basta. Gli altri tipi
+    // di documento restano sul modello del compito.
+    const perContratto = doc_type === "contratto_commessa";
+    const primoModello = perContratto
+      ? primoModelloLettura({ mime: mime_type ?? null, byte: buffer.byteLength, pagine: isImage || (mime_type ?? "").startsWith("text/") ? null : contaPaginePdf(new Uint8Array(buffer)) })
+      : null;
+    const leggi = (modello: string | null, chiave: string) => aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
+      ...(modello ? { forceModel: modello, disableModelFallback: true } : {}),
       messages: [
         { role: "system", content: conRegoleDocumento(systemPrompt) },
         { role: "user", content: userContent },
       ],
       // Contratti/computi lunghi: le voci sono l'output più costoso in token e
       // un tetto basso le TRONCA in silenzio (JSON monco o liste dimezzate).
-      params: { temperature: 0.0, max_tokens: ["contratto_commessa", "business_plan"].includes(doc_type) ? 12000 : 6000 },
+      // Sonnet su un contratto di 76 pagine ha impiegato 62 secondi: il tempo di default del router (30) lo troncherebbe.
+      params: {
+        temperature: 0.0,
+        max_tokens: ["contratto_commessa", "business_plan"].includes(doc_type) ? (perContratto ? 16000 : 12000) : 6000,
+        ...(modello ? { timeoutMs: modello === MODELLO_LETTURA_ACCURATA ? 120_000 : 60_000 } : {}),
+      },
       responseFormat: { type: "json_object" },
       companyId: company_id,
       userId,
-      idempotencyKey,
+      idempotencyKey: chiave,
       // Ricaricare due volte lo stesso documento (succede: rinvii, doppi
       // click, ritentativi dopo un errore a valle) non deve ripagare
       // l'estrazione. La chiave e' l'identita' vera del file, non i messaggi:
       // dentro c'e' il PDF in base64, hasharlo tutto a ogni chiamata sarebbe
       // uno spreco e basta.
-      cacheKey: idempotencyKey,
+      cacheKey: chiave,
       cacheTtlDays: 90,
     });
-    const elapsedMs = Date.now() - t0;
-
+    // La chiave dice anche il modello: la lettura di Sonnet non deve tornare dalla cache di Haiku.
+    const chiavePrima = primoModello ? `${idempotencyKey}:${primoModello}` : idempotencyKey;
+    let aiResult: Awaited<ReturnType<typeof leggi>>;
+    try {
+      aiResult = await leggi(primoModello, chiavePrima);
+    } catch (e) {
+      // Haiku in errore (tempo scaduto, JSON rifiutato): si prova Sonnet. Credito finito, saldo o abbonamento no: valgono per tutti i modelli.
+      if (!primoModello || primoModello === MODELLO_LETTURA_ACCURATA || isProviderCreditError(e) || erroreAiPerUtente(e)) throw e;
+      console.warn(`[generic-doc-ai-extract] ${primoModello} in errore: ${e instanceof Error ? e.message : e}`);
+      aiResult = { content: "" } as Awaited<ReturnType<typeof leggi>>;
+    }
     // Su risposte lunghe alcuni modelli aggiungono testo attorno al JSON: la lettura tollerante
     // (recinzione ```json, blocco { … } più esterno) è condivisa con le altre funzioni.
-    const extracted = leggiJsonDalModello(aiResult.content);
+    let extracted = leggiJsonDalModello(aiResult.content);
+    if (primoModello && primoModello !== MODELLO_LETTURA_ACCURATA && serveLetturaAccurata(extracted)) {
+      console.warn(`[generic-doc-ai-extract] ${primoModello} non basta (${extracted ? "solo il totale" : "risposta illeggibile"}): rilettura con ${MODELLO_LETTURA_ACCURATA}`);
+      aiResult = await leggi(MODELLO_LETTURA_ACCURATA, `${idempotencyKey}:${MODELLO_LETTURA_ACCURATA}`);
+      extracted = leggiJsonDalModello(aiResult.content);
+    }
+    const elapsedMs = Date.now() - t0;
     if (!extracted) {
       console.error("[generic-doc-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
       const e = letturaNonRiuscita();
