@@ -3,6 +3,7 @@
  * conferma, partono due bozze; la data «serve il» si salva uscendo dal campo.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RigaFabbisogno } from "@/lib/acquisti/fabbisogno";
@@ -30,10 +31,21 @@ vi.mock("@/hooks/useFabbisognoMateriali", () => ({
   useImpostaDataFabbisogno: () => ({ mutate: imposta, isPending: false }),
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => permessi }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "az1" } }) }));
+vi.mock("@/integrations/supabase/client", () => {
+  const catena: Record<string, unknown> = {};
+  Object.assign(catena, { select: () => catena, eq: () => catena, order: () => catena, limit: async () => ({ data: [{ id: "s1", name: "Edilmarket" }], error: null as unknown }) });
+  return { supabase: { from: () => catena, rpc: async () => ({ error: null as unknown }) } };
+});
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const { default: FabbisognoMateriali } = await import("@/pages/azienda/FabbisognoMateriali");
-const pagina = () => render(<MemoryRouter><FabbisognoMateriali /></MemoryRouter>);
+const pagina = () => render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><FabbisognoMateriali /></MemoryRouter></QueryClientProvider>);
+/** «Serve il» è una riga cliccabile: il campo si apre al clic (17/11/2026). */
+const campoData = (nome: string) => {
+  fireEvent.click(screen.getByLabelText(`Cambia quando serve ${nome} in cantiere`));
+  return screen.getByLabelText(`Quando serve ${nome} in cantiere`) as HTMLInputElement;
+};
 
 describe("fabbisogno: ordinare e datare", () => {
   beforeEach(() => { ordina.mockReset(); imposta.mockReset(); permessi = { canManagePurchasing: true, canEditOrders: true }; });
@@ -41,8 +53,10 @@ describe("fabbisogno: ordinare e datare", () => {
   it("due commesse selezionate = due bozze, e partono solo dopo la conferma", async () => {
     ordina.mockResolvedValue([{ ok: true, poId: "p1", n: 1 }, { ok: true, poId: "p2", n: 1 }]);
     pagina();
-    // Senza fornitore non si può selezionare.
-    expect(screen.queryByLabelText(/Seleziona Tasselli \(/)).toBeNull();
+    // Senza fornitore si seleziona (per assegnarlo), ma nella bozza vanno solo quelli col fornitore.
+    fireEvent.click(screen.getByLabelText("Seleziona Tasselli (C-001)"));
+    expect(screen.getByText(/1 selezionati · 1 senza fornitore/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Crea la bozza d'ordine/ })).toBeDisabled();
     fireEvent.click(screen.getByLabelText("Seleziona EPS 10 cm (C-001)"));
     fireEvent.click(screen.getByLabelText("Seleziona Rasante (C-002)"));
     fireEvent.click(screen.getByRole("button", { name: /Crea 2 bozze d'ordine/ }));
@@ -56,21 +70,23 @@ describe("fabbisogno: ordinare e datare", () => {
 
   it("la data si salva all'uscita dal campo; vuota torna all'inizio della fase", () => {
     pagina();
-    const campo = screen.getByLabelText("Quando serve EPS 10 cm in cantiere") as HTMLInputElement;
+    const campo = campoData("EPS 10 cm");
     fireEvent.change(campo, { target: { value: fra(30) } });
     expect(imposta).not.toHaveBeenCalled();
     fireEvent.blur(campo);
     expect(imposta.mock.calls[0][0]).toEqual({ ids: ["a"], data: fra(30) });
-    fireEvent.change(campo, { target: { value: "" } });
-    fireEvent.blur(campo);
+    const ancora = campoData("EPS 10 cm");
+    fireEvent.change(ancora, { target: { value: "" } });
+    fireEvent.blur(ancora);
     expect(imposta.mock.calls[1][0]).toEqual({ ids: ["a"], data: null });
   });
 
   it("senza data scritta il campo è vuoto e dice che segue la fase; scegliere proprio quella data si salva", () => {
     pagina();
-    const campo = screen.getByLabelText("Quando serve Rasante in cantiere") as HTMLInputElement;
+    expect(screen.getAllByText(/\(inizio fase\)/).length).toBe(2);
+    const campo = campoData("Rasante");
     expect(campo.value).toBe("");
-    expect(screen.getAllByText(/Segue l'inizio fase/).length).toBe(2);
+    expect(screen.getByText(/Vuoto: segue l'inizio fase/)).toBeTruthy();
     fireEvent.change(campo, { target: { value: fra(20) } });
     fireEvent.blur(campo);
     expect(imposta.mock.calls[0][0]).toEqual({ ids: ["b"], data: fra(20) });
@@ -78,18 +94,21 @@ describe("fabbisogno: ordinare e datare", () => {
 
   it("una data scritta non cambiata non si salva di nuovo", () => {
     pagina();
-    fireEvent.blur(screen.getByLabelText("Quando serve EPS 10 cm in cantiere"));
+    fireEvent.blur(campoData("EPS 10 cm"));
     expect(imposta).not.toHaveBeenCalled();
   });
 
-  it("senza permesso acquisti: niente selezione; senza nessuno dei due, la data si legge e basta", () => {
+  it("chi modifica le commesse seleziona e assegna il fornitore, non ordina; senza permessi la data si legge e basta", () => {
     permessi = { canManagePurchasing: false, canEditOrders: true };
     const { unmount } = pagina();
-    expect(screen.queryByLabelText(/^Seleziona EPS/)).toBeNull();
-    expect(screen.getByLabelText("Quando serve EPS 10 cm in cantiere")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Seleziona EPS 10 cm (C-001)"));
+    expect(screen.getByLabelText("Assegna il fornitore ai materiali selezionati")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /bozz/ })).toBeNull();
+    expect(screen.getByLabelText("Cambia quando serve EPS 10 cm in cantiere")).toBeTruthy();
     unmount();
     permessi = { canManagePurchasing: false, canEditOrders: false };
     pagina();
-    expect(screen.queryByLabelText("Quando serve EPS 10 cm in cantiere")).toBeNull();
+    expect(screen.queryByLabelText(/^Seleziona EPS/)).toBeNull();
+    expect(screen.queryByLabelText("Cambia quando serve EPS 10 cm in cantiere")).toBeNull();
   });
 });

@@ -23,7 +23,7 @@ import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import {
+import { CalendarClock,
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, FileCheck, FileSearch, History,
   Layers, Library, MoreHorizontal, Paperclip, PenLine, Pencil, Plus, Send, ShoppingCart, Sparkles, Trash2, Undo2, Warehouse,
 } from "lucide-react";
@@ -73,6 +73,7 @@ const UscitaCommessaDialog = lazy(() => import("@/components/warehouse/UscitaCom
 
 const GeneraMaterialiDialog = lazy(() => import("./GeneraMaterialiDialog"));
 const PlanimetrieDialog = lazy(() => import("./PlanimetrieDialog"));
+const FabbisognoMateriali = lazy(() => import("@/pages/azienda/FabbisognoMateriali"));
 const RientroMagazzinoDialog = lazy(() => import("./RientroMagazzinoDialog"));
 
 /** Quello che serve per aggiungere e modificare gli articoli (dettaglio commessa). */
@@ -711,6 +712,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
     setGenera(true);
   }, []);
   const [tavole, setTavole] = useState(false);
+  const [fabbisogno, setFabbisogno] = useState(false);
   const [filtro, setFiltro] = useState<FiltroFonte>("tutti");
   const [ordine, setOrdine] = useState<Ordinamento>("posizione");
   const [richiesta, setRichiesta] = useState<RichiestaArticolo | null>(null);
@@ -902,6 +904,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             )}
             <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs max-md:hidden" onClick={() => setTavole(true)}>
               <Layers className="mr-1 h-3.5 w-3.5" aria-hidden /> Tavole
+            </Button>
+            {/* Cosa ordinare ed entro quando, solo di questa commessa (17/11/2026). */}
+            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs" onClick={() => setFabbisogno(true)}>
+              <CalendarClock className="mr-1 h-3.5 w-3.5" aria-hidden /> Fabbisogno
             </Button>
             <Suggerimento testo="Scomposizioni: da una voce di computo ai suoi materiali">
               <Button size="icon" variant="ghost" className="tap-compact h-8 w-8 max-md:hidden" asChild>
@@ -1233,6 +1239,17 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
           {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
           {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
+          {fabbisogno && (
+            <Dialog open={fabbisogno} onOpenChange={setFabbisogno}>
+              <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" aria-hidden />Fabbisogno materiali{orderCode ? ` · ${orderCode}` : ""}</DialogTitle>
+                  <DialogDescription>Cosa manca da ordinare in questa commessa, ed entro quando: l'inizio della fase (o la data scritta sul materiale) meno i giorni di consegna.</DialogDescription>
+                </DialogHeader>
+                <FabbisognoMateriali orderId={orderId} inFinestra />
+              </DialogContent>
+            </Dialog>
+          )}
           {rientroDi && <RientroMagazzinoDialog orderId={orderId} riga={rientroDi} onClose={() => setRientroDi(null)} />}
         </Suspense>
       </div>

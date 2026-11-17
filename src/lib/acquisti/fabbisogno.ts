@@ -97,3 +97,29 @@ export function testoLimite(ordinaEntro: string | null, oggi: string): string {
 export function linkMateriali(r: Pick<RigaFabbisogno, "order_id" | "phase_id">): string {
   return `/azienda/ordini/${r.order_id}?tab=articoli&vista_materiali=articoli${r.phase_id ? `&fase=${r.phase_id}` : ""}`;
 }
+
+/** Selezionabile per assegnare il fornitore o ordinare: c'è ancora da ordinare e non è già in un ordine. */
+export function selezionabile(r: RigaFabbisogno): boolean {
+  return r.residuo > 0 && ["da_ordinare", "in_offerta"].includes(r.stato);
+}
+
+/**
+ * Dentro una commessa si ragiona per fase (17/11/2026): una sezione per fase, nell'ordine della prima
+ * scadenza, con quante righe sono in ritardo o entro 7 giorni. Dentro la fase, le più urgenti prima.
+ */
+export function raggruppaPerFase(righe: RigaFabbisogno[], oggi: string): Array<{ fase: string; righe: RigaFabbisogno[]; ritardo: number; settimana: number }> {
+  const perFase = new Map<string, RigaFabbisogno[]>();
+  for (const r of righe) {
+    const k = r.fase?.trim() || "Senza fase";
+    perFase.set(k, [...(perFase.get(k) ?? []), r]);
+  }
+  const prima = (rr: RigaFabbisogno[]) => rr.map((r) => r.ordina_entro ?? "9999").sort()[0];
+  return [...perFase.entries()]
+    .map(([fase, rr]) => ({
+      fase,
+      righe: [...rr].sort((a, b) => (a.ordina_entro ?? "9999").localeCompare(b.ordina_entro ?? "9999") || a.name.localeCompare(b.name, "it")),
+      ritardo: rr.filter((r) => urgenza(r, oggi) === "ritardo").length,
+      settimana: rr.filter((r) => urgenza(r, oggi) === "settimana").length,
+    }))
+    .sort((a, b) => prima(a.righe).localeCompare(prima(b.righe)) || a.fase.localeCompare(b.fase, "it"));
+}
