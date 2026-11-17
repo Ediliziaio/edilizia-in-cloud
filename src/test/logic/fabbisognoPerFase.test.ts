@@ -26,3 +26,41 @@ describe("fabbisogno di una commessa, per fase", () => {
     expect(selezionabile(riga({ residuo: 0 }))).toBe(false);
   });
 });
+
+import { differenze, nomeBreve, parolaChiave, suggerisciFornitori, avanzamentoFasi } from "@/lib/acquisti/fabbisogno";
+
+describe("nomi brevi e fornitori suggeriti", () => {
+  const deu = (n: number) => `N.1 Deumidificatore con integrato un sistema di rinnovo dell'aria e recupero del calore ad alta efficienza. Modello isotermico taglia 50, N. ${n} Tubi di distribuzione da plenum.`;
+
+  it("toglie N.1 e «Fornitura e posa», tiene la prima frase", () => {
+    expect(nomeBreve(deu(4)).titolo).toBe("Deumidificatore con integrato un sistema di…");
+    expect(nomeBreve("Fornitura e posa in opera di ventilconvettore a parete, potenza 2 kW").titolo).toBe("Ventilconvettore a parete");
+    expect(nomeBreve("Cavo di collegamento comando-fancoil")).toEqual({ titolo: "Cavo di collegamento comando-fancoil", accorciato: false });
+  });
+
+  it("dice da dove righe simili cominciano a differire", () => {
+    const d = differenze([{ order_item_id: "a", name: deu(4) }, { order_item_id: "b", name: deu(9) }, { order_item_id: "c", name: "Cavo" }]);
+    expect(d.get("a")).toMatch(/^N\. 4 Tubi/);
+    expect(d.get("b")).toMatch(/^N\. 9 Tubi/);
+    expect(d.has("c")).toBe(false);
+  });
+
+  it("propone il fornitore più usato per la stessa parola chiave", () => {
+    expect(parolaChiave("N.2 Deumidificatori canalizzati")).toBe(parolaChiave("Deumidificatore"));
+    const s = suggerisciFornitori(
+      [{ order_item_id: "x", name: deu(4), supplier_id: null }, { order_item_id: "y", name: "Cavo", supplier_id: "f1" }, { order_item_id: "z", name: "Mattoni pieni", supplier_id: null }],
+      [{ nome: "Deumidificatore Daikin", supplier_id: "f1", fornitore: "Termo" }, { nome: "deumidificatori", supplier_id: "f2", fornitore: "Clima", peso: 3 }],
+    );
+    expect(s.get("x")).toEqual({ supplier_id: "f2", fornitore: "Clima" });
+    expect(s.has("y")).toBe(false);
+    expect(s.has("z")).toBe(false);
+  });
+
+  it("conta i materiali coperti per fase", () => {
+    const a = avanzamentoFasi([
+      riga({ fase: "Tetto", previsto: 1, residuo: 0, stato: "ordinato" }),
+      riga({ fase: "Tetto", previsto: 1, residuo: 1, stato: "da_ordinare" }),
+    ]);
+    expect(a.get("Tetto")).toEqual({ coperti: 1, totale: 2 });
+  });
+});

@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, CalendarClock, Loader2, PackageSearch, ShoppingCart } from "lucide-react";
+import { AlertTriangle, ArrowRight, CalendarClock, Check, Lightbulb, Loader2, PackageSearch, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFabbisognoMateriali, useImpostaDataFabbisogno, useOrdinaDalFabbisogno } from "@/hooks/useFabbisognoMateriali";
 import { usePermissions } from "@/hooks/usePermissions";
 import { gruppiDaOrdinare, ordinabile } from "@/lib/acquisti/ordinaDalFabbisogno";
-import { ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
+import { apertaFabbisogno, avanzamentoFasi, differenze, nomeBreve, suggerisciFornitori, ETICHETTA_URGENZA, linkMateriali, raggruppaPerFase, raggruppaPerUrgenza, selezionabile, testoLimite, urgenza, type FornitoreStorico, type RigaFabbisogno, type Urgenza } from "@/lib/acquisti/fabbisogno";
 import { ETICHETTA_STATO_MATERIALE, type StatoMateriale } from "@/lib/distinta/statoMateriale";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,9 @@ const data = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocale
  * commessa (17/11/2026): stesse righe e stesse azioni, senza titolo di pagina né filtro commesse.
  */
 export default function FabbisognoMateriali({ orderId, inFinestra = false }: { orderId?: string; inFinestra?: boolean } = {}) {
-  const { data: righe = [], isLoading, isError, refetch } = useFabbisognoMateriali(orderId);
+  const { data: tutteLeRighe = [], isLoading, isError, refetch } = useFabbisognoMateriali(orderId);
+  // Nella commessa arrivano anche le righe già coperte (per l'avanzamento delle fasi): qui le aperte.
+  const righe = useMemo(() => (orderId ? tutteLeRighe.filter(apertaFabbisogno) : tutteLeRighe), [orderId, tutteLeRighe]);
   const [commessa, setCommessa] = useState("tutte");
   const [fornitore, setFornitore] = useState("tutti");
   // La data di oggi nel fuso dell'utente (en-CA = AAAA-MM-GG), non in UTC.
@@ -71,6 +73,32 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
       const { data, error } = await supabase.from("suppliers").select("id, name").eq("company_id", effectiveCompany!.id).order("name").limit(2000);
       if (error) throw error;
       return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+  // Per proporre il fornitore ai materiali che non l'hanno: cosa l'azienda ha già comprato e da chi, e i listini attivi.
+  const storicoFornitori = useQuery({
+    queryKey: ["fornitori-storico-materiali", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id && !!orderId && puoScegliere,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const nomi = new Map((fornitoriAzienda.data ?? []).map((f) => [f.id, f.name]));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any;
+      const [acq, lis] = await Promise.all([
+        db.from("order_items").select("name, supplier_id, suppliers(name), orders!inner(company_id)")
+          .eq("orders.company_id", effectiveCompany!.id).not("supplier_id", "is", null).order("created_at", { ascending: false }).limit(1500),
+        db.from("listino_fornitore_voci").select("descrizione, listini_fornitore!inner(supplier_id, attivo, suppliers(name))")
+          .eq("company_id", effectiveCompany!.id).eq("listini_fornitore.attivo", true).limit(3000),
+      ]);
+      const storico: FornitoreStorico[] = [];
+      for (const r of (acq.data ?? []) as { name: string; supplier_id: string; suppliers: { name: string } | null }[]) {
+        storico.push({ nome: r.name, supplier_id: r.supplier_id, fornitore: r.suppliers?.name ?? nomi.get(r.supplier_id) ?? "Fornitore" });
+      }
+      // Una voce di listino vale più di un acquisto passato: è il fornitore che quel materiale lo vende.
+      for (const v of (lis.data ?? []) as { descrizione: string; listini_fornitore: { supplier_id: string; suppliers: { name: string } | null } }[]) {
+        storico.push({ nome: v.descrizione, supplier_id: v.listini_fornitore.supplier_id, fornitore: v.listini_fornitore.suppliers?.name ?? "Fornitore", peso: 3 });
+      }
+      return storico;
     },
   });
   const assegna = useMutation({
@@ -229,8 +257,10 @@ export default function FabbisognoMateriali({ orderId, inFinestra = false }: { o
           </p>
         </div>
       ) : orderId ? (
-        <VistaPerFasi righe={filtrate} oggi={oggi} scelti={scelti} cambia={cambia} sceltaGruppo={sceltaGruppo}
-          puoScegliere={puoScegliere} puoDatare={puoDatare} barra={barraScelta} />
+        <VistaPerFasi righe={filtrate} tutte={tutteLeRighe} oggi={oggi} scelti={scelti} cambia={cambia} sceltaGruppo={sceltaGruppo}
+          puoScegliere={puoScegliere} puoDatare={puoDatare} barra={barraScelta}
+          suggeriti={puoScegliere ? suggerisciFornitori(filtrate, storicoFornitori.data ?? []) : new Map()}
+          assegnaSuggerito={(ids, supplierId) => assegna.mutate({ ids, supplierId })} assegnando={assegna.isPending} />
       ) : (
         <>
           {righe.length >= 500 && (
@@ -278,8 +308,10 @@ const piuGiorni = (iso: string, g: number) => { const d = new Date(`${iso}T12:00
  * urge, a destra i materiali della fase divisi per fornitore («senza fornitore» per primo), un solo
  * avviso per i ritardi, righe asciutte (i dettagli si aprono dalla data) e la barra delle azioni in fondo.
  */
-function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere, puoDatare, barra }: {
+function VistaPerFasi({ righe, tutte, oggi, scelti, cambia, sceltaGruppo, puoScegliere, puoDatare, barra, suggeriti, assegnaSuggerito, assegnando }: {
   righe: RigaFabbisogno[];
+  /** Anche le righe già coperte: per «ordinati X su Y». */
+  tutte: RigaFabbisogno[];
   oggi: string;
   scelti: Set<string>;
   cambia: (id: string, si: boolean) => void;
@@ -287,17 +319,23 @@ function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere,
   puoScegliere: boolean;
   puoDatare: boolean;
   barra: ReactNode;
+  suggeriti: Map<string, { supplier_id: string; fornitore: string }>;
+  assegnaSuggerito: (ids: string[], supplierId: string) => void;
+  assegnando: boolean;
 }) {
   const fasi = raggruppaPerFase(righe, oggi);
+  const avanzamento = avanzamentoFasi(tutte);
+  // Le fasi già tutte ordinate restano in fondo all'elenco, spuntate: si vede che ci sono e che sono a posto.
+  const complete = [...avanzamento.entries()].filter(([f, a]) => a.totale > 0 && !fasi.some((x) => x.fase === f)).map(([f]) => f);
   const [faseScelta, setFaseScelta] = useState<string | null>(null);
-  const attiva = fasi.find((f) => f.fase === faseScelta) ?? fasi[0];
+  const attiva = fasi.find((f) => f.fase === faseScelta) ?? (faseScelta && complete.includes(faseScelta) ? { fase: faseScelta, righe: [] as RigaFabbisogno[], ritardo: 0, settimana: 0 } : fasi[0]);
   if (!attiva) return null;
   const primaScadenza = (rr: RigaFabbisogno[]) => rr.map((r) => r.ordina_entro).filter((d): d is string => !!d).sort()[0] ?? null;
   const sottotitolo = (f: typeof attiva) => {
-    if (f.ritardo) return { testo: `${f.ritardo} in ritardo · ${f.righe.length}`, colore: "text-red-700 dark:text-red-300" };
+    if (f.ritardo) return { testo: `${f.ritardo} in ritardo · ${f.righe.length} da ordinare`, colore: "text-red-700 dark:text-red-300" };
     const p = primaScadenza(f.righe);
     const quando = !p ? "senza data" : p <= oggi ? "entro oggi" : `entro ${data(p)}`;
-    return { testo: `${quando} · ${f.righe.length}`, colore: f.settimana ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground" };
+    return { testo: `${quando} · ${f.righe.length} da ordinare`, colore: f.settimana ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground" };
   };
   const inizio = attiva.righe.map((r) => r.data_serve).filter((d): d is string => !!d).sort()[0] ?? null;
   const ritardo = attiva.righe.filter((r) => urgenza(r, oggi) === "ritardo");
@@ -307,8 +345,21 @@ function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere,
   const tuttaScelta = sceglibili.length > 0 && sceglibili.every((r) => scelti.has(r.order_item_id));
   const perFornitore = [...attiva.righe.reduce((m, r) => m.set(r.fornitore ?? "", [...(m.get(r.fornitore ?? "") ?? []), r]), new Map<string, RigaFabbisogno[]>()).entries()]
     .sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, "it")));
+  const diverse = differenze(attiva.righe);
   const totRitardo = fasi.reduce((t, f) => t + f.ritardo, 0);
   const totSettimana = fasi.reduce((t, f) => t + f.settimana, 0);
+  const Barretta = ({ fase }: { fase: string }) => {
+    const a = avanzamento.get(fase);
+    if (!a?.totale) return null;
+    return (
+      <span className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground" title={`${a.coperti} materiali su ${a.totale} già ordinati`}>
+        <span className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${Math.round((a.coperti / a.totale) * 100)}%` }} />
+        </span>
+        <span className="tabular-nums">{a.coperti}/{a.totale}</span>
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -316,34 +367,49 @@ function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere,
         <strong className="text-foreground">{righe.length} materiali</strong> da ordinare in {fasi.length} {fasi.length === 1 ? "fase" : "fasi"}
         {totRitardo > 0 && <> · <span className="text-red-700 dark:text-red-300">{totRitardo} in ritardo</span></>}
         {totSettimana > 0 && <> · <span className="text-amber-700 dark:text-amber-300">{totSettimana} entro 7 giorni</span></>}
+        {complete.length > 0 && <> · <span className="text-emerald-700 dark:text-emerald-300">{complete.length} {complete.length === 1 ? "fase già ordinata" : "fasi già ordinate"}</span></>}
       </p>
-      <div className="grid gap-3 rounded-lg border sm:grid-cols-[13rem_minmax(0,1fr)]">
+      <div className="grid gap-3 rounded-lg border sm:grid-cols-[14rem_minmax(0,1fr)]">
         <nav aria-label="Fasi" className="flex gap-1 overflow-x-auto border-b p-2 sm:flex-col sm:overflow-visible sm:border-b-0 sm:border-r">
           {fasi.map((f) => {
             const sel = f.fase === attiva.fase;
             const st = sottotitolo(f);
             return (
               <button key={f.fase} type="button" onClick={() => setFaseScelta(f.fase)} aria-current={sel ? "true" : undefined}
-                className={cn("shrink-0 rounded-md px-2.5 py-2 text-left text-sm transition-colors sm:w-full", sel ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted")}>
+                className={cn("w-48 shrink-0 rounded-md px-2.5 py-2 text-left text-sm transition-colors sm:w-full", sel ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted")}>
                 <span className={cn("block font-medium", sel && "text-primary")}>{f.fase}</span>
                 <span className={cn("block text-[11px]", st.colore)}>{st.testo}</span>
+                <Barretta fase={f.fase} />
               </button>
             );
           })}
+          {complete.map((f) => (
+            <button key={f} type="button" onClick={() => setFaseScelta(f)} aria-current={f === attiva.fase ? "true" : undefined}
+              className={cn("w-48 shrink-0 rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors sm:w-full", f === attiva.fase ? "bg-muted" : "hover:bg-muted")}>
+              <span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden /> {f}</span>
+              <span className="block pl-5 text-[11px]">tutto ordinato</span>
+            </button>
+          ))}
         </nav>
 
         <section aria-label={`Materiali della fase ${attiva.fase}`} className="min-w-0 space-y-3 p-3 sm:pl-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h3 className="text-sm font-semibold">{attiva.fase}</h3>
-            <span className="text-xs text-muted-foreground">
+            {attiva.righe.length > 0 && <span className="text-xs text-muted-foreground">
               {inizio ? `inizio fase ${data(inizio)}` : "fase senza date"}{primaScadenza(attiva.righe) ? ` · ordina entro ${data(primaScadenza(attiva.righe))}` : ""}
-            </span>
+            </span>}
             {puoScegliere && sceglibili.length > 0 && (
               <Button size="sm" variant="outline" className="ml-auto h-7 text-xs" onClick={() => sceltaGruppo(attiva.righe, !tuttaScelta)}>
                 {tuttaScelta ? "Togli la fase" : "Seleziona la fase"}
               </Button>
             )}
           </div>
+
+          {attiva.righe.length === 0 && (
+            <p className="flex items-center gap-2 rounded-md border border-dashed px-3 py-6 text-sm text-muted-foreground">
+              <Check className="h-4 w-4 text-emerald-600" aria-hidden /> Tutti i materiali di questa fase sono già ordinati.
+            </p>
+          )}
 
           {ritardo.length > 0 && (
             <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
@@ -355,6 +421,12 @@ function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere,
           {perFornitore.map(([fornitore, rr]) => {
             const sc = rr.filter(selezionabile);
             const tutti = sc.length > 0 && sc.every((r) => scelti.has(r.order_item_id));
+            // Senza fornitore: le proposte raggruppate per fornitore, da assegnare con un clic.
+            const proposte = fornitore ? [] : [...sc.reduce((m, r) => {
+              const s = suggeriti.get(r.order_item_id);
+              if (s) m.set(s.supplier_id, { fornitore: s.fornitore, ids: [...(m.get(s.supplier_id)?.ids ?? []), r.order_item_id] });
+              return m;
+            }, new Map<string, { fornitore: string; ids: string[] }>()).entries()].sort((a, b) => b[1].ids.length - a[1].ids.length);
             return (
               <div key={fornitore || "_nessuno"} className="space-y-1">
                 <p className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -363,9 +435,22 @@ function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere,
                   )}
                   <span className={fornitore ? "" : "text-amber-700 dark:text-amber-300"}>{fornitore || "Senza fornitore"} · {rr.length}</span>
                 </p>
+                {proposte.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
+                    <Lightbulb className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+                    <span className="text-muted-foreground">Di solito li prendi da:</span>
+                    {proposte.slice(0, 4).map(([id, p]) => (
+                      <Button key={id} size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={assegnando}
+                        onClick={() => assegnaSuggerito(p.ids, id)} title={`Assegna ${p.fornitore} a ${p.ids.length} materiali di questa fase`}>
+                        {p.fornitore} · {p.ids.length} <ArrowRight className="ml-1 h-3 w-3" aria-hidden /> Assegna
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <ul className="divide-y rounded-md border">
                   {rr.map((r) => (
-                    <RigaCompatta key={r.order_item_id} r={r} oggi={oggi} puoDatare={puoDatare}
+                    <RigaCompatta key={r.order_item_id} r={r} oggi={oggi} puoDatare={puoDatare} differenza={diverse.get(r.order_item_id) ?? null}
+                      proposto={fornitore ? null : suggeriti.get(r.order_item_id)?.fornitore ?? null}
                       scelta={puoScegliere && selezionabile(r) ? { si: scelti.has(r.order_item_id), cambia: (v) => cambia(r.order_item_id, v) } : null} />
                   ))}
                 </ul>
@@ -383,36 +468,47 @@ function VistaPerFasi({ righe, oggi, scelti, cambia, sceltaGruppo, puoScegliere,
   );
 }
 
-function RigaCompatta({ r, oggi, puoDatare, scelta }: {
+function RigaCompatta({ r, oggi, puoDatare, scelta, differenza, proposto }: {
   r: RigaFabbisogno;
   oggi: string;
   puoDatare: boolean;
   scelta: { si: boolean; cambia: (v: boolean) => void } | null;
+  /** Il pezzo di descrizione che la distingue da righe col nome uguale. */
+  differenza: string | null;
+  proposto: string | null;
 }) {
   const [aperta, setAperta] = useState(false);
   const u = urgenza(r, oggi);
   const unita = r.unita_misura ?? "pz";
   const stato = r.stato === "da_ordinare" ? null : (ETICHETTA_STATO_MATERIALE[r.stato as StatoMateriale] ?? r.stato);
+  const { titolo, accorciato } = nomeBreve(r.name);
   return (
     <li className="px-3 py-2 text-sm">
       <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_auto_6.5rem] items-center gap-2">
-        <span>{scelta && <Checkbox checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${r.name} (${r.commessa ?? "commessa"})`} />}</span>
+        <span>{scelta && <Checkbox checked={scelta.si} onCheckedChange={(v) => scelta.cambia(v === true)} aria-label={`Seleziona ${titolo}`} />}</span>
         <span className="min-w-0">
-          <span className="line-clamp-2" title={r.name}>{r.name}</span>
-          {stato && <span className="text-[11px] text-muted-foreground">{stato}</span>}
+          <span className="block truncate font-medium" title={r.name}>{titolo}</span>
+          {(differenza || stato || proposto) && (
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {[differenza, stato, proposto ? `di solito da ${proposto}` : null].filter(Boolean).join(" · ")}
+            </span>
+          )}
           {r.unita_diversa && <span className="flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300"><AlertTriangle className="h-3 w-3" aria-hidden /> Ordine in un'altra unità</span>}
         </span>
         <span className="whitespace-nowrap text-right tabular-nums text-xs">{r.residuo > 0 ? `${numero(r.residuo)} ${unita}` : r.eccedenza > 0 ? `+${numero(r.eccedenza)} ${unita}` : ""}</span>
         <button type="button" onClick={() => setAperta((v) => !v)} aria-expanded={aperta}
           className={cn("whitespace-nowrap rounded px-1 text-right text-xs tabular-nums underline-offset-2 hover:underline", COLORE_DATA[u])}
-          aria-label={`Dettagli di ${r.name}: ordina entro ${data(r.ordina_entro)}`}>
+          aria-label={`Dettagli di ${titolo}: ordina entro ${data(r.ordina_entro)}`}>
           {r.ordina_entro ? data(r.ordina_entro) : "senza data"}
         </button>
       </div>
       {aperta && (
-        <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 pl-7 text-xs text-muted-foreground">
-          <span>{testoLimite(r.ordina_entro, oggi)}{r.giorni_consegna != null ? ` · consegna ${r.giorni_consegna} gg` : ""}</span>
-          <DataServe key={r.data_scritta ?? ""} r={r} puoDatare={puoDatare} />
+        <div className="mt-1.5 space-y-1 pl-7 text-xs text-muted-foreground">
+          {accorciato && <p className="whitespace-pre-line text-foreground/80">{r.name}</p>}
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            <span>{testoLimite(r.ordina_entro, oggi)}{r.giorni_consegna != null ? ` · consegna ${r.giorni_consegna} gg` : ""}</span>
+            <DataServe key={r.data_scritta ?? ""} r={r} puoDatare={puoDatare} />
+          </div>
         </div>
       )}
     </li>

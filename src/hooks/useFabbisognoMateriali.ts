@@ -52,7 +52,7 @@ const daRiga = (r: Record<string, unknown>): RigaFabbisogno => ({
 });
 
 /**
- * Il fabbisogno di una commessa: le righe aperte (come materiali_riconciliazione_azienda) delle fasi
+ * Il fabbisogno di una commessa: tutte le righe (aperte e coperte) delle fasi
  * validate o che la validazione non la usano. Una fase in preparazione o dal tecnico resta fuori.
  */
 async function fabbisognoDellaCommessa(orderId: string): Promise<RigaFabbisogno[]> {
@@ -63,9 +63,8 @@ async function fabbisognoDellaCommessa(orderId: string): Promise<RigaFabbisogno[
   if (error) throw error;
   if (e2) throw e2;
   const inAttesa = new Set(((val ?? []) as { phase_id: string; stato: string }[]).filter((v) => v.stato !== "validata").map((v) => v.phase_id));
-  return ((data ?? []) as Array<Record<string, unknown>>).map(daRiga).filter((r) =>
-    !(r.phase_id && inAttesa.has(r.phase_id))
-    && ((r.residuo > 0 && !["consegnato", "installato"].includes(r.stato)) || r.eccedenza > 0 || r.unita_diversa));
+  // Anche le righe già coperte: servono per «ordinati X su Y» della fase. La pagina tiene le aperte.
+  return ((data ?? []) as Array<Record<string, unknown>>).map(daRiga).filter((r) => !(r.phase_id && inAttesa.has(r.phase_id)));
 }
 
 /**
