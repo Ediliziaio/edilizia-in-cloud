@@ -32,6 +32,7 @@ import { ETICHETTA_PARTE, partiPresenti, soloLeParti, type ParteContratto } from
 import { REGOLA_VOCI, RILEGGI_VOCI, soloIlTotale } from "@/lib/orders/avvisiContratto";
 import { useAuth } from "@/contexts/AuthContext";
 import { BUCKET_ORIGINALI_AI } from "@/lib/orders/documentImportAi";
+import { leggiComputoSenzaAi } from "@/lib/orders/contrattoDaComputo";
 
 const ACCEPTED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
@@ -184,6 +185,24 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         path = remoteFile!.path;
         fileName = remoteFile!.name;
         mime = remoteFile!.mime;
+      }
+
+      // Un computo (PDF di PriMus, .xpwe, .xlsx) si legge qui, esatto e gratis: all'AI 167-226 voci non stanno
+      // in una risposta, e la lettura usciva tronca e pagata (17/11/2026). Gli altri documenti vanno all'AI.
+      if (destinazione === "cliente") {
+        const originale = file ?? await (async () => {
+          const { data: blob } = await supabase.storage.from(bucket).download(path);
+          return blob ? new File([blob], fileName, { type: mime }) : null;
+        })();
+        const daComputo = originale ? await leggiComputoSenzaAi(originale) : null;
+        if (daComputo) {
+          setPathAnalizzato(`${bucket}/${path}`);
+          setExtract(daComputo);
+          setScelte(new Set(partiPresenti(daComputo)));
+          setVerifica(null);
+          setTestoDocumento(null);
+          return;
+        }
       }
 
       const leggi = async (nota: string) => {
