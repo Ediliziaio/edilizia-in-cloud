@@ -72,9 +72,22 @@ describe("pianoContrattoSuCommessa", () => {
     expect(p.campi.vat_rate).toBe(10);
     expect(p.campi.work_start_date).toBeUndefined();
     expect(p.campi.work_end_date).toBe("2027-01-31");
-    expect(p.voci.map((v) => v.name)).toEqual(["Demolizioni", "Posa rivestimenti"]);
-    expect(p.voci.every((v) => v.vat_rate === 10)).toBe(true);
+    // Demolizioni e posa sono lavori: restano nelle fasi, non diventano articoli da ordinare (17/11/2026).
+    expect(p.voci.map((v) => v.name)).toEqual([]);
     expect(p.rateNuove?.map((r) => r.amount)).toEqual([3300, 4400, 3300]);
+  });
+
+  it("solo i materiali diventano articoli, con l'IVA del contratto", () => {
+    const p = pianoContrattoSuCommessa(contratto({
+      voci: [
+        { descrizione: "Demolizioni", quantita: 1, prezzo_unitario_eur: 2000 },
+        { descrizione: "Fornitura e posa di piastrelle in gres 60x60", quantita: 40, prezzo_unitario_eur: 60 },
+        { descrizione: "Trasporto e conferimento in discarica", quantita: 1, prezzo_unitario_eur: 300 },
+        { descrizione: "Piatto doccia in resina 80x120", quantita: 1, prezzo_unitario_eur: 450 },
+      ],
+    }), commessa, []);
+    expect(p.voci.map((v) => v.name)).toEqual(["Fornitura e posa di piastrelle in gres 60x60", "Piatto doccia in resina 80x120"]);
+    expect(p.voci.every((v) => v.vat_rate === 10)).toBe(true);
   });
 
   it("le rate fatturate restano, quelle libere vengono sostituite", () => {

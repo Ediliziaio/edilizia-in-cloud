@@ -47,7 +47,8 @@ describe("la finestra del contratto letto", () => {
     expect(screen.getAllByText("1.100,00 €").length).toBeGreaterThan(0);
     expect(screen.queryByText(/Affidabilit/)).toBeNull();
     const schede = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(schede).toEqual(["Importo", "Lavorazioni2", "Articoli2", "Pagamento2", "Date", "Note e firma1", "Cliente e lavori"]);
+    // Il numero degli Articoli conta solo quello che si compra: demolizione e rasatura sono lavori (17/11/2026).
+    expect(schede).toEqual(["Importo", "Lavorazioni2", "Articoli0", "Pagamento2", "Date", "Note e firma1", "Cliente e lavori"]);
     fireEvent.click(screen.getByRole("tab", { name: /Lavorazioni/ }));
     expect(screen.getByText("Tramezzi")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: /Articoli/ }));

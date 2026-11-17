@@ -16,7 +16,7 @@ import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker
 import { codiceNormalizzato, indirizzoCantiereDalContratto, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
-import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
+import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, vociDaComprare, type ContractExtract } from "@/lib/orders/contractExtract";
 import { prepareContract, contractPreparationNotes, fasiDalContratto, dateLavoriDalContratto, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
 import { saveContractOfficeTasks } from "@/lib/orders/contractOfficeTasks";
@@ -615,7 +615,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (ex.voci.length > 0 && !contractNeedsAllocation(ex)) {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
-      const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
+      // Solo i materiali (con o senza posa) diventano articoli: lavori, servizi, oneri e sconti restano nelle
+      // fasi (17/11/2026: dal computo entravano anche «Riunioni di formazione» e il bagno chimico a noleggio).
+      const vociVere = vociDaComprare(ex.voci).filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
       const itemsMerce = vociVere.map<OrderItem>((v, idx) => {
         const match = mappaVoceSuListino(v.descrizione ?? "");
         return rigaConQuantitaIntera<OrderItem>({

@@ -11,7 +11,8 @@ import { ModificaArticoli, ModificaDate, ModificaFasi, ModificaImporto, Modifica
 import { ETICHETTA_PARTE, ORDINE_PARTI, partiPresenti, type ParteContratto } from "@/lib/orders/sceltaContratto";
 import { AlertTriangle, Check, CheckCircle2, FileText, Pencil } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { contractImponibile, contractSommaVoci, fasiDaCapitoli, type ContractExtract } from "@/lib/orders/contractExtract";
+import { contractImponibile, contractSommaVoci, fasiDaCapitoli, vociDaComprare, type ContractExtract } from "@/lib/orders/contractExtract";
+import { ETICHETTA_NATURA, siCompra } from "@/lib/orders/naturaVoce";
 import type { VerificaNelTesto } from "@/lib/orders/contrattoNelTesto";
 import { avvisiDaControllare } from "@/lib/orders/avvisiContratto";
 import { cn } from "@/lib/utils";
@@ -33,7 +34,7 @@ function Numero({ etichetta, valore, sotto }: { etichetta: string; valore: strin
 }
 
 const SPIEGA: Record<ParteContratto, string> = {
-  importo: "importo e IVA della commessa", lavorazioni: "diventano le fasi con le loro lavorazioni", articoli: "diventano gli articoli da ordinare",
+  importo: "importo e IVA della commessa", lavorazioni: "diventano le fasi con le loro lavorazioni", articoli: "solo i materiali diventano articoli da ordinare",
   pagamento: "diventano le rate", date: "inizio e fine dei lavori", note: "nelle note interne", cliente: "anagrafica e indirizzo del cantiere",
 };
 
@@ -72,7 +73,8 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
   const modificabile = !!onModifica && (["importo", "lavorazioni", "articoli", "pagamento", "date"] as ParteContratto[]).includes(attiva);
   const conteggi: Partial<Record<ParteContratto, string>> = {
     lavorazioni: fasi.length ? String(fasi.length) : undefined,
-    articoli: String(extract.voci.length + pos.length),
+    // Si contano gli articoli che nascerebbero: i materiali, non lavori, servizi e sconti.
+    articoli: String(vociDaComprare(extract.voci).length + pos.length),
     pagamento: extract.fasi_pagamento.length ? String(extract.fasi_pagamento.length) : undefined,
     note: note.length ? String(note.length) : undefined,
   };
@@ -190,12 +192,23 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
               </ol>
             )}
             {attiva === "articoli" && (<>
+              {extract.voci.length > 0 && (() => {
+                const daComprare = vociDaComprare(extract.voci).length;
+                const altre = extract.voci.length - daComprare;
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{daComprare} da comprare</span> (materiali, con o senza posa)
+                    {altre > 0 && <> · {altre} lavori, servizi, oneri o sconti: restano nelle fasi, non diventano articoli</>}
+                  </p>
+                );
+              })()}
               {extract.voci.length > 0 && (
                 <div className="max-h-72 overflow-y-auto rounded-md border">
                   <table className="w-full table-fixed text-xs">
                     <thead className="sticky top-0 bg-background">
                       <tr className="text-left text-muted-foreground">
                         <th className="px-2 py-1.5 font-medium">Descrizione</th>
+                        <th className="w-28 px-2 py-1.5 font-medium">Cos'è</th>
                         <th className="w-14 px-2 py-1.5 text-right font-medium">Q.tà</th>
                         <th className="w-24 px-2 py-1.5 text-right font-medium">Unitario</th>
                         <th className="w-24 px-2 py-1.5 text-right font-medium">Totale</th>
@@ -210,6 +223,12 @@ export function RisultatoLettura({ extract, verifica, testoDocumento, daConferma
                               <summary className="cursor-pointer list-none break-words group-open:hidden [&::-webkit-details-marker]:hidden"><span className="line-clamp-2">{v.descrizione}</span></summary>
                               <span className="hidden break-words group-open:block">{v.descrizione}</span>
                             </details>
+                          </td>
+                          <td className="px-2 py-1 align-top">
+                            <span className={cn("inline-block rounded px-1.5 py-0.5 text-[11px]",
+                              siCompra(v.natura ?? "fornitura_e_posa") ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" : "bg-muted text-muted-foreground")}>
+                              {ETICHETTA_NATURA[v.natura ?? "fornitura_e_posa"]}
+                            </span>
                           </td>
                           <td className="px-2 py-1 text-right align-top tabular-nums">{v.quantita.toLocaleString("it-IT")}</td>
                           <td className="px-2 py-1 text-right align-top tabular-nums">{v.prezzo_unitario_eur ? formatCurrency(v.prezzo_unitario_eur) : "—"}</td>

@@ -2,6 +2,7 @@
  * Parsing difensivo dell'output AI di "contratto/copia commissione" → dati commessa.
  * L'AI può sbagliare o omettere campi: qui normalizziamo tutto a tipi sicuri.
  */
+import { eNatura, naturaVoce, siCompra, type NaturaVoce } from "./naturaVoce";
 import type { Installment } from "@/lib/orderUtils";
 
 export interface ContractExtractClient {
@@ -53,6 +54,8 @@ export interface ContractExtractItem {
   prezzo_unitario_eur: number;
   /** Il capitolo sotto cui la voce è elencata nel documento (17/11/2026): diventa la fase. */
   capitolo?: string | null;
+  /** Cos'è (17/11/2026): solo «fornitura» e «fornitura_e_posa» diventano articoli da ordinare. */
+  natura?: NaturaVoce;
 }
 export interface ContractExtractAltroCosto {
   descrizione: string;
@@ -161,6 +164,11 @@ export function senzaTappeDiPagamento(fasi: ContractExtractWorkPhase[], rate: st
  * Le fasi dai capitoli degli articoli (17/11/2026): un preventivo o un computo è diviso in capitoli
  * (allestimenti, demolizioni, impianti…) e dentro ci sono le lavorazioni. Nell'ordine del documento.
  */
+/** Le voci che si comprano: materiali, con o senza posa. Lavori, servizi e sconti restano nelle fasi. */
+export function vociDaComprare<T extends Pick<ContractExtractItem, "natura">>(voci: readonly T[]): T[] {
+  return voci.filter((v) => siCompra(v.natura ?? "fornitura_e_posa"));
+}
+
 export function fasiDaCapitoli(voci: ContractExtractItem[]): ContractExtractWorkPhase[] {
   const perCapitolo = new Map<string, string[]>();
   for (const v of voci) {
@@ -277,6 +285,9 @@ export function parseContractExtract(raw: unknown): ContractExtract {
         quantita: toNum(v.quantita) ?? 1,
         prezzo_unitario_eur: toNum(v.prezzo_unitario_eur) ?? 0,
         capitolo: toStr(v.capitolo)?.replace(/\s+/g, " ").slice(0, 80) ?? null,
+        // Dichiarata da chi legge (il computo, l'AI col campo «tipo»), altrimenti dalle parole della voce.
+        natura: eNatura(v.natura) ? v.natura : eNatura(v.tipo) ? v.tipo
+          : naturaVoce(toStr(v.descrizione), { capitolo: toStr(v.capitolo), detrazione: (toNum(v.prezzo_unitario_eur) ?? 0) < 0 }),
       }))
       .filter((v) => v.descrizione),
     sconto_globale_pct: toNum(r.sconto_globale_pct),

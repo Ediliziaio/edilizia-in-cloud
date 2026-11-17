@@ -15,6 +15,7 @@ import { leggiFileComputo } from "@/lib/computo/leggiFileComputo";
 import { arrotonda, controllaTotali, formatEuro, type ComputoStrutturato, type ComputoVoceStrutturata } from "@/lib/computo/computoStrutturato";
 import { fasiDaCapitoli, parseContractExtract, type ContractExtract } from "./contractExtract";
 import { eNonLavoro } from "@/lib/computo/vociNonLavori";
+import { naturaVoce } from "./naturaVoce";
 
 /** Una voce che sta nel computo del bonus ma non è un lavoro dell'impresa (onorari, casse, IVA). */
 export function eVoceNonLavoro(v: Pick<ComputoVoceStrutturata, "descrizione" | "super_categoria" | "categoria" | "sotto_categoria">): boolean {
@@ -50,6 +51,7 @@ export function contrattoDaComputo(c: ComputoStrutturato): ContractExtract {
       prezzo_unitario_eur: segno * p,
       importo_eur: segno * importo,
       capitolo: capitoloFase(v),
+      natura: naturaVoce(v.descrizione, { sicurezza: v.is_sicurezza, capitolo: v.categoria?.nome, detrazione: v.is_detrazione || importo < 0 }),
     };
   });
 
