@@ -47,6 +47,30 @@ describe("verificaFormale", () => {
     expect(verificaFormale(d, azienda as never, null).voci.some((v) => v.esito === "errore" && /6 caratteri/.test(v.testo))).toBe(true);
   });
 
+  /**
+   * Impresa Vulcano, 18/11/2026: tre fatture ferme e il messaggio diceva solo «dati fiscali non validi».
+   * Mancavano numero REA e capitale sociale dell'azienda che emette, che `invia-sdi` considera bloccanti —
+   * mentre questa schermata li dava per gialli, cioè «si può procedere».
+   */
+  it("numero REA e capitale sociale mancanti sono errori, perché l'invio li blocca", () => {
+    const senzaRea = { ...azienda, codice_rea: null as string | null, capitale_sociale: null as number | null };
+    const d = doc();
+    const r = verificaFormale(d, senzaRea as never, null);
+    const errori = r.voci.filter((v) => v.esito === "errore").map((v) => v.testo).join(" | ");
+    expect(errori).toMatch(/Numero REA mancante/);
+    expect(errori).toMatch(/Capitale sociale versato mancante/);
+    // E dicono dove si scrivono, non solo che mancano.
+    expect(errori).toMatch(/Impostazioni → Fatturazione → Dati Fiscali/);
+    expect(r.voci.some((v) => v.esito === "avviso" && /REA/.test(v.testo))).toBe(false);
+  });
+
+  it("con REA e capitale compilati la verifica non ha più niente da dire sul registro imprese", () => {
+    const d = doc();
+    const r = verificaFormale(d, azienda as never, xml(d));
+    expect(r.errori).toBe(0);
+    expect(r.voci.some((v) => v.esito === "ok" && /registro imprese/.test(v.testo))).toBe(true);
+  });
+
   it("senza codice né PEC è un avviso, non un errore", () => {
     const d = doc({ ...cliente, codice_sdi: "" });
     const r = verificaFormale(d, azienda as never, xml(d));

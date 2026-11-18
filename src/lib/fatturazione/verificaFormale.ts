@@ -54,7 +54,9 @@ export function verificaFormale(
     if (eSocieta(az.forma_giuridica)) {
       const mancanti = datiReaMancanti(az as never);
       if (mancanti.length === 0) ok("Iscrizione al registro imprese (REA) completa");
-      else avviso(`Dati REA incompleti: ${mancanti.join(", ")}`);
+      // Errore, non avviso: `invia-sdi` su questi FERMA la trasmissione (art. 2250 c.c.). Finché qui erano
+      // gialli, la schermata diceva «si può procedere» e l'invio rispondeva di no (18/11/2026).
+      else mancanti.forEach(errore);
     }
   }
 
