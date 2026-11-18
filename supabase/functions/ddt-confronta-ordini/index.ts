@@ -100,3 +100,5 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// 18/11/2026: ripubblicata per _shared/documentoNonFidato.ts (niente falso avviso «istruzioni rivolte all'AI») e _shared/estrazioneDdt.ts (niente numero d'esempio copiabile).
