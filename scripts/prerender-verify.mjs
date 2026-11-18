@@ -77,8 +77,10 @@ function checkFile(file) {
   const errors = validateJsonLd(html);
   const warnings = [];
 
-  // 1. Size check
-  if (size < MIN_SIZE_BYTES) {
+  // 1. Le pagine pubbliche devono avere contenuto prerenderizzato. Lo shell
+  // privato resta invece minimale: si verificano root/modulo sotto e la Home
+  // pubblica separatamente, senza richiedere script o markup superflui.
+  if (!isAppShell && size < MIN_SIZE_BYTES) {
     errors.push(`size ${(size / 1024).toFixed(1)}KB < ${(MIN_SIZE_BYTES / 1024).toFixed(0)}KB (probabile guscio vuoto)`);
   }
 

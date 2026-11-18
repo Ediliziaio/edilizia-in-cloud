@@ -9,13 +9,13 @@ afterEach(() => {
   for (const dir of dirs.splice(0))
     rmSync(dir, { recursive: true, force: true });
 });
-const html = (content: string, rendered = true) => `<!doctype html><html><head>
+const html = (content: string, rendered = true, padding = 31000) => `<!doctype html><html><head>
 <title>Gestionale Edilizia con AI | Verifica del sito</title>
 <meta name="description" content="${"Informazioni complete sul gestionale per imprese e cantieri. ".repeat(2)}">
 <link rel="canonical" href="https://www.ediliziaincloud.com/">
 ${rendered ? '<meta name="x-prerendered" content="test">' : ""}
 <script type="module" src="/assets-cb3/index.js"></script>
-</head><body>${content}<!--${"x".repeat(31000)}--></body></html>`;
+</head><body>${content}<!--${"x".repeat(padding)}--></body></html>`;
 
 function verify(files: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), "eic-prerender-"));
@@ -35,12 +35,29 @@ function verify(files: Record<string, string>) {
 }
 it("verifica la Home pubblica in _home e accetta il guscio dell’app senza H1", () => {
   const r = verify({
-    "index.html": html('<div id="root"></div>', false),
+    "index.html": html('<div id="root"></div>', false, 0),
     "_home/index.html": html("<h1>Gestisci cantieri e ordini</h1>"),
   });
   expect(r.status, r.stdout + r.stderr).toBe(0);
   expect(r.stdout).not.toContain("canonical non coerente");
   expect(r.stdout).toContain("/ (app)");
+});
+it("mantiene la soglia di contenuto anche quando lo shell applicativo è piccolo", () => {
+  const r = verify({
+    "index.html": html('<div id="root"></div>', false, 0),
+    "_home/index.html": html("<h1>Home</h1>"),
+    "prezzi/index.html": html("<h1>Prezzi</h1>", true, 0),
+  });
+  expect(r.status).toBe(1);
+  expect(r.stdout).toContain("probabile guscio vuoto");
+});
+it("rifiuta lo shell piccolo senza modulo di avvio", () => {
+  const r = verify({
+    "index.html": html('<div id="root"></div>', false, 0).replace('<script type="module" src="/assets-cb3/index.js"></script>', ""),
+    "_home/index.html": html("<h1>Home</h1>"),
+  });
+  expect(r.status).toBe(1);
+  expect(r.stdout).toContain("guscio applicativo privo");
 });
 it("non accetta il solo guscio se manca la Home pubblica", () => {
   const r = verify({ "index.html": html('<div id="root"></div>', false) });
