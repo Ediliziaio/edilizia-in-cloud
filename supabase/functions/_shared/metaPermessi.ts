@@ -14,18 +14,13 @@
 import { leggiModalita, type ModalitaMessaggiSocial } from "./socialMessaggiMeta.ts";
 
 export type Modalita = ModalitaMessaggiSocial;
-export type GruppoAttivabile = "sponsorizzate" | "messaggi" | "post" | "statistiche";
+export type GruppoAttivabile = "sponsorizzate" | "messaggi" | "post" | "statistiche" | "reportPubblicitari" | "webhookPagine";
 
 export const PERMESSI_BASE = [
   "pages_show_list",
   "pages_read_engagement",
-  // Senza pages_manage_metadata l'iscrizione della pagina al webhook
-  // (POST /{page}/subscribed_apps) NON è effettiva: Meta risponde success ma
-  // non consegna gli eventi → lead solo via backfill.
-  "pages_manage_metadata",
   "leads_retrieval",
   "pages_manage_ads",
-  "ads_read",
   "business_management",
 ];
 
@@ -35,6 +30,12 @@ export const PERMESSI_GRUPPO: Record<GruppoAttivabile, string[]> = {
   messaggi: ["pages_messaging", "instagram_basic", "instagram_manage_messages"],
   post: ["pages_manage_posts", "instagram_basic", "instagram_content_publish"],
   statistiche: ["read_insights", "instagram_basic", "instagram_manage_insights"],
+  // Il 02/11/2026 Meta mostra ads_read rifiutato e pages_manage_metadata
+  // ancora in revisione non inviata. Non devono bloccare il login dei clienti.
+  // Tenere distinti report pubblicitari, statistiche social e webhook pagine:
+  // ciascun permesso si attiva per tutti solo dopo la propria approvazione.
+  reportPubblicitari: ["ads_read"],
+  webhookPagine: ["pages_manage_metadata"],
 };
 
 export const CHIAVE_MODALITA = "meta_permessi_modalita";
@@ -45,6 +46,8 @@ export const MODALITA_PREDEFINITE: Record<GruppoAttivabile, Modalita> = {
   messaggi: "spento",
   post: "spento",
   statistiche: "spento",
+  reportPubblicitari: "revisione",
+  webhookPagine: "revisione",
 };
 
 export function leggiModalitaGruppi(
