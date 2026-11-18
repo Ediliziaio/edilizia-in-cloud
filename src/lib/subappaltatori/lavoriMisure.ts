@@ -40,7 +40,7 @@ export type MisuraSub = {
   verificato_il: string | null;
 };
 export const euroSub = (n: number) =>
-  n.toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+  n.toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 export const quantitaSub = (
   n: number,
   voce: Pick<VoceSub, "base" | "unita">,

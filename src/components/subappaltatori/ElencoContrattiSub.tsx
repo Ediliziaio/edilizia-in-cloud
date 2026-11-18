@@ -123,11 +123,13 @@ export function ElencoContrattiSub({
   onApri,
   contesto = "contratti",
   onCommessa,
+  onLavorazioni,
 }: {
   righe: RigaContrattoSub[];
   onApri: (id: string) => void;
   contesto?: "contratti" | "commesse";
   onCommessa?: (id: string) => void;
+  onLavorazioni?: (contratto: ContrattoCompleto) => void;
 }) {
   const [vista, setVista] = useState<"tabella" | "fasi" | "schede">("tabella");
   const [ricerca, setRicerca] = useState("");
@@ -178,6 +180,18 @@ export function ElencoContrattiSub({
       setFase("tutti");
       setFirma("tutte");
     });
+  const azioneLavorazioni = (contratto: ContrattoCompleto) => onLavorazioni && (
+    <Button size="sm" variant="outline" onClick={event => {
+      event.stopPropagation();
+      onLavorazioni(contratto);
+    }}>Lavorazioni affidate</Button>
+  );
+  const scheda = (r: RigaContrattoSub) => (
+    <div key={r.contratto.id} className="space-y-1">
+      <Scheda riga={r} onApri={onApri} />
+      {azioneLavorazioni(r.contratto)}
+    </div>
+  );
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -329,13 +343,7 @@ export function ElencoContrattiSub({
                     ) : (
                       gruppo
                         .slice(0, limite)
-                        .map((r) => (
-                          <Scheda
-                            key={r.contratto.id}
-                            riga={r}
-                            onApri={onApri}
-                          />
-                        ))
+                        .map(scheda)
                     )}
                     {gruppo.length > limite && (
                       <Button
@@ -356,9 +364,7 @@ export function ElencoContrattiSub({
         </div>
       ) : vista === "schede" ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {visibili.map((r) => (
-            <Scheda key={r.contratto.id} riga={r} onApri={onApri} />
-          ))}
+          {visibili.map(scheda)}
         </div>
       ) : (
         <>
@@ -424,7 +430,8 @@ export function ElencoContrattiSub({
                       {data(c.data_fine_prevista)}
                     </td>
                     {onCommessa && (
-                      <td className="p-3">
+                      <td className="p-3"><div className="flex flex-wrap gap-1.5">
+                        {azioneLavorazioni(c)}
                         <Button
                           size="sm"
                           variant="outline"
@@ -435,7 +442,7 @@ export function ElencoContrattiSub({
                         >
                           Apri commessa
                         </Button>
-                      </td>
+                      </div></td>
                     )}
                   </tr>
                 ))}
@@ -446,15 +453,16 @@ export function ElencoContrattiSub({
             {visibili.map((r) => (
               <div key={r.contratto.id}>
                 <Scheda riga={r} onApri={onApri} />
+                <div className="mt-2 flex flex-wrap gap-1.5">{azioneLavorazioni(r.contratto)}
                 {onCommessa && (
                   <Button
-                    className="mt-2 w-full"
+                    size="sm"
                     variant="outline"
                     onClick={() => onCommessa(r.contratto.order_id)}
                   >
                     Apri commessa
                   </Button>
-                )}
+                )}</div>
               </div>
             ))}
           </div>

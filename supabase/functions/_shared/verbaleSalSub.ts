@@ -1,5 +1,6 @@
 import {
   type RigaLavoriSalSub,
+  type RigaAvanzamentoSalSub,
   verificaRigheLavoriSalSub,
 } from "./righeLavoriSalSub.ts";
 import { type GaranziaSalSub, quadroGaranzieSalSub } from "./garanzieSalSub.ts";
@@ -14,6 +15,7 @@ export type RigaSalSub = {
   data_emissione: string;
   stato: string;
   importo_lordo: number;
+  oneri_quota?: number | null;
   ritenuta_pct: number;
   ritenuta_importo: number;
   /** Acconto recuperato da questo SAL (15/11/2026): il netto è già al netto di questo. */
@@ -94,6 +96,7 @@ export type VerbaleSalSub = {
   garanzie?: GaranziaSalSub[];
   garanzie_non_attribuite?: number;
   lavori?: RigaLavoriSalSub[];
+  avanzamento?: RigaAvanzamentoSalSub[];
 };
 const cent = (v: unknown) => {
   const n = Number(v);
@@ -178,9 +181,11 @@ export function verificaVerbaleSalSub(d: VerbaleSalSub) {
   if (d.versione !== "sal-sub-verbale-1" && !d.garanzie) {
     throw Error("Registro garanzie non acquisito");
   }
+  const oneriSal = cent(d.sal.oneri_quota ?? 0);
+  if (oneriSal < 0 || oneriSal > lordo) throw Error("Oneri del SAL non coerenti");
   verificaRigheLavoriSalSub(
     d.lavori ?? [],
-    lordo / 100,
+    (lordo - oneriSal) / 100,
     d.periodo_dal,
     d.periodo_al,
   );

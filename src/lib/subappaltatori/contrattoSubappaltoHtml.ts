@@ -32,6 +32,8 @@ export interface RigaElencoLavori {
   /** Da dove viene la riga: servono a riprendere l'avanzamento del cantiere nei SAL della ditta. */
   fase_id?: string | null;
   sottofase_id?: string | null;
+  sottofase?: string;
+  allinea_costo_previsto?: true;
   /** Lotto 5 (10/11/2026): la riga viene da un affidamento della ditta (subappalto_affidamenti). */
   voce_id?: string | null;
   affidamento_id?: string | null;
@@ -423,10 +425,10 @@ export function costruisciContrattoSubappaltoHtml(d: DatiContrattoSubappalto): s
   </div>
   <p>Committente (cliente finale dell'opera): ${esc(conPunto(d.commessa.cliente || "—"))} Cantiere: ${esc(conPunto(d.commessa.indirizzoCantiere || "—"))} Lavori dal ${dataContratto(d.dataInizio)} al ${dataContratto(d.dataFinePrevista)}.</p>
   ${d.elencoLavori?.length ? `<section class="lavori">
-  <h2>Elenco dei lavori</h2>
+  <h2>Allegato A · Elenco dei lavori (computo)</h2>
   <p class="sotto">Commessa ${esc(d.commessa.codice)}${codiciElenco(d.elencoLavori).riferimento ? ` · dal preventivo ${esc(codiciElenco(d.elencoLavori).riferimento)}` : ""} · ${esc(d.subappaltatore.ragioneSociale)} · prezzi IVA esclusa</p>
   <table class="elenco"><thead><tr><th>Descrizione</th><th>U.M.</th><th>Quantità</th><th>Prezzo unitario</th><th>Importo</th></tr></thead><tbody>
-  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${codiciElenco(d.elencoLavori!).perRiga && r.codice ? `${esc(r.codice)} · ` : ""}${esc(r.descrizione)}${r.comprende ? ` <em>(${testoComprende(r.comprende)})</em>` : ""}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
+  ${elencoPerFase(d.elencoLavori).map((g) => `<tr class="fase"><td colspan="4">${esc(g.fase)}</td><td class="n">${euroContratto(g.totale)}</td></tr>${g.righe.map((r) => `<tr><td>${codiciElenco(d.elencoLavori!).perRiga && r.codice ? `${esc(r.codice)} · ` : ""}${r.sottofase ? `<small>${esc(r.sottofase)}</small><br>` : ""}${esc(r.descrizione)}${r.comprende ? ` <em>(${testoComprende(r.comprende)})</em>` : ""}</td><td>${esc(r.unita ?? "")}</td><td class="n">${quantitaContratto(r.quantita)}</td><td class="n">${euroContratto(r.prezzo)}</td><td class="n">${euroContratto(r.importo)}</td></tr>`).join("")}`).join("")}
   </tbody></table>
   </section>` : ""}
   <table class="eco">

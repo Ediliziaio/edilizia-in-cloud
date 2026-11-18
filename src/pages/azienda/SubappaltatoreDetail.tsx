@@ -1076,6 +1076,7 @@ export default function SubappaltatoreDetail() {
         <TabsContent value="contratto" className="space-y-4 mt-4 max-sm:mt-3 max-sm:space-y-3">
           <ContrattiSubappalto companyId={companyId} sub={sub} selezionatoId={contratto?.id ?? null} richiestaApertura={contrattoDaAprire} onAperturaGestita={() => setContrattoDaAprire(null)} invioRichiesto={invioDaAprire} onInvioGestito={() => { setInvioDaAprire(null); setParametri((p) => { const n = new URLSearchParams(p); n.delete('invia'); return n; }, { replace: true }); }}
             onSeleziona={(cid) => setContrattoSelId(cid)}
+            onApriAnagrafica={openAnagraficaDialog}
             onApriContabilita={(cid) => {setContrattoDaAprire(null);setContrattoSelId(cid);setVistaContabilita('sal');setTabAttiva('contabilita');}} />
         </TabsContent>
 

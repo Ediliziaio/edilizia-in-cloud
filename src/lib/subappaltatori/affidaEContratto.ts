@@ -8,7 +8,7 @@
  * Questo file tiene la parte che si prova senza rete: il conto della tabella, l'elenco del contratto dalle
  * quote appena create coi prezzi scritti, e cosa fare se la ditta ha già un contratto sulla commessa.
  */
-import { elencoDaAffidamenti, elencoDaSalvare, type AffidamentoPerContratto, type VoceLavoro } from "@/lib/orders/ditteLavori";
+import { elencoDaAffidamenti, elencoDaSalvare, type AffidamentoPerContratto, type SottofaseLavoro, type VoceLavoro } from "@/lib/orders/ditteLavori";
 import { totaleElencoLavori, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 
 const cent = (n: number) => Math.round(n * 100) / 100;
@@ -19,6 +19,7 @@ export interface RigaTabella {
   prezzo: number | null;
   /** Il testo della riga nel contratto, se cambiato rispetto alla voce della commessa. */
   descrizione?: string | null;
+  comprende?: "posa" | "fornitura_e_posa";
 }
 
 export interface VoceConVenduto { id: string; quantita: number; importo: number | null; costo_materiali?: number | null }
@@ -43,10 +44,10 @@ export function contoTabella(
     else if (q > residua(r.voceId) + 0.0005) errori.push({ voceId: r.voceId, motivo: "Oltre la quantità libera" });
     if (r.prezzo == null || !(r.prezzo > 0)) errori.push({ voceId: r.voceId, motivo: "Prezzo mancante" });
     else if (Math.abs(Math.round(r.prezzo * 100) - r.prezzo * 100) > 1e-6) errori.push({ voceId: r.voceId, motivo: "Prezzo al centesimo" });
-    costo += q * (r.prezzo ?? 0);
+    costo += cent(q * (r.prezzo ?? 0));
     const unitario = Number(v.quantita) > 0 ? (Number(v.importo) || 0) / Number(v.quantita) : 0;
     venduto += unitario * q;
-    if (comprende === "posa") materiali += q * (Number(v.costo_materiali) || 0);
+    if ((r.comprende ?? comprende) === "posa") materiali += q * (Number(v.costo_materiali) || 0);
   }
   costo = cent(costo);
   venduto = cent(venduto);
@@ -65,13 +66,16 @@ export function righeContratto(
   quote: ReadonlyArray<AffidamentoPerContratto>,
   anagraficaId: string,
   righe: ReadonlyArray<RigaTabella>,
+  sottofasi: ReadonlyArray<SottofaseLavoro> = [],
 ): RigaElencoLavori[] {
   const prezzo = new Map(righe.map((r) => [r.voceId, r.prezzo]));
   const testo = new Map(righe.filter((r) => r.descrizione?.trim()).map((r) => [r.voceId, r.descrizione!.trim()]));
   const elenco = elencoDaAffidamenti(fasi, voci, quote.filter((a) => a.stato === "bozza" && prezzo.has(a.voce_id)), anagraficaId, null);
+  const nomiSottofasi = new Map(sottofasi.map((sottofase) => [sottofase.id, sottofase.name]));
   return elencoDaSalvare(elenco.map((r) => {
     const p = cent(Number(prezzo.get(r.voce_id ?? "")) || 0);
-    return { ...r, descrizione: testo.get(r.voce_id ?? "") ?? r.descrizione, prezzo: p, importo: cent(r.quantita * p) };
+    return { ...r, descrizione: testo.get(r.voce_id ?? "") ?? r.descrizione, prezzo: p, importo: cent(r.quantita * p),
+      sottofase: nomiSottofasi.get(r.sottofase_id ?? "") };
   }));
 }
 
@@ -98,4 +102,9 @@ export function prezzoDalVenduto(v: VoceConVenduto, scontoPct: number): number |
   const q = Number(v.quantita);
   if (!(q > 0) || !(Number(v.importo) > 0) || !(scontoPct >= 0 && scontoPct < 100)) return null;
   return cent((Number(v.importo) / q) * (1 - scontoPct / 100));
+}
+
+export function rigaContrattoACorpo(fase: { id: string; name: string } | undefined, descrizione: string, prezzo: number): RigaElencoLavori {
+  return { fase: fase?.name ?? "Altri lavori", fase_id: fase?.id ?? null, descrizione: descrizione.trim(),
+    unita: "a corpo", quantita: 1, prezzo, importo: prezzo };
 }

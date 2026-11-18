@@ -211,14 +211,16 @@ export function ContrattoCarta({
   return (
     <>
       <section
-        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-slate-50/60 p-3"
-        aria-label="Copia firmata del contratto"
+        className="overflow-hidden rounded-xl border"
+        aria-label="Contratto e firma"
       >
-        <div className="flex min-w-0 items-start gap-2">
-          <FileCheck2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+        <div className="flex min-w-0 items-start gap-3 border-b bg-muted/25 px-3 py-3 sm:px-4">
+          <div className="rounded-lg bg-primary/10 p-2 text-primary">
+            <FileCheck2 aria-hidden="true" className="size-4" />
+          </div>
           <div>
-            <p className="text-sm font-medium">Contratto e firma</p>
-            <p className="text-xs text-muted-foreground">
+            <h3 className="text-sm font-semibold">Contratto e firma</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
               {q.isLoading
                 ? "Caricamento copie…"
                 : q.isError
@@ -227,11 +229,11 @@ export function ContrattoCarta({
                     ? "Copia cartacea archiviata"
                     : contratto.firmato_il
                       ? "Firma registrata · copia cartacea non allegata"
-                      : "Prepara il contratto o allega la scansione già firmata."}
+                      : "Apri il PDF, invia per la firma o carica la copia cartacea."}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 p-3 sm:p-4">
           {children}
           <Button
             size="sm"

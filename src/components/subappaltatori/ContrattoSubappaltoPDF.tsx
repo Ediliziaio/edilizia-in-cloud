@@ -142,8 +142,8 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
             in Allegato A in fondo, e chi leggeva il contratto vedeva la cifra senza sapere a cosa corrispondeva. */}
         {elenco.length > 0 && (
           <View style={{ marginBottom: 8 }}>
-            <TitoloSezione accento={accento}>Elenco dei lavori · prezzi IVA esclusa</TitoloSezione>
-            {!!codici.riferimento && <Text style={s.allegatoSotto}>Dal preventivo {codici.riferimento}</Text>}
+            <TitoloSezione accento={accento}>Allegato A · Computo dei lavori</TitoloSezione>
+            <Text style={s.allegatoSotto}>Prezzi IVA esclusa{codici.riferimento ? ` · Preventivo ${codici.riferimento}` : ""}</Text>
             <View style={s.tTesta}>
               {codici.perRiga && <Text style={[s.th, s.cCod]}>Codice</Text>}<Text style={[s.th, s.cDesc]}>Descrizione</Text><Text style={[s.th, s.cUm]}>U.M.</Text>
               <Text style={[s.th, s.cNum]}>Quantità</Text><Text style={[s.th, s.cPrz]}>Prezzo</Text><Text style={[s.th, s.cImp]}>Importo</Text>
@@ -156,7 +156,7 @@ export function ContrattoSubappaltoPDF({ d }: { d: DatiContrattoSubappalto }) {
                 {g.righe.map((r, i) => (
                   <View key={i} style={s.tRiga} wrap={false}>
                     {codici.perRiga && <Text style={s.cCod}>{r.codice ?? ""}</Text>}
-                    <Text style={[s.td, s.cDesc]}>{r.descrizione}{r.comprende ? ` (${testoComprende(r.comprende)})` : ""}</Text>
+                    <Text style={[s.td, s.cDesc]}>{r.sottofase ? `${r.sottofase}\n` : ""}{r.descrizione}{r.comprende ? ` (${testoComprende(r.comprende)})` : ""}</Text>
                     <Text style={[s.td, s.cUm]}>{r.unita ?? ""}</Text>
                     <Text style={[s.td, s.cNum]}>{quantitaContratto(r.quantita)}</Text>
                     <Text style={[s.td, s.cPrz]}>{euroContratto(r.prezzo)}</Text>
