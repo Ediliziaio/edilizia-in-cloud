@@ -101,6 +101,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   MoreHorizontal,
+  Building2,
 } from "lucide-react";
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -515,13 +516,18 @@ export default function FattureRicevutePage() {
       const quote = Object.fromEntries(costi.map((c) => [c.id, quoteDelCosto(c)]));
       const idOrdini = [...new Set(Object.values(quote).flat().map((q) => q.order_id))];
       const codici = new Map<string, string>();
+      // Una fattura messa su tutta l'operazione (commessa generale) si riconosce in elenco (18/11/2026).
+      const generali = new Set<string>();
       for (let i = 0; i < idOrdini.length; i += 100) {
-        const { data, error } = await (supabase as any).from("orders").select("id, order_code").eq("company_id", companyId!).in("id", idOrdini.slice(i, i + 100));
+        const { data, error } = await (supabase as any).from("orders").select("id, order_code, workflow_kind").eq("company_id", companyId!).in("id", idOrdini.slice(i, i + 100));
         if (error) throw error;
-        for (const o of (data ?? []) as Array<{ id: string; order_code: string | null }>) codici.set(o.id, o.order_code ?? "Commessa");
+        for (const o of (data ?? []) as Array<{ id: string; order_code: string | null; workflow_kind: string | null }>) {
+          codici.set(o.id, o.order_code ?? "Commessa");
+          if (o.workflow_kind === "generale") generali.add(o.id);
+        }
       }
       return {
-        quote: Object.fromEntries(Object.entries(quote).map(([id, q]) => [id, q.map((x) => ({ ...x, codice: codici.get(x.order_id) ?? "Commessa" }))])),
+        quote: Object.fromEntries(Object.entries(quote).map(([id, q]) => [id, q.map((x) => ({ ...x, codice: codici.get(x.order_id) ?? "Commessa", generale: generali.has(x.order_id) }))])),
         // Il pagamento vero sta sul costo: una fattura può essere pagata senza che sia segnato su di lei.
         pagati: Object.fromEntries(costi.filter((c) => c.is_paid).map((c) => [c.id, c.paid_date])) as Record<string, string | null>,
       };
@@ -1556,7 +1562,10 @@ export default function FattureRicevutePage() {
                       <div className="flex flex-nowrap items-center gap-1">
                         {commesseDi(f).slice(0, 2).map((q) => (
                           <Link key={q.order_id} to={`/azienda/ordini/${q.order_id}`} title={q.pct < 100 ? `Quota ${q.pct.toLocaleString("it-IT")}%: ${formatCurrency((Number(f.totale_documento ?? 0) * q.pct) / 100)}` : undefined}>
-                            <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300">{q.codice}</Badge>
+                            <Badge variant="outline" className="whitespace-nowrap text-[11px] hover:bg-orange-50 hover:border-orange-300"
+                              title={q.generale ? "Su tutta l'operazione: costo comune, il piano lo divide tra le unità" : undefined}>
+                              {q.generale && <Building2 className="mr-1 h-3 w-3" aria-label="Operazione" />}{q.codice}
+                            </Badge>
                           </Link>
                         ))}
                         {commesseDi(f).length > 2 && <span className="text-xs text-muted-foreground" title={commesseDi(f).slice(2).map((q) => q.codice).join(", ")}>+{commesseDi(f).length - 2}</span>}

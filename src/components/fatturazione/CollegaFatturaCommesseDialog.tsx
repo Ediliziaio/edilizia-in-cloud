@@ -7,10 +7,15 @@
  * (lo diventa quando esce, col costo medio della scheda) e non è nemmeno spesa generale: senza questa casella quella
  * quota finiva addosso a una commessa che non l'ha usata, e all'uscita la stessa spesa veniva contata due volte.
  * La regola che il riquadro fa rispettare: commesse + magazzino + spese generali = imponibile.
+ *
+ * Macro-commesse (18/11/2026): chi ha un'operazione con più unità (sviluppo immobiliare, appalto con lotti) non deve
+ * collegare unità per unità le spese che riguardano tutto. In cima c'è «Su tutta l'operazione» e, se si sceglie
+ * un'unità, si può spostare il costo sulla sua generale con un clic. Sulla generale il costo è un costo comune:
+ * il piano dell'operazione lo divide tra le unità quando legge (millesimi, m², importo), senza scriverlo.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Package, Plus, X } from "lucide-react";
+import { Building2, Loader2, Package, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -54,6 +59,18 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
       if (e1) throw e1;
       if (costo.error) throw costo.error;
       return { righe: f?.righe ?? null, costo: costo.data };
+    },
+  });
+  // Le operazioni dell'azienda (commesse generali): la scelta rapida in cima e il nome nell'avviso.
+  const { data: generali = [] } = useQuery({
+    queryKey: ["collega-fattura-generali", companyId],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: g, error } = await db.from("orders").select("id, order_code, description")
+        .eq("company_id", companyId).eq("workflow_kind", "generale").is("deleted_at", null)
+        .order("order_code", { ascending: true }).limit(20);
+      if (error) throw error;
+      return (g ?? []) as Array<{ id: string; order_code: string | null; description: string | null }>;
     },
   });
   const voci = useMemo(() => vociFattura(data?.righe), [data?.righe]);
@@ -103,6 +120,24 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
     ? residuoDaAssegnare(dasalvare, imponibile, magazzinoNetto) * (imponibile ? totale / imponibile : 1)
     : residuoDaAssegnare(lorde, totale, magazzinoLordo);
   const mostraImporti = righe.length > 1 || soloUnaParte || magazzinoLordo > 0;
+
+  // Di quale operazione fa parte ogni commessa scelta: per proporre di spostare il costo su tutta l'operazione.
+  const scelteIds = righe.map((r) => r.order_id).filter(Boolean).sort();
+  const { data: gerarchia = [] } = useQuery({
+    queryKey: ["collega-fattura-gerarchia", companyId, scelteIds.join(",")],
+    enabled: generali.length > 0 && scelteIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: o, error } = await db.from("orders").select("id, workflow_kind, commessa_generale_id").in("id", scelteIds).eq("company_id", companyId);
+      if (error) throw error;
+      return (o ?? []) as Array<{ id: string; workflow_kind: string | null; commessa_generale_id: string | null }>;
+    },
+  });
+  const nomeGenerale = (id: string | null | undefined) => {
+    const g = generali.find((x) => x.id === id);
+    return g ? [g.order_code, g.description].filter(Boolean).join(" · ") : null;
+  };
+  const scegliCommessa = (chiave: number, id: string) => setRighe((prima) => prima.map((x) => (x.chiave === chiave ? { ...x, order_id: id } : x)));
 
   const cambiaImporto = (chiave: number, testo: string) => setRighe((prima) => {
     const dopo = prima.map((x) => (x.chiave === chiave ? { ...x, importo: testo } : x));
@@ -198,7 +233,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                   ) : (
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
-                        <OrderSelectCombobox filtroIniziale="all" companyId={companyId} value={scelte[v.numero]} placeholder="Commessa…" onChange={(id: string) => setScelte({ ...scelte, [v.numero]: id })} />
+                        <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={scelte[v.numero]} placeholder="Commessa…" onChange={(id: string) => setScelte({ ...scelte, [v.numero]: id })} />
                       </div>
                       <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={`Manda a magazzino: ${v.descrizione}`}
                         onClick={() => setScelte({ ...scelte, [v.numero]: DESTINAZIONE_MAGAZZINO })}>A magazzino</Button>
@@ -211,12 +246,28 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
           </div>
         ) : (
           <div className="space-y-2">
+            {generali.length > 0 && righe.length === 1 && !righe[0].order_id && (
+              <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
+                <p className="text-xs font-medium text-muted-foreground">Su tutta l’operazione (costo comune, si divide tra le unità)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {generali.map((g) => (
+                    <Button key={g.id} type="button" variant="outline" size="sm" className="h-auto max-w-full justify-start gap-1.5 py-1 text-left"
+                      onClick={() => scegliCommessa(righe[0].chiave, g.id)}>
+                      <Building2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{[g.order_code, g.description].filter(Boolean).join(" · ")}</span>
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Oppure scegli qui sotto una singola commessa o unità.</p>
+              </div>
+            )}
             {righe.map((r, i) => (
-              <div key={r.chiave} className="flex items-center gap-2">
+              <div key={r.chiave} className="space-y-1">
+              <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <OrderSelectCombobox filtroIniziale="all" companyId={companyId} value={r.order_id || undefined} placeholder="Cerca la commessa…"
+                  <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={r.order_id || undefined} placeholder="Cerca la commessa…"
                     esclusi={righe.filter((x) => x.chiave !== r.chiave).map((x) => x.order_id).filter(Boolean)}
-                    onChange={(id: string) => setRighe(righe.map((x) => (x.chiave === r.chiave ? { ...x, order_id: id } : x)))} />
+                    onChange={(id: string) => scegliCommessa(r.chiave, id)} />
                 </div>
                 {mostraImporti && (
                   <div className="relative w-28 shrink-0">
@@ -227,6 +278,23 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                 {righe.length > 1 && (
                   <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={`Togli la commessa ${i + 1}`} onClick={() => togli(r.chiave)}><X className="h-4 w-4" /></Button>
                 )}
+              </div>
+              {(() => {
+                const o = gerarchia.find((x) => x.id === r.order_id);
+                if (!o) return null;
+                if (o.workflow_kind === "generale") {
+                  return <p className="text-xs text-muted-foreground">Costo comune di tutta l’operazione: il piano lo divide tra le unità (millesimi, m² o importo).</p>;
+                }
+                const g = o.commessa_generale_id && !righe.some((x) => x.order_id === o.commessa_generale_id) ? nomeGenerale(o.commessa_generale_id) : null;
+                return g ? (
+                  <p className="text-xs text-muted-foreground">
+                    Fa parte di {g}.{" "}
+                    <button type="button" className="font-medium text-primary hover:underline" onClick={() => scegliCommessa(r.chiave, o.commessa_generale_id!)}>
+                      Mettila su tutta l’operazione
+                    </button>
+                  </p>
+                ) : null;
+              })()}
               </div>
             ))}
             {magazzino !== "" && (

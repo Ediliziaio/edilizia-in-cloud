@@ -53,6 +53,12 @@ interface Props {
   filtroIniziale?: Filter;
   /** Già scelte altrove nella stessa finestra: non si ripropongono. */
   esclusi?: string[];
+  /**
+   * Le commesse generali (macro-commesse: sviluppo immobiliare, appalti) sempre nell'elenco, qualunque sia il filtro
+   * (18/11/2026). Nascono senza date: ordinate per data d'inizio finivano in fondo alle 200 più recenti, o fuori,
+   * e una fattura ricevuta non si poteva mettere su tutta l'operazione senza cercarla per nome.
+   */
+  generaliSempre?: boolean;
 }
 
 type Filter = "soon" | "in_corso" | "generali" | "all";
@@ -99,7 +105,7 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
   return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
 }
 
-export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder, filtroIniziale, esclusi, ariaLabel = "Commessa" }: Props) {
+export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder, filtroIniziale, esclusi, ariaLabel = "Commessa", generaliSempre = false }: Props) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>(filtroIniziale ?? "soon");
   const [search, setSearch] = useState("");
@@ -112,7 +118,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
   }, [search]);
 
   const { data: orders = [], isLoading } = useQuery<OrderOption[]>({
-    queryKey: ["scarico-cantiere-orders-v2", companyId, filter, debouncedSearch],
+    queryKey: ["scarico-cantiere-orders-v2", companyId, filter, debouncedSearch, generaliSempre],
     enabled: !!companyId && open,
     staleTime: 60_000,
     queryFn: async () => {
@@ -157,8 +163,27 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
           ? q.order("order_code", { ascending: true }).limit(200)
           : q.order("work_start_date", { ascending: filter === "soon", nullsFirst: false }).limit(200);
 
-      const { data, error } = await q;
+      const { data: trovate, error } = await q;
       if (error) throw error;
+      let data = trovate ?? [];
+      if (generaliSempre && filter !== "generali" && !debouncedSearch) {
+        const { data: generali, error: eG } = await supabase
+          .from("orders")
+          .select(`
+          id, order_code, client_name, client_company, customer:profiles!orders_customer_id_fkey(first_name,last_name),
+          work_start_date, work_end_date, expected_date,
+          indirizzo_lavori, work_address, status, description, ${COLONNE_GERARCHIA},
+          order_items ( destination_warehouse_id )
+        `)
+          .eq("company_id", companyId)
+          .is("deleted_at", null)
+          .eq("workflow_kind", "generale")
+          .order("order_code", { ascending: true })
+          .limit(50);
+        if (eG) throw eG;
+        const gia = new Set(data.map((o: { id: string }) => o.id));
+        data = [...(generali ?? []).filter((g: { id: string }) => !gia.has(g.id)), ...data];
+      }
       type RawRow = {
         id: string;
         order_code: string | null;
@@ -385,7 +410,9 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
                   </>
                 ) : (
                   <OrderGroup
-                    orders={[...groups.today, ...groups.thisWeek, ...groups.thisMonth, ...groups.other].sort(filter === "generali" ? () => 0 : piuRecente)}
+                    orders={[...groups.today, ...groups.thisWeek, ...groups.thisMonth, ...groups.other].sort((a, b) =>
+                      // Con le generali sempre presenti, prima le operazioni (con le loro unità sotto), poi il resto.
+                      (generaliSempre ? Number(eGenerale(b)) - Number(eGenerale(a)) : 0) || (filter === "generali" ? 0 : piuRecente(a, b)))}
                     raggruppa
                     value={value}
                     onSelect={handleSelect}

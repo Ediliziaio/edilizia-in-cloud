@@ -485,6 +485,7 @@ function ContenutoRiepilogo({
                             <div className="min-w-0 flex-1">
                               <OrderSelectCombobox
                                 filtroIniziale="all"
+                                generaliSempre
                                 companyId={companyId ?? undefined}
                                 value={undefined}
                                 disabled={occupato}
