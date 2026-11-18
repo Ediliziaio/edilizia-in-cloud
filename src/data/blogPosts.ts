@@ -898,9 +898,14 @@ export const blogPosts: BlogPost[] = [
         body: "Calcolare il margine per commessa è il primo passo, non l'ultimo. Il passo dopo è decidere cosa farci: quali lavori rifiutare, come ribaltare i costi indiretti, a che punto un cantiere va fermato invece che finito in perdita. Quello non è più analisi dei margini, è controllo di gestione, ed è un mestiere a sé.\n\nSe in azienda non c'è nessuno che se ne occupa stabilmente, [Numeri in Edilizia](https://www.numerinedilizia.com/) è il servizio che lo fa per le imprese edili: costruisce il sistema di controllo, lo tiene aggiornato e ti siede accanto quando i numeri vanno letti.",
       },
       {
-        type: "cta",
-        heading: "Conosci i Tuoi Margini in Tempo Reale",
+        type: "section",
+        heading: "Verifica il percorso dai dati al risultato",
         body: "Nella [demo](/demo/) verifica il percorso dalle registrazioni alla [commessa](/funzionalita/gestione-commesse/) e al quadro dei [margini di cantiere](/funzionalita/margini-cantiere/). Chiedi quali dati sono presenti, quali vanno registrati e come vengono segnalate le informazioni mancanti. Per metodo e criteri economici puoi approfondire le guide di [Numeri in Edilizia](https://www.numerinedilizia.com/risorse).",
+      },
+      {
+        type: "cta",
+        heading: "Porta una commessa al confronto",
+        body: "Descrivi quali dati raccogli e quale risultato vuoi verificare. La demo serve a controllare il percorso sul tuo esempio, senza presumere che tutti i costi siano già disponibili o attribuiti.",
       },
     ],
   },
