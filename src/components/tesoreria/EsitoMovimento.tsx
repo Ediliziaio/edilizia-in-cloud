@@ -23,7 +23,8 @@ import { codiceDaRicordare } from "@/lib/orders/codiciCommittente";
 
 export type EsitoCodice = "automatico" | "proposta" | "scelta" | "conflitto" | "da_gestire";
 export interface RigaEsito {
-  tipo: "documento" | "invoice" | "scadenza" | "rata" | "movimento";
+  /** rata_fornitore, ricevuta: debiti dei fornitori; prova_*: documento già pagato, il movimento ne è la prova (18/11/2026). */
+  tipo: "documento" | "invoice" | "scadenza" | "rata" | "movimento" | "rata_fornitore" | "ricevuta" | "prova_fattura" | "prova_ricevuta";
   id: string;
   titolo: string;
   controparte?: string | null;
@@ -79,6 +80,9 @@ export const NATURA: Record<string, string> = {
   spesa_carta: "Spesa con carta",
   gia_riconciliato: "Già collegato",
   gia_incassata: "Fattura già segnata pagata",
+  gia_pagata: "Fattura del fornitore già pagata",
+  finanziamento: "Rata di finanziamento",
+  anticipo_fatture: "Anticipo su fatture",
   sconosciuta: "Da capire",
 };
 
@@ -129,9 +133,12 @@ async function proponiCodice(m: BankMovement, c: CandidatoEsito) {
   });
 }
 
+/** Righe che riconcilia_movimento_su_documenti sa registrare (le rate dei clienti e i movimenti no). */
+const RIGHE_CONFERMABILI: RigaEsito["tipo"][] = ["documento", "invoice", "scadenza", "rata_fornitore", "ricevuta", "prova_fattura", "prova_ricevuta"];
+
 /** Si conferma da qui solo un'alternativa fatta di fatture e scadenze con quota positiva. */
 export const confermabile = (c: CandidatoEsito) =>
-  c.righe.length > 0 && c.righe.every((r) => ["documento", "invoice", "scadenza"].includes(r.tipo) && Number(r.quota) > 0);
+  c.righe.length > 0 && c.righe.every((r) => RIGHE_CONFERMABILI.includes(r.tipo) && Number(r.quota) > 0);
 
 export function useEsitoMovimento(company: string, tx: string) {
   return useQuery({
