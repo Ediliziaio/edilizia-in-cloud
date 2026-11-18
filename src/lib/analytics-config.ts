@@ -1,6 +1,6 @@
 // Public identifiers only. Enable after root platform review and boundary verification.
 export const SITE_ANALYTICS_CONFIG = {
-  "enabled": false,
+  "enabled": true,
   "containerId": "GTM-PGLNPBW9",
   "measurementId": "G-0JZP5N2VW5",
   "allowedHosts": [
