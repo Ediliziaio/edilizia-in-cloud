@@ -1,5 +1,5 @@
 // Il nuovo verbale in un passaggio (10/11/2026, lotto C): rata proposta, voci che cambiano, certificato ed emissione.
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,17 +103,22 @@ describe("Lotto C, i conti", () => {
 });
 
 describe("Lotto C, il modulo", () => {
-  it("apre il SAL n. 2 con la sua rata, la sola voce che cambia e il certificato già fatto", async () => {
+  it("apre dalle lavorazioni con la rata suggerita e facoltativa", async () => {
     disegna();
     await screen.findByText("SAL #1");
     fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
     expect(await screen.findByText(/1 voce è uguale al SAL n\. 1/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /SAL 2 ·/ }).className).toContain("border-primary");
+    expect(screen.getByRole("button", { name: /SAL 2 ·.*suggerita/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Nessuna" })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(screen.getByLabelText("Descrizione *", { selector: "#sal-desc-1" })).toHaveValue("Massetti"));
     expect(screen.queryByLabelText("Descrizione *", { selector: "#sal-desc-0" })).toBeNull();
     // 4000 + 50% di 6000 = 7000; ritenuta 5% = 350; acconti 3800 → 2850
     const cert = screen.getByLabelText("Certificato di pagamento", { selector: "dl" });
     expect(cert.textContent).toContain("2.850,00");
+    fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
+    expect(screen.getByLabelText("Calcolo del pagamento del periodo")).toHaveTextContent(/Ritenuta 5% del periodo− 150,00/);
+    expect(screen.getByLabelText("Riepilogo economico del verbale")).toHaveTextContent(/Da pagare per questo SAL2.850,00/);
+    expect(screen.getByLabelText("Controllo del verbale SAL")).toHaveTextContent(/Rata collegata:\s*Nessuna/);
   });
 
   it("arrotonda il netto a 100 €: il resto è rinviato al prossimo certificato", async () => {
@@ -145,7 +150,7 @@ describe("Lotto C, il modulo", () => {
   it("«Salva ed emetti»: bozza, certificato e emissione in un passaggio", async () => {
     disegna();
     await screen.findByText("SAL #1");
-    fireEvent.click(screen.getByRole("button", { name: /Nuovo verbale/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Prepara SAL" }));
     await screen.findByText(/1 voce è uguale/);
     fireEvent.click(screen.getByRole("button", { name: "Controlla riepilogo" }));
     fireEvent.click(await screen.findByRole("button", { name: "Salva ed emetti" }));
@@ -189,6 +194,120 @@ describe("SAL di chi ha «Venduto e importi» (15/11/2026)", () => {
     expect(screen.queryByRole("button", { name: /Nuovo verbale/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Prepara SAL/ })).toBeNull();
     expect(screen.queryByLabelText("Riepilogo dei SAL")).toBeNull();
-    expect(screen.getByText("100%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Voci del verbale/ }));
+    expect(within(screen.getByRole("table")).getByText("100%")).toBeVisible();
   });
+});
+
+it('mostra subito quota nuova e avverte se le fasi superano il contratto', async () => {
+  stato.fasi[1].importo_venduto = 20000;
+  disegna(); await screen.findByText('SAL #1');
+  fireEvent.click(screen.getByRole('button', { name: /Nuovo verbale/ }));
+  await waitFor(() => expect(screen.getByLabelText('Riepilogo economico del verbale')).toHaveTextContent('14.000,00'));
+  const summary = screen.getByLabelText('Riepilogo economico del verbale');
+  expect(summary).toHaveTextContent('4.000,00');
+  expect(summary).toHaveTextContent('10.000,00');
+  expect(screen.getByRole('alert')).toHaveTextContent('in più rispetto al contratto netto');
+  expect(screen.getByRole('button', { name: /SAL 1 ·/ })).toHaveAttribute('title', 'Già collegata al SAL n. 1');
+  expect(stato.save).not.toHaveBeenCalled();
+});
+
+it('navigare e cercare nelle fasi non esclude dal riepilogo né dal salvataggio le voci nascoste', async () => {
+  disegna(); await screen.findByText('SAL #1');
+  fireEvent.click(screen.getByRole('button', { name: /Nuovo verbale/ }));
+  await screen.findByText(/1 voce è uguale/);
+  const summary = screen.getByLabelText('Riepilogo economico del verbale');
+  expect(summary).toHaveTextContent('7.000,00');
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Fasi del verbale' })).getByRole('button', { name: /Demolizioni/ }));
+  expect(screen.getByLabelText('Descrizione *')).toHaveValue('Demolizioni');
+  fireEvent.change(screen.getByRole('textbox', { name: 'Cerca nelle fasi e nelle voci del SAL' }), { target: { value: 'inesistente' } });
+  expect(screen.getByText(/Nessuna voce in questa vista/)).toBeInTheDocument();
+  expect(summary).toHaveTextContent('7.000,00');
+  fireEvent.click(screen.getByRole('button', { name: 'Controlla riepilogo' }));
+  const review = screen.getByRole('region', { name: 'Controllo del verbale SAL' });
+  expect(review).toHaveTextContent('Demolizioni'); expect(review).toHaveTextContent('Massetti');
+  expect(within(review).queryByRole('textbox')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Salva bozza SAL' }));
+  await waitFor(() => expect(stato.save).toHaveBeenCalledTimes(1));
+  expect(stato.save.mock.calls[0][1].lines.map((v: { descrizione: string }) => v.descrizione)).toEqual(['Demolizioni', 'Massetti']);
+});
+
+it('una variante non riscrive il saldo già ripartito sulla fattura unica', async () => {
+  stato.sal = [];
+  const piano: Installment[] = [
+    { id: 'a', position: 1, label: 'Acconto 30%', type: 'deposit', amount: 300, is_paid: true, documento_fiscale_id: 'fattura', documento_quota_lorda: 300 },
+    { id: 's', position: 2, label: 'SAL 40%', type: 'deposit', amount: 400, is_paid: true, documento_fiscale_id: 'fattura', documento_quota_lorda: 400 },
+    { id: 'b', position: 3, label: 'Saldo 30%', type: 'balance', amount: 300, is_paid: true, documento_fiscale_id: 'fattura', documento_quota_lorda: 300 },
+  ];
+  render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><SalTab orderId="o1" companyId="c1" orderTotalAmount={1109.09} vatRate={10} installments={piano} /></QueryClientProvider>);
+  fireEvent.click(await screen.findByRole('button', { name: /Crea verbale/ }));
+  fireEvent.click(screen.getByText('Pagamento, ritenute e note'));
+  expect(screen.getByRole('button', { name: /Saldo 30% · 300,00/ })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Saldo 30% · 520,00/ })).toBeNull();
+  expect(stato.save).not.toHaveBeenCalled(); expect(stato.sostituisci).not.toHaveBeenCalled();
+});
+
+it('riapre le voci al controllo se un campo non valido è nascosto da ricerca o fase selezionata', async () => {
+  disegna(); await screen.findByText('SAL #1'); fireEvent.click(screen.getByRole('button', { name: /Nuovo verbale/ }));
+  await screen.findByText(/1 voce è uguale/);
+  fireEvent.change(screen.getByLabelText('Importo contrattuale netto (€)'), {target:{value:''}});
+  fireEvent.change(screen.getByRole('textbox', {name:'Cerca nelle fasi e nelle voci del SAL'}), {target:{value:'nessun risultato'}});
+  fireEvent.click(screen.getByRole('button', {name:'Controlla riepilogo'}));
+  expect(screen.getByRole('alert')).toHaveTextContent('Voce 2');
+  expect(screen.getByLabelText('Importo contrattuale netto (€)', {selector:'#sal-amount-1'})).toBeVisible();
+  expect(stato.save).not.toHaveBeenCalled();
+});
+
+it('aggiorna quantità, percentuale pesata e netto insieme, conservando il dettaglio da stampare', async () => {
+  stato.sal = [];
+  stato.sottofasi = [
+    {id:'sf1',phase_id:'f2',name:'Posa massetto',position:1,peso:1,fatta:false,percentuale:25,quantita_fatta:5},
+    {id:'sf2',phase_id:'f2',name:'Finitura massetto',position:2,peso:1,fatta:false,percentuale:0,quantita_fatta:0},
+  ];
+  stato.vociCommessa = [
+    {phase_id:'f2',subphase_id:'sf1',quantita:20,unita:'m²',importo:4000},
+    {phase_id:'f2',subphase_id:'sf2',quantita:20,unita:'m²',importo:2000},
+  ];
+  disegna(); fireEvent.click(await screen.findByRole('button', {name:/Crea verbale/}));
+  const qty = await screen.findByRole('textbox', {name:'Quantità a oggi di Posa massetto'});
+  expect(qty).toHaveValue('5');
+  fireEvent.change(qty, {target:{value:'10'}});
+  expect(screen.getByRole('textbox', {name:'Avanzamento di Posa massetto'})).toHaveValue('50');
+  expect(screen.getByRole('textbox', {name:'Avanzamento di Posa massetto'})).toHaveAttribute('readonly');
+  expect(screen.getByLabelText('Avanzamento cumulativo (%)', {selector:'#sal-pct-1'})).toHaveValue('33.33');
+  // 4.000 demolizioni + 33,33% di 6.000 massetti. Arrotondamento per fase identico al DB.
+  expect(screen.getByLabelText('Riepilogo economico del verbale')).toHaveTextContent('5.999,80');
+  fireEvent.click(screen.getByRole('button', {name:'Controlla riepilogo'}));
+  fireEvent.click(screen.getByRole('button', {name:'Salva bozza SAL'}));
+  await waitFor(() => expect(stato.save).toHaveBeenCalledTimes(1));
+  expect(stato.save.mock.calls[0][1].lines[1].sottofasi[0]).toMatchObject({sottofase_id:'sf1',quantita_a_oggi:'10',percentuale_avanzamento:'50'});
+  expect(stato.sostituisci).not.toHaveBeenCalled();
+});
+
+it('per una voce a corpo si compila solo la percentuale, senza un secondo campo quantità', async () => {
+  stato.sal = [];
+  stato.sottofasi = [{id:'sf1',phase_id:'f2',name:'Massetto a corpo',position:1,peso:1,fatta:false,percentuale:0,quantita_fatta:0}];
+  stato.vociCommessa = [{phase_id:'f2',subphase_id:'sf1',quantita:1,unita:'a corpo',importo:6000}];
+  disegna(); fireEvent.click(await screen.findByRole('button', {name:/Crea verbale/}));
+  const progress = await screen.findByRole('textbox', {name:'Avanzamento di Massetto a corpo'});
+  expect(progress).not.toHaveAttribute('readonly');
+  expect(screen.queryByRole('textbox', {name:'Quantità a oggi di Massetto a corpo'})).toBeNull();
+  fireEvent.change(progress, {target:{value:'50'}});
+  expect(screen.getByLabelText('Riepilogo economico del verbale')).toHaveTextContent('7.000,00');
+  fireEvent.click(screen.getByRole('button', {name:'Controlla riepilogo'}));
+  fireEvent.click(screen.getByRole('button', {name:'Salva bozza SAL'}));
+  await waitFor(() => expect(stato.save).toHaveBeenCalledTimes(1));
+  expect(stato.save.mock.calls[0][1].lines[1].sottofasi[0]).toMatchObject({quantita_a_oggi:'0.5',percentuale_avanzamento:'50'});
+});
+
+it('aggiungere una voce da una fase filtrata rende subito visibile la nuova riga', async () => {
+  disegna(); await screen.findByText('SAL #1'); fireEvent.click(screen.getByRole('button', {name:/Nuovo verbale/}));
+  await screen.findByText(/1 voce è uguale/);
+  fireEvent.click(within(screen.getByRole('navigation', {name:'Fasi del verbale'})).getByRole('button', {name:/Massetti/}));
+  fireEvent.change(screen.getByRole('textbox', {name:'Cerca nelle fasi e nelle voci del SAL'}), {target:{value:'massetti'}});
+  fireEvent.click(screen.getByRole('button', {name:'Aggiungi voce'}));
+  expect(screen.getByLabelText('Descrizione *', {selector:'#sal-desc-2'})).toBeVisible();
+  expect(screen.getByRole('textbox', {name:'Cerca nelle fasi e nelle voci del SAL'})).toHaveValue('');
+  expect(screen.getByLabelText('Riepilogo economico del verbale')).toHaveTextContent('7.000,00');
+  expect(stato.save).not.toHaveBeenCalled();
 });

@@ -76,6 +76,7 @@ export function useSurveyReferences(survey?: SurveyRow) {
       survey?.contact_id,
       survey?.client_id,
       survey?.opportunity_id,
+      survey?.technician_id,
     ],
     enabled:
       !access.field && !!survey &&
@@ -121,6 +122,9 @@ export function useSurveyReferences(survey?: SurveyRow) {
         user_id: string;
         role: string;
       }>;
+      if (survey.technician_id && !assigned.some(a => a.user_id === survey.technician_id)) {
+        assigned.unshift({user_id:survey.technician_id,role:"technician"});
+      }
       if (!assigned.length) return { reference, assignees: [] as string[] };
       const { data, error } = await supabase
         .from("profiles")

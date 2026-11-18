@@ -19,11 +19,11 @@ import type { ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanzia
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateStoredCommissionNet, calculateInstallmentCollections, type InstallmentLike, type VarianteDatata } from "@/lib/commissions";
+import { calculateInstallmentCollections, type InstallmentLike, type VarianteDatata } from "@/lib/commissions";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { allPaymentRows } from "@/hooks/useSupplierPayments";
-import { cashExposureTimeline } from "@/lib/orders/cashExposureTimeline";
+import { cashExposureTimeline, cassaProvvigioni } from "@/lib/orders/cashExposureTimeline";
 
 export interface RataEsposizione extends InstallmentLike {
   id?: string | null;
@@ -206,16 +206,9 @@ export function useEsposizioneCommessa({
       const date = t.paid_date;
       if (date) events.push({ date, in: 0, out: cost });
     }
-    for (const s of costi?.sales ?? []) {
-      const net = calculateStoredCommissionNet(s.commission_amount, s.deduction_amount);
-      if (net <= 0) continue;
-      if (!s.is_paid) {
-        daPagare += net;
-        continue;
-      }
-      const date = s.paid_date;
-      if (date) events.push({ date, in: 0, out: net });
-    }
+    const provvigioni = cassaProvvigioni(costi?.sales ?? []);
+    events.push(...provvigioni.eventi);
+    daPagare += provvigioni.daPagare;
 
     return { ...cashExposureTimeline(events, new Date().toISOString().slice(0, 10)), daPagare: Math.round(daPagare * 100) / 100 };
   }, [costi, installments, totalAmount, vatRate, financingCost, financingCostMode, orderId, varianti]);

@@ -1,0 +1,125 @@
+/* One presentation for the five cost views; financial logic stays in each module. */
+.commessa-cost-workspace .commessa-card {
+  border-radius: 12px;
+  border-color: hsl(var(--border));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / .035);
+}
+.commessa-cost-workspace .commessa-card-header { padding: 16px 16px 12px; }
+.commessa-cost-workspace .commessa-card-body { padding: 0 16px 16px; }
+.commessa-cost-workspace .commessa-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: hsl(var(--primary) / .07);
+  color: hsl(var(--primary));
+}
+.commessa-cost-workspace .commessa-card-icon svg { width: 16px; height: 16px; }
+.commessa-cost-workspace .commessa-card-header button,
+.commessa-cost-workspace .commessa-table td button {
+  min-height: 34px;
+  height: auto;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.commessa-cost-workspace .commessa-card-numeri { display: grid; gap: 12px; }
+.commessa-cost-workspace .commessa-card-numeri dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / .2);
+}
+.commessa-cost-workspace .commessa-card-numeri dl > div { min-width: 0; padding: 10px 12px; }
+.commessa-cost-workspace .commessa-card-numeri dt { font-size: 12px; line-height: 1.4; }
+.commessa-cost-workspace .commessa-card-numeri dd:first-of-type {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.commessa-cost-workspace .commessa-filter-group[data-has-counts="false"] { display: none; }
+.commessa-cost-workspace .commessa-filter-counters,
+.commessa-cost-workspace .commessa-payment-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.commessa-cost-workspace .commessa-filter-counters button,
+.commessa-cost-workspace .commessa-payment-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 7px;
+  background: hsl(var(--background));
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+  line-height: 1.4;
+}
+.commessa-cost-workspace .commessa-filter-counters button > span { display: inline; margin: 0; font-size: 13px; }
+.commessa-cost-workspace .commessa-filter-counters button > span:last-child {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: hsl(var(--muted));
+  font-size: 12px;
+  text-align: center;
+}
+.commessa-cost-workspace .commessa-filter-counters button[aria-pressed="true"],
+.commessa-cost-workspace .commessa-payment-filters button[aria-pressed="true"] {
+  border-color: hsl(var(--primary) / .3);
+  background: hsl(var(--primary) / .08);
+  color: hsl(var(--primary));
+  font-weight: 600;
+}
+.commessa-cost-workspace .commessa-filter-counters button:disabled { opacity: .55; }
+.commessa-cost-workspace .commessa-table th { padding: 9px 8px; background: hsl(var(--muted) / .3); }
+.commessa-cost-workspace .commessa-table td { padding: 10px 8px; }
+.commessa-cost-workspace .commessa-table-wrap { border-radius: 8px; }
+.commessa-cost-workspace .commessa-card-body a { color: hsl(var(--primary)); text-underline-offset: 3px; }
+.commessa-cost-workspace .commessa-empty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / .15);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.commessa-cost-workspace .commessa-empty-success {
+  border-style: solid;
+  border-color: hsl(142 45% 84%);
+  background: hsl(142 60% 97%);
+}
+.dark .commessa-cost-workspace .commessa-empty-success {
+  border-color: hsl(142 35% 27%);
+  background: hsl(142 35% 12%);
+  color: hsl(142 65% 82%);
+}
+@media (max-width: 639px) {
+  .commessa-cost-workspace .commessa-card-header { padding: 12px 12px 10px; }
+  .commessa-cost-workspace .commessa-card-body { padding: 0 12px 12px; }
+  .commessa-cost-workspace .commessa-card-numeri dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .commessa-cost-workspace .commessa-table td { padding: 3px 0; }
+  .commessa-cost-workspace .commessa-filter-counters button:disabled { display: none; }
+}
+@media (pointer: coarse) {
+  .commessa-cost-workspace .commessa-filter-counters button,
+  .commessa-cost-workspace .commessa-payment-filters button { min-height: 44px; }
+}

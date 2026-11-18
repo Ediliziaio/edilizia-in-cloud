@@ -10,7 +10,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import NuovoSopralluogo from "@/pages/azienda/sopralluoghi/NuovoSopralluogo";
+import NuovoSopralluogo, {SurveyCreateForm} from "@/pages/azienda/sopralluoghi/NuovoSopralluogo";
 import { makeEnergySurvey } from "../fixtures/energySurvey";
 const m = vi.hoisted(() => ({ create: vi.fn(), fail: false }));
 vi.mock("@/hooks/useEffectiveCompanyId", () => ({
@@ -330,4 +330,27 @@ it("distingue il ritorno al passo precedente dall’uscita verso l’elenco", as
   expect(screen.getByLabelText("Route corrente")).toHaveTextContent("/azienda/sopralluoghi");
   expect(screen.getByLabelText("Route corrente")).not.toHaveTextContent("/nuovo");
   expect(m.create).not.toHaveBeenCalled();
+});
+
+it("nella commessa mantiene i collegamenti fissi e crea il rilievo in popup senza cambiare pagina", async () => {
+  const created=vi.fn(), client=new QueryClient({defaultOptions:{queries:{retry:false}}});
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/azienda/ordini/order1?tab=cantiere&vista_cantiere=sopralluoghi"]}><SurveyCreateForm companyId="company1" commessa={{orderId:"order1",orderCode:"ORD-TEST-1",clientId:"client1",clientName:"Mario Rossi",address:"Via Test 8"}} onCreated={created} /><Location /></MemoryRouter></QueryClientProvider>);
+  await ready(); fireEvent.click(screen.getByRole("button",{name:"Continua"}));
+  expect(screen.getByText(/Cliente e commessa sono già collegati/)).toBeInTheDocument();
+  expect(screen.queryByRole("radiogroup",{name:"A chi si riferisce"})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button",{name:"Crea e apri il rilievo"}));
+  await waitFor(()=>expect(created).toHaveBeenCalledWith("new-survey"));
+  expect(m.create).toHaveBeenCalledWith(expect.objectContaining({order_id:"order1",client_id:"client1",address:"Via Test 8"}),"company1");
+  expect(screen.getByLabelText("Route corrente")).toHaveTextContent("/azienda/ordini/order1?tab=cantiere&vista_cantiere=sopralluoghi");
+});
+
+it("compilando un appuntamento già fissato non lo ripianifica e conserva il collegamento", async () => {
+  const created=vi.fn(),client=new QueryClient({defaultOptions:{queries:{retry:false}}});
+  render(<QueryClientProvider client={client}><MemoryRouter><SurveyCreateForm companyId="company1" commessa={{orderId:"order1",clientId:"client1",appointment:{id:"a1",title:"Rilievo",description:null,appointment_type:"rilievo_tecnico",appointment_date:"2026-11-20",appointment_time:"10:30:00",assigned_to:"tech1",order_id:"order1",is_completed:false}}} onCreated={created} /></MemoryRouter></QueryClientProvider>);
+  await ready(); fireEvent.click(screen.getByRole("button",{name:"Continua"}));
+  expect(screen.getByText("Appuntamento già fissato")).toBeInTheDocument();
+  expect(screen.queryByRole("button",{name:"Data del sopralluogo"})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button",{name:"Crea e apri il rilievo"}));
+  await waitFor(()=>expect(created).toHaveBeenCalledOnce());
+  expect(m.create).toHaveBeenCalledWith(expect.objectContaining({appointment_id:"a1",order_id:"order1",technician_id:"tech1"}),"company1");
 });

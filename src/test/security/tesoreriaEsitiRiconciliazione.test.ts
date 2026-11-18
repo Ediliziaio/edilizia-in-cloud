@@ -168,6 +168,16 @@ beforeAll(async () => {
   for (const f of ["20290404312000_tesoreria_guardia_solo_se_verificato","20290404318000_tesoreria_iban_clienti_e_paganti","20290404319000_tesoreria_note_ricevute_e_f24_multiple","20290404321000_cdg_controllo_doppi_ordini_e_rate","20290404322000_cdg_incassi_oltre_totale_affinato","20290404324000_tesoreria_revisione_finale"])
     await pg.exec(await readFile(`supabase/migrations/${f}.sql`, "utf8"));
   rilancioUguale = (await firme()) === prima;
+  // Regola dei riferimenti commessa in produzione, poi codice principale già esistente.
+  await pg.exec(`alter table orders add column riferimento_committente text, add column work_description text,
+    add column codici_committente text[] not null default '{}';
+    create or replace view orders_visibili as select * from orders;`);
+  await pg.exec(await readFile("supabase/migrations/20290417100100_commessa_codici_committente.sql", "utf8"));
+  const codiceCommessa = await readFile("supabase/migrations/20290418170001_bonifici_codice_commessa_esistente.sql", "utf8");
+  await pg.exec(codiceCommessa);
+  const dopoCodice = await firme();
+  await pg.exec(codiceCommessa);
+  rilancioUguale = rilancioUguale && (await firme()) === dopoCodice;
 }, 60000);
 
 beforeEach(async () => {
@@ -180,6 +190,72 @@ beforeEach(async () => {
    select set_config('test.role','authenticated',false);set role authenticated;`);
 });
 afterAll(() => pg.close());
+
+describe("Bonifici: il riferimento è il codice commessa esistente", () => {
+  async function commessa(codice: string, azienda = company) {
+    const o = nid();
+    await service(`insert into orders(id,company_id,order_code,client_company) values($1,$2,$3,'Cliente Codice Srl')`, [o, azienda, codice]);
+    return o;
+  }
+  async function fattura(o: string, numero: string) {
+    const d = await doc({ numero, totale: 1000, cliente: "Cliente Codice Srl" });
+    await service(`update documenti_fiscali set ordine_id=$1 where id=$2`, [o, d]);
+    return d;
+  }
+  it.each(["Saldo ORD-2025-001", "saldo ord 2025 001", "Saldo ORD2025001", "Saldo ORD/2025/001"])("riconosce %s senza compilare un altro campo", async causale => {
+    const o = await commessa("ORD-2025-001");
+    const r = await service(`select private.tes_codici_in_causale($1,$2) v`, [company, causale]);
+    expect(r.rows[0].v).toEqual({ [o]: { codice: "ORD-2025-001", fonte: "codice_commessa", commessa: "ORD-2025-001" } });
+  });
+  it("riconosce anche codici con più di tre parti", async () => {
+    const o = await commessa("DEMO-NORD-2025-047");
+    const r = await service(`select private.tes_codici_in_causale($1,'Saldo demo nord 2025 047') v`, [company]);
+    expect(r.rows[0].v[o]?.fonte).toBe("codice_commessa");
+  });
+  it.each(["ORD-2025-0010", "XORD-2025-001", "ORD-2025-001X"])("non confonde ORD-2025-001 con %s", async causale => {
+    await commessa("ORD-2025-001");
+    const r = await service(`select private.tes_codici_in_causale($1,$2) v`, [company, causale]);
+    expect(r.rows[0].v).toEqual({});
+  });
+  it("segue il codice aggiornato senza copiarlo in codici aggiuntivi", async () => {
+    const o = await commessa("O-0001");
+    await service(`update orders set order_code='O-0002' where id=$1`, [o]);
+    const r = await service(`select private.tes_codici_in_causale($1,'Saldo O-0001') vecchio, private.tes_codici_in_causale($1,'Saldo O-0002') nuovo, (select codici_committente from orders where id=$2) extra`, [company, o]);
+    expect(r.rows[0].vecchio).toEqual({}); expect(r.rows[0].nuovo[o]?.codice).toBe("O-0002"); expect(r.rows[0].extra).toEqual([]);
+  });
+  it("esclude commesse di altre aziende e cancellate", async () => {
+    await commessa("O-0001", other);
+    const cancellata = await commessa("O-0001");
+    await service(`update orders set deleted_at=now() where id=$1`, [cancellata]);
+    expect((await service(`select private.tes_codici_in_causale($1,'Saldo O-0001') v`, [company])).rows[0].v).toEqual({});
+    await expect(pg.query(`select private.tes_codici_in_causale($1,'Saldo O-0001')`, [other])).rejects.toThrow(/permission denied/);
+  });
+  it("con codice, cliente e importo coerenti propone il documento corretto come verificato", async () => {
+    const o = await commessa("ORD-2025-001"), d = await fattura(o, "DOC-8101");
+    const r = await classifica(await tx({ amount: 1000, type: "credit", desc: "Saldo ORD-2025-001", name: "Cliente Codice Srl" }));
+    expect(r.esito).toBe("automatico");
+    expect(r.candidati[0].righe[0].id).toBe(d);
+    expect(JSON.stringify(r.candidati[0].motivi)).toContain("Codice commessa");
+    expect((await service(`select count(*)::int n from bank_reconciliations`)).rows[0].n).toBe(0);
+  });
+  it("il solo codice non conferma automaticamente un incasso", async () => {
+    const o = await commessa("O-0001"); await fattura(o, "DOC-8102");
+    const r = await classifica(await tx({ amount: 1000, type: "credit", desc: "Saldo O-0001" }));
+    expect(r.esito).toBe("proposta");
+  });
+  it("due commesse con lo stesso codice e importo richiedono una scelta", async () => {
+    const a = await commessa("O-0001"), b = await commessa("O-0001");
+    await fattura(a, "DOC-8103"); await fattura(b, "DOC-8104");
+    const r = await classifica(await tx({ amount: 1000, type: "credit", desc: "Saldo O-0001", name: "Cliente Codice Srl" }));
+    expect(r.esito).toBe("scelta"); expect(r.candidati).toHaveLength(2);
+  });
+  it("mantiene leggibili i riferimenti già salvati senza richiederli di nuovo", async () => {
+    const o = await commessa("O-0001");
+    await service(`update orders set codici_committente=ARRAY['MM311'] where id=$1`, [o]);
+    const r = await service(`select private.tes_codici_in_causale($1,'Saldo O-0001 MM311') principale, private.tes_codici_in_causale($1,'Saldo MM311') precedente`, [company]);
+    expect(r.rows[0].principale[o]?.fonte).toBe("codice_commessa"); expect(r.rows[0].precedente[o]?.codice).toBe("MM311");
+  });
+});
 
 describe("Esiti della riconciliazione", () => {
   it("documento unico verificato: numero, anno e soggetto → automatico", async () => {

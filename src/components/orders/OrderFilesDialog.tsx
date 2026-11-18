@@ -44,6 +44,7 @@ interface Props {
   /** Genera/scarica il PDF riepilogo della commessa. */
   onDownloadOrderPdf: () => void;
   pdfBusy?: boolean;
+  documentiCollegati?: React.ReactNode;
 }
 
 function fiscalTypeLabel(t?: string | null) {
@@ -72,7 +73,7 @@ function SectionTitle({ icon: Icon, children, count }: { icon: typeof FileText; 
 }
 
 export function OrderFilesDialog({
-  open, onOpenChange, fatture, documenti, items, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy,
+  open, onOpenChange, fatture, documenti, items, formatDocType, onDownloadFattura, onDownloadOrderPdf, pdfBusy, documentiCollegati,
 }: Props) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -131,11 +132,12 @@ export function OrderFilesDialog({
             <FolderOpen className="h-5 w-5 text-primary" /> Documenti e file della commessa
           </DialogTitle>
           <DialogDescription>
-            PDF, fatture, allegati e schede prodotto collegati. Clicca un file per scaricarlo.
+            Preventivo, planimetrie, fatture, allegati e schede prodotto collegati.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {documentiCollegati}
           {/* PDF riepilogo commessa — sempre disponibile, anche a commessa vuota */}
           {/* Il riepilogo è un PDF da scrivania: su telefono non compare. */}
           {!isMobile && (
@@ -227,7 +229,7 @@ export function OrderFilesDialog({
           {isEmpty && (
             <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-center">
               <FolderOpen className="h-9 w-9 text-muted-foreground/40" />
-              <p className="text-sm font-medium">Nessun file collegato a questa commessa</p>
+              <p className="text-sm font-medium">Nessun altro allegato o documento fiscale</p>
               <p className="max-w-sm text-xs text-muted-foreground">
                 Fatture, allegati e schede prodotto compariranno qui. Intanto puoi scaricare il PDF riepilogo qui sopra.
               </p>

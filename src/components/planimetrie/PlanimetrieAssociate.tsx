@@ -15,16 +15,16 @@ const CONTESTO: Record<DestinazionePianta, string> = {
   cliente: "a questo cliente", contatto: "a questo contatto CRM", preventivo: "a questo preventivo", commessa: "a questa commessa", computo: "a questo computo",
 };
 const STATO = { bozza: "Bozza", in_uso: "In uso", archiviata: "Archiviata" } as const;
-type Props = { companyId: string | null | undefined; tipo: DestinazionePianta; schedaId: string | null | undefined };
+type Props = { companyId: string | null | undefined; tipo: DestinazionePianta; schedaId: string | null | undefined; nascondiSeVuoto?: boolean };
 
 /** Accesso al progetto originale, senza comandi di creazione o modifica della scheda ospite. */
-export function PlanimetrieAssociate({ companyId, tipo, schedaId }: Props) {
+export function PlanimetrieAssociate({ companyId, tipo, schedaId, nascondiSeVuoto = false }: Props) {
   const permessi = usePermissions();
   if (!companyId || !schedaId || !permessi.canViewRenderAi || !accessiCollegamenti(permessi)[tipo]) return null;
-  return <ElencoPianteAssociate key={`${companyId}:${tipo}:${schedaId}`} companyId={companyId} tipo={tipo} schedaId={schedaId} />;
+  return <ElencoPianteAssociate key={`${companyId}:${tipo}:${schedaId}`} companyId={companyId} tipo={tipo} schedaId={schedaId} nascondiSeVuoto={nascondiSeVuoto} />;
 }
 
-function ElencoPianteAssociate({ companyId, tipo, schedaId }: { companyId: string; tipo: DestinazionePianta; schedaId: string }) {
+function ElencoPianteAssociate({ companyId, tipo, schedaId, nascondiSeVuoto }: { companyId: string; tipo: DestinazionePianta; schedaId: string; nascondiSeVuoto: boolean }) {
   const [pagina, setPagina] = useState(0);
   const [anteprimaId, setAnteprimaId] = useState<string | null>(null);
   const location = useLocation();
@@ -37,6 +37,8 @@ function ElencoPianteAssociate({ companyId, tipo, schedaId }: { companyId: strin
   });
   const contesto = CONTESTO[tipo];
   const pagine = Math.max(1, Math.ceil((data?.totale ?? 0) / ASSOCIATE_PER_PAGINA));
+
+  if (nascondiSeVuoto && !isLoading && !error && data?.totale === 0 && pagina === 0) return null;
 
   return <section className="overflow-hidden rounded-xl border bg-card" aria-label={`Planimetrie associate ${contesto}`}>
     <div className="flex items-center gap-2.5 px-4 py-3">

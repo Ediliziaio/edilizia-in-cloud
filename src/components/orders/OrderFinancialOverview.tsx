@@ -93,6 +93,7 @@ export function OrderFinancialOverview(props: Props) {
   const fine = realeReady && previstoReady ? numeri.aFinire : null;
   const costiHint = !costiReady
     ? realeHint
+    : numeri.reale.costi === 0 ? "Nessun costo registrato"
     : !fine || scarto == null
       ? "Sui costi registrati"
     : scarto > 0.5
@@ -188,7 +189,7 @@ export function OrderFinancialOverview(props: Props) {
               progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}
               evidenza={canViewCosts && !cassaLoading && !cassaError && esposizione.daPagare > 0.005
                 ? `Da pagare ${formatCurrency(esposizione.daPagare)}`
-                : canViewCosts && !cassaLoading && !cassaError ? "Tutto pagato" : undefined}
+                : canViewCosts && !cassaLoading && !cassaError && costiReady && numeri.reale.costi > 0 ? "Tutto pagato" : undefined}
               evidenzaTitolo="Costi registrati non ancora pagati (fatture, costi della commessa, provvigioni), IVA compresa. Gli ordini ai fornitori non ancora fatturati non ci sono."
               onClick={props.onOpenEconomics}
             />

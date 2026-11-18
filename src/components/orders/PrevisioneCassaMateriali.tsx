@@ -36,7 +36,7 @@ export function PrevisioneCassaMateriali({ incassato, materiali, saldoResiduo, r
     { etichetta: "Materiali dai fornitori", valore: -materiali, segno: "−", colore: "bg-rose-500", testo: "text-rose-700" },
     { etichetta: "Punto più basso della cassa", valore: minimo, segno: minimo < 0 ? "−" : "", colore: minimo < 0 ? "bg-red-600" : "bg-slate-700", testo: minimo < 0 ? "text-red-700" : "text-slate-900", forte: true },
     ...incassiPrevisti,
-    { etichetta: "Cassa a lavori finiti", valore: finale, segno: finale < 0 ? "−" : "", colore: finale < 0 ? "bg-red-600" : "bg-slate-700", testo: finale < 0 ? "text-red-700" : "text-slate-900", forte: true },
+    { etichetta: "Saldo previsto dopo i soli materiali", valore: finale, segno: finale < 0 ? "−" : "", colore: finale < 0 ? "bg-red-600" : "bg-slate-700", testo: finale < 0 ? "text-red-700" : "text-slate-900", forte: true },
   ];
   return (
     <Card className={cn("border-l-4", copre ? "border-l-emerald-500" : "border-l-red-500")}>

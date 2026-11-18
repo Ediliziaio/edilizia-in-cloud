@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, it, expect, vi } from "vitest";
 const t = vi.hoisted(() => ({
@@ -44,6 +44,19 @@ beforeEach(() => {
   );
 });
 describe("svincolo dal subappaltatore", () => {
+  it("un doppio clic documenta lo svincolo una sola volta", async () => {
+    let complete!: (value: Record<string, unknown>) => void;
+    t.rpc.mockImplementation(async (name: string) => name === "fiscalita_svincolo_anteprima"
+      ? {versione:"v1",registrazione:{stato:"trattenuta",importo:100}}
+      : new Promise<Record<string, unknown>>(resolve => {complete=resolve;}));
+    mostra();
+    const button=await screen.findByRole("button",{name:"Conferma svincolo documentato"});
+    fireEvent.change(screen.getByPlaceholderText(/Verbale \/ attestazione/),{target:{value:"Verbale DEMO 18-11"}});
+    fireEvent.click(button);fireEvent.click(button);
+    await waitFor(()=>expect(t.rpc.mock.calls.filter(c=>c[0]==="fiscalita_svincola")).toHaveLength(1));
+    await act(async()=>complete({registrazione:{stato:"svincolata"},incasso_registrato:false}));
+    await waitFor(()=>expect(t.released).toHaveBeenCalledTimes(1));
+  });
   it("richiede riferimento e usa la versione verificata senza registrare pagamenti", async () => {
     mostra();
     const b = await screen.findByRole("button", {

@@ -73,14 +73,14 @@ export function OfficeSelect({
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent className="max-h-72 rounded-2xl border-border/70 p-1 shadow-xl motion-reduce:animate-none">
+      <SelectContent fitContent className="max-h-72 rounded-xl border-border/70 shadow-lg motion-reduce:animate-none">
         {blocks.map((block, i) => {
           const items = block.options.map((option) => (
             <SelectItem
               key={option.value || EMPTY}
               value={option.value || EMPTY}
               disabled={option.disabled}
-              className="my-0.5 rounded-lg py-2 focus:bg-blue-50 focus:text-blue-950 dark:focus:bg-blue-950 dark:focus:text-blue-100"
+              className="rounded-md py-1.5 pl-7 pr-3 whitespace-normal break-words focus:bg-blue-50 focus:text-blue-950 dark:focus:bg-blue-950 dark:focus:text-blue-100"
             >
               {option.label}
             </SelectItem>

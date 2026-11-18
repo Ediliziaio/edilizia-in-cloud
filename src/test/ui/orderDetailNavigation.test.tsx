@@ -58,10 +58,10 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("navigazione commessa reale (Radix + React Router)", () => {
-  it("presenta le cinque aree, compresa Fatture e costi", () => {
+  it("presenta le cinque aree, compresa Costi e Fatture Fornitori", () => {
     mount();
     expect(screen.getAllByRole("tab")).toHaveLength(5);
-    expect(screen.getByRole("tab", { name: "Fatture e costi" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Costi e Fatture Fornitori" })).toBeVisible();
     expect(screen.getByRole("tablist", { name: "Aree della commessa" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Panoramica" })).toHaveAttribute("aria-selected", "true");
   });
@@ -81,7 +81,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
 
   it.each([
     ["campo", "Cantiere", "Rapportini"],
-    ["sal", "Economia e pagamenti", "Verbali SAL"],
+    ["sal", "Economia, Pagamenti e SAL", "Verbali SAL"],
     ["stato", "Panoramica", "Storico"],
     ["altro", "Panoramica", "Strumenti"],
   ])("recupera il vecchio link %s e apre la sezione corretta", async (legacy, tab, content) => {
@@ -103,7 +103,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "Pianifica" }));
     await waitFor(() => expect(screen.getByText("Date e appuntamenti")).toBeVisible());
-    selectTab("Economia e pagamenti");
+    selectTab("Economia, Pagamenti e SAL");
     expect(screen.getByLabelText("URL corrente")).toHaveTextContent("/azienda/ordini/test?tab=finanza");
     expect(screen.getByLabelText("URL corrente").textContent).not.toContain("#");
   });
@@ -132,7 +132,7 @@ describe("navigazione commessa reale (Radix + React Router)", () => {
   it("al cambio scheda non riporta la pagina in cima se la barra è al suo posto", async () => {
     mount();
     areaSchedeA(240);
-    for (const name of ["Cantiere", "Articoli e Materiali", "Economia e pagamenti", "Panoramica"]) {
+    for (const name of ["Cantiere", "Articoli e Materiali", "Economia, Pagamenti e SAL", "Panoramica"]) {
       selectTab(name);
       expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
       await act(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));

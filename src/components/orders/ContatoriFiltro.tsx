@@ -10,8 +10,8 @@ export function ContatoriFiltro({ voci, attivo, onScegli, etichetta, className }
 }) {
   const aspetto = useAspettoOperativo();
   return (
-    <div className={aspetto ? "generale-operativo-filters" : undefined}>
-    <div role="group" aria-label={etichetta} className={cn("grid grid-cols-3 gap-1 rounded-md border bg-muted/20 p-1 sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col lg:grid-cols-none", aspetto && "generale-operativo-counters", className)}>
+    <div className={cn("commessa-filter-group", aspetto && "generale-operativo-filters")} data-has-counts={voci.some(v => v.valore > 0)}>
+    <div role="group" aria-label={etichetta} className={cn("commessa-filter-counters grid grid-cols-3 gap-1 rounded-md border bg-muted/20 p-1 sm:grid-cols-3 lg:auto-cols-fr lg:grid-flow-col lg:grid-cols-none", aspetto && "generale-operativo-counters", className)}>
       {voci.map(v => (
         <button key={v.chiave} data-avviso={v.avviso && v.valore > 0 || undefined} type="button" disabled={v.valore === 0} aria-pressed={attivo === v.chiave}
           onClick={() => onScegli(attivo === v.chiave ? null : v.chiave)}

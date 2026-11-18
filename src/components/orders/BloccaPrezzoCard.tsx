@@ -32,6 +32,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatCurrency } from "@/lib/formatters";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
+import { SezioneRichiudibile } from "./SezioneRichiudibile";
 import {
   type BloccaPrezzo,
   type BloccaPrezzoStato,
@@ -53,6 +54,7 @@ interface Props {
   /** Il saldo della commessa risulta già incassato: caso peggiore per un blocca prezzo aperto. */
   saldoPagato?: boolean;
   readOnly?: boolean;
+  compatta?: boolean;
 }
 
 const oggiLocale = () => new Date().toLocaleDateString("en-CA");
@@ -64,6 +66,7 @@ export function BloccaPrezzoCard({
   hasBuildingBonus = false,
   saldoPagato = false,
   readOnly = false,
+  compatta = false,
 }: Props) {
   const { effectiveCompany } = useAuth();
   const { bloccaPrezzo: attivo } = useBonusFiscaliFlags();
@@ -79,7 +82,7 @@ export function BloccaPrezzoCard({
 
   const chiave = ["blocca-prezzo", orderId ?? null, quoteId ?? null] as const;
 
-  const { data: righe = [] } = useQuery({
+  const { data: righe = [], isLoading, isError, refetch } = useQuery({
     queryKey: chiave,
     enabled: attivo && (!!orderId || !!quoteId),
     queryFn: async (): Promise<BloccaPrezzo[]> => {
@@ -190,9 +193,9 @@ export function BloccaPrezzoCard({
   const aperto = daRestituire(righe);
   const avvisi = avvisiBloccaPrezzo(righe, { hasBuildingBonus, saldoPagato });
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
+  const contenuto = (
+    <Card className={compatta ? "border-0 shadow-none" : undefined}>
+      {!compatta && <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -210,9 +213,9 @@ export function BloccaPrezzoCard({
             </Badge>
           )}
         </div>
-      </CardHeader>
+      </CardHeader>}
 
-      <CardContent className="space-y-3">
+      <CardContent className={compatta ? "space-y-3 p-0" : "space-y-3"}>
         {avvisi.map((a) => (
           <p
             key={a.testo}
@@ -233,7 +236,10 @@ export function BloccaPrezzoCard({
           </p>
         ))}
 
-        {righe.length === 0 && (
+        {compatta && (
+          <p className="text-xs text-muted-foreground">Versamenti per bloccare il listino, da restituire prima dei bonifici parlanti.</p>
+        )}
+        {!compatta && righe.length === 0 && (
           <p className="text-xs text-muted-foreground">Nessun blocca prezzo registrato.</p>
         )}
 
@@ -446,5 +452,18 @@ export function BloccaPrezzoCard({
         )}
       </CardContent>
     </Card>
+  );
+  const corpo = isLoading ? <p role="status" className="text-sm text-muted-foreground">Caricamento versamenti…</p>
+    : isError ? <p role="alert" className="text-sm text-muted-foreground">
+      Versamenti non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+    </p> : contenuto;
+  if (!compatta) return corpo;
+  return (
+    <SezioneRichiudibile titolo="Blocca prezzo" icona={<Lock className="h-4 w-4" />} aperta={aperto > 0 || avvisi.length > 0}
+      riepilogo={isLoading ? "Caricamento…" : isError ? "Dati non disponibili" : aperto > 0
+        ? <span className="font-semibold text-amber-800 dark:text-amber-200">{formatCurrency(aperto)} da restituire</span>
+        : <span className="text-muted-foreground">{righe.length ? "Nessuna restituzione in sospeso" : "Nessun versamento"}</span>}>
+      {corpo}
+    </SezioneRichiudibile>
   );
 }

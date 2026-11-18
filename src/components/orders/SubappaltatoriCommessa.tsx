@@ -111,7 +111,7 @@ export function SubappaltatoriCommessa({ orderId, onApriCantiere }: { orderId: s
         ) : isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : righe.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun subappaltatore su questa commessa. Ditte e contratti si assegnano in Cantiere → Lavorazioni.</p>
+          <p className="commessa-empty text-sm text-muted-foreground">Nessun subappaltatore su questa commessa. Ditte e contratti si assegnano in Cantiere → Lavorazioni.</p>
         ) : (
           <TabellaCommessa etichetta="Subappaltatori e ditte" righe={visibili} chiave={(r) => r.uscita.chiave} colonne={[
             { titolo: "Ditta", principale: true, cella: (r) => {

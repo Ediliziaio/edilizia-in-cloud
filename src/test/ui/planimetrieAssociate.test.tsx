@@ -9,9 +9,9 @@ vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canViewRende
 vi.mock("@/lib/planimetrie/pianteAssociate", async (original) => ({ ...await original<typeof import("@/lib/planimetrie/pianteAssociate")>(), caricaPianteAssociate: mock.carica }));
 
 const pianta = { id: "p1", titolo: "Villa associata", stato: "in_uso", versione_corrente: 3, updated_at: "2026-11-10" };
-function monta(tipo: "cliente" | "contatto" | "preventivo" | "commessa" | "computo" = "cliente", id = "scheda-1") {
+function monta(tipo: "cliente" | "contatto" | "preventivo" | "commessa" | "computo" = "cliente", id = "scheda-1", nascondiSeVuoto = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(<PlanimetrieAssociate companyId="azienda-A" tipo={tipo} schedaId={id} />, { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider> });
+  const view = render(<PlanimetrieAssociate companyId="azienda-A" tipo={tipo} schedaId={id} nascondiSeVuoto={nascondiSeVuoto} />, { wrapper: ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}><MemoryRouter>{children}</MemoryRouter></QueryClientProvider> });
   return { ...view, client };
 }
 beforeEach(() => {
@@ -28,6 +28,13 @@ describe("Collegamento al progetto originale", () => {
     expect(mock.carica).toHaveBeenCalledWith("azienda-A", tipo, "scheda-1", 0);
     expect(screen.queryByRole("button", { name: /^(crea|nuov|associa)/i })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Fascicolo PDF Villa associata" })).toHaveAttribute("href", "/azienda/planimetrie/p1?esporta=fascicolo");
+  });
+
+  it("nei documenti nasconde il riquadro soltanto quando non esistono collegamenti", async () => {
+    mock.carica.mockResolvedValue({ piante: [], totale: 0 });
+    const { container } = monta("commessa", "commessa-1", true);
+    await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
+    expect(mock.carica).toHaveBeenCalledWith("azienda-A", "commessa", "commessa-1", 0);
   });
 
   it("senza accesso a Render AI non mostra né carica il progetto", () => {

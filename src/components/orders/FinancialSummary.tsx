@@ -943,7 +943,23 @@ export function FinancialSummary({
 
 // ── FinancialSummaryReadOnly ────────────────────────────────────
 
+export interface ContestoIncassiUnificati {
+  rate: Installment[];
+  renderRata: (rata: Installment, dettaglioDocumento?: ReactNode) => ReactNode;
+  comandiBanca: ReactNode;
+  notePiano: ReactNode;
+  incassatoEffettivo?: number;
+  daIncassareEffettivo?: number;
+  incassatoPiano: number;
+  daIncassarePiano: number;
+  totalePiano: number;
+}
+
 interface FinancialSummaryReadOnlyProps {
+  invoiceUrl?: (id: string) => string;
+  totaliIncassi?: {incassato: number; daIncassare: number};
+  elencoUnificato?: (piano: ContestoIncassiUnificati) => ReactNode;
+  onManageInvoice?: (installment: Installment, amount: number) => void;
   totalAmount: number;
   vatRate?: number;
   paymentType: PaymentType;
@@ -981,6 +997,10 @@ export function FinancialSummaryReadOnly({
   conPrimaNota,
   clienteNome,
   varianti,
+  onManageInvoice,
+  elencoUnificato,
+  totaliIncassi,
+  invoiceUrl,
 }: FinancialSummaryReadOnlyProps) {
   const { effectiveCompany } = useAuth();
   // Una query per tutta la card: quali rate hanno già la loro registrazione.
@@ -1003,8 +1023,8 @@ export function FinancialSummaryReadOnly({
   const incassiRate = varianti
     ? calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost: financingCostValue, financingCostMode, includeFinancing: true, varianti })
     : null;
-  const importoRata = (i: Installment) => (isSaldoFinale(i)
-    ? (i.is_paid && incassiRate ? incassiRate[installments.indexOf(i)] ?? balanceAmount : balanceAmount)
+  const importoRata = (i: Installment) => (i.documento_quota_lorda != null ? i.documento_quota_lorda : isSaldoFinale(i)
+    ? (i.is_paid && incassiRate ? incassiRate[installments.findIndex(originale => i.id ? originale.id === i.id : originale.position === i.position)] ?? balanceAmount : balanceAmount)
     : i.type === "financing" && financingCostMode === "trattenuto" ? Math.max(0, i.amount - financingCostValue) : i.amount);
   // Stessa regola di intestazione e conto economico (incassiDellaCommessa).
   const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost, financingCostMode, varianti });
@@ -1021,9 +1041,10 @@ export function FinancialSummaryReadOnly({
   const oggi = new Date();
   oggi.setHours(0, 0, 0, 0);
   const giorniDa = (d: string) => Math.round((oggi.getTime() - new Date(d).setHours(0, 0, 0, 0)) / 86_400_000);
-  const renderPaymentRow = (inst: Installment, displayAmount?: number) => {
+  const renderPaymentRow = (inst: Installment, displayAmount?: number, dettaglioDocumento?: ReactNode) => {
     const amount = displayAmount ?? inst.amount;
     const partialPaid = Number(inst.fattura?.importo_pagato ?? 0);
+    const quotaRipartita = inst.documento_quota_lorda != null;
     const isPartial = !inst.is_paid && partialPaid > 0 && partialPaid < amount;
     if (amount <= 0 && inst.type !== 'balance') return null;
 
@@ -1033,7 +1054,7 @@ export function FinancialSummaryReadOnly({
     // mano. La data dell'incasso, invece, si scrive come sempre.
     const aEvento = !!inst.trigger_evento && inst.trigger_evento !== 'data_fissa';
     const canEditExpected = canEditDate && !aEvento;
-    const stato = inst.is_paid ? "incassata" : scaduta ? "scaduta" : isPartial ? "parziale" : "da_incassare";
+    const stato = inst.is_paid ? "incassata" : isPartial ? "parziale" : scaduta ? "scaduta" : "da_incassare";
     const STILE = {
       incassata: { punto: "bg-emerald-500", pill: "bg-emerald-50 text-emerald-800 ring-emerald-200", testo: "Incassata" },
       da_incassare: { punto: "bg-amber-400", pill: "bg-amber-50 text-amber-800 ring-amber-200", testo: "Da incassare" },
@@ -1068,28 +1089,30 @@ export function FinancialSummaryReadOnly({
             <p className="flex items-center gap-x-2">
               <span className="min-w-0 truncate font-medium">{inst.label}</span>
               <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset", STILE.pill)}>{STILE.testo}</span>
-              <span className={cn("ml-auto shrink-0 font-semibold tabular-nums sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>
+              {!dettaglioDocumento && <span className={cn("ml-auto shrink-0 font-semibold tabular-nums sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>}
             </p>
             {/* Seconda riga: quando (al telefono anche la data, che al computer sta nel selettore) e fattura. */}
             {(quando || isPartial || dataTelefono || inst.fattura) && (
               <p className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-snug", stato === "scaduta" ? "font-medium text-red-700" : "text-muted-foreground")}>
                 {quando && <span>{quando}</span>}
                 {!quando && dataTelefono && <span className="sm:hidden">{dataTelefono}</span>}
-                {isPartial && <span>entrati {formatCurrency(partialPaid)}, restano {formatCurrency(Math.max(0, amount - partialPaid))}</span>}
+                {isPartial && <span>entrati {formatCurrency(partialPaid)}, restano {formatCurrency(inst.quota_fattura_residua ?? Math.max(0, amount - partialPaid))}</span>}
                 {/* La fattura interna che incassa la rata (25/09/2026): pagata l'una, pagata l'altra. */}
-                {inst.fattura && (
-                  <Link to={`/azienda/documenti/${inst.fattura.id}/dettaglio`} className="tap-compact inline-flex items-center gap-1 font-normal text-primary hover:underline">
+                {inst.fattura && !dettaglioDocumento && (
+                  <Link to={invoiceUrl?.(inst.fattura.id) ?? `/azienda/documenti/${inst.fattura.id}/dettaglio`} className="tap-compact inline-flex items-center gap-1 font-normal text-primary hover:underline">
                     <FileText className="h-3 w-3" />
                     {inst.fattura.stato === "bozza" ? "Fattura in bozza" : `Fattura n. ${inst.fattura.numero ?? ""}`}
                   </Link>
                 )}
               </p>
             )}
+            {quotaRipartita && <p className="mt-1 text-xs text-muted-foreground">Quota della fattura: {formatCurrency(inst.documento_quota_lorda!)} · incassato {formatCurrency(partialPaid)} · residuo {formatCurrency(inst.quota_fattura_residua ?? 0)}{Number(inst.quota_fattura_non_esigibile)>0 && ` · non da incassare ora ${formatCurrency(inst.quota_fattura_non_esigibile!)}`}. Gli incassi si registrano sulla fattura.</p>}
+            {inst.id && onManageInvoice && <button type="button" className="mt-1 inline-flex min-h-8 items-center gap-1.5 rounded-md border bg-background px-2 text-xs font-medium text-primary hover:bg-muted" aria-label={`${inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'} · ${inst.label}`} onClick={() => onManageInvoice(inst, amount)}><FileText className="h-3.5 w-3.5" aria-hidden />{inst.documento_fiscale_id ? 'Gestisci fattura' : 'Collega fattura'}</button>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 pl-5 sm:justify-end sm:gap-2 sm:pl-0">
-          <span className={cn("text-base font-semibold tabular-nums max-sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>
-          {amount > 0 && onInstallmentPaidToggle && (
+          {!dettaglioDocumento && <span className={cn("text-base font-semibold tabular-nums max-sm:hidden", stato === "incassata" ? "text-emerald-700" : "text-foreground")}>{formatCurrency(amount)}</span>}
+          {amount > 0 && onInstallmentPaidToggle && !quotaRipartita && (
             <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato incasso ${inst.label}`}>
               <button
                 type="button" role="radio" aria-checked={!inst.is_paid}
@@ -1110,7 +1133,7 @@ export function FinancialSummaryReadOnly({
             </div>
           )}
           {/* Data: si corregge da qui. Incassata → data dell'incasso; da incassare → data prevista. */}
-          {amount > 0 && (inst.is_paid ? canEditDate : canEditExpected) && (
+          {amount > 0 && (inst.is_paid ? canEditDate && !quotaRipartita : canEditExpected) && (
             <span className="max-sm:hidden"><DatePickerField
               label={inst.is_paid ? "Data incasso" : "Data prevista"}
               date={inst.is_paid ? (inst.paid_date ? new Date(inst.paid_date) : undefined) : (inst.expected_date ? new Date(inst.expected_date) : undefined)}
@@ -1124,6 +1147,7 @@ export function FinancialSummaryReadOnly({
             <RegistraIncassoPrimaNota inst={inst} amount={amount} orderId={orderId} orderCode={orderCode} entryId={incassiRegistrati[inst.id]} />
           )}
         </div>
+        {dettaglioDocumento && <div className="income-rate-invoice sm:col-span-2">{dettaglioDocumento}</div>}
       </li>
     );
   };
@@ -1148,23 +1172,7 @@ export function FinancialSummaryReadOnly({
     ...installments.filter(i => i.type === 'balance').sort((a, b) => a.position - b.position),
   ];
 
-  return (
-    <Card>
-      <CardHeader className="space-y-3 max-sm:p-3 max-sm:pb-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Euro className="h-5 w-5 max-sm:h-4 max-sm:w-4" />
-              Incassi dal cliente
-            </CardTitle>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {visibili.length === 0
-                ? "Nessuna rata ancora."
-                : incassate === visibili.length
-                  ? `Tutte le ${visibili.length} rate incassate.`
-                  : `${incassate} di ${visibili.length} rate incassate${prossima ? ` · prossima: ${prossima.label}${prossima.expected_date ? ` il ${formatPaymentDate(prossima.expected_date)}` : ""}` : ""}.`}
-            </p>
-          </div>
+  const comandiBanca = <>
           {conPrimaNota && orderId && daIncassare.length > 0 && (
             <button
               type="button"
@@ -1187,28 +1195,8 @@ export function FinancialSummaryReadOnly({
               rateNonPagate={daIncassare}
             />
           )}
-        </div>
-        {incassabile > 0 && (
-          <div className="space-y-1">
-            <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Quanto è incassato" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
-            </div>
-            <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
-              <span><strong className="text-emerald-700">{formatCurrency(collectedAmount)}</strong> incassati · {pct}%</span>
-              <span>{dueAmount > 0 ? <>da incassare <strong className="text-amber-700">{formatCurrency(dueAmount)}</strong></> : "niente da incassare"}</span>
-            </p>
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
-        {ordinate.length > 0 ? (
-          <ul className="divide-y overflow-hidden rounded-lg border" aria-label="Rate del cliente">
-            {ordinate.map(inst => renderPaymentRow(inst, importoRata(inst)))}
-          </ul>
-        ) : (
-          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare: nessuna rata o scadenza generata dal contratto.</p>
-        )}
-
+  </>;
+  const notePiano = <div className="space-y-3">
         {paymentType === 'financing' && financingCostValue > 0 && (
           <p className="flex justify-between text-sm">
             <span className="text-muted-foreground">Costo della finanziaria{financingCostMode === "trattenuto" ? " (trattenuto)" : financingCostMode === "separato" ? " (uscita separata)" : " (modalità da verificare)"}</span>
@@ -1247,6 +1235,50 @@ export function FinancialSummaryReadOnly({
             </div>
           );
         })()}
+  </div>;
+  if (elencoUnificato) return <>{elencoUnificato({rate: ordinate, renderRata: (rata, dettaglio) => renderPaymentRow(rata, importoRata(rata), dettaglio), comandiBanca, notePiano, incassatoEffettivo: totaliIncassi?.incassato, daIncassareEffettivo: totaliIncassi?.daIncassare, incassatoPiano: collectedAmount, daIncassarePiano: dueAmount, totalePiano: incassabile})}</>;
+
+  return (
+    <Card className="income-rates-card">
+      <CardHeader className="space-y-3 max-sm:p-3 max-sm:pb-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Euro className="h-5 w-5 max-sm:h-4 max-sm:w-4" />
+              Incassi dal cliente
+            </CardTitle>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {visibili.length === 0
+                ? "Nessuna rata ancora."
+                : incassate === visibili.length
+                  ? `Tutte le ${visibili.length} rate incassate.`
+                  : `${incassate} di ${visibili.length} rate incassate${prossima ? ` · prossima: ${prossima.label}${prossima.expected_date ? ` il ${formatPaymentDate(prossima.expected_date)}` : ""}` : ""}.`}
+            </p>
+          </div>
+          {comandiBanca}
+        </div>
+        {incassabile > 0 && (
+          <div className="space-y-1">
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Quanto è incassato" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+              <span><strong className="text-emerald-700">{formatCurrency(collectedAmount)}</strong> incassati · {pct}%</span>
+              <span>{dueAmount > 0 ? <>da incassare <strong className="text-amber-700">{formatCurrency(dueAmount)}</strong></> : "niente da incassare"}</span>
+            </p>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3 max-sm:p-3 max-sm:pt-0 max-sm:text-sm">
+        {ordinate.length > 0 ? (
+          <ul className="divide-y overflow-hidden rounded-lg border" aria-label="Rate del cliente">
+            {ordinate.map(inst => renderPaymentRow(inst, importoRata(inst)))}
+          </ul>
+        ) : (
+          <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare: nessuna rata o scadenza generata dal contratto.</p>
+        )}
+
+        {notePiano}
       </CardContent>
     </Card>
   );

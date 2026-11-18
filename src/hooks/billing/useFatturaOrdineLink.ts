@@ -1,3 +1,4 @@
+import { unisciFattureCommessa, type FatturaCommessa } from "@/lib/orders/fattureCommessa";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -23,21 +24,8 @@ interface OrderJoined {
   customer: { id: string; first_name: string; last_name: string } | null;
 }
 
-interface FatturaJoined {
-  origine?: "nativa"|"importata";
-  importo_pagato?:number;
-  stornato?:number;
-  id: string;
-  numero: string;
-  data_emissione: string;
-  stato: string;
-  tipo: string;
-  totale_da_pagare: number;
-  /** Totale del documento, IVA inclusa: è il fatturato quando la fattura è tutta della commessa. */
-  totale_documento: number | null;
-  /** Quota della fattura assegnata a questa commessa (fattura_ordine), quando c'è. */
-  importo_associato: number | null;
-}
+export type FatturaJoined = FatturaCommessa;
+const CAMPI_FATTURA_COMMESSA = "id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, importo_pagato, cliente_snapshot, imponibile_totale, iva_totale, scadenze_pagamento";
 
 // ─── Ordini collegati a una fattura ───────────────────────────
 
@@ -88,7 +76,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
   // v8.6.101 — tenant isolation per impersonation
   const companyId = useEffectiveCompanyId();
   return useQuery({
-    queryKey: ["ordine-fatture", ordineId, companyId],
+    queryKey: ["ordine-fatture", ordineId, companyId, "incassi-completi-v2"],
     queryFn: async () => {
       // From junction table
       const junctionQuery = supabase
@@ -103,7 +91,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       // From direct ordine_id shortcut
       const directQuery = supabase
         .from("documenti_fiscali" as never)
-        .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, importo_pagato, company_id")
+        .select(CAMPI_FATTURA_COMMESSA)
         .eq("ordine_id", ordineId!)
         .is("deleted_at", null);
       const { data: directData, error: dErr } = companyId
@@ -117,7 +105,7 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       if (junctionFatturaIds.length > 0) {
         const fattureQuery = supabase
           .from("documenti_fiscali" as never)
-          .select("id, numero, data_emissione, stato, tipo, totale_da_pagare, totale_documento, importo_pagato")
+          .select(CAMPI_FATTURA_COMMESSA)
           .in("id", junctionFatturaIds)
           .is("deleted_at", null);
         const { data: fData, error: fErr } = companyId
@@ -138,13 +126,25 @@ export function useFattureByOrdine(ordineId: string | undefined) {
       for (const f of junctionFatture) allFatture.set(f.id, conQuota(f));
       for (const f of (directData as any[]) ?? []) allFatture.set(f.id, conQuota(f));
 
+      // Anche le note di credito collegate riducono il residuo delle native.
+      // La proiezione canonica legge gli stessi storni del dettaglio fattura.
+      if (allFatture.size > 0) {
+        const { data: saldi, error: saldiError } = await supabase.from("documenti_fiscali_elenco_operativo" as never)
+          .select("id,stornato").eq("company_id", companyId!).eq("origine", "nativa").in("id", [...allFatture.keys()]);
+        if (saldiError) throw saldiError;
+        for (const r of (saldi ?? []) as Array<{ id: string; stornato: number }>) {
+          const f = allFatture.get(r.id);
+          if (f) allFatture.set(r.id, { ...f, stornato: Number(r.stornato) || 0 });
+        }
+      }
+
       // Same canonical projection as the issued-invoices list: imported invoices
       // become visible in the job immediately after the existing reconciliation RPC.
       const {data:importate,error:importateError}=await supabase.from("documenti_fiscali_elenco_operativo" as never)
-        .select("id,numero,data_emissione,stato,tipo,totale_da_pagare,totale_documento,importo_pagato,stornato,origine")
+        .select("id,numero,data_emissione,stato,tipo,totale_da_pagare,totale_documento,importo_pagato,stornato,origine,cliente_snapshot,imponibile_totale,iva_totale")
         .eq("company_id",companyId!).eq("origine","importata").eq("ordine_id",ordineId!).is("deleted_at",null);
       if(importateError)throw importateError;
-      return [...Array.from(allFatture.values()),...((importate??[]) as FatturaJoined[]).map((f):FatturaJoined=>({...f,importo_associato:null}))];
+      return unisciFattureCommessa(Array.from(allFatture.values()), ((importate ?? []) as FatturaJoined[]).map((f): FatturaJoined => ({ ...f, importo_associato: null })));
     },
     enabled: !!ordineId && !!companyId,
   });

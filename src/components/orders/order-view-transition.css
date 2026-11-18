@@ -14,3 +14,11 @@
     transition: none;
   }
 }
+
+/* Le schede della panoramica seguono il contenuto, senza righe di uguale altezza. */
+#order-detail-overview [data-order-view="panoramica"] [data-ui="document-card"] {
+  padding: 1rem;
+}
+#order-detail-overview [data-order-view="panoramica"] [data-ui="document-card"] > div:first-child:has(h3) {
+  margin-bottom: .75rem;
+}

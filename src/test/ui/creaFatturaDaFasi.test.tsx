@@ -4,11 +4,14 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
 import type { Installment } from "@/lib/orderUtils";
+import { queryKeys } from "@/lib/queryKeys";
 
 type Righe = Array<Record<string, unknown>>;
 const mocks = vi.hoisted(() => ({
   tabelle: {} as Record<string, unknown[]>,
   crea: vi.fn(),
+  rpc: vi.fn(),
+  collega: vi.fn(),
   anagraficaError: null as { message: string } | null,
   ricercaPerNome: vi.fn(),
 }));
@@ -22,19 +25,19 @@ vi.mock("@/integrations/supabase/client", () => {
     q.then = (ok: (v: unknown) => unknown) => ok({ data: mocks.tabelle[tabella] ?? [], error: null });
     return q;
   };
-  return { supabase: { from: costruttore, rpc: vi.fn(async () => ({ error: null })) } };
+  return { supabase: { from: costruttore, rpc: (...args: unknown[]) => mocks.rpc(...args) } };
 });
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "c1" } }) }));
-vi.mock("@/hooks/useDocumentiFiscali", () => ({ useCreateDocumento: () => ({ mutate: mocks.crea, isPending: false }) }));
-vi.mock("@/hooks/billing/useFatturaOrdineLink", () => ({ useLinkFatturaOrdine: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock("@/hooks/useDocumentiFiscali", () => ({ useCreateDocumento: () => ({ mutateAsync: mocks.crea, isPending: false }) }));
+vi.mock("@/hooks/billing/useFatturaOrdineLink", () => ({ useLinkFatturaOrdine: () => ({ mutateAsync: mocks.collega, isPending: false }) }));
 vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: { iban_principale: "IT60X0542811101000000123456" } }) }));
 vi.mock("@/hooks/useBonusFiscaliFlags", () => ({ useBonusFiscaliFlags: () => ({ bonusMultipli: false }) }));
 vi.mock("@/components/fatturazione/PreviewFattura", () => ({ PreviewFattura: (): null => null }));
 
-const apri = (installments: Installment[] = [], customerId: string | null = null) => render(
-  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+const apri = (installments: Installment[] = [], customerId: string | null = null, client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), onApriBozza?: (id: string) => void) => render(
+  <QueryClientProvider client={client}>
     <MemoryRouter>
-      <CreaFatturaDialog open onOpenChange={vi.fn()} orderId="o1" orderCode="ORD-1" orderDescription="Lavori" totalAmount={30000} vatRate={10} customerId={customerId} customerName="Mario" installments={installments} />
+      <CreaFatturaDialog open onOpenChange={vi.fn()} orderId="o1" orderCode="ORD-1" orderDescription="Lavori" totalAmount={30000} vatRate={10} customerId={customerId} customerName="Mario" installments={installments} onApriBozza={onApriBozza} />
     </MemoryRouter>
   </QueryClientProvider>,
 );
@@ -45,6 +48,9 @@ const apriFasi = async () => { fireEvent.click(await screen.findByRole("button",
 const creaFattura = () => fireEvent.click(screen.getByRole("button", { name: /Crea fattura ·/ }));
 
 beforeEach(() => {
+  mocks.rpc.mockResolvedValue({error:null});
+  mocks.crea.mockResolvedValue({id:"nuova-fattura"});
+  mocks.collega.mockResolvedValue(undefined);
   mocks.anagraficaError = null;
   mocks.tabelle = {
     order_work_phases: [fase("f1", "Opere murarie", 60, 20000), fase("f2", "Impianti", 0, 10000)],
@@ -176,8 +182,7 @@ describe("Crea fattura: cosa fatturi", () => {
     expect(screen.getByText(/in fatture o bozze senza dettaglio per fase/)).toHaveTextContent("25.000,00");
   });
 
-  it("una rata già fatturata non si propone, si vede il numero e rifarla chiede conferma", async () => {
-    const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
+  it("una rata già fatturata apre il documento esistente, senza consentire una seconda fattura", async () => {
     const rate = [
       { id: "r1", position: 1, type: "deposit", label: "Acconto", amount: 9900, is_paid: false, documento_fiscale_id: "d1", fattura: { id: "d1", numero: "FT-7", stato: "emessa" } },
       { id: "r2", position: 2, type: "balance", label: "Saldo", amount: 1100, is_paid: false },
@@ -188,10 +193,37 @@ describe("Crea fattura: cosa fatturi", () => {
     await waitFor(() => expect(screen.getAllByLabelText("Descrizione della riga")[0]).toHaveValue("Saldo — commessa n. ORD-1\nLavori"));
     fireEvent.click(acconto);
     expect(screen.getByText(/già fatturata con FT-7/)).toBeInTheDocument();
-    creaFattura();
-    await waitFor(() => expect(conferma).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /Crea fattura ·/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apri fattura" }));
     expect(mocks.crea).not.toHaveBeenCalled();
-    conferma.mockRestore();
+  });
+
+  it("una fattura con il piano 30/30/40 salva tre scadenze senza registrare incassi", async () => {
+    const onApriBozza = vi.fn();
+    apri([{ id: "r1", position: 1, type: "deposit", label: "Acconto 30%", amount: 9900, is_paid: false }], null, undefined, onApriBozza);
+    expect(await screen.findByLabelText("Descrizione della riga")).toHaveValue("Acconto 30% — commessa n. ORD-1\nLavori");
+    fireEvent.click(screen.getByRole("button", { name: "Nessuna rata" }));
+    expect(screen.getByLabelText("Descrizione della riga")).toHaveValue("Lavori — commessa n. ORD-1\nLavori");
+    fireEvent.change(screen.getByLabelText("Prezzo senza IVA"), { target: { value: "12.000,01" } });
+    const pagamento = screen.getByText("Pagamento", { exact: true }).closest("summary");
+    expect(pagamento).toBeInTheDocument();
+    fireEvent.click(pagamento!);
+    fireEvent.click(screen.getByRole("button", { name: "30% / 30% / 40%" }));
+    expect(mocks.crea).not.toHaveBeenCalled();
+    creaFattura();
+    await waitFor(() => expect(onApriBozza).toHaveBeenCalledWith("nuova-fattura"));
+    expect(mocks.crea).toHaveBeenCalledTimes(1);
+    const bozza = mocks.crea.mock.calls[0][0];
+    expect(bozza.scadenze_pagamento).toEqual([
+      expect.objectContaining({ numero_rata: 1, importo: 3960, pagato: false }),
+      expect.objectContaining({ numero_rata: 2, importo: 3960.01, pagato: false }),
+      expect.objectContaining({ numero_rata: 3, importo: 5280, pagato: false }),
+    ]);
+    const dateScadenze = bozza.scadenze_pagamento.map((rata: { data_scadenza: string }) => rata.data_scadenza);
+    expect(bozza.data_scadenza).toBe(dateScadenze[0]);
+    expect(Date.parse(dateScadenze[2]) - Date.parse(dateScadenze[0])).toBe(60 * 86_400_000);
+    expect(mocks.collega).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("le righe delle fasi non vengono da chi non vede gli importi", async () => {
@@ -227,4 +259,78 @@ it("CHECK-79: distingue una bozza dal fatturato emesso senza riproporre la quota
   fireEvent.click(await screen.findByRole("button", { name: "Fasi" }));
   expect(await screen.findByText(/non sono fatturato emesso/)).toHaveTextContent("30.000,00");
   await waitFor(() => expect(screen.getByLabelText("Importo da fatturare: Opere murarie")).toHaveValue("0,00"));
+});
+
+
+it("il doppio clic attende anche il collegamento alla commessa e crea una sola bozza", async () => {
+  let completa!: () => void;
+  mocks.collega.mockImplementationOnce(() => new Promise<void>(resolve => { completa = resolve; }));
+  apri();
+  await screen.findByLabelText("Descrizione della riga");
+  const button = screen.getByRole("button", {name:/Crea fattura ·/});
+  fireEvent.click(button); fireEvent.click(button);
+  await waitFor(() => expect(mocks.collega).toHaveBeenCalledTimes(1));
+  expect(mocks.crea).toHaveBeenCalledTimes(1);
+  expect(button).toBeDisabled();
+  expect(mocks.crea.mock.calls[0][0]).toMatchObject({ordine_id:"o1"});
+  completa();
+  await waitFor(() => expect(button).not.toBeDisabled());
+});
+
+
+it("SAL successivo: fattura soltanto la quota nuova e la collega alla commessa e alla rata esistenti", async () => {
+  mocks.tabelle.sal_records = [
+    {id:"s1",numero_sal:1,stato:"approvato",importo_totale:400,installment_id:"r1",sal_voci:[{descrizione:"Opere",importo_sal:400}]},
+    {id:"s2",numero_sal:2,stato:"approvato",importo_totale:1000,installment_id:"r2",sal_voci:[{descrizione:"Opere",importo_sal:1000}]},
+  ];
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const chiaveRate = [...queryKeys.orders.installments("o1"), "quote-v1"];
+  client.setQueryData(chiaveRate, [{ id: "r2", documento_fiscale_id: null }]);
+  apri([{id:"r1",position:0,type:"deposit",label:"SAL 1",amount:440,is_paid:true,documento_fiscale_id:"precedente"}, {id:"r2",position:1,type:"balance",label:"SAL 2",amount:660,is_paid:false}], null, client);
+  await screen.findByRole("button",{name:"SAL",pressed:true});
+  await waitFor(()=>expect(screen.getByRole("button",{name:/Crea fattura ·/})).toHaveTextContent("660,00"));
+  creaFattura();
+  await waitFor(()=>expect(mocks.rpc).toHaveBeenCalledWith("collega_rata_fattura",{p_rata_id:"r2",p_documento_id:"nuova-fattura"}));
+  expect(client.getQueryState(chiaveRate)?.isInvalidated).toBe(true);
+  expect(righeCreate()).toEqual([expect.objectContaining({id:"sal:s2:0",prezzo_unitario:600})]);
+  expect(mocks.collega).toHaveBeenCalledWith({fatturaId:"nuova-fattura",ordineId:"o1",companyId:"c1",importoAssociato:660});
+  expect(mocks.crea).toHaveBeenCalledTimes(1);
+});
+
+it("scegliere un'altra rata SAL compila il suo verbale e mantiene chiaro il passaggio all'importo manuale", async () => {
+  mocks.tabelle.sal_records = [
+    { id: "s1", numero_sal: 1, stato: "emesso", importo_totale: 400, installment_id: "r1", sal_voci: [{ descrizione: "Opere", importo_sal: 400 }] },
+    { id: "s2", numero_sal: 2, stato: "emesso", importo_totale: 1000, installment_id: "r2",
+      sal_certificati: { netto: 500 }, sal_voci: [{ descrizione: "Opere", importo_sal: 1000 }] },
+  ];
+  apri([
+    { id: "r1", position: 0, type: "deposit", label: "SAL 1", amount: 440, is_paid: false },
+    { id: "r2", position: 1, type: "balance", label: "SAL 2", amount: 550, is_paid: false },
+  ]);
+  await screen.findByRole("button", { name: "SAL", pressed: true });
+  const rata = screen.getByRole("button", { name: /^SAL 2 550,00/ });
+  fireEvent.click(rata);
+  expect(rata).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "SAL", pressed: true })).toBeVisible();
+  expect(screen.getByLabelText("Riepilogo della bozza")).toHaveTextContent("Verbale SAL n. 2");
+  expect(screen.getByLabelText("Descrizione della riga")).toHaveValue("Certificato di pagamento n. 2 — SAL n. 2");
+  expect(screen.getByRole("button", { name: /Crea fattura · 550,00/ })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Un importo" }));
+  expect(rata).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: /Crea fattura · 550,00/ })).toBeEnabled();
+  expect(mocks.crea).not.toHaveBeenCalled();
+});
+
+it('una garanzia già compresa nella fattura completa non propone un’altra fattura di svincolo', async()=>{
+ mocks.tabelle.ritenute_garanzia=[{id:'garanzia',importo:100,note:'Già compresa nella fattura unica'}];
+ mocks.tabelle.fattura_ordine=[{fattura_id:'full',importo_associato:null}];
+ mocks.tabelle.documenti_fiscali=[{id:'full',tipo:'fattura',stato:'emessa',righe:[{id:'importo-rata',imponibile:30000}],totale_documento:33000}];
+ apri();
+ fireEvent.click(await screen.findByRole('button',{name:'Fasi'}));
+ await screen.findByText(/in fatture o bozze senza dettaglio per fase/);
+ await waitFor(()=>expect(screen.getByLabelText('Importo da fatturare: Opere murarie')).toHaveValue('0,00'));
+ fireEvent.click(await screen.findByRole('button',{name:'Un importo'}));
+ await screen.findByLabelText('Importo IVA inclusa');
+ expect(screen.queryByRole('button',{name:'Fattura lo svincolo'})).toBeNull();
+ expect(mocks.crea).not.toHaveBeenCalled();
 });

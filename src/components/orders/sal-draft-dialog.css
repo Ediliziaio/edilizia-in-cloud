@@ -1,0 +1,97 @@
+/* Solo il verbale: testata e azioni restano ferme, le voci scorrono. */
+@media (min-width: 640px) {
+  [role="dialog"].dialog-readable.sal-draft-dialog { width: min(1120px, calc(100vw - 40px)); }
+}
+.sal-draft-dialog { gap: 0; }
+.sal-draft-steps { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 12px; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.sal-draft-steps li { display: flex; align-items: center; gap: 6px; }
+.sal-draft-steps li span { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid hsl(var(--border)); border-radius: 50%; }
+.sal-draft-steps [aria-current="step"] { color: hsl(var(--primary)); font-weight: 600; }
+.sal-draft-steps [aria-current="step"] span { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+.sal-draft-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--muted) / .2); }
+.sal-draft-overview > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; }
+.sal-draft-overview > div + div { border-left: 1px solid hsl(var(--border)); }
+.sal-draft-overview span, .sal-draft-overview small { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.sal-draft-overview strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.sal-draft-overview > div:last-child { background: hsl(var(--primary) / .05); color: hsl(var(--primary)); }
+.sal-draft-overview [data-rettifica="true"] strong { color: hsl(var(--destructive)); }
+.sal-phase-workspace { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 10px; align-items: start; }
+.sal-phase-nav { border: 1px solid hsl(var(--border)); border-radius: 8px; overflow: hidden; }
+.sal-phase-nav-list { max-height: min(252px, 32dvh); overflow-y: auto; scrollbar-gutter: stable; }
+.sal-phase-nav button { display: block; width: 100%; padding: 6px 8px; text-align: left; font-size: 12px; border-bottom: 1px solid hsl(var(--border)); }
+.sal-phase-nav button:last-child { border-bottom: 0; }
+.sal-phase-nav button:hover { background: hsl(var(--muted)); }
+.sal-phase-nav [aria-pressed="true"] { background: hsl(var(--primary) / .08); color: hsl(var(--primary)); }
+.sal-phase-nav .sal-phase-nav-all { font-weight: 600; border-bottom: 1px solid hsl(var(--border)); }
+.sal-phase-nav-all > span { float: right; }
+.sal-phase-nav-item > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sal-phase-nav-item small { display: flex; justify-content: space-between; gap: 4px; margin-top: 2px; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.sal-phase-nav-item b { font-weight: 500; white-space: nowrap; }
+.sal-phase-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sal-phase-tools > div { min-width: 180px; }
+.sal-phase-table-scroll { overflow-x: auto; border: 1px solid hsl(var(--border)); border-radius: 8px; }
+.sal-phase-table { width: 100%; min-width: 680px; table-layout: fixed; font-size: 12px; border-collapse: collapse; }
+.sal-col-quantity { width: 132px; }
+.sal-col-progress { width: 110px; }
+.sal-col-previous { width: 68px; }
+.sal-phase-table[data-confronto="true"] { min-width: 740px; }
+.sal-col-money { width: 110px; }
+.sal-col-action { width: 38px; }
+.sal-phase-table th { background: hsl(var(--muted) / .5); color: hsl(var(--muted-foreground)); font-weight: 500; font-size: 11px; text-align: left; white-space: nowrap; }
+.sal-phase-table th, .sal-phase-table td { padding: 5px 8px; border-bottom: 1px solid hsl(var(--border)); vertical-align: middle; }
+.sal-phase-table tr:last-child > td { border-bottom: 0; }
+.sal-phase-table td:not(:first-child) { font-variant-numeric: tabular-nums; }
+.sal-phase-main { background: hsl(var(--muted) / .2); }
+.sal-phase-table td.sal-money-cell { text-align: right; white-space: nowrap; }
+.sal-phase-table th.text-right { text-align: right; }
+.sal-cell-helper { display: block; margin-top: 2px; font-size: 10px; }
+.sal-cell-helper:empty { display: none; }
+.sal-draft-dialog .sal-phase-table :is(input,textarea) { min-width: 0; min-height: 32px; padding: 4px 7px; font-size: 12px; }
+.sal-phase-description { height: 32px; field-sizing: content; max-height: 64px; line-height: 18px; }
+.sal-phase-table-scroll:focus-visible { outline: 1px solid hsl(var(--ring)); outline-offset: 1px; }
+.sal-phase-table input[readonly] { background: transparent; border-color: transparent; box-shadow: none; font-weight: 600; }
+.sal-percent-field { display: grid; grid-template-columns: 68px 1ch; justify-content: end; align-items: center; gap: 4px; }
+.sal-percent-field > input { width: 68px; }
+.sal-quantity-field { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 5px; }
+.sal-quantity-field > input { width: 62px; }
+.sal-quantity-field > small { overflow-wrap: anywhere; }
+.sal-phase-table .sal-subphase-row .sal-contract-cell { padding-right: 16px; }
+.sal-phase-table .sal-phase-main > td { vertical-align: top; }
+.sal-phase-table .sal-phase-main > :is(.sal-money-cell, td:last-child) { padding-top: 5px; }
+.sal-phase-main > .sal-money-cell > span { display: flex; justify-content: flex-end; align-items: center; min-height: 40px; }
+.sal-phase-table td.sal-phase-detail { padding: 4px 8px 4px 32px; }
+.sal-subphase-row > td:first-child { padding-left: 32px; overflow-wrap: anywhere; }
+.sal-subphase-row small { display: block; color: hsl(var(--muted-foreground)); font-size: 10px; }
+.sal-certificate-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(250px, 1fr); gap: 20px; }
+.sal-certificate-calculation { background: hsl(var(--muted) / .35); padding: 12px; border-radius: 6px; }
+.sal-certificate-calculation dl > div { padding: 3px 0; gap: 12px; }
+.sal-payment-settings { border: 1px solid hsl(var(--border)); border-radius: 8px; }
+.sal-payment-settings > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.sal-payment-settings > summary::before { content: '›'; }
+.sal-payment-settings[open] > summary::before { transform: rotate(90deg); }
+.sal-payment-settings > summary > span:first-of-type { flex: 1; }
+.sal-payment-settings small { display: block; font-size: 11px; font-weight: 400; color: hsl(var(--muted-foreground)); }
+.sal-contract-gap { border-left: 3px solid hsl(var(--border)); padding: 6px 10px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.sal-review-payment dl > div { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; }
+.sal-review-payment dd { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sal-review-table th:first-child { width: 55%; }
+.sal-review-table :is(th, td):not(:first-child) { text-align: right; }
+.sal-phase-nav button:focus-visible, .sal-payment-settings > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.sal-draft-dialog [hidden] { display: none; }
+@media (max-width: 850px) {
+  .sal-phase-workspace { grid-template-columns: 1fr; }
+  .sal-phase-nav { display: flex; overflow-x: auto; }
+  .sal-phase-nav-list { display: flex; max-height: none; overflow: visible; }
+  .sal-phase-nav button { flex: 0 0 170px; border-bottom: 0; border-right: 1px solid hsl(var(--border)); }
+  .sal-certificate-layout { grid-template-columns: 1fr; gap: 12px; }
+}
+.sal-draft-note { padding: 2px 0; }
+.sal-draft-note summary { cursor: pointer; font-size: 12px; color: hsl(var(--muted-foreground)); }
+@media (max-width: 639px) {
+  .sal-draft-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sal-draft-overview > div { padding: 8px; }
+  .sal-draft-overview span { font-size: 10px; }
+  .sal-draft-overview small { display: none; }
+  .sal-draft-overview strong { font-size: 15px; }
+  .sal-phase-nav[data-single="true"] { display: none; }
+}

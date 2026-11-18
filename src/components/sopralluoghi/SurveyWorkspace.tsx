@@ -447,7 +447,7 @@ export const SurveyWorkspace = forwardRef<SurveyWorkspaceHandle, Props>(
               />
               {access.field && access.canEdit && <SurveyFieldHandoff compact={small} detail={detail} disabled={editState.dirty || editState.saving}/>}
               {!access.field && !solaLettura && ["fotovoltaico", "climatizzazione"].includes(detail.template.category) && <Button variant="outline" className="min-h-11 rounded-xl" disabled={editState.dirty || editState.saving} onClick={()=>navigate(()=>routeTo(energyQuoteHref(detail)))}>Prepara preventivo dal rilievo</Button>}
-              {!access.field && !solaLettura && !embedded && onEdit && (
+              {!access.field && !solaLettura && onEdit && (
                 <Button
                   variant="outline"
                   className="min-h-10 rounded-xl gap-2"

@@ -127,6 +127,7 @@ export interface PannelloIncassiProps {
   onAbbina: () => void;
   /** Chiamato dopo la conferma. */
   onAnnulla: (incasso: IncassoFattura) => void;
+  puoAnnullare?: (incasso: IncassoFattura) => boolean;
   annullaInCorso: boolean;
 }
 
@@ -145,6 +146,7 @@ export function PannelloIncassi({
   onSegnaPagata,
   onAbbina,
   onAnnulla,
+  puoAnnullare,
   annullaInCorso,
 }: PannelloIncassiProps) {
   const [daAnnullare, setDaAnnullare] = useState<IncassoFattura | null>(null);
@@ -194,7 +196,7 @@ export function PannelloIncassi({
                 <Button asChild variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs">
                   <Link to="/azienda/documenti?tab=incassi">Registro</Link>
                 </Button>
-              ) : (
+              ) : (!puoAnnullare || puoAnnullare(i)) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -215,7 +217,7 @@ export function PannelloIncassi({
         <div className="flex gap-2">
           {puoSegnarePagata && (
             <Button variant="outline" size="sm" className="flex-1" onClick={onSegnaPagata}>
-              <CreditCard className="mr-1 h-4 w-4" /> Segna pagata
+              <CreditCard className="mr-1 h-4 w-4" /> Registra incasso
             </Button>
           )}
           {puoAbbinare && (

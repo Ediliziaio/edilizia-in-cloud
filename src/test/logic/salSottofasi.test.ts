@@ -112,7 +112,7 @@ describe("Salvataggio: il dettaglio va con la sua voce e non tocca i totali", ()
         select: () => q, eq: () => q,
         single: async () => ({ data: { id, company_id: "c", order_id: "o", stato: "bozza" }, error: null as null }),
         then: (res: (v: unknown) => unknown) => Promise.resolve(
-          table === "sal_voci" ? { data: [{ id: "x", importo_sal: 8000 }], error: null }
+          table === "sal_voci" || table === "sal_voci_visibili" ? { data: [{ id: "x", importo_sal: 8000 }], error: null }
           : table === "sal_voci_sottofasi" ? { data: sottoError ? null : [{ id: "d1" }, { id: "d2" }], error: sottoError ? { message: "no" } : null }
           : { data: [{ id }], error: null }).then(res),
       };
@@ -156,6 +156,7 @@ describe("PDF del verbale: le sottofasi sotto la loro fase", () => {
     const html = buildSalHtml(sal(), null, company, null, undefined, 6000, null, { vociPrecedenti: { "primo solaio": 6000 }, sottofasiPrecedenti: { s1: 60, s2: 60 } });
     expect(html.indexOf("Getto")).toBeLessThan(html.indexOf("Travi"));
     expect(html).toContain("30 su 40 m³");
+    expect(html).toContain('<div class="voce-dettaglio"><span>Getto &lt;b&gt;</span><span class="qta">30 su 40 m³</span></div>');
     expect(html).toContain("&lt;b&gt;");
     expect(html).toContain('class="riga-sottofase');
     // Getto: 60% di 8000 = 4800 precedente, 1200 questo SAL
@@ -166,5 +167,33 @@ describe("PDF del verbale: le sottofasi sotto la loro fase", () => {
   it("verbale breve: senza dettaglio, nessuna riga di sottofase", () => {
     const html = buildSalHtml(sal(), null, company, null, undefined, 0, null, { dettaglioSottofasi: false });
     expect(html).not.toContain('class="riga-sottofase');
+  });
+
+  it("i formati del periodo usano le differenze e il sintetico raggruppa per fase", () => {
+    const extra = {
+      esisteSalPrecedente: true,
+      vociPrecedenti: { "primo solaio": 6000 },
+      misurePrecedenti: {
+        s1: { quantita: 24, unita: "m³", importo: 4800 },
+        s2: { quantita: 6, unita: "m", importo: 1200 },
+      },
+    };
+    const periodo = buildSalHtml(sal(), null, company, null, undefined, 6000, null, { ...extra, formato: "periodo" });
+    expect(periodo).toContain("Quantità del periodo");
+    expect(periodo).toContain('class="qta">6 m³');
+    expect(periodo).toContain("1.200,00");
+    expect(periodo).toContain("TOTALE DEL PERIODO</td><td class=\"num\">2.000,00");
+    expect(periodo).not.toMatch(/A tutto il SAL|SAL precedenti|30 su 40/);
+    const sintetico = buildSalHtml(sal(), null, company, null, undefined, 6000, null, { ...extra, formato: "sintetico" });
+    expect(sintetico).toContain("Primo solaio");
+    expect(sintetico).not.toMatch(/Getto|Travi|Quantità del periodo/);
+    expect(sintetico).toContain("2.000,00");
+  });
+
+  it("nel periodo non usa i cumulativi quando lo storico della voce è incompleto", () => {
+    const html = buildSalHtml(sal(), null, company, null, undefined, 6000, null, { formato: "periodo", esisteSalPrecedente: true });
+    expect(html).toContain("dato del periodo che non è ricostruibile");
+    expect(html).not.toMatch(/class="qta">30|6.000,00|8.000,00/);
+    expect(html).toContain("2.000,00");
   });
 });

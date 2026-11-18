@@ -39,7 +39,7 @@ describe("rounded office select", () => {
     expect(trigger.tagName).toBe("BUTTON");
     expect(trigger).toHaveClass("rounded-xl");
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    expect(await screen.findByRole("listbox")).toHaveClass("rounded-2xl");
+    expect(await screen.findByRole("listbox")).toHaveClass("rounded-xl");
     expect(screen.getByRole("option", { name: "Io" })).toHaveAttribute(
       "aria-selected",
       "true",

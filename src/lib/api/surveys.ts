@@ -69,6 +69,7 @@ export async function getTemplate(id: string, enrichEnergy = true): Promise<Surv
 // ─── SURVEYS ────────────────────────────────────────────────────────────────
 
 export interface CreateSurveyInput {
+  appointment_id?: string | null;
   template_id: string;
   client_id?: string | null;
   /** Contatto CRM (prospect non ancora cliente). */
@@ -108,6 +109,25 @@ export async function createSurvey(
   }
   if (!companyId) throw new Error("Nessuna azienda aperta: entra in un'azienda per creare il sopralluogo");
 
+  let appuntamento: { id: string; scheduled_at: string | null; technician_id: string | null } | null = null;
+  if (input.appointment_id) {
+    const { data: a, error } = await supabase.from("appointments")
+      .select("id, order_id, appointment_date, appointment_time, assigned_to")
+      .eq("id", input.appointment_id).eq("company_id", companyId).maybeSingle();
+    if (error || !a || !input.order_id || a.order_id !== input.order_id) throw new Error("Appuntamento non disponibile per questa commessa.");
+    // Non creare un secondo rilievo se l'appuntamento è già collegato.
+    const { data: esistente, error: erroreEsistente } = await supabase.from("surveys").select("*")
+      .eq("appointment_id", a.id).eq("company_id", companyId).is("deleted_at", null).limit(1).maybeSingle();
+    if (erroreEsistente) throw new Error("Non è stato possibile verificare il rilievo collegato.");
+    if (esistente) {
+      if (esistente.order_id !== input.order_id) throw new Error("Il rilievo dell'appuntamento appartiene a un'altra commessa.");
+      // Stesso confine di getSurvey: i tipi generati non includono tutti i campi del rilievo.
+      return esistente as unknown as SurveyRow;
+    }
+    appuntamento = { id: a.id, technician_id: a.assigned_to,
+      scheduled_at: a.appointment_date && a.appointment_time ? new Date(`${a.appointment_date}T${a.appointment_time}`).toISOString() : null };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
@@ -118,8 +138,9 @@ export async function createSurvey(
       contact_id: input.contact_id ?? null,
       opportunity_id: input.opportunity_id ?? null,
       order_id: input.order_id ?? null,
-      technician_id: input.technician_id ?? null,
-      scheduled_at: input.scheduled_at ?? null,
+      technician_id: appuntamento ? appuntamento.technician_id : input.technician_id ?? null,
+      scheduled_at: appuntamento ? appuntamento.scheduled_at : input.scheduled_at ?? null,
+      ...(appuntamento ? {appointment_id: appuntamento.id} : {}),
       address: input.address ?? null,
       address_number: input.address_number ?? null,
       city: input.city ?? null,
@@ -293,7 +314,7 @@ export async function listSurveysByOrder(orderId: string, companyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from("surveys")
-    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure")
+    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, contact_id, opportunity_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at, ruolo_misure, appointment_id")
     .eq("order_id", orderId)
     .eq("company_id", companyId)
     .is("deleted_at", null)

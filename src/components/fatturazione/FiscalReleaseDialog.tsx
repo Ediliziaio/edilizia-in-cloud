@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fiscalCommand } from "@/lib/fatturazione/fiscalCommands";
 import { formatCurrency } from "@/lib/formatters";
@@ -27,6 +28,7 @@ export function FiscalReleaseDialog({
   onReleased?: () => void | Promise<void>;
 }) {
   const qc = useQueryClient();
+  const saving = useRef(false);
   const today = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Rome",
     year: "numeric",
@@ -61,7 +63,8 @@ export function FiscalReleaseDialog({
     },
   });
   const confirm = async () => {
-    if (!q.data) return;
+    if (saving.current || !q.data || q.data.row.stato !== "trattenuta" || !date || date > today || reference.trim().length < 5) return;
+    saving.current = true;
     setPending(true);
     setError("");
     try {
@@ -74,6 +77,7 @@ export function FiscalReleaseDialog({
       });
       if (!result.registrazione || result.incasso_registrato !== false)
         throw Error("Conferma di svincolo non valida");
+      refreshFinancialQueries(qc);
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["ritenute-garanzia"] }),
         qc.invalidateQueries({ queryKey: ["fiscal-history", companyId] }),
@@ -88,6 +92,7 @@ export function FiscalReleaseDialog({
           : "Conferma non ricevuta: aggiorna la verifica prima di riprovare.",
       );
     } finally {
+      saving.current = false;
       setPending(false);
     }
   };

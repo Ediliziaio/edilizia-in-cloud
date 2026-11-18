@@ -101,7 +101,9 @@ export function useRitenuteGaranzia(orderId: string | undefined) {
   return {
     ritenute,
     contratti: contrattiQuery.data ?? [],
-    isLoading: contrattiQuery.isLoading || (contrattoIds.length > 0 && ritenuteQuery.isLoading),
+    isLoading: contrattiQuery.isLoading || ritenuteQuery.isLoading,
+    isError: contrattiQuery.isError || ritenuteQuery.isError,
+    refetch: () => Promise.all([contrattiQuery.refetch(),ritenuteQuery.refetch()]),
     noContratti: !contrattiQuery.isLoading && contrattoIds.length === 0,
     svincola: svincolaMutation.mutateAsync,
     isSvincolando: svincolaMutation.isPending,

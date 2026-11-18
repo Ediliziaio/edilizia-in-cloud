@@ -70,7 +70,7 @@ describe("semina della scheda", () => {
     expect(qc.getQueryData(["order-avanzamento", "o1"])).toBe(40);
     expect(qc.getQueryData(["peso-media-fasi", "c1"])).toBe("uguale");
     expect(qc.getQueryData(["impostazioni-avvio", "c1"])).toMatchObject({ modelloFasi: null });
-    expect(qc.getQueryData(["ordine-fatture", "o1", "c1"])).toHaveLength(2);
+    expect(qc.getQueryData(["ordine-fatture", "o1", "c1"])).toBeUndefined();
     expect(qc.getQueryData(["ordini-variazione", "o1", "c1"])).toHaveLength(1);
     expect(qc.getQueryData(["orders", "installments", "o1"])).toHaveLength(1);
     expect(qc.getQueryData(["order-items", "o1"])).toHaveLength(1);

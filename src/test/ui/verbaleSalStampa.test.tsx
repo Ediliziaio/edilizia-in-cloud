@@ -11,10 +11,10 @@ vi.mock("@/integrations/supabase/client", () => {
 
 import { VerbaleSalDialog } from "@/components/orders/VerbaleSalDialog";
 
-const apri = (conSottofasi: boolean, onGenera = vi.fn()) => {
+const apri = (onGenera = vi.fn()) => {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <VerbaleSalDialog numero={2} orderId="o" companyId="c" dal={null} al="2026-10-30" inCorso={false} conSottofasi={conSottofasi} onGenera={onGenera} onClose={vi.fn()} />
+      <VerbaleSalDialog numero={2} orderId="o" companyId="c" dal={null} al="2026-10-30" inCorso={false} onGenera={onGenera} onClose={vi.fn()} />
     </QueryClientProvider>,
   );
   return onGenera;
@@ -22,21 +22,28 @@ const apri = (conSottofasi: boolean, onGenera = vi.fn()) => {
 afterEach(cleanup);
 
 describe("Stampa del verbale SAL", () => {
-  it("si sceglie completo o breve; per default completo", () => {
-    const onGenera = apri(true);
+  it.each([["Solo periodo", "periodo"], ["Sintetico", "sintetico"]] as const)("prepara il %s quando si sceglie la versione", (titolo, formato) => {
+    const onGenera = apri();
     expect(screen.getByRole("button", { name: /Completo/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: /Breve/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Prepara il verbale" }));
-    expect(onGenera).toHaveBeenCalledWith([], [], false);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(titolo) }));
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima PDF" }));
+    expect(onGenera).toHaveBeenCalledWith([], [], formato);
   });
 
-  it("gli allegati soliti si aggiungono con un clic", () => {
-    const onGenera = apri(false);
-    expect(screen.queryByRole("button", { name: /Breve/ })).toBeNull();
+  it("mostra gli allegati su richiesta e conserva le scelte quando si richiudono", () => {
+    const onGenera = apri();
+    expect(screen.getByRole("button", { name: /Solo periodo/ })).toBeInTheDocument();
+    const opzioni = screen.getByRole("button", { name: /Foto e allegati/ });
+    expect(opzioni).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox", { name: "Elenco allegati" })).toBeNull();
+    fireEvent.click(opzioni);
     fireEvent.click(screen.getByRole("button", { name: "+ Libretto delle misure" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Computo metrico" }));
     expect(screen.queryByRole("button", { name: "+ Computo metrico" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Prepara il verbale" }));
-    expect(onGenera).toHaveBeenCalledWith([], ["Libretto delle misure", "Computo metrico"], true);
+    fireEvent.click(opzioni);
+    expect(opzioni).toHaveAttribute("aria-expanded", "false");
+    expect(opzioni).toHaveTextContent("2");
+    fireEvent.click(screen.getByRole("button", { name: "Anteprima PDF" }));
+    expect(onGenera).toHaveBeenCalledWith([], ["Libretto delle misure", "Computo metrico"], "completo");
   });
 });

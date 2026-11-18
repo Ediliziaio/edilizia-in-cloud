@@ -15,6 +15,7 @@ interface OrdineSALProps {
   financingCostMode?: ModalitaCostoFinanziaria | null;
   /** La vista commessa tiene gli incassi in Economia, senza scollegare le rate dai SAL. */
   showPaymentProgress?: boolean;
+  onApriBozzaFattura?: (id: string) => void;
 }
 
 export function OrdineSAL({
@@ -26,6 +27,7 @@ export function OrdineSAL({
   financingCost,
   financingCostMode,
   showPaymentProgress,
+  onApriBozzaFattura,
 }: OrdineSALProps) {
   return (
     <SalTab
@@ -35,8 +37,9 @@ export function OrdineSAL({
       installments={installments}
       vatRate={vatRate}
       financingCost={financingCost}
-        financingCostMode={financingCostMode}
+      financingCostMode={financingCostMode}
       showPaymentProgress={showPaymentProgress}
+      onApriBozzaFattura={onApriBozzaFattura}
     />
   );
 }

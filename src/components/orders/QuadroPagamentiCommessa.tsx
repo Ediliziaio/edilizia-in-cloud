@@ -60,18 +60,30 @@ interface Props {
    * Le rate del cliente, subito sotto i quattro numeri (01/11/2026): la prima cosa da leggere è
    * lo stato degli incassi, poi i fornitori. L'IVA della commessa sta in fondo alla pagina.
    */
-  incassi?: ReactNode;
+  incassi?: ReactNode | ((totali: ReturnType<typeof totaliQuadro>) => ReactNode);
   /** false = l'IVA della commessa la mostra chi chiama, più in basso. */
   conIva?: boolean;
+  vistaUnificata?: boolean;
+  documenti?: ReactNode;
 }
 
-export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriUscite, incassi, conIva = true }: Props) {
+export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, onApriUscite, incassi, conIva = true, vistaUnificata = false, documenti }: Props) {
   const { data, isLoading, isError, refetch } = useQuadroPagamenti(orderId);
   const totali = useMemo(() => totaliQuadro({ rate: data?.rate ?? [], uscite: data?.uscite ?? [],crediti_misura:data?.crediti_misura,incassi_unita:data?.incassi_unita }), [data]);
 
-  if (!mostraIncassi && !mostraUscite) return null;
+  const senzaAccessoCliente = <p role="note" className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">Il tuo ruolo non permette di consultare fatture e incassi del cliente. I costi restano nella scheda Costi e Fatture Fornitori.</p>;
+  if (!mostraIncassi && !mostraUscite && !documenti) return vistaUnificata ? senzaAccessoCliente : null;
   if (isError) return <ErroreLettura onRiprova={() => void refetch()} />;
   if (isLoading || !data) return <Skeleton className="h-48 w-full" />;
+
+  const contenutoIncassi = typeof incassi === "function" ? incassi(totali) : incassi;
+  // Nella vista cliente ordinaria, rate e documenti sono già un unico elenco.
+  if (vistaUnificata) {
+    if (!mostraIncassi && !documenti) return senzaAccessoCliente;
+    if (data.crediti_misura) return <div className="space-y-3"><p role="note" className="rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">Commessa a misura: i crediti derivano dai documenti emessi. Rapportini e SAL in bozza restano da rendicontare.</p>{documenti}</div>;
+    if (data.incassi_unita) return <div className="space-y-3"><Card><CardHeader><CardTitle className="text-base">Versamenti dell’unità</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Caparra, acconti e saldo si registrano in Unità e vendite. Le permute coprono il prezzo senza generare entrate.</p><dl className="grid grid-cols-2 gap-3 text-sm"><div><dt className="text-muted-foreground">Incassato dai versamenti</dt><dd className="font-semibold tabular-nums">{formatCurrency(totali.incassato)}</dd></div><div><dt className="text-muted-foreground">Da incassare sull’unità</dt><dd className="font-semibold tabular-nums">{formatCurrency(totali.daIncassare)}</dd></div></dl>{data.incassi_unita.da_collegare>0 && <p className="text-sm text-amber-800">{data.incassi_unita.da_collegare} incassi storici da collegare alla prima nota.</p>}{data.incassi_unita.generale_id && <Link className="text-sm font-medium text-primary underline" to={`/azienda/ordini/${data.incassi_unita.generale_id}?scheda=unita`}>Apri Unità e vendite</Link>}</CardContent></Card>{documenti}</div>;
+    return <>{contenutoIncassi ?? documenti}</>;
+  }
 
   const rateAperte = data.rate.filter((r) => !r.is_paid);
 
@@ -81,7 +93,7 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {mostraIncassi && <>
           <Kpi icona={<ArrowDownLeft className="h-4 w-4 text-green-700" />} titolo="Incassato" valore={totali.incassato} tono="verde" />
-          <Kpi icona={<ArrowDownLeft className="h-4 w-4 text-amber-700" />} titolo="Da incassare" valore={totali.daIncassare} tono={totali.incassoScaduto > 0 ? "rosso" : "ambra"}
+          <Kpi icona={<ArrowDownLeft className="h-4 w-4 text-amber-700" />} titolo="Da incassare" valore={totali.daIncassare} tono={totali.incassoScaduto > 0 ? "rosso" : totali.daIncassare > 0 ? "ambra" : undefined}
             nota={totali.incassoScaduto > 0 ? `${formatCurrency(totali.incassoScaduto)} scaduti` : rateAperte[0]?.expected_date ? `prossima il ${dataIt(rateAperte[0].expected_date)}` : undefined} />
         </>}
         {mostraUscite && <KpiUscite totali={totali} />}
@@ -97,7 +109,7 @@ export function QuadroPagamentiCommessa({ orderId, mostraIncassi, mostraUscite, 
       {/* ── Incassi dal cliente: le rate ── */}
       {mostraIncassi && data.crediti_misura ? <Card><CardHeader><CardTitle className="text-base">Crediti da documenti emessi</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">L’importo della commessa a misura è una stima. Rapportini e SAL in bozza restano da rendicontare; diventano crediti solo con il documento emesso.</p>
         {data.crediti_misura.documenti.length ? <ul className="divide-y">{data.crediti_misura.documenti.map(d=><li key={d.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><Link className="font-medium text-primary underline" to={d.nativo?`/azienda/documenti/${d.id}/dettaglio`:'/azienda/documenti/emesse-importate'}>{d.numero}</Link><span>Emesso {formatCurrency(d.totale)} · Incassato {formatCurrency(d.incassato)} · Residuo {formatCurrency(d.residuo)}{d.scadenza?` · ${dataIt(d.scadenza)}`:''}</span></li>)}</ul> : <p className="rounded-md bg-blue-50 p-3 text-sm text-blue-900">Nessun credito emesso. Prosegui dal rendiconto delle lavorazioni.</p>}
-      </CardContent></Card> : mostraIncassi && data.incassi_unita ? <Card><CardHeader><CardTitle className="text-base">Incassi dell’unità collegati alla prima nota</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Caparra, acconti e saldo si registrano in Unità e vendite. Questa vista legge la stessa cassa effettiva; le permute coprono il prezzo senza generare entrate.</p>{data.incassi_unita.da_collegare>0 && <p className="text-sm text-amber-800">{data.incassi_unita.da_collegare} incassi storici ancora da collegare esplicitamente alla prima nota.</p>}{data.incassi_unita.generale_id && <Link className="text-sm font-medium text-primary underline" to={`/azienda/ordini/${data.incassi_unita.generale_id}?scheda=unita`}>Apri Unità e vendite della commessa generale</Link>}</CardContent></Card> : incassi}
+      </CardContent></Card> : mostraIncassi && data.incassi_unita ? <Card><CardHeader><CardTitle className="text-base">Incassi dell’unità collegati alla prima nota</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Caparra, acconti e saldo si registrano in Unità e vendite. Questa vista legge la stessa cassa effettiva; le permute coprono il prezzo senza generare entrate.</p>{data.incassi_unita.da_collegare>0 && <p className="text-sm text-amber-800">{data.incassi_unita.da_collegare} incassi storici ancora da collegare esplicitamente alla prima nota.</p>}{data.incassi_unita.generale_id && <Link className="text-sm font-medium text-primary underline" to={`/azienda/ordini/${data.incassi_unita.generale_id}?scheda=unita`}>Apri Unità e vendite della commessa generale</Link>}</CardContent></Card> : contenutoIncassi}
 
       {/* ── SAL al cliente ── */}
       {mostraIncassi && data.sal_cliente.length > 0 && <SalCliente sal={data.sal_cliente} />}
@@ -145,7 +157,7 @@ export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
         numeri={<>
           <dl className="commessa-totali grid grid-cols-2 gap-3 rounded-md border bg-muted/20 p-3 sm:max-w-xl">
             <NumeroUscite titolo="Pagato" valore={totali.pagato} />
-            <NumeroUscite titolo="Da pagare" valore={totali.daPagare} evidenza={totali.pagamentoScaduto > 0 ? "rosso" : "ambra"}
+            <NumeroUscite titolo="Da pagare" valore={totali.daPagare} evidenza={totali.pagamentoScaduto > 0 ? "rosso" : totali.daPagare > 0 ? "ambra" : undefined}
               nota={[totali.pagamentoScaduto > 0 ? `${formatCurrency(totali.pagamentoScaduto)} scaduti` : null,
                 totali.impegnato > 0 ? `+ ${formatCurrency(totali.impegnato)} ordinati senza fattura` : null].filter(Boolean).join(" · ") || undefined} />
           </dl>
@@ -165,9 +177,9 @@ export function UsciteCommessa({ orderId, onApriSubappalti, onApriMezzi }: {
       >
         <div className="space-y-3">
           {uscite.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nessun costo, ordine d’acquisto, subappalto o ditta su questa commessa.</p>
+            <p className="commessa-empty text-sm text-muted-foreground">Nessun costo, ordine d’acquisto, subappalto o ditta su questa commessa.</p>
           ) : righe.length === 0 ? (
-            <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Niente da pagare qui: tutto saldato.</p>
+            <p className="commessa-empty commessa-empty-success rounded-md bg-green-50 p-3 text-sm text-green-800">Niente da pagare qui: tutto saldato.</p>
           ) : (
             <TabellaCommessa etichetta="Pagamenti della commessa" righe={righe} chiave={(u) => u.chiave} colonne={[
               { titolo: "A chi", principale: true, cella: (u) => <CellaUscita u={u} /> },

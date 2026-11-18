@@ -1,3 +1,6 @@
+import { FattureIncassiElenco, type FattureIncassiDati } from "./FattureIncassiElenco";
+import { Button } from "@/components/ui/button";
+import { lazy, Suspense, useState } from "react";
 import { type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
 import type { VarianteDatata } from "@/lib/commissions";
@@ -5,7 +8,12 @@ import { usePermissions } from "@/hooks/usePermissions";
 import type { Installment } from "@/lib/orderUtils";
 import { PianoPagamentiAzioni } from "./PianoPagamentiAzioni";
 
+const FatturaRateDialog = lazy(() => import("./FatturaRateDialog"));
+const RataFatturaDialog = lazy(() => import("./RataFatturaDialog"));
+
 interface OrdineEconomicoProps {
+  fatture?: FattureIncassiDati;
+  totaliIncassi?: {incassato: number; daIncassare: number};
   orderId: string;
   totalAmount: number;
   vatRate: number;
@@ -36,6 +44,8 @@ interface OrdineEconomicoProps {
 // duplicarlo qui mostrava gli stessi numeri due volte e sparava 4 query extra.
 export function OrdineEconomico({
   orderId,
+  fatture,
+  totaliIncassi,
   totalAmount,
   vatRate,
   paymentType,
@@ -53,6 +63,8 @@ export function OrdineEconomico({
   // Piano e rate del cliente. Bonus, blocca prezzo e IVA stanno in fondo alla vista (AltroIncassiCommessa),
   // le provvigioni in Margini e costi (01/11/2026).
   const permissions = usePermissions();
+  const [quoteTarget, setQuoteTarget] = useState<{id?:string}|null>(null);
+  const [invoiceTarget, setInvoiceTarget] = useState<{ installment: Installment; amount: number } | null>(null);
   return (
     <div className="space-y-4 max-sm:space-y-3">
       {/* Come si paga: il piano da un modello, e il saldo salvato che non torna col totale. */}
@@ -68,6 +80,8 @@ export function OrdineEconomico({
       />
       <FinancialSummaryReadOnly
         totalAmount={totalAmount}
+        totaliIncassi={totaliIncassi}
+        elencoUnificato={fatture ? piano => <FattureIncassiElenco {...fatture} actions={<>{fatture.actions}{permissions.canViewBilling && !permissions.solaLettura && <Button variant="outline" size="sm" onClick={()=>setQuoteTarget({})}>Ripartisci fattura su più rate</Button>}</>} piano={piano} /> : undefined}
         vatRate={vatRate}
         paymentType={paymentType}
         installments={installments}
@@ -81,7 +95,10 @@ export function OrdineEconomico({
         conPrimaNota={conPrimaNota}
         clienteNome={clienteNome}
         varianti={varianti}
+        onManageInvoice={permissions.canViewBilling && !permissions.solaLettura ? (installment, amount) => setInvoiceTarget({ installment, amount }) : undefined}
       />
+      {quoteTarget && <Suspense fallback={<p role="status">Apertura ripartizione…</p>}><FatturaRateDialog orderId={orderId} invoiceId={quoteTarget.id} onClose={()=>setQuoteTarget(null)}/></Suspense>}
+      {invoiceTarget && <Suspense fallback={<p role="status" className="text-sm text-muted-foreground">Apertura fatture…</p>}><RataFatturaDialog onManageAllocations={id=>{setInvoiceTarget(null);setQuoteTarget({id});}} orderId={orderId} {...invoiceTarget} onClose={() => setInvoiceTarget(null)} /></Suspense>}
     </div>
   );
 }

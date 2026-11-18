@@ -33,6 +33,7 @@ export interface SalVoceSottofase {
 
 interface SalVoce {
   id: string;
+  fase_id?: string | null;
   descrizione: string;
   importo_contrattuale: number;
   percentuale_avanzamento: number;
@@ -139,12 +140,17 @@ const STATO_LABELS: Record<string, string> = {
  */
 export interface SalExtra {
   vociPrecedenti?: Record<string, number> | null;
+  fasiPrecedenti?: Record<string, number> | null;
+  misurePrecedenti?: Record<string, { quantita: number | null; unita: string | null; importo: number | null }>;
+  esisteSalPrecedente?: boolean;
+  formato?: "completo" | "periodo" | "sintetico";
   /** % certificata per sottofase nell'ultimo SAL emesso (per sottofase_id). */
   sottofasiPrecedenti?: Record<string, number> | null;
   /** Le sottofasi sotto ogni fase: sì per default, «no» per il verbale breve. */
   dettaglioSottofasi?: boolean;
   aliquotaIva?: number | null;
   importoContratto?: number | null;
+  importoVariantiApprovate?: number | null;
   foto?: FotoVerbale[] | null;
   allegati?: string[] | null;
   /** Il certificato di pagamento del SAL (sal_certificati, importi a tutto oggi tranne il netto), se c'è. */
@@ -166,16 +172,15 @@ export interface CertificatoPdf {
 }
 
 /** Il blocco del certificato: dai lavori a tutto oggi al netto da pagare con questo SAL, IVA compresa. */
-export function buildCertificatoHtml(c: CertificatoPdf, aliquota: number | null): string {
+export function buildCertificatoHtml(c: CertificatoPdf, aliquota: number | null, lavoriPeriodo?: number): string {
   const n = (v: unknown) => Number(v) || 0;
   const lordo = Math.round((n(c.lavori_contrattuali) + n(c.varianti)) * 100) / 100;
   const atteso = Math.round((lordo - n(c.ritenuta) - n(c.recupero_anticipazione) - n(c.altre_detrazioni) - n(c.acconti_precedenti) - n(c.rinviato)) * 100) / 100;
   if (Math.abs(atteso - n(c.netto)) > 0.01) throw new Error("Certificato di pagamento non coerente: verificare ritenuta, detrazioni e acconti");
   const riga = (t: string, v: number, classe = "") => `<tr${classe ? ` class="${classe}"` : ""}><td>${t}</td><td class="num">${fmtEur(v)}</td></tr>`;
   const iva = aliquota != null ? Math.round(n(c.netto) * aliquota) / 100 : null;
-  return `
-    <table class="doc-tabella" style="flex:1.3;">
-      <tbody>
+  const conguagli = lavoriPeriodo == null ? 0 : Math.round((n(c.netto) - lavoriPeriodo) * 100) / 100;
+  const dettaglio = lavoriPeriodo == null ? `
         ${riga("Lavori eseguiti a tutto il presente SAL", lordo, "forte")}
         ${n(c.varianti) ? riga("di cui varianti ed extra", n(c.varianti)) : ""}
         ${riga(`A dedurre: ritenuta di garanzia ${fmtPct(n(c.ritenuta_pct))} (a tutto oggi)`, -n(c.ritenuta))}
@@ -183,6 +188,14 @@ export function buildCertificatoHtml(c: CertificatoPdf, aliquota: number | null)
         ${n(c.altre_detrazioni) ? riga(`A dedurre: altre detrazioni${c.altre_detrazioni_nota ? ` — ${escHtml(c.altre_detrazioni_nota)}` : ""}`, -n(c.altre_detrazioni)) : ""}
         ${riga("A dedurre: certificati dei SAL precedenti", -n(c.acconti_precedenti))}
         ${n(c.rinviato) ? riga("Rinviato al prossimo certificato (arrotondamento)", -n(c.rinviato)) : ""}
+      ` : `
+        ${riga("Lavori di questo SAL", lavoriPeriodo, "forte")}
+        ${conguagli ? riga("Detrazioni e conguagli del periodo", conguagli) : ""}
+      `;
+  return `
+    <table class="doc-tabella" style="flex:1.3;">
+      <tbody>
+        ${dettaglio}
         ${riga("Netto di questo certificato", n(c.netto), iva != null ? "forte" : "totale")}
         ${iva != null ? riga(`IVA ${aliquota!.toLocaleString("it-IT")}%`, iva) + riga("Da pagare con questo SAL, IVA inclusa", Math.round((n(c.netto) + iva) * 100) / 100, "totale") : ""}
       </tbody>
@@ -212,6 +225,59 @@ export const chiaveVoce = (d: string | null | undefined) => (d ?? "").trim().toL
 /** Margini del foglio dello stile unico, in punti; la larghezza utile in mm serve alla veste. */
 const MARGINE_LATERALE_MM = (pagina.margineLaterale * 25.4) / 72;
 
+const arrotonda = (n: number, cifre = 2) => Math.round(n * 10 ** cifre) / 10 ** cifre;
+const presente = (n: number | null | undefined): n is number => n != null && Number.isFinite(Number(n));
+
+function tabellaDelPeriodo(voci: SalVoce[], previous: number, quota: number, extra: SalExtra) {
+  const sintetico = extra.formato === "sintetico";
+  const primo = previous === 0 && !extra.esisteSalPrecedente && !extra.vociPrecedenti;
+  const fasi = voci.map(voce => {
+    const perId = voce.fase_id ? extra.fasiPrecedenti?.[voce.fase_id] : undefined;
+    const perNome = extra.vociPrecedenti?.[chiaveVoce(voce.descrizione)];
+    return { voce, prima: perId ?? perNome };
+  });
+  const quadratura = arrotonda(fasi.reduce((somma, f) => somma + Number(f.prima ?? 0), 0));
+  const calcolabile = primo || (!!extra.vociPrecedenti && Math.abs(quadratura - previous) <= 0.01);
+  let dettagliMancanti = false;
+  const euro = (n: number | null) => n === null ? "—" : fmtEur(n);
+  const rows = fasi.map(({ voce, prima }, i) => {
+    const importo = calcolabile ? arrotonda(Number(voce.importo_sal) - Number(prima ?? 0)) : null;
+    const nuovaFase = primo || (calcolabile && !!voce.fase_id && prima === undefined);
+    const dettagli = sintetico ? [] : [...(voce.sal_voci_sottofasi ?? [])].sort((a, b) => a.posizione - b.posizione)
+      .filter(d => d.descrizione?.trim())
+      .map(d => {
+        const primaMisura = d.sottofase_id ? extra.misurePrecedenti?.[d.sottofase_id] : undefined;
+        const qPrima = primaMisura?.unita === d.unita && presente(primaMisura?.quantita) ? primaMisura.quantita : null;
+        const quantita = presente(d.quantita_a_oggi) && (nuovaFase || qPrima !== null)
+          ? arrotonda(Number(d.quantita_a_oggi) - Number(qPrima ?? 0), 3) : null;
+        const importoVoce = presente(d.importo_sal) && (nuovaFase || presente(primaMisura?.importo))
+          ? arrotonda(Number(d.importo_sal) - Number(primaMisura?.importo ?? 0)) : null;
+        return { d, quantita, importo: importoVoce };
+      }).filter(d => d.quantita !== 0 || d.importo !== 0);
+    if (importo === 0 && !dettagli.length) return "";
+    dettagliMancanti ||= dettagli.some(d => d.quantita === null || d.importo === null);
+    const righe = dettagli.map(({ d, quantita, importo }) => `
+      <tr class="riga-sottofase">
+        <td></td><td class="voce">${escHtml(d.descrizione)}</td>
+        <td class="num">${quantita === null ? "—" : `<span class="qta">${quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })}${d.unita ? ` ${escHtml(d.unita)}` : ""}</span>`}</td>
+        <td class="num quota">${euro(importo)}</td>
+      </tr>`).join("");
+    return `<tr class="riga-fase">
+      <td class="num">${i + 1}</td>
+      <td class="voce">${escHtml(voce.descrizione)}${voce.note ? `<div class="nota">${escHtml(voce.note)}</div>` : ""}</td>
+      ${sintetico ? "" : "<td></td>"}<td class="num">${euro(importo)}</td>
+    </tr>${righe}`;
+  }).join("");
+  const celle = sintetico ? 3 : 4;
+  return `<table class="doc-tabella sal-lavorazioni" style="margin-top:12pt;margin-bottom:6pt;">
+    <thead><tr><th style="width:23pt;">N.</th><th>Voce / lavorazione</th>
+      ${sintetico ? "" : '<th style="width:114pt;text-align:right;">Quantità del periodo</th>'}
+      <th style="width:104pt;text-align:right;">Importo di questo SAL</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="${celle}">Nessuna lavorazione aggiuntiva nel periodo.</td></tr>`}</tbody>
+    <tfoot><tr class="totale"><td colspan="${celle - 1}">TOTALE DEL PERIODO</td><td class="num">${fmtEur(quota)}</td></tr></tfoot>
+  </table>${!calcolabile || dettagliMancanti ? '<p class="nota" style="margin-bottom:10pt;">Il trattino indica un dato del periodo che non è ricostruibile per quella voce. Il totale è calcolato dai verbali registrati.</p>' : ""}`;
+}
+
 export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azienda, signatureUrl?: string | null, brandFooter?: string, previous=0, contratto: ContrattoSal | null = null, extra: SalExtra = {}): string {
   // L'accento dello stile unico (10/11/2026): il colore della veste, poi quello dell'azienda, poi il predefinito.
   const colore = accentoHtml(sal.company_id, azienda.colore_primario, azienda.colore_marchio);
@@ -222,6 +288,8 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const totaleSal = Math.round(voci.reduce((s,v)=>s+Math.round(Number(v.importo_sal)*100),0))/100;
   if(!Number.isFinite(Number(sal.importo_totale)) || Math.abs(totaleSal-Number(sal.importo_totale))>0.01 || !Number.isFinite(previous))throw new Error("Totale SAL non coerente: verificare voci e storico");
   const economic=nettoSal(totaleSal,previous);
+  const soloPeriodo = extra.formato === "periodo" || extra.formato === "sintetico";
+  const formatoTitolo = extra.formato === "sintetico" ? "Sintetico" : "Solo periodo";
   const contrattoHtml=contratto ? buildContrattoHtml(contratto,economic.daFatturare) : "";
   const datiContratto=contratto ? [contratto.riferimento_contratto && (/^\s*contratto\b/i.test(contratto.riferimento_contratto) ? contratto.riferimento_contratto : `Contratto ${contratto.riferimento_contratto}`), contratto.cig && `CIG ${contratto.cig}`, contratto.cup && `CUP ${contratto.cup}`].filter(Boolean).join(" · ") : "";
   const periodo=contratto?.periodo_al ? `Lavori ${contratto.periodo_dal ? `dal ${fmtDate(contratto.periodo_dal)} ` : ""}al ${fmtDate(contratto.periodo_al)}` : "";
@@ -238,7 +306,8 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const righe = voci.map((v) => {
     const cum = Number(v.importo_sal);
     const contr = Number(v.importo_contrattuale);
-    const p = conPrecedente ? Math.min(Number(prec![chiaveVoce(v.descrizione)] ?? 0), cum) : 0;
+    const prima = (v.fase_id && extra.fasiPrecedenti?.[v.fase_id]) ?? prec?.[chiaveVoce(v.descrizione)] ?? 0;
+    const p = conPrecedente ? Math.min(Number(prima), cum) : 0;
     return { v, cum, contr, p, pPct: contr > 0 ? (p / contr) * 100 : 0, quota: Math.round((cum - p) * 100) / 100 };
   });
   // Se le voci non coprono il precedente (voci rinominate), il periodo per voce non è affidabile: si mostra solo il cumulativo.
@@ -260,14 +329,16 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
       const pPct = d.sottofase_id != null && precSotto[d.sottofase_id] != null ? Number(precSotto[d.sottofase_id]) : null;
       const pImp = imp != null && pPct != null ? Math.round(imp * pPct) / 100 : null;
       const quota = cum != null && pImp != null ? Math.round((cum - pImp) * 100) / 100 : null;
-      const qta = d.quantita_contratto ? `<div class="qta">${fmtQ(d.quantita_a_oggi)} su ${fmtQ(d.quantita_contratto)}${d.unita ? ` ${escHtml(d.unita)}` : ""}</div>` : "";
+      const qta = d.quantita_contratto
+        ? `<span class="qta">${fmtQ(d.quantita_a_oggi) || "—"} su ${fmtQ(d.quantita_contratto)}${d.unita ? ` ${escHtml(d.unita)}` : ""}</span>`
+        : "";
       // Uno zero si legge come un trattino: le righe ferme non fanno rumore, quelle che si muovono saltano all'occhio.
       const eur = (n: number | null) => n == null ? "" : Math.abs(n) < 0.005 ? "—" : fmtEur(n);
       const muove = quota != null ? Math.abs(quota) >= 0.005 : false;
       return `
     <tr class="riga-sottofase${muove ? " muove" : ""}">
       <td></td>
-      <td class="voce">${escHtml(d.descrizione)}${qta}</td>
+      <td class="voce"><div class="voce-dettaglio"><span>${escHtml(d.descrizione)}</span>${qta}</div></td>
       <td class="num">${imp != null ? fmtEur(imp) : ""}</td>
       ${perVoceAffidabile ? `<td class="num">${pPct != null ? pct(pPct) : ""}</td>` : ""}
       <td class="num">${pct(Number(d.percentuale_avanzamento))}</td>
@@ -285,7 +356,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
       ${perVoceAffidabile ? `<td class="num">${pct(r.pPct)}</td>` : ""}
       <td class="num">
         <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;">
-          <div style="position:relative;width:36px;height:5px;background:var(--line);border-radius:3px;overflow:hidden;">
+          <div style="position:relative;width:${perVoceAffidabile ? 26 : 36}px;height:5px;background:var(--line);border-radius:3px;overflow:hidden;">
             ${perVoceAffidabile ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${r.pPct}%;background:var(--muted);"></div>` : ""}
             <div style="position:absolute;left:${perVoceAffidabile ? r.pPct : 0}%;top:0;bottom:0;width:${Number(r.v.percentuale_avanzamento) - (perVoceAffidabile ? r.pPct : 0)}%;background:var(--accent);"></div>
           </div>
@@ -302,7 +373,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
   const certificato = !contratto && extra.certificato ? extra.certificato : null;
   const statoOk = ["approvato","firmato"].includes(sal.stato);
   const aliquota = Number.isFinite(Number(extra.aliquotaIva)) && extra.aliquotaIva != null ? Number(extra.aliquotaIva) : null;
-  const certificatoHtml = certificato ? buildCertificatoHtml(certificato, aliquota) : "";
+  const certificatoHtml = certificato ? buildCertificatoHtml(certificato, aliquota, soloPeriodo ? economic.daFatturare : undefined) : "";
   const ivaQuota = aliquota != null && !contratto?.reverse_charge ? Math.round(economic.daFatturare * aliquota) / 100 : null;
   const contrattoTot = Number(extra.importoContratto) > 0 ? Number(extra.importoContratto) : null;
   // Sulle voci del verbale, non sull'importo della commessa: le varianti approvate entrano come voci e l'importo della commessa non le comprende.
@@ -325,7 +396,7 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
-  <title>SAL n. ${sal.numero_sal}${order?.order_code ? ` · ${escHtml(order.order_code)}` : ""}</title>
+  <title>SAL n. ${sal.numero_sal}${order?.order_code ? ` · ${escHtml(order.order_code)}` : ""}${soloPeriodo ? ` · ${formatoTitolo}` : ""}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Helvetica, "Helvetica Neue", Arial, sans-serif; font-size: ${pagina.corpo}pt; line-height: ${pagina.interlinea}; color: var(--ink); background: white; }
@@ -335,30 +406,65 @@ export function buildSalHtml(sal: SalRecord, order: Order | null, azienda: Azien
     @media print { .page { padding: 0; max-width: none; } }
     table { width:100%; border-collapse:collapse; } td { overflow-wrap:break-word; word-break:normal; hyphens:manual; vertical-align:top; } thead { display:table-header-group; } tr { break-inside:avoid; }
     td.voce { min-width: 140px; }
-    /* Leggibilità (10/11/2026): fasi su una fascia, sottofasi in inchiostro e appena più piccole, la quota che si muove in grassetto. */
-    table.doc-tabella tr.riga-fase td { background: var(--soft); font-weight: 600; border-top: .75pt solid var(--line); }
-    table.doc-tabella tr.riga-sottofase td { font-size: ${pagina.corpo - 0.5}pt; color: var(--ink); padding-top: 3pt; padding-bottom: 3pt; }
-    table.doc-tabella tr.riga-sottofase td.voce { padding-left: 14pt; }
-    table.doc-tabella tr.riga-sottofase .qta { font-size: ${pagina.nota}pt; color: var(--muted); margin-top: 1pt; }
-    table.doc-tabella tr.riga-sottofase.muove td.quota { font-weight: 700; }
     a { overflow-wrap:anywhere; }
     .nota { font-size: ${pagina.nota}pt; color: var(--muted); }
     table.doc-tabella tr.forte td { font-weight: 700; }
     table.doc-tabella td.num { font-variant-numeric: tabular-nums; }
     .riferimenti { margin-top: 24pt; font-size: 6.5pt; color: var(--muted); }
     ${cssDocumento(colore)}
+    .sal-lavorazioni {
+      --sal-tinta: #e8eef7;
+      --sal-tinta: color-mix(in srgb, var(--accent) 17%, white);
+      --sal-accento-scuro: #243c63;
+      --sal-accento-scuro: color-mix(in srgb, var(--accent) 38%, var(--ink));
+    }
+    table.sal-lavorazioni thead th { background: var(--sal-accento-scuro); color: white; }
+    table.sal-lavorazioni tr.riga-fase td {
+      background: var(--sal-tinta);
+      color: var(--sal-accento-scuro);
+      font-weight: 700;
+      border-top: .75pt solid var(--line);
+    }
+    table.sal-lavorazioni tr.riga-fase td:first-child { border-left: 2pt solid var(--accent); }
+    table.sal-lavorazioni tr.riga-sottofase td {
+      font-size: ${pagina.corpo - 0.5}pt;
+      padding-top: 3pt;
+      padding-bottom: 3pt;
+      vertical-align: baseline;
+    }
+    table.sal-lavorazioni tr.riga-sottofase td.voce { padding-left: 12pt; }
+    table.sal-lavorazioni.con-confronto td.num { padding-left: 3pt; padding-right: 4pt; }
+    table.sal-lavorazioni.con-confronto td.voce { padding-right: 4pt; }
+    .sal-lavorazioni .voce-dettaglio { display: flex; align-items: baseline; justify-content: space-between; gap: 4pt; }
+    .sal-lavorazioni .voce-dettaglio > span:first-child { min-width: 0; }
+    .sal-lavorazioni .qta {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      font-size: ${pagina.nota}pt;
+      font-weight: 600;
+      color: var(--sal-accento-scuro);
+      background: var(--sal-tinta);
+      border-radius: 3pt;
+      padding: 0 3pt;
+      font-variant-numeric: tabular-nums;
+    }
+    table.sal-lavorazioni tr.riga-sottofase.muove td.quota { font-weight: 700; color: var(--sal-accento-scuro); }
+    table.sal-lavorazioni tfoot tr.totale td { background: var(--sal-tinta); color: var(--sal-accento-scuro); }
+    .sal-sintetico table.sal-lavorazioni tr.riga-fase td { padding-top: 3pt; padding-bottom: 3pt; }
+    .sal-sintetico .riferimenti { margin-top: 8pt; }
+    @media print { table.sal-lavorazioni tfoot { display: table-row-group; } }
     .doc-testata .logo { flex-shrink: 0; }${piede}${veste.css}
   </style>
 </head>
 <body>
-${veste.apri}<div class="page">
+${veste.apri}<div class="page${extra.formato === "sintetico" ? " sal-sintetico" : ""}">
 
   <!-- Testata dello stile unico: logo a sinistra su bianco, titolo a destra, filetto d'accento -->
   <div class="doc-testata">
     <div class="logo">${logo}</div>
     <div class="titolo">
       <h1>Verbale di stato avanzamento lavori</h1>
-      <div class="sotto">SAL n. ${sal.numero_sal} · ${sal.stato === "bozza" ? "Bozza del" : "Emesso il"} ${fmtDate(sal.data_emissione)}${periodo ? ` · ${periodo}` : ""}</div>
+      <div class="sotto">SAL n. ${sal.numero_sal} · ${sal.stato === "bozza" ? "Bozza del" : "Emesso il"} ${fmtDate(sal.data_emissione)}${periodo ? ` · ${periodo}` : ""}${soloPeriodo ? ` · ${formatoTitolo}` : ""}</div>
       <div style="margin-top:4pt;"><span class="doc-etichetta${statoOk ? " ok" : ""}">${statoLabel}</span></div>
     </div>
   </div>
@@ -371,28 +477,30 @@ ${veste.apri}<div class="page">
     </div>
     <div style="flex:1;min-width:0;">
       ${campo("Commessa", order ? `${order.order_code ? `${escHtml(order.order_code)} — ` : ""}${escHtml(order.description)}` : null)}
-      ${campo("Contratto", datiContratto ? escHtml(datiContratto) : contrattoTot != null ? `Importo dei lavori ${fmtEur(contrattoTot)}` : null)}
+      ${campo("Contratto", datiContratto ? escHtml(datiContratto) : contrattoTot != null ? `Importo dei lavori ${fmtEur(contrattoTot)}${extra.importoVariantiApprovate ? ` · incluse varianti approvate ${fmtEur(extra.importoVariantiApprovate)}` : ""}` : null)}
     </div>
   </div>
 
   <!-- Numeri chiave -->
   <div style="display:flex;gap:8pt;margin-bottom:6pt;">
+    ${soloPeriodo ? `<div class="doc-riquadro" style="flex:1;">${etichetta("Lavori di questo SAL")}<div class="numero">${fmtEur(economic.daFatturare)}</div></div>` : `
     <div class="doc-riquadro" style="flex:1;">${etichetta("Lavori a tutto il presente SAL")}<div class="numero">${fmtEur(economic.totale)}</div><div class="nota">${pct(percMedia)} delle voci</div></div>
-    <div class="doc-riquadro" style="flex:1;">${etichetta("SAL precedenti")}<div class="numero">${fmtEur(economic.precedente)}</div></div>
+    <div class="doc-riquadro" style="flex:1;">${etichetta("SAL precedenti")}<div class="numero">${fmtEur(economic.precedente)}</div></div>`}
     ${contratto
       ? `<div class="doc-riquadro" style="flex:1;">${etichetta("Netto da liquidare")}<div class="numero conta" style="font-weight:700;">${fmtEur(Number(contratto.netto))}</div><div class="nota">IVA esclusa · lavori del periodo ${fmtEur(economic.daFatturare)}</div></div>`
       : certificato
       ? `<div class="doc-riquadro" style="flex:1;">${etichetta("Netto da pagare con questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(Number(certificato.netto))}</div><div class="nota">IVA esclusa · dopo ritenuta${Number(certificato.recupero_anticipazione) ? " e acconto" : ""}</div></div>`
-      : `<div class="doc-riquadro" style="flex:1;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(economic.daFatturare)}</div><div class="nota">IVA esclusa</div></div>`}
+      : soloPeriodo ? "" : `<div class="doc-riquadro" style="flex:1;">${etichetta(economic.daFatturare<0 ? "Rettifica da verificare" : "Importo di questo SAL")}<div class="numero conta" style="font-weight:700;">${fmtEur(economic.daFatturare)}</div><div class="nota">IVA esclusa</div></div>`}
   </div>
 
   <!-- Voci -->
-  <table class="doc-tabella" style="margin-top:${12}pt;margin-bottom:6pt;">
+  ${soloPeriodo ? tabellaDelPeriodo(voci, previous, economic.daFatturare, extra) : `
+  <table class="doc-tabella sal-lavorazioni${perVoceAffidabile ? " con-confronto" : ""}" style="margin-top:12pt;margin-bottom:6pt;">
     <thead>
       <tr>
         ${th("N.", "center", "20px")}${th("Voce / lavorazione", "left")}${th("Importo contratto", "right", "72px")}
-        ${perVoceAffidabile ? th("% prec.", "right", "36px") : ""}${th("Avanzamento", "right", "76px")}${th("A tutto il SAL", "right", "72px")}
-        ${perVoceAffidabile ? th("Precedente", "right", "70px") + th("Questo SAL", "right", "70px") : ""}
+        ${perVoceAffidabile ? th("% prec.", "right", "33px") : ""}${perVoceAffidabile ? th("% a oggi", "right", "64px") : th("Avanzamento", "right", "76px")}${th("A tutto il SAL", "right", "72px")}
+        ${perVoceAffidabile ? th("Precedente", "right", "65px") + th("Questo SAL", "right", "67px") : ""}
       </tr>
     </thead>
     <tbody>${vociHtml}</tbody>
@@ -407,23 +515,22 @@ ${veste.apri}<div class="page">
       </tr>
     </tfoot>
   </table>
-  ${perVoceAffidabile ? `<p class="nota" style="margin-bottom:14pt;">Barra: in grigio l'avanzamento dei SAL precedenti, a colore quello maturato con questo SAL.</p>` : `<div style="height:8px;"></div>`}
+  ${perVoceAffidabile ? `<p class="nota" style="margin-bottom:14pt;">Barra: in grigio l'avanzamento dei SAL precedenti, a colore quello maturato con questo SAL.</p>` : `<div style="height:8px;"></div>`}`}
 
   <!-- Riepilogo economico -->
   <div style="display:flex;gap:14pt;align-items:flex-start;margin-bottom:10pt;">
     ${contratto ? `<div style="flex:1.3;">${contrattoHtml}</div>` : certificato ? certificatoHtml : `<table class="doc-tabella" style="flex:1.3;">
       <tbody>
-        ${rigaRiep("Lavori eseguiti a tutto il presente SAL", economic.totale)}
-        ${rigaRiep("A dedurre: SAL precedenti", -economic.precedente)}
+        ${soloPeriodo ? "" : rigaRiep("Lavori eseguiti a tutto il presente SAL", economic.totale) + rigaRiep("A dedurre: SAL precedenti", -economic.precedente)}
         ${rigaRiep(economic.daFatturare<0 ? "Rettifica da verificare" : "Quota nuova di questo SAL", economic.daFatturare, ivaQuota != null ? "forte" : "totale")}
         ${ivaQuota != null ? rigaRiep(`IVA ${aliquota!.toLocaleString("it-IT")}%`, ivaQuota) + rigaRiep("Totale della quota, IVA inclusa", Math.round((economic.daFatturare + ivaQuota) * 100) / 100, "totale") : ""}
       </tbody>
     </table>`}
-    <div class="doc-riquadro" style="flex:1;">
+    ${soloPeriodo ? "" : `<div class="doc-riquadro" style="flex:1;">
       ${etichetta("Resta da eseguire")}
       <div class="numero">${fmtEur(restaDaEseguire)}</div>
       <div class="nota" style="margin-top:2px;">su ${fmtEur(totaleContrattuale)} di voci del contratto</div>
-    </div>
+    </div>`}
   </div>
   <p class="nota" style="margin:0 0 14pt;">Importi IVA esclusa salvo dove indicato. Questo documento non è una fattura e non attesta un pagamento.${certificato || contratto ? " La ritenuta di garanzia si restituisce allo svincolo, come da contratto." : " Acconti e fatture già emesse si verificano prima della fatturazione."}</p>
   ${sal.stato === "bozza" ? '<p style="margin:0 0 14pt;color:var(--warn);font-weight:bold;">BOZZA - Non emessa. Nessun link di approvazione attivo.</p>' : ""}

@@ -97,7 +97,8 @@ describe("nella commessa la stessa regola", () => {
   const pagina = leggi("src/pages/azienda/OrderDetail.tsx");
 
   it("fattura, proforma e nota di credito solo con «Fatturazione»; il DDT anche con commesse o magazzino", () => {
-    const scheda = pagina.slice(pagina.indexOf("Fatturazione e Documenti"), pagina.indexOf('<TabsContent value="cantiere"'));
+    const inizio = pagina.indexOf('const azioniFattureCliente =');
+    const scheda = pagina.slice(inizio, pagina.indexOf('</div>);', inizio));
     expect(scheda.match(/\{permissions\.canViewBilling && \(/g) ?? []).toHaveLength(3);
     expect(scheda).toContain("{(permissions.canViewBilling || permissions.canEditOrders || permissions.canViewWarehouse) && (");
     for (const azione of ["setCreaFatturaOpen(true)", "setCreaProformaOpen(true)", "setCreaNotaCreditoOpen(true)", "setCreaDDTOpen(true)"]) {
@@ -107,6 +108,8 @@ describe("nella commessa la stessa regola", () => {
 
   it("la scheda la vede chi vede gli importi della commessa o ha «Fatturazione»", () => {
     // La protezione ora è sul contenitore della vista dedicata, prima della card.
-    expect(pagina).toMatch(/\{activeEconomiaView === "documenti" && \(permissions\.canViewOrderAmounts \|\| permissions\.canViewBilling\) && <div id="section-fatturazione"/);
+    expect(pagina).toContain('documenti={(permissions.canViewOrderAmounts || permissions.canViewBilling) ? <div id="section-fatturazione"');
+    expect(pagina).toContain('incassi={permissions.canViewOrderAmounts ? () => (');
+    expect(pagina).toContain('{activeEconomiaView === "pagamenti" && <div className="commessa-income-workspace');
   });
 });

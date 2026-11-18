@@ -51,6 +51,11 @@ export interface Installment {
    * insieme alla rata, per mostrarla.
    */
   documento_fiscale_id?: string | null;
+  documento_quota_lorda?: number | null;
+  documento_quota_offset?: number | null;
+  quota_fattura_esigibile?: number;
+  quota_fattura_residua?: number;
+  quota_fattura_non_esigibile?: number;
   fattura?: { id: string; numero: string | null; stato: string | null; importo_pagato?: number | string | null } | null;
 }
 

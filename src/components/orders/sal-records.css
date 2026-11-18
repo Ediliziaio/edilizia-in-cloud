@@ -1,0 +1,96 @@
+/* La stessa densità di card, indicatori e tabelle delle altre viste di commessa. */
+.sal-workspace-overview { background: hsl(var(--background)); padding: 16px; border-radius: 10px; }
+.sal-workspace-overview dd.font-semibold { font-size: 18px; }
+.sal-records-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--background)); padding: 12px; }
+.sal-records-toolbar > div:first-child { flex-basis: 280px; }
+.sal-records-toolbar .sal-status-filter { width: 215px; height: 40px; box-shadow: none; border-radius: 6px; }
+.sal-records-count { flex-basis: 100%; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.sal-record { border-radius: 10px; overflow: hidden; box-shadow: none; }
+.sal-record .sal-record-header { padding: 16px 16px 12px; }
+.sal-record-actions { justify-content: flex-end; }
+.sal-record-actions > [data-ui="button"] { height: 34px; min-height: 34px; font-size: 12px; }
+.sal-record[data-stato="approvato"] .sal-record-status { border-color: hsl(var(--border)); background: hsl(var(--muted) / .45); color: hsl(var(--foreground)); }
+.sal-record[data-stato="firmato"] .sal-record-status { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.sal-record[data-stato="bozza"] .sal-record-status { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.sal-record-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--muted) / .15); }
+.sal-record-amounts > div { padding: 10px 12px; }
+.sal-record-amounts > div + div { border-left: 1px solid hsl(var(--border)); }
+.sal-record-amounts dt { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.sal-record-amounts dd { margin-top: 3px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sal-record-amounts small { font-size: 11px; color: hsl(var(--muted-foreground)); }
+.sal-record-amounts > div:last-child { color: hsl(var(--primary)); }
+.sal-record-amounts [data-rettifica="true"] dd { color: hsl(var(--destructive)); }
+.sal-record-support { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; }
+.sal-record-support > div:first-child { margin-top: 0; order: 2; margin-left: auto; }
+.sal-record-support > div:first-child:has(dl) { flex-basis: 100%; }
+.sal-record-support > div:first-child > button { height: 32px; }
+.sal-record-support > p { flex-basis: 100%; order: 3; }
+.sal-record .sal-record-details { padding: 0 16px 6px; }
+[role="dialog"].commessa-modal-layout.sal-record-dialog { max-height: min(780px, 86dvh); }
+.sal-record-phase-options { display: flex; flex-wrap: wrap; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 6px 12px; border-bottom: 1px solid hsl(var(--border)); }
+.sal-record-phase-modes { display: flex; padding: 2px; gap: 2px; border-radius: 6px; background: hsl(var(--muted)); }
+.sal-record-phase-modes button { min-height: 28px; padding: 3px 9px; border-radius: 4px; font-size: 12px; }
+.sal-record-phase-modes button[aria-pressed="true"] { background: hsl(var(--background)); color: hsl(var(--primary)); box-shadow: 0 1px 2px #0002; font-weight: 600; }
+.sal-record-phase-layout { display: grid; grid-template-columns: minmax(190px, 26%) minmax(0, 1fr); min-height: 0; }
+.sal-record-phase-nav { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 8px; border-right: 1px solid hsl(var(--border)); background: hsl(var(--muted) / .35); }
+.sal-record-phase-nav > button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 36px; padding: 6px 8px; border-radius: 6px; text-align: left; font-size: 13px; line-height: 1.35; }
+.sal-record-phase-nav > button:hover { background: hsl(var(--muted)); }
+.sal-record-phase-nav > button[aria-pressed="true"] { background: hsl(var(--primary) / .09); color: hsl(var(--primary)); font-weight: 600; }
+.sal-record-phase-nav > button:focus-visible, .sal-record-phase-panel:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.sal-record-phase-nav > button > small { font-size: 11px; font-variant-numeric: tabular-nums; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.sal-record-phase-nav > .sal-record-phase-overview { margin-bottom: 4px; border-bottom: 1px solid hsl(var(--border)); font-weight: 600; }
+.sal-record-phase-overview > span { flex: 1; }
+.sal-record-phase-panel { min-width: 0; min-height: 0; padding: 12px; overflow: auto; overscroll-behavior: contain; outline: none; }
+.sal-record-phase-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.sal-record-phase-heading h3 { font-size: 15px; line-height: 1.35; font-weight: 600; }
+.sal-record-phase-heading span { color: hsl(var(--muted-foreground)); font-size: 12px; white-space: nowrap; }
+.sal-record-phase-stats, .sal-record-phase-totals { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); font-variant-numeric: tabular-nums; }
+.sal-record-phase-stats { margin-bottom: 12px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--muted) / .25); }
+.sal-record-phase-footer { flex: 0 0 auto; border-top: 1px solid hsl(var(--border)); background: hsl(var(--muted) / .3); }
+.sal-record-phase-summary { display: flex; }
+.sal-record-phase-totals { flex: 1 1 auto; min-width: 0; }
+.sal-record-phase-stats > div, .sal-record-phase-totals > div { padding: 7px 10px; }
+.sal-record-phase-stats > div + div, .sal-record-phase-totals > div + div { border-left: 1px solid hsl(var(--border)); }
+.sal-record-phase-stats dt, .sal-record-phase-totals dt { font-size: 11px; color: hsl(var(--muted-foreground)); line-height: 1.35; }
+.sal-record-phase-stats dd, .sal-record-phase-totals dd { font-size: 13px; font-weight: 600; margin-top: 2px; }
+.sal-record-phase-quota dd { color: hsl(var(--primary)); }
+.sal-record-phase-totals > [data-rettifica="true"] dd { color: hsl(var(--destructive)); }
+.sal-record-phase-certificate { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-left: 1px solid hsl(var(--border)); padding: 7px 12px; font-size: 11px; line-height: 1.35; color: hsl(var(--muted-foreground)); text-align: left; }
+.sal-record-phase-certificate:hover, .sal-record-phase-certificate[data-state="open"] { background: hsl(var(--primary) / .07); }
+.sal-record-phase-certificate strong { display: block; color: hsl(var(--primary)); margin-top: 2px; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sal-record-phase-certificate[data-state="open"] svg { rotate: 180deg; }
+.sal-record-phase-deductions { max-height: min(210px, 28dvh); overflow: auto; padding: 7px 12px; border-top: 1px solid hsl(var(--border)); background: hsl(var(--background)); font-size: 12px; }
+.sal-record-phase-deductions dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.sal-record-phase-deductions dd { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sal-record-phase-deductions dl > div:last-child { border-top: 1px solid hsl(var(--border)); margin-top: 3px; }
+.sal-record-phase-table-scroll { max-height: min(360px, 48dvh); overflow: auto; border: 1px solid hsl(var(--border)); border-radius: 6px; }
+.sal-record-table { font-variant-numeric: tabular-nums; border-collapse: separate; border-spacing: 0; }
+[role="dialog"].sal-record-dialog .sal-record-table :is(th, td) { padding: 7px 8px; font-size: 12px; }
+.sal-record-dialog .sal-record-table thead th { position: sticky; top: 0; z-index: 1; background: hsl(var(--muted)); box-shadow: inset 0 -1px hsl(var(--border)); font-weight: 500; color: hsl(var(--muted-foreground)); }
+.sal-record-table tbody tr + tr :is(th, td) { border-top: 1px solid hsl(var(--border)); }
+.sal-record-table tbody td { white-space: nowrap; }
+.sal-record-phase-note { margin-top: 8px; color: hsl(var(--muted-foreground)); font-size: 12px; white-space: pre-wrap; }
+@media (max-width: 767px) {
+  .sal-record-phase-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .sal-record-phase-nav { display: flex; gap: 4px; border: 0; border-bottom: 1px solid hsl(var(--border)); }
+  .sal-record-phase-nav > button { width: auto; flex: 0 0 auto; white-space: nowrap; }
+  .sal-record-phase-nav > .sal-record-phase-overview { margin: 0; border: 0; }
+}
+@media (max-width: 639px) {
+  .sal-records-toolbar .sal-status-filter { width: 100%; }
+  .sal-records-count { font-size: 11px; }
+  .sal-record-actions { justify-content: flex-start; width: 100%; }
+  .sal-record-amounts { grid-template-columns: 1fr; }
+  .sal-record-amounts > div { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 8px 10px; }
+  .sal-record-amounts > div + div { border-left: 0; border-top: 1px solid hsl(var(--border)); }
+  .sal-record-amounts dd { font-size: 16px; margin: 0; }
+  .sal-record-amounts small { grid-column: 1 / -1; }
+  .sal-record-support > div:first-child { margin-left: 0; }
+  .sal-record-phase-summary { flex-wrap: wrap; }
+  .sal-record-phase-totals { flex-basis: 100%; }
+  .sal-record-phase-certificate { width: 100%; border-left: 0; border-top: 1px solid hsl(var(--border)); }
+  .sal-record-phase-certificate span { display: flex; align-items: baseline; gap: 8px; }
+}
+@media (pointer: coarse) { .sal-record button, .sal-record-actions > a[data-ui="button"], .sal-records-toolbar button { min-height: 44px; } }
+.dark .sal-record[data-stato="firmato"] .sal-record-status { background: #064e3b; color: #a7f3d0; border-color: #047857; }
+.dark .sal-record[data-stato="bozza"] .sal-record-status { background: #451a03; color: #fde68a; border-color: #92400e; }

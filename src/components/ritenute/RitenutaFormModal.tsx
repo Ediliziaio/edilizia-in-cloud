@@ -75,9 +75,7 @@ export function RitenutaFormModal({ open, onOpenChange, contratti, onSubmit, isS
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await onSubmit(form);
-    setForm(EMPTY);
-    onOpenChange(false);
+    try { await onSubmit(form); setForm(EMPTY); onOpenChange(false); } catch { /* Il hook mostra l’errore: conserviamo il modulo per riprovare. */ }
   }
 
   return (

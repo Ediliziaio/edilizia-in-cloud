@@ -94,6 +94,7 @@ export interface CommessaPerRate {
 }
 
 export interface RataDaLeggere extends RataMinima {
+  quota_fattura_residua?: number;
   id: string;
   order_id: string;
   is_paid: boolean | null;
@@ -181,7 +182,7 @@ export function rateDaIncassare(
         id: r.id,
         order_id: orderId,
         expected_date: r.expected_date,
-        amount: Math.max(0, centesimi(importi[i] - (Number(pagato) || 0))),
+        amount: r.quota_fattura_residua ?? Math.max(0, centesimi(importi[i] - (Number(pagato) || 0))),
         finanziamento: r.type === "financing",
       });
     });

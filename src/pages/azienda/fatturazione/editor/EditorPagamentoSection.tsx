@@ -16,6 +16,7 @@ import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { ScadenzaPagamento } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
+import { scadenze30_30_40 } from "@/lib/fatturazione/scadenzeFattura";
 
 interface Props {
   state: EditorState;
@@ -178,6 +179,14 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
               {p.label}
             </Button>
           ))}
+          <Button type="button" variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => dispatch({
+            type: "SET_SCADENZE",
+            scadenze: scadenze30_30_40(
+              state.totale_da_pagare ?? 0,
+              state.data_emissione ? parseISO(state.data_emissione) : new Date(),
+              metodoEffettivo as ScadenzaPagamento["metodo_pagamento"],
+            ),
+          })}>30% / 30% / 40%</Button>
         </div>
       )}
 

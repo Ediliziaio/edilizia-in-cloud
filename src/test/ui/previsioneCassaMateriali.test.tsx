@@ -16,7 +16,7 @@ describe("previsione di cassa sui materiali, a gradini", () => {
       expect.stringMatching(/Materiali dai fornitori.*−16\.000,00/),
       expect.stringMatching(/Punto più basso della cassa.*−6\.000,00/),
       expect.stringMatching(/Residuo complessivo da incassare.*\+20\.000,00/),
-      expect.stringMatching(/Cassa a lavori finiti.*14\.000,00/),
+      expect.stringMatching(/Saldo previsto dopo i soli materiali.*14\.000,00/),
     ]);
   });
   it("se copre, niente anticipo; senza incassi né materiali non si mostra", () => {

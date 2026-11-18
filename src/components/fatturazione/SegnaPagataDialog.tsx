@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { DialogBody as CorpoDialogOperativo, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -77,6 +77,7 @@ function ModuloIncasso({
   onFatto,
 }: Omit<Props, "open"> & { escluse: number }) {
   const segnaPagata = useSegnaPagata();
+  const registrazioneInCorso = useRef(false);
   const [metodo, setMetodo] = useState(() => metodoPredefinito(fatture));
   const [data, setData] = useState(oggi);
 
@@ -90,10 +91,12 @@ function ModuloIncasso({
   const importoValido = !una || (Number.isFinite(importo) && importo > 0 && importo <= residuoUna + 0.005);
 
   const registra = () => {
-    if (segnaPagata.isPending || fatture.length === 0 || !dataValida || !importoValido) return;
+    if (registrazioneInCorso.current || segnaPagata.isPending || fatture.length === 0 || !dataValida || !importoValido) return;
+    registrazioneInCorso.current = true;
     segnaPagata.mutate(
       { fatture, metodo, data, importo: una ? importo : undefined },
       {
+        onSettled: () => { registrazioneInCorso.current = false; },
         onSuccess: () => {
           onOpenChange(false);
           onFatto?.();

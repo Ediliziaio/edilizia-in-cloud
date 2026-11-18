@@ -5,11 +5,9 @@
  * (si nascondono da sé).
  */
 import { useLocation } from "react-router-dom";
-import { Landmark, ShieldCheck } from "lucide-react";
 import { BloccaPrezzoCard } from "./BloccaPrezzoCard";
 import { BonusRipartizioneCard } from "./BonusRipartizioneCard";
 import { IvaCommessa } from "./IvaCommessa";
-import { SezioneRichiudibile } from "./SezioneRichiudibile";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 
 export function AltroIncassiCommessa({ orderId, vatRate, hasBuildingBonus, customerId, saldoPagato, pivaImpresa, conIva, conImporti }: {
@@ -21,30 +19,26 @@ export function AltroIncassiCommessa({ orderId, vatRate, hasBuildingBonus, custo
   conImporti: boolean;
 }) {
   // Chi arriva da un link alle ritenute (#section-ritenute) le trova aperte, non una riga chiusa.
-  const { hash } = useLocation();
+  const { hash, search } = useLocation();
+  const sezione = hash.slice(1) || new URLSearchParams(search).get("section");
   return (
-    <section aria-label="Altro su questa commessa" className="space-y-3">
-      <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Altro su questa commessa</h3>
+    <section aria-labelledby="altri-dati-economici" className="space-y-2">
+      <h3 id="altri-dati-economici" className="pt-2 text-sm font-semibold">Altri dati economici</h3>
       {conImporti && (
-        // Bonus, blocca prezzo: conti d'ufficio, dal telefono no.
-        <div className="space-y-3 max-sm:hidden">
+        <>
           {/* Blocca prezzo: soldi che stanno FUORI dal contratto e vanno restituiti. */}
-          <BloccaPrezzoCard orderId={orderId} customerId={customerId} hasBuildingBonus={hasBuildingBonus} saldoPagato={saldoPagato} />
+          <BloccaPrezzoCard compatta orderId={orderId} customerId={customerId} hasBuildingBonus={hasBuildingBonus} saldoPagato={saldoPagato} />
           {/* Ripartizione su più bonus: quanti bonifici parlanti servono e con che causale. */}
-          <BonusRipartizioneCard orderId={orderId} vatRate={vatRate} hasBuildingBonus={hasBuildingBonus} datiCausale={{ pivaImpresa: pivaImpresa ?? null }} />
-        </div>
+          <div className="max-sm:hidden empty:hidden">
+            <BonusRipartizioneCard orderId={orderId} vatRate={vatRate} hasBuildingBonus={hasBuildingBonus} datiCausale={{ pivaImpresa: pivaImpresa ?? null }} />
+          </div>
+        </>
       )}
-      {conIva && (
-        <SezioneRichiudibile icona={<Landmark className="h-4 w-4" />} titolo="IVA della commessa"
-          descrizione="L'IVA delle fatture al cliente (a debito) e di quelle dei fornitori (a credito), e il saldo.">
-          <IvaCommessa orderId={orderId} />
-        </SezioneRichiudibile>
-      )}
+      {conIva && <div id="section-iva-commessa" className="scroll-mt-24">
+        <IvaCommessa orderId={orderId} compatta aperta={sezione === "section-iva-commessa"} />
+      </div>}
       <div id="section-ritenute" className="scroll-mt-24">
-        <SezioneRichiudibile icona={<ShieldCheck className="h-4 w-4" />} titolo="Ritenute di garanzia" aperta={hash === "#section-ritenute"}
-          descrizione="Le somme trattenute a garanzia, dal cliente e ai subappaltatori, e quando si svincolano.">
-          <RitenuteTab orderId={orderId} />
-        </SezioneRichiudibile>
+        <RitenuteTab orderId={orderId} aperta={sezione === "section-ritenute"} />
       </div>
     </section>
   );

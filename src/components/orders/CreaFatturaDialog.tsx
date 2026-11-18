@@ -1,9 +1,12 @@
-import { useState, useMemo, useEffect } from "react";
+import "./crea-fattura-dialog.css";
+import { ritenutaAncoraDaFatturare } from "@/lib/orders/ritenutaDaFatturare";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { impostaSuImponibile } from "@/lib/fatturazione/calcoli";
+import { QUOTE_30_30_40, scadenze30_30_40 } from "@/lib/fatturazione/scadenzeFattura";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Receipt, Sparkles, Check, User, Package, Loader2, Info, Plus, Trash2, Eye, Scale, RotateCcw, AlertTriangle, Landmark, ClipboardCheck, Layers, ChevronRight,
+  Receipt, Check, User, Package, Loader2, Info, Plus, Trash2, Eye, Scale, RotateCcw, AlertTriangle, Landmark, ClipboardCheck, Layers, ChevronRight,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -14,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
@@ -37,7 +41,6 @@ import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorS
 import { type DetrazioneValue, EMPTY_DETRAZIONE } from "@/lib/fatturazione/detrazioniEdilizie";
 import { useBonusFiscaliFlags } from "@/hooks/useBonusFiscaliFlags";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { avanzamentoFase } from "@/lib/orders/cronoprogramma";
 import {
   type DocumentoPerFatturato,
@@ -84,7 +87,7 @@ const METODI_PROPOSTI = ["MP05", "MP12", "MP08", "MP02", "MP19", "MP23", "MP01"]
 /** Contanti: dal 2023 il limite è sotto i 5.000 € (art. 49 D.Lgs. 231/2007). */
 const LIMITE_CONTANTI = 5000;
 
-type Scadenza = "vista" | "30" | "60" | "90" | "rata" | "data";
+type Scadenza = "vista" | "30" | "60" | "90" | "rata" | "data" | "30-30-40";
 
 const oggiIso = () => {
   const d = new Date();
@@ -150,6 +153,7 @@ interface OrderItemRow {
 interface CreaFatturaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onApriBozza?: (id: string) => void;
   orderId: string;
   orderCode: string | null;
   orderDescription: string;
@@ -288,10 +292,10 @@ function buildRigaImporto(descrizione: string, lordo: number, aliquota: number):
 }
 
 /** Come si scrive in fattura: la rata, poi per esteso i lavori e il cantiere, su più righe di testo. */
-function descrizioneRata(inst: Installment, orderCode: string | null, orderDescription: string, indirizzoLavori?: string | null): string {
-  const tipoRata = inst.label || LABEL_MAP[inst.type] || "Pagamento";
+function descrizioneImporto(inst: Installment | undefined, orderCode: string | null, orderDescription: string, indirizzoLavori?: string | null): string {
+  const titolo = inst ? inst.label || LABEL_MAP[inst.type] || "Pagamento" : "Lavori";
   return [
-    `${tipoRata}${orderCode ? ` — commessa n. ${orderCode}` : ""}`,
+    `${titolo}${orderCode ? ` — commessa n. ${orderCode}` : ""}`,
     orderDescription.trim(),
     indirizzoLavori?.trim() ? `Lavori presso: ${indirizzoLavori.trim()}` : "",
   ].filter(Boolean).join("\n");
@@ -301,6 +305,7 @@ function descrizioneRata(inst: Installment, orderCode: string | null, orderDescr
 
 export function CreaFatturaDialog({
   open,
+  onApriBozza,
   onOpenChange,
   orderId,
   orderCode,
@@ -314,7 +319,8 @@ export function CreaFatturaDialog({
 }: CreaFatturaDialogProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const confirm = useConfirm();
+  const invioInCorso = useRef(false);
+  const [salvataggio, setSalvataggio] = useState(false);
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -330,7 +336,8 @@ export function CreaFatturaDialog({
   const [modoScelto, setModoScelto] = useState<ModoFattura | null>(null);
   const [salScelto, setSalScelto] = useState<string | null>(null);
   const [scelteRighe, setScelteRighe] = useState<Record<string, SceltaRiga>>({});
-  const [selectedInstId, setSelectedInstId] = useState<string | null>(null);
+  const [rataManualeId, setRataManualeId] = useState<string | null>(null);
+  const [salSenzaRata, setSalSenzaRata] = useState<string | null>(null);
   // Importo della riga «a corpo»: parte dalla rata e si cambia (il SAL vero non
   // è quasi mai quello previsto in contratto).
   const [importo, setImporto] = useState<{ descrizione: string; lordo: string; aliquota: string }>({
@@ -375,7 +382,7 @@ export function CreaFatturaDialog({
   const applicaRata = (inst: Installment | null | undefined) => {
     if (!inst) return;
     setImporto({
-      descrizione: descrizioneRata(inst, orderCode, orderDescription, indirizzoLavori),
+      descrizione: descrizioneImporto(inst, orderCode, orderDescription, indirizzoLavori),
       lordo: scriviImporto(inst.amount || 0),
       aliquota: String(defaultVat),
     });
@@ -387,15 +394,17 @@ export function CreaFatturaDialog({
     if (open) {
       const firstUnpaid = primaRataDaFatturare(installments);
       if (firstUnpaid) {
-        setSelectedInstId(firstUnpaid.id || `pos-${firstUnpaid.position}`);
+        setRataManualeId(firstUnpaid.id || `pos-${firstUnpaid.position}`);
         applicaRata(firstUnpaid);
       } else {
-        setSelectedInstId(null);
+        setRataManualeId(null);
         setQuotaArticoli("100");
+        setImporto({ descrizione: descrizioneImporto(undefined, orderCode, orderDescription, indirizzoLavori), lordo: "", aliquota: String(defaultVat) });
       }
       // reset composizione a ogni apertura
       setModoScelto(null);
       setSalScelto(null);
+      setSalSenzaRata(null);
       setScelteRighe({});
       setExcludedItemIds(new Set());
       setFreeLines([]);
@@ -539,7 +548,7 @@ export function CreaFatturaDialog({
     .flatMap((d) => (Array.isArray(d.righe) ? (d.righe as Array<{ descrizione?: string; quantita?: number; prezzo_unitario?: number }>) : []))
     .filter((r) => (r.descrizione ?? "").startsWith(DESCRIZIONE_SVINCOLO))
     .reduce((t, r) => t + Number(r.quantita ?? 1) * Number(r.prezzo_unitario ?? 0), 0);
-  const ritenutaDaSvincolare = Math.max(0, Math.round((ritenuteTrattenute.reduce((t, r) => t + Number(r.importo || 0), 0) - svincoloGiaFatturato) * 100) / 100);
+  const ritenuteDelRegistro = ritenuteTrattenute.reduce((t, r) => t + Number(r.importo || 0), 0);
 
   // ── Fetch matching anagrafica ────────────────────────────────
   const { data: matchedAnagrafica, isPending: anagraficaPending, isError: anagraficaError, refetch: ricaricaAnagrafica } = useQuery({
@@ -560,13 +569,9 @@ export function CreaFatturaDialog({
   });
 
   // ── Derived data ─────────────────────────────────────────────
-  const selectedInstallment = useMemo(() =>
-    selectedInstId ? installments.find(i => (i.id || `pos-${i.position}`) === selectedInstId) : null,
-    [installments, selectedInstId]
-  );
-
   // ── Da fasi, voci e SAL ──────────────────────────────────────
   const fatturato = useMemo(() => fatturatoDaDocumenti(documentiCommessa, fasi), [documentiCommessa, fasi]);
+  const ritenutaDaSvincolare = ritenutaAncoraDaFatturare(ritenuteDelRegistro, svincoloGiaFatturato, totalAmount, fatturato.totale);
   const riservatoInBozza = useMemo(() => fatturatoDaDocumenti(documentiCommessa.filter(d => d.stato === "bozza"), fasi).totale, [documentiCommessa, fasi]);
   const scelta = (id: string): SceltaRiga => scelteRighe[id] ?? {};
   const cambiaScelta = (id: string, patch: SceltaRiga) => {
@@ -630,11 +635,51 @@ export function CreaFatturaDialog({
   const mode: ModoFattura = modoScelto ?? suggerito;
 
   // Scegliere un SAL sceglie anche la sua rata: la fattura resta legata a quella.
-  const rataDelSal = salAttivo?.installment_id ?? null;
-  useEffect(() => {
-    if (!open || mode !== "sal") return;
-    setSelectedInstId(rataDelSal && installments.some((i) => i.id === rataDelSal) ? rataDelSal : null);
-  }, [open, mode, rataDelSal, installments]);
+  const rataDelSal = salAttivo && salAttivo.id !== salSenzaRata ? salAttivo.installment_id : null;
+  const selectedInstId = mode === "sal" ? rataDelSal : rataManualeId;
+  const selectedInstallment = installments.find((i) => (i.id || `pos-${i.position}`) === selectedInstId);
+  const idFatturaCollegata = selectedInstallment?.documento_fiscale_id ?? selectedInstallment?.fattura?.id;
+  const percorsoFatturaCollegata = idFatturaCollegata && `/azienda/documenti/${idFatturaCollegata}/dettaglio`;
+  const apriFatturaCollegata = () => {
+    if (!idFatturaCollegata || !percorsoFatturaCollegata) return;
+    onOpenChange(false);
+    if (onApriBozza && selectedInstallment?.fattura?.stato === "bozza") onApriBozza(idFatturaCollegata);
+    else navigate(percorsoFatturaCollegata);
+  };
+
+  const scegliSal = (id: string) => {
+    setSalScelto(id);
+    setSalSenzaRata(null);
+  };
+
+  const togliRata = () => {
+    if (mode === "sal" && salAttivo) {
+      setSalSenzaRata(salAttivo.id);
+      return;
+    }
+    setRataManualeId(null);
+    if (!selectedInstallment) return;
+    const descrizioneRata = descrizioneImporto(selectedInstallment, orderCode, orderDescription, indirizzoLavori);
+    setImporto((precedente) => precedente.descrizione === descrizioneRata
+      ? { ...precedente, descrizione: descrizioneImporto(undefined, orderCode, orderDescription, indirizzoLavori) }
+      : precedente);
+  };
+
+  const scegliRata = (inst: Installment, key: string) => {
+    if (selectedInstId === key) {
+      togliRata();
+      return;
+    }
+    const salDellaRata = inst.id && salDisponibili.find((sal) => sal.installment_id === inst.id);
+    if (salDellaRata && (mode === "sal" || modoScelto === null)) {
+      scegliSal(salDellaRata.id);
+      setModoScelto("sal");
+      return;
+    }
+    setRataManualeId(key);
+    applicaRata(inst);
+    setModoScelto(mode === "fasi" ? "fasi" : "importo");
+  };
 
   const quota = Math.min(100, Math.max(0, parseImporto(quotaArticoli)));
   const lordoImporto = parseImporto(importo.lordo);
@@ -763,7 +808,7 @@ export function CreaFatturaDialog({
   );
   const previewRighe = composta.righe;
   const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
-  const fonteMostrata = fonteAperta ?? righeFattura.length === 0;
+  const fonteMostrata = fonteAperta ?? (mode === "sal" || righeFattura.length === 0);
   const totali = composta.totali;
   const avvisi = avvisiClausole(clausoleAttive, { ritenutaGiaTolta });
 
@@ -920,8 +965,10 @@ export function CreaFatturaDialog({
     scadenza === "vista" ? oggiIso()
     : scadenza === "rata" ? (dataRata || piuGiorni(30))
     : scadenza === "data" ? (dataLibera || piuGiorni(30))
-    : piuGiorni(Number(scadenza));
-  const scadenzePagamento: ScadenzaPagamento[] = [{
+    : scadenza === "30-30-40" ? piuGiorni(30) : piuGiorni(Number(scadenza));
+  const scadenzePagamento: ScadenzaPagamento[] = scadenza === "30-30-40"
+    ? scadenze30_30_40(totali.totale_da_pagare, new Date(`${oggiIso()}T12:00:00`), metodo as ScadenzaPagamento["metodo_pagamento"])
+    : [{
     numero_rata: 1,
     data_scadenza: dataScadenza,
     importo: totali.totale_da_pagare,
@@ -985,6 +1032,10 @@ export function CreaFatturaDialog({
   } as unknown as EditorState;
 
   const handleCreaFattura = async () => {
+    if (rataGiaFatturata(selectedInstallment)) {
+      apriFatturaCollegata();
+      return;
+    }
     if (customerId && (anagraficaPending || anagraficaError)) {
       toast.error("Attendi la verifica dell’anagrafica o riprova il caricamento.");
       return;
@@ -1008,54 +1059,59 @@ export function CreaFatturaDialog({
       return;
     }
 
-    const rataFatturata = rataGiaFatturata(selectedInstallment);
-    if (rataFatturata && !(await confirm({
-      title: "Questa rata è già fatturata",
-      description: `La rata «${selectedInstallment?.label ?? "selezionata"}» ha già la fattura${selectedInstallment?.fattura?.numero ? ` ${selectedInstallment.fattura.numero}` : ""}. Creandone un'altra la fatturi due volte. Vuoi crearla lo stesso? La nuova fattura non verrà legata alla rata.`,
-      confirmLabel: "Crea lo stesso",
-    }))) return;
-
-    createMutation.mutate(datiDocumento, {
-      onSuccess: async (doc) => {
-        // La rata scelta resta legata alla fattura (25/09/2026): pagata
-        // l'una, pagata l'altra (collega_rata_fattura e i trigger allinea_*).
-        // Prima l'id della rata si buttava dopo aver costruito la fattura.
-        const rataId = rataFatturata ? undefined : selectedInstallment?.id;
-        if (rataId) {
-          const { error: rataErr } = await supabase.rpc("collega_rata_fattura" as never, {
-            p_rata_id: rataId,
-            p_documento_id: doc.id,
-          } as never);
-          if (rataErr) {
-            toast.warning("Fattura creata, ma non collegata alla rata", { description: rataErr.message });
-          }
+    // La protezione dura fino al termine dei collegamenti, anche dopo la creazione
+    // della bozza: un secondo clic non deve creare una seconda fattura.
+    if (invioInCorso.current) return;
+    invioInCorso.current = true;
+    setSalvataggio(true);
+    try {
+      const doc = await createMutation.mutateAsync(datiDocumento);
+      // La rata scelta resta legata alla fattura (25/09/2026): pagata
+      // l'una, pagata l'altra (collega_rata_fattura e i trigger allinea_*).
+      // Prima l'id della rata si buttava dopo aver costruito la fattura.
+      const rataId = selectedInstallment?.id;
+      if (rataId) {
+        const { error: rataErr } = await supabase.rpc("collega_rata_fattura" as never, {
+          p_rata_id: rataId,
+          p_documento_id: doc.id,
+        } as never);
+        if (rataErr) {
+          toast.warning("Fattura creata, ma non collegata alla rata", { description: rataErr.message });
+        } else {
+          await queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(orderId) });
         }
-        // Crea il collegamento documento↔commessa in modo atomico prima di
-        // navigare. Se il link fallisce non lasciamo la fattura "orfana"
-        // senza avvisare l'utente (stesso pattern di CreaDDTDialog).
-        if (companyId) {
-          try {
-            await linkMutation.mutateAsync({
-              fatturaId: doc.id,
-              ordineId: orderId,
-              importoAssociato: totali.totale_documento,
-              companyId,
-            });
-          } catch (err) {
-            toast.error("Fattura creata ma collegamento commessa fallito", {
-              description:
-                err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
-            });
-            onOpenChange(false);
-            navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
-            return;
-          }
+      }
+      // Completa il collegamento documento↔commessa prima di
+      // navigare. Se il link fallisce non lasciamo la fattura "orfana"
+      // senza avvisare l'utente (stesso pattern di CreaDDTDialog).
+      if (companyId) {
+        try {
+          await linkMutation.mutateAsync({
+            fatturaId: doc.id,
+            ordineId: orderId,
+            importoAssociato: totali.totale_documento,
+            companyId,
+          });
+        } catch (err) {
+          toast.error("Fattura creata ma collegamento commessa fallito", {
+            description:
+              err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+          });
+          onOpenChange(false);
+          navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
+          return;
         }
-        queryClient.invalidateQueries({ queryKey: ["order-documenti-for-invoice", orderId] });
-        onOpenChange(false);
-        navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
-      },
-    });
+      }
+      queryClient.invalidateQueries({ queryKey: ["order-documenti-for-invoice", orderId] });
+      onOpenChange(false);
+      if (onApriBozza) onApriBozza(doc.id);
+      else navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
+    } catch {
+      // useCreateDocumento mostra già l'errore; il modulo resta aperto per riprovare.
+    } finally {
+      invioInCorso.current = false;
+      setSalvataggio(false);
+    }
   };
 
   const clausoleDelTipo = clausolePerProfilo(profilo);
@@ -1155,23 +1211,37 @@ export function CreaFatturaDialog({
   // ── Render ───────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent struttura="scorrevole" className="sm:max-w-3xl max-h-[90vh] overflow-y-auto grid-cols-[minmax(0,1fr)]">
-        <DialogHeader>
+      <DialogContent ampiezza="spazio" struttura="scorrevole" className="fattura-commessa-dialog gap-0 p-0">
+        <DialogHeader className="border-b px-4 py-3 pr-12 sm:px-5 sm:pr-12">
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
             Crea fattura da commessa {orderCode}
           </DialogTitle>
-          <DialogDescription className="sr-only">
-            Scegli la rata e quanto fatturare, il tipo di cliente con le sue clausole, e guarda l'anteprima prima di creare la bozza.
-          </DialogDescription>
+          <DialogDescription>Bozza{customerName ? ` per ${customerName}` : ""}</DialogDescription>
         </DialogHeader>
 
+        <div className="fattura-commessa-workspace">
+        <div className="fattura-commessa-modulo">
+        <dl className="fattura-commessa-riepilogo" aria-label="Riepilogo della bozza">
+          <div>
+            <dt>Origine</dt>
+            <dd>{mode === "sal" ? salAttivo ? `Verbale SAL n. ${salAttivo.numero_sal}` : "Scegli un verbale"
+              : mode === "fasi" ? "Fasi della commessa" : mode === "articoli" ? "Articoli" : "Importo libero"}</dd>
+          </div>
+          <div><dt>Rata collegata</dt><dd>{selectedInstallment ? selectedInstallment.label || LABEL_MAP[selectedInstallment.type] || "Pagamento" : "Nessuna"}</dd></div>
+          <div>
+            <dt>Totale fattura</dt>
+            <dd className="text-primary">{fmt(totali.totale_documento)}</dd>
+            <small>{fmt(totali.imponibile_totale)} imponibile · IVA {fmt(totali.iva_totale)}
+              {previewRighe.some((r) => r.natura_iva?.startsWith("N6")) && " (inversione contabile)"}</small>
+          </div>
+        </dl>
+
         {/* ── Cliente e tipo di fattura ───────────────────── */}
-        <div className="rounded-lg bg-muted/50 border p-3 space-y-3">
+        <div className="fattura-commessa-cliente rounded-lg border px-3 py-1.5">
           <div className="flex items-center gap-3">
             <User className="h-4 w-4 text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{customerName}</p>
               {customerId && anagraficaPending ? <span className="text-xs text-muted-foreground">Verifica dell’anagrafica…</span> : anagraficaError ? <div role="alert" className="text-xs text-destructive">Impossibile verificare l’anagrafica. <Button variant="link" size="sm" onClick={() => void ricaricaAnagrafica()}>Riprova</Button></div> : matchedAnagrafica ? (
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <Check className="h-3 w-3 text-green-600" />
@@ -1187,8 +1257,12 @@ export function CreaFatturaDialog({
               )}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-medium text-muted-foreground">Tipo di fattura</p>
+          <details className="fattura-commessa-opzione group space-y-2">
+            <summary>
+              <span>Tipo cliente</span>
+              <span className="font-normal text-muted-foreground">{PROFILI_FATTURA.find((p) => p.id === profilo)?.label}</span>
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
+            </summary>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {PROFILI_FATTURA.map((p) => (
                 <button
@@ -1211,7 +1285,7 @@ export function CreaFatturaDialog({
               {PROFILI_FATTURA.find((p) => p.id === profilo)?.aiuto}
               {profiloScelto === null && matchedAnagrafica && " Proposto dall'anagrafica."}
             </p>
-          </div>
+          </details>
         </div>
 
         {/* ── Rata di riferimento ─────────────────────────── */}
@@ -1222,6 +1296,14 @@ export function CreaFatturaDialog({
               <p className={sectionTitle}>Rata di riferimento</p>
               {/* A capo anche su telefono: in una fila che scorre, la rata scelta poteva restare fuori dallo schermo. */}
               <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  aria-pressed={!selectedInstallment}
+                  onClick={togliRata}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/30 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+                >
+                  Nessuna rata
+                </button>
                 {installments.map((inst) => {
                   const key = inst.id || `pos-${inst.position}`;
                   const isSelected = selectedInstId === key;
@@ -1231,13 +1313,7 @@ export function CreaFatturaDialog({
                       key={key}
                       type="button"
                       aria-pressed={isSelected}
-                      onClick={() => {
-                        if (isSelected) { setSelectedInstId(null); return; }
-                        setSelectedInstId(key);
-                        applicaRata(inst);
-                        // Dalle fasi la rata si lega soltanto; altrimenti si fattura il suo importo.
-                        setModoScelto(mode === "fasi" ? "fasi" : "importo");
-                      }}
+                      onClick={() => scegliRata(inst, key)}
                       title={fatturata ? `Già fatturata${inst.fattura?.numero ? ` con ${inst.fattura.numero}` : ""}` : inst.is_paid ? "Pagata" : undefined}
                       className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                         isSelected
@@ -1247,7 +1323,7 @@ export function CreaFatturaDialog({
                           : "bg-background hover:bg-muted/30 border-border"
                       }`}
                     >
-                      {inst.label || LABEL_MAP[inst.type] || "Pagamento"}
+                      <span>{inst.label || LABEL_MAP[inst.type] || "Pagamento"}</span>{" "}
                       <span className="tabular-nums">{fmt(inst.amount || 0)}</span>
                       {fatturata && (
                         <span className={`inline-flex items-center gap-0.5 rounded px-1 text-[10px] font-medium ${isSelected ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground"}`}>
@@ -1264,7 +1340,7 @@ export function CreaFatturaDialog({
               {rataGiaFatturata(selectedInstallment) ? (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                  Questa rata è già fatturata{selectedInstallment?.fattura?.numero ? ` con ${selectedInstallment.fattura.numero}` : ""}: un'altra fattura la conterebbe due volte.
+                  Questa rata è già fatturata{selectedInstallment?.fattura?.numero ? ` con ${selectedInstallment.fattura.numero}` : ""}.
                 </p>
               ) : selectedInstallment?.is_paid && (
                 <p className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
@@ -1287,7 +1363,6 @@ export function CreaFatturaDialog({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               Righe della fattura ({righeFattura.length})
             </p>
             {/* Solo ciò che su questa commessa esiste: il SAL, le fasi vendute, gli articoli. */}
@@ -1305,6 +1380,10 @@ export function CreaFatturaDialog({
                   onClick={() => {
                     // Sulla scelta già attiva apre o chiude il riquadro; su un'altra compila da lì e lo apre.
                     setFonteAperta(mode === o.id ? !fonteMostrata : true);
+                    if (mode === "sal" && o.id !== "sal") {
+                      setRataManualeId(selectedInstallment ? selectedInstId ?? null : null);
+                      if (o.id === "importo") applicaRata(selectedInstallment);
+                    }
                     setModoScelto(o.id);
                   }}
                   className={`text-xs px-2.5 py-1 rounded ${mode === o.id ? "bg-background shadow-sm font-medium" : "text-muted-foreground"}`}
@@ -1329,7 +1408,7 @@ export function CreaFatturaDialog({
                   Non riesco a leggere le fatture già fatte su questa commessa: controlla tu il già fatturato.
                 </p>
               )}
-              {riservatoInBozza > 0 && <p role="status" className="text-xs text-amber-700">{fmt(riservatoInBozza)} senza IVA sono già presenti in fatture in bozza: riducono la proposta per evitare duplicati, ma non sono fatturato emesso. Puoi aprire le bozze in «Fatture al cliente».</p>}
+              {riservatoInBozza > 0 && <p role="status" className="text-xs text-amber-700">{fmt(riservatoInBozza)} IVA esclusa sono in bozza e non sono fatturato emesso. Trovi le bozze in «Fatture e Incassi».</p>}
               {(mode === "fasi" || (mode === "sal" && salAttivo && statoSal(salAttivo).stato === "da_fatturare")) && fatturato.senzaDettaglio > 0 && (
                 <p className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
@@ -1360,7 +1439,7 @@ export function CreaFatturaDialog({
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-[11px]">
                       <span>Ritenuta di garanzia trattenuta sui SAL: <strong className="tabular-nums">{fmt(ritenutaDaSvincolare)}</strong> senza IVA. Si fattura allo svincolo (collaudo o scadenza).</span>
                       <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => {
-                        setSelectedInstId(null);
+                        setRataManualeId(null);
                         setImporto({ descrizione: `${DESCRIZIONE_SVINCOLO} trattenuta sui SAL${orderCode ? ` — commessa ${orderCode}` : ""}`, lordo: scriviImporto(ritenutaDaSvincolare * (1 + defaultVat / 100)), aliquota: String(defaultVat) });
                         dimenticaPrezzi((id) => id === "importo-rata");
                       }}>Fattura lo svincolo</Button>
@@ -1442,7 +1521,7 @@ export function CreaFatturaDialog({
                           type="button"
                           disabled={stato !== "da_fatturare"}
                           aria-pressed={attivo}
-                          onClick={() => setSalScelto(sal.id)}
+                          onClick={() => scegliSal(sal.id)}
                           className={`w-full grid grid-cols-[1fr_auto] gap-2 px-3 py-2 text-left text-xs ${attivo ? "bg-primary/5" : "hover:bg-muted/30"} disabled:opacity-60 disabled:hover:bg-transparent`}
                         >
                           <span className="min-w-0">
@@ -1461,16 +1540,6 @@ export function CreaFatturaDialog({
                       );
                     })}
                   </div>
-                  {salAttivo && statoSal(salAttivo).stato === "da_fatturare" && righeBase.some((r) => r.id.startsWith("sal:")) && (
-                    <div className="divide-y border-t bg-muted/20">
-                      {righeBase.filter((r) => r.id.startsWith("sal:")).map((r) => (
-                        <div key={r.id} className="grid grid-cols-[1fr_84px] gap-2 px-3 py-1.5 text-[11px]">
-                          <span className="leading-tight">{r.descrizione}</span>
-                          <span className="text-right tabular-nums">{fmt(r.prezzo_unitario)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1700,20 +1769,8 @@ export function CreaFatturaDialog({
               )}
 
               {/* Totali, con gli effetti delle clausole */}
-              {previewRighe.length > 0 && (
+              {previewRighe.length > 0 && (composta.effetti.esigibilita_iva === "S" || totali.ritenuta_importo > 0 || round2(totali.totale_da_pagare) !== round2(totali.totale_documento)) && (
                 <div className="rounded-lg border bg-muted/30 px-3 py-2 space-y-0.5">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Imponibile</span>
-                    <span className="tabular-nums">{fmt(totali.imponibile_totale)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{previewRighe.some((r) => r.natura_iva?.startsWith("N6")) ? "IVA (inversione contabile)" : "IVA"}</span>
-                    <span className="tabular-nums">{fmt(totali.iva_totale)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-bold pt-1 border-t border-dashed">
-                    <span>Totale fattura</span>
-                    <span className="tabular-nums text-primary">{fmt(totali.totale_documento)}</span>
-                  </div>
                   {composta.effetti.esigibilita_iva === "S" && (
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>IVA versata dall'ente (split payment)</span>
@@ -1740,14 +1797,12 @@ export function CreaFatturaDialog({
 
         {/* ── Clausole ─────────────────────────────────────── */}
         <Separator />
-        {/* Dal telefono chiusa: si vede quante sono e si apre se servono. */}
-        <details className="group space-y-2" open={!isMobile}>
+        <details className="group space-y-2" open={beniOltreLimite || profilo === "pa"}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
-              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90 sm:hidden" />
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
               <Scale className="h-3.5 w-3.5" /> Clausole in fattura ({causaleArr.length})
             </p>
-            <span className="hidden sm:inline text-[11px] text-muted-foreground">Vanno nell'XML e nel PDF; il testo si cambia.</span>
           </summary>
 
           <div className="rounded-lg border divide-y">
@@ -1871,13 +1926,15 @@ export function CreaFatturaDialog({
 
         {/* ── Pagamento: va nell'XML (DatiPagamento) e nel PDF ── */}
         <Separator />
-        <details className="group space-y-2" open={!isMobile || avvisiPagamento.length > 0}>
+        <details className="group space-y-2" open={avvisiPagamento.length > 0}>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
             <p className={`${sectionTitle} flex items-center gap-1.5`}>
-              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90 sm:hidden" />
+              <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden />
               <Landmark className="h-3.5 w-3.5" /> Pagamento
             </p>
-            <span className="text-[11px] tabular-nums text-muted-foreground sm:hidden">scade il {dataIt(dataScadenza)}</span>
+            <span className="text-[11px] tabular-nums text-muted-foreground">
+              {scadenzePagamento.length > 1 ? `${scadenzePagamento.length} scadenze · 30% / 30% / 40%` : `Scadenza ${dataIt(dataScadenza)}`}
+            </span>
           </summary>
           <div className="rounded-lg border p-3 space-y-3">
             <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
@@ -1895,13 +1952,14 @@ export function CreaFatturaDialog({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Entro</Label>
+                <Label className="text-[11px] text-muted-foreground">Scadenze della fattura</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {([
                     ["vista", "Vista fattura"],
                     ["30", "30 giorni"],
                     ["60", "60 giorni"],
                     ["90", "90 giorni"],
+                    ["30-30-40", "30% / 30% / 40%"],
                     ...(dataRata ? [["rata", `Data della rata · ${dataIt(dataRata)}`]] : []),
                     ["data", "Altra data"],
                   ] as Array<[Scadenza, string]>).map(([k, label]) => (
@@ -1929,9 +1987,19 @@ export function CreaFatturaDialog({
                 </div>
               </div>
             </div>
+            {scadenzePagamento.length > 1 && (
+              <ol aria-label="Scadenze della fattura" className="grid gap-2 sm:grid-cols-3">
+                {scadenzePagamento.map((rata, i) => (
+                  <li key={rata.numero_rata} className="rounded-md border bg-muted/30 px-2 py-1.5 text-xs">
+                    <span className="text-muted-foreground">{QUOTE_30_30_40[i]}% · {dataIt(rata.data_scadenza)}</span>
+                    <strong className="block tabular-nums">{fmt(rata.importo)}</strong>
+                  </li>
+                ))}
+              </ol>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
               <span className="text-muted-foreground">
-                {fmt(totali.totale_da_pagare)} entro il {dataIt(dataScadenza)}
+                {scadenzePagamento.length === 1 && <>{fmt(totali.totale_da_pagare)} entro il {dataIt(dataScadenza)}</>}
                 {bonifico && iban && <> · IBAN <span className="font-mono text-foreground">{iban.replace(/(.{4})/g, "$1 ").trim()}</span></>}
               </span>
               {bonifico && !iban && (
@@ -2007,12 +2075,20 @@ export function CreaFatturaDialog({
             <DetrazioniFiscaliFields value={detrazione} onChange={setDetrazione} />
           )}
         </div>
+        </div>
+        <aside className="fattura-commessa-anteprima" aria-label="Anteprima PDF della bozza">
+          <h3 className="border-b px-3 py-2 text-sm font-medium">Anteprima PDF</h3>
+          <div className="fattura-commessa-foglio">
+            {open && <PreviewFattura documento={documentoAnteprima} azienda={aziendaFiscale ?? null} logoAziendale={effectiveCompany?.logo_url} scale={1} />}
+          </div>
+        </aside>
+        </div>
 
-        <DialogFooter className="sticky -bottom-6 z-10 -mx-6 -mb-6 border-t bg-background px-6 py-3 max-sm:-bottom-4 max-sm:-mx-4 max-sm:-mb-4 max-sm:px-4 gap-2 sm:gap-0 sm:justify-between">
+        <DialogFooter className="fattura-commessa-azioni">
           <Button
             variant="outline"
             onClick={() => setAnteprima(true)}
-            disabled={previewRighe.length === 0}
+            disabled={rataGiaFatturata(selectedInstallment) || previewRighe.length === 0}
             className="gap-1.5"
           >
             <Eye className="h-4 w-4" /> Anteprima
@@ -2021,19 +2097,23 @@ export function CreaFatturaDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Annulla
             </Button>
-            <Button
+            {rataGiaFatturata(selectedInstallment) ? (
+              <Button onClick={apriFatturaCollegata} disabled={!idFatturaCollegata}>
+                <Receipt className="mr-1.5 h-4 w-4" /> Apri fattura
+              </Button>
+            ) : <Button
               onClick={() => { void handleCreaFattura(); }}
-              disabled={createMutation.isPending || previewRighe.length === 0 || (!!customerId && (anagraficaPending || anagraficaError))}
+              disabled={(salvataggio || createMutation.isPending) || previewRighe.length === 0 || (!!customerId && (anagraficaPending || anagraficaError))}
             >
-              {createMutation.isPending ? (
+              {(salvataggio || createMutation.isPending) ? (
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
               ) : (
                 <Receipt className="h-4 w-4 mr-1.5" />
               )}
-              {createMutation.isPending
+              {(salvataggio || createMutation.isPending)
                 ? "Creazione in corso..."
                 : `Crea fattura · ${fmt(totali.totale_documento)}`}
-            </Button>
+            </Button>}
           </div>
         </DialogFooter>
       </DialogContent>
@@ -2059,7 +2139,7 @@ export function CreaFatturaDialog({
             <Button variant="outline" onClick={() => setAnteprima(false)}>Torna a modificare</Button>
             <Button
               onClick={() => { setAnteprima(false); void handleCreaFattura(); }}
-              disabled={createMutation.isPending}
+              disabled={(salvataggio || createMutation.isPending)}
             >
               <Receipt className="h-4 w-4 mr-1.5" /> Crea fattura · {fmt(totali.totale_documento)}
             </Button>

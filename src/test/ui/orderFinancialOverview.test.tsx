@@ -82,6 +82,14 @@ describe("La commessa in numeri: previsto e reale", () => {
     expect(cella("Costo previsto")).toHaveTextContent("350,00");
   });
 
+  it("a costi registrati zero mostra l’assenza dei dati, senza segnare tutto pagato", () => {
+    state.costs = 0;
+    state.daPagare = 0;
+    mount();
+    expect(cella("Costi sostenuti")).toHaveTextContent("Nessun costo registrato");
+    expect(cella("Costi sostenuti")).not.toHaveTextContent("Tutto pagato");
+  });
+
   it("previsto parziale: lo dice, e senza lavorazioni con un costo non inventa un margine", () => {
     state.previsto = { ...state.previsto, lavorazioniSenzaPrevisto: 2 };
     mount();

@@ -63,6 +63,23 @@ export function vociCheCambiano(voci: ReadonlyArray<VoceSalDraft>, prec: Percent
 
 const tondo = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+/** Passa dal certificato cumulativo alle detrazioni del solo periodo, senza ricalcolare il netto. */
+export function detrazioniDelPeriodo(nuoviLavori: number, corrente: SalCertificato, precedente: SalCertificato | null, haSalPrecedente: boolean) {
+  const righe: { label: string; amount: number }[] = [];
+  if (precedente || !haSalPrecedente) {
+    righe.push(
+      { label: `Ritenuta ${corrente.ritenuta_pct}% del periodo`, amount: tondo((precedente?.ritenuta ?? 0) - corrente.ritenuta) },
+      { label: "Recupero anticipo del periodo", amount: tondo((precedente?.recupero_anticipazione ?? 0) - corrente.recupero_anticipazione) },
+      { label: "Altre detrazioni del periodo", amount: tondo((precedente?.altre_detrazioni ?? 0) - corrente.altre_detrazioni) },
+    );
+  }
+  if (precedente?.rinviato) righe.push({ label: "Rinviato dal SAL precedente", amount: precedente.rinviato });
+  if (corrente.rinviato) righe.push({ label: "Rinviato al prossimo SAL", amount: -corrente.rinviato });
+  const differenza = tondo(corrente.netto - nuoviLavori - righe.reduce((somma, voce) => somma + voce.amount, 0));
+  if (differenza) righe.push({ label: "Conguaglio rispetto ai SAL precedenti", amount: differenza });
+  return righe.filter(voce => voce.amount !== 0);
+}
+
 export type Arrotondamento = 0 | 10 | 100;
 
 /** L'arrotondamento che usava il certificato prima: chi arrotonda a 100 € lo fa ogni volta. */

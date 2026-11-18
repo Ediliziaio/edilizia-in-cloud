@@ -1,4 +1,26 @@
+import { calculateStoredCommissionNet } from "@/lib/commissions";
+
 export interface DatedCashEvent { date: string; in: number; out: number }
+
+interface ProvvigioneCassa {
+  commission_amount: number | null;
+  deduction_amount: number | null;
+  is_paid: boolean | null;
+  paid_date: string | null;
+}
+
+export function cassaProvvigioni(provvigioni: readonly ProvvigioneCassa[]) {
+  const eventi: DatedCashEvent[] = [];
+  let daPagare = 0;
+  for (const voce of provvigioni) {
+    const importo = calculateStoredCommissionNet(voce.commission_amount, voce.deduction_amount);
+    if (importo <= 0) continue;
+    if (!voce.is_paid) daPagare += importo;
+    else if (voce.paid_date) eventi.push({ date: voce.paid_date, in: 0, out: importo });
+  }
+  return { eventi, daPagare };
+}
+
 const months = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 export function cashExposureTimeline(events: DatedCashEvent[], today: string) {
   const daily = new Map<string, { income: number; expense: number }>();

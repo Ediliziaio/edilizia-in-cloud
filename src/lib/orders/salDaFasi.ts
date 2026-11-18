@@ -47,7 +47,7 @@ export interface VoceSalSalvata {
   percentuale_avanzamento: number;
   importo_contrattuale?: number | null;
   fase_id?: string | null;
-  sal_voci_sottofasi?: ReadonlyArray<{ sottofase_id: string | null; percentuale_avanzamento: number }> | null;
+  sal_voci_sottofasi?: ReadonlyArray<{ sottofase_id: string | null; percentuale_avanzamento: number; quantita_a_oggi?: number | null; unita?: string | null }> | null;
 }
 
 export interface SalPerPrecedente {
@@ -67,6 +67,7 @@ export interface PercentualiPrecedenti {
   perNome: Map<string, number>;
   /** % certificate per sottofase (dal dettaglio dei verbali del 10/11/2026 in poi). */
   perSottofase: Map<string, number>;
+  quantitaPerSottofase?: Map<string, { quantita: number; unita?: string | null }>;
   /** Importo contrattuale per fase nel SAL precedente: una variante lo cambia anche a % ferma. */
   importoPerFase?: Map<string, number>;
 }
@@ -83,6 +84,7 @@ export function percentualiPrecedenti(numeroNuovo: number, tutti: ReadonlyArray<
   const perFase = new Map<string, number>();
   const perNome = new Map<string, number>();
   const perSottofase = new Map<string, number>();
+  const quantitaPerSottofase = new Map<string, { quantita: number; unita?: string | null }>();
   const importoPerFase = new Map<string, number>();
   for (const v of prec?.sal_voci ?? []) {
     const pct = Number(v.percentuale_avanzamento) || 0;
@@ -90,10 +92,14 @@ export function percentualiPrecedenti(numeroNuovo: number, tutti: ReadonlyArray<
     if (v.fase_id && v.importo_contrattuale != null) importoPerFase.set(v.fase_id, Number(v.importo_contrattuale));
     else perNome.set(chiaveNome(v.descrizione), pct);
     for (const d of v.sal_voci_sottofasi ?? []) {
-      if (d.sottofase_id) perSottofase.set(d.sottofase_id, Number(d.percentuale_avanzamento) || 0);
+      if (!d.sottofase_id) continue;
+      perSottofase.set(d.sottofase_id, Number(d.percentuale_avanzamento) || 0);
+      if (d.quantita_a_oggi != null && Number.isFinite(Number(d.quantita_a_oggi))) {
+        quantitaPerSottofase.set(d.sottofase_id, { quantita: Number(d.quantita_a_oggi), unita: d.unita });
+      }
     }
   }
-  return { numero: prec?.numero_sal ?? null, perFase, perNome, perSottofase, importoPerFase };
+  return { numero: prec?.numero_sal ?? null, perFase, perNome, perSottofase, importoPerFase, quantitaPerSottofase };
 }
 
 const VUOTE: PercentualiPrecedenti = { numero: null, perFase: new Map(), perNome: new Map(), perSottofase: new Map() };

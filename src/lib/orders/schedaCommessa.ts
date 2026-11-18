@@ -97,7 +97,8 @@ export function seminaSchedaCommessa(qc: QueryClient, scheda: SchedaCommessa, { 
     controlli: controlliValidi(imp?.controlli_avvio),
   });
 
-  metti(["ordine-fatture", id, companyId], fattureDellaCommessa(scheda));
+  // Il riepilogo RPC non include incassi, storni e importate: non è la stessa
+  // proiezione della vista Fatture e Incassi. La lettura completa usa la propria cache.
   metti(["ordini-variazione", id, companyId], scheda.varianti);
   metti(queryKeys.orders.installments(id), scheda.rate);
   metti(["order-items", id], scheda.materiali);
