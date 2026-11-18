@@ -39,7 +39,9 @@ describe("Immagini e confronto del dettaglio", () => {
   });
   it("nel confronto conserva il quadro intero e azzera il caricamento quando cambia risultato", () => {
     const images: Array<{ src: string; onload: (() => void) | null; naturalWidth: number; naturalHeight: number }> = [];
-    class TestImage { src = ""; onload: (() => void) | null = null; onerror: (() => void) | null = null; naturalWidth = 1000; naturalHeight = 1200; constructor() { images.push(this); } }
+    // `getAttribute("src")` come il DOM vero: il componente legge l'indirizzo scritto, non quello risolto in
+    // assoluto da `.src`, per non perdere gli indirizzi relativi del prerender (18/11/2026).
+    class TestImage { src = ""; onload: (() => void) | null = null; onerror: (() => void) | null = null; naturalWidth = 1000; naturalHeight = 1200; constructor() { images.push(this); } getAttribute(nome: string) { return nome === "src" ? this.src : null; } }
     vi.stubGlobal("Image", TestImage);
     try {
       const { rerender } = render(<BeforeAfterSlider beforeUrl="source.png" afterUrl="first.png" preserveWholeImage beforeLabel="Modello 3D" afterLabel="Risultato AI" />);
