@@ -52,6 +52,16 @@ import { BankMovementDetail, type BankDetailSection } from "./BankMovementDetail
 const BankReconciliationWorkspace = lazy(() => import("./BankReconciliationWorkspace").then(m => ({ default: m.BankReconciliationWorkspace })));
 import { prettyTxDesc } from "./txLabel";
 import { controparteMovimento } from "./controparteDaCausale";
+import { useContropartiMovimenti, type ControparteMovimento } from "@/lib/finance/cassaVoci";
+
+/** Da dove viene il nome, detto a chi ci passa sopra: un nome certo non è un'ipotesi. */
+const SPIEGA_ORIGINE: Record<string, string> = {
+  documento: " · dal documento abbinato",
+  motore: " · dal documento che questo movimento paga",
+  istituto: " · la banca del conto",
+  ente: " · versamento F24",
+  conto: " · giroconto tra conti tuoi",
+};
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 
@@ -200,6 +210,11 @@ export default function TransactionsFeed({
     visible.includes("category") ? companyId : null,
     (data.data?.rows ?? []).map((r) => r.id),
   );
+  // Chi sta dall'altra parte: lo decide il server, con la stessa regola di prima nota e scadenzario.
+  const contropartiPagina = useContropartiMovimenti(
+    companyId,
+    (data.data?.rows ?? []).map((r) => r.id),
+  );
   const accounts = useQuery({
     queryKey: ["bank-workspace-accounts", companyId, refreshKey],
     queryFn: async () => {
@@ -292,6 +307,15 @@ export default function TransactionsFeed({
         new Set(entries.map((r) => r.id)).size !== entries.length
       )
         throw new Error("Esportazione incompleta: aggiorna e riprova.");
+      // Le controparti di TUTTE le righe esportate, non solo di quelle a schermo: il foglio deve
+      // dire gli stessi nomi della tabella.
+      const controparti: Record<string, ControparteMovimento> = {};
+      for (let i = 0; i < entries.length; i += 200) {
+        Object.assign(controparti, await bankRpc<Record<string, ControparteMovimento>>("tesoreria_controparti", {
+          p_company: companyId,
+          p_movimenti: entries.slice(i, i + 200).map((r) => r.id),
+        }) ?? {});
+      }
       const matrix: unknown[][] = [
         [
           "Data",
@@ -312,7 +336,7 @@ export default function TransactionsFeed({
         ],
         ...entries.map((m) => [
           m.booking_date,
-          controparteMovimento(m).nome,
+          controparteMovimento(m, controparti[m.id]).nome,
           String(m.amount).replace(".", ","),
           m.description ?? "",
           m.account_name,
@@ -365,11 +389,11 @@ export default function TransactionsFeed({
     switch (k) {
       case "counterparty": {
         // La banca a volte non manda il nome: lo si ricava dalla causale e lo si dice.
-        const cp = controparteMovimento(m);
+        const cp = controparteMovimento(m, contropartiPagina.data?.[m.id]);
         return (
           <span
             className={`block max-w-56 truncate ${cp.dedotta ? "text-muted-foreground" : ""}`}
-            title={cp.dedotta ? `${cp.nome} · ricavato dalla causale: la banca non ha comunicato il nome` : (cp.nome ?? "")}
+            title={cp.dedotta ? `${cp.nome} · ricavato dalla causale: la banca non ha comunicato il nome` : (cp.nome ? `${cp.nome}${SPIEGA_ORIGINE[cp.origine ?? ""] ?? ""}` : "")}
           >
             {cp.nome || "—"}
           </span>

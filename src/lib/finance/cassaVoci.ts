@@ -272,3 +272,37 @@ export function useSalvaVoceCassa(company: string | null | undefined) {
     },
   });
 }
+
+/**
+ * Le controparti dei movimenti a schermo, in una chiamata sola (18/11/2026).
+ *
+ * Il nome lo decide il server (`tesoreria_controparti`), con la stessa regola per tutti: il
+ * documento abbinato, il candidato che il motore ha già trovato, o la natura del movimento. Così
+ * tesoreria, prima nota, scadenzario e controllo di gestione dicono lo stesso nome, e la lettura
+ * della causale resta solo per quello che nessuno sa.
+ */
+export interface ControparteMovimento {
+  nome: string;
+  certa: boolean;
+  origine: string;
+}
+
+export function useContropartiMovimenti(company: string | null | undefined, ids: string[]) {
+  const chiave = [...ids].sort().join(",");
+  return useQuery({
+    queryKey: ["tesoreria-controparti", company, chiave],
+    enabled: !!company && ids.length > 0,
+    staleTime: 30_000,
+    queryFn: async (): Promise<Record<string, ControparteMovimento>> => {
+      const out: Record<string, ControparteMovimento> = {};
+      for (let i = 0; i < ids.length; i += 200) {
+        const parte = await bankRpc<Record<string, ControparteMovimento>>("tesoreria_controparti", {
+          p_company: company,
+          p_movimenti: ids.slice(i, i + 200),
+        });
+        Object.assign(out, parte ?? {});
+      }
+      return out;
+    },
+  });
+}
