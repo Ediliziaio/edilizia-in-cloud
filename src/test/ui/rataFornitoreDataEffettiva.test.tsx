@@ -11,7 +11,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       select: () => q, eq: () => q, neq: () => q, order: () => q,
       range: async () => ({ data: [{ id: "r1", numero: 1, stato: "da_pagare", importo: 123, metodo: "MP12", scadenza: "2026-11-16" }] }),
       update: (payload: unknown) => { update(payload); return q; },
-      single: async () => ({ data: { id: "r1" }, error: null }),
+      single: async () => ({ data: { id: "r1" }, error: null as null }),
     };
     return q;
   } },

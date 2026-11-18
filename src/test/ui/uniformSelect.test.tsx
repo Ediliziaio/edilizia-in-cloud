@@ -7,7 +7,7 @@ beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(cleanup);
 function choose(option: string) {
   fireEvent.click(screen.getByRole("combobox"));
-  fireEvent.click(screen.getByRole("option", {name:option, exact:true}));
+  fireEvent.click(screen.getByRole("option", {name:option}));
 }
 describe("menu uniformi compatibili con i form", () => {
   it("conserva il vero evento select, il nome del campo e il valore vuoto", () => {

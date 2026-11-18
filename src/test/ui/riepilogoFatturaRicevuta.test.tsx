@@ -20,7 +20,7 @@ vi.mock("@/integrations/supabase/client", () => {
         const rata = (finto.dati["rate_fornitori[]"] as Array<{id:string}>).find(r => r.id === id);
         if (!rata) return { error: "Rata assente" };
         Object.assign(rata, modifica);
-        return { data: {id}, error: null };
+        return { data: {id}, error: null as null };
       };
     }
     c.maybeSingle = async () => ({ data: finto.dati[tabella] ?? null, error: null as null });
@@ -56,7 +56,7 @@ function apri() {
 }
 
 beforeEach(() => {
-  finto.rpc.mockReset().mockResolvedValue({ data: { esito: "collegata" }, error: null });
+  finto.rpc.mockReset().mockResolvedValue({ data: { esito: "collegata" }, error: null as null });
   finto.dati = {
     fatture_ricevute: FIC,
     "fatture_ricevute[]": [{ id: "f1" }, { id: "f2" }],

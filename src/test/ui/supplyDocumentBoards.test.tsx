@@ -345,7 +345,7 @@ describe("DDT", () => {
         screen.getByRole("region", { name: "Colonna Non conformi / danni" }),
       ).getByText("DDT-c"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Non conformi",exact:true}));
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Non conformi"}));
     fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(screen.getAllByText("DDT-c").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DDT-d").length).toBeGreaterThan(0);
@@ -533,7 +533,7 @@ describe("Elenco DDT operativo", () => {
     expect(
       screen.queryByText("File-gia-registrato.pdf"),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Da registrare",exact:true}));
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Da registrare"}));
     expect(screen.getByText("Nuova-bolla.pdf")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "DDT-gia" }),
@@ -555,7 +555,7 @@ describe("Elenchi documenti con filtri raccolti", () => {
     expect(screen.getByRole("table", { name: "Elenco DDT" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Scorri elenco ddt" })).toBeInTheDocument();
     expect(screen.getByRole("button", {name:"Filtri avanzati"})).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Non conformi",exact:true}));
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Non conformi"}));
     expect(screen.getByTestId("url")).toHaveTextContent("ddt_stato=non_conforme");
   });
 });

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * I materiali proposti dal computo (17/11/2026): una riga nella pagina, la scelta in un popup per
  * fasi; «Inserisci» manda solo quelli spuntati, «Scarta» quelli senza spunta.
@@ -87,7 +88,7 @@ describe("Materiali dal computo da confermare", () => {
     fireEvent.click(within(finestra).getByRole("button", { name: /Impianto termico/ }));
     fireEvent.click(within(finestra).getByRole("radio", { name: "Ditta chiavi in mano" }));
     expect(within(finestra).getByText(/Niente da comprare/)).toBeInTheDocument();
-    fireEvent.change(await within(finestra).findByRole("combobox", { name: /Ditta della fase/ }), { target: { value: "d1" } });
+    changeFormControl(await within(finestra).findByRole("combobox", { name: /Ditta della fase/ }), { target: { value: "d1" } });
     fireEvent.change(within(finestra).getByRole("textbox", { name: /Costo previsto della ditta/ }), { target: { value: "5.200,00" } });
     fireEvent.click(within(finestra).getByRole("button", { name: "Inserisci 1 negli articoli · 1 fase alla ditta" }));
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("materiali_proposti_conferma", { p_order: "o1", p_ids: ["p1"] }));

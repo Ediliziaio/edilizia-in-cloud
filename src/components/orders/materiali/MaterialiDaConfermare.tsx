@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * I materiali che il computo propone, da confermare (17/11/2026). «Genera dal computo» crea le
  * lavorazioni e PROPONE i materiali (materiali_proponi): qui si spuntano quelli da comprare e
@@ -276,12 +277,12 @@ export function MaterialiDaConfermare({ orderId, fasi, aperto, onAperto }: {
                     <p>Niente da comprare: i {attiva[1].length} materiali li porta la ditta. Al loro posto, il <strong>costo previsto della ditta</strong>; la sua fattura e i pagamenti si legano a questa fase.</p>
                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem]">
                       <label className="space-y-1 text-xs"><span className="text-muted-foreground">Ditta</span>
-                        <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" aria-label={`Ditta della fase ${nomeFase(attiva[0])}`}
+                        <UniformSelect className="h-9 w-full rounded-md border bg-background px-2 text-sm" aria-label={`Ditta della fase ${nomeFase(attiva[0])}`}
                           value={ditte[attiva[0]]?.subappaltatore ?? ""}
                           onChange={(e) => setDitte((p) => ({ ...p, [attiva[0]]: { costo: p[attiva[0]]?.costo ?? "", subappaltatore: e.target.value } }))}>
                           <option value="">Scegli dopo, da «Ditte e contratti»</option>
                           {(subappaltatori.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.ragione_sociale}</option>)}
-                        </select>
+                        </UniformSelect>
                       </label>
                       <label className="space-y-1 text-xs"><span className="text-muted-foreground">Costo previsto €</span>
                         <Input inputMode="decimal" placeholder="come da suo preventivo" aria-label={`Costo previsto della ditta per ${nomeFase(attiva[0])}`}

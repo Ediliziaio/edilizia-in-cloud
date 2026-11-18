@@ -40,7 +40,7 @@ const esercizio = { anno: 2026, chiuso_il: null as string | null, stampato_fino_
     "Movimento di prima nota del 03/02/2026 (1000 €, «bonifico»): su «Partite da verificare», va classificato."], errori: [] as string[] } };
 
 function builder(table: string) {
-  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? (state.mostraF24 ? [{ ...scrittura(4, "2026-02-16", "f24", "Versamento F24", [["banca", 0, 50], ["iva", 50, 0]]), origine_id: "versamento-4" }] : scritture)
+  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? (state.mostraF24 ? [{ ...scrittura(4, "2026-02-16", "f24", "Versamento F24", [["banca", 0, 50, null], ["iva", 50, 0, null]]), origine_id: "versamento-4" }] : scritture)
     : table === "f24_entries" ? { tributo_code: "6001", tributo_descrizione: "IVA gennaio", importo: 50, stato: "pagato", data_pagamento: "2026-02-16" }
     : table === "contabilita_esercizi" ? esercizio : [];
   const b: Record<string, unknown> = {};

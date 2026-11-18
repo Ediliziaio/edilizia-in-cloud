@@ -5,7 +5,7 @@ export function changeFormControl(element: Element | Node | Document | Window, e
   if (element instanceof HTMLElement && element.hasAttribute("data-uniform-select-trigger")) {
     const control = element.nextElementSibling?.hasAttribute("data-uniform-select-native") ? element.nextElementSibling : element.previousElementSibling;
     if (!(control instanceof HTMLSelectElement) || !control.hasAttribute("data-uniform-select-native")) throw new Error("Backing select not found");
-    const value = String(event?.target?.value ?? "");
+    const value = String((event as { target?: { value?: unknown } } | undefined)?.target?.value ?? "");
     const index = Array.from(control.options).findIndex(option => option.value === value);
     // Guard tests also exercise deliberately invalid/disabled values. Preserve the
     // original programmatic event in those cases, rather than blocking the test.

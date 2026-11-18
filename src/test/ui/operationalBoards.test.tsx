@@ -234,7 +234,7 @@ describe("acquisti: gli stessi filtri nelle due viste", () => {
       ).getByRole("button", { name: /Da mandare/i }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("combobox", { name: "Stato degli OdA" }));
-    fireEvent.click(screen.getByRole("option", {name:"Da mandare",exact:true}));
+    fireEvent.click(screen.getByRole("option", {name:"Da mandare"}));
     expect(
       screen.getByRole("link", { name: "Ordine ODA-bozza" }),
     ).toBeInTheDocument();

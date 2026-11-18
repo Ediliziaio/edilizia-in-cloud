@@ -543,7 +543,7 @@ function PrimaNotaInner() {
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="w-9 px-3"><Checkbox aria-label="Seleziona tutti i movimenti della pagina" disabled={deleting}
-                  checked={selected.length === entriesWithBalance.length || (selected.length > 0 && "indeterminate")}
+                  checked={selected.length === 0 ? false : selected.length === entriesWithBalance.length ? true : "indeterminate"}
                   onCheckedChange={checked => setSelectedIds(checked ? entriesWithBalance.map(e => e.id) : [])} /></th>
                 <th className="text-left p-3 font-medium">Data</th>
                 <th className="text-left p-3 font-medium">Categoria</th>

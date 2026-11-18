@@ -17,7 +17,7 @@ const close = vi.fn();
 function mount(canEdit = true, create = false) { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><MemoryRouter><AnomalyDetailDialog companyId="company1" record={create ? null : record} actors={[{ id: "p1", name: "Mario Rossi", kind: "employee" }]} canEdit={canEdit} onClose={close} /></MemoryRouter></QueryClientProvider>); }
 function scegli(label: string, option: string) {
   fireEvent.click(screen.getByLabelText(label));
-  fireEvent.click(screen.getByRole("option", { name: option, exact: true }));
+  fireEvent.click(screen.getByRole("option", { name: option }));
 }
 beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); state.stale = false; state.patches = []; state.filters = []; close.mockClear(); });
 afterEach(cleanup);

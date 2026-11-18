@@ -225,6 +225,7 @@ describe("Commesse › Acquisti: la pipeline", () => {
     expect(
       screen.queryByRole("region", { name: "Colonna Consegnato" }),
     ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name:"Filtri avanzati"}));
     fireEvent.click(
       within(screen.getByRole("group", { name: "Ambito acquisti" })).getByRole(
         "button",
@@ -338,6 +339,7 @@ describe("Commesse › Acquisti: la pipeline", () => {
   it("«Solo in ritardo» finisce nell'URL e lascia solo i ritardi", async () => {
     disegna();
     await screen.findByRole("region", { name: "Commessa C-2028-001" });
+    fireEvent.click(screen.getByRole("button", {name:"Filtri avanzati"}));
     fireEvent.click(screen.getByRole("button", { name: /Solo in ritardo/ }));
     expect(screen.getByTestId("dove")).toHaveTextContent("ritardo=1");
     expect(screen.getByTestId("conteggio-ordinato")).toHaveTextContent("1");
