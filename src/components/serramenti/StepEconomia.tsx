@@ -46,7 +46,7 @@ import { campiRisparmio, paybackAtteso } from "@/lib/serramenti/risparmioPrevent
 import { leggiAnalisiIntervento, nuovaAnalisiIntervento } from "@/lib/serramenti/analisiIntervento";
 import { valoriDiversi } from "@/lib/serramenti/scritturaCampi";
 import { motivoPreventivoDeciso } from "@/lib/serramenti/preventivoDeciso";
-import { evaluateDiscountRules, classifyDiscount, type DiscountEvalResult } from "@/lib/serramenti/discountRules";
+import { evaluateDiscountRules, classifyDiscount, scontoFissoMassimo, scontoEffettivoPct, type DiscountEvalResult } from "@/lib/serramenti/discountRules";
 import {
   useTabelleFinanziamentoAttive,
   useTabellaFinanziamentoRighe,
@@ -171,6 +171,13 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
   // Prima usava il ruolo GLOBALE → uno staff marketing multi-azienda poteva forzare
   // sconti anche in un'azienda dove non è autorizzato. La VISTA MARGINI è separata.
   const isAdmin = permissions.canApproveDiscounts;
+  // Applicare uno sconto DENTRO le regole dell'azienda è il lavoro del commerciale: basta poter modificare il
+  // preventivo (18/11/2026). Prima il campo era in sola lettura per chiunque non potesse ANCHE autorizzare gli
+  // sconti: un commerciale non poteva scrivere nemmeno lo sconto che la regola gli dà, e le regole di
+  // «Impostazioni → Scontistica» (massimo, soglia di approvazione) non servivano a niente — l'unico modo per
+  // concedere il 10% era dare `can_approve_discounts`, cioè togliere ogni tetto. Negli altri otto preventivatori
+  // (ScontoGlobaleField) funzionava già così; serramenti era l'unico rimasto indietro.
+  const puoScontare = isAdmin || permissions.canEditPreventivi;
   const canViewImpresa = permissions.canViewMargins || permissions.canViewCosts;
   const qc = useQueryClient();
 
@@ -240,10 +247,41 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
     [discountRules, totaleCalc.imponibile_netto, totaleCalc.sconto],
   );
   const scontoPctCorrente = Number(form.sconto_percentuale ?? 0);
+  // Uno sconto oltre il massimo, scritto da chi non può autorizzarlo, NON entra nel preventivo: resta a schermo con
+  // l'avviso e il tasto per chiedere l'approvazione. Riportarlo di nascosto al massimo darebbe un numero plausibile
+  // che nessuno ha chiesto (stessa scelta di ScontoGlobaleField negli altri preventivatori).
+  const [scontoBozzaPct, setScontoBozzaPct] = useState<number | null>(null);
+  const scontoPctMostrato = scontoBozzaPct ?? scontoPctCorrente;
   const discountVerdict = useMemo(
-    () => classifyDiscount(scontoPctCorrente, discountEval),
-    [scontoPctCorrente, discountEval],
+    () => classifyDiscount(scontoPctMostrato, discountEval),
+    [scontoPctMostrato, discountEval],
   );
+  /** Scrive lo sconto in percentuale, se chi lo scrive può: oltre il tetto resta una bozza da far approvare. */
+  const scriviScontoPct = (valore: number) => {
+    if (!puoScontare) return;
+    const v = Math.max(0, Math.min(100, Number(valore) || 0));
+    if (!isAdmin && classifyDiscount(v, discountEval) === "blocked") { setScontoBozzaPct(v); return; }
+    setScontoBozzaPct(null);
+    if (v !== scontoPctCorrente) onChange("sconto_percentuale", v);
+  };
+  // Lo stesso tetto vale per il campo in euro: le regole guardano la percentuale, e senza questo conto il fisso
+  // sarebbe la scorciatoia per scavalcarle. Il fisso si toglie per primo, poi la percentuale (`calcolaTotale`).
+  const scontoFissoMax = useMemo(
+    () => scontoFissoMassimo(totaleCalc.imponibile_lordo, scontoPctCorrente, discountEval.scontoMaxPct),
+    [totaleCalc.imponibile_lordo, scontoPctCorrente, discountEval.scontoMaxPct],
+  );
+  const [scontoFissoBozza, setScontoFissoBozza] = useState<number | null>(null);
+  const fissoOltreIlTetto = scontoFissoBozza != null;
+  const scriviScontoFisso = (valore: number) => {
+    if (!puoScontare) return;
+    const v = Math.max(0, Number(valore) || 0);
+    if (!isAdmin && scontoEffettivoPct(totaleCalc.imponibile_lordo, scontoPctCorrente, v) > discountEval.scontoMaxPct + 1e-9) {
+      setScontoFissoBozza(v);
+      return;
+    }
+    setScontoFissoBozza(null);
+    if (v !== Number(form.sconto_importo ?? 0)) onChange("sconto_importo", v);
+  };
 
   // Auto-bind la regola principale al progetto: salva discount_rule_id ↔
   // primaryRule.id quando cambia. Permette al PDF e all'audit di sapere
@@ -457,14 +495,14 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
         quote_id: progettoId,
         company_id: form.company_id!,
         requested_by: user.id,
-        sconto_richiesto_pct: scontoPctCorrente,
+        sconto_richiesto_pct: scontoPctMostrato,
         importo_preventivo: totaleCalc.totale_iva_inclusa,
         margine_stimato_pct: marginCalc?.marginePct ?? null,
         note_richiesta: null,
       });
       if (error) throw error;
       toast.success("Richiesta inviata all'amministrazione", {
-        description: `Sconto ${scontoPctCorrente}% in attesa di approvazione. Riceverai notifica appena viene decisa.`,
+        description: `Sconto ${scontoPctMostrato}% in attesa di approvazione. Riceverai notifica appena viene decisa.`,
       });
       void qc.invalidateQueries({ queryKey: ["sr-quote-approval", progettoId] });
     } catch (err) {
@@ -507,7 +545,11 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
   // conto «a ritroso» di «Arriva a €» non vale, restano i tasti.
   const ivaPerArrivaA = form.iva_percentuale === IVA_MISTA_SENTINEL ? undefined : Number(form.iva_percentuale ?? IVA_PREDEFINITA_PCT);
   const applicaScontoVeloce = ({ pct }: { pct: number; importo: number }) => {
-    if (!isAdmin) return; // i tasti sono spenti, ma la regola vale anche qui: lo sconto lo scrive chi può approvarlo
+    // I tasti sono spenti per chi non può scontare, ma la regola vale anche qui, e il tetto pure: i tasti oltre il
+    // massimo sono già spenti da `massimoPct`, e questo è l'ultimo controllo.
+    if (!puoScontare) return;
+    if (!isAdmin && classifyDiscount(pct, discountEval) === "blocked") return;
+    setScontoBozzaPct(null);
     scrivi("sconto_percentuale", pct);
     scrivi("sconto_importo", 0);
   };
@@ -989,16 +1031,25 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
               Telefono no: le regole si leggono dal computer; il limite allo sconto vale comunque. */}
           <RigaRegoleSconti regole={discountEval} className="col-span-12" />
 
-          {/* Banner read-only per commerciali base: niente editing diretto sullo
-              sconto, lo applica/conferma il titolare. Eccezione: lo possono
-              richiedere via "Richiedi approvazione" (sotto). */}
+          {/* Chi può modificare il preventivo applica lo sconto fino al massimo dell'azienda; oltre, passa da
+              «Richiedi approvazione». Chi non può modificarlo vede i campi in sola lettura, come prima. */}
           {!isAdmin && (
             <div className="col-span-12 rounded-md border border-blue-200 bg-blue-50/60 px-3 py-2 text-[11px] text-blue-900 flex items-start gap-2">
               <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
-                Lo sconto è gestito dall'amministrazione.<span className="max-md:hidden"> Puoi proporre uno sconto
-                superiore al consentito tramite <strong>Richiedi approvazione</strong> —
-                il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.</span>
+                {puoScontare ? (
+                  <>
+                    Puoi applicare uno sconto fino al <strong>{formatPct(discountEval.scontoMaxPct, 1)}</strong>, il
+                    massimo deciso dall'azienda.<span className="max-md:hidden"> Per andare oltre usa <strong>Richiedi
+                    approvazione</strong>: il titolare riceve la richiesta in <em>Preventivi → Approvazioni</em>.</span>
+                  </>
+                ) : (
+                  <>
+                    Lo sconto è gestito dall'amministrazione.<span className="max-md:hidden"> Puoi proporre uno sconto
+                    superiore al consentito tramite <strong>Richiedi approvazione</strong> —
+                    il titolare riceverà la richiesta in <em>Preventivi → Approvazioni</em>.</span>
+                  </>
+                )}
               </span>
             </div>
           )}
@@ -1045,19 +1096,20 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
           {/* I 4 campi (sconto %, sconto fisso, IVA, validità). Le label hanno la stessa altezza (h-4 fisso) così
               la riga dei campi è allineata; il verdetto sullo sconto sta sotto il campo. */}
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs block h-4 flex items-center gap-1">
+            <Label htmlFor="sr-sconto-pct" className="text-xs block h-4 flex items-center gap-1">
               Sconto %
-              {!isAdmin && <Lock className="h-3 w-3 text-blue-500" />}
+              {!puoScontare && <Lock className="h-3 w-3 text-blue-500" />}
             </Label>
             <Input
+              id="sr-sconto-pct"
               type="number"
               min={0} max={100} step={0.5}
               key={`sconto-${form.sconto_percentuale}`}
               defaultValue={form.sconto_percentuale ?? 0}
-              onBlur={(e) => isAdmin && onChange("sconto_percentuale", Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-              readOnly={!isAdmin}
+              onBlur={(e) => scriviScontoPct(Number(e.target.value))}
+              readOnly={!puoScontare}
               className={`h-9 text-xs mt-1 ${
-                !isAdmin
+                !puoScontare
                   ? "bg-slate-50 cursor-not-allowed"
                   : discountVerdict === "blocked"
                   ? "border-red-400 focus-visible:ring-red-400"
@@ -1065,12 +1117,12 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                   ? "border-amber-400 focus-visible:ring-amber-400"
                   : ""
               }`}
-              title={!isAdmin ? "Solo l'amministrazione può modificare lo sconto. Usa Richiedi approvazione." : undefined}
+              title={!puoScontare ? "Solo l'amministrazione può modificare lo sconto. Usa Richiedi approvazione." : undefined}
             />
             {discountVerdict === "blocked" && (
               <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
                 <ShieldAlert className="h-3 w-3" />
-                Oltre max {discountEval.scontoMaxPct.toFixed(1)}% — serve override admin
+                Oltre max {formatPct(discountEval.scontoMaxPct, 1)}{isAdmin ? " — serve override admin" : ": non applicato, chiedi l'approvazione"}
               </p>
             )}
             {discountVerdict === "approve" && (
@@ -1079,7 +1131,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
                 Oltre {discountEval.approvaOltrePct?.toFixed(1)}% — richiede approvazione admin
               </p>
             )}
-            {discountVerdict === "ok" && scontoPctCorrente > 0 && (
+            {discountVerdict === "ok" && scontoPctMostrato > 0 && (
               <p className="text-[10px] text-emerald-600 mt-1 flex items-center gap-1">
                 <CheckCircle2 className="h-3 w-3" />
                 Entro le regole aziendali
@@ -1088,7 +1140,7 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             {/* CTA "Richiedi approvazione": visibile a chiunque (admin incluso
                 per consistenza) quando discountVerdict != 'ok' e non c'è già
                 una richiesta pending/approved/rejected. */}
-            {(discountVerdict === "approve" || discountVerdict === "blocked") && approvalState === "none" && scontoPctCorrente > 0 && (
+            {(discountVerdict === "approve" || discountVerdict === "blocked") && approvalState === "none" && scontoPctMostrato > 0 && (
               <Button
                 size="sm"
                 variant="outline"
@@ -1101,20 +1153,27 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             )}
           </div>
           <div className="col-span-6 md:col-span-3">
-            <Label className="text-xs block h-4 flex items-center gap-1">
+            <Label htmlFor="sr-sconto-fisso" className="text-xs block h-4 flex items-center gap-1">
               Sconto fisso (€)
-              {!isAdmin && <Lock className="h-3 w-3 text-blue-500" />}
+              {!puoScontare && <Lock className="h-3 w-3 text-blue-500" />}
             </Label>
             <Input
+              id="sr-sconto-fisso"
               type="number"
               min={0} step={10}
               key={`sconto-importo-${form.sconto_importo}`}
               defaultValue={form.sconto_importo ?? 0}
-              onBlur={(e) => isAdmin && onChange("sconto_importo", Math.max(0, Number(e.target.value) || 0))}
-              readOnly={!isAdmin}
-              className={`h-9 text-xs mt-1 ${!isAdmin ? "bg-slate-50 cursor-not-allowed" : ""}`}
-              title={!isAdmin ? "Solo l'amministrazione può modificare lo sconto." : undefined}
+              onBlur={(e) => scriviScontoFisso(Number(e.target.value))}
+              readOnly={!puoScontare}
+              className={`h-9 text-xs mt-1 ${!puoScontare ? "bg-slate-50 cursor-not-allowed" : fissoOltreIlTetto ? "border-red-400 focus-visible:ring-red-400" : ""}`}
+              title={!puoScontare ? "Solo l'amministrazione può modificare lo sconto." : undefined}
             />
+            {fissoOltreIlTetto && (
+              <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+                <ShieldAlert className="h-3 w-3" />
+                Al massimo {formatEuro(scontoFissoMax)} con questo sconto: il tetto è {formatPct(discountEval.scontoMaxPct, 1)}
+              </p>
+            )}
           </div>
           <div className="col-span-6 md:col-span-3">
             <Label className="text-xs block h-4">IVA</Label>
@@ -1192,25 +1251,27 @@ export function StepEconomia({ progettoId, detail, form, onChange, onVaiAlPasso 
             />
           </div>
           {/* ─── Sconti veloci (tasti 0 / 5 / 10 % e «Arriva a €»). Qui lo sconto è doppio, percentuale e fisso, e lo
-              scrive solo chi può approvare gli sconti (isAdmin): gli altri vedono i campi in sola lettura e passano da
-              «Richiedi approvazione». I tasti non aggirano questo flusso:
-              · per chi non può approvare sono SPENTI, come i campi, e non scrivono niente (resta la sola riga dei tasti);
-              · per chi può approvare scrivono lo sconto in PERCENTUALE (il campo che le regole controllano, quindi
-                scattano gli stessi avvisi, «oltre il massimo» e «richiede approvazione», e la richiesta di approvazione
-                resta lì) e azzerano lo sconto fisso, che sommato darebbe un totale diverso da quello che il tasto dice.
-              Come nel campo, l'amministrazione non ha un tetto: vede il limite, non è fermata. */}
-          <div className="col-span-12" title={!isAdmin ? "Solo l'amministrazione può cambiare lo sconto." : undefined}>
+              scrive chi può modificare il preventivo, fino al massimo deciso dall'azienda. I tasti non aggirano il
+              flusso dell'approvazione:
+              · per chi non può modificare il preventivo sono SPENTI, come i campi (resta la sola riga dei tasti);
+              · scrivono lo sconto in PERCENTUALE (il campo che le regole controllano, quindi scattano gli stessi
+                avvisi, «oltre il massimo» e «richiede approvazione») e azzerano lo sconto fisso, che sommato darebbe
+                un totale diverso da quello che il tasto dice;
+              · i tasti oltre il massimo sono spenti, e «Arriva a €» dice quanto servirebbe senza applicarlo.
+              L'amministrazione non ha un tetto: vede il limite, non è fermata. */}
+          <div className="col-span-12" title={!puoScontare ? "Solo l'amministrazione può cambiare lo sconto." : undefined}>
             <ScontoRapido
               className="md:flex md:flex-wrap md:items-center md:justify-between md:gap-x-6 md:space-y-0"
               valorePct={scontoInVigorePct}
-              massimoPct={null}
+              // L'amministrazione non ha un tetto (vede il limite, non è fermata); chi non autorizza gli sconti sì.
+              massimoPct={isAdmin ? null : discountEval.scontoMaxPct}
               imponibileLordo={totaleCalc.imponibile_lordo}
-              ivaPct={isAdmin ? ivaPerArrivaA : undefined}
+              ivaPct={puoScontare ? ivaPerArrivaA : undefined}
               onApplica={applicaScontoVeloce}
-              disabled={!isAdmin}
+              disabled={!puoScontare}
               daDito
             />
-            {isAdmin && form.iva_percentuale === IVA_MISTA_SENTINEL && (
+            {puoScontare && form.iva_percentuale === IVA_MISTA_SENTINEL && (
               <p className="mt-1 text-[10px] leading-4 text-muted-foreground max-sm:hidden">
                 «Arriva a €» non c'è con l'IVA mista: l'aliquota cambia con lo sconto.
               </p>

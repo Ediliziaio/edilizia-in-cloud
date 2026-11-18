@@ -9,6 +9,8 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateDiscountRules,
   classifyDiscount,
+  scontoEffettivoPct,
+  scontoFissoMassimo,
 } from "@/lib/serramenti/discountRules";
 import type { DiscountRule } from "@/hooks/useDiscountRules";
 
@@ -122,5 +124,31 @@ describe("classifyDiscount", () => {
     const senzaSoglia = { scontoMaxPct: 15, approvaOltrePct: null as null };
     expect(classifyDiscount(15, senzaSoglia)).toBe("ok");
     expect(classifyDiscount(15.5, senzaSoglia)).toBe("blocked");
+  });
+});
+
+/**
+ * Lo sconto doppio dei serramenti (percentuale + fisso): il tetto deve valere sui due insieme, o il campo in euro
+ * è la scorciatoia per scavalcare le regole (18/11/2026, quando lo sconto si è aperto ai commerciali).
+ */
+describe("lo sconto doppio: percentuale e fisso insieme", () => {
+  it("lo sconto effettivo: il fisso si toglie per primo, poi la percentuale", () => {
+    expect(scontoEffettivoPct(10_000, 0, 1000)).toBeCloseTo(10, 6);
+    expect(scontoEffettivoPct(10_000, 10, 0)).toBeCloseTo(10, 6);
+    // 1.000 € e poi il 10%: 10.000 → 9.000 → 8.100, cioè il 19%, non il 20%.
+    expect(scontoEffettivoPct(10_000, 10, 1000)).toBeCloseTo(19, 6);
+    // Senza un importo su cui contare resta la sola percentuale.
+    expect(scontoEffettivoPct(0, 7, 500)).toBe(7);
+  });
+
+  it("il fisso massimo entro il tetto, con la percentuale già applicata", () => {
+    expect(scontoFissoMassimo(10_000, 0, 10)).toBe(1000);
+    // Col 5% già scritto resta la metà circa: 10.000 → 9.473,68 → 9.000 (il 10%).
+    expect(scontoFissoMassimo(10_000, 5, 10)).toBeCloseTo(526.31, 2);
+    // Percentuale già al tetto, o oltre: non c'è più spazio per il fisso.
+    expect(scontoFissoMassimo(10_000, 10, 10)).toBe(0);
+    expect(scontoFissoMassimo(10_000, 12, 10)).toBe(0);
+    // Il massimo non supera mai il tetto, nemmeno di un centesimo.
+    expect(scontoEffettivoPct(10_000, 5, scontoFissoMassimo(10_000, 5, 10))).toBeLessThanOrEqual(10);
   });
 });

@@ -18,7 +18,7 @@ import type { RigaFinanziamento, TabellaFinanziamento } from "@/hooks/useTabelle
 vi.setConfig({ testTimeout: 30_000 });
 
 const stato = vi.hoisted(() => ({
-  permessi: { canApproveDiscounts: true, canViewMargins: false, canViewCosts: false },
+  permessi: { canApproveDiscounts: true, canEditPreventivi: true, canViewMargins: false, canViewCosts: false },
   tabelle: [] as unknown[],
   righe: {} as Record<string, unknown[]>,
   /** Le proprietà che la scheda di invio ha ricevuto dal passo PDF all'ultimo disegno. */
@@ -150,7 +150,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  stato.permessi = { canApproveDiscounts: true, canViewMargins: false, canViewCosts: false };
+  stato.permessi = { canApproveDiscounts: true, canEditPreventivi: true, canViewMargins: false, canViewCosts: false };
   stato.tabelle = [TABELLA("t1")];
   stato.righe = { t1: RIGHE("t1") };
   stato.invio = null;

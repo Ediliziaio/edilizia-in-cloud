@@ -112,6 +112,31 @@ export function evaluateDiscountRules(
   };
 }
 
+/**
+ * Lo sconto effettivo in percentuale della coppia (percentuale, fisso): il fisso si toglie per primo, come in
+ * `calcolaTotale`. Serve dove lo sconto è doppio (serramenti): le regole guardano la percentuale, e senza questo
+ * conto il campo in euro sarebbe la scorciatoia per scavalcare il tetto.
+ */
+export function scontoEffettivoPct(imponibileLordo: number, scontoPct: number, scontoEur: number): number {
+  const pct = Math.max(0, Math.min(100, Number(scontoPct) || 0));
+  if (!(imponibileLordo > 0)) return pct;
+  const dopoFisso = Math.max(0, imponibileLordo - Math.max(0, Number(scontoEur) || 0));
+  const netto = dopoFisso * (1 - pct / 100);
+  return (1 - netto / imponibileLordo) * 100;
+}
+
+/** Lo sconto fisso massimo in euro che, con la percentuale già applicata, resta entro il tetto. */
+export function scontoFissoMassimo(imponibileLordo: number, scontoPct: number, tettoPct: number): number {
+  if (!(imponibileLordo > 0)) return 0;
+  const restaDopoPct = 1 - Math.max(0, Math.min(100, Number(scontoPct) || 0)) / 100;
+  if (restaDopoPct <= 0) return 0;
+  const restaAlTetto = 1 - Math.max(0, Math.min(100, Number(tettoPct) || 0)) / 100;
+  const quota = 1 - restaAlTetto / restaDopoPct;
+  // Al centesimo per difetto: un arrotondamento per eccesso sarebbe un centesimo oltre il tetto. L'epsilon è per
+  // la virgola mobile: senza, il 10% di 10.000 € darebbe 999,99 invece di 1.000.
+  return quota <= 0 ? 0 : Math.floor(imponibileLordo * quota * 100 + 1e-6) / 100;
+}
+
 export type DiscountVerdict = "ok" | "approve" | "blocked";
 
 /**

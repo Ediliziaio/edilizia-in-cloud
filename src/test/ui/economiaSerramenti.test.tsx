@@ -23,7 +23,7 @@ import { PIANO_MANUALE_DI_SERIE, pianiManuali } from "@/lib/serramenti/pianoFina
 vi.setConfig({ testTimeout: 30_000 });
 
 const stato = vi.hoisted(() => ({
-  permessi: { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false },
+  permessi: { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false },
   regole: [] as unknown[],
   prezzoAMano: false,
   /** Cosa risponde il database finto, tabella per tabella (di serie: nessuna riga). */
@@ -171,7 +171,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  stato.permessi = { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false };
+  stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false };
   stato.regole = [];
   stato.prezzoAMano = false;
   stato.database = {};
@@ -330,13 +330,13 @@ describe("2. meno spazio sprecato", () => {
     };
 
     it("senza permesso su margini e costi non c'è niente", () => {
-      stato.permessi = { canApproveDiscounts: true, canViewMargins: false, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: true, canEditPreventivi: true, canViewMargins: false, canViewCosts: false };
       monta({}, conCosti(1500));
       expect(screen.queryByText(/Margine \(interno\)/)).toBeNull();
     });
 
     it("col permesso: costo, vendita, margine € e % in un solo elemento, senza le scatole di prima", async () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: true, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: true, canViewCosts: false };
       monta({}, conCosti(1500)); // 4 finestre × 1.500 = 6.000 di costo su 10.000 di vendita
       const riga = (await screen.findByText(/Margine \(interno\)/)).parentElement as HTMLElement;
       await vi.waitFor(() => expect(riga.textContent).toMatch(/costo\s*€\s*6\.000/));
@@ -349,7 +349,7 @@ describe("2. meno spazio sprecato", () => {
     });
 
     it("sotto il target della regola lo dice nella stessa riga", async () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: true, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: true, canViewCosts: false };
       stato.regole = [regola({ margine_min_pct: 20 })];
       monta({}, conCosti(2200)); // costo 8.800: margine 1.200 = 12%
       const riga = (await screen.findByText(/Margine \(interno\)/)).parentElement as HTMLElement;
@@ -358,7 +358,7 @@ describe("2. meno spazio sprecato", () => {
     });
 
     it("con i costi incompleti dice quante righe mancano, senza percentuali fuorvianti", async () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: false, canViewCosts: true };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: true };
       monta(); // la finestra non ha nessun costo collegato
       const riga = (await screen.findByText(/Margine \(interno\)/)).parentElement as HTMLElement;
       expect(riga.textContent).toMatch(/Costi incompleti: mancano su 1 riga/);
@@ -367,7 +367,7 @@ describe("2. meno spazio sprecato", () => {
     });
 
     it("telefono no, come prima: la riga è nascosta sotto i 768 px", async () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: true, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: true, canViewCosts: false };
       monta({}, conCosti(1500));
       const riga = (await screen.findByText(/Margine \(interno\)/)).parentElement as HTMLElement;
       expect(riga.className).toMatch(/max-md:hidden/);
@@ -982,7 +982,7 @@ describe("4. sconti rapidi: i tasti e «Arriva a €» con lo sconto doppio (% e
   const tastoSconto = (nome: string) => within(gruppo()).getByRole("button", { name: nome }) as HTMLButtonElement;
   const campoArrivaA = () => screen.getByLabelText(/Arriva a €/) as HTMLInputElement;
   const applicaArrivaA = () => fireEvent.click(screen.getByRole("button", { name: "Applica" }));
-  const comeAdmin = () => { stato.permessi = { canApproveDiscounts: true, canViewMargins: false, canViewCosts: false }; };
+  const comeAdmin = () => { stato.permessi = { canApproveDiscounts: true, canEditPreventivi: true, canViewMargins: false, canViewCosts: false }; };
   const euro = (n: number) => formatCurrency(n).replace(/\s/g, " ");
   const testoPagina = () => (document.body.textContent ?? "").replace(/\s/g, " ");
 
@@ -1047,7 +1047,7 @@ describe("4. sconti rapidi: i tasti e «Arriva a €» con lo sconto doppio (% e
       fireEvent.change(campoArrivaA(), { target: { value: "8800" } }); // 20% di sconto
       applicaArrivaA();
       expect(ultimo("sconto_percentuale")).toBe(20);
-      expect(testoPagina()).toMatch(/Oltre max 10\.0% — serve override admin/);
+      expect(testoPagina()).toMatch(/Oltre max 10,0% — serve override admin/);
       expect(screen.getByRole("button", { name: /Richiedi approvazione/ })).toBeTruthy();
     });
 
@@ -1069,7 +1069,7 @@ describe("4. sconti rapidi: i tasti e «Arriva a €» con lo sconto doppio (% e
   });
 
   it("su telefono i tasti e il campo «Arriva a €» sono da dito: almeno 36 px, senza tap-compact che li teneva a 28", () => {
-    stato.permessi = { canApproveDiscounts: true, canViewMargins: false, canViewCosts: false };
+    stato.permessi = { canApproveDiscounts: true, canEditPreventivi: true, canViewMargins: false, canViewCosts: false };
     monta();
     for (const nome of ["Nessuno", "5%", "10%"]) {
       expect(tastoSconto(nome).className).toMatch(/max-md:min-h-9/);
@@ -1078,9 +1078,68 @@ describe("4. sconti rapidi: i tasti e «Arriva a €» con lo sconto doppio (% e
     expect(campoArrivaA().className).toMatch(/max-md:h-11/);
   });
 
-  describe("chi non può approvare gli sconti", () => {
+  /**
+   * Il commerciale che può modificare il preventivo applica lo sconto fino al massimo dell'azienda (18/11/2026).
+   * Prima lo scriveva solo chi poteva ANCHE autorizzare gli sconti: le regole di «Impostazioni → Scontistica» non
+   * servivano a niente, perché l'unico modo per concedere il 10% era togliere ogni tetto.
+   */
+  describe("il commerciale che può modificare il preventivo", () => {
+    const comeCommerciale = () => {
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: true, canViewMargins: false, canViewCosts: false };
+    };
+    const campoPct = () => screen.getByLabelText("Sconto %") as HTMLInputElement;
+    const campoFisso = () => screen.getByLabelText("Sconto fisso (€)") as HTMLInputElement;
+    beforeEach(comeCommerciale);
+
+    it("lo sconto entro il massimo si scrive: col tetto al 10% il 10% entra nel preventivo", () => {
+      stato.regole = [regola({ sconto_max_pct: 10, approva_oltre_pct: null })];
+      monta();
+      expect(campoPct().readOnly).toBe(false);
+      fireEvent.blur(campoPct(), { target: { value: "10" } });
+      expect(ultimo("sconto_percentuale")).toBe(10);
+      expect(testoPagina()).toMatch(/Puoi applicare uno sconto fino al 10,0%/);
+    });
+
+    it("oltre il massimo non si scrive: resta a schermo con l'avviso e il tasto per chiedere l'approvazione", () => {
+      stato.regole = [regola({ sconto_max_pct: 10, approva_oltre_pct: null })];
+      monta();
+      fireEvent.blur(campoPct(), { target: { value: "15" } });
+      expect(scritto("sconto_percentuale")).toEqual([]);
+      expect(testoPagina()).toMatch(/Oltre max 10,0%: non applicato, chiedi l'approvazione/);
+      expect(screen.getByRole("button", { name: /Richiedi approvazione/ })).toBeTruthy();
+    });
+
+    it("lo sconto fisso non è la scorciatoia per scavalcare il tetto: su 10.000 € col 10% si fermano a 1.000 €", () => {
+      stato.regole = [regola({ sconto_max_pct: 10, approva_oltre_pct: null })];
+      monta();
+      fireEvent.blur(campoFisso(), { target: { value: "2000" } });
+      expect(scritto("sconto_importo")).toEqual([]);
+      expect(testoPagina()).toMatch(/Al massimo € 1\.000 con questo sconto: il tetto è 10,0%/);
+      fireEvent.blur(campoFisso(), { target: { value: "800" } });
+      expect(ultimo("sconto_importo")).toBe(800);
+    });
+
+    it("i tasti oltre il massimo sono spenti; quelli entro il massimo scrivono", () => {
+      stato.regole = [regola({ sconto_max_pct: 5, approva_oltre_pct: null })];
+      monta();
+      expect(tastoSconto("10%").disabled).toBe(true);
+      expect(tastoSconto("5%").disabled).toBe(false);
+      fireEvent.click(tastoSconto("5%"));
+      expect(ultimo("sconto_percentuale")).toBe(5);
+    });
+
+    it("«Arriva a €» dice quanto servirebbe ma non applica uno sconto oltre il massimo", () => {
+      stato.regole = [regola({ sconto_max_pct: 5, approva_oltre_pct: null })];
+      monta();
+      fireEvent.change(campoArrivaA(), { target: { value: "9900" } }); // 10% di sconto su 11.000
+      expect(testoPagina()).toMatch(/oltre il massimo consentito \(5%\)/);
+      expect(screen.getByRole("button", { name: "Applica" })).toHaveProperty("disabled", true);
+    });
+  });
+
+  describe("chi non può nemmeno modificare il preventivo", () => {
     it("i tasti ci sono ma sono spenti, come i campi: cliccarli non scrive niente", () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false };
       monta({ sconto_percentuale: 5 });
       for (const nome of ["Nessuno", "5%", "10%"]) expect(tastoSconto(nome).disabled).toBe(true);
       fireEvent.click(tastoSconto("10%"));
@@ -1089,14 +1148,14 @@ describe("4. sconti rapidi: i tasti e «Arriva a €» con lo sconto doppio (% e
     });
 
     it("niente «Arriva a €»: per loro resta solo la riga dei tasti spenti, con la spiegazione", () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false };
       monta();
       expect(screen.queryByLabelText(/Arriva a €/)).toBeNull();
       expect(gruppo().closest("[title]")?.getAttribute("title")).toMatch(/Solo l'amministrazione/);
     });
 
     it("il flusso di prima non cambia: campi in sola lettura, avviso blu, e «Richiedi approvazione» per uno sconto già scritto oltre il massimo", () => {
-      stato.permessi = { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false };
+      stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false };
       stato.regole = [regola({ sconto_max_pct: 10, approva_oltre_pct: 7.5 })];
       monta({ sconto_percentuale: 12 });
       expect((screen.getByTitle(/Solo l'amministrazione può modificare lo sconto\. Usa Richiedi approvazione/) as HTMLInputElement).readOnly).toBe(true);
