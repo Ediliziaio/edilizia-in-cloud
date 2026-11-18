@@ -19,8 +19,11 @@ describe("Navigazione annuale senza riepiloghi duplicati",()=>{
   it("mantiene i dettagli economici del pregresso nel pannello espandibile",()=>{
     render(<OrdersCarryoverSummary previous={previous} reasons={{work:0,support:12,payment:3}} showAmounts/>);
     const summary=screen.getByText(/Pregresso da gestire/).closest("summary")!;
-    expect(summary).toHaveTextContent("15 commesse");expect(summary).toHaveTextContent("12 assistenze");expect(summary).toHaveTextContent("Da incassare");
+    // Chiuso si legge il conto delle commesse e quanto resta da incassare; i motivi stanno nel dettaglio (18/11/2026).
+    expect(summary).toHaveTextContent("15 commesse");expect(summary).toHaveTextContent("Da incassare");
+    expect(summary).not.toHaveTextContent("12 assistenze");
     expect(summary.parentElement).not.toHaveAttribute("open");fireEvent.click(summary);expect(summary.parentElement).toHaveAttribute("open");
+    expect(screen.getByText(/12 assistenze/)).toBeVisible();
     expect(screen.getByText(/Venduto/)).toBeVisible();
   });
   it("non espone importi nel pregresso ai ruoli senza permesso",()=>{
