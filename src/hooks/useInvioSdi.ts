@@ -13,14 +13,24 @@ import { rileggiDocumentoFiscale } from "@/hooks/useDocumentiFiscali";
 import { faseSdi, motivoSdi } from "@/lib/fatturazione/sdiCassetto";
 import type { DocumentoFiscale } from "@/types/fatturazione";
 
-/** Il motivo vero di una risposta non 2xx: sta nel corpo, non nel messaggio. */
-async function motivoDellaRisposta(err: unknown): Promise<{ status?: number; messaggio: string }> {
+/**
+ * Il motivo vero di una risposta non 2xx: sta nel corpo, non nel messaggio.
+ *
+ * I controlli di `invia-sdi` rispondono «Dati fiscali non validi» con l'elenco di COSA manca in `details`
+ * (numero REA, capitale sociale, CAP del cliente, riga senza Natura…). Quell'elenco finiva nel cestino: chi
+ * premeva «Invia allo SDI» dal dettaglio o dal cassetto leggeva solo «i dati fiscali non sono validi» e si
+ * metteva a ricontrollare partita IVA e codice fiscale, che erano giusti (18/11/2026).
+ */
+export async function motivoDellaRisposta(err: unknown): Promise<{ status?: number; messaggio: string }> {
   const ctx = (err as { context?: Response }).context;
   let messaggio = err instanceof Error ? err.message : "Operazione non riuscita";
   try {
     const corpo = await ctx?.json?.();
     if (typeof corpo?.error === "string") messaggio = corpo.error;
     else messaggio = motivoSdi(corpo?.errors) ?? messaggio;
+    const dettagli = (Array.isArray(corpo?.details) ? corpo.details : [])
+      .filter((d: unknown): d is string => typeof d === "string" && d.trim() !== "");
+    if (dettagli.length) messaggio = `${messaggio}: ${dettagli.join(" · ")}`;
   } catch { /* resta il messaggio generico */ }
   return { status: ctx?.status, messaggio };
 }
