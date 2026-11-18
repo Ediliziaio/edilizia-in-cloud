@@ -51,6 +51,7 @@ import {
 import { BankMovementDetail, type BankDetailSection } from "./BankMovementDetail";
 const BankReconciliationWorkspace = lazy(() => import("./BankReconciliationWorkspace").then(m => ({ default: m.BankReconciliationWorkspace })));
 import { prettyTxDesc } from "./txLabel";
+import { controparteMovimento } from "./controparteDaCausale";
 import { CategoriaMovimento } from "./CategoriaMovimento";
 import { useVociMovimenti } from "@/lib/finance/cassaVoci";
 
@@ -311,7 +312,7 @@ export default function TransactionsFeed({
         ],
         ...entries.map((m) => [
           m.booking_date,
-          m.transaction_type === "credit" ? m.debtor_name : m.creditor_name,
+          controparteMovimento(m).nome,
           String(m.amount).replace(".", ","),
           m.description ?? "",
           m.account_name,
@@ -362,21 +363,18 @@ export default function TransactionsFeed({
   }
   function cell(m: BankMovement, k: Column | "counterparty" | "account") {
     switch (k) {
-      case "counterparty":
+      case "counterparty": {
+        // La banca a volte non manda il nome: lo si ricava dalla causale e lo si dice.
+        const cp = controparteMovimento(m);
         return (
           <span
-            className="block max-w-56 truncate"
-            title={
-              (m.transaction_type === "credit"
-                ? m.debtor_name
-                : m.creditor_name) ?? ""
-            }
+            className={`block max-w-56 truncate ${cp.dedotta ? "text-muted-foreground" : ""}`}
+            title={cp.dedotta ? `${cp.nome} · ricavato dalla causale: la banca non ha comunicato il nome` : (cp.nome ?? "")}
           >
-            {(m.transaction_type === "credit"
-              ? m.debtor_name
-              : m.creditor_name) || "—"}
+            {cp.nome || "—"}
           </span>
         );
+      }
       case "account":
         return (
           <span className="block max-w-52 truncate" title={m.account_name}>
