@@ -7,10 +7,10 @@
     "centralino:local": "node --env-file-if-exists=.env.fish.local scripts/fish-centralino-local.mjs",
     "test:fish": "vitest run src/test/logic/fishVoiceHeaders.test.ts src/test/logic/fishActionConsent.test.ts src/test/logic/fishItalianSpeech.test.ts src/test/logic/fishDemoHandoff.test.ts src/test/ui/fishHandoffSimulation.test.tsx src/test/logic/fishCaseMemory.test.ts src/test/ui/fishCaseMemory.test.tsx src/test/logic/fishAudio.test.ts src/test/logic/fishCentralino.test.ts src/test/logic/fishSimulation.test.ts src/test/logic/centralinoCalls.test.ts src/test/logic/fishCalendarTools.test.ts src/test/logic/fishConnectionRequests.test.ts src/test/logic/fishAgentProxy.test.ts src/test/logic/fishCustomerTools.test.ts src/test/ui/fishAgentPanel.test.tsx src/test/ui/fishAgentWorkspace.test.tsx src/test/ui/centralinoCallHistory.test.tsx src/test/ui/fishOnboarding.test.tsx src/test/ui/fishCreation.test.tsx src/test/ui/fishCrmTrial.test.tsx src/test/ui/fishLiveTranscript.test.tsx src/test/ui/ticketAIConversation.test.tsx src/test/logic/fishTranscript.test.ts && node --test scripts/fish-centralino/lead-optout-db.test.mjs scripts/fish-centralino/local-server.test.mjs scripts/fish-centralino/db-integration.test.mjs scripts/fish-centralino/crm-trial-db.test.mjs scripts/fish-centralino/routing-db.test.mjs",
     "dev": "vite",
-    "build": "npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
-    "build:fast": "npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build",
+    "build": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
+    "build:fast": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "build:preventivi": "node scripts/preventivi-render/build.mjs && node scripts/bgn-render/build.mjs",
-    "build:dev": "npm run build:preventivi && vite build --mode development",
+    "build:dev": "npm run build:images && npm run build:preventivi && vite build --mode development",
     "lint": "eslint .",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=12288 tsc --noEmit -p tsconfig.app.json",
     "typecheck:ci": "node scripts/typecheck-ratchet.mjs",
@@ -20,7 +20,7 @@
     "prerender": "node scripts/prerender.mjs",
     "prerender:verify": "node scripts/prerender-verify.mjs",
     "playwright:ensure": "npx --yes playwright install chromium-headless-shell || npx --yes playwright install chromium",
-    "build:seo": "npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
+    "build:seo": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -51,7 +51,8 @@
     "test:render": "vitest run --maxWorkers=2 src/test/logic/renderArchivio.test.ts src/test/ui/renderDettaglio.test.tsx src/test/ui/renderCentroFiltriAccessibili.test.tsx src/test/ui/renderCrmAggiornamentoAtomico.test.tsx src/test/ui/renderDettaglioErroreRecupero.test.tsx src/test/ui/renderCollegamentiSalvataggio.test.tsx src/test/ui/planimetrieArchivio.test.tsx src/test/ui/planimetrieFiltri.test.tsx src/test/ui/planimetrieRicercaCliente.test.tsx src/test/ui/renderSessioniDaVerificare.test.tsx src/test/ui/renderRecenti.test.tsx src/test/logic/flussoProgettoAssociato.test.ts src/test/logic/aggiornaMisureAtomiche.test.ts src/test/logic/planimetrieAssociate.test.ts src/test/ui/planimetrieAssociate.test.tsx src/test/logic/planimetrieComputo.test.ts src/test/ui/computoPianta.test.tsx src/test/logic/planimetrieElencoCollegamenti.test.ts src/test/logic/planimetrieSalvaCollegamenti.test.ts src/test/ui/planimetrieCollegamenti.test.tsx src/test/ui/planimetriePercorsiLegacy.test.tsx src/test/logic/renderPlanOrigin.test.ts src/test/ui/renderModuleAnteprima.test.tsx src/test/logic/planimetrieRenderBrowser.test.ts src/test/logic/planimetrieControlliDocumento.test.ts src/test/logic/planimetrieTavole.test.ts src/test/logic/planimetrieTavoleQuotePdf.test.ts src/test/logic/planimetrieFascicoloScelte.test.ts src/test/ui/planimetrieFascicoloAmbito.test.tsx src/test/logic/renderColourCoherence.test.ts src/test/logic/planimetrieFascicolo.test.ts src/test/logic/renderQaPianta.test.ts src/test/logic/planimetriaApertureDocumento.test.ts src/test/logic/planimetriaGeneraP2.test.ts src/test/logic/planimetriaGeneraPulizia.test.ts src/test/ui/scelteVisiveStanzaRender.test.tsx src/test/logic/renderDrafts.test.ts src/test/logic/planimetrieAnteprime.test.ts src/test/logic/planimetriaApertureDaDescrizione.test.ts src/test/ui/planimetrieGenerazioneAttesa.test.tsx src/test/logic/planimetrieCampioniFoto.test.ts src/test/ui/planimetrieEditorPagine.test.tsx src/test/logic/renderRequestTimeout.test.ts src/test/logic/renderFonte3d.test.ts src/test/ui/renderRefinementChoices.test.tsx src/test/ui/renderProcessingTimer.test.tsx src/test/logic/materialiProgetto.test.ts src/test/logic/qualitaRender.test.ts src/test/logic/roomVisualCatalog.test.ts src/test/logic/persianeRenderPrompt.test.ts src/test/ui/renderInSerieStato.test.tsx && npm run test:render-credits",
     "test:global-webhooks": "vitest run --maxWorkers=2 src/test/logic/globalWebhookDelivery.test.ts src/test/logic/globalWebhookQueueSql.test.ts src/test/logic/globalWebhookAuth.test.ts src/test/ui/settingsWebhookPersistence.test.tsx src/test/ui/settingsWebhooksSafety.test.tsx",
     "test:migration-recovery": "vitest run --maxWorkers=2 src/test/logic/recoveredDependencyCompletion.test.ts src/test/logic/recoveredMigrationSecurity.test.ts src/test/logic/adminViewMigrationOrder.test.ts src/test/logic/migrazioneChatIntelDipendenze.test.ts src/test/logic/recoveredPolicyFingerprint.test.ts src/test/logic/policyAccorpateOrdineSql.test.ts",
-    "dev:fv-tetto-test": "vite --config vite.fv-tetto-test.config.ts"
+    "dev:fv-tetto-test": "vite --config vite.fv-tetto-test.config.ts",
+    "build:images": "node scripts/generate-blog-cover-variants.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.1",

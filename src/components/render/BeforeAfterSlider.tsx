@@ -142,7 +142,7 @@ export function BeforeAfterSlider({
       image.onload = () => {
         if (!active) return;
         const w = image.naturalWidth; const h = image.naturalHeight;
-        setAfterLoad({ url: after, loadedUrl: image.src, ready: true, error: false, ratio: w > 0 && h > 0 ? w / h : undefined });
+        setAfterLoad({ url: after, loadedUrl: image.getAttribute("src") || after, ready: true, error: false, ratio: w > 0 && h > 0 ? w / h : undefined });
       };
       image.onerror = () => {
         if (!active) return;

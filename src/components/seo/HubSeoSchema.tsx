@@ -24,9 +24,9 @@ const ORG_LD = {
   url: SITE_URL,
   logo: {
     "@type": "ImageObject",
-    url: `${SITE_URL}/og/edilizia-in-cloud-logo.png`,
-    width: 512,
-    height: 512,
+    url: `${SITE_URL}/email/logo-edilizia-in-cloud.png`,
+    width: 440,
+    height: 106,
   },
   // Profili UFFICIALI, verificati uno per uno (2026-08-03). Devono restare
   // identici a quelli dichiarati in Home.tsx: e' la stessa Organization, e due
