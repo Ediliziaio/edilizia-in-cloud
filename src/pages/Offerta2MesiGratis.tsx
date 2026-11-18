@@ -631,14 +631,8 @@ export default function Offerta2MesiGratis() {
   }, [barraVisibile]);
 
   // Una prenotazione confermata nel calendario è la conversione di questa pagina.
-  const prenotato = useCallback((p: PrenotazioneFatta) => {
+  const prenotato = useCallback((_p: PrenotazioneFatta) => {
     trackPixel("Lead", { content_name: "offerta_2_mesi_gratis", content_category: "prenotazione_demo" });
-    const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
-    try {
-      gtag?.("event", "prenotazione_demo", { pagina: "offerta-2-mesi-gratis", giorno: p.date, ora: p.time });
-    } catch {
-      /* il tracciamento non deve mai rompere la pagina */
-    }
   }, []);
 
   return (

@@ -316,16 +316,15 @@ export function buildLeadFormAutoResizeEmbedSnippet(publicUrl: string, options: 
       if(height)iframe.style.height=height+'px';
       return;
     }
-    // Invio riuscito. Dentro un iframe il sito non vede il submit del modulo:
-    // senza questo rilancio Google Tag Manager non ha nessun evento da
-    // agganciare e le conversioni dai moduli incorporati non si tracciano.
-    // Arriva in due forme, si usa quella che il tuo strumento preferisce.
+    // Callback di invio riuscito dall'iframe verificato. Il dataLayer riceve
+    // solo un identificativo fisso: mai campi del contatto o del modulo.
+    // L'evento DOM operativo resta separato dalla misurazione Google.
     if(data.type==='eic-lead-form-submit'){
       try{
-        window.dataLayer=window.dataLayer||[];
-        window.dataLayer.push({event:'eic_form_submit',form_slug:data.slug,form_id:data.form_id||null,contact_id:data.contact_id||null,
-          email:data.email||null,phone:data.phone||null,phone_e164:data.phone_e164||null,
-          first_name:data.first_name||null,last_name:data.last_name||null});
+        if('${escapeInlineJs(allowedOrigin)}'&&event.origin==='${escapeInlineJs(allowedOrigin)}'){
+          window.dataLayer=window.dataLayer||[];
+          window.dataLayer.push({event:'eic_form_submit',form_id:'eic_public_form'});
+        }
       }catch(e){}
       try{
         mount.dispatchEvent(new CustomEvent('eic:form-submit',{bubbles:true,detail:data}));
