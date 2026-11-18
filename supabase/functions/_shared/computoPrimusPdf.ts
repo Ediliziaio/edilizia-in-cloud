@@ -301,8 +301,10 @@ export function leggiComputoPrimus(pagine: PdfPaginaPosizionata[]): ComputoStrut
       }
 
       // ── Inizio di una nuova voce ──
-      const primo = riga.codici[0];
-      if (primo && /^\d+$/.test(primo)) {
+      // PriMus numera anche «1 / 493» (numero d'ordine / numero dell'elenco prezzi): conta il primo (17/11/2026).
+      const mNumero = riga.codici[0] ? /^(\d+)(?:\s*\/\s*\d+)?$/.exec(riga.codici[0]) : null;
+      const primo = mNumero?.[1];
+      if (primo) {
         const n = Number(primo);
         const attesa = corrente ? Number(corrente.voce.numero_ordine) + 1 : null;
         const nuova = !corrente || corrente.chiusa || (n === attesa && !!riga.testo);

@@ -200,83 +200,92 @@ export function useScartaComputo(orderId: string, companyId: string) {
  * caricato nella commessa (stessa impronta) si riusa quello: nessun doppione.
  * Il computo sostituito, se non è una bozza, si archivia (non si cancella), come prima.
  */
+export interface ComputoDaSalvare {
+  voci: VoceImportata[];
+  file: { file: File; formato: string; via: "browser" | "server" }[];
+  totaleDocumento: number | null;
+  sostituisce?: Pick<ComputoCommessa, "id" | "stato"> | null;
+  /** Senza file (il computo del preventivo): il nome da mostrare. */
+  titolo?: string;
+  /** Da dove vengono le voci, se non da un file letto qui. */
+  origine?: string;
+}
+
+/**
+ * Salva il computo letto come computo della commessa: la usa «Genera dal computo» e, dal 17/11/2026, la
+ * creazione della commessa da un computo caricato in «Carica contratto» (così non si ricarica due volte).
+ */
+export async function salvaComputoImportato(orderId: string, companyId: string, userId: string | undefined,
+  { voci, file, totaleDocumento, sostituisce, titolo, origine }: ComputoDaSalvare): Promise<{ id: string; riusato: boolean; nonArchiviati: string[] }> {
+  if (!userId) throw new Error("Accesso scaduto: rientra e riprova.");
+  if (!voci.length) throw new Error("Nessuna voce da salvare.");
+  const impronta = improntaVoci(voci);
+  const { data: gia, error: errGia } = await supabase.from("computo_uploads").select("id")
+    .eq("order_id", orderId).eq("company_id", companyId).neq("stato", "archiviato")
+    .eq("raw_extracted_json->>impronta", impronta).limit(1);
+  if (errGia) throw new Error(errGia.message);
+  if (gia?.length) return { id: gia[0].id, riusato: true, nonArchiviati: [] };
+
+  const origini: FileOrigine[] = file.map(f => ({ nome: f.file.name, formato: f.formato, via: f.via, dimensione: f.file.size }));
+  // Il file originale si archivia se il bucket ne accetta il formato; se no, o se il
+  // caricamento non riesce, il computo si salva lo stesso: sono le voci a contare.
+  const percorsi: (string | null)[] = [];
+  const nonArchiviati: string[] = [];
+  for (const f of file) {
+    const tipo = tipoArchivio(f.file.name);
+    let percorso: string | null = null;
+    if (tipo) {
+      const p = `${companyId}/${Date.now()}-${f.file.name.replace(/[^\w.-]+/g, "_")}`;
+      const { error } = await supabase.storage.from("computi").upload(p, f.file, { contentType: tipo });
+      if (!error) percorso = p;
+    }
+    if (!percorso) nonArchiviati.push(f.file.name);
+    percorsi.push(percorso);
+  }
+  const primo = origini[0];
+  const righe = voci.map(rigaDaVoce);
+  const totale = righe.reduce((s, r) => s + (r.voce.importo_computo ?? 0) * (r.voce.is_detrazione ? -1 : 1), 0);
+  const { data: riga, error } = await supabase.from("computo_uploads").insert({
+    company_id: companyId, uploaded_by: userId, order_id: orderId,
+    titolo: titolo ?? titoloComputo(origini), file_name: origini.map(o => o.nome).join(", ").slice(0, 500) || titolo || "computo",
+    file_type: primo ? tipoFileComputo(primo.nome) : "pdf", file_size: origini.reduce((s, o) => s + o.dimensione, 0),
+    storage_path: percorsi.find(Boolean) ?? "", extraction_status: "completed", extraction_method: primo ? metodoLettura(primo) : "xlsx_parse",
+    extraction_completed_at: new Date().toISOString(), stato: "bozza",
+    totale_calcolato: Math.round(totale * 100) / 100, totale_dichiarato: totaleDocumento,
+    raw_extracted_json: { impronta, origine: origine ?? "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })) },
+  }).select("id").single();
+  if (error || !riga) throw new Error(`Computo non salvato: ${error?.message ?? "riprova"}`);
+
+  try {
+    for (let da = 0; da < righe.length; da += 500) {
+      const lotto = righe.slice(da, da + 500);
+      const { data: inserite, error: errVoci } = await supabase.from("computo_voci_estratte")
+        .insert(lotto.map(r => ({ ...r.voce, computo_upload_id: riga.id, company_id: companyId })))
+        .select("id, ordine");
+      if (errVoci) throw new Error(`Voci non salvate: ${errVoci.message}`);
+      const idPerOrdine = new Map((inserite ?? []).map(v => [v.ordine, v.id]));
+      const misure = lotto.flatMap(r => r.misure.map(m => ({ ...m, voce_id: idPerOrdine.get(r.voce.ordine)!, company_id: companyId })))
+        .filter(m => m.voce_id);
+      for (let j = 0; j < misure.length; j += 1000) {
+        const { error: errMisure } = await supabase.from("computo_voci_misure").insert(misure.slice(j, j + 1000));
+        if (errMisure) throw new Error(`Misure non salvate: ${errMisure.message}`);
+      }
+    }
+  } catch (e) {
+    // Un computo a metà non serve a nessuno: si toglie (le voci vanno con lui).
+    await supabase.from("computo_uploads").delete().eq("id", riga.id).eq("company_id", companyId);
+    throw e;
+  }
+  if (sostituisce && sostituisce.stato !== "bozza") {
+    await supabase.from("computo_uploads").update({ stato: "archiviato" }).eq("id", sostituisce.id).eq("company_id", companyId);
+  }
+  return { id: riga.id, riusato: false, nonArchiviati };
+}
+
 export function useSalvaComputoImportato(orderId: string, companyId: string, userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ voci, file, totaleDocumento, sostituisce, titolo, origine }: {
-      voci: VoceImportata[];
-      file: { file: File; formato: string; via: "browser" | "server" }[];
-      totaleDocumento: number | null;
-      sostituisce?: Pick<ComputoCommessa, "id" | "stato"> | null;
-      /** Senza file (il computo del preventivo): il nome da mostrare. */
-      titolo?: string;
-      /** Da dove vengono le voci, se non da un file letto qui. */
-      origine?: string;
-    }): Promise<{ id: string; riusato: boolean; nonArchiviati: string[] }> => {
-      if (!userId) throw new Error("Accesso scaduto: rientra e riprova.");
-      if (!voci.length) throw new Error("Nessuna voce da salvare.");
-      const impronta = improntaVoci(voci);
-      const { data: gia, error: errGia } = await supabase.from("computo_uploads").select("id")
-        .eq("order_id", orderId).eq("company_id", companyId).neq("stato", "archiviato")
-        .eq("raw_extracted_json->>impronta", impronta).limit(1);
-      if (errGia) throw new Error(errGia.message);
-      if (gia?.length) return { id: gia[0].id, riusato: true, nonArchiviati: [] };
-
-      const origini: FileOrigine[] = file.map(f => ({ nome: f.file.name, formato: f.formato, via: f.via, dimensione: f.file.size }));
-      // Il file originale si archivia se il bucket ne accetta il formato; se no, o se il
-      // caricamento non riesce, il computo si salva lo stesso: sono le voci a contare.
-      const percorsi: (string | null)[] = [];
-      const nonArchiviati: string[] = [];
-      for (const f of file) {
-        const tipo = tipoArchivio(f.file.name);
-        let percorso: string | null = null;
-        if (tipo) {
-          const p = `${companyId}/${Date.now()}-${f.file.name.replace(/[^\w.-]+/g, "_")}`;
-          const { error } = await supabase.storage.from("computi").upload(p, f.file, { contentType: tipo });
-          if (!error) percorso = p;
-        }
-        if (!percorso) nonArchiviati.push(f.file.name);
-        percorsi.push(percorso);
-      }
-      const primo = origini[0];
-      const righe = voci.map(rigaDaVoce);
-      const totale = righe.reduce((s, r) => s + (r.voce.importo_computo ?? 0) * (r.voce.is_detrazione ? -1 : 1), 0);
-      const { data: riga, error } = await supabase.from("computo_uploads").insert({
-        company_id: companyId, uploaded_by: userId, order_id: orderId,
-        titolo: titolo ?? titoloComputo(origini), file_name: origini.map(o => o.nome).join(", ").slice(0, 500) || titolo || "computo",
-        file_type: primo ? tipoFileComputo(primo.nome) : "pdf", file_size: origini.reduce((s, o) => s + o.dimensione, 0),
-        storage_path: percorsi.find(Boolean) ?? "", extraction_status: "completed", extraction_method: primo ? metodoLettura(primo) : "xlsx_parse",
-        extraction_completed_at: new Date().toISOString(), stato: "bozza",
-        totale_calcolato: Math.round(totale * 100) / 100, totale_dichiarato: totaleDocumento,
-        raw_extracted_json: { impronta, origine: origine ?? "genera-materiali", file: origini.map((o, i) => ({ ...o, percorso: percorsi[i] })) },
-      }).select("id").single();
-      if (error || !riga) throw new Error(`Computo non salvato: ${error?.message ?? "riprova"}`);
-
-      try {
-        for (let da = 0; da < righe.length; da += 500) {
-          const lotto = righe.slice(da, da + 500);
-          const { data: inserite, error: errVoci } = await supabase.from("computo_voci_estratte")
-            .insert(lotto.map(r => ({ ...r.voce, computo_upload_id: riga.id, company_id: companyId })))
-            .select("id, ordine");
-          if (errVoci) throw new Error(`Voci non salvate: ${errVoci.message}`);
-          const idPerOrdine = new Map((inserite ?? []).map(v => [v.ordine, v.id]));
-          const misure = lotto.flatMap(r => r.misure.map(m => ({ ...m, voce_id: idPerOrdine.get(r.voce.ordine)!, company_id: companyId })))
-            .filter(m => m.voce_id);
-          for (let j = 0; j < misure.length; j += 1000) {
-            const { error: errMisure } = await supabase.from("computo_voci_misure").insert(misure.slice(j, j + 1000));
-            if (errMisure) throw new Error(`Misure non salvate: ${errMisure.message}`);
-          }
-        }
-      } catch (e) {
-        // Un computo a metà non serve a nessuno: si toglie (le voci vanno con lui).
-        await supabase.from("computo_uploads").delete().eq("id", riga.id).eq("company_id", companyId);
-        throw e;
-      }
-      if (sostituisce && sostituisce.stato !== "bozza") {
-        await supabase.from("computo_uploads").update({ stato: "archiviato" }).eq("id", sostituisce.id).eq("company_id", companyId);
-      }
-      return { id: riga.id, riusato: false, nonArchiviati };
-    },
+    mutationFn: (dati: ComputoDaSalvare) => salvaComputoImportato(orderId, companyId, userId, dati),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["computo-commessa", orderId] });
       qc.invalidateQueries({ queryKey: ["computo-commessa-voci"] });

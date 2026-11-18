@@ -15,9 +15,13 @@ export interface FaseCommessa {
   position?: number | null;
 }
 
-/** Il «capitolo» di una voce: la categoria più alta che il computo dà. */
+/**
+ * Il «capitolo» di una voce, cioè la fase: la categoria (Isolamento termico, Impianto termico, Infissi…).
+ * Fino al 17/11/2026 era la super-categoria, che nei computi dei bonus è l'intero intervento («ECO»,
+ * «SISMA»): una fase sola da milioni, più «Oneri tecnici» e «IVA» come se fossero lavori.
+ */
 export function capitoloVoce(v: VoceComputo): string {
-  return (v.super_categoria || v.categoria || v.capitolo_nome || "").trim() || "Senza capitolo";
+  return (v.categoria || v.super_categoria || v.capitolo_nome || "").trim() || "Senza capitolo";
 }
 
 const PAROLE_VUOTE = new Set(["di", "del", "della", "dei", "delle", "e", "ed", "in", "per", "con", "a", "al", "alla", "lavori", "opere", "fase", "impianto", "impianti"]);

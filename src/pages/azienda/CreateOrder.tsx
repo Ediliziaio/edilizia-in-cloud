@@ -16,7 +16,8 @@ import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker
 import { codiceNormalizzato, indirizzoCantiereDalContratto, trovaClienteDaContratto, type ClienteAnagrafica } from "@/lib/clienti/clienteDaContratto";
 import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
 import { BUCKET_ORIGINALI_AI, collegaOriginaleAi } from "@/lib/orders/documentImportAi";
-import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, type ContractExtract } from "@/lib/orders/contractExtract";
+import { computoInCommessa } from "@/lib/orders/computoInCommessa";
+import { contractImponibile, contractToInstallments, contractInstallmentWarning, contractNeedsAllocation, deriveIvaPct, parseContractExtract, articoliDalContratto, type ContractExtract } from "@/lib/orders/contractExtract";
 import { prepareContract, contractPreparationNotes, fasiDalContratto, dateLavoriDalContratto, storedContractFromDraft, dataFirmaVerificata, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "@/components/orders/ContractPreparationCard";
 import { saveContractOfficeTasks } from "@/lib/orders/contractOfficeTasks";
@@ -568,7 +569,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (dateContratto.fine) setValue("work_end_date", parseISO(dateContratto.fine));
     // Le fasi di lavoro lette nel contratto: una proposta nell'anteprima, che si corregge o si sostituisce
     // con un modello. Solo per il lavoro singolo: i contratti su ordine hanno il loro standard (effetto sopra).
-    const fasiContratto = piano.profilo === "standard" ? fasiDalContratto(ex) : [];
+    // Da un computo le sottofasi (e gli importi) le crea il computo stesso alla creazione: qui solo le fasi,
+    // altrimenti ogni lavorazione nascerebbe due volte.
+    const exFasi = ex.origine_lettura === "computo" ? { ...ex, fasi_lavoro: (ex.fasi_lavoro ?? []).map((f) => ({ ...f, sottofasi: [] as string[] })) } : ex;
+    const fasiContratto = piano.profilo === "standard" ? fasiDalContratto(exFasi) : [];
     if (fasiContratto.length) {
       setFasiPersonalizzate(fasiContratto);
       setFasiDalContrattoAttive(true);
@@ -612,11 +616,34 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     // → agganciata a 4/5/10/22). L'aritmetica del modello qui aveva già mentito.
     const ivaContratto = deriveIvaPct(ex);
     setValue("vat_rate", ivaContratto != null ? String(ivaContratto) : "");
-    if (ex.voci.length > 0 && !contractNeedsAllocation(ex)) {
+    // Da un computo gli articoli non si creano qui: i materiali da ordinare li calcola «Genera dal computo»
+    // (scomposizioni, quantità, fasi), che troverà il computo già salvato nella commessa.
+    if ((ex.voci.length > 0 || (ex.posizioni_allegato?.length ?? 0) > 0) && !contractNeedsAllocation(ex) && ex.origine_lettura !== "computo") {
       // Le righe "Totale infissi / Totale accessori" sono subtotali del
       // contratto, non merce: come articoli confondevano e doppiavano.
-      const vociVere = ex.voci.filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
-      const itemsMerce = vociVere.map<OrderItem>((v, idx) => {
+      // Solo i materiali (con o senza posa) diventano articoli: lavori, servizi, oneri e sconti restano nelle
+      // fasi (17/11/2026: dal computo entravano anche «Riunioni di formazione» e il bagno chimico a noleggio).
+      // Con l'allegato a posizioni (serramenti) gli articoli sono le posizioni, con quantità e misure; la riga a
+      // corpo che rimanda all'allegato è il prezzo di vendita, non merce (17/11/2026).
+      const { posizioni, voci: vociVere } = articoliDalContratto(ex);
+      const itemsPosizioni = posizioni.map<OrderItem>((p, idx) => ({
+        name: p.nome,
+        riferimento: p.riferimento,
+        quantity: p.quantita,
+        status: "da_ordinare",
+        position: idx,
+        // Prezzo compreso nel totale a corpo del contratto: non si inventa una ripartizione.
+        unit_price: 0,
+        vat_rate: ivaContratto ?? undefined,
+        family_id: null,
+        axis_selections: null,
+        misure_preventivo: p.larghezza_mm && p.altezza_mm
+          ? { larghezza_mm: p.larghezza_mm, altezza_mm: p.altezza_mm, mq: Math.round((p.larghezza_mm * p.altezza_mm) / 10_000) / 100 }
+          : null,
+        measure_status: null,
+      }));
+      const itemsMerce = [...itemsPosizioni, ...vociVere.map<OrderItem>((v, i) => {
+        const idx = itemsPosizioni.length + i;
         const match = mappaVoceSuListino(v.descrizione ?? "");
         return rigaConQuantitaIntera<OrderItem>({
           name: v.descrizione,
@@ -640,7 +667,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             : null,
           measure_status: null,
         });
-      });
+      })];
       // Imballaggio/trasporto/oneri: voci a sé, senza sconto (nel documento
       // sono calcolati DOPO lo sconto merce).
       const itemsAltriCosti = ex.altri_costi.map<OrderItem>((a, i) => ({
@@ -1395,6 +1422,23 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             duration: 15000,
           });
           return { ...result, fasiDaVerificare: true };
+        }
+      }
+
+      // Il computo caricato in «Carica contratto» diventa il computo della commessa, con fasi, sottofasi e voci
+      // con gli importi (17/11/2026): non si ricarica nella scheda Computo, e «Genera dal computo» lo trova già.
+      if (contrattoImportato?.origine_lettura === "computo" && result.id) {
+        const sorgente = originaleInCommessa ?? contractSource;
+        if (sorgente) {
+          try {
+            const esito = await computoInCommessa(result.id, effectiveCompany!.id, user?.id, sorgente);
+            toast.success(`Computo salvato nella commessa: ${esito.lavorazioni} lavorazioni in ${esito.fasi} fasi`, {
+              description: "Con gli importi del computo. I materiali si generano dalla scheda Materiali con «Genera dal computo», senza ricaricarlo.",
+              duration: 10000,
+            });
+          } catch (e) {
+            toast.warning("Commessa creata, computo da caricare nella scheda Computo", { description: e instanceof Error ? e.message : String(e), duration: 15000 });
+          }
         }
       }
 

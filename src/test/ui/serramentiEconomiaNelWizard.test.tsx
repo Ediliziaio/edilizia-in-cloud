@@ -22,7 +22,7 @@ vi.setConfig({ testTimeout: 30_000 });
 const { stato, aggiornamenti } = vi.hoisted(() => ({
   stato: {
     detail: null as unknown as SrProgettoDetail,
-    permessi: { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false },
+    permessi: { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false },
   },
   aggiornamenti: [] as Array<Record<string, unknown>>,
 }));
@@ -129,7 +129,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   stato.detail = preventivo(ALLINEATA);
-  stato.permessi = { canApproveDiscounts: false, canViewMargins: false, canViewCosts: false };
+  stato.permessi = { canApproveDiscounts: false, canEditPreventivi: false, canViewMargins: false, canViewCosts: false };
   aggiornamenti.length = 0;
   vi.mocked(segnaModifica).mockClear();
   localStorage.clear();
@@ -183,7 +183,7 @@ describe("la detrazione ha un solo scrittore per gli importi: il wizard", () => 
   });
 
   it("il prezzo cambia con Economia aperta (sconto 10%): il totale e la detrazione si riscrivono UNA volta, l'aliquota no", async () => {
-    stato.permessi = { canApproveDiscounts: true, canViewMargins: false, canViewCosts: false };
+    stato.permessi = { canApproveDiscounts: true, canEditPreventivi: true, canViewMargins: false, canViewCosts: false };
     monta();
     await apriEconomia();
     expect(vi.mocked(segnaModifica).mock.calls).toEqual([]);

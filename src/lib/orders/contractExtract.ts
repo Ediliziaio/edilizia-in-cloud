@@ -2,6 +2,7 @@
  * Parsing difensivo dell'output AI di "contratto/copia commissione" → dati commessa.
  * L'AI può sbagliare o omettere campi: qui normalizziamo tutto a tipi sicuri.
  */
+import { eNatura, naturaVoce, siCompra, type NaturaVoce } from "./naturaVoce";
 import type { Installment } from "@/lib/orderUtils";
 
 export interface ContractExtractClient {
@@ -27,10 +28,34 @@ export interface ContractExtractWorkPhase {
   giorni: number | null;
   sottofasi: string[];
 }
+export interface ContractExtractNota {
+  testo: string;
+  pagina: number | null;
+  riferimento: string | null;
+  /** Cosa dello stampato la nota cambia; null se aggiunge e basta. */
+  contraddice: string | null;
+}
+export interface ContractExtractPosizione {
+  codice: string;
+  quantita: number;
+  dimensioni: string | null;
+  descrizione: string | null;
+  pagina: number | null;
+}
+export interface ContractExtractFirma {
+  presente: boolean;
+  firmatario: string | null;
+  data: string | null;
+  pagine: number[];
+}
 export interface ContractExtractItem {
   descrizione: string;
   quantita: number;
   prezzo_unitario_eur: number;
+  /** Il capitolo sotto cui la voce è elencata nel documento (17/11/2026): diventa la fase. */
+  capitolo?: string | null;
+  /** Cos'è (17/11/2026): solo «fornitura» e «fornitura_e_posa» diventano articoli da ordinare. */
+  natura?: NaturaVoce;
 }
 export interface ContractExtractAltroCosto {
   descrizione: string;
@@ -87,6 +112,17 @@ export interface ContractExtract {
   data_fine_lavori: string | null;
   /** Facoltativo: i contratti letti prima del 15/11/2026 non lo hanno. */
   fasi_lavoro?: ContractExtractWorkPhase[];
+  /** Le scritte a mano sul documento firmato (17/11/2026): cambiano spesso lo stampato. */
+  note_a_mano?: ContractExtractNota[];
+  /** Le posizioni dell'allegato tecnico quando il prezzo è a corpo (17/11/2026). */
+  posizioni_allegato?: ContractExtractPosizione[];
+  /** La firma del cliente: c'è, chi, quando (17/11/2026). */
+  firma?: ContractExtractFirma | null;
+  /**
+   * «computo» se il documento è un computo letto senza AI (PDF di PriMus, XPWE, Excel), 17/11/2026: alla creazione
+   * della commessa diventa il suo computo, con fasi, lavorazioni e importi, e i materiali si generano da lì.
+   */
+  origine_lettura?: "computo" | null;
   summary: string;
   confidence: number;
   warnings: string[];
@@ -113,6 +149,84 @@ const MAX_FASI_CONTRATTO = 15;
 const MAX_SOTTOFASI_CONTRATTO = 10;
 
 /** Parsing difensivo delle lavorazioni: nomi corti, niente doppioni, niente rate, tetti al numero. */
+const normaNome = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Le tappe di pagamento non sono fasi di lavoro (17/11/2026): su un preventivo vero l'AI ha restituito
+ * come fasi «INIZIO CANTIERE, INIZIO DEMOLIZIONI, INIZIO IMPIANTI…», cioè le tappe degli acconti. Una fase
+ * che si chiama come una rata si toglie.
+ */
+export function senzaTappeDiPagamento(fasi: ContractExtractWorkPhase[], rate: string[]): ContractExtractWorkPhase[] {
+  const tappe = new Set(rate.map(normaNome).filter(Boolean));
+  if (!rate.length) return fasi;
+  // Anche quando l'AI chiama le rate «SAL» e lascia i nomi delle tappe solo nelle fasi: una «fase» senza
+  // lavorazioni che comincia con «inizio» o «saldo», in un documento con le rate, è una tappa di pagamento.
+  const tappaDaNome = (f: ContractExtractWorkPhase) => f.sottofasi.length === 0 && /^(inizio|saldo|fine lavori|a fine|termine)\b/.test(normaNome(f.nome));
+  return fasi.filter((f) => !tappe.has(normaNome(f.nome)) && !tappaDaNome(f));
+}
+
+/**
+ * Le fasi dai capitoli degli articoli (17/11/2026): un preventivo o un computo è diviso in capitoli
+ * (allestimenti, demolizioni, impianti…) e dentro ci sono le lavorazioni. Nell'ordine del documento.
+ */
+/** Le voci che si comprano: materiali, con o senza posa. Lavori, servizi e sconti restano nelle fasi. */
+export function vociDaComprare<T extends Pick<ContractExtractItem, "natura">>(voci: readonly T[]): T[] {
+  return voci.filter((v) => siCompra(v.natura ?? "fornitura_e_posa"));
+}
+
+/** Una riga a corpo che rimanda all'allegato («come da disegno e scheda tecnica allegati»): è il prezzo, non la merce. */
+const RIMANDA_ALLEGATO = /allegat|come da disegno|scheda tecnica|come da (precedente )?preventivo|vedi allegato/i;
+
+export interface ArticoloDaPosizione {
+  riferimento: string;
+  nome: string;
+  quantita: number;
+  larghezza_mm: number | null;
+  altezza_mm: number | null;
+}
+
+/**
+ * Gli articoli da ordinare di un contratto (17/11/2026). Con l'allegato tecnico a posizioni (serramenti:
+ * «Finestra 001 2100×2200 ×1», «Porta 003 ×2», zanzariere) gli articoli sono le POSIZIONI, con quantità e
+ * misure, prezzo compreso nel totale a corpo; la riga a corpo che rimanda all'allegato resta il prezzo di
+ * vendita della commessa, non un articolo. Senza allegato, le voci che si comprano.
+ */
+export function articoliDalContratto(ex: Pick<ContractExtract, "voci" | "posizioni_allegato">): {
+  posizioni: ArticoloDaPosizione[];
+  voci: ContractExtractItem[];
+} {
+  const pos = (ex.posizioni_allegato ?? []).filter((p) => p.codice?.trim() && p.quantita > 0);
+  const voci = vociDaComprare(ex.voci).filter((v) => !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""));
+  if (!pos.length) return { posizioni: [], voci };
+  return {
+    posizioni: pos.map((p) => {
+      const m = /(\d{2,5})\s*[x×*]\s*(\d{2,5})/i.exec(p.dimensioni ?? "");
+      return {
+        riferimento: p.codice.trim().slice(0, 60),
+        nome: [p.codice.trim(), p.descrizione?.trim(), p.dimensioni?.trim()].filter(Boolean).join(" · ").slice(0, 300),
+        quantita: p.quantita,
+        larghezza_mm: m ? Number(m[1]) : null,
+        altezza_mm: m ? Number(m[2]) : null,
+      };
+    }),
+    voci: voci.filter((v) => !RIMANDA_ALLEGATO.test(v.descrizione ?? "")),
+  };
+}
+
+export function fasiDaCapitoli(voci: ContractExtractItem[]): ContractExtractWorkPhase[] {
+  const perCapitolo = new Map<string, string[]>();
+  for (const v of voci) {
+    const c = v.capitolo?.trim();
+    if (!c) continue;
+    const nome = c.length > 3 && c === c.toUpperCase() ? c.charAt(0) + c.slice(1).toLowerCase() : c;
+    const breve = v.descrizione.replace(/\s+/g, " ").split(/(?<=\S)\s*(?:[.;:(]|,\s|\s-\s)/)[0].slice(0, 70).trim();
+    const lista = perCapitolo.get(nome) ?? [];
+    if (breve && !lista.includes(breve)) lista.push(breve);
+    perCapitolo.set(nome, lista);
+  }
+  return [...perCapitolo.entries()].slice(0, MAX_FASI_CONTRATTO).map(([nome, sottofasi]): ContractExtractWorkPhase => ({ nome: nome.slice(0, 80), giorni: null, sottofasi: sottofasi.slice(0, 30) }));
+}
+
 export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
   if (!Array.isArray(raw)) return [];
   const viste = new Set<string>();
@@ -132,6 +246,36 @@ export function fasiLavoroDalTesto(raw: unknown): ContractExtractWorkPhase[] {
     out.push({ nome, giorni: g != null && g > 0 && g <= 365 ? Math.round(g) : null, sottofasi });
   }
   return out;
+}
+
+const oggetti = (v: unknown): Record<string, unknown>[] =>
+  (Array.isArray(v) ? v : []).filter((x): x is Record<string, unknown> => !!x && typeof x === "object");
+const pagina = (v: unknown): number | null => { const n = toNum(v); return n != null && n >= 1 && n <= 2000 ? Math.round(n) : null; };
+
+function noteDalTesto(v: unknown): ContractExtractNota[] {
+  return oggetti(v)
+    .map((n) => ({ testo: (toStr(n.testo) ?? "").slice(0, 300), pagina: pagina(n.pagina), riferimento: toStr(n.riferimento)?.slice(0, 80) ?? null, contraddice: toStr(n.contraddice)?.slice(0, 200) ?? null }))
+    .filter((n) => n.testo.length > 0)
+    .slice(0, 40);
+}
+
+function posizioniDalTesto(v: unknown): ContractExtractPosizione[] {
+  return oggetti(v)
+    .map((p) => ({ codice: (toStr(p.codice) ?? "").slice(0, 60), quantita: toNum(p.quantita) ?? 1, dimensioni: toStr(p.dimensioni)?.slice(0, 40) ?? null, descrizione: toStr(p.descrizione)?.slice(0, 120) ?? null, pagina: pagina(p.pagina) }))
+    .filter((p) => p.codice.length > 0 && p.quantita > 0)
+    .slice(0, 200);
+}
+
+function firmaDalTesto(v: unknown): ContractExtractFirma | null {
+  if (!v || typeof v !== "object") return null;
+  const f = v as Record<string, unknown>;
+  const data = toStr(f.data);
+  return {
+    presente: f.presente === true,
+    firmatario: toStr(f.firmatario)?.slice(0, 120) ?? null,
+    data: data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? data : null,
+    pagine: (Array.isArray(f.pagine) ? f.pagine : []).map(pagina).filter((n): n is number => n != null).slice(0, 50),
+  };
 }
 
 export function parseContractExtract(raw: unknown): ContractExtract {
@@ -184,8 +328,13 @@ export function parseContractExtract(raw: unknown): ContractExtract {
         descrizione: toStr(v.descrizione) ?? "",
         quantita: toNum(v.quantita) ?? 1,
         prezzo_unitario_eur: toNum(v.prezzo_unitario_eur) ?? 0,
+        capitolo: toStr(v.capitolo)?.replace(/\s+/g, " ").slice(0, 80) ?? null,
+        // Dichiarata da chi legge (il computo, l'AI col campo «tipo»), altrimenti dalle parole della voce.
+        natura: eNatura(v.natura) ? v.natura : eNatura(v.tipo) ? v.tipo
+          : naturaVoce(toStr(v.descrizione), { capitolo: toStr(v.capitolo), detrazione: (toNum(v.prezzo_unitario_eur) ?? 0) < 0 }),
       }))
       .filter((v) => v.descrizione),
+    origine_lettura: r.origine_lettura === "computo" ? "computo" : null,
     sconto_globale_pct: toNum(r.sconto_globale_pct),
     altri_costi: (Array.isArray(r.altri_costi) ? r.altri_costi : [])
       .filter((a): a is Record<string, unknown> => !!a && typeof a === "object")
@@ -222,7 +371,10 @@ export function parseContractExtract(raw: unknown): ContractExtract {
       })),
     data_inizio_lavori: toStr(r.data_inizio_lavori),
     data_fine_lavori: toStr(r.data_fine_lavori),
-    fasi_lavoro: fasiLavoroDalTesto(r.fasi_lavoro),
+    fasi_lavoro: senzaTappeDiPagamento(fasiLavoroDalTesto(r.fasi_lavoro), fasi.map((f) => (f && typeof f === "object" ? toStr((f as Record<string, unknown>).descrizione) : null) ?? "")),
+    note_a_mano: noteDalTesto(r.note_a_mano),
+    posizioni_allegato: posizioniDalTesto(r.posizioni_allegato),
+    firma: firmaDalTesto(r.firma),
     summary: toStr(r.summary) ?? "",
     confidence: toNum(r.confidence) ?? 0,
     warnings: Array.isArray(r.warnings) ? r.warnings.map((w) => String(w)) : [],
@@ -312,10 +464,32 @@ export function contractTotaleAtteso(extract: ContractExtract): number | null {
  * si lascia stare (le voci giuste peggiorerebbero e non vengono toccate).
  * Ogni correzione produce un warning esplicito.
  */
-export function reconcileContractExtract(extract: ContractExtract): ContractExtract {
+/**
+ * La riga riassuntiva (17/11/2026): i preventivi «a corpo» hanno in testa una riga sola col totale
+ * («Ristrutturazione sita in via… · 1 a corpo · 34.504,00») e sotto il computo voce per voce. L'AI le
+ * legge tutte, e la somma raddoppia. Se una riga vale da sola il totale e le altre già lo fanno,
+ * quella riga è il riepilogo: si toglie, dicendolo. Prova del 17/11 su 4 preventivi veri: senza, il
+ * riconciliatore «correggeva» 29 prezzi giusti su 59.
+ */
+export function togliRigaRiassuntiva(extract: ContractExtract, imp: number | null): ContractExtract {
+  if (imp == null || imp <= 0 || extract.voci.length < 3) return extract;
+  const tot = (v: ContractExtractItem) => (v.quantita || 1) * (v.prezzo_unitario_eur || 0);
+  const somma = extract.voci.reduce((s, v) => s + tot(v), 0);
+  const i = extract.voci.findIndex((v) => Math.abs(tot(v) - imp) <= Math.max(1, imp * 0.005)
+    && Math.abs(somma - tot(v) - imp) <= Math.max(1, imp * 0.02));
+  if (i < 0) return extract;
+  return {
+    ...extract,
+    voci: extract.voci.filter((_, k) => k !== i),
+    warnings: [...extract.warnings, `Tolta la riga riassuntiva «${extract.voci[i].descrizione.slice(0, 60)}»: vale il totale, e le voci sotto lo fanno già.`],
+  };
+}
+
+export function reconcileContractExtract(estratto: ContractExtract): ContractExtract {
   // Bersaglio = l'imponibile più affidabile (scorporo dall'ivato prima di
   // tutto): inseguire un subtotale parziale fa sovracorreggere il greedy.
-  const imp = contractImponibile(extract) ?? extract.importo_totale_eur;
+  const imp = contractImponibile(estratto) ?? estratto.importo_totale_eur;
+  const extract = togliRigaRiassuntiva(estratto, imp);
   if (imp == null || imp <= 0 || extract.voci.length === 0) return extract;
 
   const attesoCon = (voci: ContractExtractItem[]) => {
@@ -348,7 +522,9 @@ export function reconcileContractExtract(extract: ContractExtract): ContractExtr
     }
   }
 
-  if (corrette.length === 0) return extract;
+  // Le correzioni valgono solo se alla fine i conti tornano: un greedy che insegue un totale che non
+  // torna per altri motivi (una riga in più, un prezzo inventato) rovina prezzi giusti (17/11/2026).
+  if (corrette.length === 0 || delta > Math.max(1, imp * 0.02)) return extract;
   return {
     ...extract,
     voci,
@@ -359,8 +535,32 @@ export function reconcileContractExtract(extract: ContractExtract): ContractExtr
   };
 }
 
+/**
+ * Importi «da esempio» (17/11/2026): l'AI ha scritto 1.234,56 € su un serramento che costava 564,03 €,
+ * copiando l'esempio delle sue istruzioni («"1.234,56" → 1234.56»). Un valore così, in un documento
+ * vero, è quasi sempre inventato: si dice.
+ */
+const IMPORTI_DA_ESEMPIO = [1234.56, 123.45, 12345.67, 123456.78, 1234.5];
+export function importiDaEsempio(extract: ContractExtract): string[] {
+  const sospetto = (n: number | null | undefined) => n != null && IMPORTI_DA_ESEMPIO.some((x) => Math.abs(n - x) < 0.005);
+  const dove: string[] = [];
+  extract.voci.forEach((v) => { if (sospetto(v.prezzo_unitario_eur) || sospetto(v.prezzo_unitario_eur * (v.quantita || 1))) dove.push(v.descrizione.slice(0, 50) || "voce"); });
+  extract.fasi_pagamento.forEach((f) => { if (sospetto(f.importo_eur)) dove.push(f.descrizione.slice(0, 50) || "rata"); });
+  if (sospetto(extract.importo_totale_eur)) dove.push("importo totale");
+  if (sospetto(extract.importo_totale_ivato_eur)) dove.push("totale con IVA");
+  return dove;
+}
+
 export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   const out: string[] = [];
+  const cambiano = (extract.note_a_mano ?? []).filter((n) => n.contraddice);
+  if (cambiano.length) {
+    out.push(`${cambiano.length === 1 ? "Una nota scritta a mano cambia" : `${cambiano.length} note scritte a mano cambiano`} lo stampato: ${cambiano.map((n) => `«${n.testo.slice(0, 50)}» (stampato: ${n.contraddice!.slice(0, 50)})`).join("; ")}. Decidi quale vale prima di ordinare.`);
+  }
+  const esempio = importiDaEsempio(extract);
+  if (esempio.length) {
+    out.push(`Importo sospetto (1.234,56 € è un numero d'esempio, non letto dal documento): ${esempio.join("; ")}. Controllalo sul documento.`);
+  }
   const imp = contractImponibile(extract);
   const atteso = contractTotaleAtteso(extract);
   if (imp != null && atteso != null) {
@@ -388,7 +588,11 @@ export function contractCoherenceWarnings(extract: ContractExtract): string[] {
   const sommaFasi = round2(extract.fasi_pagamento.reduce((s, f) => s + (f.importo_eur ?? 0), 0));
   if (totaleRiferimento != null && sommaFasi > 0) {
     const delta = Math.abs(sommaFasi - totaleRiferimento);
-    if (delta > Math.max(1, totaleRiferimento * 0.02)) {
+    // Gli acconti calcolati sull'imponibile (IVA a parte, fattura per fattura) sono un piano giusto:
+    // 4 preventivi veri su 4 il 17/11/2026. Si avvisa solo se non tornano né col totale né con l'imponibile.
+    const imponibile = contractImponibile(extract);
+    const tornaImponibile = imponibile != null && Math.abs(sommaFasi - imponibile) <= Math.max(1, imponibile * 0.02);
+    if (delta > Math.max(1, totaleRiferimento * 0.02) && !tornaImponibile) {
       out.push(
         `Le fasi di pagamento sommano ${sommaFasi.toLocaleString("it-IT", { minimumFractionDigits: 2 })} € ma il totale documento è ${totaleRiferimento.toLocaleString("it-IT", { minimumFractionDigits: 2 })} €: verifica acconti e saldo.`,
       );

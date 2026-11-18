@@ -16,7 +16,7 @@
  */
 import type { Installment } from "@/lib/orderUtils";
 import {
-  contractImponibile, contractNeedsAllocation, contractToInstallments, deriveIvaPct, type ContractExtract,
+  contractImponibile, contractNeedsAllocation, contractToInstallments, deriveIvaPct, articoliDalContratto, type ContractExtract,
 } from "@/lib/orders/contractExtract";
 import { dateLavoriDalContratto, fasiDalContratto } from "@/lib/orders/contractPreparation";
 import type { FaseModello } from "@/lib/orders/modelliFasi";
@@ -123,8 +123,13 @@ export function pianoContrattoSuCommessa(
 
   const ivaVoci = iva ?? commessa.vat_rate ?? 22;
   const voci: VoceDaContratto[] = ripartire ? [] : [
-    ...ex.voci
-      .filter((v) => (v.descrizione ?? "").trim() && !/^\s*(sub)?total[ei]?\b/i.test(v.descrizione ?? ""))
+    // Solo i materiali diventano articoli; lavori, servizi e sconti no. Con l'allegato a posizioni (serramenti)
+    // gli articoli sono le posizioni, prezzo compreso nel totale a corpo (17/11/2026).
+    ...articoliDalContratto(ex).posizioni.map((p) => ({
+      name: p.nome, quantity: p.quantita, unit_price: 0, discount_percent: 0, vat_rate: ivaVoci,
+    })),
+    ...articoliDalContratto(ex).voci
+      .filter((v) => (v.descrizione ?? "").trim())
       .map((v) => ({
         name: v.descrizione.trim(),
         quantity: v.quantita > 0 ? v.quantita : 1,

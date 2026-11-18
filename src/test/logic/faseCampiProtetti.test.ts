@@ -161,8 +161,11 @@ describe("nell'app le fasi le scrivono tre file, e il cantiere solo le sue colon
     // capitoli del computo; il pulsante compare solo con «Ordini e Commesse».
     // CreateOrder (07/11/2026): ufficio, mette le date alle fasi appena nate da un preventivo;
     // chi crea una commessa ha già «Ordini e Commesse».
+    // MaterialiDaConfermare (17/11/2026): ufficio, scrive solo `esecuzione` («Chi fa la fase»); il popup
+    // compare solo con «Ordini e Commesse» (MaterialiPerFase, permessi.canEditOrders).
     expect(scrivono).toEqual([
       "src/components/orders/materiali/GeneraMaterialiDialog.tsx",
+      "src/components/orders/materiali/MaterialiDaConfermare.tsx",
       "src/hooks/useOrderWorkPhases.ts",
       "src/pages/azienda/CreateOrder.tsx",
       "src/pages/campo/CampoAvanzamento.tsx",

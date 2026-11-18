@@ -631,3 +631,5 @@ async function chat(body: any, companyId: string, userId: string, admin: any, co
     modello: risposta.modelUsed,
   }, 200, cors);
 }
+
+// 18/11/2026: ripubblicata per _shared/documentoNonFidato.ts (niente falso avviso «istruzioni rivolte all'AI») e _shared/estrazioneDdt.ts (niente numero d'esempio copiabile).

@@ -15,18 +15,24 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { OfficeSelect } from "./OfficeSelect";
 import { Upload, FileText, Image as ImageIcon, XCircle, Sparkles, Loader2, Brain, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { formatCurrency } from "@/lib/formatters";
-import { parseContractExtract, reconcileContractExtract, contractImponibile, contractCoherenceWarnings, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
+import { parseContractExtract, reconcileContractExtract, contractImponibile, contractSommaVoci, type ContractExtract } from "@/lib/orders/contractExtract";
 import { useFasiDiPartenza } from "@/hooks/useFasiDiPartenza";
+import { verificaContrattoNelTesto, type VerificaNelTesto } from "@/lib/orders/contrattoNelTesto";
+import { testoPaginePdf } from "@/lib/orders/testoPaginePdf";
 import { prepareContract, readableContractWarning, dataFirmaVerificata, contractAnalysisHint, type StoredContractFile } from "@/lib/orders/contractPreparation";
 import { ContractPreparationCard } from "./ContractPreparationCard";
+import { confermeDelPiano, eLavoroSingolo } from "@/lib/orders/confermeContratto";
+import { RisultatoLettura } from "./contratto/RisultatoLettura";
+import { ETICHETTA_PARTE, partiPresenti, soloLeParti, type ParteContratto } from "@/lib/orders/sceltaContratto";
+import { REGOLA_VOCI, RILEGGI_VOCI, soloIlTotale } from "@/lib/orders/avvisiContratto";
 import { useAuth } from "@/contexts/AuthContext";
 import { BUCKET_ORIGINALI_AI } from "@/lib/orders/documentImportAi";
+import { leggiComputoSenzaAi } from "@/lib/orders/contrattoDaComputo";
 
 const ACCEPTED = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".heic"];
 const MAX_SIZE = 18 * 1024 * 1024;
@@ -100,6 +106,13 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [extract, setExtract] = useState<ContractExtract | null>(null);
+  // Le parti che entrano nella commessa: ogni scheda ha la sua spunta (17/11/2026). Partono tutte spuntate.
+  const [scelte, setScelte] = useState<Set<ParteContratto>>(new Set());
+  // Il contratto letto, ricontrollato sul testo del PDF (17/11/2026): pagina per ogni valore trovato.
+  const [verifica, setVerifica] = useState<VerificaNelTesto | null>(null);
+  // Il testo del PDF: serve anche a capire se l'avviso «istruzioni rivolte all'AI» è vero (17/11/2026).
+  const [testoDocumento, setTestoDocumento] = useState<string | null>(null);
+  const [rileggo, setRileggo] = useState(false);
   const [firmaVerificata, setFirmaVerificata] = useState(false);
   const [dataFirma, setDataFirma] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -150,8 +163,9 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     return {bucket,path,name:originale.name,mime:originale.type || "application/pdf",size:originale.size};
   };
 
-  const analyze = async () => {
+  const analyze = async (notaExtra = "") => {
     if ((!file && !remoteFile) || !companyId) return;
+    const note = [noteAi, notaExtra].filter(Boolean).join(" ");
     setBusy(true); setError(null);
     try {
       let bucket: string, path: string, fileName: string, mime: string;
@@ -173,25 +187,69 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         mime = remoteFile!.mime;
       }
 
-      const { data, error: fnErr } = await supabase.functions.invoke("generic-doc-ai-extract", {
-        body: {
-          storage_bucket: bucket,
-          storage_path: path,
-          file_name: fileName,
-          mime_type: mime,
-          company_id: companyId,
-          doc_type: "contratto_commessa",
-          user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, noteAi) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${noteAi}`.slice(0,600),
-        },
-      });
-      if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
-      if (data?.error) throw new Error(String(data.error));
-      const parsed = reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
+      // Un computo (PDF di PriMus, .xpwe, .xlsx) si legge qui, esatto e gratis: all'AI 167-226 voci non stanno
+      // in una risposta, e la lettura usciva tronca e pagata (17/11/2026). Gli altri documenti vanno all'AI.
+      if (destinazione === "cliente") {
+        const originale = file ?? await (async () => {
+          const { data: blob } = await supabase.storage.from(bucket).download(path);
+          return blob ? new File([blob], fileName, { type: mime }) : null;
+        })();
+        const daComputo = originale ? await leggiComputoSenzaAi(originale) : null;
+        if (daComputo) {
+          setPathAnalizzato(`${bucket}/${path}`);
+          setExtract(daComputo);
+          setScelte(new Set(partiPresenti(daComputo)));
+          setVerifica(null);
+          setTestoDocumento(null);
+          return;
+        }
+      }
+
+      const leggi = async (nota: string) => {
+        const { data, error: fnErr } = await supabase.functions.invoke("generic-doc-ai-extract", {
+          body: {
+            storage_bucket: bucket,
+            storage_path: path,
+            file_name: fileName,
+            mime_type: mime,
+            company_id: companyId,
+            doc_type: "contratto_commessa",
+            // La regola delle voci va sempre, dopo le note di chi carica (17/11/2026: con la regola 12 letture su 12
+            // complete, senza 11 su 12 e una volta una riga sola su 56). Se la nota è lunga, si taglia la regola.
+            user_hint: destinazione === "cliente" ? contractAnalysisHint(effectiveCompany?.id === companyId ? effectiveCompany.name : null, [nota, REGOLA_VOCI].filter(Boolean).join(" ")) : `Destinazione: ${destinazione}. Azienda importatrice: ${effectiveCompany?.name?.slice(0,80) ?? ""}. Estrai dati_appalto, corpo/misura, stima e tetto, base prima del ribasso, sicurezza e condizioni SAL solo esplicite. Distingui totale RTI e quota azienda. Non inventare IVA, tariffe, date, firme o incassi. ${nota}`.slice(0,600),
+          },
+        });
+        if (fnErr) throw new Error(await edgeErrorMessage(fnErr, "Analisi AI fallita"));
+        if (data?.error) throw new Error(String(data.error));
+        return reconcileContractExtract(parseContractExtract(data?.extracted ?? data));
+      };
+      let parsed = await leggi(note);
       if (!parsed.cliente.nome_completo && !parsed.descrizione_lavori && contractImponibile(parsed) == null && !parsed.voci.length && parsed.dati_appalto?.importo_base_eur == null && parsed.dati_appalto?.stima_eur == null) {
         throw new Error("Non sono stati letti dati utili del contratto. Controlla il documento e riprova: i campi della commessa non sono stati modificati.");
       }
+      // Il testo del PDF (gratis, nel browser): serve al controllo dei valori e a capire se l'AI ha letto
+      // solo il totale. In quel caso si rilegge da soli una volta, con l'indicazione delle voci.
+      let pagine: string[] | null = null;
+      if (/pdf/i.test(mime) || /\.pdf$/i.test(fileName)) {
+        try {
+          const dati = file ? await file.arrayBuffer() : await (await supabase.storage.from(bucket).download(path)).data?.arrayBuffer();
+          if (dati) pagine = await testoPaginePdf(dati);
+        } catch { /* controllo facoltativo */ }
+      }
+      const testo = pagine ? pagine.join("\n") : null;
+      if (destinazione === "cliente" && !notaExtra && soloIlTotale(parsed, testo)) {
+        setRileggo(true);
+        try {
+          const seconda = await leggi([note, RILEGGI_VOCI].filter(Boolean).join(" "));
+          if (seconda.voci.length > parsed.voci.length) parsed = seconda;
+        } catch { /* resta la prima lettura, con l'avviso e il bottone «Rileggi» */ }
+        finally { setRileggo(false); }
+      }
       setPathAnalizzato(`${bucket}/${path}`);
       setExtract(parsed);
+      setScelte(new Set(partiPresenti(parsed)));
+      setVerifica(pagine ? verificaContrattoNelTesto(parsed, pagine) : null);
+      setTestoDocumento(testo);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -563,12 +621,15 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     }
     if (source && sorgente) source.size = sorgente.size;
     if (source && firmaVerificata) source.firmaConfermataIl = dataFirma;
-    onApply(extract, sorgente, source);
+    // Solo le parti spuntate: le altre arrivano vuote, come se il documento non le avesse.
+    onApply(destinazione === "cliente" ? soloLeParti(extract, scelte) : extract, sorgente, source);
     onOpenChange(false);
     toast.success("Dati del contratto applicati alla commessa. Rivedi e salva.");
   };
 
-  const imponibile = extract ? contractImponibile(extract) : null;
+  // Il piano della commessa dal contratto: cosa si conferma dopo nel modulo.
+  const pianoContratto = destinazione === "cliente" && extract && workflowProfilo.data ? prepareContract(extract, modelliFasi, workflowProfilo.data) : null;
+  const conferme = pianoContratto ? confermeDelPiano(pianoContratto) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -576,10 +637,10 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-orange-500" />
-            Carica contratto / copia commissione
+            Carica contratto / copia commissione / computo metrico
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Carica una foto o un PDF: l'AI legge i dati e precompila la commessa. Rivedi sempre prima di salvare.
+            Carica una foto o un PDF (anche il computo metrico): l'AI legge i dati e precompila la commessa. Rivedi sempre prima di salvare.
           </DialogDescription>
         </DialogHeader>
 
@@ -651,109 +712,42 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
           </div>
         ) : (
           <div className="space-y-3">
-            {destinazione === "cliente" ? (workflowProfilo.data ? <ContractPreparationCard piano={prepareContract(extract, modelliFasi, workflowProfilo.data)} /> : <p role="status">{workflowProfilo.isError ? "Configurazione aziendale non disponibile. Riprova prima di applicare il contratto." : "Caricamento configurazione aziendale…"}</p>) : <p className="rounded-lg border bg-muted/30 p-3 text-sm">{destinazione === "appaltatore" ? "Proposta per il lavoro in appalto. Conferma committente, corpo/misura e contratto/listino nel modulo esistente. La stima a misura non genera rate." : "Proposta per Contratto e SAL. Verifica base, ribasso, sicurezza e quota dell’azienda: il totale RTI non viene attribuito automaticamente."}</p>}
-            {extract.summary && (
-              <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-slate-700">{extract.summary}</div>
-            )}
-            {destinazione !== "cliente" && extract.dati_appalto && <dl className="grid gap-x-4 gap-y-1 rounded-lg border p-3 text-sm sm:grid-cols-2" aria-label="Dati del contratto in appalto">{[
-              ["Valorizzazione", extract.dati_appalto.valorizzazione === "a_corpo" ? "A corpo" : extract.dati_appalto.valorizzazione === "a_misura" ? "A misura" : "Da confermare"],
-              ["Base soggetta a ribasso", extract.dati_appalto.importo_base_eur == null ? "Da confermare" : formatCurrency(extract.dati_appalto.importo_base_eur)],
-              ["Stima", extract.dati_appalto.stima_eur == null ? "Non dichiarata" : formatCurrency(extract.dati_appalto.stima_eur)],
-              ["Tetto", extract.dati_appalto.tetto_eur == null ? "Non dichiarato" : formatCurrency(extract.dati_appalto.tetto_eur)],
-              ["Ribasso", extract.dati_appalto.ribasso_pct == null ? "Da confermare" : `${extract.dati_appalto.ribasso_pct}%`],
-              ["Sicurezza", extract.dati_appalto.oneri_sicurezza_eur == null ? "Da confermare" : formatCurrency(extract.dati_appalto.oneri_sicurezza_eur)],
-              ["Anticipazione", extract.dati_appalto.anticipazione_pct == null ? "Da confermare" : `${extract.dati_appalto.anticipazione_pct}%`],
-              ["Ritenuta", extract.dati_appalto.ritenuta_pct == null ? "Da confermare" : `${extract.dati_appalto.ritenuta_pct}%`],
-            ].map(([nome, valore]) => <div key={nome}><dt className="text-muted-foreground">{nome}</dt><dd className="font-medium">{valore}</dd></div>)}</dl>}
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={extract.confidence >= 0.85 ? "border-green-400 text-green-700" : extract.confidence >= 0.6 ? "border-amber-400 text-amber-700" : "border-red-400 text-red-700"}>
-                {extract.confidence > 0 ? `Affidabilità ${(extract.confidence * 100).toFixed(0)}%` : "Affidabilità da verificare"}
-              </Badge>
-              <span className="text-xs text-muted-foreground">Controlla i dati prima di applicarli.</span>
-            </div>
-
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1.5 text-sm rounded-lg border p-3">
-              <dt className="text-slate-500">Cliente</dt>
-              <dd className="font-medium">{extract.cliente.nome_completo || "—"}{extract.cliente.partita_iva ? ` · P.IVA ${extract.cliente.partita_iva}` : ""}</dd>
-              <dt className="text-slate-500">Lavori</dt>
-              <dd>{extract.descrizione_lavori || "—"}</dd>
-              <dt className="text-slate-500">Importo</dt>
-              <dd className="font-medium tabular-nums">{imponibile != null ? formatCurrency(imponibile) : "—"}{extract.iva_pct != null ? ` + IVA ${extract.iva_pct}%` : ""}</dd>
-              <dt className="text-slate-500">Pagamento</dt>
-              <dd>{extract.modalita_pagamento || "—"}{extract.fasi_pagamento.length ? ` · ${extract.fasi_pagamento.length} ${extract.fasi_pagamento.length === 1 ? "rata" : "rate"}` : ""}</dd>
-              {/* Le lavorazioni lette (15/11/2026): diventano le fasi proposte della commessa. */}
-              {(extract.fasi_lavoro?.length ?? 0) > 0 && <>
-                <dt className="text-slate-500">Fasi di lavoro</dt>
-                <dd>{extract.fasi_lavoro!.map((f) => f.nome).join(" · ")}</dd>
-              </>}
-              <dt className="text-slate-500">Voci</dt>
-              <dd>{extract.voci.length ? `${extract.voci.length} articoli` : "—"}</dd>
-            </dl>
-
-            {/* Le voci si GUARDANO prima di applicare (audit 2026-09, punto 5):
-                "13 voci" senza elenco chiedeva fiducia al buio. */}
-            {extract.voci.length > 0 && (
-              <details className="rounded-lg border">
-                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium hover:bg-accent/40">
-                  Vedi le {extract.voci.length} voci estratte
-                </summary>
-                <div className="max-h-56 overflow-y-auto border-t">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-3 py-1.5 font-medium">Descrizione</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Q.tà</th>
-                        <th className="px-2 py-1.5 text-right font-medium">Unitario</th>
-                        <th className="px-3 py-1.5 text-right font-medium">Totale</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {extract.voci.map((v, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="max-w-[260px] truncate px-3 py-1.5" title={v.descrizione}>{v.descrizione}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{v.quantita}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(v.prezzo_unitario_eur)}</td>
-                          <td className="px-3 py-1.5 text-right font-medium tabular-nums">{formatCurrency((v.quantita || 1) * (v.prezzo_unitario_eur || 0))}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-            )}
-
-            {/* Coerenza dei conti PRIMA di applicare: su un contratto lungo
-                l'AI puo' perdere voci o sbagliare somme — qui non passa muto. */}
-            {(() => {
-              const coerenza = contractCoherenceWarnings(extract).filter(w => destinazione === "cliente" || !w.startsWith("Nessuna voce estratta:"));
-              const somma = contractSommaVoci(extract);
-              return (
-                <>
-                  {somma > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Verifica conti: {extract.voci.length} voci · somma{" "}
-                      {somma.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} €
-                      {contractImponibile(extract) != null &&
-                        ` · imponibile ${contractImponibile(extract)!.toLocaleString("it-IT", { minimumFractionDigits: 2, useGrouping: true })} €`}
-                    </p>
-                  )}
-                  {coerenza.length > 0 && (
-                    <div className="rounded-lg border border-orange-300 bg-orange-50 p-2.5 text-xs text-orange-900">
-                      <p className="font-semibold mb-1">Controlli sul documento</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        {coerenza.map((w, i) => <li key={i}>{w}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-            {extract.warnings.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
-                <p className="font-semibold mb-1">⚠️ Da verificare</p>
-                <ul className="list-disc list-inside space-y-0.5">{extract.warnings.slice(0, 4).map((w, i) => <li key={i}>{readableContractWarning(w)}</li>)}</ul>
+            {destinazione === "cliente" && !workflowProfilo.data && <p role="status" className="text-sm text-muted-foreground">{workflowProfilo.isError ? "Configurazione aziendale non disponibile. Riprova prima di applicare il contratto." : "Caricamento configurazione aziendale…"}</p>}
+            {destinazione === "cliente" && pianoContratto && !eLavoroSingolo(pianoContratto) && <ContractPreparationCard piano={pianoContratto} />}
+            {soloIlTotale(extract, testoDocumento) && (
+              <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">Il documento ha un elenco di voci con i prezzi, ma l'AI ha letto solo {extract.voci.length === 1 ? "la riga del totale" : `${extract.voci.length} righe`}.</span>
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void analyze(RILEGGI_VOCI)}>
+                  {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}Rileggi con tutte le voci
+                </Button>
               </div>
             )}
+            <RisultatoLettura extract={extract} verifica={verifica} testoDocumento={testoDocumento}
+              scelte={destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" ? scelte : undefined}
+              onModifica={(e) => {
+                // Una parte che era vuota e ora ha qualcosa (fasi aggiunte a mano) si spunta da sola.
+                const prima = new Set(partiPresenti(extract));
+                const nuove = partiPresenti(e).filter((p) => !prima.has(p));
+                if (nuove.length) setScelte((s) => new Set([...s, ...nuove]));
+                setExtract(e);
+              }}
+              onScelta={(parte, si) => setScelte((prima) => { const dopo = new Set(prima); if (si) dopo.add(parte); else dopo.delete(parte); return dopo; })}
+              daConfermare={conferme?.brevi ?? []}
+              extraAvvisi={[...(conferme?.altre ?? []), ...(extract.appalto_pubblico?.informazioni_da_confermare ?? []).map(readableContractWarning)]}
+              dopoDati={<>
+                {destinazione !== "cliente" && <p className="rounded-lg border bg-muted/30 p-3 text-sm">{destinazione === "appaltatore" ? "Proposta per il lavoro in appalto. Conferma committente, corpo/misura e contratto/listino nel modulo esistente. La stima a misura non genera rate." : "Proposta per Contratto e SAL. Verifica base, ribasso, sicurezza e quota dell’azienda: il totale RTI non viene attribuito automaticamente."}</p>}
+                {destinazione !== "cliente" && extract.dati_appalto && <dl className="grid gap-x-4 gap-y-1 rounded-lg border p-3 text-sm sm:grid-cols-2" aria-label="Dati del contratto in appalto">{[
+                  ["Valorizzazione", extract.dati_appalto.valorizzazione === "a_corpo" ? "A corpo" : extract.dati_appalto.valorizzazione === "a_misura" ? "A misura" : "Da confermare"],
+                  ["Base soggetta a ribasso", extract.dati_appalto.importo_base_eur == null ? "Da confermare" : formatCurrency(extract.dati_appalto.importo_base_eur)],
+                  ["Stima", extract.dati_appalto.stima_eur == null ? "Non dichiarata" : formatCurrency(extract.dati_appalto.stima_eur)],
+                  ["Tetto", extract.dati_appalto.tetto_eur == null ? "Non dichiarato" : formatCurrency(extract.dati_appalto.tetto_eur)],
+                  ["Ribasso", extract.dati_appalto.ribasso_pct == null ? "Da confermare" : `${extract.dati_appalto.ribasso_pct}%`],
+                  ["Sicurezza", extract.dati_appalto.oneri_sicurezza_eur == null ? "Da confermare" : formatCurrency(extract.dati_appalto.oneri_sicurezza_eur)],
+                  ["Anticipazione", extract.dati_appalto.anticipazione_pct == null ? "Da confermare" : `${extract.dati_appalto.anticipazione_pct}%`],
+                  ["Ritenuta", extract.dati_appalto.ritenuta_pct == null ? "Da confermare" : `${extract.dati_appalto.ritenuta_pct}%`],
+                ].map(([nome, valore]) => <div key={nome}><dt className="text-muted-foreground">{nome}</dt><dd className="font-medium">{valore}</dd></div>)}</dl>}
+              </>} />
 
             {destinazione === "cliente" && extract.natura_documento === "offerta_fornitore" && (
               <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5 space-y-1.5">
@@ -782,6 +776,17 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
             )}
 
             {extract.natura_documento !== "offerta_fornitore" && <fieldset className="space-y-2 rounded-lg border p-3">
+              {/* L'AI che vede la firma non basta: la firma fa partire le scadenze, la conferma resta di chi carica.
+                  Ma diventa un clic, con la data già scritta (17/11/2026). */}
+              {extract.firma?.presente && !firmaVerificata && (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span>L'AI vede la firma{extract.firma.firmatario ? ` di ${extract.firma.firmatario}` : ""}{extract.firma.data ? ` del ${extract.firma.data.split("-").reverse().join("/")}` : ""}.</span>
+                  <Button type="button" size="sm" variant="outline" className="h-7"
+                    onClick={() => { setFirmaVerificata(true); if (extract.firma?.data) setDataFirma(extract.firma.data); }}>
+                    Confermo: è firmato
+                  </Button>
+                </div>
+              )}
               <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={firmaVerificata} onChange={e=>setFirmaVerificata(e.target.checked)} className="mt-1" /><span>Ho verificato che il documento è firmato dalle parti</span></label>
               {firmaVerificata && <label className="block text-sm">Data effettiva della firma<input type="date" className="mt-1 block rounded-md border bg-background px-3 py-2" value={dataFirma} max={new Date().toLocaleDateString("en-CA")} onChange={e=>setDataFirma(e.target.value)} /></label>}
               <p className="text-xs text-muted-foreground">Senza questa conferma il file resta un allegato e non attiva le scadenze legate alla firma. La data del documento non viene usata come data di firma.</p>
@@ -790,11 +795,16 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
         )}
         <DialogFooter className="flex-wrap justify-between gap-2">
           {!extract ? (
-            <Button onClick={analyze} disabled={(!file && !remoteFile) || busy || !companyId}>
-              {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> L'AI sta leggendo…</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
+            <Button onClick={() => analyze()} disabled={(!file && !remoteFile) || busy || !companyId}>
+              {busy ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> {rileggo ? "Rileggo le voci, la prima lettura era incompleta…" : "L'AI sta leggendo…"}</> : <><Sparkles className="h-4 w-4 mr-1" /> Analizza con l'AI</>}
             </Button>
           ) : <>
               <Button variant="outline" onClick={reset}>Ricarica un altro</Button>
+              {destinazione === "cliente" && extract.natura_documento !== "offerta_fornitore" && (
+                <span className="min-w-0 flex-1 self-center text-xs text-muted-foreground">
+                  {scelte.size ? <>Entrano nella commessa: {[...scelte].map((p) => ETICHETTA_PARTE[p].toLowerCase()).join(", ")}</> : "Non hai scelto niente da applicare"}
+                </span>
+              )}
               <div className="flex flex-wrap gap-2">
                 {destinazione === "cliente" && extract.natura_documento === "offerta_fornitore" && (
                   <Button variant="brand" onClick={creaOdaDaOfferta} disabled={creandoOda} className="gap-1">
@@ -802,7 +812,7 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
                     Crea Ordine d'Acquisto
                   </Button>
                 )}
-                <Button onClick={apply} disabled={(destinazione === "cliente" && !workflowProfilo.data) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
+                <Button onClick={apply} disabled={(destinazione === "cliente" && (!workflowProfilo.data || (extract.natura_documento !== "offerta_fornitore" && scelte.size === 0))) || (firmaVerificata && !dataFirmaVerificata({firmaConfermataIl:dataFirma},new Date().toLocaleDateString("en-CA")))} className="gap-1"><CheckCircle2 className="h-4 w-4" />{destinazione === "appaltatore" ? "Applica al lavoro" : destinazione === "generale_appalto" ? "Applica al contratto" : "Applica alla commessa"}</Button>
               </div>
           </>}
         </DialogFooter>
@@ -810,3 +820,5 @@ export function ContractImportDialog({ open, onOpenChange, companyId, onApply, i
     </Dialog>
   );
 }
+
+

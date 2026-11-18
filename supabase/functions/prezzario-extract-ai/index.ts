@@ -83,7 +83,7 @@ OBIETTIVO: trasformare il testo in un elenco di voci di prezzario riutilizzabili
 NON è un computo metrico: NON ci sono quantità di progetto, solo PREZZI UNITARI di listino.
 
 REGOLE NUMERI (italiano):
-1. Punto = migliaia, virgola = decimali. "1.234,56" -> 1234.56. "234,50" -> 234.50.
+1. Numeri italiani: il punto separa le migliaia, la virgola i decimali (scritto «N.NNN,NN» → numero NNNN.NN). I numeri di queste istruzioni non sono dati: ogni valore viene dal documento, e se non si legge è null.
 2. Apostrofo/spazio come separatore migliaia: "1'234.56" o "1 234,56" -> 1234.56.
 3. Solo decimali (",56") -> 0.56. Il prezzo DEVE essere un numero (no simboli/€).
 

@@ -17,13 +17,14 @@
  * finestra dell'articolo è quella di OrderItemsList (soloFinestra).
  */
 import { MaterialiDaRegolarizzare } from "@/components/orders/materiali/MaterialiDaRegolarizzare";
+import { MaterialiDaConfermare, useMaterialiProposti } from "./MaterialiDaConfermare";
 import { ApriComputoCommessa } from "@/components/computo/commessa/ApriComputoCommessa";
 import { RevisioneTecnico } from "./RevisioneTecnico";
 import { revisioneTecnico } from "@/lib/distinta/revisioneTecnico";
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import {
+import { CalendarClock,
   AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, FileCheck, FileSearch, History,
   Layers, Library, MoreHorizontal, Paperclip, PenLine, Pencil, Plus, Send, ShoppingCart, Sparkles, Trash2, Undo2, Warehouse,
 } from "lucide-react";
@@ -73,6 +74,7 @@ const UscitaCommessaDialog = lazy(() => import("@/components/warehouse/UscitaCom
 
 const GeneraMaterialiDialog = lazy(() => import("./GeneraMaterialiDialog"));
 const PlanimetrieDialog = lazy(() => import("./PlanimetrieDialog"));
+const FabbisognoMateriali = lazy(() => import("@/pages/azienda/FabbisognoMateriali"));
 const RientroMagazzinoDialog = lazy(() => import("./RientroMagazzinoDialog"));
 
 /** Quello che serve per aggiungere e modificare gli articoli (dettaglio commessa). */
@@ -711,6 +713,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
     setGenera(true);
   }, []);
   const [tavole, setTavole] = useState(false);
+  const [fabbisogno, setFabbisogno] = useState(false);
+  // Il popup dei materiali proposti dal computo: si apre anche da solo dopo «Genera dal computo».
+  const [confermaProposti, setConfermaProposti] = useState(false);
   const [filtro, setFiltro] = useState<FiltroFonte>("tutti");
   const [ordine, setOrdine] = useState<Ordinamento>("posizione");
   const [richiesta, setRichiesta] = useState<RichiestaArticolo | null>(null);
@@ -729,7 +734,9 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
   const computoLettoCommessa = (computiCommessa.data ?? []).find(computoLetto) ?? null;
   const nomeComputo = computoLettoCommessa ? (computoLettoCommessa.titolo || computoLettoCommessa.file_name) : null;
   const generatiDalComputo = tutteRighe.some((m) => m.origine_materiale === "computo");
-  const invitoGenera = permessi.canEditOrders && !!computoLettoCommessa && !generatiDalComputo;
+  // Le proposte dal computo ancora da confermare (17/11/2026): se ci sono, l'invito a generare non serve.
+  const proposti = useMaterialiProposti(orderId, permessi.canEditOrders);
+  const invitoGenera = permessi.canEditOrders && !!computoLettoCommessa && !generatiDalComputo && !(proposti.data?.length);
   const scelti = tutteRighe.filter((m) => selezione.has(m.id));
   const sceltiMateriali = scelti.filter(eMateriale);
   const faseDi = (m: MaterialeFase) => fasi.find((f) => f.materiali.includes(m));
@@ -870,6 +877,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
       <div className="space-y-2" id="materiali-per-fase">
         <VariazioniVariante orderId={orderId} puoDecidere={permessi.canValidateBom} />
         <MaterialiDaRegolarizzare orderId={orderId} />
+        {permessi.canEditOrders && <MaterialiDaConfermare orderId={orderId} fasi={fasi.map((f) => ({ id: f.id, nome: f.nome }))} aperto={confermaProposti} onAperto={setConfermaProposti} />}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2">
           <h3 className="text-sm font-semibold text-foreground">Articoli e materiali per fase</h3>
           {tuttiMateriali.length > 0 && (
@@ -902,6 +910,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             )}
             <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs max-md:hidden" onClick={() => setTavole(true)}>
               <Layers className="mr-1 h-3.5 w-3.5" aria-hidden /> Tavole
+            </Button>
+            {/* Cosa ordinare ed entro quando, solo di questa commessa (17/11/2026). */}
+            <Button size="sm" variant="outline" className="tap-compact h-8 px-2.5 text-xs" onClick={() => setFabbisogno(true)}>
+              <CalendarClock className="mr-1 h-3.5 w-3.5" aria-hidden /> Fabbisogno
             </Button>
             <Suggerimento testo="Scomposizioni: da una voce di computo ai suoi materiali">
               <Button size="icon" variant="ghost" className="tap-compact h-8 w-8 max-md:hidden" asChild>
@@ -1071,8 +1083,10 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
           </div>
         ) : visibili.length === 0 ? (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-3 text-sm text-muted-foreground">
-            <span className="min-w-0 flex-1">{filtrato ? "Nessuna riga con questo filtro." : "Le fasi della commessa non hanno ancora materiali."}</span>
-            {!filtrato && permessi.canEditOrders && !invitoGenera && (
+            <span className="min-w-0 flex-1">{filtrato ? "Nessuna riga con questo filtro."
+              : proposti.data?.length ? "Le fasi non hanno ancora materiali: conferma quelli proposti dal computo, qui sopra."
+              : "Le fasi della commessa non hanno ancora materiali."}</span>
+            {!filtrato && permessi.canEditOrders && !invitoGenera && !proposti.data?.length && (
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGenera(true)}>
                 <Sparkles className="mr-1 h-3.5 w-3.5" aria-hidden />{nomeComputo ? "Genera dal computo" : "Carica il computo e genera i materiali"}
               </Button>
@@ -1231,8 +1245,19 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
 
         <Suspense fallback={null}>
           {uscitaMerce && <UscitaCommessaDialog orderId={orderId} onClose={() => setUscitaMerce(false)} />}
-          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} />}
+          {genera && <GeneraMaterialiDialog orderId={orderId} orderCode={orderCode} open={genera} onOpenChange={setGenera} onProposti={() => setConfermaProposti(true)} />}
           {tavole && <PlanimetrieDialog orderId={orderId} open={tavole} onOpenChange={setTavole} />}
+          {fabbisogno && (
+            <Dialog open={fabbisogno} onOpenChange={setFabbisogno}>
+              <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" aria-hidden />Fabbisogno materiali{orderCode ? ` · ${orderCode}` : ""}</DialogTitle>
+                  <DialogDescription>Cosa manca da ordinare in questa commessa, ed entro quando: l'inizio della fase (o la data scritta sul materiale) meno i giorni di consegna.</DialogDescription>
+                </DialogHeader>
+                <FabbisognoMateriali orderId={orderId} inFinestra />
+              </DialogContent>
+            </Dialog>
+          )}
           {rientroDi && <RientroMagazzinoDialog orderId={orderId} riga={rientroDi} onClose={() => setRientroDi(null)} />}
         </Suspense>
       </div>

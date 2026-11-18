@@ -199,7 +199,7 @@ export function AzioniInBloccoRicevute({ companyId, righe, filtrate, onSeleziona
               </RadioGroup>
             )}
             {azione === "commessa" && (
-              <OrderSelectCombobox filtroIniziale="all" companyId={companyId} value={commessa} placeholder="Cerca la commessa…" onChange={(id) => setCommessa(id)} />
+              <OrderSelectCombobox filtroIniziale="all" generaliSempre companyId={companyId} value={commessa} placeholder="Cerca la commessa…" onChange={(id) => setCommessa(id)} />
             )}
             {azione === "contabilizza" && <p className="text-muted-foreground">Crea un costo per ogni fattura. Non si annulla in blocco.</p>}
             {azione === "mezzi" && <p className="text-muted-foreground">Conferma i mezzi che la targa ha trovato nelle righe: il loro importo entra nel costo del mezzo. Le fatture senza proposte restano come sono.</p>}

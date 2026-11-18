@@ -168,5 +168,34 @@ export function contractPreparationNotes(p: ContractPreparation, confermati: Con
     "DA CONFERMARE", ...contractConfirmations(p, confermati).map(x => `- ${x.testo}`),
     ...(p.ufficio.length ? ["ADEMPIMENTI UFFICIO (attività separate dall’avanzamento del cantiere)", ...p.ufficio.map(x => `- ${x.nome}: ${x.controlli.join("; ")}`)] : []),
     "Descrizione dal contratto:", p.extract.descrizione_lavori,
+    ...righeDocumentoFirmato(p.extract),
   ].join("\n");
+}
+
+/**
+ * Le note scritte a mano, la firma e l'allegato tecnico letti dal documento (17/11/2026): nelle note
+ * interne della commessa, perché chi ordina e chi monta le vede. Su un preventivo firmato vero erano
+ * 5 note («con serratura», «guarnizioni grigie» contro «guarnizione nera» stampato…) che si perdevano.
+ */
+export function righeDocumentoFirmato(e: ContractExtract): string[] {
+  const out: string[] = [];
+  if (e.firma) {
+    out.push(e.firma.presente
+      ? `Firmato${e.firma.firmatario ? ` da ${e.firma.firmatario}` : ""}${e.firma.data ? ` il ${e.firma.data.split("-").reverse().join("/")}` : ""}${e.firma.pagine.length ? ` (pagine ${e.firma.pagine.join(", ")})` : ""}.`
+      : "Firma del cliente: non vista sul documento.");
+  }
+  const note = e.note_a_mano ?? [];
+  if (note.length) {
+    out.push("SCRITTO A MANO SUL DOCUMENTO");
+    for (const n of note) {
+      out.push(`- ${n.riferimento ? `${n.riferimento}: ` : ""}${n.testo}${n.pagina ? ` (pag. ${n.pagina})` : ""}${n.contraddice ? ` — CAMBIA LO STAMPATO: ${n.contraddice}` : ""}`);
+    }
+  }
+  const pos = e.posizioni_allegato ?? [];
+  if (pos.length) {
+    const pezzi = pos.reduce((t, x) => t + x.quantita, 0);
+    out.push(`ALLEGATO TECNICO: ${pos.length} posizioni, ${pezzi.toLocaleString("it-IT")} pezzi`);
+    for (const x of pos) out.push(`- ${x.codice} × ${x.quantita.toLocaleString("it-IT")}${x.dimensioni ? ` · ${x.dimensioni}` : ""}${x.descrizione ? ` · ${x.descrizione}` : ""}`);
+  }
+  return out;
 }

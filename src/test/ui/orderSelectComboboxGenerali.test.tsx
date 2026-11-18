@@ -69,6 +69,23 @@ describe("OrderSelectCombobox e le commesse generali", () => {
     expect(within(opzioni[2]).getByText("in O-0001 · Cherubini")).toBeInTheDocument();
   });
 
+  it("con generaliSempre (fatture ricevute) le operazioni stanno in cima anche in «Tutte»", async () => {
+    m.righe = [
+      riga("u1", "O-0030", { commessa_generale_id: "g", client_name: "Unità 1", work_start_date: "2026-11-01" }),
+      riga("g", "O-0003", { workflow_kind: "generale", description: "Via Antonio Lotti 196" }),
+    ];
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OrderSelectCombobox companyId="c" value={undefined} onChange={vi.fn()} filtroIniziale="all" generaliSempre />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("combobox", { name: "Commessa" }));
+    // Le generali si chiedono a parte: senza date finivano oltre le 200 più recenti.
+    await waitFor(() => expect(m.chiamate).toContainEqual(["eq", ["workflow_kind", "generale"]]));
+    const opzioni = await screen.findAllByRole("option");
+    expect(opzioni[0].textContent).toContain("O-0003Generale");
+  });
+
   it("la ricerca guarda anche il nome della commessa, dove sta il nome della generale", async () => {
     m.righe = [];
     render(

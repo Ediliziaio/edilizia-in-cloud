@@ -12,6 +12,7 @@
  * Vale per la commessa del cliente privato e per quella del committente. Lo vede chi può modificare le commesse e
  * vederne gli importi, come alla creazione.
  */
+import { righeDocumentoFirmato } from "@/lib/orders/contractPreparation";
 import { lazy, Suspense, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -48,6 +49,8 @@ interface Lettura {
   vociEsistenti: number;
   /** Il lettore l'ha già caricato fra i documenti della commessa. */
   giaNeiDocumenti: boolean;
+  /** Le note interne di adesso: le righe del documento firmato si aggiungono in fondo. */
+  noteInterne: string | null;
 }
 
 const euro = (n: number | null | undefined) => (n == null ? "—" : formatCurrency(Number(n)));
@@ -63,7 +66,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
   const [lettore, setLettore] = useState(false);
   const [preparo, setPreparo] = useState(false);
   const [lettura, setLettura] = useState<Lettura | null>(null);
-  const [scelte, setScelte] = useState({ importi: true, voci: true, rate: true, fasi: true, documento: true });
+  const [scelte, setScelte] = useState({ importi: true, voci: true, rate: true, fasi: true, documento: true, note: true });
   const { chiusure } = useCalendarioCantiere();
   const [salvo, setSalvo] = useState(false);
 
@@ -75,7 +78,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = supabase as any;
       const [o, rate, voci, fasiOra] = await Promise.all([
-        db.from("orders").select("total_amount, vat_rate, work_start_date, work_end_date, order_type, tetto_importo, riferimento_committente, version")
+        db.from("orders").select("total_amount, vat_rate, work_start_date, work_end_date, order_type, tetto_importo, riferimento_committente, version, internal_notes")
           .eq("id", orderId).eq("company_id", companyId).maybeSingle(),
         db.from("order_installments").select("*").eq("order_id", orderId).order("position"),
         db.from("order_items").select("id", { count: "exact", head: true }).eq("order_id", orderId),
@@ -93,9 +96,10 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
         rate: !!piano.rateNuove,
         fasi: piano.fasi.length > 0,
         documento: !!file && !(origine?.path?.startsWith(`${orderId}/`)),
+        note: righeDocumentoFirmato(ex).length > 0,
       });
       const giaNeiDocumenti = !!origine?.path?.startsWith(`${orderId}/`);
-      setLettura({ ex, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti });
+      setLettura({ ex, file: file ?? null, piano, commessa, vociEsistenti, giaNeiDocumenti, noteInterne: (o.data as { internal_notes?: string | null }).internal_notes ?? null });
     } catch (e) {
       toast.error("Non riesco a leggere la commessa", { description: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -110,7 +114,12 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
     const fatti: string[] = [];
     try {
       const campiAltri = Object.fromEntries(Object.entries(piano.campi).filter(([k]) => !["total_amount", "vat_rate"].includes(k)));
-      const campi = scelte.importi ? piano.campi : campiAltri;
+      const campi: Record<string, unknown> = { ...(scelte.importi ? piano.campi : campiAltri) };
+      // Firma, note a mano e allegato del documento firmato: in fondo alle note interne, una volta sola (17/11/2026).
+      const righe = scelte.note ? righeDocumentoFirmato(lettura.ex) : [];
+      if (righe.length && !(lettura.noteInterne ?? "").includes(righe.join("\n"))) {
+        campi.internal_notes = [lettura.noteInterne?.trim(), "DAL CONTRATTO FIRMATO", ...righe].filter(Boolean).join("\n");
+      }
       const rate = scelte.rate ? rateDaSalvare(piano) : null;
       if (Object.keys(campi).length > 0 || rate) {
         const { error } = await supabase.rpc("commessa_salva", {
@@ -124,6 +133,7 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
           throw new Error((error.message ?? "Salvataggio non riuscito").replace(/^commessa_salva:\s*/, ""));
         }
         if (scelte.importi && piano.campi.total_amount != null) fatti.push("importo");
+        if (campi.internal_notes) fatti.push("note dal contratto");
         if (rate) fatti.push(`${piano.rateNuove?.length ?? 0} rate`);
       }
       if (scelte.fasi && piano.fasi.length > 0) {
@@ -274,6 +284,16 @@ export function LeggiContrattoCommessa({ orderId, companyId, perCommittente, eti
                         <li key={i}>{f.nome}{f.giorni ? ` · ${f.giorni} gg` : ""}{f.sottofasi.length ? ` · ${f.sottofasi.length} sottofasi` : ""}</li>
                       ))}
                     </ol>
+                  </span>
+                </label>
+              )}
+
+              {righeDocumentoFirmato(lettura.ex).length > 0 && (
+                <label className="flex items-start gap-2">
+                  <Checkbox checked={scelte.note} onCheckedChange={(v) => setScelte({ ...scelte, note: v === true })} aria-label="Note a mano, firma e allegato nelle note interne" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">Aggiungi alle note interne: firma, note scritte a mano e allegato</span>
+                    <pre className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap rounded border px-2 py-1 font-sans text-xs text-muted-foreground">{righeDocumentoFirmato(lettura.ex).join("\n")}</pre>
                   </span>
                 </label>
               )}

@@ -19,6 +19,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { isProviderCreditError } from "../_shared/aiRequestGuard.ts";
+import { contaPaginePdf, MODELLO_LETTURA_ACCURATA, primoModelloLettura, serveLetturaAccurata } from "../_shared/sceltaModelloLettura.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 import { BUCKET_LETTURA_GENERICA, valutaFile } from "../_shared/storageAmmesso.ts";
 import { conRegoleDocumento } from "../_shared/documentoNonFidato.ts";
@@ -193,8 +195,8 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "importo_totale_eur": "numero: l'imponibile FINALE del documento (IVA esclusa) COMPRENSIVO di sconti gia' applicati e di imballaggio/trasporto — cioe' l'ultimo totale prima dell'IVA, non un subtotale intermedio",
   "iva_pct": numero (es. 22, 10, 4) o null,
   "importo_totale_ivato_eur": numero totale con IVA o null,
-  "voci": [{ "descrizione": "string", "quantita": numero, "prezzo_unitario_eur": numero }],
-  "_regole_voci": "ESAUSTIVITA' OBBLIGATORIA: estrai OGNI POSIZIONE del modulo d'ordine/abaco, anche su documenti lunghi — mai riassumere, mai accorpare posizioni diverse in una. La voce e' la POSIZIONE COMMERCIALE col SUO prezzo (es. 'Porta 1', 'Finestra 2', 'PF2A 1270x2520'): i COMPONENTI elencati dentro una posizione (vetri, pannelli, ferramenta, maniglie, rinforzi, profili della scheda tecnica) NON sono voci — non estrarli come righe. Mantieni nella descrizione modello e dimensioni LxH del SERRAMENTO se presenti (NON quelle dei singoli vetri). Usa il campo quantita invece di duplicare righe identiche (es. 'Finestra 8 x3' = quantita 3 col prezzo UNITARIO). NON creare righe di totale/subtotale. Accessori venduti a parte con prezzo proprio (coprifili, estensioni, kit) SONO voci. Se il prezzo di una posizione non e' leggibile metti 0 e aggiungi un warning. ATTENZIONE alle offerte con DUE colonne di prezzo ('Prezzo' e 'Totale'): prezzo_unitario_eur e' il prezzo di UN pezzo (colonna Prezzo), MAI il totale riga — controllo per OGNI voce: quantita × prezzo_unitario deve dare il totale riga stampato; se usassi il totale come unitario una voce con quantita 3 varrebbe il triplo. Alla fine verifica: somma(quantita*prezzo) deve avvicinarsi al subtotale merce del documento — se non torna, aggiungi warning con i due numeri",
+  "voci": [{ "descrizione": "string", "quantita": numero, "prezzo_unitario_eur": numero, "capitolo": "string o null: l'intestazione del gruppo sotto cui la voce e' elencata nel documento, copiata com'e' scritta; null se il documento non divide le voci in gruppi" }],
+  "_regole_voci": "ESAUSTIVITA' OBBLIGATORIA: estrai OGNI POSIZIONE del modulo d'ordine/abaco, anche su documenti lunghi — mai riassumere, mai accorpare posizioni diverse in una. Se il documento ha una riga a corpo col totale E sotto il dettaglio con codici, quantita' e prezzi (computo, preventivo analitico), le voci sono le righe del dettaglio, ognuna col suo capitolo, e la riga a corpo NON e' una voce; anche le righe del dettaglio a prezzo zero sono voci. Anche le righe con 'compreso', 'incluso', 'compresi' o 'inclusa' al posto del prezzo (es. 'Pose e materiali di consumo: compreso', 'Trasporti: compreso', 'Smaltimento: incluso') SONO voci, con prezzo_unitario_eur 0 e la quantita' scritta: dicono che quel lavoro o servizio fa parte del contratto, non vanno solo nei warning. La voce e' la POSIZIONE COMMERCIALE col SUO prezzo (es. 'Porta 1', 'Finestra 2', 'PF2A 1270x2520'): i COMPONENTI elencati dentro una posizione (vetri, pannelli, ferramenta, maniglie, rinforzi, profili della scheda tecnica) NON sono voci — non estrarli come righe. Mantieni nella descrizione modello e dimensioni LxH del SERRAMENTO se presenti (NON quelle dei singoli vetri). Usa il campo quantita invece di duplicare righe identiche (es. 'Finestra 8 x3' = quantita 3 col prezzo UNITARIO). NON creare righe di totale/subtotale. Accessori venduti a parte con prezzo proprio (coprifili, estensioni, kit) SONO voci. Se il prezzo di una posizione non e' leggibile metti 0 e aggiungi un warning. ATTENZIONE alle offerte con DUE colonne di prezzo ('Prezzo' e 'Totale'): prezzo_unitario_eur e' il prezzo di UN pezzo (colonna Prezzo), MAI il totale riga — controllo per OGNI voce: quantita × prezzo_unitario deve dare il totale riga stampato; se usassi il totale come unitario una voce con quantita 3 varrebbe il triplo. Alla fine verifica: somma(quantita*prezzo) deve avvicinarsi al subtotale merce del documento — se non torna, aggiungi warning con i due numeri",
   "sconto_globale_pct": "numero o null — sconto percentuale applicato sul totale (es. 'Sconto: 15,00 %')",
   "altri_costi": [{ "descrizione": "string (es. Imballaggio / Trasporto / Oneri)", "importo_eur": numero }],
   "natura_documento": "'contratto_cliente' | 'offerta_fornitore' | 'copia_commissione' — offerta_fornitore quando il documento e' l'offerta di un PRODUTTORE/fornitore verso un'impresa rivenditrice (listino tecnico di produzione, sconto rivenditore, trasporto): in quel caso il 'cliente' e' l'impresa destinataria",
@@ -209,7 +211,12 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "data_inizio_lavori": "YYYY-MM-DD o null — solo se il documento la scrive (data di consegna o inizio lavori)",
   "data_fine_lavori": "YYYY-MM-DD o null — solo se scritta; se il documento da' solo la durata, null e un warning con la durata",
   "fasi_lavoro": [{ "nome": "string breve, max 60 caratteri", "giorni": "numero o null", "sottofasi": ["string"] }],
-  "_regole_fasi_lavoro": "Le LAVORAZIONI del cantiere nell'ordine in cui si eseguono, SOLO se il contratto, il computo, il capitolato o il cronoprogramma allegato le elencano (capitoli o categorie di lavoro: es. 'Demolizioni e rimozioni', 'Impianto idraulico', 'Massetti', 'Posa pavimenti', 'Tinteggiature'). Nome breve senza importi ne' quantita'. 'giorni': durata in giorni di lavoro SOLO se il documento la da' per quella lavorazione, altrimenti null. 'sottofasi': le voci di lavoro elencate dentro quel capitolo, al massimo 10, nomi brevi. Massimo 15 fasi. NON sono fasi: le rate o i SAL di pagamento (vanno in fasi_pagamento), le posizioni di fornitura (vanno in voci), gli adempimenti d'ufficio (permessi, pratiche). Per una sola fornitura senza lavorazioni, o se il documento non le elenca, lista vuota: non inventarle"
+  "_regole_fasi_lavoro": "Se le voci sono divise in gruppi (campo capitolo), le fasi SONO quei gruppi, nell'ordine del documento, e le sottofasi sono le voci di ciascun gruppo con un nome breve. Le tappe dei pagamenti (inizio di qualcosa, saldo, acconto, SAL) NON sono mai fasi, anche se nominano una lavorazione. Altrimenti: le LAVORAZIONI del cantiere nell'ordine in cui si eseguono, SOLO se il contratto, il computo, il capitolato o il cronoprogramma allegato le elencano (capitoli o categorie di lavoro: es. 'Demolizioni e rimozioni', 'Impianto idraulico', 'Massetti', 'Posa pavimenti', 'Tinteggiature'). Nome breve senza importi ne' quantita'. 'giorni': durata in giorni di lavoro SOLO se il documento la da' per quella lavorazione, altrimenti null. 'sottofasi': le voci di lavoro elencate dentro quel capitolo, al massimo 10, nomi brevi. Massimo 15 fasi. NON sono fasi: le rate o i SAL di pagamento (vanno in fasi_pagamento), le posizioni di fornitura (vanno in voci), gli adempimenti d'ufficio (permessi, pratiche). Per una sola fornitura senza lavorazioni, o se il documento non le elenca, lista vuota: non inventarle",
+  "note_a_mano": [{ "testo": "string, trascritto com'e' scritto", "pagina": "numero di pagina del PDF", "riferimento": "string o null: la posizione o la voce accanto a cui sta: il codice della posizione come stampato", "contraddice": "string o null: cosa dello stampato la nota cambia, con le parole dello stampato" }],
+  "_regole_note_a_mano": "Ogni scritta fatta A MANO o aggiunta dopo la stampa (penna, pennarello, correzioni, asterischi con testo): una nota per scritta, anche di una parola sola. Le firme e le sigle NON sono note. Se una nota cambia qualcosa di stampato (colore, misura, quantita', prezzo, accessorio), 'contraddice' dice cosa diceva lo stampato. Lista vuota se non ce ne sono",
+  "posizioni_allegato": [{ "codice": "string: il codice o il nome della posizione come stampato nell'allegato", "quantita": "numero", "dimensioni": "LxH in mm o null", "descrizione": "sistema o tipo, breve", "pagina": "numero" }],
+  "_regole_posizioni_allegato": "SOLO quando il prezzo e' a corpo (una o poche righe con prezzo) e un ALLEGATO TECNICO elenca le posizioni senza prezzo: ogni posizione con la sua quantita' e le misure del serramento (non dei vetri), piu' gli articoli elencati a parte nell'allegato. Non ripetere qui le voci che hanno un prezzo. Se l'allegato non c'e', lista vuota",
+  "firma": { "presente": "boolean: true SOLO se si vede una firma (a mano o digitale) nello spazio del cliente/committente o per accettazione", "firmatario": "string o null: il nome come si legge o come stampato accanto", "data": "YYYY-MM-DD o null: la data scritta accanto alla firma", "pagine": ["numeri delle pagine firmate"] }
 }`,
   // 15/11/2026: un lavoro extra o una variante chiesti dal cliente (PDF, foto, testo di una mail).
   variante_commessa: `{
@@ -229,7 +236,7 @@ const PROMPT_TEMPLATE = (docType: string, schema: string) => `Sei un assistente 
 Analizza il contenuto allegato (PDF o immagine) e estrai i dati strutturati per un documento di tipo "${docType}".
 
 REGOLE:
-1. Numeri italiani: punto = migliaia, virgola = decimali. "1.234,56" → 1234.56
+1. Numeri italiani: il punto separa le migliaia, la virgola i decimali (scritto «N.NNN,NN» → numero NNNN.NN). I numeri di queste istruzioni non sono dati: ogni valore viene dal documento, e se non si legge è null.
 2. Date sempre in ISO YYYY-MM-DD
 3. NON inventare. Se manca, ritorna null o lista vuota.
 4. Per le immagini (foto_generale): descrivi solo ciò che VEDI realmente.
@@ -351,34 +358,64 @@ Deno.serve(async (req) => {
       // tornava dalla cache coi campi di prima per 90 giorni. Si mette il prompt intero, che la chiave riduce a hash.
       systemPrompt,
     ]);
-    const aiResult = await aiRouterComplete({
+    // Contratti, preventivi e computi (17/11/2026, banco work/banco-ai): Haiku 5.5 per i documenti brevi
+    // e testuali, Sonnet 5.5 per i lunghi e le scansioni, e Sonnet quando Haiku non basta. Gli altri tipi
+    // di documento restano sul modello del compito.
+    const perContratto = doc_type === "contratto_commessa";
+    const primoModello = perContratto
+      ? primoModelloLettura({ mime: mime_type ?? null, byte: buffer.byteLength, pagine: isImage || (mime_type ?? "").startsWith("text/") ? null : contaPaginePdf(new Uint8Array(buffer)) })
+      : null;
+    const leggi = (modello: string | null, chiave: string) => aiRouterComplete({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: supabaseAdmin as any,
       taskKey: "pdf_vision_extract",
+      ...(modello ? { forceModel: modello, disableModelFallback: true } : {}),
       messages: [
         { role: "system", content: conRegoleDocumento(systemPrompt) },
         { role: "user", content: userContent },
       ],
       // Contratti/computi lunghi: le voci sono l'output più costoso in token e
       // un tetto basso le TRONCA in silenzio (JSON monco o liste dimezzate).
-      params: { temperature: 0.0, max_tokens: ["contratto_commessa", "business_plan"].includes(doc_type) ? 12000 : 6000 },
+      // Sonnet su un contratto di 76 pagine ha impiegato 62 secondi: il tempo di default del router (30) lo troncherebbe.
+      params: {
+        temperature: 0.0,
+        max_tokens: ["contratto_commessa", "business_plan"].includes(doc_type) ? (perContratto ? 16000 : 12000) : 6000,
+        // Tutto deve stare nei 140 secondi (il gateway chiude a 150, il browser aspetta 155): Haiku ha 70
+        // secondi, Sonnet quello che resta, mai più di 120 e mai meno di 30.
+        ...(modello ? { timeoutMs: modello === MODELLO_LETTURA_ACCURATA ? Math.max(30_000, Math.min(120_000, 140_000 - (Date.now() - t0))) : 70_000 } : {}),
+      },
       responseFormat: { type: "json_object" },
       companyId: company_id,
       userId,
-      idempotencyKey,
+      idempotencyKey: chiave,
       // Ricaricare due volte lo stesso documento (succede: rinvii, doppi
       // click, ritentativi dopo un errore a valle) non deve ripagare
       // l'estrazione. La chiave e' l'identita' vera del file, non i messaggi:
       // dentro c'e' il PDF in base64, hasharlo tutto a ogni chiamata sarebbe
       // uno spreco e basta.
-      cacheKey: idempotencyKey,
+      cacheKey: chiave,
       cacheTtlDays: 90,
     });
-    const elapsedMs = Date.now() - t0;
-
+    // La chiave dice anche il modello: la lettura di Sonnet non deve tornare dalla cache di Haiku.
+    const chiavePrima = primoModello ? `${idempotencyKey}:${primoModello}` : idempotencyKey;
+    let aiResult: Awaited<ReturnType<typeof leggi>>;
+    try {
+      aiResult = await leggi(primoModello, chiavePrima);
+    } catch (e) {
+      // Haiku in errore (tempo scaduto, JSON rifiutato): si prova Sonnet. Credito finito, saldo o abbonamento no: valgono per tutti i modelli.
+      if (!primoModello || primoModello === MODELLO_LETTURA_ACCURATA || isProviderCreditError(e) || erroreAiPerUtente(e)) throw e;
+      console.warn(`[generic-doc-ai-extract] ${primoModello} in errore: ${e instanceof Error ? e.message : e}`);
+      aiResult = { content: "" } as Awaited<ReturnType<typeof leggi>>;
+    }
     // Su risposte lunghe alcuni modelli aggiungono testo attorno al JSON: la lettura tollerante
     // (recinzione ```json, blocco { … } più esterno) è condivisa con le altre funzioni.
-    const extracted = leggiJsonDalModello(aiResult.content);
+    let extracted = leggiJsonDalModello(aiResult.content);
+    if (primoModello && primoModello !== MODELLO_LETTURA_ACCURATA && serveLetturaAccurata(extracted)) {
+      console.warn(`[generic-doc-ai-extract] ${primoModello} non basta (${extracted ? "solo il totale" : "risposta illeggibile"}): rilettura con ${MODELLO_LETTURA_ACCURATA}`);
+      aiResult = await leggi(MODELLO_LETTURA_ACCURATA, `${idempotencyKey}:${MODELLO_LETTURA_ACCURATA}`);
+      extracted = leggiJsonDalModello(aiResult.content);
+    }
+    const elapsedMs = Date.now() - t0;
     if (!extracted) {
       console.error("[generic-doc-ai-extract] risposta del modello non leggibile:", String(aiResult.content ?? "").slice(0, 200));
       const e = letturaNonRiuscita();

@@ -72463,6 +72463,139 @@ export type Database = {
           },
         ]
       }
+      materiali_proposti: {
+        Row: {
+          chiave: string
+          company_id: string
+          computo_upload_id: string | null
+          consigliata: boolean
+          created_at: string
+          deciso_at: string | null
+          deciso_da: string | null
+          id: string
+          motivo: string | null
+          order_id: string
+          riga: Json
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          chiave: string
+          company_id: string
+          computo_upload_id?: string | null
+          consigliata?: boolean
+          created_at?: string
+          deciso_at?: string | null
+          deciso_da?: string | null
+          id?: string
+          motivo?: string | null
+          order_id: string
+          riga: Json
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          chiave?: string
+          company_id?: string
+          computo_upload_id?: string | null
+          consigliata?: boolean
+          created_at?: string
+          deciso_at?: string | null
+          deciso_da?: string | null
+          id?: string
+          motivo?: string | null
+          order_id?: string
+          riga?: Json
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "materiali_proposti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "mv_company_metrics"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "v_insoluti"
+            referencedColumns: ["azienda_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "commesse_valore_pattuito"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders_visibili"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_lavori_in_corso"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_cg_portafoglio_commesse"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_costi_mezzi_stimati"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "materiali_proposti_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_esposizione"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       materiali_variazioni: {
         Row: {
           company_id: string
@@ -84517,6 +84650,7 @@ export type Database = {
           completata_il: string | null
           created_at: string
           end_date: string | null
+          esecuzione: string | null
           foto_urls: Json
           id: string
           importo_venduto: number | null
@@ -84536,6 +84670,7 @@ export type Database = {
           completata_il?: string | null
           created_at?: string
           end_date?: string | null
+          esecuzione?: string | null
           foto_urls?: Json
           id?: string
           importo_venduto?: number | null
@@ -84555,6 +84690,7 @@ export type Database = {
           completata_il?: string | null
           created_at?: string
           end_date?: string | null
+          esecuzione?: string | null
           foto_urls?: Json
           id?: string
           importo_venduto?: number | null
@@ -140228,6 +140364,7 @@ export type Database = {
           completata_il: string | null
           created_at: string | null
           end_date: string | null
+          esecuzione: string | null
           foto_urls: Json | null
           id: string | null
           importo_venduto: number | null
@@ -140247,6 +140384,7 @@ export type Database = {
           completata_il?: string | null
           created_at?: string | null
           end_date?: string | null
+          esecuzione?: string | null
           foto_urls?: Json | null
           id?: string | null
           importo_venduto?: never
@@ -140266,6 +140404,7 @@ export type Database = {
           completata_il?: string | null
           created_at?: string | null
           end_date?: string | null
+          esecuzione?: string | null
           foto_urls?: Json | null
           id?: string | null
           importo_venduto?: never
@@ -145873,6 +146012,10 @@ export type Database = {
       _looks_like_email: { Args: { s: string }; Returns: boolean }
       _looks_like_fiscal_code: { Args: { s: string }; Returns: boolean }
       _looks_like_phone: { Args: { s: string }; Returns: boolean }
+      _materiali_proposti_azienda: {
+        Args: { p_order: string }
+        Returns: string
+      }
       _materiali_riconciliazione_righe: {
         Args: { p_company: string; p_order?: string }
         Returns: {
@@ -146791,6 +146934,24 @@ export type Database = {
           storage_pct: number
           utenti: number
           utenti_pct: number
+        }[]
+      }
+      admin_copertura_acquisti: {
+        Args: { p_giorni?: number }
+        Returns: {
+          a_magazzino: number
+          azienda: string
+          company_id: string
+          fatture: number
+          ferme_oltre_30_giorni: number
+          imponibile: number
+          imponibile_fermo: number
+          imponibile_registrato: number
+          non_registrato: number
+          pct_con_destinazione: number
+          pct_registrato: number
+          spese_generali: number
+          su_commesse: number
         }[]
       }
       admin_errori_recenti: {
@@ -149381,6 +149542,10 @@ export type Database = {
       commessa_incassi: { Args: { p_order: string }; Returns: Json }
       commessa_incassi_unita: { Args: { p_order_id: string }; Returns: Json }
       commessa_iva: { Args: { p_order_id: string }; Returns: Json }
+      commessa_lavorazioni_dal_computo: {
+        Args: { p_computo_id: string; p_fasi?: Json; p_order_id: string }
+        Returns: Json
+      }
       commessa_listino_cerca: {
         Args: {
           p_data?: string
@@ -149511,6 +149676,15 @@ export type Database = {
       computo_sblocca_contrattuale: {
         Args: { p_motivo: string; p_upload_id: string }
         Returns: undefined
+      }
+      computo_voce_non_lavoro: {
+        Args: {
+          p_categoria: string
+          p_descrizione: string
+          p_sotto: string
+          p_super: string
+        }
+        Returns: boolean
       }
       conferma_carico_ddt: {
         Args: { p_carico_id: string; p_utente?: string }
@@ -152619,7 +152793,7 @@ export type Database = {
       }
       get_documenti_counts: { Args: { p_company_id: string }; Returns: Json }
       get_documenti_monthly_timeline: {
-        Args: { p_company_id: string; p_tipos?: string[] }
+        Args: { p_anno?: number; p_company_id: string; p_tipos?: string[] }
         Returns: Json
       }
       get_effective_company_id: { Args: never; Returns: string }
@@ -154698,6 +154872,7 @@ export type Database = {
           vertical_associato: string
         }[]
       }
+      materiale_anticipo_tipico: { Args: { p_nome: string }; Returns: number }
       materiale_rientro_magazzino: {
         Args: {
           p_gia_rientrati?: number
@@ -154769,6 +154944,35 @@ export type Database = {
         Returns: undefined
       }
       materiali_promemoria_acquisti: { Args: never; Returns: number }
+      materiali_proponi: {
+        Args: { p_computo?: string; p_order: string; p_righe: Json }
+        Returns: Json
+      }
+      materiali_proposti_conferma: {
+        Args: { p_ids: string[]; p_order: string }
+        Returns: Json
+      }
+      materiali_proposti_elenco: {
+        Args: { p_order: string }
+        Returns: {
+          chiave: string
+          consigliata: boolean
+          descrizione: string
+          fornitore: string
+          id: string
+          origine: string
+          origini: Json
+          phase_id: string
+          quantita: number
+          specifiche: string
+          supplier_id: string
+          unita_misura: string
+        }[]
+      }
+      materiali_proposti_scarta: {
+        Args: { p_ids: string[]; p_motivo?: string; p_order: string }
+        Returns: number
+      }
       materiali_puo: {
         Args: { _company: string; _permesso: string }
         Returns: boolean
@@ -156657,7 +156861,9 @@ export type Database = {
       }
       puo_vedere_clienti: { Args: { p_company_id: string }; Returns: boolean }
       puo_vedere_commessa: { Args: { p_order_id: string }; Returns: boolean }
-      puo_vedere_costi: { Args: { p_company: string }; Returns: boolean }
+      puo_vedere_costi:
+        | { Args: { p_company: string }; Returns: boolean }
+        | { Args: { p_company: string; p_user: string }; Returns: boolean }
       puo_vedere_ddt: { Args: { p_ddt: string }; Returns: boolean }
       puo_vedere_documenti_fornitore: { Args: never; Returns: boolean }
       puo_vedere_finanza: { Args: { p_company_id: string }; Returns: boolean }

@@ -3,6 +3,10 @@ const SYNC_AI_FUNCTIONS = new Set([
   "generate-pergola-render", "generate-pool-render", "generate-roof-render",
   "generate-shutter-render", "generate-technical-render",
   "planimetria-genera",
+  // La lettura dei contratti con Sonnet 5.5 (17/11/2026): un contratto scansionato di 76 pagine chiede circa
+  // 60 secondi, e a 60 il browser chiudeva mentre il server finiva. Budget server: 140 secondi.
+  "generic-doc-ai-extract",
+  "ai-confronto-modelli",
 ]);
 
 /** I motori sincroni Alta hanno un budget server di 140 secondi. */
