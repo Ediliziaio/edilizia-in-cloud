@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -40,16 +42,16 @@ describe("Elettrico: modelli originali locali", () => {
     expect(screen.getByText("Nuovo modulo · non ancora salvato")).toBeInTheDocument();
     expect(button).toBeEnabled();
     const hero = screen.getByDisplayValue(/La casa risponde\./);
-    fireEvent.change(hero, { target: { value: "Titolo modificato" } });
+    changeFormControl(hero, { target: { value: "Titolo modificato" } });
     expect(onDirty).toHaveBeenLastCalledWith(true);
-    fireEvent.change(hero, { target: { value: template("domotica").cover_title } });
+    changeFormControl(hero, { target: { value: template("domotica").cover_title } });
     expect(onDirty).toHaveBeenLastCalledWith(false);
     expect(button).toBeEnabled();
     fireEvent.click(button);
     expect(save).toHaveBeenCalledOnce();
     expect(button).toBeDisabled();
     expect(onDirty).toHaveBeenLastCalledWith(false);
-    fireEvent.change(hero, { target: { value: "Dopo il salvataggio" } });
+    changeFormControl(hero, { target: { value: "Dopo il salvataggio" } });
     expect(onDirty).toHaveBeenLastCalledWith(true);
     fireEvent.click(button);
     expect(onDirty).toHaveBeenLastCalledWith(false);
@@ -80,8 +82,8 @@ describe("Elettrico: modelli originali locali", () => {
     mount("ricarica");
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Ricarica veicoli elettrici");
-    expect(screen.getByRole("combobox").querySelectorAll("option")).toHaveLength(10);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "faq-breve" } });
+    expect(nativeFormControl(screen.getByRole("combobox")).querySelectorAll("option")).toHaveLength(10);
+    changeFormControl(screen.getByRole("combobox"), { target: { value: "faq-breve" } });
     fireEvent.click(screen.getByRole("button", { name: "Applica a domande frequenti" }));
     fireEvent.click(screen.getByRole("button", { name: "Anteprima PDF" }));
     const after = calls.preview.mock.calls[0][0].template;
@@ -105,7 +107,7 @@ describe("Elettrico: modelli originali locali", () => {
     const inputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     const input = inputs[inputs.length - 1];
     expect(input).toBeTruthy();
-    fireEvent.change(input, { target: { files: [new File(["img"], "foto.png", { type: "image/png" })] } });
+    changeFormControl(input, { target: { files: [new File(["img"], "foto.png", { type: "image/png" })] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledOnce());
     await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));

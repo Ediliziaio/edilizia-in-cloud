@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useRef } from "react";
 import { useWarehouses, type Warehouse } from "@/hooks/useWarehouses";
 import { Label } from "@/components/ui/label";
@@ -44,7 +45,7 @@ export function DestinazioneDocumento({
     <div className="space-y-2 rounded-lg border border-slate-200 p-3 sm:col-span-2">
       <Label htmlFor="doc-destinazione-tipo">Dove consegnare / ritirare</Label>
       <div className="grid gap-3 sm:grid-cols-2">
-        <select
+        <UniformSelect
           id="doc-destinazione-tipo"
           className="h-10 rounded-md border bg-white px-2 text-sm"
           value={tipo}
@@ -87,9 +88,9 @@ export function DestinazioneDocumento({
             Ritiro dal fornitore
           </option>
           <option value="altro">Altro indirizzo</option>
-        </select>
+        </UniformSelect>
         {tipo === "magazzino" && (
-          <select
+          <UniformSelect
             aria-label="Magazzino di destinazione"
             value={d.magazzinoId || ""}
             disabled={isLoading}
@@ -115,7 +116,7 @@ export function DestinazioneDocumento({
                 {w.is_default ? " (predefinito)" : ""}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         )}
       </div>
       {error && tipo === "magazzino" && (

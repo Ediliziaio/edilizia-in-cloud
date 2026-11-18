@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -130,20 +131,20 @@ export function TestFlowDialog({ open, onClose, flow, companyId, nodes, edges = 
         </div>
         {platform && <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="platform-preview-trigger">Evento da simulare</label>
-          <select id="platform-preview-trigger" className="w-full rounded border bg-background p-2 text-sm" value={scenarioTriggerId} onChange={e => { setScenarioTriggerId(e.target.value); setChecked(false); }}>
+          <UniformSelect id="platform-preview-trigger" className="w-full rounded border bg-background p-2 text-sm" value={scenarioTriggerId} onChange={e => { setScenarioTriggerId(e.target.value); setChecked(false); }}>
             <option value="">Scegli un ingresso del flusso</option>
             {triggers.map(n => <option key={n.id} value={n.id}>{n.data.label || n.data.itemId || n.data.item_id || n.data.trigger_type || "Trigger"}</option>)}
-          </select>
+          </UniformSelect>
           <p className="text-xs text-muted-foreground">Nome e stato vengono dall’azienda scelta. Completa i valori null per la prova: crediti, ritardi e cambio piano non sono letti dai servizi esterni e non attestano un evento reale.</p>
           {[["trial_in_scadenza", "trial.giorni_rimasti", "Giorni rimasti nel trial"], ["crediti_ai_bassi", "crediti.saldo", "Crediti disponibili (€)"], ["fattura_piattaforma_scaduta", "fattura.giorni_ritardo", "Giorni di ritardo"]].filter(([trigger]) => trigger === eventId).map(([, key, label]) => (
             <label key={key} className="block space-y-1 text-sm">{label}<Input aria-label={label} type="number" step={key === "crediti.saldo" ? "0.01" : "1"} value={scenarioPayload?.[key] == null ? "" : String(scenarioPayload[key])} onChange={e => setScenarioValue(key, e.target.value === "" ? null : Number(e.target.value))} /></label>
           ))}
-          {eventId === "piano_cambiato" && <label className="block space-y-1 text-sm">Tipo cambio piano<select aria-label="Tipo cambio piano" className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["piano.tipo_cambio"] ?? "")} onChange={e => setScenarioValue("piano.tipo_cambio", e.target.value || null)}>
+          {eventId === "piano_cambiato" && <label className="block space-y-1 text-sm">Tipo cambio piano<UniformSelect aria-label="Tipo cambio piano" className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["piano.tipo_cambio"] ?? "")} onChange={e => setScenarioValue("piano.tipo_cambio", e.target.value || null)}>
             <option value="">Scegli il caso da provare</option><option value="upgrade">Upgrade</option><option value="downgrade">Downgrade</option><option value="change">Cambio senza differenza di prezzo</option>
-          </select></label>}
-          {eventId === "ticket_piattaforma_aperto" && <label className="block space-y-1 text-sm">Priorità ticket<select aria-label="Priorità ticket" className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["ticket.priorita"] ?? "")} onChange={e => setScenarioValue("ticket.priorita", e.target.value || null)}>
+          </UniformSelect></label>}
+          {eventId === "ticket_piattaforma_aperto" && <label className="block space-y-1 text-sm">Priorità ticket<UniformSelect aria-label="Priorità ticket" className="w-full rounded border bg-background p-2" value={String(scenarioPayload?.["ticket.priorita"] ?? "")} onChange={e => setScenarioValue("ticket.priorita", e.target.value || null)}>
             <option value="">Scegli il caso da provare</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normale">Normale</option>
-          </select></label>}
+          </UniformSelect></label>}
           <details className="text-sm"><summary className="cursor-pointer">Dati avanzati dell’evento (JSON)</summary>
             <label className="block pt-2 font-medium" htmlFor="platform-preview-payload">Dati dell’evento simulato</label>
             <Textarea id="platform-preview-payload" value={scenarioJson} rows={8} className="font-mono text-xs" onChange={e => { setScenarioJson(e.target.value); setChecked(false); }} />

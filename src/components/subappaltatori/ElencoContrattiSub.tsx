@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { LayoutGrid, Columns3, List, Search, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -236,7 +237,7 @@ export function ElencoContrattiSub({
               onChange={(e) => cambia(() => setRicerca(e.target.value))}
             />
           </div>
-          <select
+          <UniformSelect
             aria-label="Stato firma"
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={firma}
@@ -248,8 +249,8 @@ export function ElencoContrattiSub({
                 {l}
               </option>
             ))}
-          </select>
-          <select
+          </UniformSelect>
+          <UniformSelect
             aria-label="Ordina contratti"
             className="h-10 rounded-md border bg-background px-3 text-sm"
             value={ordine}
@@ -258,7 +259,7 @@ export function ElencoContrattiSub({
             <option value="recenti">Più recenti</option>
             <option value="valore">Valore maggiore</option>
             <option value="fine">Fine prevista</option>
-          </select>
+          </UniformSelect>
         </div>
         <div
           className="flex flex-wrap items-center gap-1 border-t pt-2"

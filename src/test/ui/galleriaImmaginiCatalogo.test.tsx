@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -21,21 +22,21 @@ describe("Galleria linee", () => {
   it("carica piu foto, cambia ruolo e ordine, modifica didascalie", () => {
     render(<Harness />);
     const files = [new File(["a"], "a.jpg", { type: "image/jpeg" }), new File(["b"], "b.png", { type: "image/png" })];
-    fireEvent.change(screen.getByLabelText("Seleziona immagini della linea"), { target: { files } });
+    changeFormControl(screen.getByLabelText("Seleziona immagini della linea"), { target: { files } });
     expect(screen.getAllByRole("img")).toHaveLength(3);
-    fireEvent.change(screen.getAllByLabelText("Uso nel preventivo")[1], { target: { value: "principale" } });
+    changeFormControl(screen.getAllByLabelText("Uso nel preventivo")[1], { target: { value: "principale" } });
     expect((screen.getAllByRole("combobox")[0] as HTMLSelectElement).value).toBe("dettaglio");
-    fireEvent.change(screen.getAllByLabelText("Didascalia")[1], { target: { value: "Sezione vera" } });
+    changeFormControl(screen.getAllByLabelText("Didascalia")[1], { target: { value: "Sezione vera" } });
     fireEvent.click(screen.getByRole("button", { name: "Sposta su immagine 2" }));
     expect((screen.getAllByLabelText("Didascalia")[0] as HTMLInputElement).value).toBe("Sezione vera");
     expect((screen.getAllByRole("combobox")[0] as HTMLSelectElement).value).toBe("principale");
   });
   it("non accetta file non validi e libera le anteprime alla chiusura", () => {
     const view = render(<Harness />);
-    fireEvent.change(screen.getByLabelText("Seleziona immagini della linea"), { target: { files: [new File(["pdf"], "file.pdf", { type: "application/pdf" })] } });
+    changeFormControl(screen.getByLabelText("Seleziona immagini della linea"), { target: { files: [new File(["pdf"], "file.pdf", { type: "application/pdf" })] } });
     expect(mocks.error).toHaveBeenCalled();
     expect(screen.getAllByRole("img")).toHaveLength(1);
-    fireEvent.change(screen.getByLabelText("Seleziona immagini della linea"), { target: { files: [new File(["a"], "a.jpg", { type: "image/jpeg" })] } });
+    changeFormControl(screen.getByLabelText("Seleziona immagini della linea"), { target: { files: [new File(["a"], "a.jpg", { type: "image/jpeg" })] } });
     view.unmount();
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
   });

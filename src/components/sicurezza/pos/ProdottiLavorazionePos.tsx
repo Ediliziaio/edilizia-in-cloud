@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useProdottiSds } from "@/hooks/useProdottiSds";
@@ -74,7 +75,7 @@ export function ProdottiLavorazionePos({
       {!ro && (
         <label className="block text-xs">
           Fase della lavorazione
-          <select
+          <UniformSelect
             aria-label={`Fase della lavorazione ${n + 1}`}
             className="mt-1 w-full rounded border bg-background p-2 text-sm"
             value={l.fase_id || ""}
@@ -92,7 +93,7 @@ export function ProdottiLavorazionePos({
                 {f.name}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         </label>
       )}
       {fasi.isError && (
@@ -116,7 +117,7 @@ export function ProdottiLavorazionePos({
                 fase per vedere gli impieghi specifici. Per aggiungere prodotti
                 o rettificare una SDS usa Sicurezza nella commessa.
               </p>
-              <select
+              <UniformSelect
                 aria-label={`Prodotto da collegare alla lavorazione ${n + 1}`}
                 className="w-full rounded border bg-background p-2 text-sm"
                 value={scelto}
@@ -128,7 +129,7 @@ export function ProdottiLavorazionePos({
                     {p.nome} · {p.codice || p.id.slice(0, 8)} · v{p.versione}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
               {sceltoP && (
                 <div className="text-xs">
                   {avvisiProdottoSds(sceltoP, data).map((a) => (

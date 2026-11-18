@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { perchePrimaNotaNonModificabile, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
 
@@ -35,7 +36,7 @@ const entry = {
 
 it("apre la registrazione già compilata e la salva con la sua fattura", async () => {
   const confirm = vi.fn();
-  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={confirm} isPending={false} entry={entry} />);
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={confirm} isPending={false} entry={entry} /></QueryClientProvider>);
   expect(screen.getByText("Modifica registrazione")).toBeTruthy();
   expect(screen.getByDisplayValue("Incasso fattura 17")).toBeTruthy();
   await waitFor(() => expect(screen.getByText(/17 · Cliente prova/)).toBeTruthy());
@@ -56,7 +57,7 @@ it("dice perché una registrazione automatica non si modifica da qui", () => {
 });
 
 it("la categoria decide il verso, e il pulsante spento dice cosa manca", async () => {
-  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} />);
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} /></QueryClientProvider>);
   // Appena aperta: uscita, e il motivo per cui non si può registrare è scritto.
   expect(screen.getByRole("button", { name: "↑ Uscita" })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByText("Manca la descrizione.")).toBeTruthy();
@@ -72,7 +73,7 @@ it("la categoria decide il verso, e il pulsante spento dice cosa manca", async (
 });
 
 it("scegliere «Incasso cliente» gira il verso da sé e chiede la fattura", async () => {
-  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} />);
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} /></QueryClientProvider>);
   expect(screen.getByRole("button", { name: "↑ Uscita" })).toHaveAttribute("aria-pressed", "true");
   fireEvent.keyDown(screen.getByLabelText("Categoria"), { key: "ArrowDown" });
   fireEvent.click(await screen.findByRole("option", { name: "Incasso cliente" }));
@@ -84,12 +85,12 @@ it("scegliere «Incasso cliente» gira il verso da sé e chiede la fattura", asy
 
 it("in modifica apre già i dettagli quando la registrazione ha note, riferimento o allegato", () => {
   const conNote = { ...entry, notes: "Pari entrata solo contabile", attachment_url: "prima-nota-attachments/a/b.pdf", attachment_name: "b.pdf" };
-  const { unmount } = render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} entry={conNote} />);
+  const { unmount } = render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} entry={conNote} /></QueryClientProvider>);
   expect(screen.getByLabelText("Note")).toHaveValue("Pari entrata solo contabile");
   expect(screen.getByLabelText("Riferimento")).toHaveValue("17");
   // L'allegato già caricato si apre, non è più solo una scritta.
   expect(screen.getByRole("button", { name: /Apri allegato b\.pdf/ })).toBeTruthy();
   unmount();
-  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} entry={{ ...entry, reference_number: null }} />);
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} isPending={false} entry={{ ...entry, reference_number: null }} /></QueryClientProvider>);
   expect(screen.getByText("Riferimento, allegato e note").closest("details")?.open).toBe(false);
 });

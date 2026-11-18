@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Tab Squadre della pagina Squadre e calendari lavori: la tabella, il dialog, e per ogni
  * squadra il collegamento al suo calendario Google (facoltativo).
@@ -217,7 +218,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
               onChange={(e) => { setCerca(e.target.value); togliRichiesta(); }}
               className="min-w-0 basis-full sm:basis-auto sm:flex-1 sm:max-w-sm"
             />
-            <select
+            <UniformSelect
               aria-label="Tipo di squadra"
               value={selezionata ? "tutte" : tipo}
               onChange={(e) => { setTipo(e.target.value); togliRichiesta(); }}
@@ -226,7 +227,7 @@ export function SquadreTab({ canManage, compact = false }: { canManage: boolean;
               <option value="tutte">Tutte le squadre</option>
               <option value="interna">Interne</option>
               <option value="esterna">Esterne</option>
-            </select>
+            </UniformSelect>
             <span role="status" className="text-xs text-muted-foreground">
               {visibili.length} di {ordinate.length} squadre
             </span>

@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import {
   cleanup,
@@ -240,7 +242,7 @@ describe("previsionale: schede e filtri comuni", () => {
   });
   it("exports the active scenario and declares excluded amounts", () => {
     mount();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Scenario incassi" }),
       {
         target: { value: "15" },
@@ -268,11 +270,11 @@ describe("previsionale: schede e filtri comuni", () => {
         { ...forecastFixture.collected[0], expectedDate: "2026-10-03" },
       ],
     });
-    const option = screen.getByRole("option", {
+    const option = formOptions().getByRole("option", {
       name: "Ritardo medio reale (10 giorni)",
     });
     expect(option).not.toBeDisabled();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Scenario incassi" }),
       {
         target: { value: "reale" },
@@ -344,7 +346,7 @@ describe("previsionale: schede e filtri comuni", () => {
   });
   it("sorts the movements by amount", () => {
     mount(forecastFixture, "/?scheda=movimenti");
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Ordina movimenti" }),
       {
         target: { value: "importo-desc" },
@@ -358,7 +360,7 @@ describe("previsionale: schede e filtri comuni", () => {
   it("filters every tab by category from the common bar", () => {
     mount();
     advancedFilters();
-    fireEvent.change(screen.getByRole("combobox", { name: "Categoria" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Categoria" }), {
       target: { value: "clienti" },
     });
     expect(urlSearch()).toContain("categoria=clienti");
@@ -373,7 +375,7 @@ describe("previsionale: schede e filtri comuni", () => {
   });
   it("moves a single receipt only in simulation and restores it", () => {
     mount(forecastFixture, "/?scheda=movimenti");
-    fireEvent.change(screen.getByLabelText("Sposta incasso: SAL commessa"), {
+    changeFormControl(screen.getByLabelText("Sposta incasso: SAL commessa"), {
       target: { value: "2026-11-20" },
     });
     expect(screen.getByText("Data spostata")).toBeVisible();
@@ -389,7 +391,7 @@ describe("previsionale: schede e filtri comuni", () => {
   });
   it("exports all filtered rows without changing the whole plan export", () => {
     mount(forecastFixture, "/?scheda=movimenti");
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Direzione movimenti" }),
       { target: { value: "out" } },
     );
@@ -404,7 +406,7 @@ describe("previsionale: schede e filtri comuni", () => {
   });
   it("stores the safety threshold separately for each company", () => {
     const first = mount();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("spinbutton", { name: "Soglia di sicurezza in euro" }),
       { target: { value: "1200" } },
     );

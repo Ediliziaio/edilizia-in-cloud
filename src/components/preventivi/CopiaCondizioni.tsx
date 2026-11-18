@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useId, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,10 +50,10 @@ export function CopiaCondizioni({ companyId, value, onChange, disabled = false, 
     {open && <div id={id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
       <p className="text-xs text-muted-foreground">Scegli condizioni generali o un modello salvato della tua azienda. Copiamo solo le clausole, non prezzi, immagini o altre impostazioni. Le copie restano indipendenti.</p>
       {isPending ? <p role="status" className="text-xs">Caricamento delle condizioni…</p> : isError ? <div role="alert" className="text-xs">Non riesco a leggere i modelli. Il tuo testo non cambia. <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>Riprova</Button></div> : <>
-        <select aria-label="Copia condizioni da" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={source ? selected : ''} onChange={e => setSelected(e.target.value)}>
+        <UniformSelect aria-label="Copia condizioni da" className="h-10 w-full rounded-md border bg-background px-2 text-sm" value={source ? selected : ''} onChange={e => setSelected(e.target.value)}>
           <option value="">Scegli da dove copiare…</option>
           {data.filter(item => item.companyId === companyId).map(item => <option key={item.id} value={item.id}>{item.nome}</option>)}
-        </select>
+        </UniformSelect>
         {!data.length && <p className="text-xs">Non ci sono ancora condizioni salvate da copiare. Puoi scriverle direttamente qui.</p>}
         {source && <div className="max-h-36 overflow-auto whitespace-pre-wrap rounded border bg-background p-3 text-xs" aria-label="Anteprima del testo da copiare">{source.testo.replace(/<[^>]*>/g, ' ').slice(0, 1800)}</div>}
         <Button type="button" size="sm" disabled={!source || disabled} onClick={copy}>Copia e modifica qui</Button>

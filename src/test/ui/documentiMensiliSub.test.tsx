@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import {
@@ -62,10 +63,10 @@ function open(tutti = contratti) {
   render(<DocumentiMensiliSub companyId="az" subId="sub" contratti={tutti} />);
 }
 function scegli() {
-  fireEvent.change(screen.getByLabelText("Contratto del subappaltatore"), {
+  changeFormControl(screen.getByLabelText("Contratto del subappaltatore"), {
     target: { value: "c2" },
   });
-  fireEvent.change(screen.getByLabelText("Mese di competenza"), {
+  changeFormControl(screen.getByLabelText("Mese di competenza"), {
     target: { value: "2026-10" },
   });
 }
@@ -146,7 +147,7 @@ describe("Documenti amministrativi mensili", () => {
     open();
     scegli();
     configuraLul();
-    fireEvent.change(screen.getByLabelText("Stato"), {
+    changeFormControl(screen.getByLabelText("Stato"), {
       target: { value: "non_applicabile" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -154,7 +155,7 @@ describe("Documenti amministrativi mensili", () => {
     expect(state.errore).toHaveBeenCalledWith(
       expect.stringContaining("Motiva"),
     );
-    fireEvent.change(screen.getByLabelText("Stato"), {
+    changeFormControl(screen.getByLabelText("Stato"), {
       target: { value: "ricevuto" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -190,7 +191,7 @@ describe("Documenti amministrativi mensili", () => {
     open();
     scegli();
     configuraLul();
-    fireEvent.change(screen.getByLabelText(/File PDF o immagine/), {
+    changeFormControl(screen.getByLabelText(/File PDF o immagine/), {
       target: {
         files: [
           new File(["sintetico"], "prova.pdf", { type: "application/pdf" }),

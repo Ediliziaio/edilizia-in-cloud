@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -144,9 +145,9 @@ describe("Gestione dell'intera operazione", () => {
         <CantiereGenerale riepilogo={{ ...r, figlie: [figlia] }} totali={totaliGenerale(r)} puoModificare />
       </QueryClientProvider></MemoryRouter>,
     );
-    fireEvent.change(screen.getByLabelText("Ambito del cantiere"), { target: { value: "unita-1" } });
+    changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: "unita-1" } });
     await waitFor(() => expect(screen.getByText("Rapportini di unita-1")).toBeVisible());
-    fireEvent.change(screen.getByLabelText("Ambito del cantiere"), { target: { value: r.generale.id } });
+    changeFormControl(screen.getByLabelText("Ambito del cantiere"), { target: { value: r.generale.id } });
     await waitFor(() => expect(screen.getByText("Rapportini di operazione-globale")).toBeVisible());
   });
 });

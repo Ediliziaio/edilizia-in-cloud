@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import {
   render,
@@ -33,15 +34,15 @@ it("salva trasporto extra e disponibilità solo con dati validi", async () => {
       name: "Modifica trasporto e disponibilità Tegole",
     }),
   );
-  fireEvent.change(screen.getByLabelText("Trasporto"), {
+  changeFormControl(screen.getByLabelText("Trasporto"), {
     target: { value: "extra" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Salva condizioni" }));
   expect(save).not.toHaveBeenCalled();
-  fireEvent.change(screen.getByLabelText("Costo trasporto, IVA esclusa (€)"), {
+  changeFormControl(screen.getByLabelText("Costo trasporto, IVA esclusa (€)"), {
     target: { value: "25" },
   });
-  fireEvent.change(screen.getByLabelText("Disponibilità e vincoli"), {
+  changeFormControl(screen.getByLabelText("Disponibilità e vincoli"), {
     target: { value: "Disponibile subito" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Salva condizioni" }));
@@ -65,7 +66,7 @@ it("un errore conserva i dati aperti e il blocco degli export", async () => {
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: /Modifica trasporto/ }));
-  fireEvent.change(screen.getByLabelText("Disponibilità e vincoli"), {
+  changeFormControl(screen.getByLabelText("Disponibilità e vincoli"), {
     target: { value: "Consegna in due lotti" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Salva condizioni" }));

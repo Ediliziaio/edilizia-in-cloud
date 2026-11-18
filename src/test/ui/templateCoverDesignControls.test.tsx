@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
@@ -15,13 +16,13 @@ describe("shared cover design controls", () => {
     const change = vi.fn();
     render(<TemplateCoverDesignControls hasImage fields={[{ id: "titleSize", kind: "range", value: 30, min: 20, max: 64, unit: "pt", onChange: change }]} />);
     const input = screen.getByRole("spinbutton");
-    fireEvent.change(input, { target: { value: "3" } });
+    changeFormControl(input, { target: { value: "3" } });
     expect(input).toHaveValue(3); expect(change).not.toHaveBeenCalled();
-    fireEvent.change(input, { target: { value: "36" } }); fireEvent.blur(input);
+    changeFormControl(input, { target: { value: "36" } }); fireEvent.blur(input);
     expect(change).toHaveBeenLastCalledWith(36);
-    fireEvent.change(input, { target: { value: "999" } }); fireEvent.keyDown(input, { key: "Enter" });
+    changeFormControl(input, { target: { value: "999" } }); fireEvent.keyDown(input, { key: "Enter" });
     expect(change).toHaveBeenLastCalledWith(64);
-    change.mockClear(); fireEvent.change(input, { target: { value: "" } }); fireEvent.blur(input);
+    change.mockClear(); changeFormControl(input, { target: { value: "" } }); fireEvent.blur(input);
     expect(change).not.toHaveBeenCalled(); expect(input).toHaveValue(30);
   });
   it("orders controls identically and preserves a legacy choice until the user changes it", () => {
@@ -33,7 +34,7 @@ describe("shared cover design controls", () => {
     expect([...container.querySelectorAll('[data-cover-design-field]')].map(el => el.getAttribute('data-cover-design-field'))).toEqual(["titleSize", "logoPosition"]);
     expect(screen.getByRole("combobox", { name: "Posizione logo" })).toHaveValue("custom");
     expect(change).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "top_center" } });
+    changeFormControl(screen.getByRole("combobox"), { target: { value: "top_center" } });
     expect(change).toHaveBeenCalledExactlyOnceWith("top_center");
   });
   it("disables irrelevant controls without clearing the saved configuration", () => {

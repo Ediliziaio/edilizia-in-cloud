@@ -1,10 +1,13 @@
 import { useState, useMemo } from "react";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -13,6 +16,8 @@ import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
 import { perchePrimaNotaNonModificabile, usePrimaNota, type PrimaNotaEntry } from "@/hooks/usePrimaNota";
+import { ModificaCollegamentiMovimento } from "@/components/prima-nota/ModificaCollegamentiMovimento";
+import { AnteprimaAllegato } from "@/components/prima-nota/AnteprimaAllegato";
 import { AllegatoPrimaNota } from "@/components/prima-nota/AllegatoPrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -44,12 +49,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   altro: "Altro",
 };
 
+function origineMovimento(e: PrimaNotaEntry) {
+  if (!e.is_auto) return "Manuale";
+  const nomi: Record<string, string> = { fattura_emessa: "Fattura", incasso_fattura: "Incasso", nota_credito: "Nota credito" };
+  return nomi[e.auto_source ?? ""] ?? e.auto_source?.replaceAll("_", " ") ?? "Automatica";
+}
+
 function PrimaNotaInner() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const [dettaglioId, setDettaglioId] = useState<string | null>(null);
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
@@ -105,6 +118,7 @@ function PrimaNotaInner() {
   const [search, setSearch] = useState("");
   const [newOpen, setNewOpen] = useState(false);
   // La registrazione da modificare: lo stesso modulo della nuova, già compilato.
+  const [modificaDalDettaglio, setModificaDalDettaglio] = useState(false);
   const [daModificare, setDaModificare] = useState<PrimaNotaEntry | null>(null);
   const [autoView, setAutoView] = useState<"tutte" | "auto" | "manuali">("tutte");
 
@@ -126,7 +140,7 @@ function PrimaNotaInner() {
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
 
-  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, update, updateNotes, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, erroreElenco, ricaricaElenco, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, update, updateNotes, fetchAllForExport } = usePrimaNota({
     fromDate: cercaSuTutteLeDate ? undefined : fromDate,
     toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
@@ -139,12 +153,50 @@ function PrimaNotaInner() {
   const entriesWithBalance = useMemo(() => {
     const sorted = [...entries].sort((a, b) => a.entry_date.localeCompare(b.entry_date) || a.created_at.localeCompare(b.created_at));
     let balance = 0;
-    const withBal = sorted.map((e) => {
+    const withBal = [];
+    for (const e of sorted) {
       balance += e.direction === "entrata" ? e.amount : -e.amount;
-      return { ...e, runningBalance: balance };
-    });
+      withBal.push({ ...e, runningBalance: balance });
+    }
     return withBal.reverse();
   }, [entries]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const viewKey = JSON.stringify([effectiveCompany?.id, page, pageSize, search, direction, autoView, fromDate, toDate]);
+  const [selectionView, setSelectionView] = useState(viewKey);
+  if (selectionView !== viewKey) {
+    setSelectionView(viewKey);
+    setSelectedIds([]);
+  }
+  if (!isLoading && !erroreElenco && page > totalPages) setPage(totalPages);
+  const selected = entriesWithBalance.filter(entry => selectedIds.includes(entry.id));
+  const canDeleteSelection = selected.length > 0 && selected.every(e => !e.is_auto && !e.documento_fiscale_id);
+
+  async function deleteSelection(rows: PrimaNotaEntry[]) {
+    if (deleting || !rows.length || rows.some(e => e.is_auto || e.documento_fiscale_id)) return;
+    const single = rows.length === 1;
+    const confirmed = await confirm({
+      title: single ? "Eliminare il movimento?" : `Eliminare ${rows.length} movimenti?`,
+      description: (single ? `${rows[0].description} · ${formatCurrency(rows[0].amount)}.` : `Hai selezionato ${rows.length} movimenti di prima nota.`)
+        + (rows.some(e => e.invoice_id) ? " Gli incassi associati verranno rimossi dalle fatture collegate." : "")
+        + " L’eliminazione è definitiva.",
+      confirmLabel: "Elimina",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      for (const row of rows) {
+        await remove.mutateAsync(row.id);
+        setSelectedIds(ids => ids.filter(id => id !== row.id));
+      }
+    } catch {
+      // The mutation reports the error. Leave the remaining rows selected for retry.
+    } finally {
+      setDeleting(false);
+    }
+  }
+  const dettaglio = entriesWithBalance.find(e => e.id === dettaglioId);
 
   // Grafico ultimi 6 mesi: alimentato dalla query dedicata `monthlyChart` (tutte
   // le registrazioni degli ultimi 6 mesi), NON dalla lista paginata/filtrata —
@@ -453,6 +505,11 @@ function PrimaNotaInner() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      ) : erroreElenco ? (
+        <div role="alert" className="flex items-center justify-between rounded-lg border p-3 text-sm">
+          Impossibile caricare i movimenti.
+          <Button size="sm" variant="outline" onClick={() => void ricaricaElenco()}>Riprova</Button>
+        </div>
       ) : entriesWithBalance.length === 0 ? (
         // Mobile: una riga di testo (c'è «Nuova» in testata).
         <div className="rounded-lg border max-sm:border-0">
@@ -464,85 +521,64 @@ function PrimaNotaInner() {
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
-          {/* Mobile: una riga da ~52px per movimento (descrizione; data,
-              categoria e metodo; importo colorato). Via freccia e cestino. */}
-          <div className="sm:hidden divide-y">
-            {entriesWithBalance.map((e) => (
-              <div key={e.id} className={`flex items-center gap-2.5 px-3 py-2.5${perchePrimaNotaNonModificabile(e) ? "" : " cursor-pointer active:bg-muted/50"}`}
-                onClick={() => { if (!perchePrimaNotaNonModificabile(e)) setDaModificare(e); }}>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-semibold leading-tight truncate">{e.description}</p>
-                  <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} />
-                  <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                    {format(new Date(e.entry_date), "dd/MM", { locale: it })}
-                    {e.category && ` · ${CATEGORY_LABELS[e.category] || e.category}`}
-                    {e.payment_method && ` · ${e.payment_method}`}
-                  </p>
-                </div>
-                <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
-                  {e.direction === "uscita" ? "−" : "+"}{formatCurrency(e.amount)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop table */}
-          <div className="hidden sm:block overflow-x-auto">
-          <table className="w-full text-sm">
+          {selected.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2 text-sm">
+              <span aria-live="polite">{selected.length === 1 ? "1 movimento selezionato" : `${selected.length} movimenti selezionati`}</span>
+              {selected.length === 1 && (
+                <Button size="sm" variant="outline" disabled={deleting} onClick={() => {
+                  const entry = selected[0];
+                  if (perchePrimaNotaNonModificabile(entry)) setDettaglioId(entry.id);
+                  else setDaModificare(entry);
+                }}><Pencil className="mr-1 h-4 w-4" />Modifica</Button>
+              )}
+              <Button size="sm" variant="outline" className="text-destructive" disabled={deleting || !canDeleteSelection}
+                onClick={() => void deleteSelection(selected)}><Trash2 className="mr-1 h-4 w-4" />Elimina</Button>
+              <Button size="sm" variant="ghost" disabled={deleting} onClick={() => setSelectedIds([])}>Deseleziona</Button>
+              {!canDeleteSelection && <span className="text-xs text-muted-foreground">Per eliminare, deseleziona i movimenti automatici o collegati a un documento fiscale.</span>}
+            </div>
+          )}
+          <BarraScorrimentoOrizzontale contenitore={scrollContainer} className="mx-3 my-2" />
+          <div ref={setScrollContainer} className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scorri movimenti di prima nota">
+          <table aria-label="Movimenti di prima nota" className="w-full whitespace-nowrap text-sm [&_td]:px-3 [&_td]:py-2">
             <thead>
               <tr className="border-b bg-muted/50">
+                <th className="w-9 px-3"><Checkbox aria-label="Seleziona tutti i movimenti della pagina" disabled={deleting}
+                  checked={selected.length === entriesWithBalance.length || (selected.length > 0 && "indeterminate")}
+                  onCheckedChange={checked => setSelectedIds(checked ? entriesWithBalance.map(e => e.id) : [])} /></th>
                 <th className="text-left p-3 font-medium">Data</th>
-                <th className="text-left p-3 font-medium hidden sm:table-cell">Categoria</th>
+                <th className="text-left p-3 font-medium">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
                 <th className="text-right p-3 font-medium">Importo</th>
-                {/* Saldo progressivo da 1280: a 1024 la tabella usciva di 20px. */}
-                <th className="text-right p-3 font-medium hidden xl:table-cell" title="Saldo progressivo di questa pagina (dal movimento più vecchio al più recente mostrati). Il saldo netto reale del periodo è nella card 'Saldo netto' in alto.">Progr. pag.</th>
-                <th className="text-left p-3 font-medium hidden md:table-cell">Metodo</th>
-                <th className="p-3 w-10"></th>
+                <th className="p-3 text-right font-medium" title="Somma progressiva dei movimenti visualizzati nella pagina">Progressivo pagina</th>
+                {["Metodo", "Conto", "Origine", "Documento", "Commessa", "Fornitore", "Riferimento", "Allegato", "Azioni"].map(titolo =>
+                  <th key={titolo} className="p-3 text-left font-medium">{titolo}</th>)}
               </tr>
             </thead>
             <tbody>
               {entriesWithBalance.map((e) => (
-                <tr key={e.id} className="border-b hover:bg-muted/30">
+                <tr key={e.id} className="cursor-pointer border-b hover:bg-muted/40 data-[selected=true]:bg-primary/5" data-selected={selectedIds.includes(e.id)}
+                  onClick={event => {
+                    const target = event.target;
+                    if (target instanceof Element && event.currentTarget.contains(target) && !target.closest("button, a, input")) {
+                      setDettaglioId(e.id);
+                    }
+                  }}>
+                  <td onClick={event => event.stopPropagation()}><Checkbox aria-label={`Seleziona ${e.description} · ${formatCurrency(e.amount)}`}
+                    disabled={deleting} checked={selectedIds.includes(e.id)}
+                    onCheckedChange={checked => setSelectedIds(ids => checked ? [...ids, e.id] : ids.filter(id => id !== e.id))} /></td>
                   <td className="p-3">
                     <div className="flex items-center gap-1.5">
-                      {e.is_auto && <span title="Auto-generato"><Bot className="h-3.5 w-3.5 text-muted-foreground" /></span>}
                       {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}
                     </div>
                   </td>
-                  <td className="p-3 hidden sm:table-cell">
+                  <td className="p-3">
                     <Badge variant="outline" className="text-xs">
                       {CATEGORY_LABELS[e.category] || e.category}
                     </Badge>
                   </td>
                   <td className="p-3">
-                    <p className="font-medium truncate max-w-[260px]">{e.description}</p>
-                    <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} />
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {e.reference_number && (
-                        <span className="text-xs text-muted-foreground">Rif: {e.reference_number}</span>
-                      )}
-                      {e.suppliers?.name && (
-                        <span className="text-xs text-muted-foreground">{e.suppliers.name}</span>
-                      )}
-                      {e.is_auto && e.auto_source && (
-                        <Badge variant="outline" className="text-[9px] border-blue-200 text-blue-600">
-                          {e.auto_source === "fattura_emessa" ? "Fattura" :
-                           e.auto_source === "incasso_fattura" ? "Incasso" :
-                           e.auto_source === "nota_credito" ? "Nota Credito" : e.auto_source}
-                        </Badge>
-                      )}
-                      {e.documenti_fiscali?.id && (
-                        <button
-                          onClick={() => navigate(`/azienda/documenti/${e.documenti_fiscali!.id}`)}
-                          className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
-                        >
-                          <FileText className="h-3 w-3" />
-                          {e.documenti_fiscali.tipo === "nota_credito" ? "NC" : "Fatt."} #{e.documenti_fiscali.numero}
-                          <ExternalLink className="h-2.5 w-2.5" />
-                        </button>
-                      )}
-                    </div>
+                    <button type="button" aria-haspopup="dialog" className="block max-w-[24rem] truncate text-left font-medium hover:underline"
+                      title={e.description} onClick={() => setDettaglioId(e.id)}>{e.description}</button>
                   </td>
                   <td className="p-3 text-right font-mono">
                     <span className={`flex items-center justify-end gap-1 ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
@@ -553,14 +589,32 @@ function PrimaNotaInner() {
                       {e.direction === "uscita" ? "-" : "+"}{formatCurrency(e.amount)}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono hidden xl:table-cell">
+                  <td className="p-3 text-right font-mono">
                     <span className={e.runningBalance >= 0 ? "" : "text-destructive"}>
                       {formatCurrency(e.runningBalance)}
                     </span>
                   </td>
-                  <td className="p-3 text-xs text-muted-foreground capitalize hidden md:table-cell">
+                  <td className="p-3 text-xs text-muted-foreground capitalize">
                     {e.payment_method || "—"}
                   </td>
+                  <td>{e.account_label || "—"}</td>
+                  <td>{origineMovimento(e)}</td>
+                  <td>{e.documenti_fiscali?.id ? (
+                        <button
+                          onClick={() => navigate(`/azienda/documenti/${e.documenti_fiscali!.id}`)}
+                          className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+                        >
+                          <FileText className="h-3 w-3" />
+                          {e.documenti_fiscali.tipo === "nota_credito" ? "NC" : "Fatt."} #{e.documenti_fiscali.numero}
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </button>
+                      ) : e.invoices?.invoice_number || "—"}</td>
+                  <td>{e.orders?.order_code && e.order_id
+                    ? <button className="text-primary hover:underline" onClick={() => navigate(`/azienda/ordini/${e.order_id}`)}>{e.orders.order_code}</button>
+                    : "—"}</td>
+                  <td>{e.suppliers?.name || "—"}</td>
+                  <td>{e.reference_number || "—"}</td>
+                  <td>{e.attachment_url ? <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} /> : "—"}</td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-0.5">
                     <NotaRiga
@@ -586,18 +640,8 @@ function PrimaNotaInner() {
                         size="sm"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                         aria-label="Elimina movimento di prima nota"
-                        onClick={async () => {
-                          if (
-                            await confirm({
-                              title: "Eliminare il movimento?",
-                              description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota.${e.invoice_id ? " La fattura collegata tornerà da incassare." : ""} L'operazione non può essere annullata.`,
-                              confirmLabel: "Elimina",
-                              variant: "destructive",
-                            })
-                          ) {
-                            remove.mutate(e.id);
-                          }
-                        }}
+                        disabled={deleting}
+                        onClick={() => void deleteSelection([e])}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -608,7 +652,7 @@ function PrimaNotaInner() {
               ))}
             </tbody>
           </table>
-          </div>{/* end hidden sm:block */}
+          </div>
         </div>
       )}
 
@@ -682,6 +726,50 @@ function PrimaNotaInner() {
       </PannelloFiltri>
 
       {/* Dialog */}
+      <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) setDettaglioId(null); }}>
+        {dettaglio && <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Dettaglio movimento</DialogTitle>
+            <DialogDescription className="break-words">{dettaglio.description}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between border-y py-3">
+            <span>{dettaglio.direction === "entrata" ? "Entrata" : "Uscita"} · {format(new Date(dettaglio.entry_date), "dd/MM/yyyy")}</span>
+            <strong className={dettaglio.direction === "entrata" ? "text-green-700" : "text-destructive"}>
+              {dettaglio.direction === "entrata" ? "+" : "−"}{formatCurrency(dettaglio.amount)}
+            </strong>
+          </div>
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            {[
+              ["Categoria", CATEGORY_LABELS[dettaglio.category] || dettaglio.category],
+              ["Origine", origineMovimento(dettaglio)], ["Metodo", dettaglio.payment_method],
+              ["Conto", dettaglio.account_label], ["Fornitore", dettaglio.suppliers?.name],
+              ["Riferimento", dettaglio.reference_number], ["Progressivo pagina", formatCurrency(dettaglio.runningBalance)],
+              ["Documento", dettaglio.documenti_fiscali?.numero ?? dettaglio.invoices?.invoice_number],
+            ].filter(([, valore]) => valore).map(([nome, valore]) =>
+              <div key={nome}><dt className="text-xs text-muted-foreground">{nome}</dt><dd className="break-words">{valore}</dd></div>)}
+          </dl>
+          {dettaglio.notes && <div><p className="text-xs text-muted-foreground">Note</p><p className="whitespace-pre-wrap break-words text-sm">{dettaglio.notes}</p></div>}
+          <div className="space-y-3 border-y py-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Commessa o macrocommessa</p>
+              {dettaglio.order_id
+                ? <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/azienda/ordini/${dettaglio.order_id}`)}>{dettaglio.orders?.order_code || "Apri commessa"}</Button>
+                : <p>Nessuna commessa collegata</p>}
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Allegato del movimento</p>
+              {dettaglio.attachment_url
+                ? <AnteprimaAllegato key={dettaglio.attachment_url} url={dettaglio.attachment_url} nome={dettaglio.attachment_name} />
+                : <p>Nessun allegato</p>}
+            </div>
+            {perchePrimaNotaNonModificabile(dettaglio) && <p className="text-xs text-muted-foreground">Per correggere importo e data, apri la registrazione di origine.</p>}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {dettaglio.documenti_fiscali?.id && <Button variant="outline" onClick={() => navigate(`/azienda/documenti/${dettaglio.documenti_fiscali!.id}`)}>Apri documento</Button>}
+            {perchePrimaNotaNonModificabile(dettaglio) ? <ModificaCollegamentiMovimento key={dettaglio.id} movimento={dettaglio} /> : <Button onClick={() => { setModificaDalDettaglio(true); setDaModificare(dettaglio); setDettaglioId(null); }}>Modifica movimento e collegamenti</Button>}
+          </div>
+        </DialogContent>}
+      </Dialog>
       <NewEntryDialog
         open={newOpen}
         onOpenChange={setNewOpen}
@@ -691,8 +779,9 @@ function PrimaNotaInner() {
       <NewEntryDialog
         open={!!daModificare}
         entry={daModificare}
-        onOpenChange={(v) => { if (!v) setDaModificare(null); }}
-        onConfirm={(dati) => daModificare && update.mutate({ id: daModificare.id, dati, prima: daModificare }, { onSuccess: () => setDaModificare(null) })}
+        mostraAllegato={modificaDalDettaglio}
+        onOpenChange={(v) => { if (!v) { if (modificaDalDettaglio) setDettaglioId(daModificare?.id ?? null); setModificaDalDettaglio(false); setDaModificare(null); } }}
+        onConfirm={(dati) => daModificare && update.mutate({ id: daModificare.id, dati, prima: daModificare }, { onSuccess: () => { if (modificaDalDettaglio) setDettaglioId(daModificare.id); setModificaDalDettaglio(false); setDaModificare(null); } })}
         isPending={update.isPending}
       />
     </div>

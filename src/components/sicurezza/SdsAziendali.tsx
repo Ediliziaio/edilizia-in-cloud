@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -234,7 +235,7 @@ export function CollegaRevisioni({
         <fieldset disabled={occupato || !scrive} className="space-y-4">
           <div>
             <Label htmlFor="sds-nuova">Nuova revisione caricata</Label>
-            <select
+            <UniformSelect
               id="sds-nuova"
               className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
               value={nuova}
@@ -251,11 +252,11 @@ export function CollegaRevisioni({
                     {etichetta(d)}
                   </option>
                 ))}
-            </select>
+            </UniformSelect>
           </div>
           <div>
             <Label htmlFor="sds-precedente">Documento precedente</Label>
-            <select
+            <UniformSelect
               id="sds-precedente"
               className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
               value={precedente}
@@ -272,7 +273,7 @@ export function CollegaRevisioni({
                     {etichetta(d)}
                   </option>
                 ))}
-            </select>
+            </UniformSelect>
           </div>
         </fieldset>
         {a && (

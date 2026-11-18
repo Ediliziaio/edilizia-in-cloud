@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useRef, useState } from "react";
 import { puoConsultareSalSub, puoScrivereSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -583,7 +584,7 @@ export function LavoriMisureSubDialog({
                         <div className="grid gap-3 sm:grid-cols-4">
                           <label className="grid gap-1 text-sm">
                             Calcolo del compenso
-                            <select
+                            <UniformSelect
                               className={selettore}
                               value={v.base}
                               onChange={(e) => {
@@ -603,7 +604,7 @@ export function LavoriMisureSubDialog({
                               <option value="corpo">A corpo</option>
                               <option value="misura">A misura</option>
                               <option value="ore">A ore</option>
-                            </select>
+                            </UniformSelect>
                           </label>
                           <label className="text-sm">
                             Quantità affidata
@@ -642,7 +643,7 @@ export function LavoriMisureSubDialog({
                         </div>
                         <label className="grid gap-1 text-sm">
                           Lavorazione della commessa (facoltativa)
-                          <select
+                          <UniformSelect
                             className={selettore}
                             value={v.fase_id}
                             onChange={(e) => {
@@ -661,7 +662,7 @@ export function LavoriMisureSubDialog({
                                 {f.name}
                               </option>
                             ))}
-                          </select>
+                          </UniformSelect>
                         </label>
                       </div>
                     ))}
@@ -694,7 +695,7 @@ export function LavoriMisureSubDialog({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="grid gap-1 text-sm">
                         Quando matura il compenso
-                        <select
+                        <UniformSelect
                           className={selettore}
                           value={maturazione}
                           onChange={(e) => setMaturazione(e.target.value)}
@@ -705,7 +706,7 @@ export function LavoriMisureSubDialog({
                           <option value="traguardi">
                             Traguardi concordati
                           </option>
-                        </select>
+                        </UniformSelect>
                       </label>
                       <label className="text-sm">
                         Giorni di pagamento, se pattuiti

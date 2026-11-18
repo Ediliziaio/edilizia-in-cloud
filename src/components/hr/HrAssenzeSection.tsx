@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * HrAssenzeSection — malattie, infortuni e assenze del dipendente.
  * Periodo (dal–al), giorni, protocollo INPS e certificato caricabile.
@@ -138,10 +139,10 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
           <div className="space-y-3">
             <div>
               <Label>Tipo</Label>
-              <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={form.tipo ?? "malattia"} onChange={(e) => set("tipo", e.target.value)}>
                 {TIPO_ASSENZA.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </UniformSelect>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

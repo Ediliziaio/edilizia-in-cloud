@@ -1,6 +1,7 @@
 import { FASI, type FiltriBacheca, type PeriodoFiltro } from "./bacheca";
 
 export const FILTRI_SOPRALLUOGHI: FiltriBacheca = {
+  da: "", a: "",
   fase: "tutte",
   periodo: "tutti",
   tecnico: "tutti",
@@ -14,9 +15,10 @@ const PERIODI: PeriodoFiltro[] = [
   "settimana",
   "mese",
   "in_ritardo",
-  "senza_data",
+  "senza_data", "personalizzato",
 ];
 const CHIAVI = {
+  da: "sop_da", a: "sop_a",
   fase: "sop_fase",
   periodo: "sop_periodo",
   tecnico: "sop_tecnico",
@@ -29,6 +31,7 @@ export function leggiFiltriBacheca(params: URLSearchParams): FiltriBacheca {
   const fase = params.get(CHIAVI.fase);
   const periodo = params.get(CHIAVI.periodo);
   return {
+    da: params.get("sop_da") ?? "", a: params.get("sop_a") ?? "",
     fase: FASI.find((f) => f.fase === fase)?.fase ?? "tutte",
     periodo: PERIODI.includes(periodo as PeriodoFiltro)
       ? (periodo as PeriodoFiltro)

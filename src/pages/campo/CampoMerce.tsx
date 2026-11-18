@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Merce presa» — l'operaio ha ritirato o comprato della merce (Tecnomat, Leroy Merlin, un
  * rivenditore) e ha in mano una bolla, uno scontrino o una fattura.
@@ -309,18 +310,18 @@ function CampoMerceEditor() {
               value={cantiereInfo ? `${cantiereInfo.order.order_code || "Cantiere"} · ${cantiereInfo.order.description || cantiereInfo.order.indirizzo_lavori || "Lavoro assegnato"}` : "Cantiere"}
             />
           ) : (
-            <select id="merce-cantiere" value={cantiereScelto} onChange={e => setOrderId(e.target.value)} className={campo}>
+            <UniformSelect id="merce-cantiere" value={cantiereScelto} onChange={e => setOrderId(e.target.value)} className={campo}>
               {!cantiereScelto && <option value="" disabled>Scegli il cantiere</option>}
               {cantieri.map(c => <option key={c.order_id} value={c.order_id}>{c.order.order_code || "Cantiere"} · {c.order.description || c.order.indirizzo_lavori || "Lavoro assegnato"}</option>)}
-            </select>
+            </UniformSelect>
           )}
           {assegnazioni.isError && <p role="alert" className="text-xs text-destructive">Non riesco a leggere i tuoi cantieri. <button type="button" className="underline" onClick={() => assegnazioni.refetch()}>Riprova</button></p>}
         </div>
         <div className="space-y-1.5">
           <label htmlFor="merce-tipo" className="text-sm font-semibold">Che documento è?</label>
-          <select id="merce-tipo" className={campo} value={tipoEffettivo} onChange={e => setTipoDocumento(e.target.value as TipoDocumento)}>
+          <UniformSelect id="merce-tipo" className={campo} value={tipoEffettivo} onChange={e => setTipoDocumento(e.target.value as TipoDocumento)}>
             <option value="bolla">Bolla / DDT</option><option value="scontrino">Scontrino / ricevuta</option><option value="fattura">Fattura</option><option value="altro">Altro documento</option>
-          </select>
+          </UniformSelect>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">

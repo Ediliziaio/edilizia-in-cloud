@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { permissionChanges } from "@/lib/users/permissionChanges";
 import { useId, useState } from "react";
 import { Sparkles, ArrowRight, Check } from "lucide-react";
@@ -30,10 +31,10 @@ export function OfficeProfileSelector({ permissions, onChange, disabled = false 
     </div>
     <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
       <div><label htmlFor={id} className="text-xs font-medium">Prepara i permessi da un modello</label>
-        <select id={id} disabled={disabled} className="mt-1 block w-full rounded-md border bg-background p-2 text-sm" value={choice} onChange={e => setChoice(e.target.value)}>
+        <UniformSelect id={id} disabled={disabled} className="mt-1 block w-full rounded-md border bg-background p-2 text-sm" value={choice} onChange={e => setChoice(e.target.value)}>
           <option value="">Scegli un modello…</option>
           {Object.entries(OFFICE_PROFILES).map(([key, p]) => <option key={key} value={key}>{p.label}</option>)}
-        </select>
+        </UniformSelect>
       </div>
       <Button type="button" variant="outline" disabled={disabled || !choice} onClick={() => { onChange(next); setChoice(""); }}><ArrowRight className="mr-2 h-4 w-4" />Applica alla bozza</Button>
     </div>

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +82,7 @@ export function DocumentiMezzoSchedaPos({
       <Label htmlFor={`${id}-modo`}>
         Documentazione della specifica attrezzatura
       </Label>
-      <select
+      <UniformSelect
         id={`${id}-modo`}
         className="h-10 w-full rounded border bg-background px-2 text-sm"
         disabled={sola}
@@ -99,7 +100,7 @@ export function DocumentiMezzoSchedaPos({
         <option value="altra_gestione">
           Altra gestione documentale, da motivare
         </option>
-      </select>
+      </UniformSelect>
       {v.modalita === "altra_gestione" && (
         <>
           <Label htmlFor={`${id}-motivo`}>
@@ -169,7 +170,7 @@ export function DocumentiMezzoSchedaPos({
                   <Label htmlFor={`${id}-documento`}>
                     Documento tecnico della macchina
                   </Label>
-                  <select
+                  <UniformSelect
                     id={`${id}-documento`}
                     className="h-10 w-full rounded border bg-background px-2 text-sm"
                     value={scelto}
@@ -194,7 +195,7 @@ export function DocumentiMezzoSchedaPos({
                         {!d.disponibile ? " · originale non disponibile" : ""}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                   {!sola && (
                     <Button
                       type="button"

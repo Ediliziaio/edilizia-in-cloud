@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/piano/PianoEconomico.tsx
 // La scheda «Piano economico» della commessa generale (piano §3.2 F6): il budget
 // dell'appalto o il business plan dello sviluppo. Versioni (bozza → approvata → revisione),
@@ -592,7 +593,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
           <div ref={tabellaRef} className="generale-table-toolbar scroll-mt-24">
             <label>
               Categoria costi
-              <select
+              <UniformSelect
                 aria-label="Filtra voci per categoria costo"
                 value={categorie.length > 1 ? "__gruppo" : (categorie[0] ?? "")}
                 onChange={(e) => {
@@ -617,7 +618,7 @@ function ContenutoPianoEconomico({ riepilogo, puoModificare }: PropsScheda) {
                       c}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </label>
           </div>
           {categorie.length > 0 && (

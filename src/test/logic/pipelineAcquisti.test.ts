@@ -466,7 +466,7 @@ describe("pipeline acquisti: filtri comuni", () => {
       cerca: "cavo",
     });
     expect(leggiFiltriAcquisti(new URLSearchParams("tab=acquisto")).vista).toBe(
-      "pipeline",
+      "elenco",
     );
     expect(scriviFiltroAcquisti(p, "ritardo", false).has("ritardo")).toBe(
       false,
@@ -526,4 +526,12 @@ describe("Contenuti e ricezioni nella pipeline", () => {
       parziali: 1,
     });
   });
+});
+
+it("l'intervallo personalizzato usa l'emissione e include entrambi gli estremi", () => {
+  const filtri = leggiFiltriAcquisti(new URLSearchParams("periodo=personalizzato&oda_da=2026-10-01&oda_a=2026-10-23"));
+  expect(filtraOda([oda("prima","inviato",{issue_date:"2026-09-30"}),oda("inizio","inviato",{issue_date:"2026-10-01"}),oda("fine","inviato",{issue_date:"2026-10-23"})],[],filtri,OGGI).map(o=>o.id)).toEqual(["inizio","fine"]);
+  const next = scriviFiltroAcquisti(new URLSearchParams("oda_pagina=4&tab=acquisto"),"oda_da","2026-10-01");
+  expect(next.has("oda_pagina")).toBe(false);
+  expect(next.get("tab")).toBe("acquisto");
 });

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Landmark, Wallet } from "lucide-react";
 import {
@@ -177,7 +178,7 @@ export function CassaScadenze({
         <div className="generale-cash-toolbar">
           <label>
             Periodo
-            <select
+            <UniformSelect
               aria-label="Periodo cassa effettiva"
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value as PeriodoCassa)}
@@ -185,11 +186,11 @@ export function CassaScadenze({
               <option value="tutto">Intera operazione</option>
               <option value="passato">Mesi precedenti</option>
               <option value="futuro">Da questo mese</option>
-            </select>
+            </UniformSelect>
           </label>
           <label>
             Simula ritardo degli incassi attesi
-            <select
+            <UniformSelect
               aria-label="Ritardo incassi effettivi"
               value={ritardo}
               onChange={(e) => {
@@ -202,7 +203,7 @@ export function CassaScadenze({
                   {m} mesi
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
           {ritardo > 0 && (
             <button

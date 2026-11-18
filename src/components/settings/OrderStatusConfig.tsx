@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import React, { useState, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -471,9 +472,9 @@ function OrderStatusConfigCompany() {
               <p className="text-xs text-muted-foreground">Scegli uno stato per provare l’anteprima. Non modifica una commessa.</p>
             </div>
             <label className="block text-xs font-medium">Stato da mostrare nell’anteprima
-              <select className="mt-1 h-10 w-full min-w-0 rounded-md border bg-background px-2 text-sm" value={previewStatusId ?? ""} onChange={e => setPreviewId(e.target.value)}>
+              <UniformSelect className="mt-1 h-10 w-full min-w-0 rounded-md border bg-background px-2 text-sm" value={previewStatusId ?? ""} onChange={e => setPreviewId(e.target.value)}>
                 {statuses.map(s => <option key={s.id} value={s.id}>{s.name || "Stato senza nome"}</option>)}
-              </select>
+              </UniformSelect>
             </label>
             <div className="py-2">
               <OrderProgressTracker statuses={statuses} currentStatusId={previewStatusId || null} layout="vertical" size="sm" />

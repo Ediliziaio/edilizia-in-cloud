@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +64,7 @@ export function MezzoSchedaTecnicaPos({
       <Label htmlFor={`${id}-modo`}>
         Anagrafica dell’attrezzatura effettiva
       </Label>
-      <select
+      <UniformSelect
         id={`${id}-modo`}
         className="h-10 w-full rounded border bg-background px-2 text-sm"
         value={v.modalita}
@@ -77,7 +78,7 @@ export function MezzoSchedaTecnicaPos({
         <option value="non_censita">
           Attrezzatura non censita, con motivazione
         </option>
-      </select>
+      </UniformSelect>
       {v.fonte && (
         <div className="space-y-2 rounded border bg-white p-2 text-xs">
           <p className="break-words font-medium">
@@ -134,7 +135,7 @@ export function MezzoSchedaTecnicaPos({
                 </p>
               )}
               <Label htmlFor={`${id}-fonte`}>Attrezzatura e assegnazione</Label>
-              <select
+              <UniformSelect
                 id={`${id}-fonte`}
                 className="h-10 w-full rounded border bg-background px-2 text-sm"
                 value={scelta}
@@ -151,7 +152,7 @@ export function MezzoSchedaTecnicaPos({
                     {etichettaFonteMezzo(f)}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
               <div className="flex flex-wrap gap-2">
                 {!sola && (
                   <Button

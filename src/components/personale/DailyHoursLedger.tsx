@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { ArrowUpRight, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,7 @@ export function DailyHoursLedger({
             }}
           />
         </div>
-        <select
+        <UniformSelect
           className={`${selectClass} max-md:hidden`}
           aria-label="Dipendente del registro"
           value={person}
@@ -111,8 +112,8 @@ export function DailyHoursLedger({
               {p.name}
             </option>
           ))}
-        </select>
-        <select
+        </UniformSelect>
+        <UniformSelect
           className={`${selectClass} max-md:hidden`}
           aria-label="Cantiere del registro"
           value={order}
@@ -127,8 +128,8 @@ export function DailyHoursLedger({
               {o.name}
             </option>
           ))}
-        </select>
-        <select
+        </UniformSelect>
+        <UniformSelect
           className={selectClass}
           aria-label="Stato delle ore"
           value={status}
@@ -141,7 +142,7 @@ export function DailyHoursLedger({
           <option value="confirmed">Confermate</option>
           <option value="pending">In attesa</option>
           {c.showCosts && <option value="unpriced">Da valorizzare</option>}
-        </select>
+        </UniformSelect>
       </div>
       <div
         className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"

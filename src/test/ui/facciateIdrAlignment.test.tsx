@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -38,9 +39,9 @@ describe("Facciate shared Idr visual contract, local only", () => {
     const template = make(), save = vi.fn();
     template.pdf_blocchi.private_metadata = { keep: true };
     mount({ template, save });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Dimensione occhiello (pt)" }), { target: { value: "12" } });
+    changeFormControl(screen.getByRole("spinbutton", { name: "Dimensione occhiello (pt)" }), { target: { value: "12" } });
     fireEvent.blur(screen.getByRole("spinbutton", { name: "Dimensione occhiello (pt)" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Posizione logo" }), { target: { value: "hidden" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Posizione logo" }), { target: { value: "hidden" } });
     fireEvent.click(saveButton());
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0]).toEqual({ ...template, pdf_cover_eyebrow_size: 12, pdf_cover_logo_position: "hidden" });
@@ -71,7 +72,7 @@ describe("Facciate shared Idr visual contract, local only", () => {
 
   it("passes stable selected section, not content-dependent title or page number, and preserves edits across mobile views", () => {
     mount();
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Titolo personalizzato" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Titolo personalizzato" } });
     const before = calls.preview.mock.lastCall![0].depsKey;
     navigate("Controlli di qualità");
     expect(screen.getByLabelText("Sezione PDF")).toHaveTextContent("page_controlli");
@@ -108,7 +109,7 @@ describe("Facciate shared Idr visual contract, local only", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scegli dalla libreria del modulo" }));
     expect(saveButton()).toBeDisabled();
     expect(getFacDraft("fac-alignment", "cappotto")).toBeUndefined();
-    fireEvent.change(screen.getByRole("textbox", { name: "Sottotitolo copertina" }), { target: { value: "Nuovo sottotitolo" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Sottotitolo copertina" }), { target: { value: "Nuovo sottotitolo" } });
     fireEvent.click(saveButton());
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0]).toMatchObject({ pdf_cover_image_url: null as null, cover_image_url: null as null });
@@ -121,8 +122,8 @@ describe("Facciate shared Idr visual contract, local only", () => {
     template.pdf_blocchi.testata_recensioni = { occhiello: "Esperienze", extra: "preservare" };
     mount({ template, saved: true, save, section: "page_testimonianze" });
     expect(screen.getByLabelText("Ruolo o contesto 1")).toHaveValue("Condominio");
-    fireEvent.change(screen.getByLabelText("Ruolo o contesto 1"), { target: { value: "Amministratore" } });
-    fireEvent.change(screen.getByLabelText("Titolo testimonianze"), { target: { value: "Le esperienze autorizzate" } });
+    changeFormControl(screen.getByLabelText("Ruolo o contesto 1"), { target: { value: "Amministratore" } });
+    changeFormControl(screen.getByLabelText("Titolo testimonianze"), { target: { value: "Le esperienze autorizzate" } });
     fireEvent.click(screen.getByRole("switch", { name: "Mostra «Dicono di noi» nel PDF" }));
     const navItem = within(screen.getByRole("navigation")).getByRole("button", { name: "Dicono di noi" });
     expect(within(navItem).getByLabelText("Esclusa dal PDF")).toBeInTheDocument();
@@ -145,7 +146,7 @@ describe("Facciate shared Idr visual contract, local only", () => {
     let reject!: (error: Error) => void;
     const save = vi.fn().mockImplementationOnce(() => new Promise<void>((_, fail) => { reject = fail; })).mockResolvedValueOnce(undefined);
     const { container } = mount({ save });
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Da conservare" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Da conservare" } });
     fireEvent.click(saveButton());
     const pending = screen.getByRole("button", { name: "Salvataggio…" });
     expect(pending).toBeDisabled(); fireEvent.click(pending); expect(save).toHaveBeenCalledOnce();
@@ -191,10 +192,10 @@ describe("Facciate shared Idr visual contract, local only", () => {
     const mounted = render(<FacciateLocalImageField {...props} />);
     expect(screen.getByText("Nessuna immagine")).toBeVisible();
     const file = new File(["local"], "photo.png", { type: "image/png" });
-    fireEvent.change(screen.getByLabelText("Carica foto test"), { target: { files: [file] } });
+    changeFormControl(screen.getByLabelText("Carica foto test"), { target: { files: [file] } });
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Formato non valido"));
     expect(onChange).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("Carica foto test"), { target: { files: [file] } });
+    changeFormControl(screen.getByLabelText("Carica foto test"), { target: { files: [file] } });
     expect(screen.getByRole("button", { name: "Carica" })).toBeDisabled();
     await act(async () => resolve("data:image/png;base64,AAAA"));
     expect(onChange).toHaveBeenCalledWith("data:image/png;base64,AAAA");

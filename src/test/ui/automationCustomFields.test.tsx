@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -107,12 +109,12 @@ describe("custom fields in workflow editor, no writes", () => {
         />,
       ),
     );
-    expect(await screen.findByRole("option", { name: "Budget" })).toHaveValue(
+    expect(await formOptions().findByRole("option", { name: "Budget" })).toHaveValue(
       `cf:${id}`,
     );
     const number = await screen.findByLabelText("Budget");
     expect(number).toHaveValue(0);
-    fireEvent.change(number, { target: { value: "12" } });
+    changeFormControl(number, { target: { value: "12" } });
     expect(JSON.parse(screen.getByTestId("draft").textContent!).valore).toBe(
       12,
     );
@@ -131,7 +133,7 @@ describe("custom fields in workflow editor, no writes", () => {
         />,
       ),
     );
-    fireEvent.change(screen.getByLabelText("Entità da aggiornare"), {
+    changeFormControl(screen.getByLabelText("Entità da aggiornare"), {
       target: { value: "orders" },
     });
     expect(memory.patches).toHaveLength(1);
@@ -152,9 +154,9 @@ describe("custom fields in workflow editor, no writes", () => {
         />,
       ),
     );
-    expect(screen.getByRole("option", { name: /Campo non disponibile/ }))
+    expect(formOptions().getByRole("option", { name: /Campo non disponibile/ }))
       .toBeDisabled();
-    expect(screen.queryByRole("option", { name: "status" }))
+    expect(formOptions().queryByRole("option", { name: "status" }))
       .toBeNull();
   });
   it("keeps false in checkbox configuration", async () => {
@@ -224,8 +226,8 @@ describe("custom fields in workflow editor, no writes", () => {
       name: "Non visibile",
     });
     render(provider(<Update initial={{ tabella: "contacts" }} />));
-    await screen.findByRole("option", { name: "Budget" });
-    expect(screen.queryByRole("option", { name: "Non visibile" })).toBeNull();
+    await formOptions().findByRole("option", { name: "Budget" });
+    expect(formOptions().queryByRole("option", { name: "Non visibile" })).toBeNull();
     const query = memory.calls[0];
     expect(query.steps).toContainEqual(["eq", "company_id", "A"]);
     expect(query.steps).toContainEqual(["is", "deleted_at", null]);
@@ -238,7 +240,7 @@ describe("custom fields in workflow editor, no writes", () => {
     );
     render(provider(<Update initial={{ tabella: "contacts" }} />));
     await waitFor(() =>
-      expect(screen.getByRole("option", { name: "Campo 200" }))
+      expect(formOptions().getByRole("option", { name: "Campo 200" }))
         .toBeInTheDocument()
     );
     expect(

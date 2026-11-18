@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Anteprima di sviluppo del Listino prodotti, con i listini d'esempio.
  *
@@ -65,7 +66,7 @@ export default function ListinoAnteprima() {
           <span className="font-semibold text-foreground">Anteprima di sviluppo</span>
           <label className="inline-flex items-center gap-1.5">
             Listino d'esempio
-            <select
+            <UniformSelect
               className="rounded border bg-background px-1.5 py-0.5 text-foreground"
               value={indice}
               onChange={(e) => {
@@ -78,7 +79,7 @@ export default function ListinoAnteprima() {
                   {e.nome}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
           <span className="hidden md:inline">{esempio.descrizione}</span>
           <label className="ml-auto inline-flex items-center gap-1.5">

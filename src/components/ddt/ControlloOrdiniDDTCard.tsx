@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { ConfrontoDocumentiLayout, PannelloDocumento } from "@/components/shared/ConfrontoDocumentiLayout";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -497,9 +498,9 @@ export function ControlloOrdiniDDTCard({ ddt }: { ddt: DDTRicezione }) {
             </Tabs>
             <Tabs value={vistaOrdine} onValueChange={v=>{setVistaOrdine(v);if(v!=="righe"&&ordineAttivo==="tutti"&&ordineSelezionato)setOrdineAttivo(ordineSelezionato.id);}} className="contents">
               <PannelloDocumento nome="Ordini di confronto" lato="destra" attivo={pannelloMobile==="destra"}
-                testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">Ordini di confronto</h3>                <select aria-label="Ordine da confrontare" className="h-8 w-full rounded-md border px-2 text-xs" value={ordineAttivo} onChange={e=>setOrdineAttivo(e.target.value)}>
+                testata={<div className="space-y-2 border-b px-4 py-3 sm:px-5"><h3 className="text-sm font-semibold">Ordini di confronto</h3>                <UniformSelect aria-label="Ordine da confrontare" className="h-8 w-full rounded-md border px-2 text-xs" value={ordineAttivo} onChange={e=>setOrdineAttivo(e.target.value)}>
                   <option value="tutti">Tutti gli ordini collegati</option>{controllo.data?.ordini.map(o=><option key={o.id} value={o.id}>{o.oda_number}</option>)}
-                </select>
+                </UniformSelect>
 </div>}
                 viste={<div className="px-4 py-2 sm:px-5">                  <TabsList className="h-8"><TabsTrigger value="righe" className="text-xs">Righe e residui</TabsTrigger><TabsTrigger value="inviato" className="text-xs">PDF nostro</TabsTrigger><TabsTrigger value="fornitore" className="text-xs">Conferma fornitore</TabsTrigger></TabsList>
 </div>}>

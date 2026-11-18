@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { DocumentiMezzoSchedaPos } from "./DocumentiMezzoSchedaPos";
 import { MezzoSchedaTecnicaPos } from "./MezzoSchedaTecnicaPos";
 import { FontiSchedaTecnicaPos } from "./FontiSchedaTecnicaPos";
@@ -183,7 +184,7 @@ export function TecnicaLavorazionePos({
         <Label htmlFor={`${base}-attrezzature`} className="mt-3 block">
           Sono previste attrezzature, macchine, impianti o opere provvisionali?
         </Label>
-        <select
+        <UniformSelect
           id={`${base}-attrezzature`}
           className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
           value={t.attrezzature_previste}
@@ -198,7 +199,7 @@ export function TecnicaLavorazionePos({
           <option value="da_verificare">Da verificare</option>
           <option value="si">Sì, identificale nelle schede</option>
           <option value="no">No, indica il motivo</option>
-        </select>
+        </UniformSelect>
         {t.attrezzature_previste === "no" && (
           <div className="mt-3">
             {area(

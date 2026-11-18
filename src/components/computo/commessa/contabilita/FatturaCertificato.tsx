@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Dal certificato di pagamento alla fattura.
  *   «Prepara la fattura»: crea la bozza già compilata (stazione appaltante,
@@ -123,7 +124,7 @@ export default function FatturaCertificato({ certificato, sal, computo, orderId,
       ) : (fatture.data ?? []).length === 0 ? (
         <span className="text-xs text-slate-600">Nessuna fattura della commessa da collegare.</span>
       ) : (
-        <select aria-label={`Fattura del certificato n. ${certificato.numero}`} className="h-7 rounded-md border bg-background px-1 text-xs"
+        <UniformSelect aria-label={`Fattura del certificato n. ${certificato.numero}`} className="h-7 rounded-md border bg-background px-1 text-xs"
           defaultValue="" disabled={collega.isPending}
           onChange={(e) => e.target.value && collega.mutate({ certificatoId: certificato.id, documentoId: e.target.value }, {
             onSuccess: () => { toast.success("Fattura collegata al certificato"); setScegli(false); },
@@ -135,7 +136,7 @@ export default function FatturaCertificato({ certificato, sal, computo, orderId,
               {f.numero || "Bozza"}{f.data_emissione ? ` del ${dataIt(f.data_emissione)}` : ""} · {euro(f.totale_documento)} · {f.stato}
             </option>
           ))}
-        </select>
+        </UniformSelect>
       )}
     </span>
   );

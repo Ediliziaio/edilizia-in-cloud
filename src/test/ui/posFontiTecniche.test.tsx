@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -84,14 +85,14 @@ afterEach(cleanup);
 describe("Selezione fonti tecniche", () => {
   it("collega una versione congelata senza confermare la pertinenza automaticamente", () => {
     render(<Harness />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Fonte rischio: documenti o dichiarazione"),
       { target: { value: "documenti" } },
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Scegli dal fascicolo tecnico" }),
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Documento tecnico r1" }),
       { target: { value: doc().id } },
     );
@@ -151,7 +152,7 @@ describe("Selezione fonti tecniche", () => {
         initial={{ modalita: "documenti", motivazione: "", documenti: [doc()] }}
       />,
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Fonte rischio: documenti o dichiarazione"),
       { target: { value: "testo_pos" } },
     );

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -371,7 +372,7 @@ export function BankReconciliationWorkspace({
             </div>
             <label className="text-xs">
               Conto
-              <select
+              <UniformSelect
                 aria-label="Conto da riconciliare"
                 className="mt-1 block h-9 max-w-60 rounded-md border bg-background px-2 text-sm"
                 value={filters.account}
@@ -383,7 +384,7 @@ export function BankReconciliationWorkspace({
                     {a.display_name || a.account_name || "Conto"}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </label>
             <label className="text-xs">
               Dal
@@ -671,7 +672,7 @@ export function BankReconciliationWorkspace({
                   <div className="space-y-3 rounded-xl border bg-background p-4">
                     <label className="text-sm font-medium">
                       Tipo di operazione
-                      <select
+                      <UniformSelect
                         aria-label="Categoria senza fattura"
                         className="mt-2 block h-10 w-full rounded-md border bg-background px-2"
                         value={draft.category}
@@ -695,7 +696,7 @@ export function BankReconciliationWorkspace({
                               {l}
                             </option>
                           ))}
-                      </select>
+                      </UniformSelect>
                     </label>
                     <p className="text-xs text-muted-foreground">
                       Commissioni e altre spese diventano costi già pagati. F24,
@@ -836,7 +837,7 @@ export function BankReconciliationWorkspace({
                           {draftDifference(draft) > 0 && (
                             <label className="mt-3 block text-xs">
                               Gestione della differenza
-                              <select
+                              <UniformSelect
                                 aria-label="Gestione differenza"
                                 className="mt-1 block h-9 w-full rounded-md border bg-background px-2 text-sm"
                                 value={draft.differenceReason}
@@ -876,7 +877,7 @@ export function BankReconciliationWorkspace({
                                   Ritenuta ordinaria: mantieni aperto e verifica
                                   il trattamento fiscale
                                 </option>
-                              </select>
+                              </UniformSelect>
                               <span className="mt-2 block text-muted-foreground">
                                 Se scegli di registrare la differenza, viene
                                 creato il costo con il suo pagamento. Negli

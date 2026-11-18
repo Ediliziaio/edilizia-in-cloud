@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -141,7 +142,7 @@ describe("Libreria profili aziendali", () => {
     });
     fireEvent.click(c);
     expect(c).toBeChecked();
-    fireEvent.change(screen.getByLabelText("Condizioni e limiti d’impiego"), {
+    changeFormControl(screen.getByLabelText("Condizioni e limiti d’impiego"), {
       target: { value: "Nuovi limiti" },
     });
     expect(c).not.toBeChecked();
@@ -177,7 +178,7 @@ describe("Scelta del profilo per la verifica del caso", () => {
         onError={vi.fn()}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Profilo requisiti da caricare"), {
+    changeFormControl(screen.getByLabelText("Profilo requisiti da caricare"), {
       target: { value: "p1" },
     });
     expect(screen.getByText("Escluso lavoro in quota")).toBeTruthy();
@@ -204,7 +205,7 @@ describe("Scelta del profilo per la verifica del caso", () => {
         onError={errore}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Profilo requisiti da caricare"), {
+    changeFormControl(screen.getByLabelText("Profilo requisiti da caricare"), {
       target: { value: "p1" },
     });
     s.profiles = [{ ...p, archiviato: true }];

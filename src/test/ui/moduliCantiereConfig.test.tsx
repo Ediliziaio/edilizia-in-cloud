@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ModuliCantiereConfig } from "@/components/settings/ModuliCantiereConfig";
@@ -80,9 +81,9 @@ describe("Campi propri", () => {
   it("aggiungere un campo genera la chiave, rinominarlo non la cambia", async () => {
     conModello({ campi: [campo()] });
     render(<ModuliCantiereConfig tipo="rapportino" />);
-    fireEvent.change(screen.getByLabelText("Nome del campo 1"), { target: { value: "Pezzi montati" } });
+    changeFormControl(screen.getByLabelText("Nome del campo 1"), { target: { value: "Pezzi montati" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi un campo" }));
-    fireEvent.change(screen.getByLabelText("Nome del campo 2"), { target: { value: "Pezzi montati" } });
+    changeFormControl(screen.getByLabelText("Nome del campo 2"), { target: { value: "Pezzi montati" } });
     salva();
     await waitFor(() => expect(stato.salva).toHaveBeenCalled());
     const { campi } = salvato().schema;
@@ -93,12 +94,12 @@ describe("Campi propri", () => {
     const { toast } = await import("sonner");
     render(<ModuliCantiereConfig tipo="rapportino" />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi un campo" }));
-    fireEvent.change(screen.getByLabelText("Nome del campo 1"), { target: { value: "Esito" } });
-    fireEvent.change(screen.getByLabelText("Tipo del campo 1"), { target: { value: "select" } });
+    changeFormControl(screen.getByLabelText("Nome del campo 1"), { target: { value: "Esito" } });
+    changeFormControl(screen.getByLabelText("Tipo del campo 1"), { target: { value: "select" } });
     salva();
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(stato.salva).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("Opzioni del campo 1"), { target: { value: "Sì, No, Forse" } });
+    changeFormControl(screen.getByLabelText("Opzioni del campo 1"), { target: { value: "Sì, No, Forse" } });
     salva();
     await waitFor(() => expect(stato.salva).toHaveBeenCalled());
     expect(salvato().schema.campi[0].opzioni).toEqual(["Sì", "No", "Forse"]);
@@ -140,7 +141,7 @@ describe("Campi propri", () => {
     render(<ModuliCantiereConfig tipo="rapportino" />);
     for (const n of ["Chi lo compila, campo 1", "Quali ditte, campo 1", "Quando, campo 1", "Dove, campo 1", "Nel PDF, campo 1"]) expect(screen.getByLabelText(n)).toBeInTheDocument();
     expect(screen.getByLabelText("Unità del campo 1")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Tipo del campo 1"), { target: { value: "text" } });
+    changeFormControl(screen.getByLabelText("Tipo del campo 1"), { target: { value: "text" } });
     expect(screen.queryByLabelText("Unità del campo 1")).toBeNull();
   });
   it("si riordina con su e giù", async () => {
@@ -183,7 +184,7 @@ describe("Anteprima", () => {
     expect(within(a).queryByLabelText("Solo capo")).toBeNull();
     fireEvent.click(within(a).getByRole("button", { name: "Vista capo" }));
     expect(within(a).getByLabelText("Solo capo")).toBeInTheDocument();
-    fireEvent.change(within(a).getByLabelText("Solo capo"), { target: { value: "prova" } });
+    changeFormControl(within(a).getByLabelText("Solo capo"), { target: { value: "prova" } });
     expect(stato.salva).not.toHaveBeenCalled();
     expect(stato.guard).toHaveBeenLastCalledWith(false);
   });
@@ -225,7 +226,7 @@ describe("Verbali", () => {
     render(<ModuliCantiereConfig tipo="verbale" />);
     fireEvent.click(screen.getByRole("button", { name: "Apri il modello Serramenti" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi una voce" }));
-    fireEvent.change(screen.getByLabelText("Voce 2"), { target: { value: "Maniglie" } });
+    changeFormControl(screen.getByLabelText("Voce 2"), { target: { value: "Maniglie" } });
     fireEvent.click(screen.getByRole("switch", { name: "Compilabile dal capo in cantiere" }));
     salva();
     await waitFor(() => expect(stato.salva).toHaveBeenCalled());

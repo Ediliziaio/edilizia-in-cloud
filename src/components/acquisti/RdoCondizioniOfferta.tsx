@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,7 +94,7 @@ export function RdoCondizioniOfferta({
         <div className="space-y-3">
           <div>
             <Label htmlFor={`trasporto-${f.id}`}>Trasporto</Label>
-            <select
+            <UniformSelect
               id={`trasporto-${f.id}`}
               value={tipo}
               disabled={busy}
@@ -105,7 +106,7 @@ export function RdoCondizioniOfferta({
                   {label}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </div>
           {tipo === "extra" && (
             <div>

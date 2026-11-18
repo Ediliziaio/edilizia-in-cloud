@@ -1006,7 +1006,7 @@ function DocumentiFiscaliListInner() {
           })}
         </div>
         <div className="border rounded-lg overflow-hidden max-sm:hidden">
-          {elencoEmesse && <BarraScorrimentoOrizzontale contenitore={riquadroTabella} className="mx-3 my-2" />}
+          <BarraScorrimentoOrizzontale contenitore={riquadroTabella} className="mx-3 my-2" />
           <div>
             <Table wrapperRef={setRiquadroTabella} wrapperClassName={elencoEmesse ? "max-h-[70vh] tabella-scorrevole" : undefined} className={elencoEmesse ? "[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap" : undefined}>
               <TableHeader className={elencoEmesse ? "sticky top-0 z-10 bg-card shadow-[0_1px_0_hsl(var(--border))]" : undefined}>

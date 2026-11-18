@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * /azienda/impostazioni/categorie-costi
  *
@@ -561,7 +562,7 @@ export default function SettingsCostCategories() {
                       {label}
                     </Button>
                   ))}
-                  <select
+                  <UniformSelect
                     value={sortMode}
                     onChange={(event) => setSortMode(event.target.value as SortMode)}
                     className="h-9 rounded-md border border-input bg-background px-3 text-sm"
@@ -570,7 +571,7 @@ export default function SettingsCostCategories() {
                     <option value="name">Nome A-Z</option>
                     <option value="usage_desc" disabled={!usageKnown}>Più usate</option>
                     <option value="usage_asc" disabled={!usageKnown}>Meno usate</option>
-                  </select>
+                  </UniformSelect>
                 </div>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,8 +12,8 @@ beforeEach(() => { submit.mockReset().mockResolvedValue(undefined); localStorage
 afterEach(cleanup);
 function openDemo() { render(<MemoryRouter initialEntries={["/demo/"]}><Routes><Route path="/demo/" element={<Demo />} /><Route path="/demo/grazie" element={<h1>Scegli l’appuntamento</h1>} /></Routes></MemoryRouter>); }
 function fill(phone = "+39 333 1234567") {
-  for (const [name,value] of [["Nome", "Mario"],["Cognome","Rossi"],["Nome Azienda","Edile Test"],["Telefono",phone],["Email","mario@example.com"]]) fireEvent.change(screen.getByLabelText(`${name} *`, { exact: true }),{target:{value}});
-  fireEvent.change(screen.getByLabelText(/^Fatturato Annuo/),{target:{value:"non-indicato"}});
+  for (const [name,value] of [["Nome", "Mario"],["Cognome","Rossi"],["Nome Azienda","Edile Test"],["Telefono",phone],["Email","mario@example.com"]]) changeFormControl(screen.getByLabelText(`${name} *`, { exact: true }),{target:{value}});
+  changeFormControl(screen.getByLabelText(/^Fatturato Annuo/),{target:{value:"non-indicato"}});
   fireEvent.click(screen.getByRole("checkbox",{name:/Ho letto e accetto/}));
 }
 describe("percorso pubblico demo", () => {

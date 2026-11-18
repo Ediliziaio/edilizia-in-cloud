@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * HrMansioniCatalogDialog — CRUD del catalogo mansioni riutilizzabili.
  * Lista mansioni + form (nome/area/descrizione) con editor lista responsabilità
@@ -135,24 +136,24 @@ export function HrMansioniCatalogDialog({ open, onOpenChange, companyId }: Props
                   {(editing.kpi_suggeriti ?? []).map((k, i) => (
                     <div key={i} className="grid grid-cols-12 gap-2 items-center rounded-md border p-2">
                       <Input className="col-span-4" value={k.nome} placeholder="Nome KPI" onChange={(e) => patchKpi(i, { nome: e.target.value })} />
-                      <select className="col-span-2 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      <UniformSelect className="col-span-2 h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={k.unita} onChange={(e) => patchKpi(i, { unita: e.target.value as KpiUnita })}>
                         {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
-                      </select>
+                      </UniformSelect>
                       <Input className="col-span-2" type="number" step="0.1" placeholder="target"
                         value={k.target ?? ""} onChange={(e) => patchKpi(i, { target: e.target.value === "" ? null : Number(e.target.value) })} />
-                      <select className="col-span-3 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      <UniformSelect className="col-span-3 h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={k.periodo} onChange={(e) => patchKpi(i, { periodo: e.target.value as KpiPeriodo })}>
                         {PERIODI.map((p) => <option key={p} value={p}>{p}</option>)}
-                      </select>
+                      </UniformSelect>
                       <button type="button" className="col-span-1 text-destructive flex justify-center" onClick={() => removeKpi(i)}>
                         <Trash2 className="h-4 w-4" />
                       </button>
-                      <select className="col-span-4 h-9 rounded-md border border-input bg-background px-2 text-sm"
+                      <UniformSelect className="col-span-4 h-9 rounded-md border border-input bg-background px-2 text-sm"
                         value={k.direzione} onChange={(e) => patchKpi(i, { direzione: e.target.value as KpiDirezione })}>
                         <option value="su">Più alto è meglio</option>
                         <option value="giu">Più basso è meglio</option>
-                      </select>
+                      </UniformSelect>
                     </div>
                   ))}
                   {(editing.kpi_suggeriti ?? []).length === 0 && (

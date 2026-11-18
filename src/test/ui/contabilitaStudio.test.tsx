@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 const state = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: Record<string, unknown> }>,
   liquidati: new Set<string>(),
+  mostraF24: false,
 }));
 
 const conti = [
@@ -39,7 +40,8 @@ const esercizio = { anno: 2026, chiuso_il: null as string | null, stampato_fino_
     "Movimento di prima nota del 03/02/2026 (1000 €, «bonifico»): su «Partite da verificare», va classificato."], errori: [] as string[] } };
 
 function builder(table: string) {
-  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? scritture
+  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? (state.mostraF24 ? [{ ...scrittura(4, "2026-02-16", "f24", "Versamento F24", [["banca", 0, 50], ["iva", 50, 0]]), origine_id: "versamento-4" }] : scritture)
+    : table === "f24_entries" ? { tributo_code: "6001", tributo_descrizione: "IVA gennaio", importo: 50, stato: "pagato", data_pagamento: "2026-02-16" }
     : table === "contabilita_esercizi" ? esercizio : [];
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "order", "range", "limit", "in", "is", "maybeSingle", "single"]) b[m] = () => b;
@@ -81,7 +83,7 @@ function apri(vista: string) {
   );
 }
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); state.mostraF24 = false; });
 
 it("il bilancio si legge diviso: stato patrimoniale e conto economico, con l'utile", async () => {
   apri("bilancio");
@@ -115,4 +117,14 @@ it("quello che la generazione non sa classificare si vede: «Da guardare»", asy
   fireEvent.click(riquadro);
   expect(screen.getByText(/40.00 € fra totale e imponibile più IVA/)).toBeTruthy();
   expect(screen.getByText(/va classificato/)).toBeTruthy();
+});
+
+it("apre dal giornale il versamento F24 della scrittura", async () => {
+  state.mostraF24 = true;
+  apri("giornale");
+  fireEvent.click(await screen.findByRole("button", { name: /Apri scrittura 4\/2026, 06.01/ }));
+  const versamento = await screen.findByText("Versamento F24 · 6001");
+  fireEvent.click(versamento);
+  expect(versamento.closest("details")?.open).toBe(true);
+  expect(versamento.closest("details")?.textContent).toMatch(/IVA gennaio.*50,00.*pagato.*16\/02\/2026/);
 });

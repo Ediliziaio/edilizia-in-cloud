@@ -106,6 +106,7 @@ function ContenutoPurchaseOrderDetail() {
   );
   const { updateStatus, update } = usePurchaseOrders();
 
+  const [ordineFiltroResidui, setOrdineFiltroResidui] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [previewOpen,setPreviewOpen]=useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
@@ -146,6 +147,16 @@ function ContenutoPurchaseOrderDetail() {
   const permissions = usePermissions();
   const confirm = useConfirm();
 
+  const { data: richiestaOrigine } = useQuery({
+    queryKey: ["rdo-origine-ordine", effectiveCompany?.id, odaId],
+    enabled: !!odaId && !!effectiveCompany?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("supplier_rfqs").select("id, rfq_number")
+        .eq("company_id", effectiveCompany!.id).eq("purchase_order_id", odaId!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
     queryFn: async () => {
@@ -238,6 +249,12 @@ function ContenutoPurchaseOrderDetail() {
   const senzaPrezzi = letturaSenzaPrezzi();
   const canEdit = !senzaPrezzi && permissions.canEditOrders && ["bozza", "inviato", "confermato", "parziale"].includes(order.status);
   const isEditable = canEdit && (order.status === "bozza" || editingOrderId === order.id);
+  const mostraRicezione = !isEditable && order.status !== "annullato";
+  const soloResidui = mostraRicezione && ordineFiltroResidui === order.id;
+  const articoliVisibili = soloResidui
+    ? items.filter(item => Number(item.quantity_received ?? 0) < Number(item.quantity))
+    : items;
+
   const righeInSalvataggio = addItem.isPending || updateItem.isPending || deleteItem.isPending || update.isPending;
   const editingDetails = editingDetailsId === order.id;
   const documentBusy = righeInSalvataggio || isItemsLoading || editingDetails || editingNotesId === order.id;
@@ -330,6 +347,16 @@ function ContenutoPurchaseOrderDetail() {
   // In testata restano Modifica, Arrivata merce e il passo principale: il resto nel menu.
   const arrivoPossibile = ["inviato", "confermato", "parziale"].includes(order.status);
   const statiPrincipali = nextStatuses.filter((ns) => ns !== "annullato" && !(ns === "inviato" && origine === "email"));
+  const attendeConferma = order.status === "inviato" && canEdit;
+  const registraConferma = async () => {
+    const ricevuta = await confirm({
+      title: "Conferma ricevuta dal fornitore?",
+      description: `Registra la conferma dell’ordine ${order.oda_number} dopo aver verificato prezzi, quantità e consegna.`,
+      confirmLabel: "Registra conferma",
+      cancelLabel: "Indietro",
+    });
+    if (ricevuta) await handleStatusChange("confermato");
+  };
   const puoAnnullare = nextStatuses.includes("annullato");
   const chiediAnnullo = async () => {
     if (await confirm({
@@ -341,7 +368,7 @@ function ContenutoPurchaseOrderDetail() {
     })) handleStatusChange("annullato");
   };
   const vociMenu: Array<{ id: string; etichetta: string; icona: React.ReactNode; azione: () => void }> = [
-    ...(order.status !== "bozza" && order.status !== "annullato"
+    ...(!attendeConferma && order.status !== "bozza" && order.status !== "annullato"
       ? [{ id: "verifica", etichetta: "Confronta conferma", icona: <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />, azione: () => setVerifyDialogOpen(true) }]
       : []),
     ...(arrivoPossibile
@@ -351,7 +378,7 @@ function ContenutoPurchaseOrderDetail() {
       ? [{ id: "voce", etichetta: "Già ordinato a voce", icona: STATUS_ICONS.inviato, azione: (): void => { void handleStatusChange("inviato"); } }]
       : []),
     ...(order.status !== "bozza"
-      ? statiPrincipali.map((ns) => ({ id: ns, etichetta: `Segna: ${String(STATUS_LABELS[ns] ?? ns).toLowerCase()}`, icona: STATUS_ICONS[ns], azione: (): void => { void handleStatusChange(ns); } }))
+      ? statiPrincipali.filter(ns => ns !== "confermato").map((ns) => ({ id: ns, etichetta: `Segna: ${String(STATUS_LABELS[ns] ?? ns).toLowerCase()}`, icona: STATUS_ICONS[ns], azione: (): void => { void handleStatusChange(ns); } }))
       : []),
   ];
 
@@ -387,6 +414,12 @@ function ContenutoPurchaseOrderDetail() {
                 </span>
               </Link>
             ) : null}
+            {!order.order_id && <span className="text-xs">Magazzino</span>}
+            {richiestaOrigine && <button type="button" className="text-xs text-blue-700 underline" onClick={() => navigate(`/azienda/richieste-offerta/${richiestaOrigine.id}`)}>Apri richiesta d’origine · {richiestaOrigine.rfq_number}</button>}
+            {order.expected_delivery_date && <span className="text-xs">
+              Consegna {format(new Date(order.expected_delivery_date), "dd/MM/yyyy")}
+              {order.expected_delivery_date < format(new Date(), "yyyy-MM-dd") && !["bozza", "ricevuto", "annullato"].includes(order.status) && " · In ritardo"}
+            </span>}
             {/* Come e' stato comprato: spiega perche' i pulsanti sono quelli
                 e non altri. Sugli ordini vecchi e' sempre "Email". */}
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
@@ -405,8 +438,14 @@ function ContenutoPurchaseOrderDetail() {
                 {isEditable ? "Termina modifica" : "Modifica ordine"}
               </Button>
             )}
+            {attendeConferma && (
+              <QuotePrimaryButton size="sm" disabled={updateStatus.isPending || documentBusy}
+                onClick={() => void registraConferma()}>
+                {STATUS_ICONS.confermato} Registra conferma fornitore
+              </QuotePrimaryButton>
+            )}
             {arrivoPossibile && (
-              <Button size="sm" aria-expanded={arrivoOpen} onClick={() => setArrivoOpen((a) => !a)}>
+              <Button size="sm" variant={attendeConferma ? "outline" : "default"} aria-expanded={arrivoOpen} onClick={() => setArrivoOpen((a) => !a)}>
                 <PackageCheck className="h-3.5 w-3.5 mr-1" />
                 Arrivata merce
               </Button>
@@ -462,7 +501,10 @@ function ContenutoPurchaseOrderDetail() {
               {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
               {downloadingPdf ? "Preparazione PDF…" : "Scarica PDF"}
             </Button>
-            <Button size="sm" variant={order.status === "bozza" ? "default" : "outline"} disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />Email con PDF</Button>
+            <Button size="sm" variant={order.status === "bozza" ? "default" : "outline"} disabled={documentBusy} onClick={() => openSend("pdf")}><Paperclip className="mr-1.5 h-4 w-4" />{order.status === "bozza" && origine === "email" ? "Invia ordine al fornitore" : "Email con PDF"}</Button>
+            {attendeConferma && <Button size="sm" variant="outline" onClick={() => setVerifyDialogOpen(true)}>
+              <ShieldCheck className="mr-1 h-4 w-4" /> Confronta conferma
+            </Button>}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Altri documenti"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button>
@@ -490,6 +532,10 @@ function ContenutoPurchaseOrderDetail() {
                 <span className="text-orange-500"><Package className="h-4 w-4" /></span>
                 Articoli
               </h3>
+              {mostraRicezione && <Button variant="outline" size="sm" aria-pressed={soloResidui}
+                onClick={() => setOrdineFiltroResidui(soloResidui ? null : order.id)}>
+                Solo righe da ricevere
+              </Button>}
               {isEditable && (
                 <Button
                   size="sm"
@@ -521,22 +567,25 @@ function ContenutoPurchaseOrderDetail() {
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
               ) : items.length === 0 ? (
                 <p className="text-center py-8 text-muted-foreground text-sm">Nessun articolo. Clicca "Aggiungi" per iniziare.</p>
+              ) : articoliVisibili.length === 0 ? (
+                <p className="p-5 text-sm">Tutti gli articoli sono stati ricevuti.</p>
               ) : (
                 <div className="overflow-x-auto" role="region" aria-label="Articoli dell’ordine" tabIndex={0}>
                   <table className="w-full min-w-[790px] text-sm">
                     <thead><tr className="border-b bg-muted/50">
                       <th className="text-left p-2 pl-4 font-medium">Descrizione</th>
-                      <th className="text-right p-2 font-medium w-20">Qtà</th>
+                      <th className="text-right p-2 font-medium w-20">Ordinato</th>
                       <th className="text-left p-2 font-medium w-16">UM</th>
+                      {mostraRicezione && <><th className="p-2 text-right font-medium">Ricevuto</th><th className="p-2 text-right font-medium">Da ricevere</th></>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Prezzo acquisto</th>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">Sc.%</th>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-16">IVA%</th>}
                       {!senzaPrezzi && <th className="text-right p-2 font-medium w-24">Totale netto</th>}
                       {isEditable && <th className="p-2" aria-label="Stato prezzo e azioni"></th>}
-                      {!isEditable && order.status !== "annullato" && <th className="text-right p-2 font-medium w-20">Ricevuti</th>}
+
                     </tr></thead>
                     <tbody>
-                      {items.map((item) => (
+                      {articoliVisibili.map((item) => (
                         <PurchaseOrderItemRow
                           senzaPrezzi={senzaPrezzi}
                           // La quantita' ricevuta cambia anche da fuori questa
@@ -551,27 +600,27 @@ function ContenutoPurchaseOrderDetail() {
                           item={item}
                           isEditable={isEditable}
                           inversioneContabile={!!documentoInvio.inversioneContabile}
-                          showReceived={!isEditable && order.status !== "annullato"}
+                          showReceived={mostraRicezione}
                           onUpdate={(updates) => updateItem.mutateAsync({ id: item.id, updates })}
                           onDelete={() => deleteItem.mutate(item.id)}
                         />
                       ))}
                     </tbody>
-                    {!senzaPrezzi && <tfoot>
+                    {!senzaPrezzi && <tfoot aria-label="Totali intero ordine">
                       <tr className="border-t bg-muted/30">
-                        <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right font-medium">Imponibile:</td>
+                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right font-medium">{soloResidui ? "Imponibile intero ordine:" : "Imponibile:"}</td>
                         <td className="p-2 text-right font-medium">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.imponibile)}</td>
-                        {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
+                        {isEditable && <td></td>}
                       </tr>
                       <tr className="bg-muted/30">
-                        <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right text-muted-foreground">IVA:</td>
+                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right text-muted-foreground">IVA:</td>
                         <td className="p-2 text-right text-muted-foreground">{documentoInvio.inversioneContabile ? "Inversione contabile" : importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.iva)}</td>
-                        {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
+                        {isEditable && <td></td>}
                       </tr>
                       <tr className="bg-muted/30 border-t">
-                        <td colSpan={isEditable ? 6 : 6} className="p-2 pl-4 text-right font-bold">{totaliRighe.daConfermare ? "Totale parziale:" : "Totale:"}</td>
+                        <td colSpan={mostraRicezione ? 8 : 6} className="p-2 pl-4 text-right font-bold">{totaliRighe.daConfermare ? "Totale parziale:" : "Totale:"}</td>
                         <td className="p-2 text-right font-bold">{importiInAttesa ? "Da confermare" : fmtEur(totaliRighe.totale)}</td>
-                        {(isEditable || (!isEditable && order.status !== "annullato")) && <td></td>}
+                        {isEditable && <td></td>}
                       </tr>
                     </tfoot>}
                   </table>
@@ -653,7 +702,6 @@ function ContenutoPurchaseOrderDetail() {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  {avanzamento.daCompletare > 0 && <div className="space-y-1 pt-1 text-xs">{items.filter(i => Number(i.quantity_received ?? 0) < Number(i.quantity)).map(i => <p key={i.id} className="flex justify-between gap-2"><span className="truncate text-slate-600" title={i.description}>{i.description}</span><span className="shrink-0 font-semibold text-amber-800">Mancano {(Number(i.quantity) - Number(i.quantity_received ?? 0)).toLocaleString("it-IT", { maximumFractionDigits: 4 })} {i.unit_of_measure || "· UM da verificare"}</span></p>)}</div>}
                   {pct === 100 && (
                     <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" /> Tutti gli articoli ricevuti

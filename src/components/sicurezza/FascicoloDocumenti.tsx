@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { CatalogoDocumentiDialog } from "./CatalogoDocumentiDialog";
 import {
   voceCatalogo,
@@ -462,7 +463,7 @@ export function FascicoloDocumenti({
             onChange={(e) => setCerca(e.target.value)}
           />
           {!orderId && !soloSdsAziendali && (
-            <select
+            <UniformSelect
               aria-label="Ambito dei documenti"
               className="h-10 max-w-xs rounded-md border bg-background px-2 text-sm"
               value={contesto}
@@ -477,7 +478,7 @@ export function FascicoloDocumenti({
                     {c.order_code}
                   </option>
                 ))}
-            </select>
+            </UniformSelect>
           )}
           {(dataRiferimento || faseRiferimento) && (
             <label className="flex items-center gap-2 text-xs">
@@ -734,7 +735,7 @@ export function FascicoloDocumenti({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="evi-tipo">Tipo</Label>
-                    <select
+                    <UniformSelect
                       id="evi-tipo"
                       className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                       value={form.tipo}
@@ -746,7 +747,7 @@ export function FascicoloDocumenti({
                           {l}
                         </option>
                       ))}
-                    </select>
+                    </UniformSelect>
                   </div>
                   <div>
                     <Label htmlFor="evi-titolo">Titolo</Label>
@@ -761,7 +762,7 @@ export function FascicoloDocumenti({
                 {!form.id && !!orderId && !subId && !soloSdsAziendali && (
                   <div>
                     <Label htmlFor="evi-impresa">Titolare del documento</Label>
-                    <select
+                    <UniformSelect
                       id="evi-impresa"
                       className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                       value={form.subappaltatore_id}
@@ -778,7 +779,7 @@ export function FascicoloDocumenti({
                           {i.ragione_sociale || "Impresa collegata"}
                         </option>
                       ))}
-                    </select>
+                    </UniformSelect>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Solo imprese già collegate alla commessa. Seleziona poi
                       l’eventuale operaio o incarico; il caricamento non
@@ -805,7 +806,7 @@ export function FascicoloDocumenti({
                       Commessa
                       {form.tipo === "pos" ? " (necessaria per il POS)" : ""}
                     </Label>
-                    <select
+                    <UniformSelect
                       id="evi-commessa"
                       disabled={soloSdsAziendali || !!orderId}
                       required={form.tipo === "pos"}
@@ -819,7 +820,7 @@ export function FascicoloDocumenti({
                           {c.order_code} · {c.description?.slice(0, 50)}
                         </option>
                       ))}
-                    </select>
+                    </UniformSelect>
                     {commesse.isError && (
                       <p role="alert" className="text-xs text-destructive">
                         Elenco commesse non disponibile.
@@ -831,7 +832,7 @@ export function FascicoloDocumenti({
                       <Label htmlFor="evi-operaio">
                         Operaio (se personale)
                       </Label>
-                      <select
+                      <UniformSelect
                         id="evi-operaio"
                         disabled={!!form.id || !!form.incarico_id}
                         className="h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -852,7 +853,7 @@ export function FascicoloDocumenti({
                             {o.nome} {o.cognome}
                           </option>
                         ))}
-                      </select>
+                      </UniformSelect>
                     </div>
                   )}
                 </div>
@@ -868,7 +869,7 @@ export function FascicoloDocumenti({
                   {!soloSdsAziendali && (
                     <>
                       <Label htmlFor="evi-fase">Fase della commessa</Label>
-                      <select
+                      <UniformSelect
                         id="evi-fase"
                         disabled={!form.order_id || verificatoNelFascicolo}
                         className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
@@ -885,7 +886,7 @@ export function FascicoloDocumenti({
                             {f.end_date ? ` al ${f.end_date}` : ""}
                           </option>
                         ))}
-                      </select>
+                      </UniformSelect>
                       {fasi.isError && (
                         <p role="alert" className="text-xs text-destructive">
                           Fasi non disponibili: riprova prima di collegare una
@@ -931,7 +932,7 @@ export function FascicoloDocumenti({
                       <Label htmlFor="evi-incarico">
                         Incarico titolare del documento
                       </Label>
-                      <select
+                      <UniformSelect
                         id="evi-incarico"
                         className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                         value={form.incarico_id}
@@ -961,7 +962,7 @@ export function FascicoloDocumenti({
                               {i.nominativo} · {RUOLI_INCARICO[i.ruolo]}
                             </option>
                           ))}
-                      </select>
+                      </UniformSelect>
                       {incarichi.isError && (
                         <p role="alert" className="text-xs text-destructive">
                           Incarichi non disponibili.
@@ -984,7 +985,7 @@ export function FascicoloDocumenti({
                         <Label htmlFor="evi-origine">
                           Origine del requisito
                         </Label>
-                        <select
+                        <UniformSelect
                           id="evi-origine"
                           className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                           value={form.origine_requisito}
@@ -998,7 +999,7 @@ export function FascicoloDocumenti({
                             Contratto / committente
                           </option>
                           <option value="interna">Procedura interna</option>
-                        </select>
+                        </UniformSelect>
                       </div>
                       <div>
                         <Label htmlFor="evi-riferimento">
@@ -1017,7 +1018,7 @@ export function FascicoloDocumenti({
                 )}
                 <div>
                   <Label htmlFor="evi-stato">Stato</Label>
-                  <select
+                  <UniformSelect
                     id="evi-stato"
                     className="h-10 w-full rounded-md border bg-background px-2 text-sm"
                     value={form.stato}
@@ -1028,7 +1029,7 @@ export function FascicoloDocumenti({
                         {l}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {(

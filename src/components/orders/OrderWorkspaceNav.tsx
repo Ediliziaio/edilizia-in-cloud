@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -18,7 +19,7 @@ export function OrderWorkspaceNav<T extends string>({
   const isMobile = useIsMobile();
   // Telefono: la tendina basta, senza riga sotto né spazio in più (06/10/2026).
   if (isMobile) return <nav data-order-navigation aria-label={label} className="min-h-0">
-    <select aria-label={label} value={value} onChange={event => {
+    <UniformSelect aria-label={label} value={value} onChange={event => {
       const selected = views.find(view => view.value === event.target.value);
       if (selected) onChange(selected.value);
     }} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600">
@@ -26,7 +27,7 @@ export function OrderWorkspaceNav<T extends string>({
         const n = counts?.[view.value];
         return <option key={view.value} value={view.value}>{view.label}{typeof n === "number" && n > 0 ? ` (${n})` : ""}</option>;
       })}
-    </select>
+    </UniformSelect>
   </nav>;
   // Secondo livello: schede sottolineate, più leggere di quelle principali
   // (riquadro + arancio). Il livello si capisce dalla forma, non solo dal colore;

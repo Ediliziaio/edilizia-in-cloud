@@ -168,7 +168,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
             <th className="py-2 font-medium">Cliente / fornitore</th>
             <th className="py-2 font-medium">Descrizione</th>
             <th className="hidden py-2 font-medium lg:table-cell">Documento · commessa</th>
-            <th className="hidden py-2 font-medium xl:table-cell">Modalità</th>
+            <th className="py-2 font-medium">Modalità</th>
             <th className="py-2 text-right font-medium">Importo</th>
             <th className="py-2 text-right font-medium">Residuo</th>
             <th className="py-2 font-medium">Stato</th>
@@ -242,7 +242,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     {[documento, s.orders?.order_code].filter(Boolean).join(" · ") || <span className="text-muted-foreground">—</span>}
                   </span>
                 </td>
-                <td className="hidden xl:table-cell text-xs" title={s.payment_method ?? undefined}>
+                <td className="text-xs" title={s.payment_method ?? undefined}>
                   {etichettaMetodo(s.payment_method)
                     ? <span className={gruppoMetodo(s.payment_method) === "riba" ? "rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300" : ""}>{etichettaMetodo(s.payment_method)}</span>
                     : <span className="text-muted-foreground">—</span>}

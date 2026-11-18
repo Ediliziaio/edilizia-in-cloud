@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il modello che il PDF del preventivo sta usando, e il modo di rinnovarlo.
  *
@@ -102,9 +103,9 @@ export function ModelloDelPreventivo({ modulo, tabella, interventi, progetto, sn
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs">
       <span title="Le modifiche ai modelli della libreria non entrano nel PDF di questo preventivo.">Il preventivo usa il modello base: i cambi alla libreria non arrivano nel PDF.</span>
       {scelte.length > 1 && (
-        <select aria-label="Modello della libreria" className="rounded border bg-background px-2 py-1" value={scelto} onChange={(e) => setScelto(e.target.value)}>
+        <UniformSelect aria-label="Modello della libreria" className="rounded border bg-background px-2 py-1" value={scelto} onChange={(e) => setScelto(e.target.value)}>
           {scelte.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
-        </select>
+        </UniformSelect>
       )}
       <Button size="sm" variant="outline" disabled={inCorso || !scelto} onClick={() => void applica(scelto)}>
         {inCorso ? "Collego…" : scelte.length === 1 ? `Usa il modello «${scelte[0].title}»` : "Usa questo modello"}

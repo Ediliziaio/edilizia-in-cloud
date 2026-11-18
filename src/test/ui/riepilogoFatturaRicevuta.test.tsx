@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -60,6 +60,45 @@ describe("riepilogo della fattura ricevuta", () => {
     expect(screen.getByText(/IVA 22% su/)).toBeTruthy();
     expect(screen.getByText("434,32 €")).toBeTruthy();
     expect(screen.queryByText(/Versione completa/)).toBeNull();
+  });
+
+  it("mostra subito conto, macrocommessa, commessa, magazzino e residuo sull’imponibile", async () => {
+    finto.dati.fatture_ricevute = { ...FIC, company_cost_id: "c1", imponibile_totale: 100, totale_documento: 122 };
+    finto.dati.company_costs = { id: "c1", amount: 100, category: "trasporti", quota_magazzino: 15,
+      allocations: [{ order_id: "g", pct: 50, importo: 50 }, { order_id: "o", pct: 25 }] };
+    finto.dati["orders[]"] = [{ id: "g", order_code: "G-1", workflow_kind: "generale" }, { id: "o", order_code: "C-1" }];
+    apri();
+    const box = within(await screen.findByRole("table", { name: "Quote per destinazione" }));
+    expect(screen.getByRole("combobox", { name: "Conto di costo" })).toHaveTextContent("trasporti");
+    for (const nome of [/Macrocommessa · G-1.*50%.*50,00/, /Commessa · C-1.*25%.*25,00/, /Magazzino.*15%.*15,00/, /Costo generale.*10%.*10,00/]) {
+      expect(box.getByRole("row", { name: nome })).toBeVisible();
+    }
+  });
+
+  it("somma le quote di due ordini di acquisto della stessa commessa", async () => {
+    finto.dati.fatture_ricevute = { ...FIC, imponibile_totale: 100 };
+    finto.dati["fattura_ricevuta_ordini[]"] = [20, 30].map((importo, i) => ({
+      importo, purchase_orders: { id: "po" + i, oda_number: "ODA-" + i, orders: { id: "o", order_code: "C-1" } },
+    }));
+    apri();
+    const box = within(await screen.findByRole("table", { name: "Quote per destinazione" }));
+    expect(box.getByRole("row", { name: /Commessa · C-1.*50%.*50,00/ })).toBeVisible();
+  });
+
+  it("mostra la prima rata ancora aperta, anche se scaduta, con importo e Ri.Ba.", async () => {
+    finto.dati["rate_fornitori[]"] = [
+      { numero: 1, stato: "pagata", scadenza: "2026-09-10", pagata_il: "2026-09-12" },
+      { numero: 2, stato: "da_pagare", scadenza: "2026-10-10", importo: 125, metodo: "MP12" },
+      { numero: 3, stato: "da_pagare", scadenza: "2026-12-10", importo: 250 },
+    ];
+    apri();
+    const label = await screen.findByText("Prossima scadenza");
+    expect(label.nextElementSibling).toHaveTextContent("10 ott 2026 · 125,00 € · Ri.Ba.");
+  });
+  it("mostra la data effettiva della singola rata anche senza piano XML", async () => {
+    finto.dati["rate_fornitori[]"] = [{ numero: 2, pagata_il: "2026-11-17" }];
+    apri();
+    expect(await screen.findByText(/Rata 2 · pagata il 17 nov 2026/)).toBeTruthy();
   });
 
   it("collega il fornitore della stessa partita IVA, con le altre fatture del cedente", async () => {

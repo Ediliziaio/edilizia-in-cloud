@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Manodopera e servizi → finestra «Nuova voce» (10/10/2026).
  *
@@ -44,7 +45,7 @@ const prezzoLibero = () => fireEvent.click(screen.getByRole("radio", { name: "Pr
 describe("Nuova voce: l'ordine dei campi", () => {
   it("prima Tipo e Unità, poi il Nome, poi il Costo, poi il Prezzo che ne nasce e il Margine, poi «Altri dati»", () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
 
     const tipo = screen.getByLabelText("Tipo");
     const unita = screen.getByLabelText(/^Unità di fatturazione/);
@@ -128,9 +129,9 @@ describe("Nuova voce: cosa si salva non cambia", () => {
   it("nome, prezzo e costo: tutte le colonne di prima, con i valori di partenza (Posa, pz, area dal filtro, attiva)", async () => {
     render(<TariffaDialog {...props} />);
     prezzoLibero();
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "  Posa lavabo  " } });
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "100" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "  Posa lavabo  " } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "100" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.insert).toHaveBeenCalledOnce());
     const dati = api.insert.mock.calls[0][0];
@@ -148,13 +149,13 @@ describe("Nuova voce: cosa si salva non cambia", () => {
 
   it("i campi di «Altri dati» si salvano anche chiusi", async () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Ponteggio" } });
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "30" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
-    fireEvent.change(screen.getByLabelText("Codice"), { target: { value: "PON-1" } });
-    fireEvent.change(screen.getByLabelText("Descrizione"), { target: { value: "Montaggio incluso" } });
-    fireEvent.change(screen.getByLabelText("Incidenza manodopera %"), { target: { value: "35" } });
-    fireEvent.change(screen.getByLabelText("Fonte"), { target: { value: "Prezzario 2026" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Ponteggio" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "30" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText("Codice"), { target: { value: "PON-1" } });
+    changeFormControl(screen.getByLabelText("Descrizione"), { target: { value: "Montaggio incluso" } });
+    changeFormControl(screen.getByLabelText("Incidenza manodopera %"), { target: { value: "35" } });
+    changeFormControl(screen.getByLabelText("Fonte"), { target: { value: "Prezzario 2026" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.insert).toHaveBeenCalledOnce());
     expect(api.insert.mock.calls[0][0]).toMatchObject({ codice: "PON-1", descrizione: "Montaggio incluso", incidenza_manodopera_pct: 0.35, fonte: "Prezzario 2026" });
@@ -163,8 +164,8 @@ describe("Nuova voce: cosa si salva non cambia", () => {
   it("chi non vede i costi scrive prezzo e basta: niente colonne del costo", async () => {
     render(<TariffaDialog {...props} isAdmin={false} />);
     expect(screen.queryByLabelText("Costo diretto")).toBeNull();
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "45" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "45" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.insert).toHaveBeenCalledOnce());
     expect(api.insert.mock.calls[0][0]).toMatchObject({ prezzo_vendita: 45 });
@@ -176,11 +177,11 @@ describe("Nuova voce: le regole che bloccano il salvataggio sono quelle di prima
   it("il costo uguale al prezzo (margine 0%) blocca, e lo dice con le parole giuste; più basso sblocca", () => {
     render(<TariffaDialog {...props} />);
     prezzoLibero();
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "50" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "50" } });
     expect(salva()).toBeDisabled();
     expect(dialogo()).toHaveTextContent("Il costo è uguale o più alto del prezzo di vendita. Correggi prima di salvare.");
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "49" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "49" } });
     expect(salva()).toBeEnabled();
     expect(dialogo()).not.toHaveTextContent("Correggi prima di salvare");
   });
@@ -188,23 +189,23 @@ describe("Nuova voce: le regole che bloccano il salvataggio sono quelle di prima
   it("il costo più alto del prezzo blocca", () => {
     render(<TariffaDialog {...props} />);
     prezzoLibero();
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "80" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "80" } });
     expect(salva()).toBeDisabled();
   });
 
   it("una voce nuova senza prezzo non si salva", () => {
     render(<TariffaDialog {...props} />);
     prezzoLibero();
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "10" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "10" } });
     expect(salva()).toBeDisabled();
     expect(dialogo()).toHaveTextContent("Il prezzo di vendita deve essere maggiore di 0 per una nuova voce.");
   });
 
   it("senza nome non si salva, e non scrive niente", async () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.error).toHaveBeenCalledWith("Il nome è obbligatorio"));
     expect(api.insert).not.toHaveBeenCalled();
@@ -219,8 +220,8 @@ describe("Prezzo dal costo (22/10/2026)", () => {
     expect(screen.getByRole("radio", { name: "Dal costo" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByLabelText("Ricarico sul costo %")).toHaveValue(25);
     expect(screen.getByLabelText("oppure margine %")).toHaveValue(20);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa lavabo" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa lavabo" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
     expect(prezzo().value).toMatch(/75,00/);
     expect(prezzo()).toHaveAttribute("readonly");
     fireEvent.click(salva());
@@ -230,17 +231,17 @@ describe("Prezzo dal costo (22/10/2026)", () => {
 
   it("ricarico e margine sono collegati: scrivendo il margine si aggiorna il ricarico, e viceversa", () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText("oppure margine %"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText("oppure margine %"), { target: { value: "20" } });
     expect(screen.getByLabelText("Ricarico sul costo %")).toHaveValue(25);
-    fireEvent.change(screen.getByLabelText("Ricarico sul costo %"), { target: { value: "100" } });
+    changeFormControl(screen.getByLabelText("Ricarico sul costo %"), { target: { value: "100" } });
     expect(screen.getByLabelText("oppure margine %")).toHaveValue(50);
   });
 
   it("dal margine si calcola col ricarico esatto: 40% di margine su 60 € fa 100 €, non 100,002 €", async () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
-    fireEvent.change(screen.getByLabelText("oppure margine %"), { target: { value: "40" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "60" } });
+    changeFormControl(screen.getByLabelText("oppure margine %"), { target: { value: "40" } });
     expect(screen.getByLabelText("Ricarico sul costo %")).toHaveValue(66.67);
     expect(prezzo().value).toMatch(/^100,00\s?€$/);
     fireEvent.click(salva());
@@ -250,23 +251,23 @@ describe("Prezzo dal costo (22/10/2026)", () => {
 
   it("le spese generali entrano nel costo pieno, e il ricarico si fa su quello", () => {
     render(<TariffaDialog {...props} speseGenerali={10} />);
-    fireEvent.change(screen.getByLabelText("Ricarico sul costo %"), { target: { value: "20" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "100" } });
+    changeFormControl(screen.getByLabelText("Ricarico sul costo %"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "100" } });
     expect(dialogo()).toHaveTextContent(/Costo pieno 110,00 €/);
     expect(prezzo().value).toMatch(/132,00/);
   });
 
   it("senza costo un prezzo dal costo non si salva, e dice cosa fare", () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
     expect(salva()).toBeDisabled();
     expect(dialogo()).toHaveTextContent("Per un prezzo dal costo serve un costo maggiore di zero");
   });
 
   it("anche un costo a zero blocca il prezzo dal costo: il prezzo andrebbe a zero", () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "0" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "0" } });
     expect(salva()).toBeDisabled();
     expect(dialogo()).toHaveTextContent("serve un costo maggiore di zero");
   });
@@ -274,8 +275,8 @@ describe("Prezzo dal costo (22/10/2026)", () => {
   it("il blocco «costo più alto del prezzo» guarda il costo pieno: con le spese generali 105 € su 100 € è una perdita", () => {
     render(<TariffaDialog {...props} speseGenerali={10} />);
     prezzoLibero();
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "105" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "100" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "105" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "100" } });
     expect(salva()).toBeDisabled();
     expect(dialogo()).toHaveTextContent("Il costo pieno, con le spese generali, è uguale o più alto del prezzo di vendita. Correggi prima di salvare.");
   });
@@ -294,9 +295,9 @@ describe("Prezzo dal costo (22/10/2026)", () => {
 
   it("il prezzo salvato è al centesimo e torna col ricarico salvato (niente «da aggiornare» appena salvata)", async () => {
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "1000" } });
-    fireEvent.change(screen.getByLabelText("oppure margine %"), { target: { value: "40" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "1000" } });
+    changeFormControl(screen.getByLabelText("oppure margine %"), { target: { value: "40" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.insert).toHaveBeenCalledOnce());
     // 1000 × 1,666667 = 1666,667 → 1666,67; dal ricarico salvato (66,6667) torna lo stesso prezzo
@@ -344,9 +345,9 @@ describe("Nuova voce: se non va a buon fine lo dice in italiano", () => {
   it("senza rete", async () => {
     api.insert.mockRejectedValue(new TypeError("Failed to fetch"));
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.error).toHaveBeenCalledOnce());
     expect(api.error).toHaveBeenCalledWith("Voce non salvata. Connessione persa. Controlla la rete e riprova.");
@@ -356,9 +357,9 @@ describe("Nuova voce: se non va a buon fine lo dice in italiano", () => {
   it("senza permesso (il database risponde con il suo testo)", async () => {
     api.insert.mockResolvedValue({ error: { code: "42501", message: "new row violates row-level security policy for table \"tariffe_aziendali\"" } });
     render(<TariffaDialog {...props} />);
-    fireEvent.change(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
-    fireEvent.change(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
-    fireEvent.change(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText(/^Nome/), { target: { value: "Posa" } });
+    changeFormControl(screen.getByLabelText(/^Prezzo di vendita/), { target: { value: "50" } });
+    changeFormControl(screen.getByLabelText("Costo diretto"), { target: { value: "20" } });
     fireEvent.click(salva());
     await waitFor(() => expect(api.error).toHaveBeenCalledOnce());
     const testo = String(api.error.mock.calls[0][0]);

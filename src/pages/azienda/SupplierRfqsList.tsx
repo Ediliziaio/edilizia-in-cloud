@@ -1,3 +1,5 @@
+import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
@@ -120,7 +122,7 @@ export default function SupplierRfqsList() {
     "rdo_stato",
     "rdo_commessa",
     "rdo_fornitore",
-    "rdo_periodo",
+    "rdo_periodo", "rdo_da", "rdo_a",
     "rdo_focus",
   ], { restoreView: false });
   const { rfqs, contatori, isLoading, isError, create } = useSupplierRfqs();
@@ -140,6 +142,8 @@ export default function SupplierRfqsList() {
   const order = params.get("rdo_commessa") ?? "all";
   const supplier = params.get("rdo_fornitore") ?? "all";
   const period = operationalPeriod(params.get("rdo_periodo"));
+  const dateFrom = params.get("rdo_da") ?? "";
+  const dateTo = params.get("rdo_a") ?? "";
   const focus = ["risposte", "attesa", "scadute"].includes(
     params.get("rdo_focus") ?? "",
   )
@@ -162,7 +166,7 @@ export default function SupplierRfqsList() {
       stato: null,
       commessa: null,
       fornitore: null,
-      periodo: null,
+      periodo: null, da: null, a: null,
       focus: null,
     });
   const active = [
@@ -231,7 +235,7 @@ export default function SupplierRfqsList() {
       return false;
     if (supplier !== "all" && !contatori[r.id]?.fornitori.includes(supplier))
       return false;
-    return inOperationalPeriod(r.created_at, period);
+    return inOperationalPeriod(r.created_at, period, undefined, {da:dateFrom,a:dateTo});
   });
   const kpis = {
     aperte: base.filter((r) => OPEN.includes(r.status)).length,
@@ -448,8 +452,8 @@ export default function SupplierRfqsList() {
           active={status === "aggiudicata"}
         />
       </OperationalSummary>
-      <section aria-label="Filtri richieste d’offerta" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[200px] flex-1">
+      <section aria-label="Filtri richieste d’offerta" className="rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Cerca richieste d’offerta"
@@ -458,11 +462,10 @@ export default function SupplierRfqsList() {
               onChange={(e) => update({ cerca: e.target.value })}
               className="h-8 pl-9 text-xs"
             />
-          </div><select aria-label="Stato richieste d’offerta" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? "Tutti gli stati" : id === "aperte" ? "Aperte" : RDO_STATUS_LABELS[id]}</option>)}</select><OperationalViewSwitch
+          </div><UniformSelect aria-label="Stato richieste d’offerta" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={status} onChange={e => update({ stato: e.target.value, focus: null })}>{STATUSES.map(id => <option key={id} value={id}>{id === "tutti" ? "Tutti gli stati" : id === "aperte" ? "Aperte" : RDO_STATUS_LABELS[id]}</option>)}</UniformSelect><OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
-          /></div>
-        <OperationalExtraFilters count={Number(order !== "all") + Number(supplier !== "all") + Number(period !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          /><OperationalExtraFilters count={Number(order !== "all") + Number(supplier !== "all") + Number(period !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
@@ -527,8 +530,10 @@ export default function SupplierRfqsList() {
               <SelectItem value="30">Ultimi 30 giorni</SelectItem>
               <SelectItem value="90">Ultimi 90 giorni</SelectItem>
               <SelectItem value="anno">Quest’anno</SelectItem>
+              <SelectItem value="personalizzato">Intervallo di date</SelectItem>
             </SelectContent>
           </Select>
+          {period === "personalizzato" && <OperationalDateRange from={dateFrom} to={dateTo} onChange={values => update(values)} />}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <OperationalArchive
@@ -558,7 +563,7 @@ export default function SupplierRfqsList() {
             Risposta scaduta ({base.filter(overdue).length})
           </Button>
         </div>
-      </div></OperationalExtraFilters>
+      </div></OperationalExtraFilters></div>
       </section>
       {isError ? (
         <div role="alert" className="rounded-xl border p-6 text-sm">

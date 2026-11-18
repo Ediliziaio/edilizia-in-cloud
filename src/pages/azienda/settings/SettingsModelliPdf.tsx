@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { lazy, Suspense, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -340,7 +341,7 @@ function EditorModello({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="pdf-carattere">Carattere</Label>
-                <select
+                <UniformSelect
                   id="pdf-carattere"
                   className="h-10 w-full rounded-md border bg-white px-3 text-sm"
                   value={draft.carattere}
@@ -353,7 +354,7 @@ function EditorModello({
                   <option value="helvetica">Helvetica · moderno</option>
                   <option value="times">Times · classico</option>
                   <option value="courier">Courier · tecnico</option>
-                </select>
+                </UniformSelect>
               </div>
             </div>
             <div className="space-y-3 rounded-xl border bg-slate-50/60 p-4">
@@ -416,7 +417,7 @@ function EditorModello({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="pdf-margini">Margini laterali</Label>
-                  <select
+                  <UniformSelect
                     id="pdf-margini"
                     className="h-10 w-full rounded-md border bg-white px-3 text-sm"
                     value={draft.margine}
@@ -426,13 +427,13 @@ function EditorModello({
                     <option value={10}>Stretti · 10 mm</option>
                     <option value={14}>Medi · 14 mm</option>
                     <option value={18}>Ampi · 18 mm</option>
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pdf-dimensione">
                     Dimensione testi liberi
                   </Label>
-                  <select
+                  <UniformSelect
                     id="pdf-dimensione"
                     className="h-10 w-full rounded-md border bg-white px-3 text-sm"
                     value={draft.dimensioneTesto}
@@ -444,11 +445,11 @@ function EditorModello({
                     <option value={8}>Compatta · 8 pt</option>
                     <option value={9}>Media · 9 pt</option>
                     <option value={10}>Grande · 10 pt</option>
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pdf-scala-logo">Dimensione del logo</Label>
-                  <select
+                  <UniformSelect
                     id="pdf-scala-logo"
                     className="h-10 w-full rounded-md border bg-white px-3 text-sm"
                     value={draft.scalaLogo}
@@ -459,7 +460,7 @@ function EditorModello({
                     <option value={70}>Piccolo · 70%</option>
                     <option value={85}>Medio · 85%</option>
                     <option value={100}>Standard · 100%</option>
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pdf-riquadri">

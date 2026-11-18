@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -26,7 +27,7 @@ describe("Editor commerciale FV",()=>{
   });
   it("distribuisce la quantità richiesta e usa solo i moduli che entrano",()=>{
     render(<Monta/>);
-    fireEvent.change(screen.getByLabelText("Moduli da disporre"),{target:{value:"500"}});
+    changeFormControl(screen.getByLabelText("Moduli da disporre"),{target:{value:"500"}});
     fireEvent.click(screen.getByRole("button",{name:"Disponi automaticamente"}));
     expect(screen.getByText(/Entrano \d+ dei 500/)).toBeTruthy();
     expect(screen.getByLabelText("Quantità e potenza")).not.toHaveTextContent("500 /");
@@ -59,7 +60,7 @@ it("le viste aggiuntive condividono bozza, sola lettura e annulla/ripeti dell’
   expect(screen.getAllByRole("button",{name:/^Ostacolo /})).toHaveLength(1);
   fireEvent.keyDown(screen.getByRole("button",{name:"Ostacolo camino"}),{key:"Enter"});
   expect(screen.getByLabelText("Ostacolo w")).toHaveValue(1);
-  fireEvent.change(screen.getByLabelText("Ostacolo w"),{target:{value:"1.5"}});
+  changeFormControl(screen.getByLabelText("Ostacolo w"),{target:{value:"1.5"}});
   expect(screen.getByLabelText("Ostacolo w")).toHaveValue(1.5);
   fireEvent.click(screen.getByRole("button",{name:"Annulla ultima modifica"}));
   expect(screen.queryByLabelText("Ostacolo w")).toBeNull();
@@ -77,7 +78,7 @@ it("rifiuta misure di ostacoli fuori falda e mantiene una posa valida",()=>{
   }
   render(<MontaOstacolo/>);
   fireEvent.keyDown(screen.getByRole("button",{name:"Ostacolo camino"}),{key:"Enter"});
-  fireEvent.change(screen.getByLabelText("Ostacolo w"),{target:{value:"20"}});
+  changeFormControl(screen.getByLabelText("Ostacolo w"),{target:{value:"20"}});
   expect(screen.getByLabelText("Ostacolo w")).toHaveValue(1);
   expect(screen.getByLabelText("Moduli invalidi")).toHaveTextContent("0");
   expect(screen.getByText(/deve restare nella falda/)).toBeTruthy();
@@ -88,7 +89,7 @@ it("ridisegna il contorno della falda senza duplicarla né perdere i moduli",()=
   try {
     const {container}=render(<Monta/>);
     fireEvent.click(screen.getByRole("button",{name:"Disegna una falda"}));
-    fireEvent.change(screen.getByLabelText("Falda da disegnare"),{target:{value:"falda-1"}});
+    changeFormControl(screen.getByLabelText("Falda da disegnare"),{target:{value:"falda-1"}});
     const svg=container.querySelector(".fv-roof-canvas>svg")!;
     Object.defineProperty(svg,"getBoundingClientRect",{value:()=>({left:0,top:0,width:720,height:520})});
     for(const [x,y] of [[0,0],[10,0],[10,3.5],[0,3.5]]) fireEvent.pointerDown(svg,{clientX:(x+1.2)*50,clientY:(y+1.2)*50});
@@ -103,7 +104,7 @@ it("ridisegna il contorno della falda senza duplicarla né perdere i moduli",()=
 
 it("annulla anche misure e forma del tetto",()=>{
   render(<Monta/>);fireEvent.click(screen.getByRole("button",{name:"Tetto e misure"}));
-  fireEvent.change(screen.getByLabelText("Larghezza del tetto"),{target:{value:"6"}});
+  changeFormControl(screen.getByLabelText("Larghezza del tetto"),{target:{value:"6"}});
   fireEvent.click(screen.getByRole("button",{name:"Applica misure e ridisponi"}));
   expect(screen.getByLabelText("Larghezza del tetto")).toHaveValue(6);
   fireEvent.click(screen.getByRole("button",{name:"Annulla ultima modifica"}));
@@ -112,8 +113,8 @@ it("annulla anche misure e forma del tetto",()=>{
 });
 it("ridisporre una sola falda conserva i pannelli dell’altra",()=>{
   render(<Monta/>);
-  fireEvent.change(screen.getByLabelText("Falde da riempire"),{target:{value:"falda-1"}});
-  fireEvent.change(screen.getByLabelText("Moduli da disporre"),{target:{value:"2"}});
+  changeFormControl(screen.getByLabelText("Falde da riempire"),{target:{value:"falda-1"}});
+  changeFormControl(screen.getByLabelText("Moduli da disporre"),{target:{value:"2"}});
   fireEvent.click(screen.getByRole("button",{name:"Disponi automaticamente"}));
   expect(screen.getByLabelText("Quantità e potenza")).toHaveTextContent("9 / 4.05");
   expect(screen.getByText(/altre falde conservate/)).toBeTruthy();
@@ -139,7 +140,7 @@ it("mostra i moduli full black appoggiati al tetto senza modificare la configura
   expect(screen.getByRole("img",{name:"Vista illustrativa della casa con pannelli sul tetto"})).toBeTruthy();
   expect(container.querySelectorAll('polygon[fill="url(#fv-render-black)"]')).toHaveLength(16);
   fireEvent.click(screen.getByRole("button",{name:"Ruota vista"}));
-  fireEvent.change(screen.getByLabelText("Copertura della vista illustrativa"),{target:{value:"tegole"}});
+  changeFormControl(screen.getByLabelText("Copertura della vista illustrativa"),{target:{value:"tegole"}});
   expect(screen.getByLabelText("Quantità e potenza")).toHaveTextContent("16 / 7.2");
   fireEvent.click(screen.getByRole("button",{name:"Pianta e posa"}));
   expect(screen.getAllByRole("button",{name:/^Modulo \d+$/})).toHaveLength(16);
@@ -154,7 +155,7 @@ it("conserva gli ostacoli quando cambia lo schema del tetto",()=>{
     fireEvent.pointerDown(svg,{clientX:75,clientY:185});
     expect(screen.getAllByRole("button",{name:/^Ostacolo /})).toHaveLength(1);
     fireEvent.click(screen.getByRole("button",{name:"Tetto e misure"}));
-    fireEvent.change(screen.getByLabelText("Larghezza del tetto"),{target:{value:"6"}});
+    changeFormControl(screen.getByLabelText("Larghezza del tetto"),{target:{value:"6"}});
     fireEvent.click(screen.getByRole("button",{name:"Applica misure e ridisponi"}));
     expect(screen.getAllByRole("button",{name:/^Ostacolo /})).toHaveLength(1);
   } finally {vi.unstubAllGlobals();}

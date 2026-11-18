@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import {
   useConsegneDDT,
   type ConsegnaDdt as Consegna,
@@ -500,7 +501,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                               </label>
                               <label className="space-y-1 text-xs">
                                 Operazione
-                                <select
+                                <UniformSelect
                                   className={input}
                                   value={tipo}
                                   onChange={(e) =>
@@ -518,11 +519,11 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                   <option value="servizio">
                                     Servizio / noleggio
                                   </option>
-                                </select>
+                                </UniformSelect>
                               </label>
                               <label className="space-y-1 text-xs">
                                 Destinazione
-                                <select
+                                <UniformSelect
                                   className={input}
                                   value={dest}
                                   onChange={(e) =>
@@ -541,18 +542,18 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                         Magazzino
                                       </option>
                                     )}
-                                </select>
+                                </UniformSelect>
                               </label>
                             </div>
                             {tipo === "ingresso" && !!controlloOrdini.data?.righe.length && <label className="block space-y-1 text-xs">Riga dell’ordine a cui attribuire questo arrivo
-                              <select className={input} aria-label={`Ordine per ${r.descrizione}`} value={poiScelto ?? "__fuori__"} onChange={(e) => {
+                              <UniformSelect className={input} aria-label={`Ordine per ${r.descrizione}`} value={poiScelto ?? "__fuori__"} onChange={(e) => {
                                 const item = controlloOrdini.data?.righe.find((i) => i.id === e.target.value);
                                 const po = controlloOrdini.data?.ordini.find((o) => o.id === item?.purchase_order_id);
                                 cambia(r.id, { ordineAcquisto: e.target.value, ...(po?.order_id ? { orderId: po.order_id } : {}), articolo: "" });
                               }}>
                                 <option value="__fuori__">Articolo fuori ordine</option>
                                 {controlloOrdini.data.righe.map((i) => <option key={i.id} value={i.id}>{i.oda_number} · {i.description} · residuo {numero(Math.max(0, Number(i.quantity) - Number(i.quantity_received ?? 0)))} {i.unit_of_measure}</option>)}
-                              </select><span className="block text-muted-foreground">Puoi confermare una parte su un ordine e attribuire il residuo a un altro, senza duplicare la bolla.</span>
+                              </UniformSelect><span className="block text-muted-foreground">Puoi confermare una parte su un ordine e attribuire il residuo a un altro, senza duplicare la bolla.</span>
                             </label>}
                             {tipo === "ingresso" && <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">Inserisci solo la merce accettata: quantità mancanti o danneggiate restano da gestire. I servizi e i resi si registrano con l’operazione dedicata.</p>}
                             {dest === "cantiere" ? (
@@ -578,7 +579,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                             {tipo === "reso" ? (
                               <label className="block space-y-1 text-xs">
                                 Consegna originale
-                                <select
+                                <UniformSelect
                                   className={input}
                                   value={s.origine ?? ""}
                                   onChange={(e) =>
@@ -605,7 +606,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                         {c.unita_misura} · {c.id.slice(0, 8)}
                                       </option>
                                     ))}
-                                </select>
+                                </UniformSelect>
                               </label>
                             ) : (
                               tipo !== "servizio" && (
@@ -613,7 +614,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                   {dest === "cantiere"
                                     ? "Articolo della commessa"
                                     : "Articolo di magazzino"}
-                                  <select
+                                  <UniformSelect
                                     className={input}
                                     value={valore}
                                     disabled={catalogo.isLoading}
@@ -634,7 +635,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
                                           "unità da confermare"}
                                       </option>
                                     ))}
-                                  </select>
+                                  </UniformSelect>
                                 </label>
                               )
                             )}

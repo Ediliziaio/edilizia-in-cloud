@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -33,8 +35,8 @@ function mount(id: FullPscModuleId, save = vi.fn(), onDirtyChange = vi.fn(), sav
 describe("Piscine: modelli originali locali", () => {
   it("mostra l'opacità in percentuale e conserva l'unità locale 0–1", async () => {
     const save = mount("nuova");
-    fireEvent.change(screen.getByRole("slider", { name: "Intensità velo scuro: cursore" }), { target: { value: "75" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Allineamento testo" }), { target: { value: "right" } });
+    changeFormControl(screen.getByRole("slider", { name: "Intensità velo scuro: cursore" }), { target: { value: "75" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Allineamento testo" }), { target: { value: "right" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_overlay_opacity).toBe(0.75);
@@ -62,12 +64,12 @@ describe("Piscine: modelli originali locali", () => {
     mount("manutenzione");
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Manutenzione stagionale");
-    expect(screen.getByRole("combobox").querySelectorAll("option")).toHaveLength(10);
+    expect(nativeFormControl(screen.getByRole("combobox")).querySelectorAll("option")).toHaveLength(10);
   });
   it("applica la variante scelta senza salvare e mantiene le altre pagine", async () => {
     const save = mount("impianti");
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "faq-breve" } });
+    changeFormControl(screen.getByRole("combobox"), { target: { value: "faq-breve" } });
     fireEvent.click(screen.getByRole("button", { name: "Applica a domande frequenti" }));
     expect(save).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
@@ -83,7 +85,7 @@ describe("Piscine: modelli originali locali", () => {
     calls.image.mockResolvedValue("data:image/png;base64,aGVsbG8=");
     const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
     const image = new File(["example"], "locale.png", { type: "image/png" });
-    fireEvent.change(input, { target: { files: [image] } });
+    changeFormControl(input, { target: { files: [image] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledWith(image));
     await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
@@ -94,7 +96,7 @@ describe("Piscine: modelli originali locali", () => {
   it("un errore di salvataggio mantiene l'editor modificato e non attiva il salvataggio remoto", async () => {
     const save = vi.fn(() => { throw new Error("spazio esaurito"); });
     mount("rivestimento", save);
-    fireEvent.change(screen.getByDisplayValue(template("rivestimento").cover_subtitle!), { target: { value: "Sottotitolo modificato" } });
+    changeFormControl(screen.getByDisplayValue(template("rivestimento").cover_subtitle!), { target: { value: "Sottotitolo modificato" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(calls.error).toHaveBeenCalledWith("Salvataggio non riuscito", { description: "spazio esaurito" }));
     expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();
@@ -120,11 +122,11 @@ describe("Piscine: modelli originali locali", () => {
     const dirty = vi.fn(); mount("accessori", vi.fn(), dirty, saved);
     const initial = template("accessori").cover_subtitle!;
     const input = screen.getByDisplayValue(initial);
-    fireEvent.change(input, { target: { value: "Una modifica reale" } });
+    changeFormControl(input, { target: { value: "Una modifica reale" } });
     expect(dirty).toHaveBeenLastCalledWith(true);
     const guarded = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(guarded); expect(guarded.defaultPrevented).toBe(true);
-    fireEvent.change(input, { target: { value: initial } });
+    changeFormControl(input, { target: { value: initial } });
     expect(dirty).toHaveBeenLastCalledWith(false);
     const clean = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(clean); expect(clean.defaultPrevented).toBe(false);

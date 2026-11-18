@@ -1,3 +1,4 @@
+import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
@@ -248,7 +249,7 @@ export default function DDTRicezioneList() {
     "ddt_stato",
     "ddt_commessa",
     "ddt_fornitore",
-    "ddt_periodo",
+    "ddt_periodo", "ddt_da", "ddt_a",
     "ddt_focus",
   ], { restoreView: false });
   const update = (values: Record<string, string | null>) =>
@@ -283,6 +284,8 @@ export default function DDTRicezioneList() {
   const filterOrder = params.get("ddt_commessa") ?? "all";
   const filterSupplier = params.get("ddt_fornitore") ?? "all";
   const filterPeriodo = operationalPeriod(params.get("ddt_periodo"));
+  const dateFrom = params.get("ddt_da") ?? "";
+  const dateTo = params.get("ddt_a") ?? "";
   const setFilterOrder = (v: string) => update({ commessa: v });
   const setFilterSupplier = (v: string) => update({ fornitore: v });
   const setFilterPeriodo = (v: string) => update({ periodo: v });
@@ -321,7 +324,7 @@ export default function DDTRicezioneList() {
     update({
       commessa: null,
       fornitore: null,
-      periodo: null,
+      periodo: null, da: null, a: null,
       cerca: null,
       stato: null,
       focus: null,
@@ -406,7 +409,7 @@ export default function DDTRicezioneList() {
       list = list.filter((d) => fornitoreIdDi(d) === filterSupplier);
     }
     list = list.filter((d) =>
-      inOperationalPeriod(d.data_ricezione, filterPeriodo),
+      inOperationalPeriod(d.data_ricezione, filterPeriodo, undefined, {da:dateFrom,a:dateTo}),
     );
 
     return [...list].sort((a, b) => {
@@ -416,7 +419,7 @@ export default function DDTRicezioneList() {
       );
       return sort.direction === "asc" ? result : -result;
     });
-  }, [ddtList, search, filterOrder, filterSupplier, filterPeriodo, sort]);
+  }, [ddtList, search, filterOrder, filterSupplier, filterPeriodo, dateFrom, dateTo, sort]);
   const filtered = baseFiltered.filter(
     (d) =>
       (tab === "tutti" || stage(d) === tab) &&
@@ -436,7 +439,7 @@ export default function DDTRicezioneList() {
       j.order_id !== filterOrder
     )
       return false;
-    if (!inOperationalPeriod(j.created_at, filterPeriodo)) return false;
+    if (!inOperationalPeriod(j.created_at, filterPeriodo, undefined, {da:dateFrom,a:dateTo})) return false;
     const q = search.trim().toLowerCase();
     return (
       !q ||
@@ -815,8 +818,8 @@ export default function DDTRicezioneList() {
         {([{ key: "atteso", label: "Attesi" }, { key: "parziale", label: "Ricezioni parziali" }, { key: "ricevuto", label: "Da verificare" }, { key: "non_conforme", label: "Non conformi" }] as const).map(item => <OperationalSummaryMetric key={item.key} label={item.label} value={baseFiltered.filter(d => stage(d) === item.key).length} isLoading={isLoading} tone={item.key === "non_conforme" && baseFiltered.some(d => stage(d) === item.key) ? "amber" : undefined} onClick={() => setTab(tab === item.key ? "tutti" : item.key)} active={tab === item.key} />)}
       </OperationalSummary>
 
-      <section aria-label="Filtri DDT" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[200px] flex-1">
+      <section aria-label="Filtri DDT" className="rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-3 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Cerca DDT"
@@ -825,11 +828,10 @@ export default function DDTRicezioneList() {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 pl-9 text-xs"
             />
-          </div><select aria-label="Stato DDT" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={tab} onChange={e => setTab(e.target.value as FilterKey)}>{FILTERS.map(f => <option key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</option>)}</select><OperationalViewSwitch
+          </div><Select value={tab} onValueChange={value => setTab(value as FilterKey)}><SelectTrigger aria-label="Stato DDT" className="h-8 w-[180px] max-w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{FILTERS.map(f => <SelectItem key={f.key} value={f.key}>{f.key === "tutti" ? "Tutti gli stati" : f.label}</SelectItem>)}</SelectContent></Select><OperationalViewSwitch
             value={view}
             onChange={(v) => update({ vista: v, ambito: archive.scope })}
-          /></div>
-        <OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          /><OperationalExtraFilters count={Number(filterOrder !== "all") + Number(filterSupplier !== "all") + Number(filterPeriodo !== "tutto") + Number(!!focus) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
@@ -892,8 +894,10 @@ export default function DDTRicezioneList() {
               <SelectItem value="30">Ultimi 30 giorni</SelectItem>
               <SelectItem value="90">Ultimi 90 giorni</SelectItem>
               <SelectItem value="anno">Quest’anno</SelectItem>
+              <SelectItem value="personalizzato">Intervallo di date</SelectItem>
             </SelectContent>
           </Select>
+          {filterPeriodo === "personalizzato" && <OperationalDateRange from={dateFrom} to={dateTo} onChange={values => update(values)} />}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <OperationalArchive
@@ -920,7 +924,7 @@ export default function DDTRicezioneList() {
           </span>
           <span>Le esportazioni includono i DDT registrati filtrati.</span>
         </div>
-      </div></OperationalExtraFilters>
+      </div></OperationalExtraFilters></div>
       </section>
 
       {canCreate && ingresso.ripresaLocale.queueCount > 0 && (

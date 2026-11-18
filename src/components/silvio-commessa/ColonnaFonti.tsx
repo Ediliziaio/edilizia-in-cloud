@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Fonti del popup «Crea con Silvio»: file da trascinare, preventivo o computo da scegliere,
  * vocale e testo libero; lo stato di ogni lettura, con la stima del costo prima e «Riprova»
@@ -69,13 +70,13 @@ function CollegaOfferta({ companyId, servizi, onCollega }: {
     <div className="mt-2 flex flex-wrap items-end gap-2">
       <label htmlFor={id} className="min-w-0 flex-1 text-xs lg:text-[11px] text-slate-600">
         A quale richiesta risponde?
-        <select id={id} value={scelta} onChange={(e) => setScelta(e.target.value)}
+        <UniformSelect id={id} value={scelta} onChange={(e) => setScelta(e.target.value)}
           className="mt-1 h-11 w-full rounded-md border bg-white lg:h-9 px-2 text-sm lg:text-[13px] text-slate-900">
           <option value="">Scegli…</option>
           {elenco.map((x) => (
             <option key={x.id} value={x.id}>{[x.rfq_number, x.titolo, x.fornitore].filter(Boolean).join(" · ")}</option>
           ))}
-        </select>
+        </UniformSelect>
       </label>
       <Button type="button" size="sm" className="h-11 lg:h-9" disabled={!r} onClick={() => r && onCollega(r)}>
         Leggi l'offerta · ~{euroAI(STIMA_OFFERTA_EUR)}

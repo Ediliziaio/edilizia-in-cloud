@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * La timbratura dell'app di cantiere, a un tocco (04/10/2026).
  *
@@ -244,7 +245,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
       {fuori && (
         <div className="space-y-1.5">
           <label htmlFor="campo-partenza" className="text-sm font-semibold">Da dove parti?</label>
-          <select
+          <UniformSelect
             id="campo-partenza"
             value={partenzaKey ?? ""}
             onChange={e => setScelta(e.target.value)}
@@ -256,7 +257,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             {cantieriOggi.length > 0 && <optgroup label="Cantieri di oggi">{cantieriOggi.map(opzione)}</optgroup>}
             {cantieriAltri.length > 0 && <optgroup label="Altri cantieri">{cantieriAltri.map(opzione)}</optgroup>}
             <option value={LUOGO_NESSUNO}>Non so ancora dove — ore da attribuire</option>
-          </select>
+          </UniformSelect>
           {assegnazioni.isLoading && <p role="status" className="text-xs text-muted-foreground">Caricamento dei tuoi cantieri…</p>}
           {assegnazioni.isError && (
             <p role="alert" className="text-sm text-amber-700">
@@ -293,7 +294,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             </div>
           )}
           {altriCantieri.length > 0 && (
-            <select
+            <UniformSelect
               aria-label="Altro cantiere"
               value=""
               disabled={occupato}
@@ -302,7 +303,7 @@ export function CampoTimbroCard({ preferOrderId = null, onPunched }: {
             >
               <option value="">Altro cantiere…</option>
               {altriCantieri.map(opzione)}
-            </select>
+            </UniformSelect>
           )}
           <p className="text-xs text-muted-foreground">Toccalo quando arrivi: da lì le ore passano al posto nuovo.</p>
         </div>

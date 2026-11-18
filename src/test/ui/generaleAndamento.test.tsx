@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -54,7 +55,7 @@ it("filtra le fotografie senza sostituire lo storico con numeri correnti e apre 
   expect(
     screen.getByRole("table", { name: "Fotografie mensili del piano" }),
   ).toHaveTextContent("nov 2026");
-  fireEvent.change(screen.getByLabelText("Stato delle fotografie"), {
+  changeFormControl(screen.getByLabelText("Stato delle fotografie"), {
     target: { value: "approvata" },
   });
   const tabella = screen.getByRole("table", {
@@ -89,7 +90,7 @@ it("senza fotografie non inventa una serie e il filtro senza risultati resta esp
   cleanup();
   m.foto = [foto("2026-10", "bozza", 120)];
   render(<Andamento generaleId="g" puoModificare={false} />);
-  fireEvent.change(screen.getByLabelText("Stato delle fotografie"), {
+  changeFormControl(screen.getByLabelText("Stato delle fotografie"), {
     target: { value: "approvata" },
   });
   expect(screen.getByRole("status")).toHaveTextContent("Nessuna fotografia");

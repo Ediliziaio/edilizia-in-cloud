@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,10 +67,10 @@ export function TemplatePdfPositions({ template, fields, onPosition, busy }: Pro
       <p className="text-sm text-slate-600">Scegli un campo e clicca nel punto in cui deve iniziare il valore. L’originale resta intatto.</p></div>
     {fields.length === 0 ? <p className="text-sm">Aggiungi prima un campo personalizzato.</p> : <>
       <Label htmlFor="pdf-field">Campo da posizionare</Label>
-      <select id="pdf-field" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded-md border bg-white p-2">
+      <UniformSelect id="pdf-field" value={selected} onChange={e => setSelected(e.target.value)} className="w-full rounded-md border bg-white p-2">
         <option value="">Scegli un campo</option>
         {fields.map(f => <option key={f.id} value={f.id}>{f.etichetta} — {f.posizioni_pdf?.length ?? 0} posizioni</option>)}
-      </select>
+      </UniformSelect>
       <div className="grid grid-cols-3 gap-3">
         <div><Label htmlFor="pdf-font">Carattere (pt)</Label><Input id="pdf-font" type="number" min={6} max={36} value={font} onChange={e => setFont(Number(e.target.value))} /></div>
         <div><Label htmlFor="pdf-width">Larghezza (%)</Label><Input id="pdf-width" type="number" min={1} max={100} value={width} onChange={e => setWidth(Number(e.target.value))} /></div>

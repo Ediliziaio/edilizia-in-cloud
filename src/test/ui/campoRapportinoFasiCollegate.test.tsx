@@ -1,3 +1,5 @@
+import { formOptions, nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoRapportino from "@/pages/campo/CampoRapportino";
@@ -87,11 +89,11 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 /** Passo 1 (ore + foto) e poi passo 2, dove si sceglie la fase. Sceglie le fasi indicate. */
 async function compila({ fasi, foto = 0 }: { fasi: string[]; foto?: number }) {
   const { container } = render(<CampoRapportino />);
-  fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "3" } });
+  changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "3" } });
   if (foto) {
     const file = (n: number) => new File(["x"], `f${n}.jpg`, { type: "image/jpeg" });
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: Array.from({ length: foto }, (_, i) => file(i)) } });
+    changeFormControl(input, { target: { files: Array.from({ length: foto }, (_, i) => file(i)) } });
     await waitFor(() => expect(screen.getAllByAltText("preview")).toHaveLength(foto));
   }
   fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
@@ -155,9 +157,9 @@ describe("più fasi: l'operaio assegna, il resto resta generale", () => {
   it("la scelta finisce nel rapportino: materiale e foto sotto la fase scelta", async () => {
     await compila({ fasi: ["Posa serramenti", "Finiture"], foto: 2 });
     fireEvent.click(screen.getByRole("button", { name: "Malta" }));
-    fireEvent.change(screen.getByLabelText("Fase di Malta"), { target: { value: "p2" } });
-    fireEvent.change(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
-    fireEvent.change(screen.getByLabelText("Fase della foto 2"), { target: { value: "p1" } });
+    changeFormControl(screen.getByLabelText("Fase di Malta"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase della foto 2"), { target: { value: "p1" } });
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.insert).toHaveBeenCalled());
     const r = inviato();
@@ -171,8 +173,8 @@ describe("più fasi: l'operaio assegna, il resto resta generale", () => {
   it("togliere una fase scioglie i suoi collegamenti, senza spostarli su un'altra", async () => {
     await compila({ fasi: ["Posa serramenti", "Finiture"], foto: 1 });
     fireEvent.click(screen.getByRole("button", { name: "Malta" }));
-    fireEvent.change(screen.getByLabelText("Fase di Malta"), { target: { value: "p2" } });
-    fireEvent.change(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase di Malta"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
     // «Finiture» si toglie dalle fasi lavorate
     fireEvent.click(screen.getByRole("button", { name: "Finiture" }));
     // ora la fase è una sola: tutto ciò che era generale si collega a quella; la scelta non si indovina da sola per «Finiture»
@@ -187,7 +189,7 @@ describe("più fasi: l'operaio assegna, il resto resta generale", () => {
   it("il menu delle foto propone solo le fasi su cui si è lavorato", async () => {
     state.phases.push({ id: "p3", name: "Tinteggiature", status: "da_iniziare", percentuale: 0 });
     await compila({ fasi: ["Posa serramenti", "Finiture"], foto: 1 });
-    const opzioni = within(screen.getByLabelText("Fase della foto 1")).getAllByRole("option").map(o => o.textContent);
+    const opzioni = formOptions(nativeFormControl(screen.getByLabelText("Fase della foto 1"))).getAllByRole("option").map(o => o.textContent);
     expect(opzioni).toEqual(["Nessuna fase", "Posa serramenti", "Finiture"]);
   });
 });
@@ -198,9 +200,9 @@ describe("il riepilogo a blocchi", () => {
     await compila({ fasi: ["Posa serramenti", "Finiture"], foto: 3 });
     fireEvent.click(screen.getByRole("button", { name: "Malta" }));
     fireEvent.click(screen.getByRole("button", { name: "Viti" }));
-    fireEvent.change(screen.getByLabelText("Fase di Malta"), { target: { value: "p2" } });
-    fireEvent.change(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
-    fireEvent.change(screen.getByLabelText("Fase della foto 2"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase di Malta"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase della foto 2"), { target: { value: "p2" } });
 
     const scheda = (titolo: string) => screen.getByRole("heading", { name: titolo }).closest("section") as HTMLElement;
     const finiture = within(scheda("Finiture"));
@@ -274,7 +276,7 @@ describe("un rapportino respinto si riapre con i collegamenti già fatti", () =>
     render(<CampoRapportino />);
     await waitFor(() => expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(3));
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
-    fireEvent.change(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
+    changeFormControl(screen.getByLabelText("Fase della foto 1"), { target: { value: "p2" } });
     fireEvent.click(screen.getByRole("button", { name: /Rimanda|Invia rapportino/ }));
     await waitFor(() => expect(state.update).toHaveBeenCalled());
     const r = inviato();

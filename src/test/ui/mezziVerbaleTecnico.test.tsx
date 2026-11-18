@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -71,10 +72,10 @@ const conferma = () =>
     name: /Ho letto l’allegato/,
   }) as HTMLInputElement;
 function compila() {
-  fireEvent.change(screen.getByLabelText("Titolo del documento tecnico"), {
+  changeFormControl(screen.getByLabelText("Titolo del documento tecnico"), {
     target: { value: "TEST Verbale verifica" },
   });
-  fireEvent.change(screen.getByLabelText("Classificazione tecnica"), {
+  changeFormControl(screen.getByLabelText("Classificazione tecnica"), {
     target: { value: "verifica_periodica" },
   });
   fireEvent.click(
@@ -139,7 +140,7 @@ describe("Registrazione esplicita del verbale tecnico", () => {
   it("modificare la classificazione dichiarata richiede una nuova conferma", () => {
     render(ui());
     compila();
-    fireEvent.change(screen.getByLabelText("Titolo del documento tecnico"), {
+    changeFormControl(screen.getByLabelText("Titolo del documento tecnico"), {
       target: { value: "TEST Nuovo titolo" },
     });
     expect(conferma().checked).toBe(false);
@@ -221,10 +222,10 @@ describe("Registrazione esplicita del verbale tecnico", () => {
   it("le date incoerenti impediscono la registrazione", () => {
     render(ui());
     compila();
-    fireEvent.change(screen.getByLabelText("Valido dal, se indicato"), {
+    changeFormControl(screen.getByLabelText("Valido dal, se indicato"), {
       target: { value: "2026-11-01" },
     });
-    fireEvent.change(screen.getByLabelText("Scadenza, se indicata"), {
+    changeFormControl(screen.getByLabelText("Scadenza, se indicata"), {
       target: { value: "2026-10-01" },
     });
     fireEvent.click(conferma());

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import {
   ArrowUpRight,
@@ -146,7 +147,7 @@ export function Andamento({
           <div className="generale-toolbar generale-history-filters">
             <label>
               Rilevazioni
-              <select
+              <UniformSelect
                 aria-label="Periodo dell’andamento"
                 value={periodo}
                 onChange={(e) => setPeriodo(Number(e.target.value))}
@@ -154,11 +155,11 @@ export function Andamento({
                 <option value={0}>Tutto lo storico</option>
                 <option value={6}>Ultime 6 rilevazioni</option>
                 <option value={12}>Ultime 12 rilevazioni</option>
-              </select>
+              </UniformSelect>
             </label>
             <label>
               Versione fotografata
-              <select
+              <UniformSelect
                 aria-label="Stato delle fotografie"
                 value={stato}
                 onChange={(e) => setStato(e.target.value)}
@@ -166,7 +167,7 @@ export function Andamento({
                 <option value="tutte">Tutte le versioni</option>
                 <option value="approvata">Solo approvate</option>
                 <option value="bozza">Solo bozze</option>
-              </select>
+              </UniformSelect>
             </label>
             <span>
               {visibili.length} di {foto.length}{" "}

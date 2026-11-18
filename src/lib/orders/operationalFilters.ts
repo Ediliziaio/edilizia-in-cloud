@@ -1,8 +1,9 @@
+import { inDateRange } from "@/lib/orders/dateRange";
 import { format, isValid, parseISO, subDays } from "date-fns";
 
-export type OperationalPeriod = "tutto" | "30" | "90" | "anno";
+export type OperationalPeriod = "tutto" | "30" | "90" | "anno" | "personalizzato";
 export function operationalPeriod(value: string | null): OperationalPeriod {
-  return value === "30" || value === "90" || value === "anno" ? value : "tutto";
+  return value === "personalizzato" || value === "30" || value === "90" || value === "anno" ? value : "tutto";
 }
 
 /** Dates are compared as local calendar days, including both boundaries. */
@@ -10,7 +11,9 @@ export function inOperationalPeriod(
   value: string | null | undefined,
   period: OperationalPeriod,
   now = new Date(),
+  range?: {da:string;a:string},
 ): boolean {
+  if (period === "personalizzato") return inDateRange(value, range?.da ?? "", range?.a ?? "");
   if (period === "tutto") return true;
   if (!value || !isValid(parseISO(value))) return false;
   const day = value.slice(0, 10);

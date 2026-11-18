@@ -1,16 +1,19 @@
 /** Un'uscita senza fattura (bollo, tassa, F24 di cantiere): cosa si salva e quanto vale, senza farne una fattura. */
 export interface FormUscita {
   descrizione: string; imponibile: string; aliquota: string; data: string; mese: string; riferimento: string;
+  scadenza?: string; dataPagamento?: string;
   fornitoreId: string;
   /**
    * Le commesse a cui va il costo (12/11/2026). Una sola: tutto a lei. Più d'una: ognuna con la
    * sua percentuale, come la ripartizione dei costi; quello che avanza resta costo generale.
    */
   commesse: QuotaCommessa[];
+  categoria?: string | null;
+  modoQuota?: "euro" | "percentuale";
   mezzoId: string; pagata: boolean; note: string;
 }
 
-export interface QuotaCommessa { id: string; pct: string }
+export interface QuotaCommessa { id: string; pct: string; euro?: string }
 
 const numero = (t: string) => {
   const n = Number(t.trim().replace(/\./g, "").replace(",", "."));
@@ -23,6 +26,32 @@ const percento = (t: string) => {
   return t.trim() && Number.isFinite(n) ? n : NaN;
 };
 
+/** Distribuisce anche il centesimo di arrotondamento tra le righe. */
+export function quoteInEuro(commesse: QuotaCommessa[], imponibile: string) {
+  const totale = Math.round(numero(imponibile) * 100);
+  let cumulata = 0;
+  return commesse.map(c => {
+    const prima = Math.round(totale * cumulata / 100);
+    cumulata += percento(c.pct) || 0;
+    const centesimi = Math.round(totale * cumulata / 100) - prima;
+    return { ...c, euro: Number.isFinite(centesimi) ? (centesimi / 100).toFixed(2).replace(".", ",") : "" };
+  });
+}
+
+function centesimiQuota(testo = "") {
+  const t = testo.trim();
+  if (!/^\d+(?:[,.]\d{1,2})?$/.test(t)) return NaN;
+  return Math.round(Number(t.replace(",", ".")) * 100);
+}
+
+export function quoteInPercentuale(commesse: QuotaCommessa[], imponibile: string) {
+  const totale = Math.round(numero(imponibile) * 100);
+  return commesse.map(c => {
+    const pct = centesimiQuota(c.euro) * 100 / totale;
+    return { ...c, pct: Number.isFinite(pct) ? String(pct).replace(".", ",") : "" };
+  });
+}
+
 /** Dice cosa manca, in parole. Null = si può salvare. */
 export function erroreUscita(f: FormUscita): string | null {
   if (!f.descrizione.trim()) return "Scrivi di cosa si tratta.";
@@ -31,9 +60,16 @@ export function erroreUscita(f: FormUscita): string | null {
   const a = numero(f.aliquota || "0");
   if (Number.isNaN(a) || a < 0 || a > 100) return "L'aliquota va da 0 a 100.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.data)) return "Indica la data.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f.scadenza ?? f.data)) return "Indica la scadenza del pagamento.";
+  if (f.pagata && !/^\d{4}-\d{2}-\d{2}$/.test(f.dataPagamento ?? "")) return "Indica la data del pagamento.";
   const scelte = f.commesse.filter((c) => c.id);
   if (new Set(scelte.map((c) => c.id)).size < scelte.length) return "Hai scelto due volte la stessa commessa.";
-  if (scelte.length > 1) {
+  if (f.modoQuota === "euro" && f.commesse.length > 1) {
+    if (scelte.length !== f.commesse.length) return "Scegli una commessa per ogni importo o togli la riga.";
+    const importi = scelte.map(c => centesimiQuota(c.euro));
+    if (importi.some(v => !Number.isFinite(v) || v <= 0)) return "Indica per ogni quota un importo positivo con al massimo due decimali.";
+    if (importi.reduce((a, b) => a + b, 0) > Math.round(n * 100)) return "Le quote superano l’importo del costo.";
+  } else if (scelte.length > 1) {
     const quote = scelte.map((c) => percento(c.pct));
     if (quote.some((q) => Number.isNaN(q) || q <= 0 || q > 100)) return "Ogni commessa ha una percentuale tra 1 e 100.";
     if (quote.reduce((a, b) => a + b, 0) > 100.0001) return "Le percentuali delle commesse superano il 100%.";
@@ -49,18 +85,18 @@ export function rigaUscita(f: FormUscita, companyId: string) {
     vat_rate: numero(f.aliquota || "0"),
     cost_type: "variable",
     recurrence: "once",
-    category: "altro",
+    category: f.categoria === undefined ? "altro" : f.categoria,
     senza_fattura: true,
-    due_date: f.data,
+    due_date: f.scadenza ?? f.data,
     documento_data: f.data,
     documento_riferimento: f.riferimento.trim() || null,
     // Il mese di competenza è il primo del mese; se non è scelto, quello della data.
     mese_competenza: `${meseMostrato(f)}-01`,
     supplier_id: f.fornitoreId || null,
-    ...quoteCommesse(f.commesse),
+    ...quoteCommesse(f.modoQuota === "euro" ? quoteInPercentuale(f.commesse, f.imponibile) : f.commesse),
     mezzo_id: f.mezzoId || null,
     is_paid: f.pagata,
-    paid_date: f.pagata ? f.data : null,
+    paid_date: f.pagata ? (f.dataPagamento || null) : null,
     notes: f.note.trim() || null,
   };
 }
@@ -90,7 +126,8 @@ export const meseMostrato = (f: Pick<FormUscita, "mese" | "data">) => (f.mese ||
 
 /** Un'uscita già salvata, come la legge l'elenco: serve per riaprirla e modificarla. */
 export interface UscitaSalvata {
-  name: string; amount: number; vat_rate: number | null; documento_data: string | null; due_date: string;
+  category?: string | null;
+  name: string; amount: number; vat_rate: number | null; documento_data: string | null; due_date: string; paid_date?: string | null;
   documento_riferimento: string | null; mese_competenza: string | null; is_paid: boolean; notes: string | null;
   supplier_id: string | null; order_id: string | null; mezzo_id: string | null;
   allocations: Array<{ order_id: string; pct: number }> | null;
@@ -106,8 +143,8 @@ export function formDaUscita(u: UscitaSalvata): FormUscita {
     : [{ id: u.order_id ?? "", pct: "100" }];
   const mese = u.mese_competenza ? u.mese_competenza.slice(0, 7) : "";
   return {
-    descrizione: u.name ?? "", imponibile: testoNumero(Number(u.amount)), aliquota: testoNumero(Number(u.vat_rate ?? 0)),
-    data, mese: mese === data.slice(0, 7) ? "" : mese, riferimento: u.documento_riferimento ?? "",
+    categoria: u.category, descrizione: u.name ?? "", imponibile: testoNumero(Number(u.amount)), aliquota: testoNumero(Number(u.vat_rate ?? 0)),
+    data, scadenza: u.due_date, dataPagamento: u.paid_date ?? undefined, mese: mese === data.slice(0, 7) ? "" : mese, riferimento: u.documento_riferimento ?? "",
     fornitoreId: u.supplier_id ?? "", commesse: quote, mezzoId: u.mezzo_id ?? "", pagata: !!u.is_paid, note: u.notes ?? "",
   };
 }

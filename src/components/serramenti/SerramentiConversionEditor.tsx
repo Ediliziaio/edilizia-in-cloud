@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * SerramentiConversionEditor — Editor blocchi conversione PDF.
  *
@@ -159,7 +160,7 @@ function SerramentiConversionEditorImpl({
           {garanzie.map((g, idx) => (
             <div key={idx} className="rounded-lg border bg-card p-2.5 space-y-2">
               <div className="flex items-center gap-2">
-                <select
+                <UniformSelect
                   value={g.icona}
                   onChange={(e) => updateGaranzia(idx, { icona: e.target.value as SrGaranzia["icona"] })}
                   className="h-8 text-xs rounded-md border border-input bg-background px-2 w-32"
@@ -167,7 +168,7 @@ function SerramentiConversionEditorImpl({
                   {GARANZIA_ICONE.map((ic) => (
                     <option key={ic.value} value={ic.value}>{ic.label}</option>
                   ))}
-                </select>
+                </UniformSelect>
                 <Input
                   value={g.titolo}
                   onChange={(e) => updateGaranzia(idx, { titolo: e.target.value })}
@@ -414,7 +415,7 @@ function SerramentiConversionEditorImpl({
         <div className="space-y-2">
           {bonus.map((b, idx) => (
             <div key={idx} className="flex items-center gap-2">
-              <select
+              <UniformSelect
                 value={b.icona}
                 onChange={(e) => updateBonus(idx, { icona: e.target.value as SrBonus["icona"] })}
                 className="h-8 text-xs rounded-md border border-input bg-background px-2 w-32"
@@ -422,7 +423,7 @@ function SerramentiConversionEditorImpl({
                 {BONUS_ICONE.map((ic) => (
                   <option key={ic.value} value={ic.value}>{ic.label}</option>
                 ))}
-              </select>
+              </UniformSelect>
               <Input
                 value={b.titolo}
                 onChange={(e) => updateBonus(idx, { titolo: e.target.value })}

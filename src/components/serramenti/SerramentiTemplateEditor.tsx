@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
 import { logoDelDocumento, logoDellaCopertina } from "@/lib/pdf/logoDelDocumento";
 import { CondizioniContratto } from '@/components/preventivi/CondizioniContratto';
@@ -2200,7 +2201,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                             className="h-8 text-sm font-semibold flex-1 min-w-[180px]"
                             placeholder="Nome fase"
                           />
-                          <select
+                          <UniformSelect
                             value={fase.icona}
                             onChange={(e) => {
                               const next = [...percorso.fasi];
@@ -2212,7 +2213,7 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                             {ICONE.map((ic) => (
                               <option key={ic.value} value={ic.value}>{ic.label}</option>
                             ))}
-                          </select>
+                          </UniformSelect>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -2470,14 +2471,14 @@ if (field === "dynamicSubtitle") { update("pdf_cover_subhero_template", (value ?
                 </div>
                 <div className="col-span-9 md:col-span-2">
                   <Label className="text-[10px]">Tipo</Label>
-                  <select
+                  <UniformSelect
                     value={m.auto_kind ?? ""}
                     onChange={(e) => setField("auto_kind", (e.target.value || null) as SrPercheNoiMetrica["auto_kind"])}
                     className="h-9 w-full text-xs rounded-md border bg-background px-2"
                   >
                     <option value="">Manuale</option>
                     <option value="auto_anni_fondazione">Auto · anni fondazione</option>
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="col-span-3 md:col-span-1 flex items-end">
                   <Button type="button" variant="ghost" size="sm" onClick={removeMetrica} className="h-9 w-full text-xs text-red-600 hover:text-red-700">

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Correggere un rapportino dall'ufficio, e vedere chi ha cambiato cosa.
  * La regola sta nel database (`rapportino_correggi`): su un approvato toglie ore,
@@ -133,15 +134,15 @@ export function CorreggiRapportino({ rapportinoId, orderId, onCorretto }: { rapp
                     {nuovo.nome.trim() && <>
                       <Input aria-label="Quantità" inputMode="decimal" placeholder="Q.tà" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.quantita} onChange={(e) => setNuovo({ ...nuovo, quantita: e.target.value })} />
                       <Input aria-label="Unità" placeholder="Unità" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuovo.unita} onChange={(e) => setNuovo({ ...nuovo, unita: e.target.value })} />
-                      <select aria-label="Da dove viene" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.provenienza} onChange={(e) => setNuovo({ ...nuovo, provenienza: e.target.value })}>
+                      <UniformSelect aria-label="Da dove viene" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.provenienza} onChange={(e) => setNuovo({ ...nuovo, provenienza: e.target.value })}>
                         <option value="acquistato">Comprato</option>
                         <option value="magazzino">Da magazzino</option>
                         <option value="consumo">Consumo minuto</option>
-                      </select>
-                      <select aria-label="Lavorazione" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.fase_id} onChange={(e) => setNuovo({ ...nuovo, fase_id: e.target.value })}>
+                      </UniformSelect>
+                      <UniformSelect aria-label="Lavorazione" className="col-span-2 h-8 rounded-md border bg-background px-1 text-[13px]" value={nuovo.fase_id} onChange={(e) => setNuovo({ ...nuovo, fase_id: e.target.value })}>
                         <option value="">Lavorazione</option>
                         {[...(nomiFasi ?? new Map<string, string>()).entries()].map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-                      </select>
+                      </UniformSelect>
                       <Button type="button" size="sm" variant="outline" className="col-span-6 h-7" onClick={() => {
                         setB({ ...b, materiali: [...b.materiali, { nome: nuovo.nome.trim(), quantita: nuovo.quantita, unita: nuovo.unita.trim(), provenienza: nuovo.provenienza, ...(nuovo.fase_id ? { fase_id: nuovo.fase_id } : {}) }] });
                         setNuovo(NUOVO_MATERIALE);

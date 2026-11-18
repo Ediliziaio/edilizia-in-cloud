@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // Commessa generale dai documenti — il riquadro «Crea dai documenti» nel popup «Nuova commessa
 // generale» (lotto 1 di docs/piano-commessa-generale-da-documenti.md, §3.1). Si scelgono più file,
 // ognuno col suo tipo di documento (proposto dal nome); il browser li prepara senza AI (pagine,
@@ -77,10 +78,10 @@ export function CreaDaDocumenti({ tipo, prova, onCreata }: { tipo: TipoDaDocumen
             <li key={`${f.file.name}-${i}`} className="flex flex-wrap items-center gap-2 px-2 py-1.5">
               <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="min-w-0 flex-1 truncate text-xs">{f.file.name}</span>
-              <select className="rounded border bg-background px-1.5 py-0.5 text-xs" value={f.documento} aria-label={`Tipo di ${f.file.name}`}
+              <UniformSelect className="rounded border bg-background px-1.5 py-0.5 text-xs" value={f.documento} aria-label={`Tipo di ${f.file.name}`}
                 onChange={(e) => setFiles((x) => x.map((y, j) => (j === i ? { ...y, documento: e.target.value } : y)))}>
                 {documenti.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
-              </select>
+              </UniformSelect>
               <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli ${f.file.name}`} onClick={() => setFiles((x) => x.filter((_, j) => j !== i))}><XIcon className="h-3.5 w-3.5" /></button>
             </li>
           ))}

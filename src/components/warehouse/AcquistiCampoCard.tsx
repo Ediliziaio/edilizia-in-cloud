@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Merce presa in negozio dagli operai (ufficio).
  *
@@ -258,11 +259,11 @@ function Verifica({ a, aperto, onApri, occupato, onRegistra, onRifiuta }: {
           {a.modalita === "ritiro_ordine" && (
             <div className="space-y-1">
               <label htmlFor={`oda-${a.id}`} className="text-xs font-semibold">A quale ordine d’acquisto corrisponde?</label>
-              <select id={`oda-${a.id}`} value={ordine} onChange={e => setOrdine(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2 text-sm">
+              <UniformSelect id={`oda-${a.id}`} value={ordine} onChange={e => setOrdine(e.target.value)} className="h-10 w-full rounded-lg border bg-background px-2 text-sm">
                 {!a.purchase_order_id && <option value={NESSUN_ORDINE}>Nessuno: registra come costo diretto</option>}
                 {ordini.map(o => <option key={o.id} value={o.id}>{o.oda_number ?? "Ordine"} · {o.suppliers?.name ?? "Fornitore"} · {ODA_STATUS_LABELS[o.status] ?? o.status}</option>)}
                 {a.purchase_order_id && !ordini.some(o => o.id === a.purchase_order_id) && <option value={a.purchase_order_id}>Ordine proposto</option>}
-              </select>
+              </UniformSelect>
               {caricoOrdini && <p role="status" className="text-xs">Carico gli ordini del cantiere…</p>}
               {erroreOrdini && <p role="alert" className="text-xs text-destructive">Non riesco a leggere gli ordini: non registro un costo diretto per errore. <button type="button" className="underline" onClick={() => void ricaricaOrdini()}>Riprova</button></p>}
               {collegaOrdine && <p className="text-xs text-muted-foreground">Il costo è già nell’ordine: non si crea un costo nuovo. La merce si carica dall’arrivo merce dell’ordine.</p>}

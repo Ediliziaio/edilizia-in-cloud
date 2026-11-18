@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Materiali usati in cantiere che la commessa non aveva: si raccolgono in una
  * bolla di entrata. Il costo poi arriva dall'ordine o dalla fattura del fornitore.
@@ -83,10 +84,10 @@ export function MaterialiDaRegolarizzare({ orderId }: { orderId: string }) {
       </ul>
       {scelti.size > 0 && (
         <div className="mt-2 grid gap-1.5 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
-          <select aria-label="Fornitore" className="h-8 rounded-md border bg-background px-2 text-[13px]" value={fornitore} onChange={(e) => setFornitore(e.target.value)}>
+          <UniformSelect aria-label="Fornitore" className="h-8 rounded-md border bg-background px-2 text-[13px]" value={fornitore} onChange={(e) => setFornitore(e.target.value)}>
             <option value="">Fornitore (se lo sai)</option>
             {fornitori.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
+          </UniformSelect>
           <Input aria-label="Numero bolla" placeholder="Numero bolla (se c'è)" className="h-8 text-[13px]" value={numero} onChange={(e) => setNumero(e.target.value)} />
           <Button size="sm" disabled={fai.isPending} onClick={() => fai.mutate("bolla")}>Crea bolla di entrata</Button>
           {canEditWarehouse && <Button size="sm" variant="outline" disabled={fai.isPending} onClick={() => setScarica(true)}>Scarica dal magazzino</Button>}

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * SilvioProgrammatePanel — "Attività programmate" di Silvio.
  * Promemoria/follow-up datati (silvio_reminders). Funzioni: crea (preset data +
@@ -407,7 +408,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
           {colleghi.length > 1 && (
             <div className="flex items-center gap-2">
               <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-500"><Users className="h-3 w-3" /> Assegna a:</span>
-              <select
+              <UniformSelect
                 value={assegnatario}
                 onChange={(e) => setAssegnatario(e.target.value)}
                 className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-300"
@@ -416,7 +417,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                 {colleghi.filter((c) => c.id !== user?.id).map((c) => (
                   <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || "Collega"}</option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
           )}
           <div className="flex gap-2">

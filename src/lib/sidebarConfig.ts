@@ -137,12 +137,8 @@ export const macroAreas: MacroArea[] = [
     icon: HardHat,
     items: [
       // ─── Operativo ───
-      // NB: qui Sopralluoghi è un tab dentro Commesse (OrdersList.tsx), con la
-      // funzione di piano surveys_module. Chi non vede le Commesse (il venditore,
-      // di serie) li trova in Marketing & Vendita, col permesso «Sopralluoghi».
+      // Sopralluoghi si apre solo dalla scheda Commesse (surveys_module).
       { title: "Commesse", url: "/azienda/ordini", icon: ClipboardList, permissionKey: "canViewOrders", moduleKey: "orders" },
-      // «Cantieri oggi» è una scheda dentro Commesse (?tab=oggi) e le cose da approvare stanno in
-      // Attività di chi è autorizzato (19/10): niente voce di menu a parte.
       // Ordine del menu (27/09, richiesta founder): Clienti subito sotto le
       // Commesse; Magazzino sotto Manodopera e Mezzi.
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
@@ -250,9 +246,6 @@ export const macroAreas: MacroArea[] = [
       // Stesso permesso della rotta (canViewPreventivi): prima usava le
       // Opportunità, e chi le aveva senza «Preventivi» trovava la pagina negata.
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewPreventivi", featureKey: "preventivi_crm" },
-      // Sopralluoghi pre-vendita: la pagina c'era (canViewSopralluoghi) ma nessuna
-      // voce ci portava, e 28 persone avevano un permesso senza porta.
-      { title: "Sopralluoghi", url: "/azienda/sopralluoghi", icon: ClipboardList, permissionKey: "canViewSopralluoghi", featureKey: "surveys_module" },
       { title: "Simulatore", url: "/azienda/marketing/simulatore", icon: Calculator, permissionKey: "canViewMarketingOpportunities", featureKey: "simulatore" },
       // 2026-07-12: voce "Firma Elettronica" rimossa da qui — l'hub vive solo in
       // "Cantieri & Lavori". Il commerciale invia comunque preventivi/contratti in firma

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { type ReactNode, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,7 @@ export function QuadroDocumentaleCommessa({
               setPagina(0);
             }}
           />
-          <select
+          <UniformSelect
             aria-label="Titolare nel quadro documentale"
             className="h-10 max-w-full rounded-md border bg-background px-2 text-sm"
             value={titolare}
@@ -169,7 +170,7 @@ export function QuadroDocumentaleCommessa({
                 {nome}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         </div>
         {caricamento ? (
           <p role="status" className="py-4 text-sm">

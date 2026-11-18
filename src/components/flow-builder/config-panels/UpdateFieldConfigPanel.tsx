@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,7 +73,7 @@ export function UpdateFieldConfigPanel(
   return (
     <div className="space-y-4">
       <Label htmlFor="update-field-entity">Entità da aggiornare</Label>
-      <select
+      <UniformSelect
         id="update-field-entity"
         className="w-full rounded border bg-background p-2 text-sm"
         value={table}
@@ -88,9 +89,9 @@ export function UpdateFieldConfigPanel(
         {Object.entries(labels).map(([id, label]) => (
           <option key={id} value={id}>{label}</option>
         ))}
-      </select>
+      </UniformSelect>
       <Label htmlFor="update-field-destination">Campo da aggiornare</Label>
-      <select
+      <UniformSelect
         id="update-field-destination"
         className="w-full rounded border bg-background p-2 text-sm"
         value={field}
@@ -116,7 +117,7 @@ export function UpdateFieldConfigPanel(
             <option key={f.id} value={`cf:${f.id}`}>{f.name}</option>
           ))}
         </optgroup>
-      </select>
+      </UniformSelect>
       {isLoading && (
         <p className="text-xs text-muted-foreground">Caricamento campi…</p>
       )}

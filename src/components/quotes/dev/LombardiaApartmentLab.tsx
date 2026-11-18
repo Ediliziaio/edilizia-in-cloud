@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useRef, useState } from "react";
 import { usePrezzarioFonti, usePrezzarioVociPerCodici } from "@/lib/prezzario/queries";
 import { ThinkingPromptInput, ThinkingProgress } from "@/components/ui/thinking-prompt-input";
@@ -67,10 +68,10 @@ export default function LombardiaApartmentLab({ companyName }: { companyName: st
   const error = fonti.error ?? catalog.error;
   return <>
     <section className="simulation-controls" aria-label="Prezzario regionale esistente">
-      <label>Fonte <select aria-label="Fonte Lombardia" value={source?.id ?? ""} onChange={e => { setSelectedSource(e.target.value); setAccepted(false); setOverrides({}); }}>
+      <label>Fonte <UniformSelect aria-label="Fonte Lombardia" value={source?.id ?? ""} onChange={e => { setSelectedSource(e.target.value); setAccepted(false); setOverrides({}); }}>
         <option value="" disabled>Scegli un prezzario pubblicato</option>
         {sources.map(f => <option key={f.id} value={f.id}>{f.nome} · metadati {f.versione ?? "edizione non indicata"}</option>)}
-      </select></label>
+      </UniformSelect></label>
       <label className="simulation-check"><input type="checkbox" checked={accepted} onChange={e => setAccepted(e.target.checked)} disabled={!source || source.anno !== 2025} />Confermo l’uso dell’edizione {source?.anno ?? "da scegliere"}, non dell’anno corrente</label>
     </section>
     <p className="simulation-disclaimer">Solo lettura dal listino regionale già presente; nessuna importazione o adozione. I nomi/edizioni sono mostrati come registrati: eventuali incongruenze non vengono corrette automaticamente. I prezzi non sono i costi interni dell’azienda.</p>
@@ -78,7 +79,7 @@ export default function LombardiaApartmentLab({ companyName }: { companyName: st
     {error && <div role="alert" className="regional-alert">Lettura del prezzario non riuscita: {error.message}. Nessun prezzo sintetico sostitutivo. <button onClick={() => { void fonti.refetch(); void catalog.refetch(); }}>Riprova lettura</button></div>}
     {!fonti.isLoading && !source && !error && <p role="alert">Non trovo l’edizione Lombardia 2025 pubblicata. Scegli una fonte disponibile; questo caso non traduce automaticamente codici di altri anni.</p>}
     <div className="simulation-controls regional-cases">
-      <label>Simulazione <select aria-label="Caso appartamento" value={fixture} onChange={e => setFixture(Number(e.target.value))}>{apartmentSimulations.map((s, i) => <option value={i} key={s.name}>{s.name}</option>)}</select></label>
+      <label>Simulazione <UniformSelect aria-label="Caso appartamento" value={fixture} onChange={e => setFixture(Number(e.target.value))}>{apartmentSimulations.map((s, i) => <option value={i} key={s.name}>{s.name}</option>)}</UniformSelect></label>
       <button onClick={replay}>Carica risposte di esempio</button><button onClick={reset}>Riparti dalla chat</button>
     </div>
     {replayed && <p className="simulation-disclaimer">Risposte di esempio caricate: 240/260 m² di pittura, 22/24 m² di rivestimento e le altre misure sono ipotesi DEMO, non rilievi né deduzioni dagli 80 m². Puoi sostituirle sotto.</p>}

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileText, RefreshCw } from "lucide-react";
@@ -199,7 +200,7 @@ export function RiferimentoPscPos(
               <Label htmlFor="psc-originale" className="text-xs">
                 Originale da collegare
               </Label>
-              <select
+              <UniformSelect
                 id="psc-originale"
                 className="mt-1 h-9 w-full rounded-md border bg-background px-2 text-sm"
                 disabled={busy || docs.isPending}
@@ -220,7 +221,7 @@ export function RiferimentoPscPos(
                     {d.revisione ? ` · rev. ${d.revisione}` : ""}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
             <Button
               type="button"

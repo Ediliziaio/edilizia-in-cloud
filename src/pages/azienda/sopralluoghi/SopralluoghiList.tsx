@@ -1,3 +1,4 @@
+import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
@@ -117,6 +118,7 @@ const PERIODI: { value: PeriodoFiltro; label: string }[] = [
   { value: "mese", label: "Prossimi 30 giorni" },
   { value: "in_ritardo", label: "In ritardo" },
   { value: "senza_data", label: "Senza data" },
+  { value: "personalizzato", label: "Intervallo di date" },
 ];
 
 function Scheda({ s, adesso }: { s: SopralluogoBacheca; adesso: Date }) {
@@ -265,7 +267,7 @@ export default function SopralluoghiList() {
     "sop_ambito",
     "sop_cerca",
     "sop_fase",
-    "sop_periodo",
+    "sop_periodo", "sop_da", "sop_a",
     "sop_tecnico",
     "sop_senza_preventivo",
     "sop_ferme",
@@ -451,8 +453,8 @@ export default function SopralluoghiList() {
           )}
         </OperationalSummary>
       )}
-      <section aria-label="Filtri sopralluoghi" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-52 flex-1">
+      <section aria-label="Filtri sopralluoghi" className="rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[180px] max-w-sm flex-1">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
             <Input
               aria-label="Cerca per cliente, telefono, indirizzo o codice"
@@ -461,9 +463,10 @@ export default function SopralluoghiList() {
               value={filtri.testo}
               onChange={(e) => imposta({ testo: e.target.value })}
             />
-          </div><select aria-label="Fase dei sopralluoghi" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={filtri.fase} onChange={e => imposta({ fase: e.target.value as FasePratica | "tutte" })}>
-          <option value="tutte">Tutte le fasi</option>{FASI.map(f => <option key={f.fase} value={f.fase}>{f.etichetta}</option>)}
-        </select><OperationalViewSwitch
+          </div><Select value={filtri.fase} onValueChange={value => imposta({fase:value as FasePratica | "tutte"})}>
+          <SelectTrigger aria-label="Fase dei sopralluoghi" className="h-8 w-[180px] max-w-full text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="tutte">Tutte le fasi</SelectItem>{FASI.map(f => <SelectItem key={f.fase} value={f.fase}>{f.etichetta}</SelectItem>)}</SelectContent>
+        </Select><OperationalViewSwitch
             value={vista}
             label="Vista sopralluoghi"
             onChange={(v) =>
@@ -477,8 +480,7 @@ export default function SopralluoghiList() {
                 { replace: true },
               )
             }
-          /></div>
-        <OperationalExtraFilters count={Number(filtri.periodo !== "tutti") + Number(filtri.tecnico !== "tutti") + Number(!!filtri.soloSenzaPreventivo) + Number(!!filtri.soloBozzeFerme) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          /><OperationalExtraFilters count={Number(filtri.periodo !== "tutti") + Number(filtri.tecnico !== "tutti") + Number(!!filtri.soloSenzaPreventivo) + Number(!!filtri.soloBozzeFerme) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           <OperationalHelp>
@@ -505,6 +507,7 @@ export default function SopralluoghiList() {
               ))}
             </SelectContent>
           </Select>
+          {filtri.periodo === "personalizzato" && <OperationalDateRange from={filtri.da ?? ""} to={filtri.a ?? ""} onChange={values => imposta(values)} />}
           <Select
             value={filtri.tecnico}
             onValueChange={(v) => imposta({ tecnico: v })}
@@ -582,7 +585,7 @@ export default function SopralluoghiList() {
             )}
           </div>
         </div>
-      </div></OperationalExtraFilters>
+      </div></OperationalExtraFilters></div>
       </section>
       {isLoading ? (
         <div className="grid gap-3 md:grid-cols-3">

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { HardHat, RefreshCw } from "lucide-react";
 import { useDpiCommessa } from "@/hooks/useDpiCommessa";
@@ -128,7 +129,7 @@ export function DpiCommessa({
             <div className="mt-3 space-y-2">
               <label className="block text-sm">
                 POS da consultare
-                <select
+                <UniformSelect
                   aria-label="POS da consultare"
                   className="ml-2 max-w-full rounded border p-2"
                   value={corrente.id}
@@ -141,7 +142,7 @@ export function DpiCommessa({
                       {p.id.slice(0, 8)}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </label>
               <p className="text-xs text-muted-foreground">
                 Testi della versione selezionata, anche se in bozza. Le

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Tab "Candidati" — banca dati + pipeline di selezione.
  *
@@ -225,7 +226,7 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                       return (
                         <label key={campo} className="flex items-center justify-between gap-2 text-[11px]">
                           <span className="text-slate-600">{label}</span>
-                          <select
+                          <UniformSelect
                             className="h-6 rounded border bg-white px-1 text-[11px]"
                             value={valore}
                             onChange={(e) => upsert.mutate({ id: m.id, titolo: m.titolo, campi: { [campo]: e.target.value as StatoCampoModulo } })}
@@ -233,7 +234,7 @@ function ModuliSitoDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                             <option value="obbligatorio">Obbligatorio</option>
                             <option value="facoltativo">Facoltativo</option>
                             <option value="nascosto">Nascosto</option>
-                          </select>
+                          </UniformSelect>
                         </label>
                       );
                     })}

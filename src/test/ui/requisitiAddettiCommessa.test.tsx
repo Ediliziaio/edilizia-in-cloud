@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -183,20 +185,20 @@ function intestazione() {
     ["Responsabile del riesame", "TEST referente"],
     ["Ruolo del responsabile", "TEST tecnico"],
   ])
-    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    changeFormControl(screen.getByLabelText(label), { target: { value } });
   fireEvent.click(
     screen.getByRole("checkbox", { name: /Ho controllato le assegnazioni/ }),
   );
 }
 function positivo() {
   intestazione();
-  fireEvent.change(screen.getByLabelText("Riscontro 1"), {
+  changeFormControl(screen.getByLabelText("Riscontro 1"), {
     target: { value: "riesaminata" },
   });
-  fireEvent.change(screen.getByLabelText("Qualifica 1"), {
+  changeFormControl(screen.getByLabelText("Qualifica 1"), {
     target: { value: "q" },
   });
-  fireEvent.change(screen.getByLabelText("Motivazione e prossima azione"), {
+  changeFormControl(screen.getByLabelText("Motivazione e prossima azione"), {
     target: { value: "TEST ambito e limiti pertinenti" },
   });
   fireEvent.click(
@@ -264,18 +266,18 @@ it("non propone la qualifica di un altro addetto anche con titolo simile", () =>
   render(ui());
   prepara();
   intestazione();
-  fireEvent.change(screen.getByLabelText("Riscontro 1"), {
+  changeFormControl(screen.getByLabelText("Riscontro 1"), {
     target: { value: "riesaminata" },
   });
   expect(
-    screen.queryByRole("option", { name: /EVIDENZA DI UN ALTRO ADDETTO/ }),
+    formOptions().queryByRole("option", { name: /EVIDENZA DI UN ALTRO ADDETTO/ }),
   ).toBeNull();
 });
 it("una modifica della motivazione annulla la conferma", () => {
   render(ui());
   prepara();
   positivo();
-  fireEvent.change(screen.getByLabelText("Motivazione e prossima azione"), {
+  changeFormControl(screen.getByLabelText("Motivazione e prossima azione"), {
     target: { value: "Modificata" },
   });
   expect(
@@ -327,7 +329,7 @@ it("la non applicabilità rimuove l’evidenza del riscontro precedente", async 
   render(ui());
   prepara();
   positivo();
-  fireEvent.change(screen.getByLabelText("Riscontro 1"), {
+  changeFormControl(screen.getByLabelText("Riscontro 1"), {
     target: { value: "non_applicabile" },
   });
   fireEvent.click(
@@ -424,14 +426,14 @@ it("filtra la consultazione ma registra anche le righe nascoste senza perdere gl
     screen.getByRole("button", { name: "Prepara riscontri nominativi" }),
   );
   intestazione();
-  fireEvent.change(screen.getByLabelText("Riscontro 1"), {
+  changeFormControl(screen.getByLabelText("Riscontro 1"), {
     target: { value: "mancante" },
   });
-  fireEvent.change(
+  changeFormControl(
     screen.getAllByLabelText("Motivazione e prossima azione")[0],
     { target: { value: "TEST acquisire originale" } },
   );
-  fireEvent.change(screen.getByLabelText("Filtra riscontri per esito"), {
+  changeFormControl(screen.getByLabelText("Filtra riscontri per esito"), {
     target: { value: "da_verificare" },
   });
   expect(screen.queryByLabelText("Riscontro 1")).toBeNull();
@@ -439,7 +441,7 @@ it("filtra la consultazione ma registra anche le righe nascoste senza perdere gl
     "value",
     "da_verificare",
   );
-  fireEvent.change(screen.getByLabelText("Cerca nei riscontri"), {
+  changeFormControl(screen.getByLabelText("Cerca nei riscontri"), {
     target: { value: "non presente" },
   });
   expect(screen.queryByLabelText("Riscontro 2")).toBeNull();

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * RichiesteHrPersonali — il dipendente invia richieste / note all'HR o
  * all'amministrazione (rettifica timbratura, segnalazioni, rimborsi, altro) e
@@ -239,7 +240,7 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
               <Label htmlFor="tipo-richiesta">Tipo</Label>
-              <select
+              <UniformSelect
                 id="tipo-richiesta"
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value as RichiestaTipo)}
@@ -248,7 +249,7 @@ export function RichiesteHrPersonali({ companyId, profiloId }: { companyId: stri
                 {TIPI_DIPENDENTE.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
-              </select>
+              </UniformSelect>
               <p className="text-xs text-muted-foreground">{tipoConfig.help}</p>
             </div>
 

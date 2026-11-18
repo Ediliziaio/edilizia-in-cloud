@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { ContestoSchedaCommessa, useModificheSchedaCommessa } from "@/components/sicurezza/ContestoSchedaCommessa";
 import { invalidaRiesameTecnico } from "../../../../supabase/functions/_shared/posTecnica";
 import { ConfrontoFontiPos } from "@/components/sicurezza/pos/ConfrontoFontiPos";
@@ -662,7 +663,7 @@ function EsitoSelect({ id, value, onChange, readOnly }: { id: string; value: "po
   return (
     <div className="space-y-1">
       <Label htmlFor={id} className="text-xs font-medium text-slate-700">Esito della verifica</Label>
-      <select
+      <UniformSelect
         id={id}
         className="h-9 w-full rounded-md border bg-background px-2 text-sm"
         value={value ?? ""}
@@ -672,7 +673,7 @@ function EsitoSelect({ id, value, onChange, readOnly }: { id: string; value: "po
         <option value="">In attesa</option>
         <option value="positivo">Positivo</option>
         <option value="negativo">Negativo</option>
-      </select>
+      </UniformSelect>
     </div>
   );
 }

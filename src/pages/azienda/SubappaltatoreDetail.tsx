@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { SalPaymentDialog } from "@/components/subappaltatori/SalPaymentDialog";
 import { ListinoDitta } from "@/components/subappaltatori/ListinoDitta";
 import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
@@ -69,11 +70,11 @@ function SceltaContratto({ contratti, valore, onCambia }: { contratti: Contratto
   return (
     <div className="flex min-w-0 flex-col gap-1 text-sm sm:flex-row sm:items-center sm:gap-3">
       <span className="text-muted-foreground">Contratto:</span>
-      <select className="h-10 w-full min-w-0 max-w-xl truncate rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
+      <UniformSelect className="h-10 w-full min-w-0 max-w-xl truncate rounded-md border bg-background px-2 text-sm" value={valore} onChange={(e) => onCambia(e.target.value)} aria-label="Contratto">
         {contratti.map((c) => (
           <option key={c.id} value={c.id}>{nome(c)}</option>
         ))}
-      </select>
+      </UniformSelect>
     </div>
   );
 }

@@ -8,6 +8,7 @@ const stato = vi.hoisted(() => ({
   tabelle: {} as Record<string, Record<string, unknown>[]>,
   chiamate: [] as { tabella: string; metodo: string; args: unknown[] }[],
   companyId: "azienda",
+  timeoutConteggio: false,
   structureError: null as unknown,
   impostazioni: null as unknown,
   sedi: [] as unknown[],
@@ -42,12 +43,13 @@ vi.mock("@/integrations/supabase/client", () => {
   const costruttore = (tabella: string) => {
     const righe = () => stato.tabelle[tabella] ?? [];
     let da = 0, a = Infinity;
+    let conteggioEsatto = false;
     const b: Record<string, unknown> = {};
     for (const metodo of ["select", "eq", "is", "order", "limit", "range", "in", "or", "not"]) {
-      b[metodo] = (...args: unknown[]) => { stato.chiamate.push({ tabella, metodo, args }); if (metodo === "range") { da = Number(args[0]); a = Number(args[1]); } return b; };
+      b[metodo] = (...args: unknown[]) => { stato.chiamate.push({ tabella, metodo, args }); if (metodo === "select") conteggioEsatto = (args[1] as {count?:string} | undefined)?.count === "exact"; if (metodo === "range") { da = Number(args[0]); a = Number(args[1]); } return b; };
     }
     b.maybeSingle = async () => ({ data: stato.impostazioni, error: stato.errori[tabella] ?? null });
-    b.then = (ok: (r: unknown) => unknown) => ok(stato.errori[tabella] ? {data:null,error:stato.errori[tabella]} : tabella === "v_ordine_marginalita" && stato.errore
+    b.then = (ok: (r: unknown) => unknown) => ok(tabella === "v_ordine_marginalita" && stato.timeoutConteggio && conteggioEsatto ? { data: null, error: {code:"57014",message:"canceling statement due to statement timeout"}, count:null } : stato.errori[tabella] ? {data:null,error:stato.errori[tabella]} : tabella === "v_ordine_marginalita" && stato.errore
       ? { data: null, error: stato.errore, count: null }
       : { data: righe().slice(da, a + 1), error: null, count: righe().length });
     return b;
@@ -83,6 +85,7 @@ const codici = () => within(tabella()).getAllByRole("row").slice(1).map((r) => w
 
 beforeEach(() => {
   stato.companyId = "azienda";
+  stato.timeoutConteggio = false;
   stato.structureError = null;
   stato.chiamate = [];
   stato.errore = null;
@@ -110,6 +113,26 @@ beforeEach(() => {
 });
 
 describe("Marginalità cantieri", () => {
+  it("distingue i due margini e mostra i dettagli costi soltanto quando richiesti", async () => {
+    apri();
+    await waitFor(() => expect(codici()).toHaveLength(6));
+    expect(screen.getByRole("columnheader", {name:"Margine diretto €"})).toBeVisible();
+    expect(screen.getByRole("columnheader", {name:"Dopo struttura"})).toBeVisible();
+    expect(screen.queryByRole("columnheader", {name:"Materiali"})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name:"Dettagli costi"}));
+    expect(screen.getByRole("columnheader", {name:"Materiali"})).toBeVisible();
+    expect(screen.getByRole("columnheader", {name:"Errori"})).toBeVisible();
+    fireEvent.click(screen.getByRole("button", {name:"Nascondi dettagli costi"}));
+    expect(screen.queryByRole("columnheader", {name:"Errori"})).not.toBeInTheDocument();
+  });
+
+  it("carica i dati anche quando il conteggio esatto della vista va in timeout", async () => {
+    stato.timeoutConteggio = true;
+    apri();
+    await waitFor(() => expect(codici()).toHaveLength(6));
+    expect(screen.queryByText("Errore nel caricamento dati.")).not.toBeInTheDocument();
+  });
+
   it("ogni commessa sta in un solo filtro e le incomplete non sono «in perdita»", async () => {
     apri();
     await waitFor(() => expect(codici()).toHaveLength(6));
@@ -269,10 +292,10 @@ describe("Audit pulsanti e stati limite marginalità", () => {
   });
   it("ordinamento e filtri espongono la selezione alla tastiera", async () => {
     apri(); await waitFor(() => expect(codici()).toHaveLength(6));
-    fireEvent.click(screen.getByRole("button",{name:"Preventivo"}));
-    expect(screen.getByRole("columnheader",{name:"Preventivo"}).getAttribute("aria-sort")).toBe("ascending");
-    fireEvent.click(screen.getByRole("button",{name:"Preventivo"}));
-    expect(screen.getByRole("columnheader",{name:"Preventivo"}).getAttribute("aria-sort")).toBe("descending");
+    fireEvent.click(screen.getByRole("button",{name:"Ricavi"}));
+    expect(screen.getByRole("columnheader",{name:"Ricavi"}).getAttribute("aria-sort")).toBe("ascending");
+    fireEvent.click(screen.getByRole("button",{name:"Ricavi"}));
+    expect(screen.getByRole("columnheader",{name:"Ricavi"}).getAttribute("aria-sort")).toBe("descending");
     fireEvent.click(screen.getByRole("button",{name:"Sani"}));
     expect(screen.getByRole("button",{name:"Sani"}).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button",{name:"Dettaglio margine SANA"})).toBeTruthy();
@@ -284,6 +307,9 @@ describe("Audit pulsanti e stati limite marginalità", () => {
     const d=await screen.findByRole("dialog");
     expect(within(d).getByText("Perdita diretta")).toBeTruthy();
     expect(within(d).queryByText("Margine lordo")).toBeNull();
+    const barra = within(d).getByRole("region", { name: "Barra economica" });
+    expect(within(barra).getByRole("img").getAttribute("aria-label")).toContain("perdita");
+    expect(barra.textContent).toContain("La linea rossa indica il limite dei ricavi");
     expect(await within(d).findByText("Impossibile caricare le anomalie.")).toBeTruthy();
     expect(within(d).getByRole("button",{name:"Riprova anomalie"})).toBeTruthy();
     expect(within(d).queryByText("Nessuna anomalia aperta su questa commessa.")).toBeNull();
@@ -294,6 +320,11 @@ describe("Audit pulsanti e stati limite marginalità", () => {
     fireEvent.click(screen.getByRole("button",{name:"Dettaglio margine SANA"}));
     const d=await screen.findByRole("dialog");
     expect(await within(d).findByText("Da completare")).toBeTruthy();
+    const tabella = within(d).getByRole("table", { name: "Ricavi e margini stimati per voce" });
+    expect(within(tabella).getByRole("columnheader", { name: "Costo stimato" })).toBeTruthy();
+    expect(within(tabella).getByRole("columnheader", { name: "Margine diretto stimato" })).toBeTruthy();
+    expect(within(tabella).getByText("Stime incomplete")).toBeTruthy();
+    expect(within(tabella).getByText("Totale non disponibile")).toBeTruthy();
     expect(within(d).queryByText("100.0%")).toBeNull();
   });
 });
@@ -307,7 +338,13 @@ it("nel dettaglio riporta la stessa quota e il target della vista", async () => 
   const net=within(d).getByRole("region",{name:"Margine dopo struttura"});
   expect(net.textContent).toContain("420,00");
   expect(net.textContent).toContain("42.0%");
-  expect(net.textContent).toContain("30.0%");
+  expect(net.textContent).toContain("target 30%");
+  expect(within(d).getByRole("img", { name: "Grafico a torta dei costi diretti" })).toBeTruthy();
+  expect(within(d).getByText("Dai ricavi al margine")).toBeTruthy();
+  expect(within(d).getByText("Sopra il target")).toBeTruthy();
+  const barra = within(d).getByRole("region", { name: "Barra economica" });
+  expect(within(barra).getByRole("img").getAttribute("aria-label")).toContain("margine residuo 420,00");
+  expect(barra.textContent).toContain("Struttura 8%");
 });
 
 
@@ -346,6 +383,7 @@ describe("Altre simulazioni per aziende con impostazioni diverse",()=>{
   apri();await waitFor(()=>expect(codici()).toHaveLength(6));
   fireEvent.click(screen.getByRole("button",{name:"Da monitorare"}));
   expect(codici()).toEqual(["MEDIA"]);
+  fireEvent.click(screen.getByText("Mostra priorità").closest("summary")!);
   expect(screen.getByText(/1 commessa richiede attenzione/)).toBeTruthy();
   expect(screen.queryByText(/Le commesse filtrate sono sopra/)).toBeNull();
   expect(screen.getByRole("button",{name:/#MEDIA · Cliente Margine/})).toBeTruthy();
@@ -438,4 +476,30 @@ describe("Coerenza per aziende con target e struttura differenti",()=>{
   expect(codici()).toEqual(["VERIFICA"]);
   expect(stato.chiamate.filter(c=>c.tabella==="v_ordine_marginalita"&&c.metodo==="eq"&&c.args[0]==="company_id").every(c=>c.args[1]===caso.azienda)).toBe(true);
  });
+});
+
+it("mostra lo scostamento dei consumi collegati senza inventare costi sulle altre voci", async () => {
+  stato.tabelle.order_items = [
+    {id:"voce-a",name:"Materiale A",quantity:2,unit_price:100,purchase_price:30,standard_cost:null,position:1},
+    {id:"voce-b",name:"Materiale B",quantity:1,unit_price:100,purchase_price:20,standard_cost:null,position:2},
+  ];
+  stato.tabelle.warehouse_movements = [{order_item_id:"voce-a",movement_type:"scarico",quantity:2,unit_cost:40,rientro_commessa:false}];
+  apri(); await waitFor(() => expect(codici()).toHaveLength(6));
+  fireEvent.click(screen.getByRole("button", {name:"Dettaglio margine SANA"}));
+  const d = await screen.findByRole("dialog");
+  const tabella = await within(d).findByRole("table", {name:"Ricavi e margini stimati per voce"});
+  await waitFor(() => expect(tabella.textContent).toContain("Magazzino · consumo netto"));
+  const riga = within(tabella).getByRole("row", {name:/Materiale A/});
+  expect(riga.textContent).toContain("80,00");
+  expect(riga.textContent).toContain("+20,00");
+  expect(within(tabella).getByRole("row", {name:/Materiale B/}).textContent).toContain("Non collegato");
+});
+
+it("un errore sui collegamenti lascia visibili le stime e permette di riprovare", async () => {
+  stato.errori.warehouse_movements = {message:"Rete assente"};
+  apri(); await waitFor(() => expect(codici()).toHaveLength(6));
+  fireEvent.click(screen.getByRole("button", {name:"Dettaglio margine SANA"}));
+  const d = await screen.findByRole("dialog");
+  expect(await within(d).findByRole("button", {name:"Riprova costi"})).toBeTruthy();
+  expect(within(d).getByText(/Costi collegati non disponibili/)).toBeTruthy();
 });

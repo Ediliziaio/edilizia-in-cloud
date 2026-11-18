@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -72,10 +73,10 @@ const openDialog = (onClose = vi.fn()) =>
     <CollegaRevisioni companyId="az" iniziali={frame()} onClose={onClose} />,
   );
 const select = () => {
-  fireEvent.change(screen.getByLabelText("Nuova revisione caricata"), {
+  changeFormControl(screen.getByLabelText("Nuova revisione caricata"), {
     target: { value: "nuova" },
   });
-  fireEvent.change(screen.getByLabelText("Documento precedente"), {
+  changeFormControl(screen.getByLabelText("Documento precedente"), {
     target: { value: "vecchia" },
   });
 };

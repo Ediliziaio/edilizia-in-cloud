@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -74,7 +75,7 @@ describe("Altre azioni sui documenti selezionati", () => {
  it("richiede conferma per il cambio fase e mostra un esito per ogni documento", async () => {
   state.save.mockImplementation(async (plan: { document: { id: string } }) => { if (plan.document.id === "b") throw new Error("Modificato da un collega"); });
   mountBulk(); fireEvent.click(screen.getByLabelText("Seleziona documenti di questa pagina"));
-  fireEvent.change(screen.getByRole("combobox", { name: "Azione sui documenti selezionati" }), { target: { value: "ordinato" } });
+  changeFormControl(screen.getByRole("combobox", { name: "Azione sui documenti selezionati" }), { target: { value: "ordinato" } });
   expect(state.save).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Conferma su 2 documenti" }));
   expect(await screen.findByText("Modificato da un collega")).toBeVisible();
@@ -87,7 +88,7 @@ describe("Altre azioni sui documenti selezionati", () => {
  });
  it("blocca prima della conferma una selezione di documenti incompatibili", () => {
   mountBulk({ mixed: true }); fireEvent.click(screen.getByLabelText("Seleziona documenti di questa pagina"));
-  fireEvent.change(screen.getByRole("combobox", { name: "Azione sui documenti selezionati" }), { target: { value: "ordinato" } });
+  changeFormControl(screen.getByRole("combobox", { name: "Azione sui documenti selezionati" }), { target: { value: "ordinato" } });
   expect(screen.getByRole("button", { name: "Conferma su 2 documenti" })).toBeDisabled();
   expect(state.save).not.toHaveBeenCalled();
  });
@@ -101,7 +102,7 @@ describe("Altre azioni sui documenti selezionati", () => {
   let release!: () => void;
   state.save.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
   const view = mountBulk(); fireEvent.click(screen.getByLabelText("Seleziona documenti di questa pagina"));
-  fireEvent.change(screen.getByRole("combobox", { name: "Azione sui documenti selezionati" }), { target: { value: "ordinato" } });
+  changeFormControl(screen.getByRole("combobox", { name: "Azione sui documenti selezionati" }), { target: { value: "ordinato" } });
   fireEvent.click(screen.getByRole("button", { name: "Conferma su 2 documenti" }));
   expect(screen.getByLabelText("Seleziona ODA-a")).toBeDisabled();
   state.company = "c2"; view.update({}); release();

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -14,12 +15,12 @@ describe("Scelta del costo di esecuzione", () => {
     render(<Editor />);
     fireEvent.click(screen.getByRole("button", { name: "Squadra interna" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi operatore / qualifica" }));
-    fireEvent.change(screen.getByLabelText("Numero operatori 1"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Ore per operatore 1"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("Costo orario operatore 1"), { target: { value: "25" } });
+    changeFormControl(screen.getByLabelText("Numero operatori 1"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Ore per operatore 1"), { target: { value: "3" } });
+    changeFormControl(screen.getByLabelText("Costo orario operatore 1"), { target: { value: "25" } });
     expect(screen.getByRole("status")).toHaveTextContent("150,00");
     fireEvent.click(screen.getByRole("button", { name: "Confronta le altre modalità" }));
-    fireEvent.change(screen.getByLabelText("Costo subappalto"), { target: { value: "120" } });
+    changeFormControl(screen.getByLabelText("Costo subappalto"), { target: { value: "120" } });
     fireEvent.click(screen.getByRole("button", { name: "Subappalto" }));
     expect(screen.getByRole("status")).toHaveTextContent("120,00");
     fireEvent.click(screen.getByRole("button", { name: "Squadra interna" }));
@@ -31,7 +32,7 @@ describe("Scelta del costo di esecuzione", () => {
     render(<Editor />);
     fireEvent.click(screen.getByRole("button", { name: "Squadra interna" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi operatore / qualifica" }));
-    fireEvent.change(screen.getByLabelText("Dipendente per operatore 1"), { target: { value: "1" } });
+    changeFormControl(screen.getByLabelText("Dipendente per operatore 1"), { target: { value: "1" } });
     expect(screen.getByLabelText("Nome operatore 1")).toHaveValue("Operatore Demo");
     expect(screen.getByLabelText("Costo orario operatore 1")).toHaveValue(30);
     expect(screen.getByRole("status")).toHaveTextContent("Completa i dati");

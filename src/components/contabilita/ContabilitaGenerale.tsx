@@ -1,3 +1,4 @@
+import { TabellaContabile } from "./TabellaContabile";
 /**
  * Contabilità generale in partita doppia (10/11/2026), sezione dell'area fiscale.
  *
@@ -6,6 +7,7 @@
  * stampare. Le regole stanno nel database (contabilita_*): qui si legge e si
  * chiamano le funzioni, niente scritture dirette sulle tabelle.
  */
+import { Link } from "react-router-dom";
 import { useId, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { COLORI_GRAFICO, StatGrafico, TESTO_ASSE, TooltipScheda, defsGrafico, euroAsse, idSvg } from "@/components/charts/grafici/comune";
@@ -25,6 +27,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
+import { FiscalSourceViewer } from "@/components/fatturazione/FiscalSourceViewer";
 import { FiscalQueryState } from "@/components/fatturazione/FiscalQueryState";
 import { RateiRiscontiFineAnno } from "@/components/contabilita/RateiRiscontiFineAnno";
 import { RegistroCespiti } from "@/components/contabilita/RegistroCespiti";
@@ -115,7 +118,7 @@ function useScritture(companyId: string | undefined, anno: number) {
       for (let da = 0; ; da += PAGINA) {
         const { data, error } = await db
           .from("contabilita_scritture")
-          .select("id, esercizio, numero, data_registrazione, causale, descrizione, documento_numero, documento_data, origine, storno_di, contabilita_righe(riga, conto_id, dare, avere, descrizione)")
+          .select("id, esercizio, numero, data_registrazione, causale, descrizione, documento_numero, documento_data, origine, origine_id, storno_di, contabilita_righe(riga, conto_id, dare, avere, descrizione)")
           .eq("company_id", companyId)
           .eq("esercizio", anno)
           .order("numero", { ascending: false })
@@ -231,7 +234,10 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
   const [modifica, setModifica] = useState<ContoContabile | null>(null);
   const [soloDaConfermare, setSoloDaConfermare] = useState(false);
   const daConfermare = conti.filter((c) => c.nota);
-  const visibili = soloDaConfermare ? daConfermare : conti;
+  const [ricerca, setRicerca] = useState("");
+  const termine = ricerca.trim().toLocaleLowerCase("it");
+  const visibili = (soloDaConfermare ? daConfermare : conti).filter(c =>
+    [c.codice, c.descrizione, c.natura, c.voce_cee, c.codice_standard].some(v => v?.toLowerCase().includes(termine)));
   const crea = useMutation({
     mutationFn: async () => {
       const sezione = NATURE.find((n) => n.value === natura)!.sezione;
@@ -252,23 +258,26 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
+        <Input type="search" className="h-8 w-full sm:w-64" aria-label="Cerca nel piano dei conti" placeholder="Cerca codice, descrizione o voce CEE…" value={ricerca} onChange={e => setRicerca(e.target.value)} />
         {daConfermare.length > 0 ? (
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={soloDaConfermare} onChange={(e) => setSoloDaConfermare(e.target.checked)} />
             Solo i conti da confermare ({daConfermare.length})
           </label>
-        ) : <span />}
-        <div className="flex gap-2">
+        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{visibili.length} conti</span>
           <Button size="sm" variant="outline" onClick={() => scaricaCsv("piano-dei-conti", csvPianoDeiConti(conti))}><Download className="mr-1 h-4 w-4" />Esporta</Button>
           <Button size="sm" onClick={() => setApri(true)}><Plus className="mr-1 h-4 w-4" />Nuovo conto</Button>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border">
+      <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr><th className="p-2">Codice</th><th className="p-2">Descrizione</th><th className="p-2">Natura</th><th className="p-2">Voce CEE</th><th className="p-2" /></tr>
           </thead>
           <tbody>
+            {visibili.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">Nessun conto con questi filtri.</td></tr>}
             {visibili.map((c) => (
               <tr key={c.id} className={c.movimentabile ? "border-t" : "border-t bg-muted/30 font-semibold"}>
                 <td className="p-2 font-mono text-xs">{c.codice}</td>
@@ -284,7 +293,7 @@ function PianoDeiConti({ companyId, conti }: { companyId: string; conti: ContoCo
             ))}
           </tbody>
         </table>
-      </div>
+      </TabellaContabile>
       <Dialog open={apri} onOpenChange={setApri}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nuovo conto</DialogTitle></DialogHeader>
@@ -342,12 +351,14 @@ function gruppoDi(origine: string | null | undefined): Exclude<GruppoOrigine, "t
 }
 
 function Scritture({ companyId, anno, conti, giornale }: { companyId: string; anno: number; conti: ContoContabile[]; giornale: boolean }) {
+  const periodo = useFiscalPeriod();
   const qc = useQueryClient();
   const scritture = useScritture(companyId, anno);
   const esercizio = useEsercizio(companyId, anno).data;
   const anagrafica = useAnagraficaAzienda();
   const [nuova, setNuova] = useState(false);
   const [stampa, setStampa] = useState<string | null>(null);
+  const [dettaglioId, setDettaglioId] = useState<string | null>(null);
   const [storno, setStorno] = useState<Scrittura | null>(null);
   // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
   const [mostra, setMostra] = useState(300);
@@ -397,6 +408,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
     return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
   }
   const elenco = scritture.data ?? [];
+  const dettaglio = elenco.find(s => s.id === dettaglioId);
   const q = cerca.trim().toLowerCase();
   const filtrate = !q && !mese ? elenco : elenco.filter((s) => {
     if (mese && s.data_registrazione.slice(5, 7) !== mese) return false;
@@ -408,7 +420,8 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       || s.contabilita_righe.some((r) => (nomi.get(r.conto_id) ?? "").toLowerCase().includes(q) || (r.descrizione ?? "").toLowerCase().includes(q));
   });
   const conFiltri = !!q || !!mese;
-  const g = costruisciGiornale(filtrate, conti);
+  const selezione = conFiltri ? new Set(filtrate.map(s => s.id)) : undefined;
+  const g = costruisciGiornale(elenco, conti, 0, selezione);
   // Il filtro dell'origine vale per l'elenco delle scritture; ricerca e mese valgono anche nel libro giornale.
   const visibili = filtro === "tutte" ? filtrate : filtrate.filter((s) => gruppoDi(s.origine) === filtro);
   const quante = (k: GruppoOrigine) => (k === "tutte" ? filtrate.length : filtrate.filter((s) => gruppoDi(s.origine) === k).length);
@@ -416,7 +429,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const ultima = elenco.reduce<string | null>((u, s) => (!u || s.data_registrazione > u ? s.data_registrazione : u), null);
   const fino = ultima ? Number(ultima.slice(5, 7)) : 0;
   const perMese = Array.from({ length: fino }, (_, i) => elenco.filter((s) => Number(s.data_registrazione.slice(5, 7)) === i + 1 && s.data_registrazione.startsWith(String(anno))).length);
-  const apriStampa = () => {
+  const apriStampa = (filtrata = false) => {
     const a = anagrafica.data;
     setStampa(htmlLibroGiornale({
       azienda: {
@@ -424,6 +437,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         indirizzo_via: a?.indirizzo_via ?? null, indirizzo_numero_civico: a?.indirizzo_numero_civico ?? null, indirizzo_cap: a?.indirizzo_cap ?? null,
         indirizzo_comune: a?.indirizzo_comune ?? null, indirizzo_provincia: a?.indirizzo_provincia ?? null, logo_url: a?.logo_url ?? null,
       },
+      selezione: filtrata ? selezione : undefined,
       scritture: elenco, conti, dal: `${anno}-01-01`, al: `${anno}-12-31`,
     }));
   };
@@ -477,13 +491,17 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           {esercizio?.generato_il ? <> · {aggiornataAlle(esercizio.generato_il)}</> : null}
         </span>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={apriStampa}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale</Button>
+          <Button size="sm" variant="outline" onClick={() => apriStampa()}><Printer className="mr-1 h-4 w-4" />Stampa libro giornale · esercizio</Button>
           {giornale ? (
             <>
+              {conFiltri && <>
+                <Button size="sm" variant="outline" onClick={() => apriStampa(true)}>Stampa vista filtrata</Button>
+                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, selezione))}>Esporta vista filtrata</Button>
+              </>}
               <Button size="sm" variant="outline" onClick={() => setDefinitiva(true)}><Lock className="mr-1 h-4 w-4" />Stampa definitiva</Button>
               <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}`, csvGiornale(elenco, conti))}
                 title="Una riga per movimento, col codice del conto: per il programma dello studio">
-                <Download className="mr-1 h-4 w-4" />Esporta per lo studio
+                <Download className="mr-1 h-4 w-4" />Esporta esercizio
               </Button>
             </>
           ) : null}
@@ -495,27 +513,29 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       </div>
 
       {giornale ? (
-        <div className="overflow-x-auto rounded-xl border">
+        <TabellaContabile>
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="p-2">N.</th><th className="p-2">Data</th><th className="p-2">Causale</th><th className="p-2">Conto</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th></tr>
+              <tr><th className="p-2">N.</th><th className="p-2">Data</th><th className="p-2">Causale</th><th className="p-2">Conto</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th></tr>
             </thead>
             <tbody>
               {g.righe.length === 0 ? (
-                <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura nel ${anno}.`}</td></tr>
+                <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura nel ${anno}.`}</td></tr>
               ) : g.righe.slice(0, mostra * 5).map((r) => (
-                <tr key={r.progressivo} className={r.primaDellaScrittura ? "border-t" : ""}>
+                <tr key={r.progressivo} className={`cursor-pointer ${r.primaDellaScrittura ? "border-t" : ""}`}
+                  onClick={e => { e.currentTarget.querySelector("button")?.focus(); setDettaglioId(r.scritturaId); }}>
                   <td className="p-2 font-mono text-xs">{r.primaDellaScrittura ? r.numero : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? dataIt(r.data) : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? r.causale : ""}</td>
-                  <td className="p-2">{r.conto}{r.descrizione ? <span className="text-muted-foreground"> · {r.descrizione}</span> : null}</td>
+                  <td className="p-2"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${r.registrazione}, ${r.conto}`} className="text-left text-primary hover:underline">{r.conto}</button></td>
+                  <td className="max-w-xs truncate p-2 text-muted-foreground" title={r.descrizione || undefined}>{r.descrizione || "—"}</td>
                   <td className="p-2 text-right tabular-nums">{r.dare !== null ? euro(r.dare) : ""}</td>
                   <td className="p-2 text-right tabular-nums">{r.avere !== null ? euro(r.avere) : ""}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </TabellaContabile>
       ) : (
         <div className="space-y-2">
           {elenco.length > 0 ? (
@@ -532,38 +552,25 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">Nessuna scrittura nel {anno}. Fatture, incassi e pagamenti si registrano da soli ogni quarto d'ora («Aggiorna adesso» per non aspettare); le altre operazioni si registrano con «Nuova scrittura».</p>
           ) : visibili.length === 0 ? (
             <p className="rounded-xl border p-4 text-sm text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura di questo tipo nel ${anno}.`}</p>
-          ) : visibili.slice(0, mostra).map((s) => {
-            const tot = s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0);
-            return (
-              <details key={s.id} className="rounded-xl border p-3 text-sm">
-                <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="font-mono text-xs">{s.numero}/{s.esercizio}</span>
-                  <span>{dataIt(s.data_registrazione)}</span>
-                  <span className="font-medium">{s.causale}</span>
-                  {s.descrizione ? <span className="text-muted-foreground">{s.descrizione}</span> : null}
-                  {s.storno_di ? <span className="rounded bg-amber-100 px-1.5 text-xs text-amber-800">storno</span> : null}
-                  {stornate.has(s.id) ? <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground">stornata</span> : null}
-                  <span className="ml-auto tabular-nums">{euro(tot)}</span>
-                </summary>
-                <table className="mt-2 w-full text-sm">
-                  <tbody>
-                    {[...s.contabilita_righe].sort((a, b) => a.riga - b.riga).map((r) => (
-                      <tr key={r.riga} className="border-t">
-                        <td className="p-1.5">{nomi.get(r.conto_id) ?? "—"}{r.descrizione ? <span className="text-muted-foreground"> · {r.descrizione}</span> : null}</td>
-                        <td className="p-1.5 text-right tabular-nums">{Number(r.dare) > 0 ? euro(Number(r.dare)) : ""}</td>
-                        <td className="p-1.5 text-right tabular-nums">{Number(r.avere) > 0 ? euro(Number(r.avere)) : ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!s.storno_di && !stornate.has(s.id) ? (
-                  <div className="mt-2 flex justify-end">
-                    <Button size="sm" variant="outline" onClick={() => setStorno(s)}><Undo2 className="mr-1 h-4 w-4" />Storna</Button>
-                  </div>
-                ) : null}
-              </details>
-            );
-          })}
+          ) : <TabellaContabile>
+            <table className="w-full whitespace-nowrap text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>{["N.", "Data", "Causale", "Descrizione", "Importo"].map(t => <th key={t} className={t === "Importo" ? "p-2 text-right" : "p-2"}>{t}</th>)}</tr>
+              </thead>
+              <tbody>{visibili.slice(0, mostra).map(s => (
+                <tr key={s.id} className="cursor-pointer border-t" onClick={e => {
+                  e.currentTarget.querySelector("button")?.focus();
+                  setDettaglioId(s.id);
+                }}>
+                  <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${s.numero}/${s.esercizio}`} className="py-2 font-mono text-xs text-primary hover:underline">{s.numero}/{s.esercizio}</button></td>
+                  <td className="px-2">{dataIt(s.data_registrazione)}</td>
+                  <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? "storno" : "stornata"}</span> : null}</td>
+                  <td className="max-w-xs truncate px-2 text-muted-foreground" title={s.descrizione || undefined}>{s.descrizione || "—"}</td>
+                  <td className="px-2 text-right tabular-nums">{euro(s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0))}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </TabellaContabile>}
         </div>
       )}
       {(giornale ? g.righe.length > mostra * 5 : visibili.length > mostra) ? (
@@ -573,6 +580,10 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       ) : null}
 
+      <DettaglioScrittura dettaglio={dettaglio} companyId={companyId} nomi={nomi}
+        onClose={() => setDettaglioId(null)}
+        onConto={conto => periodo.set({ vista: "mastrini", conto, anno: String(anno) })}
+        onStorno={dettaglio && !dettaglio.storno_di && !stornate.has(dettaglio.id) ? setStorno : undefined} />
       <StampaDefinitiva open={definitiva} onOpenChange={setDefinitiva} companyId={companyId} anno={anno}
         onStampa={(dal, al) => setStampa(htmlLibroGiornale({ azienda: intestazioneDa(anagrafica.data), scritture: elenco, conti, dal, al, definitiva: true }))} />
       <NuovaScrittura open={nuova} onOpenChange={setNuova} companyId={companyId} conti={conti}
@@ -581,6 +592,99 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
     </div>
   );
+}
+
+function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onStorno }: {
+  dettaglio: Scrittura | undefined;
+  companyId: string;
+  nomi: ReadonlyMap<string, string>;
+  onClose: () => void;
+  onConto: (id: string) => void;
+  onStorno?: (scrittura: Scrittura) => void;
+}) {
+  return (
+    <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) onClose(); }}>
+        {dettaglio && <DialogContent className="max-h-[88dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Scrittura {dettaglio.numero}/{dettaglio.esercizio}</DialogTitle>
+            <p className="text-sm text-muted-foreground">{dataIt(dettaglio.data_registrazione)} · {dettaglio.causale}</p>
+          </DialogHeader>
+          {dettaglio.descrizione && <p className="break-words text-sm">{dettaglio.descrizione}</p>}
+          <div className="flex flex-wrap items-baseline gap-2 border-y py-3 text-sm">
+            <span className="text-muted-foreground">Documento collegato</span>
+            <DocumentoScrittura companyId={companyId} scrittura={dettaglio} />
+            {dettaglio.documento_data && <span>{dataIt(dettaglio.documento_data)}</span>}
+          </div>
+          <TabellaContabile>
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs"><tr><th className="p-2">Conto</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th></tr></thead>
+              <tbody>{[...dettaglio.contabilita_righe].sort((a,b) => a.riga-b.riga).map(r => (
+                <tr key={r.riga} className="border-t"><td className="p-2">{nomi.has(r.conto_id) ? <button className="text-left text-primary hover:underline" title="Apri mastrino" onClick={() => onConto(r.conto_id)}>{nomi.get(r.conto_id)}</button> : "Conto non disponibile"}</td><td className="p-2 text-muted-foreground">{r.descrizione || "—"}</td>
+                  {(["dare", "avere"] as const).map(lato => <td key={lato} className="p-2 text-right tabular-nums">{Number(r[lato]) ? euro(Number(r[lato])) : "—"}</td>)}</tr>
+              ))}</tbody>
+              <tfoot className="border-t bg-muted/30 font-semibold"><tr><td colSpan={2} className="p-2">Totali</td>
+                {(["dare", "avere"] as const).map(lato => <td key={lato} className="p-2 text-right tabular-nums">{euro(dettaglio.contabilita_righe.reduce((t,r) => t + Number(r[lato] || 0), 0))}</td>)}
+              </tr></tfoot>
+            </table>
+          </TabellaContabile>
+          <DialogFooter>
+            {onStorno && <Button variant="outline" onClick={() => { onClose(); onStorno(dettaglio); }}><Undo2 className="mr-1 h-4 w-4" />Storna</Button>}
+            <Button onClick={onClose}>Chiudi</Button>
+          </DialogFooter>
+        </DialogContent>}
+      </Dialog>
+  );
+}
+
+function DocumentoScrittura({ companyId, scrittura }: { companyId: string; scrittura: Scrittura }) {
+  const { origine, origine_id: id, documento_numero: numero } = scrittura;
+  const daMovimento = origine === "incasso_documento" || origine === "prima_nota";
+  const indiretto = daMovimento || origine === "incasso";
+  const documento = useQuery({
+    queryKey: chiave(companyId, "documento-scrittura", origine, id),
+    enabled: !!id && indiretto,
+    queryFn: async () => {
+      if (daMovimento) {
+        const { data, error } = await supabase.from("prima_nota_entries").select("documento_fiscale_id, invoice_id").eq("company_id", companyId).eq("id", id!).maybeSingle();
+        if (error) throw error;
+        return data?.documento_fiscale_id ?? data?.invoice_id ?? null;
+      }
+      const { data, error } = await supabase.from("invoice_payments").select("invoice_id").eq("company_id", companyId).eq("id", id!).maybeSingle();
+      if (error) throw error;
+      return data?.invoice_id ?? null;
+    },
+  });
+  if (id && indiretto && documento.isLoading) return <span role="status">Caricamento…</span>;
+  if (documento.isError) return <Button size="sm" variant="outline" onClick={() => void documento.refetch()}>Riprova a caricare il documento</Button>;
+  if (origine === "f24" && id) return <VersamentoCollegato companyId={companyId} id={id} />;
+  if (origine === "cedolini") {
+    const periodo = scrittura.descrizione?.match(/\b(0[1-9]|1[0-2])\/(\d{4})\b/);
+    if (periodo) return <Link className="font-medium text-primary hover:underline" to={`/azienda/personale?tab=cedolini&anno=${periodo[2]}&mese=${Number(periodo[1])}`}>Cedolini di {periodo[1]}/{periodo[2]}</Link>;
+  }
+  const acquisto = origine === "fattura_ricevuta" || origine === "pagamento";
+  const vendita = origine === "fattura_emessa" || origine === "ritenuta_subita" || origine === "incasso_fattura";
+  const documentoId = indiretto ? documento.data : acquisto || vendita ? id : null;
+  return documentoId
+    ? <FiscalSourceViewer id={documentoId} type={acquisto ? "acquisti" : "vendite"} label={numero || "Apri documento"} />
+    : <span>{numero || "Nessun documento collegato"}</span>;
+}
+
+function VersamentoCollegato({ companyId, id }: { companyId: string; id: string }) {
+  const q = useQuery({
+    queryKey: chiave(companyId, "versamento", id),
+    queryFn: async () => {
+      const { data, error } = await supabase.from("f24_entries").select("tributo_code, tributo_descrizione, importo, data_pagamento, stato").eq("company_id", companyId).eq("id", id).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  if (q.isLoading) return <span role="status">Caricamento F24…</span>;
+  if (q.isError) return <Button variant="outline" size="sm" onClick={() => void q.refetch()}>Riprova a caricare il versamento</Button>;
+  if (!q.data) return <span>Versamento F24 non disponibile</span>;
+  const f = q.data;
+  return <details><summary className="cursor-pointer text-primary">Versamento F24 · {f.tributo_code}</summary>
+    <p className="mt-2">{f.tributo_descrizione} · {euro(f.importo)} · {f.stato}{f.data_pagamento && ` · ${dataIt(f.data_pagamento)}`}</p>
+  </details>;
 }
 
 function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto }: {
@@ -770,6 +874,8 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           etichettaTendenza="Utile progressivo mese per mese"
         />
       </div>
+      {!isMobile && (sezioni.attivo.totale > 0 || sezioni.passivo.totale > 0 || mesi.some(m => m.ricavi !== 0 || m.costi !== 0)) && <details className="rounded-xl border p-3">
+        <summary className="cursor-pointer text-sm font-medium">Grafici di bilancio</summary><div className="mt-3 space-y-3">
       {!isMobile && (sezioni.attivo.totale > 0 || sezioni.passivo.totale > 0) && (
         <div className="grid gap-3 lg:grid-cols-2">
           <ComposizioneLato titolo="Com'è fatto l'attivo" lato={sezioni.attivo} />
@@ -782,6 +888,7 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           <GraficoRicaviCosti righe={mesi.map((m) => ({ mese: m.mese, ricavi: m.ricavi, costi_var: m.costi, costi_fissi: 0 }))} />
         </section>
       )}
+      </div></details>}
       {!verifica.quadra || sbilancio !== 0 || cee.vociNonIndicate.length > 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
           {!verifica.quadra ? <p>Il bilancio di verifica non quadra: dare {euro(verifica.totaleDare)}, avere {euro(verifica.totaleAvere)}.</p> : null}
@@ -810,7 +917,7 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
           </section>
         </div>
       ) : (
-      <div className="overflow-x-auto rounded-xl border">
+      <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr><th className="p-2">Conto</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
@@ -828,7 +935,7 @@ function Bilancio({ companyId, anno, conti }: { companyId: string; anno: number;
             ))}
           </tbody>
         </table>
-      </div>
+      </TabellaContabile>
       )}
     </div>
   );
@@ -983,9 +1090,12 @@ function ModificaConto({ conto, onClose, onFatto }: { conto: ContoContabile | nu
 
 /** Mastrino di un conto e, per clienti e fornitori, il partitario: quanto deve o avanza ognuno. */
 function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number; conti: ContoContabile[] }) {
+  const [dettaglioId, setDettaglioId] = useState<string | null>(null);
+  const nomi = useMemo(() => new Map(conti.map(c => [c.id, `${c.codice} ${c.descrizione}`])), [conti]);
   const scritture = useScritture(companyId, anno);
   const anagrafica = useAnagraficaAzienda();
-  const [contoId, setContoId] = useState("");
+  const periodo = useFiscalPeriod();
+  const contoId = periodo.params.get("conto");
   const [soggetto, setSoggetto] = useState<string | null>(null);
   const [stampa, setStampa] = useState<string | null>(null);
   const [mostra, setMostra] = useState(500);
@@ -1011,25 +1121,34 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
     ? { ...mTutto, movimenti: mTutto.movimenti.filter((x) => `${x.causale} ${x.descrizione ?? ""} ${x.numero}`.toLowerCase().includes(qm)) }
     : mTutto;
   const saldoTesto = (n: number) => (n === 0 ? euro(0) : `${euro(Math.abs(n))} ${n > 0 ? "D" : "A"}`);
+  function cambiaConto(id: string) {
+    periodo.set({ conto: id });
+    setCercaM("");
+    setSoggetto(null);
+    setMostra(500);
+  }
   return (
     <div className="space-y-3">
+      <DettaglioScrittura dettaglio={elenco.find(s => s.id === dettaglioId)} companyId={companyId} nomi={nomi}
+        onClose={() => setDettaglioId(null)}
+        onConto={id => { setDettaglioId(null); if (id !== conto.id) cambiaConto(id); }} />
       {stampa && (
         <PrintPreviewModal open onOpenChange={(v) => { if (!v) setStampa(null); }} htmlContent={stampa}
           title="Mastrino — anteprima di stampa" fileName={`mastrino-${conto.codice}-${anno}`} soloPdf />
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={conto.id} onValueChange={(v) => { setContoId(v); setSoggetto(null); setMostra(500); }}>
-          <SelectTrigger className="h-8 w-80" aria-label="Conto"><SelectValue /></SelectTrigger>
+        <Select value={conto.id} onValueChange={cambiaConto}>
+          <SelectTrigger className="h-8 w-full sm:w-80" aria-label="Conto"><SelectValue /></SelectTrigger>
           <SelectContent>
             {movimentati.map((c) => <SelectItem key={c.id} value={c.id}>{c.codice} {c.descrizione}</SelectItem>)}
           </SelectContent>
         </Select>
         {soggetto !== null ? (
-          <Button size="sm" variant="outline" onClick={() => setSoggetto(null)}>← Tutti i soggetti</Button>
+          <Button size="sm" variant="outline" onClick={() => { setSoggetto(null); setCercaM(""); }}>← Tutti i soggetti</Button>
         ) : null}
-        <div className="relative w-64">
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <Input value={cercaM} onChange={(e) => { setCercaM(e.target.value); setMostra(500); }}
+          <Input type="search" value={cercaM} onChange={(e) => { setCercaM(e.target.value); setMostra(500); }}
             placeholder={aPartite ? "Cerca cliente o fornitore…" : "Cerca nei movimenti…"} aria-label="Cerca nel mastrino" className="h-8 pl-8" />
         </div>
         {!aPartite ? (
@@ -1040,7 +1159,7 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
         ) : null}
       </div>
       {aPartite ? (
-        <div className="overflow-x-auto rounded-xl border">
+        <TabellaContabile>
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr><th className="p-2">{conto.codice_standard === "13.04" || /fornitor/i.test(conto.descrizione) ? "Fornitore" : "Cliente"}</th><th className="p-2 text-right">Movimenti</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
@@ -1051,7 +1170,7 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
               )}
               {partite.map((x) => (
                 <tr key={x.soggetto} className="cursor-pointer border-t hover:bg-muted/40" title="Apri la scheda di questo soggetto" onClick={() => { setSoggetto(x.soggetto); setCercaM(""); }}>
-                  <td className="p-2">{x.soggetto}</td>
+                  <td className="p-2"><button type="button" className="text-left text-primary hover:underline">{x.soggetto}</button></td>
                   <td className="p-2 text-right tabular-nums text-muted-foreground">{x.movimenti}</td>
                   <td className="p-2 text-right tabular-nums">{euro(x.dare)}</td>
                   <td className="p-2 text-right tabular-nums">{euro(x.avere)}</td>
@@ -1071,22 +1190,25 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
               </tfoot>
             )}
           </table>
-        </div>
+        </TabellaContabile>
       ) : m ? (
         <>
           <p className="text-sm text-muted-foreground">
             {soggetto ? `${soggetto} · ` : ""}{m.movimenti.length} movimenti · dare {euro(m.dare)} · avere {euro(m.avere)} · saldo {saldoTesto(m.saldo)}
           </p>
-          <div className="overflow-x-auto rounded-xl border">
+          <TabellaContabile>
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr><th className="p-2">Data</th><th className="p-2">N.</th><th className="p-2">Causale</th><th className="p-2">Descrizione</th><th className="p-2 text-right">Dare</th><th className="p-2 text-right">Avere</th><th className="p-2 text-right">Saldo</th></tr>
               </thead>
               <tbody>
                 {m.movimenti.slice(0, mostra).map((x, i) => (
-                  <tr key={`${x.scritturaId}-${i}`} className="border-t">
+                  <tr key={`${x.scritturaId}-${i}`} className="cursor-pointer border-t hover:bg-muted/40" onClick={e => {
+                    e.currentTarget.querySelector("button")?.focus();
+                    setDettaglioId(x.scritturaId);
+                  }}>
                     <td className="p-2">{dataIt(x.data)}</td>
-                    <td className="p-2 font-mono text-xs">{x.numero}</td>
+                    <td className="p-2 font-mono text-xs"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${x.numero}`} className="text-primary hover:underline">{x.numero}</button></td>
                     <td className="p-2">{x.causale}</td>
                     <td className="p-2 text-muted-foreground">{x.descrizione}</td>
                     <td className="p-2 text-right tabular-nums">{x.dare ? euro(x.dare) : ""}</td>
@@ -1096,7 +1218,7 @@ function Mastrini({ companyId, anno, conti }: { companyId: string; anno: number;
                 ))}
               </tbody>
             </table>
-          </div>
+          </TabellaContabile>
           {m.movimenti.length > mostra ? (
             <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
               <span>Movimenti {mostra} di {m.movimenti.length}: la stampa li contiene tutti.</span>
@@ -1224,15 +1346,15 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
             <SelectItem value="t">Trimestrale</SelectItem>
           </SelectContent>
         </Select>
-        <span className="text-muted-foreground">
+        <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">Come si calcola la liquidazione</summary><p className="mt-2 max-w-prose">
           Gli importi sono l'IVA non ancora liquidata a fine periodo: genera prima dai documenti. Il credito di un periodo abbatte il debito dei successivi; sotto 25,82 € il debito passa al periodo dopo.
-        </span>
+        </p></details>
       </div>
       {!isMobile && esiti.data && <GraficoIva periodi={periodi} esiti={esiti.data} />}
       {esiti.isLoading || esiti.isError ? (
         <FiscalQueryState loading={esiti.isLoading} error={esiti.isError} onRetry={() => void esiti.refetch()} />
       ) : (
-        <div className="overflow-x-auto rounded-xl border">
+        <TabellaContabile>
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
               <tr><th className="p-2">Periodo</th><th className="p-2 text-right">IVA vendite</th><th className="p-2 text-right">IVA acquisti</th><th className="p-2 text-right">Credito precedente usato</th><th className="p-2 text-right">Da versare</th><th className="p-2 text-right">A credito</th><th className="p-2" /></tr>
@@ -1274,7 +1396,7 @@ function LiquidazioneIva({ companyId, anno }: { companyId: string; anno: number 
               })}
             </tbody>
           </table>
-        </div>
+        </TabellaContabile>
       )}
     </div>
   );
@@ -1503,7 +1625,7 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
           </button>
         ))}
       </nav>
-      <section id="fine-1" className="scroll-mt-20 space-y-2">
+      <section id="fine-1" className="scroll-mt-20 space-y-2 border-t pt-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold">1. Ammortamenti e TFR al 31/12/{anno}</h3>
           <Button size="sm" variant="outline" disabled={chiuso || !daRegistrare || registraFine.isPending} onClick={() => registraFine.mutate()}>
@@ -1525,17 +1647,17 @@ function FineAnno({ companyId, anno }: { companyId: string; anno: number }) {
         </p>
       </section>
 
-      <section id="fine-2" className="scroll-mt-20 space-y-2">
+      <section id="fine-2" className="scroll-mt-20 space-y-2 border-t pt-3">
         <h3 className="text-sm font-semibold">2. Rimanenze finali al 31/12/{anno}</h3>
         <RimanenzeFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
-      <section id="fine-3" className="scroll-mt-20 space-y-2">
+      <section id="fine-3" className="scroll-mt-20 space-y-2 border-t pt-3">
         <h3 className="text-sm font-semibold">3. Ratei e risconti al 31/12/{anno}</h3>
         <RateiRiscontiFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>
 
-      <section id="fine-4" className="scroll-mt-20 space-y-2">
+      <section id="fine-4" className="scroll-mt-20 space-y-2 border-t pt-3">
         <h3 className="text-sm font-semibold">4. Imposte dell'esercizio (IRES e IRAP)</h3>
         <ImposteFineAnno companyId={companyId} anno={anno} chiuso={chiuso} />
       </section>

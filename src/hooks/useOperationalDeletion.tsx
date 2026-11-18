@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -121,10 +122,10 @@ export function useOperationalDeletion(kind: DeletionKind, rows: Row[], enabled:
       {selectedRows.every(r => r.href) && <Button size="sm" variant="outline" disabled={busy} onClick={() => setDetailContext(context)}>Apri dettagli</Button>}
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void exportSelected(false)}>Esporta CSV</Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void exportSelected(true)}>Esporta Excel</Button>
-      {canChangePhase && phases.length > 0 && <select aria-label="Azione sui documenti selezionati" value="" disabled={busy} className="h-9 max-w-full rounded-md border bg-background px-3 text-xs" onChange={e => {
+      {canChangePhase && phases.length > 0 && <UniformSelect aria-label="Azione sui documenti selezionati" value="" disabled={busy} className="h-9 max-w-full rounded-md border bg-background px-3 text-xs" onChange={e => {
         const action = phases.find(p => p.target === e.target.value);
         if (action) { setOutcomes(null); setPhaseReview({ context, ...action, docs: selectedRows.map(r => r.phase!) }); }
-      }}><option value="">Cambia fase…</option>{phases.map(a => <option key={a.target} value={a.target}>{a.label}</option>)}</select>}
+      }}><option value="">Cambia fase…</option>{phases.map(a => <option key={a.target} value={a.target}>{a.label}</option>)}</UniformSelect>}
       {canDelete && <Button size="sm" variant="destructive" disabled={busy} onClick={() => preview.mutate()}>{preview.isPending ? "Verifica collegamenti…" : "Elimina selezionati"}</Button>}
       <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSelection({ context, ids: new Set() })}>Deseleziona</Button>
     </div>

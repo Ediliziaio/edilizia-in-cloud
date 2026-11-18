@@ -12,7 +12,6 @@ import { Check, ChevronsUpDown, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -126,7 +125,7 @@ export function CommessaCombobox({
     : nessunaLabel;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={next => { setOpen(next); if (next) setRicerca(""); }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -155,21 +154,13 @@ export function CommessaCombobox({
             onValueChange={setRicerca}
           />
           <CommandList>
-            <CommandEmpty>
-              {isFetching
-                ? "Ricerca in corso…"
-                : isError
-                  ? "Ricerca non disponibile. Riprova."
-                  : "Nessuna commessa trovata."}
-            </CommandEmpty>
-            {isError && (
-              <p role="alert" className="px-3 py-2 text-xs text-red-700">
-                Impossibile caricare le commesse. Chiudi e riapri la ricerca per
-                riprovare.
+            {commesse.length === 0 && (
+              <p role="status" className="px-3 py-3 text-sm text-muted-foreground">
+                {isFetching ? "Ricerca in corso…" : isError ? "Ricerca non disponibile. Riapri il menu per riprovare." : "Nessuna commessa trovata."}
               </p>
             )}
             <CommandGroup>
-              <CommandItem
+              {!ricerca.trim() && <CommandItem
                 value="__nessuna__"
                 onSelect={() => {
                   onChange(null);
@@ -185,11 +176,14 @@ export function CommessaCombobox({
                     value == null ? "opacity-100" : "opacity-0",
                   )}
                 />
-              </CommandItem>
-              {raggruppaPerGenerale(commesse).map(({ riga: c, annidata }) => (
+              </CommandItem>}
+              {raggruppaPerGenerale(commesse).map(({ riga: c, annidata }) => {
+                const titolo = (eGenerale(c) ? c.description || c.client_name : c.client_name || c.description)?.trim() || "Commessa";
+                const dettagli = [...new Set([c.description, c.client_name, c.work_address].map(t => t?.trim()).filter(t => t && t !== titolo))].join(" · ");
+                return (
                 <CommandItem
                   key={c.id}
-                  className={cn(annidata && "pl-6")}
+                  className={cn("grid grid-cols-[7rem_minmax(0,1fr)_1rem] gap-2 rounded-md", annidata && "border-l-2 border-indigo-200")}
                   value={c.id}
                   onSelect={() => {
                     onChange(c.id);
@@ -197,23 +191,14 @@ export function CommessaCombobox({
                     setOpen(false);
                   }}
                 >
-                  <span className="mr-2 flex shrink-0 flex-col items-start gap-0.5">
-                    <span className="font-mono text-xs">{c.order_code ?? "—"}</span>
+                  <span className="flex min-w-0 flex-col items-start gap-0.5">
+                    <span title={c.order_code ?? undefined} className="max-w-full truncate font-mono text-xs text-primary">{c.order_code ?? "—"}</span>
                     <BadgeGenerale riga={c} />
                   </span>
                   <span className="min-w-0 text-slate-600">
-                    <span className="block truncate">
-                      {eGenerale(c) ? c.description || c.client_name || "Commessa generale" : c.client_name || c.description || "Commessa"}
-                    </span>
+                    <span title={titolo} className="block truncate font-medium text-foreground">{titolo}</span>
                     <RigaAppartenenza riga={c} nascondi={annidata} />
-                    <span className="block truncate text-xs text-slate-400">
-                      {[
-                        c.description === c.client_name || eGenerale(c) ? null : c.description,
-                        c.work_address,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
+                    {dettagli && <span title={dettagli} className="block truncate text-xs text-muted-foreground">{dettagli}</span>}
                   </span>
                   <Check
                     className={cn(
@@ -222,7 +207,8 @@ export function CommessaCombobox({
                     )}
                   />
                 </CommandItem>
-              ))}
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>

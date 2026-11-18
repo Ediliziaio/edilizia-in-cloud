@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useRef, type ReactNode } from "react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -105,7 +106,7 @@ function Filtri({
           onChange={(e) => onRicerca(e.target.value)}
         />
       </div>
-      <select
+      <UniformSelect
         aria-label="Filtra per stato"
         className="h-10 rounded-md border bg-background px-3 text-sm"
         value={stato}
@@ -117,7 +118,7 @@ function Filtri({
             {label}
           </option>
         ))}
-      </select>
+      </UniformSelect>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -132,7 +133,7 @@ async function apri() {
   await screen.findByRole("dialog");
 }
 function aggiungi(catalogo = "formazione_lavoratori") {
-  fireEvent.change(screen.getByLabelText("Aggiungi criterio dal catalogo"), {
+  changeFormControl(screen.getByLabelText("Aggiungi criterio dal catalogo"), {
     target: { value: catalogo },
   });
   fireEvent.click(
@@ -140,16 +141,16 @@ function aggiungi(catalogo = "formazione_lavoratori") {
   );
 }
 function compila() {
-  fireEvent.change(screen.getByLabelText("Lavori e ambito esaminati"), {
+  changeFormControl(screen.getByLabelText("Lavori e ambito esaminati"), {
     target: { value: "Posa per questa commessa" },
   });
-  fireEvent.change(screen.getByLabelText("Responsabile della valutazione"), {
+  changeFormControl(screen.getByLabelText("Responsabile della valutazione"), {
     target: { value: "Tecnico" },
   });
-  fireEvent.change(screen.getByLabelText("Ruolo del responsabile"), {
+  changeFormControl(screen.getByLabelText("Ruolo del responsabile"), {
     target: { value: "Responsabile" },
   });
-  fireEvent.change(
+  changeFormControl(
     screen.getByLabelText("Motivazione dell’esito e azioni richieste"),
     { target: { value: "Integrazioni per il caso" } },
   );
@@ -158,7 +159,7 @@ describe("Criteri nominativi nella verifica ITP", () => {
   it("scegliendo un operaio mostra solo i documenti di quel titolare, poi estende senza ereditare il file", async () => {
     await apri();
     aggiungi();
-    fireEvent.change(screen.getByLabelText("Operaio titolare"), {
+    changeFormControl(screen.getByLabelText("Operaio titolare"), {
       target: { value: "A" },
     });
     expect(screen.getByText("Certificato A")).toBeTruthy();
@@ -203,10 +204,10 @@ describe("Criteri nominativi nella verifica ITP", () => {
         name: "Estendi agli addetti assegnati (2)",
       }),
     );
-    fireEvent.change(screen.getAllByLabelText("Applicabilità")[0], {
+    changeFormControl(screen.getAllByLabelText("Applicabilità")[0], {
       target: { value: "applicabile" },
     });
-    fireEvent.change(screen.getAllByLabelText("Esito del criterio")[0], {
+    changeFormControl(screen.getAllByLabelText("Esito del criterio")[0], {
       target: { value: "conforme" },
     });
     s.roster = { ...s.roster, operai: [...s.roster.operai, operaio("C")] };
@@ -242,10 +243,10 @@ describe("Criteri nominativi nella verifica ITP", () => {
   it("usa la nomina generale della commessa con il suo incarico, senza attribuirla all’impresa", async () => {
     await apri();
     aggiungi("nomina_cse");
-    fireEvent.change(screen.getByLabelText("Ruolo da esaminare"), {
+    changeFormControl(screen.getByLabelText("Ruolo da esaminare"), {
       target: { value: "cse" },
     });
-    fireEvent.change(screen.getByLabelText("Incarico titolare"), {
+    changeFormControl(screen.getByLabelText("Incarico titolare"), {
       target: { value: "cse" },
     });
     expect(screen.getByText("Nomina CSE",{selector:"span"})).toBeTruthy();

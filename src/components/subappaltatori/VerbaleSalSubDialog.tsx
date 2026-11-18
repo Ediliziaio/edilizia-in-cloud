@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { puoConsultareSalSub, puoScrivereSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import {
@@ -724,9 +725,9 @@ function AccettazioneVerbale({ verbale, puoRegistrare, onSalvata }: { verbale: S
         <Input aria-label="Chi ha accettato" placeholder="Nome di chi firma" value={nome} onChange={(e) => setNome(e.target.value)} className="h-8 text-xs" />
         <Input aria-label="Data dell'accettazione" type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-xs" />
       </div>
-      <select aria-label="Come è arrivata l'accettazione" value={modo} onChange={(e) => setModo(e.target.value)} className="h-8 w-full rounded-md border bg-background px-2 text-xs">
+      <UniformSelect aria-label="Come è arrivata l'accettazione" value={modo} onChange={(e) => setModo(e.target.value)} className="h-8 w-full rounded-md border bg-background px-2 text-xs">
         {Object.entries(MODI_ACCETTAZIONE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
+      </UniformSelect>
       <div className="flex justify-end gap-1.5">
         <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAperto(false)}>Annulla</Button>
         <Button size="sm" className="h-7 text-xs" disabled={salvando || nome.trim().length < 2 || !data} onClick={() => void salva()}>Registra</Button>

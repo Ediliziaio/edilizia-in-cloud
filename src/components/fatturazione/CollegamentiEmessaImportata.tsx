@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -63,10 +64,10 @@ export function CollegamentiEmessaImportata({ companyId, fattura }: { companyId:
             {ordini.isPending ? <p role="status" className="text-sm">Caricamento commesse del cliente…</p> : ordini.isError ?
               <p role="alert" className="text-sm text-destructive">Elenco commesse non disponibile. <Button variant="link" onClick={() => void ordini.refetch()}>Riprova</Button></p> : <>
               {ordini.data && ordini.data.length > 0 && <div className="flex flex-wrap gap-2">
-                <select aria-label="Commessa da collegare" className="min-w-0 max-w-full rounded-md border bg-background p-2 text-sm" value={orderId} onChange={e => setOrderId(e.target.value)}>
+                <UniformSelect aria-label="Commessa da collegare" className="min-w-0 max-w-full rounded-md border bg-background p-2 text-sm" value={orderId} onChange={e => setOrderId(e.target.value)}>
                   <option value="">Scegli la commessa corretta…</option>
                   {ordini.data.map(o => <option key={o.id} value={o.id}>{o.order_code || "Commessa"} · {o.description.slice(0,80)}{o.work_address ? ` · ${o.work_address}` : ""}</option>)}
-                </select>
+                </UniformSelect>
                 <Button variant="outline" size="sm" disabled={!orderId || saving} onClick={() => void salva(orderId)}>Collega</Button>
               </div>}
               {!isNotaCredito(fattura.document_type) && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/nuovo?customer_id=${clienteId}&invoice_id=${fattura.id}`}>Prepara nuovo lavoro</Link></Button>}

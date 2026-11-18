@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,7 +44,7 @@ describe("fasi del cantiere dal piano", () => {
 
   it("una voce spostata cambia fase; la creazione manda nomi, date e id", async () => {
     disegna();
-    fireEvent.change(screen.getByLabelText("Fase di Magazzini edili"), { target: { value: "strutture" } });
+    changeFormControl(screen.getByLabelText("Fase di Magazzini edili"), { target: { value: "strutture" } });
     expect(screen.getByText("2 fasi, 3 lavorazioni.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Crea 2 fasi" }));
     await waitFor(() => expect(m.rpc).toHaveBeenCalled());
@@ -57,7 +58,7 @@ describe("fasi del cantiere dal piano", () => {
 
   it("una data scritta male ferma la creazione e lo dice", () => {
     disegna();
-    fireEvent.change(screen.getByLabelText("Al mese, Strutture e opere civili"), { target: { value: "13/27" } });
+    changeFormControl(screen.getByLabelText("Al mese, Strutture e opere civili"), { target: { value: "13/27" } });
     expect(screen.getByText(/date da correggere/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Crea 2 fasi" })).toBeDisabled();
   });

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QuadroDocumentaleCommessa } from "@/components/sicurezza/QuadroDocumentaleCommessa";
@@ -49,7 +50,7 @@ describe("Quadro documentale visibile", () => {
       r("a", { referente: "Referente Alfa" }),
       r("b", { subId: null, origine: "archivio", stato: "archivio" }),
     ]);
-    fireEvent.change(screen.getByLabelText("Cerca nel quadro documentale"), {
+    changeFormControl(screen.getByLabelText("Cerca nel quadro documentale"), {
       target: { value: "Referente Alfa" },
     });
     expect(screen.getByText("Documento a")).toBeInTheDocument();
@@ -65,7 +66,7 @@ describe("Quadro documentale visibile", () => {
     );
     expect(screen.queryByText("Documento a")).not.toBeInTheDocument();
     expect(screen.getByText("Documento b")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Titolare nel quadro documentale"), {
+    changeFormControl(screen.getByLabelText("Titolare nel quadro documentale"), {
       target: { value: "s" },
     });
     expect(

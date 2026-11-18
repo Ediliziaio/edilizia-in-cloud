@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { AttrezzatureCommessa } from "./AttrezzatureCommessa";
 import { QuadroDocumentaleCommessa } from "./QuadroDocumentaleCommessa";
 import {
@@ -455,7 +456,7 @@ export function SicurezzaCommessa({
           </label>
           <label className="text-xs text-muted-foreground">
             Fase
-            <select
+            <UniformSelect
               className="mt-1 block h-9 max-w-64 rounded-md border bg-background px-2 text-sm text-foreground"
               value={faseAttiva}
               onChange={(e) => {
@@ -469,7 +470,7 @@ export function SicurezzaCommessa({
                   {f.name}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
         </div>
       </div>

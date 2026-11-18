@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Hai dimenticato di timbrare?» — l'operaio chiede all'ufficio di registrare
  * un'entrata o un'uscita mancata. La timbratura entra nel registro solo quando
@@ -127,13 +128,13 @@ export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string
         <div className="grid grid-cols-2 gap-2">
           <label className="space-y-1 text-sm">
             <span className="font-medium">Giorno</span>
-            <select value={giornoValido} onChange={(e) => setGiorno(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
+            <UniformSelect value={giornoValido} onChange={(e) => setGiorno(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
               {giorni.map((g) => (
                 <option key={g} value={g}>
                   {g === oggi ? "Oggi" : g === shiftWorkDay(oggi, -1) ? "Ieri" : format(parseISO(g), "EEE d MMM", { locale: it })}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
           <label className="space-y-1 text-sm">
             <span className="font-medium">Ora</span>
@@ -144,11 +145,11 @@ export function CorrezioneTimbratura({ preferOrderId }: { preferOrderId?: string
         {cantieri.length > 1 && (
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Cantiere</span>
-            <select value={cantiere} onChange={(e) => setOrderId(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
+            <UniformSelect value={cantiere} onChange={(e) => setOrderId(e.target.value)} className="h-12 w-full rounded-lg border bg-background px-3 text-base">
               {cantieri.map((c) => (
                 <option key={c.order_id} value={c.order_id}>{c.order?.order_code ?? "Cantiere"}{c.order?.description ? ` · ${c.order.description}` : ""}</option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
         )}
         <label className="block space-y-1 text-sm">

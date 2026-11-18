@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -505,7 +506,7 @@ export function CompanyEconomicsTab({
           />
           <label>
             Ordina per
-            <select
+            <UniformSelect
               aria-label="Ordina confronto economico"
               value={sort}
               onChange={(e) => setSort(e.target.value)}
@@ -513,7 +514,7 @@ export function CompanyEconomicsTab({
               <option value="cost">Costo più alto</option>
               <option value="margin">Margine più basso</option>
               <option value="name">Nome azienda</option>
-            </select>
+            </UniformSelect>
           </label>
           <span>
             {rows.length} di {data.companies.length} aziende

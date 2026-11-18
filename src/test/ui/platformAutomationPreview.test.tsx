@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,8 +29,8 @@ describe("platform automation preview UI", () => {
   it("uses companies for lifecycle events, typed quick inputs and no real execution", async () => {
     mount("crediti_ai_bassi");
     fireEvent.click(await screen.findByRole("button", { name: /Demo.*active/ }));
-    fireEvent.change(screen.getByLabelText("Evento da simulare"), { target: { value: "trigger" } });
-    fireEvent.change(screen.getByLabelText("Crediti disponibili (€)"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Evento da simulare"), { target: { value: "trigger" } });
+    changeFormControl(screen.getByLabelText("Crediti disponibili (€)"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Verifica percorso e testi" }));
     expect(screen.getByText(/Ciao Demo/)).toBeInTheDocument();
     expect(screen.getByText(/Nessun messaggio inviato/)).toBeInTheDocument();
@@ -38,8 +39,8 @@ describe("platform automation preview UI", () => {
   it("a balance equal to the threshold does not preview downstream sends", async () => {
     mount("crediti_ai_bassi");
     fireEvent.click(await screen.findByRole("button", { name: /Demo.*active/ }));
-    fireEvent.change(screen.getByLabelText("Evento da simulare"), { target: { value: "trigger" } });
-    fireEvent.change(screen.getByLabelText("Crediti disponibili (€)"), { target: { value: "5" } });
+    changeFormControl(screen.getByLabelText("Evento da simulare"), { target: { value: "trigger" } });
+    changeFormControl(screen.getByLabelText("Crediti disponibili (€)"), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "Verifica percorso e testi" }));
     expect(screen.getByText("I dati dell’evento simulato non soddisfano i filtri.")).toBeInTheDocument();
     expect(screen.queryByText(/Ciao Demo/)).not.toBeInTheDocument();

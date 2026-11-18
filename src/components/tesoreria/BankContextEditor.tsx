@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2, Loader2 } from "lucide-react";
@@ -101,7 +102,7 @@ export function BankContextEditor({
       <div className="grid gap-2 sm:grid-cols-[170px_1fr]">
         <label className="text-sm">
           Tipo
-          <select
+          <UniformSelect
             aria-label="Tipo di collegamento"
             className="mt-1 h-10 w-full rounded-md border bg-background px-2"
             value={kind}
@@ -121,7 +122,7 @@ export function BankContextEditor({
                   {l}
                 </option>
               ))}
-          </select>
+          </UniformSelect>
         </label>
         <label className="text-sm">
           Cerca un riferimento

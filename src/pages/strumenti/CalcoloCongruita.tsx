@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { CalculatorShell, CampoNumero, RigaRisultato } from "@/components/strumenti/CalculatorShell";
 import { eur, pct } from "@/lib/calcoli/formato";
@@ -108,7 +109,7 @@ export default function CalcoloCongruita() {
             <label htmlFor="categoria" className="block text-sm font-medium text-gray-800">
               Categoria prevalente dell'opera
             </label>
-            <select
+            <UniformSelect
               id="categoria"
               value={categoriaId}
               onChange={(e) => setCategoriaId(e.target.value)}
@@ -119,7 +120,7 @@ export default function CalcoloCongruita() {
                   {c.label} — {c.incidenza.toString().replace(".", ",")}%
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </div>
 
           <CampoNumero

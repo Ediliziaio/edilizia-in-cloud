@@ -25,12 +25,13 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: v
 vi.mock("@/integrations/supabase/client", () => {
   const risposta = (tabella: string) => {
     const dati: unknown[] = tabella === "orders"
-      ? [{ id: "o1", order_code: "C-1", description: "Villa" }, { id: "o2", order_code: "C-2", description: "Scuola" }]
+      ? [{ id: "o1", order_code: "C-1", description: "Villa", workflow_kind: "generale" }, { id: "o2", order_code: "C-2", description: "Scuola" }]
       : [];
     const catena: Record<string, unknown> = {};
     for (const m of ["select", "eq", "is", "order", "in", "not"]) catena[m] = () => catena;
+    if (tabella === "orders") catena.then = (ok: (v: unknown) => unknown) => ok({ data: dati, error: null });
     catena.limit = async () => ({ data: dati, error: null as unknown });
-    catena.range = async () => ({ data: tabella === "company_costs" ? stato.uscite : [], error: null as unknown });
+    catena.range = async () => ({ data: tabella === "company_costs" ? stato.uscite : dati, error: null as unknown });
     catena.update = (riga: Record<string, unknown>) => {
       stato.aggiornati.push(riga);
       const fine: Record<string, unknown> = {};
@@ -101,6 +102,10 @@ describe("Nuova uscita senza fattura", () => {
     const finestra = apri();
     fireEvent.change(within(finestra).getByLabelText("Cos'è"), { target: { value: "Tassa occupazione suolo" } });
     fireEvent.change(within(finestra).getByLabelText("Importo €"), { target: { value: "300" } });
+    fireEvent.change(within(finestra).getByLabelText("Scadenza pagamento"), { target: { value: "2026-12-15" } });
+    expect(within(finestra).getByLabelText("Pagata il")).toBeDisabled();
+    fireEvent.click(within(finestra).getByRole("checkbox", { name: "Già pagata" }));
+    fireEvent.change(within(finestra).getByLabelText("Pagata il"), { target: { value: "2026-12-10" } });
     await scegliCommessa(finestra, 1, "Villa");
     fireEvent.click(within(finestra).getByRole("button", { name: /Dividi su un'altra commessa/ }));
     await scegliCommessa(finestra, 2, "Scuola");
@@ -117,12 +122,39 @@ describe("Nuova uscita senza fattura", () => {
 
     const costo = stato.inseriti.find((i) => i.tabella === "company_costs")!.riga;
     expect(costo).toMatchObject({
+      due_date: "2026-12-15", paid_date: "2026-12-10",
       name: "Tassa occupazione suolo", amount: 300, senza_fattura: true, notes: "Pagata allo sportello",
       order_id: null, allocations: [{ order_id: "o1", pct: 70 }, { order_id: "o2", pct: 30 }],
     });
     expect(stato.caricati[0]).toMatch(/^c1\/company_cost\/costo-1\/.+-ricevuta\.pdf$/);
     expect(stato.inseriti.find((i) => i.tabella === "fattura_allegati")!.riga).toMatchObject({ company_cost_id: "costo-1", file_name: "ricevuta.pdf" });
     expect(toast.success).toHaveBeenCalledWith("Uscita registrata con il documento");
+  });
+
+  it("ripartisce l’imponibile in euro e verifica il totale prima del salvataggio", async () => {
+    const finestra = apri();
+    const q = within(finestra);
+    fireEvent.change(q.getByLabelText("Cos'è"), { target: { value: "Permesso" } });
+    fireEvent.change(q.getByLabelText("Importo €"), { target: { value: "100,01" } });
+    await scegliCommessa(finestra, 1, "Villa");
+    fireEvent.click(q.getByRole("button", { name: /Dividi su/ }));
+    await scegliCommessa(finestra, 2, "Scuola");
+    fireEvent.click(q.getByRole("button", { name: "Importo €" }));
+    expect(q.getByRole("combobox", { name: "Commessa 1" })).toHaveTextContent("Macrocommessa");
+    fireEvent.click(q.getByRole("combobox", { name: "Conto di costo" }));
+    fireEvent.click(await screen.findByRole("option", { name: "tasse_imposte" }));
+    const prima = q.getByLabelText("Quota commessa 1 €");
+    const seconda = q.getByLabelText("Quota commessa 2 €");
+    expect(prima).toHaveValue("50,01");
+    expect(seconda).toHaveValue("50,00");
+    fireEvent.change(prima, { target: { value: "75,25" } });
+    expect(q.getByRole("button", { name: "Salva" })).toBeDisabled();
+    fireEvent.change(seconda, { target: { value: "24,76" } });
+    fireEvent.click(q.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.inseriti.length).toBeGreaterThan(0));
+    expect(stato.inseriti[0].riga.category).toBe("tasse_imposte");
+    const quote = stato.inseriti[0].riga.allocations as Array<{ pct: number }>;
+    expect(quote.map(r => Math.round(r.pct * 10001 / 100))).toEqual([7525, 2476]);
   });
 
   it("se un documento non passa, l'uscita resta salvata e lo dice", async () => {
@@ -134,6 +166,7 @@ describe("Nuova uscita senza fattura", () => {
     fireEvent.click(within(finestra).getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(toast.warning).toHaveBeenCalled());
     expect(stato.inseriti.filter((i) => i.tabella === "company_costs")).toHaveLength(1);
+    expect(stato.inseriti.find(i => i.tabella === "company_costs")!.riga).toMatchObject({ is_paid: false, paid_date: null });
     expect(vi.mocked(toast.warning).mock.calls[0][0]).toMatch(/Uscita registrata/);
   });
 
@@ -149,8 +182,21 @@ describe("Nuova uscita senza fattura", () => {
     expect(within(finestra).getByRole("button", { name: "Salva" })).toBeDisabled();
   });
 
+  it("il clic sulla riga mostra conto, quote delle commesse e parte generale", async () => {
+    stato.uscite = [{ id: "u1", name: "Permesso lavori", category: "tasse_imposte", amount: 100.01, due_date: "2026-11-20",
+      is_paid: false, allocations: [{ order_id: "o1", pct: 50 }, { order_id: "o2", pct: 25 }] }];
+    render(<QueryClientProvider client={new QueryClient()}><UsciteSenzaFattura companyId="c1" puoModificare={false} /></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: /Uscite senza fattura · 1/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Permesso lavori/ }));
+    const popup = within(await screen.findByRole("dialog", { name: "Permesso lavori" }));
+    expect(popup.getByText("tasse_imposte")).toBeVisible();
+    expect(await popup.findByRole("row", { name: /Macrocommessa · C-1 · Villa.*50%.*50,01/ })).toBeVisible();
+    expect(popup.getByRole("row", { name: /Commessa · C-2 · Scuola.*25%.*25,00/ })).toBeVisible();
+    expect(popup.getByRole("row", { name: /Costo generale.*25%.*25,00/ })).toBeVisible();
+  });
+
   it("un'uscita registrata si riapre compilata, si corregge e si elimina", async () => {
-    stato.uscite = [{ id: "u1", name: "Bollo furgone", amount: 16, vat_rate: 0, documento_data: "2026-11-10", due_date: "2026-11-10",
+    stato.uscite = [{ id: "u1", name: "Bollo furgone", amount: 16, vat_rate: 0, documento_data: "2026-11-10", due_date: "2026-11-10", paid_date: "2026-11-12",
       documento_riferimento: null, mese_competenza: "2026-11-01", is_paid: true, notes: "contanti", allocations: null,
       supplier_id: null, order_id: "o1", mezzo_id: null, suppliers: null, orders: { order_code: "C-1" }, mezzi: null }];
     render(

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -298,9 +299,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                       <div className="max-sm:hidden"><Label>Codice Fiscale</Label><Input {...register("codice_fiscale")} /></div>
                       <div className="max-sm:hidden">
                         <Label>Sesso</Label>
-                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sesso")}>
+                        <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sesso")}>
                           <option value="">—</option><option value="M">M</option><option value="F">F</option><option value="Altro">Altro</option>
-                        </select>
+                        </UniformSelect>
                       </div>
                       <div className="max-sm:hidden"><Label>Data Nascita</Label><Input type="date" {...register("data_nascita")} /></div>
                       <div className="max-sm:hidden"><Label>Luogo Nascita</Label><Input {...register("luogo_nascita")} /></div>
@@ -347,19 +348,19 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                       <div><Label>Reparto</Label><Input {...register("reparto")} /></div>
                       <div className="col-span-2 max-sm:hidden">
                         <Label>Responsabile</Label>
-                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("responsabile_id")}>
+                        <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("responsabile_id")}>
                           <option value="">Nessuno (root)</option>
                           {allProfili.filter((p) => p.id !== profilo?.id && !descendantIds.has(p.id)).map((p) => (
                             <option key={p.id} value={p.id}>{p.nome} {p.cognome} {p.mansione ? `(${p.mansione})` : ""}</option>
                           ))}
-                        </select>
+                        </UniformSelect>
                       </div>
                       <div className="max-sm:hidden">
                         <Label>Sede HR</Label>
-                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sede_id")}>
+                        <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sede_id")}>
                           <option value="">Nessuna sede</option>
                           {sedi.map((s) => (<option key={s.id} value={s.id}>{s.nome}{!s.attiva ? " (inattiva)" : ""}</option>))}
-                        </select>
+                        </UniformSelect>
                       </div>
                       <div className="max-sm:hidden"><Label>Colore Avatar</Label><Input type="color" {...register("colore_avatar")} className="h-10 p-1" /></div>
                       <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
@@ -391,9 +392,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
                       <div>
                         <Label>Tipo Contratto</Label>
-                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("tipo_contratto")}>
+                        <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("tipo_contratto")}>
                           {TIPO_CONTRATTO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                        </select>
+                        </UniformSelect>
                       </div>
                       <div className="max-sm:hidden"><Label>CCNL</Label><Input {...register("ccnl")} /></div>
                       <div className="max-sm:hidden"><Label>Livello</Label><Input {...register("livello_ccnl")} /></div>
@@ -422,9 +423,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label>Tipo Orario</Label>
-                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("orario_tipo")}>
+                        <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("orario_tipo")}>
                           {ORARIO_TIPO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-                        </select>
+                        </UniformSelect>
                       </div>
                       <div><Label>Ore Settimanali</Label><Input type="number" step="0.5" {...register("ore_settimanali", { valueAsNumber: true })} /></div>
                       <div><Label>Ore Giornaliere</Label><Input type="number" step="0.5" {...register("ore_giornaliere", { valueAsNumber: true })} /></div>

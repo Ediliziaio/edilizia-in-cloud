@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FiscalSourceViewer } from "@/components/fatturazione/FiscalSourceViewer";
@@ -360,7 +361,7 @@ function RegistroContent() {
             </Button>
           ))}
         </div>
-        <select
+        <UniformSelect
           aria-label="Aliquota"
           className="h-9 rounded-md border bg-background px-2 text-sm"
           value={aliquota}
@@ -373,7 +374,7 @@ function RegistroContent() {
           {aliquote.map((a) => (
             <option key={a} value={a}>{a}</option>
           ))}
-        </select>
+        </UniformSelect>
         <Input
           className="h-9 min-w-40 flex-1"
           aria-label="Cerca nel registro IVA"

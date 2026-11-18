@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -118,7 +119,7 @@ it("una bolla senza merce registrata cambia anche ordine e destinazione", async 
   fireEvent.click(screen.getByRole("button", { name: /Modifica/ }));
   expect(screen.getByText("scelta fornitore")).toBeInTheDocument();
   expect(screen.getByLabelText("Ordine al fornitore")).toHaveValue("__nessuno__");
-  fireEvent.change(screen.getByLabelText("Dove va la merce"), { target: { value: "magazzino" } });
+  changeFormControl(screen.getByLabelText("Dove va la merce"), { target: { value: "magazzino" } });
   expect(screen.getByText("scelta magazzino")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Salva/ }));
   await waitFor(() => expect(m.update).toHaveBeenCalledWith("ddt_ricezione", { destinazione: "magazzino" }));

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Scheda «Computo metrico» della commessa (22/10/2026, 2D S.r.l, lavori pubblici).
  *
@@ -284,9 +285,9 @@ export default function OrderComputoTab({ orderId, companyId, canEdit, canViewAm
               </p>
               {attivi.length > 1 && (
                 <label className="mt-1 flex items-center gap-2 text-xs text-slate-600">Altri computi della commessa:
-                  <select className="rounded border px-1 py-0.5" value={computo.id} onChange={e => setSceltoId(e.target.value)}>
+                  <UniformSelect className="rounded border px-1 py-0.5" value={computo.id} onChange={e => setSceltoId(e.target.value)}>
                     {attivi.map(c => <option key={c.id} value={c.id}>{c.titolo || c.file_name} ({ETICHETTA_STATO[c.stato]})</option>)}
-                  </select>
+                  </UniformSelect>
                 </label>
               )}
             </div>

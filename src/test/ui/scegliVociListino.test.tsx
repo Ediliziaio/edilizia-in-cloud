@@ -1,3 +1,5 @@
+import { formOptions, nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -86,7 +88,7 @@ describe("la schermata", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Tinteggiatura" }));
     expect(onPick).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("Quantità: Platea in cemento"), { target: { value: "12,5" } });
+    changeFormControl(screen.getByLabelText("Quantità: Platea in cemento"), { target: { value: "12,5" } });
     expect(screen.getByText(/135,00/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
     expect(onPick).toHaveBeenCalledTimes(1);
@@ -122,7 +124,7 @@ describe("la schermata", () => {
     await screen.findByText("Tinteggiatura");
     fireEvent.click(within(screen.getByRole("navigation", { name: "Gruppi del listino" })).getByText("Strutture"));
     expect(screen.queryByText("Tinteggiatura")).toBeNull();
-    fireEvent.change(screen.getByLabelText("Cerca una voce"), { target: { value: "tinteg" } });
+    changeFormControl(screen.getByLabelText("Cerca una voce"), { target: { value: "tinteg" } });
     expect(await screen.findByText("Tinteggiatura")).toBeTruthy();
     vi.useRealTimers();
   });
@@ -139,7 +141,7 @@ describe("la schermata", () => {
     const { onPick } = apri();
     await screen.findByText("Parquet rovere");
     fireEvent.click(screen.getByRole("checkbox", { name: "Scegli: Parquet rovere" }));
-    fireEvent.change(screen.getByLabelText("Quantità: Parquet rovere"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Quantità: Parquet rovere"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi al computo" }));
     expect(onPick.mock.calls[0][0][0].sourceUnit).toBe("mq");
   });
@@ -161,7 +163,7 @@ describe("la schermata", () => {
     const aggiungi = screen.getByRole("button", { name: "Aggiungi al computo" }) as HTMLButtonElement;
     expect(aggiungi.disabled).toBe(true);
     expect(screen.getByText("scrivi la quantità")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Quantità: Parquet rovere"), { target: { value: "20" } });
+    changeFormControl(screen.getByLabelText("Quantità: Parquet rovere"), { target: { value: "20" } });
     fireEvent.click(aggiungi);
     expect(onPick.mock.calls[0][0][0]).toMatchObject({ quantita: 20, prezzo_unitario: 60, costo_manodopera: 5 });
   });
@@ -180,7 +182,7 @@ describe("la schermata", () => {
   it("la voce libera è una scelta a parte, non la prima riga", async () => {
     const { onPick } = apri();
     await screen.findByText("Platea in cemento");
-    fireEvent.change(screen.getByLabelText("Cerca una voce"), { target: { value: "Opera speciale" } });
+    changeFormControl(screen.getByLabelText("Cerca una voce"), { target: { value: "Opera speciale" } });
     fireEvent.click(screen.getByRole("button", { name: /Voce libera/ }));
     expect(onPick.mock.calls[0][0][0]).toMatchObject({ descrizione: "Opera speciale", prezzo_unitario: 0 });
   });
@@ -196,8 +198,8 @@ describe("le aggiunte al popup delle voci", () => {
     const { onPick } = apri();
     await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
     spunta("Platea in cemento");
-    fireEvent.change(screen.getByLabelText("Quantità: Platea in cemento"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Prezzo: Platea in cemento"), { target: { value: "12,5" } });
+    changeFormControl(screen.getByLabelText("Quantità: Platea in cemento"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Prezzo: Platea in cemento"), { target: { value: "12,5" } });
     expect(screen.getByRole("button", { name: /1 voce/ }).textContent).toContain("25,00");
     aggiungi();
     expect(onPick.mock.calls[0][0][0]).toMatchObject({ quantita: 2, prezzo_unitario: 12.5 });
@@ -207,7 +209,7 @@ describe("le aggiunte al popup delle voci", () => {
     const { onPick } = apri();
     await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
     spunta("Platea in cemento");
-    fireEvent.change(screen.getByLabelText("Prezzo: Platea in cemento"), { target: { value: "abc" } });
+    changeFormControl(screen.getByLabelText("Prezzo: Platea in cemento"), { target: { value: "abc" } });
     expect(screen.getByText("controlla il prezzo")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Aggiungi al computo" }) as HTMLButtonElement).disabled).toBe(true);
     expect(onPick).not.toHaveBeenCalled();
@@ -233,8 +235,8 @@ describe("le aggiunte al popup delle voci", () => {
     const { onPick } = apri({ capitoliComputo: ["Bagno", "Bagno", "Cucina"], targetCapitolo: undefined });
     await screen.findByRole("checkbox", { name: "Scegli: Platea in cemento" });
     const select = screen.getByRole("combobox", { name: "Capitolo in cui mettere le voci" });
-    expect(within(select).getAllByRole("option")).toHaveLength(3);
-    fireEvent.change(select, { target: { value: "Cucina" } });
+    expect(formOptions(nativeFormControl(select)).getAllByRole("option")).toHaveLength(3);
+    changeFormControl(select, { target: { value: "Cucina" } });
     spunta("Platea in cemento");
     aggiungi();
     expect(onPick.mock.calls[0][0][0].capitolo_nome).toBe("Cucina");
@@ -294,7 +296,7 @@ describe("le aggiunte al popup delle voci", () => {
     const modulo = { ...fonti, mapUnita: (u: string) => (u === "mq" ? "mq-modulo" : "cad") };
     const { onPick } = apri({ fonti: modulo });
     fireEvent.click(screen.getByRole("button", { name: /prezzario regionale/i }));
-    fireEvent.change(screen.getByLabelText("Cerca una voce"), { target: { value: "demolizione" } });
+    changeFormControl(screen.getByLabelText("Cerca una voce"), { target: { value: "demolizione" } });
     const spunta = await screen.findByRole("checkbox", { name: `Scegli: ${descrizione}` });
     expect(screen.getByText("unità non indicata")).toBeTruthy();
     fireEvent.click(spunta);
@@ -302,7 +304,7 @@ describe("le aggiunte al popup delle voci", () => {
     expect(screen.getByText("Come si misura: «La misurazione sarà eseguita al m² per ogni cm di spessore del solaio.»")).toBeTruthy();
     const conferma = screen.getByRole("button", { name: "Aggiungi al computo" }) as HTMLButtonElement;
     expect(conferma.disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText(`Unità: ${descrizione}`), { target: { value: "mq" } });
+    changeFormControl(screen.getByLabelText(`Unità: ${descrizione}`), { target: { value: "mq" } });
     expect(conferma.disabled).toBe(false);
     fireEvent.click(conferma);
     expect(onPick.mock.calls[0][0][0]).toMatchObject({ unita_misura: "mq-modulo", unita_originale: "mq", sourceUnit: "mq", prezzo_unitario: 3.18, codice_tariffa: "02.03.017*" });

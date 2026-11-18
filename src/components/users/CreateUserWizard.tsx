@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEmployeeAccountOptions } from "@/hooks/useEmployeeAccountOptions";
 import { OfficeProfileSelector } from "./OfficeProfileSelector";
 import { useState, useMemo, useRef, useEffect } from "react";
@@ -486,7 +487,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
               {(roleType === "employee" || alsoEmployee) && companyId && (
                 <div className="space-y-1.5">
                   <Label htmlFor="nu-personale">Scheda del personale</Label>
-                  <select id="nu-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId}
+                  <UniformSelect id="nu-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId}
                     disabled={employeeLoading || employeeError}
                     onChange={e => {
                       setEmployeeId(e.target.value);
@@ -495,7 +496,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                     }}>
                     <option value="">Nuova persona, non ancora presente</option>
                     {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
-                  </select>
+                  </UniformSelect>
                   <p className="text-xs text-muted-foreground">Se è già nel personale, seleziona la sua scheda: conserverà cantieri, presenze e documenti.</p>
                   {employeeLoading && <p role="status" className="text-xs">Controllo il personale esistente…</p>}
                   {employeeError && <p role="alert" className="text-xs text-destructive">Non riesco a verificare il personale. Riapri la finestra prima di creare l’accesso.</p>}

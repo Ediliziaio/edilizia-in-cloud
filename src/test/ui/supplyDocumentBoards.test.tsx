@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -118,7 +119,7 @@ function open(node: React.ReactNode, url: string, advanced = true) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  if (advanced) fireEvent.click(screen.getByText("Altri filtri", { exact: true }));
+  if (advanced) fireEvent.click(screen.getByRole("button", {name:"Filtri avanzati"}));
 }
 function rfq(
   id: string,
@@ -188,7 +189,7 @@ function counter(extra: Partial<ContatoriRichiesta> = {}): ContatoriRichiesta {
     ...extra,
   };
 }
-beforeEach(() => {
+beforeEach(() => { Element.prototype.scrollIntoView = vi.fn();
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
   state.rfqs = [];
@@ -256,7 +257,7 @@ describe("Richieste d’offerta", () => {
     expect(
       screen.getByRole("link", { name: "Apri ordine d’acquisto" }),
     ).toHaveAttribute("href", "/azienda/ordini-acquisto/po2");
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca richieste d’offerta" }),
       { target: { value: "Materiale a" } },
     );
@@ -281,7 +282,7 @@ describe("Richieste d’offerta", () => {
     expect(screen.getByText("Materiale a")).toBeInTheDocument();
     expect(screen.queryByText("Materiale b")).not.toBeInTheDocument();
     expect(screen.queryByText("Materiale c")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato richieste d’offerta" }), { target: { value: "aggiudicata" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Stato richieste d’offerta" }), { target: { value: "aggiudicata" } });
     expect(screen.getByText("Materiale c")).toBeInTheDocument();
     expect(screen.getByTestId("url")).not.toHaveTextContent("rdo_focus");
   });
@@ -317,7 +318,7 @@ describe("Richieste d’offerta", () => {
     expect(screen.queryByText("Migliore offerta")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Successivi" }));
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_pagina=2");
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca richieste d’offerta" }),
       { target: { value: "Materiale 00" } },
     );
@@ -344,7 +345,7 @@ describe("DDT", () => {
         screen.getByRole("region", { name: "Colonna Non conformi / danni" }),
       ).getByText("DDT-c"),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato DDT" }), { target: { value: "non_conforme" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Non conformi",exact:true}));
     fireEvent.click(screen.getByRole("button", { name: "Elenco" }));
     expect(screen.getAllByText("DDT-c").length).toBeGreaterThan(0);
     expect(screen.getAllByText("DDT-d").length).toBeGreaterThan(0);
@@ -532,7 +533,7 @@ describe("Elenco DDT operativo", () => {
     expect(
       screen.queryByText("File-gia-registrato.pdf"),
     ).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato DDT" }), { target: { value: "da_registrare" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Da registrare",exact:true}));
     expect(screen.getByText("Nuova-bolla.pdf")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "DDT-gia" }),
@@ -544,7 +545,7 @@ describe("Elenchi documenti con filtri raccolti", () => {
   it("apre le richieste in elenco e conserva la scelta esplicita della pipeline", () => {
     state.rfqs = [rfq("a")]; open(<SupplierRfqsList />, "/azienda/ordini?tab=offerte", false);
     expect(screen.getByRole("table", { name: "Elenco richieste d’offerta" })).toBeInTheDocument();
-    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", {name:"Filtri avanzati"})).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: "Pipeline" }));
     expect(screen.getByRole("button", { name: "Pipeline" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("url")).toHaveTextContent("rdo_vista=pipeline");
@@ -553,8 +554,8 @@ describe("Elenchi documenti con filtri raccolti", () => {
     state.ddt = [ddt("a", "ricevuto")]; open(<DDTRicezioneList />, "/azienda/ordini?tab=ddt", false);
     expect(screen.getByRole("table", { name: "Elenco DDT" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Scorri elenco ddt" })).toBeInTheDocument();
-    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato DDT" }), { target: { value: "non_conforme" } });
+    expect(screen.getByRole("button", {name:"Filtri avanzati"})).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato DDT" })); fireEvent.click(screen.getByRole("option", {name:"Non conformi",exact:true}));
     expect(screen.getByTestId("url")).toHaveTextContent("ddt_stato=non_conforme");
   });
 });

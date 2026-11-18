@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -227,7 +228,7 @@ export function PrezziDaFatturaCard({
           </label>
           <label className="block space-y-1 text-xs">
             Fattura dello stesso fornitore
-            <select
+            <UniformSelect
               className="h-10 w-full rounded-md border bg-background px-2 text-sm"
               value={fattura}
               onChange={(e) => {
@@ -244,7 +245,7 @@ export function PrezziDaFatturaCard({
                   {f.cedente_ragione_sociale}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
           {(fatture.data?.length ?? 0) >= 100 && (
             <p className="text-xs text-muted-foreground">

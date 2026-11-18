@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 const state = vi.hoisted(() => ({ error: false, data: [{ id: 's', companyId: 'c', nome: 'Base aziendale', testo: '<p style="font-size:9pt">Clausola {{cliente.nome_completo}}</p>' }] }));
@@ -5,7 +6,7 @@ vi.mock('@tanstack/react-query', () => ({ useQuery: () => ({ data: state.data, i
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 import { CopiaCondizioni } from '@/components/preventivi/CopiaCondizioni';
 afterEach(() => { cleanup(); vi.restoreAllMocks(); state.error = false; });
-const choose = () => { fireEvent.click(screen.getByRole('button', { name: 'Copia da…' })); fireEvent.change(screen.getByRole('combobox'), { target: { value: 's' } }); };
+const choose = () => { fireEvent.click(screen.getByRole('button', { name: 'Copia da…' })); changeFormControl(screen.getByRole('combobox'), { target: { value: 's' } }); };
 describe('Copia da e modifica qui', () => {
   it('non cambia nulla prima della conferma e conserva i campi e la formattazione', () => {
     const onChange = vi.fn();

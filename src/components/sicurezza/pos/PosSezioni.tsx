@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import {RiferimentoPscPos} from "./RiferimentoPscPos";
 import {SegnaleticaLavorazionePos} from "./SegnaleticaLavorazionePos";
 import { RequisitiLavorazionePos } from "./RequisitiLavorazionePos";
@@ -635,7 +636,7 @@ export function SezionePsc({ d, modifica, ro, mancanti, companyId, orderId }: Ba
                 <Area id={`psc-${n}-i`} label="Indicazioni complementari e di dettaglio" rows={2} value={v.indicazioni} readOnly={ro} onChange={(t) => modifica((x) => { x.procedure_psc.voci[n].indicazioni = t; })} />
                 <Campo id={`psc-${n}-pagina`} label="Pagina / paragrafo del PSC" value={v.pagina||""} readOnly={ro} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].pagina=t;})}/>
                 <Campo id={`psc-${n}-responsabile`} label="Responsabile operativo della procedura" value={v.responsabile||""} readOnly={ro} onChange={t=>modifica(x=>{x.procedure_psc.voci[n].responsabile=t;})}/>
-                <div className="space-y-1 sm:col-span-2"><Label htmlFor={`psc-${n}-lavorazione`} className="text-xs">Lavorazione interessata</Label><select id={`psc-${n}-lavorazione`} value={v.lavorazione_id||""} disabled={ro} className="h-9 w-full rounded-md border bg-background px-2 text-sm" onChange={e=>modifica(x=>{x.procedure_psc.voci[n].lavorazione_id=e.target.value;})}><option value="">Procedura generale / da associare</option>{v.lavorazione_id&&!d.lavorazioni.some(l=>l.id===v.lavorazione_id)&&<option value={v.lavorazione_id}>Lavorazione non più presente: da riesaminare</option>}{d.lavorazioni.map(l=><option key={l.id} value={l.id}>{l.titolo||l.id}</option>)}</select></div>
+                <div className="space-y-1 sm:col-span-2"><Label htmlFor={`psc-${n}-lavorazione`} className="text-xs">Lavorazione interessata</Label><UniformSelect id={`psc-${n}-lavorazione`} value={v.lavorazione_id||""} disabled={ro} className="h-9 w-full rounded-md border bg-background px-2 text-sm" onChange={e=>modifica(x=>{x.procedure_psc.voci[n].lavorazione_id=e.target.value;})}><option value="">Procedura generale / da associare</option>{v.lavorazione_id&&!d.lavorazioni.some(l=>l.id===v.lavorazione_id)&&<option value={v.lavorazione_id}>Lavorazione non più presente: da riesaminare</option>}{d.lavorazioni.map(l=><option key={l.id} value={l.id}>{l.titolo||l.id}</option>)}</UniformSelect></div>
               </div>
             </Riga>
           ))}

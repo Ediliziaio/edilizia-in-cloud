@@ -261,6 +261,47 @@ export function PurchaseOrderItemRow({
           item.unit_of_measure || "pz"
         )}
       </td>
+      {showReceived && (
+        <>
+        <td className="p-1">
+          <Input
+            aria-label="Quantità ricevuta"
+            type="number"
+            min="0"
+            max={item.quantity}
+            value={received}
+            onChange={(e) => setReceived(e.target.value)}
+            onBlur={() => {
+              const n = Number(received);
+              if (
+                !received.trim() ||
+                !Number.isFinite(n) ||
+                n < 0 ||
+                n > item.quantity
+              ) {
+                setReceived(String(item.quantity_received));
+                toast.error(
+                  `Indica una quantità ricevuta tra 0 e ${item.quantity}.`,
+                );
+                return;
+              }
+              if (n !== item.quantity_received)
+                void save(
+                  {
+                    quantity_received: n,
+                    received_date: format(new Date(), "yyyy-MM-dd"),
+                  },
+                  () => setReceived(String(item.quantity_received)),
+                );
+            }}
+            className="h-8 w-16 text-right text-sm"
+          />
+        </td>
+        <td className="whitespace-nowrap p-2 text-right tabular-nums">
+          {Math.max(0, item.quantity - (item.quantity_received ?? 0)).toLocaleString("it-IT", { maximumFractionDigits: 4 })}
+        </td>
+        </>
+      )}
       {!senzaPrezzi && <>
       <td className="p-1">
         {isEditable ? (
@@ -396,42 +437,7 @@ export function PurchaseOrderItemRow({
           </div>
         </td>
       )}
-      {showReceived && (
-        <td className="p-1">
-          <Input
-            aria-label="Quantità ricevuta"
-            type="number"
-            min="0"
-            max={item.quantity}
-            value={received}
-            onChange={(e) => setReceived(e.target.value)}
-            onBlur={() => {
-              const n = Number(received);
-              if (
-                !received.trim() ||
-                !Number.isFinite(n) ||
-                n < 0 ||
-                n > item.quantity
-              ) {
-                setReceived(String(item.quantity_received));
-                toast.error(
-                  `Indica una quantità ricevuta tra 0 e ${item.quantity}.`,
-                );
-                return;
-              }
-              if (n !== item.quantity_received)
-                void save(
-                  {
-                    quantity_received: n,
-                    received_date: format(new Date(), "yyyy-MM-dd"),
-                  },
-                  () => setReceived(String(item.quantity_received)),
-                );
-            }}
-            className="h-8 w-16 text-right text-sm"
-          />
-        </td>
-      )}
+
     </tr>
   );
 }

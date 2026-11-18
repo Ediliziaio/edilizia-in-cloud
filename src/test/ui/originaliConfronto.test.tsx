@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -151,7 +152,7 @@ describe("originali PDF e foto del confronto", () => {
       originaleDaRiferimento("azienda/seconda.jpg", "ddt_attachments")!,
     ]);
     await screen.findByTitle("Originale prima.pdf");
-    fireEvent.change(screen.getByLabelText("Scegli il file originale"), {
+    changeFormControl(screen.getByLabelText("Scegli il file originale"), {
       target: { value: "ddt_attachments/azienda/seconda.jpg" },
     });
     expect(await screen.findByAltText("Originale seconda.jpg")).toBeTruthy();

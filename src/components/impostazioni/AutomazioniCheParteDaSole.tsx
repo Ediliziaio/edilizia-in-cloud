@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Le automazioni che partono da sole, ognuna con il suo interruttore (19/10/2026).
  *
@@ -115,7 +116,7 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
                 Ogni mattina, nella chat di Silvio dell'app: cosa c'è oggi, cosa è in ritardo, incassi e scadenze, solo quello che ognuno può vedere. Usa il credito AI.
               </p>
             </div>
-            <select
+            <UniformSelect
               id="auto-silvio-brief"
               value={stato?.silvio_brief_mattino ?? "spento"}
               disabled={!canEdit || !stato || inSalvataggio !== null}
@@ -123,7 +124,7 @@ export function AutomazioniCheParteDaSole({ companyId, canEdit }: { companyId: s
               className="h-9 rounded-md border bg-background px-2 text-sm"
             >
               {BRIEF_SILVIO.map((b) => <option key={b.valore} value={b.valore}>{b.etichetta}</option>)}
-            </select>
+            </UniformSelect>
           </div>
           {VOCI.map((v) => (
             <div key={v.chiave} className="flex items-start justify-between gap-4 p-4">

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   fireEvent,
@@ -309,7 +310,7 @@ describe("confronto affiancato della fattura", () => {
     const destra = screen.getByRole("region", {
       name: "DDT e ordini di confronto",
     });
-    fireEvent.change(
+    changeFormControl(
       within(destra).getByLabelText("Documento da visualizzare"),
       { target: { value: "o" } },
     );
@@ -332,7 +333,7 @@ describe("confronto affiancato della fattura", () => {
       { button: 0, ctrlKey: false },
     );
     expect(await screen.findByTitle("Originale bolla.pdf")).toBeTruthy();
-    fireEvent.change(
+    changeFormControl(
       within(destra).getByLabelText("Documento da visualizzare"),
       { target: { value: "o" } },
     );

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Un modello di «Contratti e condizioni», a pagina intera (07/11/2026).
  *
@@ -135,10 +136,10 @@ export default function SettingsCondizioniModello() {
         <Button asChild variant="ghost" size="sm" className="h-9 px-2"><Link to={PAGINA_CONDIZIONI} onClick={esci} aria-label="Torna a Contratti e condizioni"><ArrowLeft className="h-4 w-4" /></Link></Button>
         <Input aria-label="Nome del modello" className="h-9 min-w-[12rem] flex-1" value={attiva.nome} disabled={!puoGestire}
           placeholder="Es. Condizioni standard 2026" onChange={(e) => cambia({ nome: e.target.value })} />
-        <select aria-label="Per quale documento" className="h-9 rounded-md border bg-background px-2 text-sm" value={attiva.ambito} disabled={!puoGestire}
+        <UniformSelect aria-label="Per quale documento" className="h-9 rounded-md border bg-background px-2 text-sm" value={attiva.ambito} disabled={!puoGestire}
           onChange={(e) => cambia({ ambito: e.target.value as AmbitoCondizioni })}>
           {AMBITI_CONDIZIONI.map((a) => <option key={a} value={a}>{NOMI_AMBITI[a]}</option>)}
-        </select>
+        </UniformSelect>
         <label className="flex items-center gap-2 text-sm">
           <Switch checked={attiva.predefinito} disabled={!puoGestire} onCheckedChange={(v) => cambia({ predefinito: v })} aria-label="Modello predefinito" />
           Predefinito
@@ -181,14 +182,14 @@ export default function SettingsCondizioniModello() {
                 <Plus className="mr-1.5 h-3.5 w-3.5" />Scrivi una clausola
               </Button>
               {archivio.clausole.length > 0 && (
-                <select aria-label="Aggiungi dalla libreria" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value=""
+                <UniformSelect aria-label="Aggiungi dalla libreria" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value=""
                   onChange={(e) => {
                     const c = archivio.clausole.find((x) => x.id === e.target.value);
                     if (c) aggiungi({ clausola_id: c.id, titolo: c.titolo, testo: comeHtml(c.testo), vessatoria: c.vessatoria });
                   }}>
                   <option value="">+ Dalla libreria…</option>
                   {archivio.clausole.filter((c) => c.attiva).map((c) => <option key={c.id} value={c.id}>{c.titolo}</option>)}
-                </select>
+                </UniformSelect>
               )}
             </div>
           )}

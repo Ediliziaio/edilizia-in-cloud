@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
 import { edileSectionExcluded } from "@/components/preventivi/templateNavigationState";
 import { withEdilePageVisibility } from "@/components/preventivi/edilePageVisibility";
@@ -968,7 +969,7 @@ function PavimentiEditorForm({ embedded = false, localModule, connected }: Props
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <Label className="text-xs">Tipografia del documento</Label>
-                  <select
+                  <UniformSelect
                     value={tipografiaDaModello(form.font_family)}
                     onChange={(e) => set("font_family", e.target.value)}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -976,7 +977,7 @@ function PavimentiEditorForm({ embedded = false, localModule, connected }: Props
                     <option value="lineare">Lineare · titoli e testo senza grazie</option>
                     <option value="editoriale">Editoriale · titoli con le grazie, testo lineare</option>
                     <option value="classica">Classica · tutto con le grazie</option>
-                  </select>
+                  </UniformSelect>
                   <p className="text-[10px] text-muted-foreground">
                     Cambia davvero il PDF: sono i caratteri che il documento ha già dentro, quindi non c'è niente da
                     scaricare e nessun carattere può mancare alla stampa.

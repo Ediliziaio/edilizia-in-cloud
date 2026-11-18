@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // Voci libere nel modulo dell'ufficio: si salvano insieme al rapportino. Solo per chi vede i costi.
 // Dal 14/11/2026 si cercano nel listino generale, col prezzo della regola (cantiere → committente → generale).
 import type { ReactElement } from "react";
@@ -48,14 +49,14 @@ export function VociRapportinoUfficio({ companyId, orderId, giorno, voci, onCamb
       )}
       <div className="flex flex-wrap gap-1.5">
         {pronte.length > 0 && (
-          <select aria-label="Aggiungi una voce" className="h-8 rounded-md border bg-background px-2 text-[13px]" value=""
+          <UniformSelect aria-label="Aggiungi una voce" className="h-8 rounded-md border bg-background px-2 text-[13px]" value=""
             onChange={(e) => {
               const m = pronte.find((x) => x.id === e.target.value);
               if (m) onCambia([...voci, { chiave: nuovaChiave(), descrizione: m.nome, quantita: "1", unita: m.unita, costo: m.costo_unitario != null ? String(m.costo_unitario).replace(".", ",") : "", vendita: m.vendita_unitaria != null ? String(m.vendita_unitaria).replace(".", ",") : "" }]);
             }}>
             <option value="">Aggiungi una voce</option>
             {pronte.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-          </select>
+          </UniformSelect>
         )}
         {aMano && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => onCambia([...voci, { chiave: nuovaChiave(), descrizione: "", quantita: "1", unita: "cad", costo: "", vendita: "" }])}><Plus className="mr-1 h-3.5 w-3.5" />Scrivi una voce</Button>}
       </div>

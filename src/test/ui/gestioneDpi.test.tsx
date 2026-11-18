@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -64,7 +66,7 @@ const record: ConsegnaDpi = {
   versione: 2,
 };
 const change = (label: string, value: string) =>
-  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  changeFormControl(screen.getByLabelText(label), { target: { value } });
 afterEach(cleanup);
 beforeEach(() => {
   s.readonly = false;
@@ -114,7 +116,7 @@ describe("Registro DPI modificabile con base esplicita", () => {
     );
     expect(s.save).not.toHaveBeenCalled();
     expect(
-      screen
+      formOptions()
         .getAllByRole("option")
         .some((e) => e.getAttribute("value") === "cessato"),
     ).toBe(false);

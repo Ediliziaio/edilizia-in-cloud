@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import type { VerificaItp } from "@/lib/sicurezza/itp";
 import type { EvidenzaFascicolo } from "@/lib/sicurezza/fascicolo";
@@ -69,7 +70,7 @@ export function ApplicabilitaItp({
             setLimite(20);
           }}
         />
-        <select
+        <UniformSelect
           aria-label="Filtra applicabilità"
           className="h-10 rounded-md border bg-background px-2 text-sm"
           value={filtro}
@@ -85,7 +86,7 @@ export function ApplicabilitaItp({
               )
             </option>
           ))}
-        </select>
+        </UniformSelect>
       </div>
       {!v.criteri.length ? (
         <p className="text-sm text-amber-700">

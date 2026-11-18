@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import {InboundWebhookPicker} from './config-panels/InboundWebhookPicker';
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -473,7 +474,7 @@ export function FlowBuilderConfigPanel({
 
 function CustomChangedPicker({companyId,objectType,value,onChange}:{companyId?:string;objectType:string;value:string;onChange:(v:string)=>void}){
   const {data:fields=[],isError}=useAutomationFieldDefinitions(companyId,objectType);
-  return <div className="space-y-2"><Label htmlFor="changed-custom-field">Campo che avvia il flusso</Label><select id="changed-custom-field" className="w-full rounded border bg-background p-2 text-sm" value={value} onChange={e=>onChange(e.target.value)}><option value="">Tutti i campi di questo oggetto</option>{value&&!fields.some(f=>f.id===value)&&<option value={value} disabled>Campo non disponibile</option>}{fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select>{isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi.</p>}</div>;
+  return <div className="space-y-2"><Label htmlFor="changed-custom-field">Campo che avvia il flusso</Label><UniformSelect id="changed-custom-field" className="w-full rounded border bg-background p-2 text-sm" value={value} onChange={e=>onChange(e.target.value)}><option value="">Tutti i campi di questo oggetto</option>{value&&!fields.some(f=>f.id===value)&&<option value={value} disabled>Campo non disponibile</option>}{fields.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</UniformSelect>{isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi.</p>}</div>;
 }
 
 // ── Template pronti per i messaggi di notifica ──

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useRef, useState } from "react";
 import { descrizioneCommerciale } from "@/lib/preventivi/configurazioneSemplice";
 import {
@@ -226,7 +227,7 @@ export function TariffePicker({
               </button>
             )}
           </div>
-          <select
+          <UniformSelect
             aria-label="Filtra servizi per lavorazione"
             className="h-10 w-full rounded-md border bg-background px-3 text-sm lg:hidden"
             value={gruppo}
@@ -241,7 +242,7 @@ export function TariffePicker({
                 {g.nome} ({g.count})
               </option>
             ))}
-          </select>
+          </UniformSelect>
           <p className="text-xs text-muted-foreground">
             {nomeArea && <span className="font-medium">{nomeArea} · </span>}
             {filtrate.length}{" "}

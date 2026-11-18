@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,11 +28,11 @@ const mostra = (ui: React.ReactNode = <CampoVerbale />) => render(<QueryClientPr
 const azioni = () => stato.invocazioni.map(b => b.action);
 const compila = () => {
   fireEvent.click(screen.getByRole("button", { name: "Verificato: Vetri integri" }));
-  fireEvent.change(screen.getByLabelText("Pezzi controllati"), { target: { value: "4" } });
-  fireEvent.change(screen.getByLabelText("Lavori verificati"), { target: { value: "Piano primo" } });
-  fireEvent.change(screen.getByLabelText("Cliente"), { target: { value: "Mario Rossi" } });
-  fireEvent.change(screen.getByLabelText("Esito"), { target: { value: "positive" } });
-  fireEvent.change(screen.getByLabelText("Documenti consegnati"), { target: { value: "Istruzioni" } });
+  changeFormControl(screen.getByLabelText("Pezzi controllati"), { target: { value: "4" } });
+  changeFormControl(screen.getByLabelText("Lavori verificati"), { target: { value: "Piano primo" } });
+  changeFormControl(screen.getByLabelText("Cliente"), { target: { value: "Mario Rossi" } });
+  changeFormControl(screen.getByLabelText("Esito"), { target: { value: "positive" } });
+  changeFormControl(screen.getByLabelText("Documenti consegnati"), { target: { value: "Istruzioni" } });
 };
 beforeEach(() => { stato.haVerbali = false; stato.modelli = [modello("a", "Serramenti")]; stato.erroreModelli = null; stato.invocazioni = []; stato.righe = []; vi.clearAllMocks(); vi.spyOn(window, "open").mockReturnValue(null); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -86,7 +87,7 @@ describe("Verbale dal telefono", () => {
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: /Bozza vecchia/ }));
     expect(screen.getByLabelText("Lavori verificati")).toHaveValue("Ripreso");
-    fireEvent.change(screen.getByLabelText("Lavori verificati"), { target: { value: "Altro" } });
+    changeFormControl(screen.getByLabelText("Lavori verificati"), { target: { value: "Altro" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva bozza" }));
     await waitFor(() => expect(azioni()).toContain("save"));
     const s = stato.invocazioni.find(b => b.action === "save")!;
@@ -122,7 +123,7 @@ describe("Verbale dal telefono", () => {
     compila();
     fireEvent.click(screen.getByRole("button", { name: "Mostra il PDF" }));
     await screen.findByRole("checkbox", { name: "Il cliente ha visto il documento" });
-    fireEvent.change(screen.getByLabelText("Lavori verificati"), { target: { value: "Cambiato" } });
+    changeFormControl(screen.getByLabelText("Lavori verificati"), { target: { value: "Cambiato" } });
     expect(screen.queryByRole("checkbox", { name: "Il cliente ha visto il documento" })).toBeNull();
   });
   it("dice che l'ufficio è avvisato solo se l'avviso è partito", async () => {
@@ -160,13 +161,13 @@ describe("Verbale dal telefono", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Nuovo: Serramenti" }));
     compila();
     fireEvent.click(screen.getByRole("button", { name: "Con riserva: Vetri integri" }));
-    fireEvent.change(screen.getByLabelText("Motivo: Vetri integri"), { target: { value: "Vetro graffiato" } });
-    fireEvent.change(screen.getByLabelText("Esito"), { target: { value: "reserves" } });
-    fireEvent.change(screen.getByLabelText("Riserve"), { target: { value: "Da sostituire" } });
+    changeFormControl(screen.getByLabelText("Motivo: Vetri integri"), { target: { value: "Vetro graffiato" } });
+    changeFormControl(screen.getByLabelText("Esito"), { target: { value: "reserves" } });
+    changeFormControl(screen.getByLabelText("Riserve"), { target: { value: "Da sostituire" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi un intervento" }));
-    fireEvent.change(screen.getByLabelText("Intervento 1"), { target: { value: "Sostituire il vetro" } });
-    fireEvent.change(screen.getByLabelText("Responsabile 1"), { target: { value: "Marco" } });
-    fireEvent.change(screen.getByLabelText("Entro 1"), { target: { value: "2099-01-01" } });
+    changeFormControl(screen.getByLabelText("Intervento 1"), { target: { value: "Sostituire il vetro" } });
+    changeFormControl(screen.getByLabelText("Responsabile 1"), { target: { value: "Marco" } });
+    changeFormControl(screen.getByLabelText("Entro 1"), { target: { value: "2099-01-01" } });
     fireEvent.click(screen.getByRole("button", { name: "Mostra il PDF" }));
     await waitFor(() => expect(azioni()).toContain("preview"));
     const s = stato.invocazioni.find(b => b.action === "save")! as { content: { actions: unknown[] } };
@@ -194,7 +195,7 @@ describe("Verbale dal telefono", () => {
     stato.fallisceSalva = true;
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: /Bozza/ }));
-    fireEvent.change(screen.getByLabelText("Lavori verificati"), { target: { value: "x" } });
+    changeFormControl(screen.getByLabelText("Lavori verificati"), { target: { value: "x" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva bozza" }));
     await waitFor(() => expect(azioni().filter(a => a === "list").length).toBeGreaterThan(1));
     stato.fallisceSalva = false;

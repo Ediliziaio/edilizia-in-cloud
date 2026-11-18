@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Il blocco «Clausole contrattuali» negli editor dei preventivatori (07/11/2026).
  *
@@ -59,14 +61,14 @@ describe("Cosa esce nel PDF, e da dove", () => {
     archivio.valore = { ...archivio.valore, modelli: [modello(), modello({ id: "m2", nome: "Condizioni bagno", predefinito: false })] };
     const { onAssocia } = disegna({ modelloAssociatoId: "m2" });
     expect(screen.getByText(/Nel PDF esce/)).toHaveTextContent("«Condizioni bagno»");
-    fireEvent.change(screen.getByLabelText("Modello delle condizioni per questo preventivatore"), { target: { value: "" } });
+    changeFormControl(screen.getByLabelText("Modello delle condizioni per questo preventivatore"), { target: { value: "" } });
     expect(onAssocia).toHaveBeenCalledWith(null);
   });
 
   it("solo i modelli dei preventivi: quello dell'appalto o della fattura non si propone", () => {
     archivio.valore = { ...archivio.valore, modelli: [modello(), modello({ id: "a", nome: "Appalto", ambito: "appalto", predefinito: false }), modello({ id: "b", nome: "Bagno", predefinito: false })] };
     disegna();
-    const opzioni = Array.from((screen.getByLabelText("Modello delle condizioni per questo preventivatore") as HTMLSelectElement).options).map((o) => o.text);
+    const opzioni = Array.from(nativeFormControl(screen.getByLabelText("Modello delle condizioni per questo preventivatore")).options).map((o) => o.text);
     expect(opzioni).toEqual(["il predefinito («Condizioni 2026»)", "Bagno"]);
   });
 

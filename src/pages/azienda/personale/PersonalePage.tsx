@@ -109,7 +109,8 @@ function PersonaleContent() {
   const defaultTab = isMobile ? "timbrature" : "regia";
   const schedaValida = rawTab && availableTabs.includes(rawTab) ? rawTab : defaultTab;
   // Mobile: un indirizzo verso una scheda che qui non c'è apre le timbrature.
-  const activeTab = isMobile && !TABS_MOBILE.includes(schedaValida) ? "timbrature" : schedaValida;
+  const cedoliniDelPeriodo = schedaValida === "cedolini" && searchParams.has("anno") && searchParams.has("mese");
+  const activeTab = isMobile && !cedoliniDelPeriodo && !TABS_MOBILE.includes(schedaValida) ? "timbrature" : schedaValida;
   // Classi della linguetta: su telefono solo le tre schede, affiancate e senza icona.
   const trigger = (tab: string) => cn(
     "gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700",
@@ -232,7 +233,7 @@ function PersonaleContent() {
         <TabsContent value="richieste"><Suspense fallback={<TabFallback />}><TabRichieste /></Suspense></TabsContent>
         <TabsContent value="sedi"><Suspense fallback={<TabFallback />}><TabSedi /></Suspense></TabsContent>
         <TabsContent value="festivita"><Suspense fallback={<TabFallback />}><TabFestivita /></Suspense></TabsContent>
-        <TabsContent value="cedolini"><Suspense fallback={<TabFallback />}><TabCedolini /></Suspense></TabsContent>
+        <TabsContent value="cedolini"><Suspense fallback={<TabFallback />}><TabCedolini annoIniziale={searchParams.get("anno")} meseIniziale={searchParams.get("mese")} /></Suspense></TabsContent>
         <TabsContent value="documenti"><Suspense fallback={<TabFallback />}><TabDocumenti /></Suspense></TabsContent>
         <TabsContent value="candidati"><Suspense fallback={<TabFallback />}><TabCandidati /></Suspense></TabsContent>
         {hasFleetTrack && (

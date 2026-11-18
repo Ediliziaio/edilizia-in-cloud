@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import {
   TIPI_MENSILI,
@@ -184,7 +185,7 @@ export function DocumentiMensiliSub({
             <Label htmlFor="mensile-contratto">
               Contratto del subappaltatore
             </Label>
-            <select
+            <UniformSelect
               id="mensile-contratto"
               className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"
               value={contrattoId}
@@ -198,7 +199,7 @@ export function DocumentiMensiliSub({
                     .join(" · ") || `Contratto ${c.id.slice(0, 8)}`}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </div>
           <div>
             <Label htmlFor="mensile-mese">Mese di competenza</Label>
@@ -406,7 +407,7 @@ export function DocumentiMensiliSub({
             <form onSubmit={salvaForm} className="space-y-3">
               <div>
                 <Label htmlFor="mensile-stato">Stato</Label>
-                <select
+                <UniformSelect
                   id="mensile-stato"
                   className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
                   value={form.stato}
@@ -417,11 +418,11 @@ export function DocumentiMensiliSub({
                       {l}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
               <div>
                 <Label htmlFor="mensile-origine">Origine del requisito</Label>
-                <select
+                <UniformSelect
                   id="mensile-origine"
                   className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
                   value={form.origine_requisito}
@@ -431,7 +432,7 @@ export function DocumentiMensiliSub({
                   <option value="contratto">Contratto / committente</option>
                   <option value="interna">Procedura interna</option>
                   <option value="normativa">Normativa da indicare</option>
-                </select>
+                </UniformSelect>
               </div>
               <div>
                 <Label htmlFor="mensile-riferimento">

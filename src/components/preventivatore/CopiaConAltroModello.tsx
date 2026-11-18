@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Copia con un altro modello» — dal preventivo aperto: si sceglie un altro modello (per esempio da «Ristrutturazione
  * completa» ad «A computo») e si ottiene un nuovo preventivo con gli stessi dati, cliente e computo compresi. Il
@@ -70,7 +71,7 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
           </DialogDescription>
         </DialogHeader>
         <label className="block text-sm font-medium" htmlFor="altro-modello">Nuovo modello</label>
-        <select
+        <UniformSelect
           id="altro-modello"
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           value={scelto}
@@ -82,7 +83,7 @@ export function CopiaConAltroModello({ modulo, progetto, snapshot, costruisci }:
               {g.interventi.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
             </optgroup>
           ))}
-        </select>
+        </UniformSelect>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setAperto(false)} disabled={inCorso}>Annulla</Button>
           <Button onClick={() => void copia()} disabled={!scelto || inCorso}>

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Impostazioni → Rapportini e presenze: quali parti del rapportino usa l'azienda, i suoi campi e i modelli di verbale.
  * Si salva a parte dalle regole del flusso, perché è un altro documento. Da telefono non c'è: si configura da tablet o
@@ -45,9 +46,9 @@ function Scelta<T extends string>({ etichetta, aria, value, opzioni, disabled, o
 }) {
   return (
     <label className="grid gap-1 text-xs text-muted-foreground">{etichetta}
-      <select aria-label={aria} className={SELECT} value={value} disabled={disabled} onChange={e => onChange(e.target.value as T)}>
+      <UniformSelect aria-label={aria} className={SELECT} value={value} disabled={disabled} onChange={e => onChange(e.target.value as T)}>
         {opzioni.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
+      </UniformSelect>
     </label>
   );
 }

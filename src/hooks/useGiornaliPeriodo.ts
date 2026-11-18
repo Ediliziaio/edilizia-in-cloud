@@ -1,3 +1,4 @@
+import { withAbortableClientTimeout } from "@/lib/query-timeout";
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -64,6 +65,7 @@ export function useGiornaliPeriodo(
     enabled: !!companyId && periodo !== null && consentito,
     // Tornando dal giornale devono apparire subito le correzioni e le firme.
     staleTime: 0,
-    queryFn: ({ signal }) => leggiGiornaliPeriodo(companyId!, periodo!, signal),
+    retry: false,
+    queryFn: ({ signal }) => withAbortableClientTimeout(requestSignal => leggiGiornaliPeriodo(companyId!, periodo!, requestSignal), "Caricamento giornali", 20_000, signal),
   });
 }

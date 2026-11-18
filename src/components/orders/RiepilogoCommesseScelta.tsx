@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,7 @@ export function RiepilogoCommesseScelta({ open, onOpenChange, companyId, scelta,
             return (
               <label key={indice} className="flex items-center gap-2 text-sm">
                 <span className="w-20 shrink-0 text-slate-500">Riquadro {indice + 1}</span>
-                <select
+                <UniformSelect
                   aria-label={`Riquadro ${indice + 1}`}
                   value={valore}
                   onChange={(e) => cambiaPosto(indice, e.target.value)}
@@ -85,7 +86,7 @@ export function RiepilogoCommesseScelta({ open, onOpenChange, companyId, scelta,
                       ))}
                     </optgroup>
                   ))}
-                </select>
+                </UniformSelect>
               </label>
             );
           })}

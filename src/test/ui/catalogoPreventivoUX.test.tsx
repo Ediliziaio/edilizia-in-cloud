@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ProductPicker } from "@/components/marketing/preventivi/ProductPicker";
@@ -127,7 +129,7 @@ describe("Catalogo prodotti nel preventivo", () => {
   });
   it("trova il prodotto tramite linea e conserva l'identità quando apre la configurazione", () => {
     const onSelect = catalogo();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }),
       { target: { value: "finestra salamander" } },
     );
@@ -217,7 +219,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
     const ricerca = screen.getByRole("textbox", {
       name: "Cerca nel catalogo prodotti",
     });
-    fireEvent.change(ricerca, { target: { value: "Salamander" } });
+    changeFormControl(ricerca, { target: { value: "Salamander" } });
     fireEvent.click(screen.getByRole("tab", { name: /Manodopera/ }));
     fireEvent.click(screen.getByRole("tab", { name: "Prodotti" }));
     expect(
@@ -236,7 +238,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
     const api = dialogo({ initialTab: "manodopera" });
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
     expect(api.onAddTariffa).not.toHaveBeenCalled();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Quantità servizio" }),
       { target: { value: "12,5" } },
     );
@@ -257,7 +259,7 @@ describe("Prodotti e servizi nello stesso flusso", () => {
     dialogo({ initialTab: "manodopera" });
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
     for (const value of ["0", "-1", "abc"]) {
-      fireEvent.change(
+      changeFormControl(
         screen.getByRole("textbox", { name: "Quantità servizio" }),
         { target: { value } },
       );
@@ -368,7 +370,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
         <Harness />
       </MemoryRouter>,
     );
-    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Area di lavoro" }), {
       target: { value: "area:bagni" },
     });
     fireEvent.click(
@@ -384,10 +386,10 @@ describe("Aree condivise fra prodotti e servizi", () => {
   it("mantiene l'area al cambio scheda e dopo l'aggiunta, senza perdere la ricerca prodotti", () => {
     const tariffe = preparaAree();
     const api = dialogo({ tariffe });
-    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Area di lavoro" }), {
       target: { value: "area:bagni" },
     });
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }),
       { target: { value: "Salamander" } },
     );
@@ -402,7 +404,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Manodopera/ }));
     expect(screen.queryByRole("button", { name: /Trasporto comune/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Posa pavimento/ }));
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Quantità servizio" }),
       { target: { value: "2,5" } },
     );
@@ -416,7 +418,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
   });
   it("esclude le voci comuni su richiesta e rimuove un servizio selezionato fuori dall'area", () => {
     dialogo({ tariffe: preparaAree(), initialTab: "servizi" });
-    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Area di lavoro" }), {
       target: { value: "area:bagni" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Trasporto comune/ }));
@@ -432,7 +434,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
     expect(
       screen.queryByRole("button", { name: "Aggiungi servizio" }),
     ).toBeNull();
-    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Area di lavoro" }), {
       target: { value: "common" },
     });
     expect(
@@ -453,7 +455,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
       },
     ] as CatalogItem[];
     dialogo();
-    fireEvent.change(screen.getByRole("combobox", { name: "Area di lavoro" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Area di lavoro" }), {
       target: { value: "area:bagni" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Doccia 1" }));
@@ -470,7 +472,7 @@ describe("Aree condivise fra prodotti e servizi", () => {
     expect(
       screen.getByRole("button", { name: /Finestra 1 Anta PVC Aluplast/ }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Bagni (1 prodotto · 1 servizio)" })).toBeDisabled();
+    expect(formOptions().getByRole("option", { name: "Bagni (1 prodotto · 1 servizio)" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Riprova aree" }));
     expect(stato.refetch).toHaveBeenCalledTimes(2);
   });
@@ -485,12 +487,12 @@ it('trova Epiq per linea e distingue le categorie con lo stesso nome', () => {
   stato.macros=[{id:'5066bc5e-0bc7-4826-8c27-dd81e014767d',nome:'Epiq'},{id:'a1405c07-659d-45a5-bd00-584f0e4f6ed0',nome:'4Stars'}];
   stato.categorie=[{id:'epiq-cat',nome:'Finestre',macrocategoria_id:stato.macros[0].id},{id:'4stars-cat',nome:'Finestre',macrocategoria_id:stato.macros[1].id}] as CatalogCategory[];
   const select=catalogo();
-  expect(screen.getByRole('option',{name:'Epiq · Finestre (1)'})).toBeInTheDocument();
-  expect(screen.getByRole('option',{name:'4Stars · Finestre (1)'})).toBeInTheDocument();
-  fireEvent.change(screen.getByRole('textbox',{name:'Cerca nel catalogo prodotti'}),{target:{value:'Epiq finestra'}});
+  expect(formOptions().getByRole('option',{name:'Epiq · Finestre (1)'})).toBeInTheDocument();
+  expect(formOptions().getByRole('option',{name:'4Stars · Finestre (1)'})).toBeInTheDocument();
+  changeFormControl(screen.getByRole('textbox',{name:'Cerca nel catalogo prodotti'}),{target:{value:'Epiq finestra'}});
   expect(screen.getByRole('status')).toHaveTextContent('1 prodotto');
-  fireEvent.change(screen.getByRole('textbox',{name:'Cerca nel catalogo prodotti'}),{target:{value:''}});
-  fireEvent.change(screen.getByRole('combobox',{name:'Filtra per linea'}),{target:{value:'Epiq'}});
+  changeFormControl(screen.getByRole('textbox',{name:'Cerca nel catalogo prodotti'}),{target:{value:''}});
+  changeFormControl(screen.getByRole('combobox',{name:'Filtra per linea'}),{target:{value:'Epiq'}});
   expect(screen.getByRole('status')).toHaveTextContent('1 prodotto');
   fireEvent.click(screen.getByRole('button',{name:/Finestra 1 Anta Finestre · Epiq/}));
   expect(select.mock.calls[0][0]).toBe(stato.items[0]);

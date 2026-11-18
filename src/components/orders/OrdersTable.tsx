@@ -1,3 +1,4 @@
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import {OrderTrashConfirmDialog} from './OrderTrashConfirmDialog';
 import {orderPaymentTiming} from "@/lib/orders/listPayments";
 import React, { useState, useMemo, useRef } from "react";
@@ -159,6 +160,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   const { sortConfig, toggleSort, sortedItems } = useTableSort(orders, sortAccessors);
 
   const navigate = useNavigate();
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Conferma eliminazione a livello componente (prima ogni riga montava il suo
   // AlertDialog dentro la cella azioni).
@@ -411,12 +413,13 @@ export const OrdersTable = React.memo(function OrdersTable({
         </div>
       )}
 
+      <BarraScorrimentoOrizzontale contenitore={scrollContainer} className="mx-3 my-2" />
       <div className="overflow-x-auto">
         {/* Celle compatte (audit UX 2026-09): il p-4 di default = 32px di sola
             aria per riga; con gli a-capo le righe arrivavano a 93px. Ora ~52px,
             in linea con l'estimateSize=56 del virtualizer (prima mentiva). */}
         {/* Sotto i 1280px celle più strette: la tabella deve stare nella pagina. */}
-        <Table className="[&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-2 xl:[&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-2 xl:[&_tbody_td]:px-3 [&_tbody_td]:py-2">
+        <Table wrapperRef={setScrollContainer} className="[&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-2 xl:[&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-2 xl:[&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px]">

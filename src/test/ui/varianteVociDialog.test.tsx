@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * «Variante sulle voci» (lotto 8, 10/11/2026): solo le righe cambiate vanno al database, la differenza è riga
  * per riga al centesimo, senza motivo non si registra, e una quota in bozza entra scrivendo la quantità.
@@ -47,11 +48,11 @@ describe("variante sulle voci", () => {
       <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi srl" importo={1080} quote={quote} voci={voci} onChiudi={vi.fn()} onFatto={fatto} />
     </QueryClientProvider>);
     expect(screen.getByText(/affidata, non ancora nel contratto/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Quantità di Muri perimetrali"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Quantità di Muri perimetrali"), { target: { value: "2" } });
     expect(screen.getByRole("status").textContent).toMatch(/1\.094,00.*\+14,00.*1 voce/);
     const registra = screen.getByRole("button", { name: "Registra la variante" });
     expect(registra).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Motivo della variante"), { target: { value: "Muri in più al piano terra" } });
+    changeFormControl(screen.getByLabelText("Motivo della variante"), { target: { value: "Muri in più al piano terra" } });
     await waitFor(() => expect(registra).toBeEnabled());
     fireEvent.click(registra);
     await waitFor(() => expect(finto.rpc).toHaveBeenCalledWith("subappalto_variante_voci", {
@@ -69,11 +70,11 @@ describe("variante sulle voci", () => {
       <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi srl" importo={1080} quote={quote} voci={voci} elencoContratto={elenco} onChiudi={vi.fn()} onFatto={vi.fn()} />
     </QueryClientProvider>);
     const quando = await screen.findByLabelText("Quando matura il compenso");
-    fireEvent.change(screen.getByLabelText("Quantità di Demolizione tramezzi"), { target: { value: "119" } });
-    fireEvent.change(screen.getByLabelText("Motivo della variante"), { target: { value: "Un tramezzo resta" } });
+    changeFormControl(screen.getByLabelText("Quantità di Demolizione tramezzi"), { target: { value: "119" } });
+    changeFormControl(screen.getByLabelText("Motivo della variante"), { target: { value: "Un tramezzo resta" } });
     const registra = screen.getByRole("button", { name: "Registra la variante" });
     expect(registra).toBeDisabled();
-    fireEvent.change(quando, { target: { value: "sal_periodici" } });
+    changeFormControl(quando, { target: { value: "sal_periodici" } });
     fireEvent.click(registra);
     await waitFor(() => expect(finto.rpc).toHaveBeenCalledWith("subappalto_variante_voci", expect.anything()));
     const [prima, dopo] = finto.rpc.mock.calls.map((c) => c[0]);

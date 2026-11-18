@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { Plus, Trash2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -93,7 +94,7 @@ export function ConditionConfigPanel({ config, onChange, companyId, triggerCateg
 
   return (
     <div className="space-y-4">
-      <Label htmlFor="condition-custom-object">Campi personalizzati di</Label><select id="condition-custom-object" className="w-full rounded border bg-background p-2 text-sm" value={scope} onChange={e=>onChange("custom_object_type",e.target.value)}>{Object.entries({contact:"Contatto",opportunity:"Opportunità",appointment:"Appuntamento",order:"Commessa",quote:"Preventivo",task:"Task",employee:"Dipendente",warehouse:"Magazzino",ordini_variazione:"Variante",giornale_lavori:"Giornale lavori",duvri_document:"DUVRI"}).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select>
+      <Label htmlFor="condition-custom-object">Campi personalizzati di</Label><UniformSelect id="condition-custom-object" className="w-full rounded border bg-background p-2 text-sm" value={scope} onChange={e=>onChange("custom_object_type",e.target.value)}>{Object.entries({contact:"Contatto",opportunity:"Opportunità",appointment:"Appuntamento",order:"Commessa",quote:"Preventivo",task:"Task",employee:"Dipendente",warehouse:"Magazzino",ordini_variazione:"Variante",giornale_lavori:"Giornale lavori",duvri_document:"DUVRI"}).map(([id,label])=><option key={id} value={id}>{label}</option>)}</UniformSelect>
       <p className="text-xs text-muted-foreground">Si legge il record del flusso o quello realmente collegato, non un record arbitrario.</p>
       {isError&&<p role="alert" className="text-xs text-destructive">Impossibile leggere i campi personalizzati. Riprova prima di pubblicare.</p>}
       {/* Logic toggle */}

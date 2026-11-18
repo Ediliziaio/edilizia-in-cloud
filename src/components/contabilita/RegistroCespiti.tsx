@@ -1,3 +1,4 @@
+import { TabellaContabile } from "./TabellaContabile";
 /**
  * Registro dei cespiti nella contabilità generale (11/11/2026, docs/piano-assestamenti-fine-anno.md, lotto 3).
  *
@@ -133,7 +134,7 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
           (dal registro dei beni ammortizzabili o dal bilancio) con «Conti e fondo».
         </p>
       )}
-      <div className="overflow-x-auto rounded-xl border">
+      <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr>
@@ -181,7 +182,7 @@ export function RegistroCespiti({ companyId, anno, chiuso }: { companyId: string
             </tr>
           </tbody>
         </table>
-      </div>
+      </TabellaContabile>
       {(ceduti.data ?? []).length > 0 && (
         <div className="space-y-1 text-sm">
           <p className="text-xs font-medium uppercase text-muted-foreground">Ceduti o dismessi nel {anno}</p>

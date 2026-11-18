@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,7 +92,7 @@ afterEach(cleanup);
 describe("Attrezzatura effettiva nella scheda POS", () => {
   it("seleziona una fonte senza confermarla né inventare date e quantità", () => {
     render(<Harness />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Anagrafica dell’attrezzatura effettiva"),
       { target: { value: "inventario" } },
     );
@@ -99,7 +101,7 @@ describe("Attrezzatura effettiva nella scheda POS", () => {
         name: "Scegli dall’inventario della commessa",
       }),
     );
-    fireEvent.change(screen.getByLabelText("Attrezzatura e assegnazione"), {
+    changeFormControl(screen.getByLabelText("Attrezzatura e assegnazione"), {
       target: { value: chiaveFonteMezzo(fonte()) },
     });
     fireEvent.click(
@@ -125,7 +127,7 @@ describe("Attrezzatura effettiva nella scheda POS", () => {
         name: "Scegli dall’inventario della commessa",
       }),
     );
-    const options = screen
+    const options = formOptions()
       .getAllByRole("option")
       .filter((o) => o.textContent?.includes("TEST Trapano"));
     expect(options).toHaveLength(2);
@@ -135,13 +137,13 @@ describe("Attrezzatura effettiva nella scheda POS", () => {
   });
   it("annulla la conferma se cambiano periodo o quantità", () => {
     render(<Harness initial={iniziale()} />);
-    fireEvent.change(screen.getByLabelText("Fine uso attrezzatura"), {
+    changeFormControl(screen.getByLabelText("Fine uso attrezzatura"), {
       target: { value: "2026-11-21" },
     });
     expect(stato().confermata).toBe(false);
     fireEvent.click(screen.getByRole("checkbox"));
     expect(stato().confermata).toBe(true);
-    fireEvent.change(screen.getByLabelText("Quantità impiegata"), {
+    changeFormControl(screen.getByLabelText("Quantità impiegata"), {
       target: { value: "2" },
     });
     expect(stato().confermata).toBe(false);
@@ -181,7 +183,7 @@ describe("Attrezzatura effettiva nella scheda POS", () => {
     ).toBe(true);
     expect(
       (
-        screen.getByRole("option", {
+        formOptions().getByRole("option", {
           name: /TEST Trapano/,
         }) as HTMLOptionElement
       ).disabled,
@@ -195,7 +197,7 @@ describe("Attrezzatura effettiva nella scheda POS", () => {
   });
   it("non nasconde la fonte passando alla dichiarazione manuale", () => {
     render(<Harness initial={iniziale()} />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Anagrafica dell’attrezzatura effettiva"),
       { target: { value: "non_censita" } },
     );

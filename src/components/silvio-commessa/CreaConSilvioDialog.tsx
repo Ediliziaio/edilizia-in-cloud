@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il popup «Crea con Silvio» (31/10/2026, fase 1, lotto 1.5): carichi quello che hai e la
  * commessa si compone davanti a te. Vedi docs/piano-silvio-commessa-ai.md, sezione 3.
@@ -475,7 +476,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                 : <>Hai una commessa a metà: <strong>{nomeBozza(ripresa)}</strong>, modificata il {dataBreve(giornoInItalia(ripresa.updated_at))}.</>}
             </p>
             {(daRiprendere.data?.length ?? 0) > 1 && (
-              <select
+              <UniformSelect
                 value={ripresa.id}
                 onChange={(event) => setBozzaScelta(event.target.value)}
                 aria-label="Bozza da riprendere"
@@ -486,7 +487,7 @@ export default function CreaConSilvioDialog(props: CreaConSilvioDialogProps) {
                     {nomeBozza(bozza)} · {dataBreve(giornoInItalia(bozza.updated_at))}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             )}
             <Button type="button" size="sm" className="h-11 lg:h-9" onClick={() => { b.riprendi(ripresa); setScheda("commessa"); }}>
               {completa ? "Riprendi da lì" : "Riprendi la commessa"}

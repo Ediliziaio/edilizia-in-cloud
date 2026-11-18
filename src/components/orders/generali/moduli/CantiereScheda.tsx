@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -203,7 +204,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
             <div className="generale-toolbar">
               <label className="mt-4 block max-w-xl text-sm font-medium">
                 Registra e consulta su
-                <select
+                <UniformSelect
                   aria-label="Ambito del cantiere"
                   value={tutta ? TUTTA : orderId}
                   onChange={(e) => setAmbito(e.target.value)}
@@ -228,7 +229,7 @@ export function CantiereGenerale({ riepilogo, puoModificare }: PropsScheda) {
                       ))}
                     </optgroup>
                   )}
-                </select>
+                </UniformSelect>
               </label>
               <p className="mt-2 text-xs text-muted-foreground">
                 {tutta ? (

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { RiquadroNumero } from "@/components/dashboard/RiquadroNumero";
@@ -787,7 +788,7 @@ export function ForecastWorkspace({
           </div>
           <label className="flex flex-col gap-1 max-md:hidden">
             <span className={filtroEtichetta}>Incassi</span>
-            <select
+            <UniformSelect
               aria-label="Scenario incassi"
               className={cn(selectClass, "w-52")}
               value={f.scenario}
@@ -806,7 +807,7 @@ export function ForecastWorkspace({
               </option>
               <option value="15">Incassi +15 giorni</option>
               <option value="30">Incassi +30 giorni</option>
-            </select>
+            </UniformSelect>
           </label>
           <label className="flex flex-col gap-1 max-md:hidden">
             <span className={filtroEtichetta}>Soglia di sicurezza</span>
@@ -896,7 +897,7 @@ export function ForecastWorkspace({
               aria-label="Filtra i movimenti"
             >
               <span className={cn(filtroEtichetta, "mr-1")}>Filtra</span>
-              <select
+              <UniformSelect
                 aria-label="Commessa"
                 className={cn(selectClass, "w-44")}
                 value={f.order}
@@ -908,8 +909,8 @@ export function ForecastWorkspace({
                     {label}
                   </option>
                 ))}
-              </select>
-              <select
+              </UniformSelect>
+              <UniformSelect
                 aria-label="Categoria"
                 className={cn(selectClass, "w-40")}
                 value={f.category}
@@ -921,8 +922,8 @@ export function ForecastWorkspace({
                     {FORECAST_CATEGORIES[c]}
                   </option>
                 ))}
-              </select>
-              <select
+              </UniformSelect>
+              <UniformSelect
                 aria-label="Fonte"
                 className={cn(selectClass, "w-36")}
                 value={f.source}
@@ -934,7 +935,7 @@ export function ForecastWorkspace({
                     {s}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
             <p className="basis-full text-xs text-muted-foreground">
               La stima IVA è esclusa per impostazione iniziale; per includerla
@@ -1650,7 +1651,7 @@ export function ForecastWorkspace({
         <TabsContent value="movimenti" className="mt-4 space-y-3">
           {issues}
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <UniformSelect
               aria-label="Movimenti da mostrare"
               className={cn(selectClass, "h-10 text-sm")}
               value={view}
@@ -1664,7 +1665,7 @@ export function ForecastWorkspace({
                   {label}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
             {period && (
               <span className="flex items-center gap-1 text-sm">
                 Periodo {shortDate(period.start)} – {shortDate(period.end)}
@@ -2023,7 +2024,7 @@ function MovementList({
         </div>
         <div className="flex flex-wrap gap-2">
           {!collected && (
-            <select
+            <UniformSelect
               aria-label="Direzione movimenti"
               className={selectClass}
               value={direction}
@@ -2035,9 +2036,9 @@ function MovementList({
               <option value="all">Entrate e uscite</option>
               <option value="in">Solo entrate</option>
               <option value="out">Solo uscite</option>
-            </select>
+            </UniformSelect>
           )}
-          <select
+          <UniformSelect
             aria-label="Ordina movimenti"
             className={selectClass}
             value={sort}
@@ -2047,7 +2048,7 @@ function MovementList({
             <option value="data-desc">Data: prima le lontane</option>
             <option value="importo-desc">Importo: dal più alto</option>
             <option value="importo-asc">Importo: dal più basso</option>
-          </select>
+          </UniformSelect>
           <Button
             variant="outline"
             size="sm"

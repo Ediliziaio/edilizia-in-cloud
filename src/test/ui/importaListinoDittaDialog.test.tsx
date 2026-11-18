@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * «Carica listino» (lotto 7, 10/11/2026): un CSV si legge, le righe si abbinano, una si cambia a mano,
  * e si salva: prima le voci nuove della ditta, poi tutti i prezzi in un colpo con listino_ditta_salva.
@@ -38,7 +39,7 @@ function apri() {
       <ImportaListinoDittaDialog companyId="az" anagraficaId="rossi" nomeDitta="Rossi srl" voci={voci} validoDal="2026-11-10" onChiudi={vi.fn()} onFatto={fatto} />
     </QueryClientProvider>,
   );
-  fireEvent.change(screen.getByLabelText("File del listino"), { target: { files: [new File([csv], "listino.csv", { type: "text/csv" })] } });
+  changeFormControl(screen.getByLabelText("File del listino"), { target: { files: [new File([csv], "listino.csv", { type: "text/csv" })] } });
   return fatto;
 }
 
@@ -63,7 +64,7 @@ describe("Carica il listino della ditta", () => {
     finto.rpc.mockResolvedValueOnce({ data: null, error: { message: "permesso negato" } });
     const fatto = apri();
     const scelta = await screen.findByRole("combobox", { name: "Dove va la riga 3" });
-    fireEvent.change(scelta, { target: { value: "v:t2" } });
+    changeFormControl(scelta, { target: { value: "v:t2" } });
     fireEvent.click(screen.getByRole("button", { name: "Carica 3 prezzi" }));
     await waitFor(() => expect(finto.tolti).toHaveLength(1));
     expect(finto.tolti[0]).toEqual([finto.inseriti[0].id]);

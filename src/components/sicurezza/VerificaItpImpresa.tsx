@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { ApplicabilitaItp } from "./ApplicabilitaItp";
 import { ProfiliPerVerifica } from "./ProfiliPerVerifica";
@@ -503,7 +504,7 @@ export function VerificaItpImpresa({
                           ed esiti restano da valutare.
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          <select
+                          <UniformSelect
                             aria-label="Aggiungi criterio dal catalogo"
                             className={stileSelect + " sm:max-w-md"}
                             value={voce}
@@ -519,7 +520,7 @@ export function VerificaItpImpresa({
                                   {v.titolo}
                                 </option>
                               ))}
-                          </select>
+                          </UniformSelect>
                           <Button
                             variant="outline"
                             disabled={
@@ -615,7 +616,7 @@ export function VerificaItpImpresa({
                           <div className="grid gap-3 sm:grid-cols-2">
                             <label className="text-sm">
                               Applicabilità
-                              <select
+                              <UniformSelect
                                 className={stileSelect}
                                 value={c.applicabilita}
                                 onChange={(e) =>
@@ -634,11 +635,11 @@ export function VerificaItpImpresa({
                                 <option value="non_applicabile">
                                   Non applicabile
                                 </option>
-                              </select>
+                              </UniformSelect>
                             </label>
                             <label className="text-sm">
                               Esito del criterio
-                              <select
+                              <UniformSelect
                                 className={stileSelect}
                                 value={c.esito}
                                 onChange={(e) =>
@@ -667,7 +668,7 @@ export function VerificaItpImpresa({
                                     }
                                   </option>
                                 ))}
-                              </select>
+                              </UniformSelect>
                             </label>
                           </div>
                           <SoggettoCriterioItp
@@ -778,7 +779,7 @@ export function VerificaItpImpresa({
                       ))}
                       <label className="block text-sm">
                         Esito complessivo
-                        <select
+                        <UniformSelect
                           className={stileSelect}
                           value={sessione.dati.esito}
                           onChange={(e) =>
@@ -800,7 +801,7 @@ export function VerificaItpImpresa({
                               {ESITI_ITP[x]}
                             </option>
                           ))}
-                        </select>
+                        </UniformSelect>
                       </label>
                       <label className="flex gap-2 text-sm">
                         <input

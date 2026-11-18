@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -10,13 +11,13 @@ function Prova() {
 describe("Valutazione nel preventivatore", () => {
   it("seleziona standard, motivazione e posa senza prestazioni predefinite", () => {
     render(<Prova />); fireEvent.click(screen.getByText("Aggiungi valutazione dell'infisso esistente"));
-    fireEvent.change(screen.getByLabelText("Serramento attuale"), { target: { value: "alluminio_freddo" } });
-    fireEvent.change(screen.getByLabelText("Ripristini di intonaci e finiture"), { target: { value: "esclusa" } });
-    fireEvent.change(screen.getByLabelText("Perche questa soluzione per il cliente"), { target: { value: "Comfort vicino al divano" } });
+    changeFormControl(screen.getByLabelText("Serramento attuale"), { target: { value: "alluminio_freddo" } });
+    changeFormControl(screen.getByLabelText("Ripristini di intonaci e finiture"), { target: { value: "esclusa" } });
+    changeFormControl(screen.getByLabelText("Perche questa soluzione per il cliente"), { target: { value: "Comfort vicino al divano" } });
     const a = JSON.parse(screen.getByTestId("salvato").textContent!);
     expect(a.esistente).toBe("alluminio_freddo"); expect(a.uwPrima).toBeNull(); expect(a.uwDopo).toBeNull();
     expect(a.posa.ripristini).toBe("esclusa"); expect(a.motivo).toContain("divano");
-    fireEvent.change(screen.getByLabelText("Uw prima (W/m²K), se disponibile"), { target: { value: "999" } });
+    changeFormControl(screen.getByLabelText("Uw prima (W/m²K), se disponibile"), { target: { value: "999" } });
     expect(screen.getByText("Inserisci un valore tra 0 e 20.")).toBeInTheDocument();
     expect(JSON.parse(screen.getByTestId("salvato").textContent!).esistente).toBe("alluminio_freddo");
     fireEvent.click(screen.getByText("Rimuovi valutazione dal preventivo"));

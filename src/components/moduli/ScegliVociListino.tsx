@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Aggiungere voci al computo dal listino (2/11/2026), uguale nel preventivo con computo e negli
  * otto preventivatori edili: a sinistra si sfoglia per gruppi, si spuntano più voci, la quantità si
@@ -158,13 +159,13 @@ function Voce({ riga, scelta, presente, conFocus, onFocusPreso, onCambia, onQuan
       {scelta && riga.unitaDaScegliere && (
         <span className="flex w-full flex-wrap items-center justify-end gap-2 text-xs">
           {riga.comeSiMisura && <span className="min-w-0 flex-1 basis-60 text-amber-700 dark:text-amber-400">Come si misura: «{riga.comeSiMisura}»</span>}
-          <select
+          <UniformSelect
             aria-label={`Unità: ${riga.descrizione}`} value={scelta.unita ?? ""} onChange={(e) => onUnita(e.target.value)}
             className={cn("h-8 rounded-md border bg-background px-2", !scelta.unita && "border-amber-400")}
           >
             <option value="" disabled>Scegli l&apos;unità</option>
             {UNITA_A_MANO.map((u) => <option key={u} value={u}>{u}</option>)}
-          </select>
+          </UniformSelect>
         </span>
       )}
       {aperta && (
@@ -451,13 +452,13 @@ export function ScegliVociListino({ open, onOpenChange, onPick, targetCapitolo, 
             <PlusCircle className="h-4 w-4" />{termine.trim() ? `Voce libera: «${termine.trim().slice(0, 30)}»` : "Voce libera"}
           </Button>
           {capitoliDestinazione.length > 0 && (
-            <select
+            <UniformSelect
               aria-label="Capitolo in cui mettere le voci" value={capitoloScelto} onChange={(e) => setCapitoloScelto(e.target.value)}
               className="h-9 max-w-56 rounded-md border bg-background px-2 text-sm max-sm:w-full max-sm:max-w-none"
             >
               <option value="">Capitolo: come nel listino</option>
               {capitoliDestinazione.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </UniformSelect>
           )}
           <div className="ml-auto flex items-center gap-3">
             {nScelte > 0 && (

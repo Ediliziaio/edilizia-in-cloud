@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * L'editor di un blocco del preventivo (come funziona, cosa è compreso,
  * protezione, controlli, documenti, diario): testi, voci con la loro icona, foto.
@@ -62,7 +63,7 @@ function EditorVoci({ titolo, voci, onVoci, conTesto }: {
           <div key={i} className="grid grid-cols-[minmax(0,1fr)_36px] items-start gap-2 rounded-lg border bg-muted/10 p-3">
             <div className="flex h-9 w-fit max-w-full items-center gap-1 rounded-md border bg-background px-1.5">
               <AnteprimaIcona nome={x.icona} />
-              <select
+              <UniformSelect
                 aria-label={`Icona di ${x.titolo || "voce"}`}
                 value={x.icona ?? ""}
                 onChange={(e) => cambia(i, "icona", e.target.value || null)}
@@ -70,7 +71,7 @@ function EditorVoci({ titolo, voci, onVoci, conTesto }: {
               >
                 <option value="">nessuna</option>
                 {NOMI_ICONE.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              </UniformSelect>
             </div>
             <div className="col-span-2 row-start-2 grid min-w-0 gap-2">
               <Textarea rows={2} className="min-h-[60px] font-medium" value={x.titolo} onChange={(e) => cambia(i, "titolo", e.target.value)} placeholder="Titolo" aria-label="Titolo della voce" />

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Link, MemoryRouter, useLocation, useNavigate } from "react-router-dom";
@@ -52,9 +53,9 @@ describe("dedicated Facciate native editor", () => {
   it("clears dirty when a new edit is undone without pretending the module was saved", () => {
     mount();
     const title = screen.getByRole("textbox", { name: "Titolo copertina" });
-    fireEvent.change(title, { target: { value: "Bozza" } });
+    changeFormControl(title, { target: { value: "Bozza" } });
     expect(screen.getByText("Modifiche non salvate")).toBeVisible();
-    fireEvent.change(title, { target: { value: make().cover_title } });
+    changeFormControl(title, { target: { value: make().cover_title } });
     expect(screen.getByText("Nuovo modulo non ancora salvato")).toBeVisible();
     expect(getFacDraft("company-a", "cappotto")).toBeUndefined();
     expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
@@ -75,7 +76,7 @@ describe("dedicated Facciate native editor", () => {
   it("recovers interrupted drafts without adopting a newer tab's revision", async () => {
     const first = saveLocalFacTemplate("company-a", "cappotto", make(), null);
     const mounted = mount();
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza da recuperare" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza da recuperare" } });
     mounted.unmount();
     const concurrent = make(); concurrent.cover_title = "Altra scheda";
     saveLocalFacTemplate("company-a", "cappotto", concurrent, first.savedAt);
@@ -89,7 +90,7 @@ describe("dedicated Facciate native editor", () => {
     const first = mount(id);
     const title = screen.getByRole("textbox", { name: "Titolo copertina" });
     expect(title.tagName).toBe("TEXTAREA"); expect(title).toHaveValue(make(id).cover_title);
-    fireEvent.change(title, { target: { value: `Titolo ${id}\nSeconda riga` } });
+    changeFormControl(title, { target: { value: `Titolo ${id}\nSeconda riga` } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Salva modello" })).toBeDisabled());
     expect(loadLocalFacTemplate("company-a", id)?.template.cover_title).toBe(`Titolo ${id}\nSeconda riga`);
@@ -102,7 +103,7 @@ describe("dedicated Facciate native editor", () => {
     const titles = screen.getAllByRole("textbox");
     expect(titles.some(input => (input as HTMLInputElement).value === "La specifica dell'intervento")).toBe(true);
     const title = titles.find(input => (input as HTMLInputElement).value === "La specifica dell'intervento")!;
-    fireEvent.change(title, { target: { value: "Specifica modificata" } });
+    changeFormControl(title, { target: { value: "Specifica modificata" } });
     fireEvent.click(screen.getByRole("button", { name: "Ordine e pagine" }));
     expect(screen.getByRole("button", { name: "Aggiungi una pagina vostra" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Nascondi Come funziona" }));
@@ -116,7 +117,7 @@ describe("dedicated Facciate native editor", () => {
   it("edits all eight FAQ answers in native page controls", async () => {
     mount("interno"); fireEvent.click(screen.getByRole("button", { name: "Domande e risposte" }));
     expect(screen.getAllByRole("textbox", { name: /^Domanda \d/ })).toHaveLength(8);
-    fireEvent.change(screen.getByRole("textbox", { name: "Risposta 8" }), { target: { value: "Risposta personalizzata" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Risposta 8" }), { target: { value: "Risposta personalizzata" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(loadLocalFacTemplate("company-a", "interno")?.template.faq[7].risposta).toBe("Risposta personalizzata"));
     expect(calls.remote).not.toHaveBeenCalled();
@@ -124,7 +125,7 @@ describe("dedicated Facciate native editor", () => {
   it("uploads and removes cover images in both native aliases without online calls", async () => {
     calls.image.mockResolvedValue("data:image/png;base64,AAAA"); mount();
     const file = new File(["local"], "photo.png", { type: "image/png" });
-    fireEvent.change(screen.getByLabelText("Carica immagine copertina"), { target: { files: [file] } });
+    changeFormControl(screen.getByLabelText("Carica immagine copertina"), { target: { files: [file] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledWith(file));
     await waitFor(() => expect(screen.getByAltText("Immagine copertina")).toHaveAttribute("src", "data:image/png;base64,AAAA"));
     fireEvent.click(screen.getByRole("button", { name: "Rimuovi immagine copertina" }));
@@ -138,14 +139,14 @@ describe("dedicated Facciate native editor", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("altra scheda"));
     expect(screen.getByRole("button", { name: "Salva modello" })).toBeEnabled();
     cleanup(); mount("balconi", () => { throw new Error("Quota esaurita"); });
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza con quota esaurita" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza con quota esaurita" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Quota esaurita"));
     expect(screen.getByText("Modifiche non salvate")).toBeVisible();
   });
   it("guards routes and reload, allowing section changes without losing edits", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false); mount();
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza da proteggere" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Bozza da proteggere" } });
     const reload = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(reload); expect(reload.defaultPrevented).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Come lavoriamo" }));
     expect(confirm).not.toHaveBeenCalled(); expect(screen.getByLabelText("Route")).toHaveTextContent("section=page_percorso");
@@ -158,9 +159,9 @@ describe("dedicated Facciate native editor", () => {
   });
   it("applies only the chosen intervention-copy section", async () => {
     mount("riparazioni");
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Mio titolo" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Mio titolo" } });
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Sezione e variante" }), { target: { value: "sottotitolo-breve" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Sezione e variante" }), { target: { value: "sottotitolo-breve" } });
     fireEvent.click(screen.getByRole("button", { name: "Applica a sottotitolo" }));
     expect(screen.getByRole("textbox", { name: "Titolo copertina" })).toHaveValue("Mio titolo");
     expect(screen.getByRole("textbox", { name: "Sottotitolo copertina" })).toHaveValue("Zone, difetti e raccordi. Un intervento circoscritto e misurabile.");
@@ -168,7 +169,7 @@ describe("dedicated Facciate native editor", () => {
   });
   it("guards the panel's external back button and a sidebar link, then allows explicit discard", () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false); mount();
-    fireEvent.change(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Non perdere questa modifica" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Titolo copertina" }), { target: { value: "Non perdere questa modifica" } });
     fireEvent.click(screen.getByRole("button", { name: "← Moduli Facciate" }));
     expect(screen.getByLabelText("Route")).toHaveTextContent("modello=cappotto");
     fireEvent.click(screen.getByRole("link", { name: "Sidebar serramenti" }));

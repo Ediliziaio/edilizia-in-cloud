@@ -15,18 +15,22 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
 const record: AnomalyWorkflowRecord = { id: "a1", order_id: "o1", amount: 100, description: "Danno materiale", error_date: "2026-01-01", error_type: "merce", error_category: "danno_materiale", updated_at: "2026-01-01T00:00:00Z" };
 const close = vi.fn();
 function mount(canEdit = true, create = false) { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><MemoryRouter><AnomalyDetailDialog companyId="company1" record={create ? null : record} actors={[{ id: "p1", name: "Mario Rossi", kind: "employee" }]} canEdit={canEdit} onClose={close} /></MemoryRouter></QueryClientProvider>); }
-beforeEach(() => { state.stale = false; state.patches = []; state.filters = []; close.mockClear(); });
+function scegli(label: string, option: string) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(screen.getByRole("option", { name: option, exact: true }));
+}
+beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); state.stale = false; state.patches = []; state.filters = []; close.mockClear(); });
 afterEach(cleanup);
 describe("Popup operativo anomalie", () => {
   it("non salva un'assegnazione senza responsabile", async () => {
-    mount(); fireEvent.change(screen.getByLabelText("Stato"), { target: { value: "assegnata" } }); fireEvent.click(screen.getByRole("button", { name: "Salva anomalia" }));
+    mount(); scegli("Stato", "Assegnata"); fireEvent.click(screen.getByRole("button", { name: "Salva anomalia" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("responsabile"); expect(state.patches).toHaveLength(0);
   });
   it("salva il responsabile scelto, la scadenza e l'azione con protezione delle modifiche concorrenti", async () => {
-    mount(); fireEvent.change(screen.getByLabelText("Soggetti collegati alla commessa"), { target: { value: "employee:p1" } });
+    mount(); scegli("Soggetti collegati alla commessa", "Mario Rossi · Operaio");
     fireEvent.change(screen.getByLabelText("Azione correttiva"), { target: { value: "Sostituire materiale" } });
     fireEvent.change(screen.getByLabelText("Scadenza intervento"), { target: { value: "2026-12-01" } });
-    fireEvent.change(screen.getByLabelText("Stato"), { target: { value: "assegnata" } }); fireEvent.click(screen.getByRole("button", { name: "Salva anomalia" }));
+    scegli("Stato", "Assegnata"); fireEvent.click(screen.getByRole("button", { name: "Salva anomalia" }));
     await waitFor(() => expect(close).toHaveBeenCalled());
     expect(state.patches[0]).toMatchObject({ confirmed_responsibility_id: "p1", confirmed_responsibility_name: "Mario Rossi", corrective_due_date: "2026-12-01", review_status: "assegnata" });
     expect(state.filters).toEqual(expect.arrayContaining([["company_id", "company1"], ["id", "a1"], ["updated_at", record.updated_at], ["description", record.description]]));
@@ -39,9 +43,36 @@ describe("Popup operativo anomalie", () => {
     mount(false); expect(screen.queryByRole("button", { name: "Salva anomalia" })).not.toBeInTheDocument(); expect(screen.getByLabelText("Stato")).toBeDisabled();
   });
   it("registra una nuova anomalia nella commessa scelta", async () => {
-    mount(true, true); await screen.findByRole("option", { name: "ORD-1" });
-    fireEvent.change(screen.getByLabelText("Commessa"), { target: { value: "o1" } }); fireEvent.change(screen.getByLabelText("Problema e contesto"), { target: { value: "Misura errata" } });
+    mount(true, true); fireEvent.click(screen.getByLabelText("Commessa"));
+    fireEvent.click(await screen.findByRole("option", { name: "ORD-1" })); fireEvent.change(screen.getByLabelText("Problema e contesto"), { target: { value: "Misura errata" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva anomalia" })); await waitFor(() => expect(close).toHaveBeenCalled());
     expect(state.patches[0]).toMatchObject({ company_id: "company1", order_id: "o1", created_by: "user1", review_status: "aperta" });
   });
+});
+
+it("aggiorna l'anteprima della perdita netta senza salvare", () => {
+  mount();
+  fireEvent.change(screen.getByLabelText("Costo finale (€)"), {target:{value:"300"}});
+  fireEvent.change(screen.getByLabelText("Importo recuperato (€)"), {target:{value:"80"}});
+  expect(screen.getByLabelText("Perdita prevista al salvataggio").textContent).toContain("220,00");
+  expect(state.patches).toHaveLength(0);
+});
+
+it("mostra il nome libero solo per un altro responsabile e rimuove il precedente collegamento", async () => {
+  mount();
+  expect(screen.queryByLabelText("Responsabile effettivo")).not.toBeInTheDocument();
+  scegli("Soggetti collegati alla commessa", "Mario Rossi · Operaio");
+  scegli("Soggetti collegati alla commessa", "Altro responsabile…");
+  fireEvent.change(screen.getByLabelText("Responsabile effettivo"), {target:{value:"Impresa esterna"}});
+  fireEvent.click(screen.getByRole("button", {name:"Salva anomalia"}));
+  await waitFor(() => expect(close).toHaveBeenCalled());
+  expect(state.patches[0]).toMatchObject({confirmed_responsibility_name:"Impresa esterna", confirmed_responsibility_id:null});
+});
+
+it("mostra vicino ai recuperi l'errore e non presenta una perdita zero fittizia", () => {
+  mount();
+  fireEvent.change(screen.getByLabelText("Costo finale (€)"), {target:{value:"50"}});
+  fireEvent.change(screen.getByLabelText("Importo recuperato (€)"), {target:{value:"80"}});
+  expect(screen.getByLabelText("Importo recuperato (€)")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByLabelText("Perdita prevista al salvataggio")).toHaveTextContent("Importi da verificare");
 });

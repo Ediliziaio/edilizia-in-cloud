@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -80,12 +81,12 @@ describe("Collegamento originale PSC", () => {
     mocks.identifica.mockResolvedValue(valore);
     const change = vi.fn();
     draw({ onChange: change });
-    fireEvent.change(screen.getByLabelText("Originale da collegare"), {
+    changeFormControl(screen.getByLabelText("Originale da collegare"), {
       target: { value: "sicurezza_documenti:a" },
     });
     expect(screen.getByRole("button", { name: "Usa questo riferimento" }))
       .toBeDisabled();
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Revisione riportata sul documento"),
       { target: { value: "01" } },
     );

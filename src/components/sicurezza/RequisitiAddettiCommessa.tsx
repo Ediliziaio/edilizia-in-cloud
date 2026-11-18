@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -577,7 +578,7 @@ export function RequisitiAddettiCommessa({
               <Label htmlFor="req-mezzo">
                 Attrezzatura specifica del contesto (facoltativa)
               </Label>
-              <select
+              <UniformSelect
                 id="req-mezzo"
                 className="h-10 w-full rounded border bg-background px-2 text-sm"
                 disabled={
@@ -620,7 +621,7 @@ export function RequisitiAddettiCommessa({
                       {f.dal || "Assegnazione corrente"}–{f.al || "aperta"}
                     </option>
                   ))}
-              </select>
+              </UniformSelect>
               {attrezzaturaCambiata &&
                 mezzi.data?.fonti.some(
                   (f) =>
@@ -669,7 +670,7 @@ export function RequisitiAddettiCommessa({
                   onChange={(e) => setRicercaRiscontri(e.target.value)}
                   className="sm:max-w-sm"
                 />
-                <select
+                <UniformSelect
                   aria-label="Filtra riscontri per esito"
                   className="h-10 rounded border bg-background px-2"
                   value={esitoFiltro}
@@ -680,7 +681,7 @@ export function RequisitiAddettiCommessa({
                   <option value="mancante">Evidenza mancante</option>
                   <option value="riesaminata">Evidenza riesaminata</option>
                   <option value="non_applicabile">Non applicabile</option>
-                </select>
+                </UniformSelect>
               </div>
               <p className="text-xs text-muted-foreground">
                 {bozza.dati.righe.length} riscontri nella bozza. La
@@ -757,7 +758,7 @@ export function RequisitiAddettiCommessa({
                       </p>
                       <label className="text-sm">
                         Riscontro
-                        <select
+                        <UniformSelect
                           aria-label={`Riscontro ${i + 1}`}
                           className="mt-1 h-10 w-full rounded border bg-background px-2"
                           disabled={!scrive || !coerente || salva.isPending}
@@ -782,13 +783,13 @@ export function RequisitiAddettiCommessa({
                               {l}
                             </option>
                           ))}
-                        </select>
+                        </UniformSelect>
                       </label>
                       {r.esito === "riesaminata" && (
                         <>
                           <label className="text-sm">
                             Qualifica dell’addetto
-                            <select
+                            <UniformSelect
                               aria-label={`Qualifica ${i + 1}`}
                               className="mt-1 h-10 w-full rounded border bg-background px-2"
                               disabled={!scrive || !coerente || salva.isPending}
@@ -821,7 +822,7 @@ export function RequisitiAddettiCommessa({
                                   </option>
                                 );
                               })}
-                            </select>
+                            </UniformSelect>
                           </label>
                           {qs
                             .filter((f) => f.id === r.qualifica_id)

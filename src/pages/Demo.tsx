@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState } from "react";
 import { useSEO, SITE_URL } from "@/hooks/useSEO";
@@ -504,7 +505,7 @@ export default function Demo() {
                     <label htmlFor="demo-fatturato" className="block text-xs font-semibold text-[#111111]/70 mb-1.5 uppercase tracking-wide">
                       Fatturato Annuo <span className="text-eic-orange">*</span>
                     </label>
-                    <select
+                    <UniformSelect
                       id="demo-fatturato"
                         name="fatturato" required
                       value={formData.fatturato}
@@ -519,7 +520,7 @@ export default function Demo() {
                       <option value="300k-1m">300K – 1M</option>
                       <option value="1m-3m">1M – 3M</option>
                       <option value="oltre-3m">Oltre 3M</option>
-                    </select>
+                    </UniformSelect>
                     {errors.fatturato && <p id="demo-fatturato-error" className="text-red-500 text-xs mt-1">{errors.fatturato}</p>}
                   </div>
 

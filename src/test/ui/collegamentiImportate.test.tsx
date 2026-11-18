@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -44,9 +46,9 @@ describe("Collegamenti cliente/lavoro da storico",()=>{
     mock.rpc.mockResolvedValue({status:"ok",customer_id:"c"});
     mock.db.tabelle.orders=[{id:"o",company_id:"a",customer_id:"c",deleted_at:null,order_code:"C-1",description:"Infissi",work_address:"Cantiere"}];
     mostra(<CollegamentiEmessaImportata companyId="a" fattura={{...fattura,document_type:"credit_note"}}/>);
-    await screen.findByRole("option",{name:/C-1/});
+    await formOptions().findByRole("option",{name:/C-1/});
     expect(screen.queryByRole("link",{name:"Prepara nuovo lavoro"})).toBeNull();
-    fireEvent.change(screen.getByLabelText("Commessa da collegare"),{target:{value:"o"}});
+    changeFormControl(screen.getByLabelText("Commessa da collegare"),{target:{value:"o"}});
     fireEvent.click(screen.getByRole("button",{name:"Collega"}));
     await waitFor(()=>expect(mock.rpc).toHaveBeenCalledWith("a","i",true,"o"));
   });

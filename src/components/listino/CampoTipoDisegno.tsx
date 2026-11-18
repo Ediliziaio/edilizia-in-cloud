@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Tipo di disegno» dell'articolo: dice al sistema che cosa disegnare (finestra a 2 ante, traslante, persiana a libro…)
  * al posto della foto. Se il tipo non c'è si sceglie «Personalizzata» e si compongono le ante a mano, con il disegno
@@ -94,7 +95,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
           Il sistema disegna da solo questo articolo (da dentro e da fuori, con le quote) nel listino, nel preventivo e nel PDF: non serve caricare
           una foto. Se il tipo non c'è, scegli «Personalizzata» e componi tu le ante.
         </p>
-        <select
+        <UniformSelect
           id="f-tipo-disegno"
           className="h-9 w-full rounded-md border bg-background px-2 text-sm"
           value={selezione}
@@ -112,11 +113,11 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
             </optgroup>
           ))}
           <option value={TIPOLOGIA_PERSONALIZZATA}>Personalizzata: la compongo io…</option>
-        </select>
+        </UniformSelect>
         {persiana && (
           <div className="mt-2 max-w-xs">
             <Label htmlFor="f-tipo-persiana" className="flex h-5 items-center text-xs">Tipo di persiana</Label>
-            <select
+            <UniformSelect
               id="f-tipo-persiana"
               className="h-9 w-full rounded-md border bg-background px-2 text-xs"
               value={variantePersiana}
@@ -127,7 +128,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
               <option value="gelosia">Gelosia</option>
               <option value="scuro">Scuro pieno (doghe)</option>
               <option value="scuro_cornice">Scuro a cornice</option>
-            </select>
+            </UniformSelect>
           </div>
         )}
       </div>
@@ -165,9 +166,9 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
             {def.sopraluce && (
               <div>
                 <Label className="flex h-5 items-center text-xs">Sezioni del sopraluce</Label>
-                <select className="h-9 w-full rounded-md border bg-background px-2 text-xs" value={def.sopraluce.sezioni ?? 1} onChange={(e) => aggiorna({ sopraluce: { ...def.sopraluce, sezioni: Number(e.target.value) } })}>
+                <UniformSelect className="h-9 w-full rounded-md border bg-background px-2 text-xs" value={def.sopraluce.sezioni ?? 1} onChange={(e) => aggiorna({ sopraluce: { ...def.sopraluce, sezioni: Number(e.target.value) } })}>
                   {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                </UniformSelect>
               </div>
             )}
             <div>
@@ -182,7 +183,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
             {def.ante.map((a, i) => (
               <div key={i} className="flex flex-wrap items-center gap-2">
                 <span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
-                <select
+                <UniformSelect
                   className="h-9 min-w-[10rem] flex-1 rounded-md border bg-background px-2 text-xs"
                   value={a.tipo === "fisso" && a.nelTelaio ? "fisso_telaio" : a.tipo}
                   onChange={(e) => {
@@ -193,7 +194,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                   aria-label={`Tipo dell'anta ${i + 1}`}
                 >
                   {TIPI_ANTA.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-                </select>
+                </UniformSelect>
                 <Input type="number" min={1} className="h-9 w-28 text-xs" placeholder="Automatica" aria-label={`Larghezza dell'anta ${i + 1} (mm)`} key={`anta-${i}-${a.larghezzaMm ?? ""}`} defaultValue={a.larghezzaMm ?? ""} onBlur={(e) => aggiornaAnta(i, { ...a, larghezzaMm: numero(e.target.value) })} />
                 {eScorrevole(a) && (
                   <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
@@ -202,7 +203,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                   </label>
                 )}
                 {conLato(a.tipo) && (
-                  <select
+                  <UniformSelect
                     className="h-9 w-32 rounded-md border bg-background px-2 text-xs"
                     value={a.lato ?? "dx"}
                     onChange={(e) => aggiornaAnta(i, { ...a, lato: e.target.value === "sx" ? "sx" : "dx" })}
@@ -210,7 +211,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                   >
                     <option value="dx">{eScorrevole(a) ? "Scorre a destra" : "Cerniere a destra"}</option>
                     <option value="sx">{eScorrevole(a) ? "Scorre a sinistra" : "Cerniere a sinistra"}</option>
-                  </select>
+                  </UniformSelect>
                 )}
                 <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={def.ante.length <= 1} onClick={() => aggiorna({ ante: def.ante.filter((_, k) => k !== i) })} aria-label={`Togli l'anta ${i + 1}`}>
                   <Trash2 className="h-3.5 w-3.5" />
@@ -226,7 +227,7 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label className="flex h-5 items-center text-xs">Dove va l'anta aperta</Label>
-                <select
+                <UniformSelect
                   className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                   value={def.scorrimento?.tipo ?? ""}
                   onChange={(e) => aggiorna({ scorrimento: e.target.value ? { tipo: e.target.value as "scomparsa" | "su_parete", lato: def.scorrimento?.lato ?? "dx" } : undefined })}
@@ -234,19 +235,19 @@ export function CampoTipoDisegno({ valore, onChange }: Props) {
                   <option value="">Resta nel vano</option>
                   <option value="scomparsa">Scompare nel muro</option>
                   <option value="su_parete">Scorre davanti alla parete</option>
-                </select>
+                </UniformSelect>
               </div>
               {def.scorrimento && (
                 <div>
                   <Label className="flex h-5 items-center text-xs">Da che parte</Label>
-                  <select
+                  <UniformSelect
                     className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                     value={def.scorrimento.lato}
                     onChange={(e) => aggiorna({ scorrimento: { ...def.scorrimento!, lato: e.target.value === "sx" ? "sx" : "dx" } })}
                   >
                     <option value="dx">A destra</option>
                     <option value="sx">A sinistra</option>
-                  </select>
+                  </UniformSelect>
                 </div>
               )}
             </div>

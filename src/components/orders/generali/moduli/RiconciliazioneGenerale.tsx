@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -208,7 +209,7 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
                 <span>
                   {r.descrizione || `Riga ${i + 1}`} · {euro(valoreRigaFattura(r))}
                 </span>
-                <select
+                <UniformSelect
                   aria-label={`Riga ordine per fattura ${f.numero_fattura} riga ${i + 1}`}
                   className="h-10 rounded border bg-background px-2"
                   disabled={!(p.canEditOrders && p.canViewBilling) || collega.isPending}
@@ -233,7 +234,7 @@ export function RiconciliazioneGenerale({ riepilogo }: { riepilogo: RiepilogoGen
                         {d.ordini.find((o) => o.id === x.purchase_order_id)?.oda_number} · {x.description}
                       </option>
                     ))}
-                </select>
+                </UniformSelect>
               </label>
             ))}
           </div>

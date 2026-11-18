@@ -22,8 +22,10 @@ describe("Firmatari identificati", () => {
   it("dice chi ha caricato il documento e se le condizioni sono già accettate", async () => {
     disegna();
     expect(await screen.findByText("Rossi Mario")).toBeInTheDocument();
+    expect(screen.getByRole("table", {name:"Firmatari identificati"})).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", {name:"Email"})).toBeInTheDocument();
     expect(screen.getByText("Caricato dall'azienda")).toBeInTheDocument();
-    expect(screen.getByText("Accetterà le condizioni al primo documento")).toBeInTheDocument();
+    expect(screen.getByText("Da accettare alla prima firma")).toBeInTheDocument();
     expect(screen.getByText("Caricato dal firmatario")).toBeInTheDocument();
   });
   it("l'azienda registra il documento solo dopo aver confermato di averlo visto", async () => {

@@ -1,5 +1,6 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { afterEach, describe, it, expect, vi } from "vitest";
 vi.mock("@/hooks/useWarehouses", () => ({
   useWarehouses: () => ({
@@ -72,7 +73,7 @@ describe("Destinazione del documento", () => {
         onChange={patch}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Dove consegnare / ritirare"), {
+    changeFormControl(screen.getByLabelText("Dove consegnare / ritirare"), {
       target: { value: "ritiro" },
     });
     expect(patch).toHaveBeenLastCalledWith({
@@ -85,4 +86,4 @@ describe("Destinazione del documento", () => {
   });
 });
 
-it("svuotare la scelta del magazzino elimina anche l'indirizzo precedente",()=>{const change=vi.fn();render(<DestinazioneDocumento documento={{...doc,destinazioneTipo:"magazzino",magazzinoId:"m",luogo:"Indirizzo precedente"}} commessaId={null} onChange={change}/>);change.mockClear();fireEvent.change(screen.getByLabelText("Magazzino di destinazione"),{target:{value:""}});expect(change).toHaveBeenCalledWith({magazzinoId:null,luogo:"",referenteConsegna:"",noteConsegna:""});});
+it("svuotare la scelta del magazzino elimina anche l'indirizzo precedente",()=>{const change=vi.fn();render(<DestinazioneDocumento documento={{...doc,destinazioneTipo:"magazzino",magazzinoId:"m",luogo:"Indirizzo precedente"}} commessaId={null} onChange={change}/>);change.mockClear();changeFormControl(screen.getByLabelText("Magazzino di destinazione"),{target:{value:""}});expect(change).toHaveBeenCalledWith({magazzinoId:null,luogo:"",referenteConsegna:"",noteConsegna:""});});

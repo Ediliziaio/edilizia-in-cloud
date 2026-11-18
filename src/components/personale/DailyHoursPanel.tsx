@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, type SetStateAction } from "react";
 import {
   useDailyHours,
@@ -289,7 +290,7 @@ export function DailyHoursView({
             </div>
             <div>
               <Label htmlFor="daily-person">Dipendente</Label>
-              <select
+              <UniformSelect
                 id="daily-person"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                 value={employee}
@@ -304,11 +305,11 @@ export function DailyHoursView({
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
             <div>
               <Label htmlFor="daily-job">Cantiere / commessa</Label>
-              <select
+              <UniformSelect
                 id="daily-job"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                 value={job}
@@ -324,7 +325,7 @@ export function DailyHoursView({
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
             <div>
               <Label htmlFor="daily-hours">Ore lavorate</Label>

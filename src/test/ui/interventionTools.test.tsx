@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { InterventionTextPicker } from "@/components/preventivi/modules/InterventionTextPicker";
@@ -11,7 +12,7 @@ describe("strumenti dei moduli locali", () => {
       { id: "needs", section: "Esigenze", label: "Tecnica", preview: "Verificare il manto", patch: { esigenze: [{ titolo: "Verificare il manto" }] } },
     ]} />);
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "needs" } });
+    changeFormControl(screen.getByRole("combobox"), { target: { value: "needs" } });
     expect(screen.getByLabelText("Anteprima del testo")).toHaveTextContent("Verificare il manto");
     expect(apply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Applica a esigenze" }));

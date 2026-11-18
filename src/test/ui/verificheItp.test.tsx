@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -99,23 +100,23 @@ async function apri() {
   await screen.findByRole("dialog");
 }
 function compila() {
-  fireEvent.change(screen.getByLabelText("Lavori e ambito esaminati"), {
+  changeFormControl(screen.getByLabelText("Lavori e ambito esaminati"), {
     target: { value: "Lavori selezionati" },
   });
-  fireEvent.change(screen.getByLabelText("Responsabile della valutazione"), {
+  changeFormControl(screen.getByLabelText("Responsabile della valutazione"), {
     target: { value: "Mario" },
   });
-  fireEvent.change(screen.getByLabelText("Ruolo del responsabile"), {
+  changeFormControl(screen.getByLabelText("Ruolo del responsabile"), {
     target: { value: "Responsabile tecnico" },
   });
-  fireEvent.change(
+  changeFormControl(
     screen.getByLabelText("Motivazione dell’esito e azioni richieste"),
     { target: { value: "Richiesta integrazioni" } },
   );
   fireEvent.click(
     screen.getByRole("button", { name: "Criterio personalizzato" }),
   );
-  fireEvent.change(screen.getByLabelText("Criterio 1"), {
+  changeFormControl(screen.getByLabelText("Criterio 1"), {
     target: { value: "Criterio specifico" },
   });
 }

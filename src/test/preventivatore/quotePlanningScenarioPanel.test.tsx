@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -29,7 +30,7 @@ const open = (title: string) => {
 };
 const blurValue = (label: string, value: string) => {
   const input = screen.getByLabelText(label);
-  fireEvent.change(input, { target: { value } }); fireEvent.blur(input); return input;
+  changeFormControl(input, { target: { value } }); fireEvent.blur(input); return input;
 };
 
 describe('Pannello locale di pianificazione', () => {
@@ -90,7 +91,7 @@ describe('Pannello locale di pianificazione', () => {
     expect(calculate).not.toHaveBeenCalled();
     const input = screen.getByLabelText('Andata (minuti)'); input.focus();
     fireEvent.keyDown(input, { key: 'Escape' }); expect(input).toHaveValue('60');
-    fireEvent.change(input, { target: { value: '45' } });
+    changeFormControl(input, { target: { value: '45' } });
     expect(changed).not.toHaveBeenCalled(); fireEvent.keyDown(input, { key: 'Enter' });
     expect(changed).toHaveBeenCalledOnce(); expect(changed.mock.calls[0][0].travel.outboundMinutes).toBe(45);
     expect(changed.mock.calls[0][0].travel.returnMinutes).toBe(60);
@@ -171,7 +172,7 @@ describe('Pannello locale di pianificazione', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aggiungi fornitura' })); open('Nuova fornitura');
     blurValue('Tempo di approvvigionamento (giorni)', '10');
     blurValue('Ordine possibile dal', '2026-11-02');
-    fireEvent.change(screen.getByLabelText('Calendario fornitore'), { target: { value: 'calendar' } });
+    changeFormControl(screen.getByLabelText('Calendario fornitore'), { target: { value: 'calendar' } });
     fireEvent.click(screen.getByLabelText('Lavoro — ore da inserire'));
     const next: PlanningScenario = changed.mock.lastCall![0];
     expect(next.supplies[0]).toMatchObject({ leadDays: 10, releaseDate: '2026-11-02', leadCalendar: 'calendar', confirmedReadyDate: null });

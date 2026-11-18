@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +48,7 @@ describe("Schede tecniche nel POS", () => {
         "Valutazione iniziale e metodo adottato · rischio 1",
       ),
     ).toHaveValue("");
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Pericolo e evento temuto · rischio 1"),
       { target: { value: "TEST pericolo" } },
     );
@@ -64,7 +65,7 @@ describe("Schede tecniche nel POS", () => {
     const c = screen.getByRole("checkbox");
     fireEvent.click(c);
     expect(c).toBeChecked();
-    fireEvent.change(screen.getByLabelText("Area di lavoro e accessi"), {
+    changeFormControl(screen.getByLabelText("Area di lavoro e accessi"), {
       target: { value: "TEST area" },
     });
     expect(c).not.toBeChecked();
@@ -74,7 +75,7 @@ describe("Schede tecniche nel POS", () => {
   it("attrezzature reali richiedono identificazione e riferimenti, nessuna richiede un motivo", () => {
     render(<Harness />);
     fireEvent.click(screen.getByText(/Attrezzature e opere provvisionali/));
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText(
         "Sono previste attrezzature, macchine, impianti o opere provvisionali?",
       ),
@@ -88,7 +89,7 @@ describe("Schede tecniche nel POS", () => {
         "Identificazione dell’attrezzatura effettiva · attrezzatura 1",
       ),
     ).toHaveValue("");
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText(
         "Sono previste attrezzature, macchine, impianti o opere provvisionali?",
       ),
@@ -117,7 +118,7 @@ describe("Schede tecniche nel POS", () => {
     p.lavorazioni = [lavorazioneVuota("l")];
     const change = vi.fn();
     render(<TecnicaLavorazionePos d={p} n={0} ro modifica={change} />);
-    fireEvent.change(screen.getByLabelText("Area di lavoro e accessi"), {
+    changeFormControl(screen.getByLabelText("Area di lavoro e accessi"), {
       target: { value: "NON SALVARE" },
     });
     expect(change).not.toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -353,7 +354,7 @@ export function QualificheAddetto({
             ) : (
               <>
                 <Label htmlFor="qual-fonte">Originale della persona</Label>
-                <select
+                <UniformSelect
                   id="qual-fonte"
                   className="h-10 rounded border bg-background px-2 text-sm w-full"
                   value={form.fonte}
@@ -372,7 +373,7 @@ export function QualificheAddetto({
                         {f.foto!.data_scadenza || "senza data di scadenza"}
                       </option>
                     ))}
-                </select>
+                </UniformSelect>
                 {fonti.some((f) => f.non_disponibile) && (
                   <p className="text-xs text-amber-900">
                     Alcuni documenti non hanno un originale disponibile o
@@ -397,7 +398,7 @@ export function QualificheAddetto({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="qual-tipologia">Tipo di evidenza</Label>
-                    <select
+                    <UniformSelect
                       id="qual-tipologia"
                       className="h-10 w-full rounded border bg-background px-2 text-sm"
                       value={form.dati.tipologia}
@@ -417,7 +418,7 @@ export function QualificheAddetto({
                       ].map((x) => (
                         <option key={x}>{x}</option>
                       ))}
-                    </select>
+                    </UniformSelect>
                   </div>
                   <div>
                     <Label htmlFor="qual-titolo">Titolo della qualifica</Label>

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 // Voci libere nel modulo dell'ufficio: dal catalogo dell'azienda, o a mano se l'azienda lo permette.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -14,7 +15,7 @@ it("scegliendo dal catalogo arrivano nome, unità e prezzi", () => {
   m.catalogo = { voci: [{ id: "1", nome: "Trasporto", unita: "viaggi", costo_unitario: 50.5, vendita_unitaria: 80 }], aMano: false };
   const onCambia = vi.fn();
   render(<VociRapportinoUfficio companyId="c" voci={[]} onCambia={onCambia} />);
-  fireEvent.change(screen.getByRole("combobox", { name: "Aggiungi una voce" }), { target: { value: "1" } });
+  changeFormControl(screen.getByRole("combobox", { name: "Aggiungi una voce" }), { target: { value: "1" } });
   expect(onCambia.mock.calls[0][0][0]).toMatchObject({ descrizione: "Trasporto", quantita: "1", unita: "viaggi", costo: "50,5", vendita: "80" });
   expect(screen.queryByRole("button", { name: /Scrivi una voce/ })).toBeNull();
 });

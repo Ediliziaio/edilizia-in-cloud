@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Pagina SuperAdmin AEDIX per gestione del modulo Fotovoltaico:
  *   - Tab Catalogo Incentivi: CRUD su fv_incentivi_catalogo (aliquote, plafond,
@@ -315,7 +316,7 @@ function DialogIncentivo({
           </div>
           <div>
             <Label>Tipo *</Label>
-            <select
+            <UniformSelect
               className="w-full border rounded-md p-2 text-sm"
               value={data.tipo ?? ""}
               onChange={(e) => update("tipo", e.target.value)}
@@ -327,7 +328,7 @@ function DialogIncentivo({
               <option value="sconto_iva">Sconto IVA</option>
               <option value="deducibilita_fiscale">Deducibilità fiscale</option>
               <option value="informativa">Informativa</option>
-            </select>
+            </UniformSelect>
           </div>
           <div>
             <Label>Aliquota (decimale, es. 0.5 = 50%)</Label>

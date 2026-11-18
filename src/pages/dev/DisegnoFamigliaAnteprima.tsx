@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /** Solo sviluppo: il vero configuratore del preventivatore con articoli simili a quelli del listino. */
 import { useState } from "react";
 import { FamilyConfigurator } from "@/components/marketing/preventivi/configurators/FamilyConfigurator";
@@ -39,9 +40,9 @@ export default function DisegnoFamigliaAnteprima() {
   const item = { source: "family", family, ha_posa_automatica: false, posa_linked: false } as unknown as CatalogItemFamily;
   return (
     <div className="mx-auto max-w-xl space-y-3 p-4">
-      <select className="w-full rounded border p-2" value={i} onChange={(e) => setI(Number(e.target.value))}>
+      <UniformSelect className="w-full rounded border p-2" value={i} onChange={(e) => setI(Number(e.target.value))}>
         {ARTICOLI.map(([n], k) => <option key={n} value={k}>{n}</option>)}
-      </select>
+      </UniformSelect>
       <div className="grid grid-cols-4 gap-2">
         {ARTICOLI.map(([n, f]) => (
           <div key={n} className="flex h-24 items-center justify-center rounded border bg-white p-1" title={n}>

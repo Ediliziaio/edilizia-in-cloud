@@ -105,7 +105,7 @@ function apri(element: React.ReactNode, url: string, advanced = true) {
       <Url />
     </MemoryRouter>,
   );
-  if (advanced) fireEvent.click(screen.getByText("Altri filtri", { exact: true }));
+  if (advanced) fireEvent.click(screen.getByRole("button", {name:"Filtri avanzati"}));
 }
 function survey(
   id: string,
@@ -233,7 +233,8 @@ describe("acquisti: gli stessi filtri nelle due viste", () => {
         screen.getByRole("region", { name: "Riepilogo acquisti" }),
       ).getByRole("button", { name: /Da mandare/i }),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato degli OdA" }), { target: { value: "bozze" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Stato degli OdA" }));
+    fireEvent.click(screen.getByRole("option", {name:"Da mandare",exact:true}));
     expect(
       screen.getByRole("link", { name: "Ordine ODA-bozza" }),
     ).toBeInTheDocument();
@@ -370,16 +371,31 @@ describe("Ingresso compatto negli elenchi", () => {
     apri(<SopralluoghiList />, "/azienda/ordini?tab=sopralluoghi", false);
     expect(screen.getByRole("button", { name: "Elenco" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("table", { name: "Elenco sopralluoghi" })).toBeInTheDocument();
-    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", {name:"Filtri avanzati"})).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("combobox", { name: "Fase dei sopralluoghi" })).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Altri filtri", { exact: true }));
-    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", {name:"Filtri avanzati"}));
+    expect(screen.getByRole("button", {name:"Filtri avanzati"})).toHaveAttribute("aria-expanded", "true");
   });
   it("apre gli acquisti in elenco e conserva la pipeline come scelta", () => {
     apri(<PurchaseOrdersList />, "/azienda/ordini?tab=acquisto", false);
     expect(screen.getByRole("table", { name: "Elenco ordini d’acquisto" })).toBeInTheDocument();
-    expect(screen.getByText("Altri filtri", { exact: true }).closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByRole("button", {name:"Filtri avanzati"})).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: "Pipeline" }));
     expect(screen.getByRole("button", { name: "Pipeline" })).toHaveAttribute("aria-pressed", "true");
   });
+});
+
+it("il popup filtri contiene le date senza espandere la barra dei sopralluoghi", () => {
+  Element.prototype.scrollIntoView=vi.fn();
+  apri(<SopralluoghiList />, "/azienda/ordini?tab=sopralluoghi", false);
+  expect(screen.queryByText("Altri filtri")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name:"Filtri avanzati"}));
+  fireEvent.click(screen.getByRole("combobox", {name:"Periodo sopralluoghi"}));
+  fireEvent.click(screen.getByRole("option", {name:"Intervallo di date"}));
+  fireEvent.change(screen.getByLabelText("Data iniziale"),{target:{value:"2026-10-01"}});
+  fireEvent.change(screen.getByLabelText("Data finale"),{target:{value:"2026-10-31"}});
+  expect(screen.getByTestId("url")).toHaveTextContent("sop_da=2026-10-01");
+  expect(screen.getByTestId("url")).toHaveTextContent("sop_a=2026-10-31");
+  fireEvent.click(screen.getByRole("button", {name:"Chiudi filtri"}));
+  expect(screen.queryByLabelText("Data iniziale")).not.toBeInTheDocument();
 });

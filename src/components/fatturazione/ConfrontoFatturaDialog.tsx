@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -894,7 +895,7 @@ export function ConfrontoFatturaDialog({
                 </div>
                 {!!documenti.length && (
                   <>
-                    <select
+                    <UniformSelect
                       aria-label="Documento da visualizzare"
                       value={doc?.id ?? ""}
                       onChange={(e) => {
@@ -910,7 +911,7 @@ export function ConfrontoFatturaDialog({
                           {d.data ? ` · ${formatDateShort(d.data)}` : ""}
                         </option>
                       ))}
-                    </select>
+                    </UniformSelect>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <Popover
                         open={selezionatoreAperto}

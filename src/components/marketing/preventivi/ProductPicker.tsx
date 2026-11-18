@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { haManodoperaConfigurata } from "@/lib/preventivi/avvisiInserimento";
 import {
@@ -216,13 +217,13 @@ export function ProductPicker({
                 </button>
               )}
             </div>
-            {linee.length > 0 && <select aria-label="Filtra per linea" className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
+            {linee.length > 0 && <UniformSelect aria-label="Filtra per linea" className="h-10 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={linea} onChange={e=>{setFiltroLinea({ambito,nome:e.target.value});cambiaCategoria('');}}>
               <option value="">Tutte le linee</option>
               {linee.map(nome=><option key={nome} value={nome}>{nome}</option>)}
-            </select>}
+            </UniformSelect>}
             </div>
             {!category && (
-              <select
+              <UniformSelect
                 aria-label="Filtra per categoria"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm md:hidden"
                 value={categoriaId}
@@ -234,7 +235,7 @@ export function ProductPicker({
                     {c.nome} ({c.conteggio})
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             )}
             {categorieQuery.isError && (
               <p role="alert" className="text-xs text-amber-800">

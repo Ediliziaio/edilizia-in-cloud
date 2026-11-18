@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -585,10 +586,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 {personalCalendars.filter(c=>c.owner_id).map(c=><label key={c.id} className="flex items-center gap-3 rounded border p-3"><Checkbox checked={(form.team_calendar_ids??[]).includes(c.id)} onCheckedChange={on=>setForm(f=>({...f,team_calendar_ids:on?[...(f.team_calendar_ids??[]),c.id]:(f.team_calendar_ids??[]).filter(id=>id!==c.id),team_member_priorities:on?{...f.team_member_priorities,[c.id]:2}:Object.fromEntries(Object.entries(f.team_member_priorities??{}).filter(([id])=>id!==c.id))}))}/><span>{c.name}</span></label>)}
                 {!personalCalendars.length&&<p role="status">Crea prima un calendario personale con un responsabile.</p>}
                 <Label htmlFor="team-strategy">Distribuzione</Label>
-                <select id="team-strategy" className="h-10 w-full rounded border bg-background px-3" value={form.team_assignment_strategy??"round_robin"} onChange={e=>setForm(f=>({...f,team_assignment_strategy:e.target.value as "round_robin"|"priority"}))}>
+                <UniformSelect id="team-strategy" className="h-10 w-full rounded border bg-background px-3" value={form.team_assignment_strategy??"round_robin"} onChange={e=>setForm(f=>({...f,team_assignment_strategy:e.target.value as "round_robin"|"priority"}))}>
                   <option value="round_robin">A rotazione tra le persone disponibili</option><option value="priority">Priorità tra le persone disponibili</option>
-                </select>
-                {form.team_assignment_strategy==="priority"&&(form.team_calendar_ids??[]).map(id=><div key={id} className="flex items-center justify-between gap-3"><Label htmlFor={`priority-${id}`}>{personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}</Label><select id={`priority-${id}`} className="h-10 rounded border bg-background px-3" value={form.team_member_priorities?.[id]??2} onChange={e=>setForm(f=>({...f,team_member_priorities:{...f.team_member_priorities,[id]:Number(e.target.value)}}))}><option value={1}>Alta</option><option value={2}>Media</option><option value={3}>Bassa</option></select></div>)}
+                </UniformSelect>
+                {form.team_assignment_strategy==="priority"&&(form.team_calendar_ids??[]).map(id=><div key={id} className="flex items-center justify-between gap-3"><Label htmlFor={`priority-${id}`}>{personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}</Label><UniformSelect id={`priority-${id}`} className="h-10 rounded border bg-background px-3" value={form.team_member_priorities?.[id]??2} onChange={e=>setForm(f=>({...f,team_member_priorities:{...f.team_member_priorities,[id]:Number(e.target.value)}}))}><option value={1}>Alta</option><option value={2}>Media</option><option value={3}>Bassa</option></UniformSelect></div>)}
                 <p className="text-xs text-muted-foreground">A parità di priorità, l’assegnazione ruota tra le persone disponibili.</p>
                 <p className="text-xs text-muted-foreground">Ordine: {(form.team_calendar_ids??[]).map((id,i)=>`${i+1}. ${personalCalendars.find(c=>c.id===id)?.name??"Calendario non disponibile"}`).join(" · ")||"nessun partecipante"}</p>
                 <p className="text-xs text-muted-foreground">Gli account esterni e i relativi calendari si collegano nei calendari personali dei partecipanti.</p>

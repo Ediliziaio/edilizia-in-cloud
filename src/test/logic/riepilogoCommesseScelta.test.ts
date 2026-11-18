@@ -8,9 +8,12 @@ const tutto = { importi: true, costi: true, margini: true };
 const nessuno = { importi: false, costi: false, margini: false };
 
 describe("riepilogo commesse scelto dall'azienda", () => {
-  it("senza riga valgono i quattro riquadri di sempre", () => {
+  it("senza riga mostra la sintesi economica, senza richiedere gli appalti", () => {
     expect(sceltaDaRiga(null)).toEqual(SCELTA_PREDEFINITA);
-    expect(SCELTA_PREDEFINITA.riquadri).toEqual(["commesse", "venduto", "incassato", "da_incassare"]);
+    expect(SCELTA_PREDEFINITA.riquadri).toEqual(["venduto", "fatturato", "incassato", "costi"]);
+    expect(usaGenerali(SCELTA_PREDEFINITA.riquadri)).toBe(false);
+    expect(riquadriVisibili(SCELTA_PREDEFINITA.riquadri, { ...tutto, fatturazione: true })).toEqual(SCELTA_PREDEFINITA.riquadri);
+    expect(riquadriVisibili(SCELTA_PREDEFINITA.riquadri, nessuno)).toEqual(["commesse", "aperte", "in_ritardo", "assistenza"]);
   });
 
   it("scarta valori sconosciuti e doppioni, al massimo quattro", () => {

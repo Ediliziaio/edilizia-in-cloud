@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useRef, useState, type FormEvent } from "react";
 import {
   Check,
@@ -1041,7 +1042,7 @@ function FornitoreDialogAperta({
                   ))}
                   <div className="space-y-2">
                     <Label htmlFor="rating">Valutazione interna</Label>
-                    <select
+                    <UniformSelect
                       id="rating"
                       className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                       value={formData.rating}
@@ -1053,7 +1054,7 @@ function FornitoreDialogAperta({
                           {n} {n === 1 ? "stella" : "stelle"}
                         </option>
                       ))}
-                    </select>
+                    </UniformSelect>
                   </div>
                 </div>
                 <div className="mt-4 rounded-lg border border-dashed p-3">

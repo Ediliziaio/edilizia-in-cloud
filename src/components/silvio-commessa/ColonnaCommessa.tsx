@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «La commessa» nel popup di Silvio: le 14 aree nell'ordine del registro, con lo stato
  * (✓ ✋ ❓ ⚠), la ⓘ della fonte di ogni valore, la modifica a mano (sempre da `applica`), i
@@ -137,11 +138,11 @@ function ModificaCampi({ v, attuale, onSalva, onAnnulla }: {
           return (
             <div key={c} className="space-y-1">
               <label htmlFor={id} className="text-xs lg:text-[11px] font-medium text-slate-600">{etichetta}</label>
-              <select id={id} autoFocus={i === 0} value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })}
+              <UniformSelect id={id} autoFocus={i === 0} value={String(valori[c])} onChange={(e) => setValori({ ...valori, [c]: e.target.value })}
                 className="h-11 w-full rounded-md border border-input bg-background px-2 text-sm lg:h-9 lg:text-[13px]">
                 <option value="">Scegli…</option>
                 {SCELTE[c].map((o) => <option key={o.valore} value={o.valore}>{o.nome}</option>)}
-              </select>
+              </UniformSelect>
             </div>
           );
         }

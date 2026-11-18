@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import type { AdminUserSession } from "@/hooks/superadmin/useAdminUsers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
@@ -23,10 +24,10 @@ describe("Leggibilità della pagina Utenti", () => {
   });
   it("filtra per azienda, ruolo e gruppo e azzera i filtri", () => {
     render(<UsersList />);
-    fireEvent.change(screen.getByLabelText("Azienda accessibile"), { target: { value: "company-a" } });
-    fireEvent.change(screen.getByLabelText("Ruolo"), { target: { value: "customer" } });
+    changeFormControl(screen.getByLabelText("Azienda accessibile"), { target: { value: "company-a" } });
+    changeFormControl(screen.getByLabelText("Ruolo"), { target: { value: "customer" } });
     expect(usersQuery).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: "company-a", role: "customer", page: 0 }));
-    fireEvent.change(screen.getByLabelText("Gruppo aziendale"), { target: { value: "Scavolo" } });
+    changeFormControl(screen.getByLabelText("Gruppo aziendale"), { target: { value: "Scavolo" } });
     expect(usersQuery).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: "", group: "Scavolo", role: "customer" }));
     fireEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(usersQuery).toHaveBeenLastCalledWith(expect.objectContaining({ companyId: "", group: "", role: "", stato: null }));

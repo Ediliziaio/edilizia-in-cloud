@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -100,7 +101,7 @@ export function PresenzeHrCalendar({
             className="h-9 pl-9"
           />
         </div>
-        <select
+        <UniformSelect
           aria-label="Reparto presenze"
           value={reparto}
           onChange={(e) => setReparto(e.target.value)}
@@ -112,8 +113,8 @@ export function PresenzeHrCalendar({
               {r}
             </option>
           ))}
-        </select>
-        <select
+        </UniformSelect>
+        <UniformSelect
           aria-label="Stato presenza"
           value={stato}
           onChange={(e) => setStato(e.target.value)}
@@ -125,7 +126,7 @@ export function PresenzeHrCalendar({
               {info.label}
             </option>
           ))}
-        </select>
+        </UniformSelect>
         <Button
           variant={anomalie ? "secondary" : "outline"}
           size="sm"

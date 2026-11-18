@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { QualificheAddetto } from "@/components/sicurezza/QualificheAddetto";
 import { useState } from "react";
 import {
@@ -584,7 +585,7 @@ export function OperaiSubappaltatore({
                   </Button>
                 </p>
               ) : (
-                <select
+                <UniformSelect
                   id="est-commessa"
                   required
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
@@ -599,12 +600,12 @@ export function OperaiSubappaltatore({
                       {c.order_code} · {c.description?.slice(0, 70)}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               )}
             </div>
             <div>
               <Label htmlFor="est-fase">Fase di lavoro</Label>
-              <select
+              <UniformSelect
                 id="est-fase"
                 className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                 value={dest.fase_id}
@@ -617,7 +618,7 @@ export function OperaiSubappaltatore({
                     {f.name}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
               {fasi.isError && (
                 <p role="alert" className="text-sm">
                   Fasi non disponibili.{" "}

@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -86,7 +88,7 @@ afterEach(cleanup);
 describe("Documenti e controlli della macchina nel POS", () => {
   it("collega originale e controlli solo dopo le scelte esplicite, senza conferme automatiche", () => {
     render(<Harness />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Documentazione della specifica attrezzatura"),
       { target: { value: "documenti" } },
     );
@@ -98,7 +100,7 @@ describe("Documenti e controlli della macchina nel POS", () => {
     );
     expect(stato().confermata).toBe(false);
     expect(stato().controlli.impronta).toBe(controlliMezzoProva().impronta);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Documento tecnico della macchina"),
       { target: { value: documentoMezzoProva().id } },
     );
@@ -114,7 +116,7 @@ describe("Documenti e controlli della macchina nel POS", () => {
   });
   it("la revisione è letta e dichiarata dal compilatore, ogni modifica annulla il riesame", () => {
     render(<Harness initial={documentazioneMezzoProva()} />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Revisione letta nell’originale 1"),
       { target: { value: "TEST-2" } },
     );
@@ -147,7 +149,7 @@ describe("Documenti e controlli della macchina nel POS", () => {
     apri();
     expect(
       (
-        screen.getByRole("option", {
+        formOptions().getByRole("option", {
           name: /originale non disponibile/,
         }) as HTMLOptionElement
       ).disabled,
@@ -162,7 +164,7 @@ describe("Documenti e controlli della macchina nel POS", () => {
   });
   it("altra gestione non nasconde i documenti precedenti e richiede una motivazione", () => {
     render(<Harness initial={documentazioneMezzoProva()} />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Documentazione della specifica attrezzatura"),
       { target: { value: "altra_gestione" } },
     );

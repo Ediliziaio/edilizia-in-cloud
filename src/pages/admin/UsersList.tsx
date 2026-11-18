@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useAccountsOverview, useCompanyGroups } from "@/hooks/superadmin/useCompanyGroups";
 import { nomeRuolo as nomeRuoloAzienda } from "@/lib/permessi/ruoliUtente";
 import { useState } from "react";
@@ -274,23 +275,23 @@ export default function UsersList() {
           </div>
           <div className="flex flex-wrap gap-3 pt-2">
             <label className="text-xs space-y-1 flex flex-col">Azienda accessibile
-              <select aria-label="Azienda accessibile" className="h-9 max-w-full md:max-w-72 rounded-md border bg-background px-2 text-sm" value={companyId} onChange={e => { setCompanyId(e.target.value); setPagina(0); }}>
+              <UniformSelect aria-label="Azienda accessibile" className="h-9 max-w-full md:max-w-72 rounded-md border bg-background px-2 text-sm" value={companyId} onChange={e => { setCompanyId(e.target.value); setPagina(0); }}>
                 <option value="">Tutte le aziende</option>
                 <option value="00000000-0000-0000-0000-000000000000">Senza azienda principale</option>
                 {overview?.companies.filter(c => c.id).sort((a,b) => a.name.localeCompare(b.name, "it")).map(c => <option key={c.id!} value={c.id!}>{c.name}</option>)}
-              </select>
+              </UniformSelect>
             </label>
             <label className="text-xs space-y-1 flex flex-col">Ruolo
-              <select aria-label="Ruolo" className="h-9 rounded-md border bg-background px-2 text-sm" value={role} onChange={e => { setRole(e.target.value); setPagina(0); }}>
+              <UniformSelect aria-label="Ruolo" className="h-9 rounded-md border bg-background px-2 text-sm" value={role} onChange={e => { setRole(e.target.value); setPagina(0); }}>
                 <option value="">Tutti i ruoli</option>
                 {overview?.roles.map(r => <option key={r} value={r}>{nomeRuolo(r)}</option>)}
-              </select>
+              </UniformSelect>
             </label>
             <label className="text-xs space-y-1 flex flex-col">Gruppo aziendale
-              <select aria-label="Gruppo aziendale" className="h-9 rounded-md border bg-background px-2 text-sm" value={group} onChange={e => { setGroup(e.target.value); setCompanyId(""); setPagina(0); }}>
+              <UniformSelect aria-label="Gruppo aziendale" className="h-9 rounded-md border bg-background px-2 text-sm" value={group} onChange={e => { setGroup(e.target.value); setCompanyId(""); setPagina(0); }}>
                 <option value="">Tutti i gruppi</option>
                 {groups.map(g => <option key={g.name} value={g.name}>{g.name} · {g.companyIds.length} aziende</option>)}
-              </select>
+              </UniformSelect>
             </label>
             {(companyId || role || group || ricerca || stato) && <Button variant="ghost" size="sm" className="self-end" onClick={() => { setCompanyId(""); setRole(""); setGroup(""); setRicerca(""); setStato(null); setPagina(0); }}>Azzera filtri</Button>}
           </div>

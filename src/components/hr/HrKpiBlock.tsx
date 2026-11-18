@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * HrKpiBlock — KPI di una persona.
  * Card per KPI con valore-vs-target + barra, badge "auto" per i calcolati
@@ -219,10 +220,10 @@ export function HrKpiBlock({ profiloId, companyId }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Unità</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={form.unita} onChange={(e) => setForm((f) => ({ ...f, unita: e.target.value as KpiUnita }))}>
                     {UNITA.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div>
                   <Label>Obiettivo</Label>
@@ -231,11 +232,11 @@ export function HrKpiBlock({ profiloId, companyId }: Props) {
                 </div>
                 <div className="col-span-2">
                   <Label>Direzione</Label>
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  <UniformSelect className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={form.direzione} onChange={(e) => setForm((f) => ({ ...f, direzione: e.target.value as KpiDirezione }))}>
                     <option value="su">Più alto è meglio</option>
                     <option value="giu">Più basso è meglio</option>
-                  </select>
+                  </UniformSelect>
                 </div>
               </div>
             </div>

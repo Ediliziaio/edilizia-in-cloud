@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,10 +46,10 @@ export function TemplateDocumentUse({ template }: { template: DocumentoTemplate 
     <div className="grid gap-4 sm:grid-cols-2">
       {fields.map(f => <div key={f.id} className="space-y-1">
         <Label htmlFor={`value-${f.id}`}>{f.etichetta}{f.obbligatorio ? ' *' : ''}</Label>
-        {f.tipo === 'scelta' ? <select id={`value-${f.id}`} value={values[f.nome] ?? f.valore_default ?? ''} disabled={busy}
+        {f.tipo === 'scelta' ? <UniformSelect id={`value-${f.id}`} value={values[f.nome] ?? f.valore_default ?? ''} disabled={busy}
           onChange={e => { invalidate(); setValues(v => ({ ...v, [f.nome]: e.target.value })); }} className="w-full rounded-md border p-2">
           <option value="">Seleziona</option>{(f.opzioni_scelta ?? []).map(o => <option key={o}>{o}</option>)}
-        </select> : f.tipo === 'testo' && f.posizioni_pdf?.some(p => p.altezza > .025) ? <Textarea
+        </UniformSelect> : f.tipo === 'testo' && f.posizioni_pdf?.some(p => p.altezza > .025) ? <Textarea
           id={`value-${f.id}`} rows={3} disabled={busy} value={values[f.nome] ?? f.valore_default ?? ''}
           onChange={e => { invalidate(); setValues(v => ({ ...v, [f.nome]: e.target.value })); }} /> : <Input id={`value-${f.id}`} type={f.tipo === 'data' ? 'date' : f.tipo === 'email' ? 'email' : 'text'}
           disabled={busy} inputMode={['numero', 'valuta'].includes(f.tipo) ? 'decimal' : undefined}
