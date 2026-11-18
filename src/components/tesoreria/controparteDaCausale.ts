@@ -61,10 +61,33 @@ export function controparteDaCausale(causale: string | null | undefined, titolar
   return null;
 }
 
-/** Il nome comunicato dalla banca; se manca, quello ricavato dalla causale (con `dedotta`). */
-export function controparteMovimento(m: MovimentoConCausale): { nome: string | null; dedotta: boolean } {
+/**
+ * La controparte che il server ha stabilito con certezza (`tesoreria_controparti`): dal documento
+ * abbinato, dal candidato del motore, o dalla natura del movimento — la banca del conto per
+ * commissioni, anticipi e RiBa, l'Agenzia delle Entrate per gli F24, l'altro conto per i giroconti.
+ */
+export interface ControparteDelServer {
+  nome: string;
+  certa: boolean;
+  origine: "banca" | "documento" | "motore" | "istituto" | "ente" | "conto" | string;
+}
+
+/**
+ * Il nome della controparte, nell'ordine: quello che ha mandato la banca, quello che il server
+ * ricava con certezza (documento, motore, natura), e solo per ultimo quello letto nella causale,
+ * che resta un'ipotesi e si dichiara `dedotta` (18/11/2026).
+ *
+ * Su Impresa Vulcano, dove la banca non manda mai il nome, la regola del server copre 351 movimenti
+ * su 482: prima ne restavano fuori quattro su cinque.
+ */
+export function controparteMovimento(
+  m: MovimentoConCausale,
+  dalServer?: ControparteDelServer | null,
+): { nome: string | null; dedotta: boolean; origine?: string } {
   const banca = (m.transaction_type === "credit" ? m.debtor_name : m.creditor_name)?.trim();
-  if (banca) return { nome: banca, dedotta: false };
+  if (banca) return { nome: banca, dedotta: false, origine: "banca" };
+  const certa = dalServer?.nome?.trim();
+  if (certa) return { nome: certa, dedotta: dalServer?.certa === false, origine: dalServer?.origine };
   const nome = controparteDaCausale(m.description, m.account_name);
-  return { nome, dedotta: nome != null };
+  return { nome, dedotta: nome != null, origine: nome ? "causale" : undefined };
 }

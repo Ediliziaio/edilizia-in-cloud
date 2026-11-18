@@ -38,8 +38,57 @@ describe("controparteDaCausale", () => {
 
   it("il nome della banca vince su quello ricavato", () => {
     expect(controparteMovimento({ transaction_type: "credit", debtor_name: "Mario Rossi", description: "BONIFICO o/c: ALTRO ABI-CAB" }))
-      .toEqual({ nome: "Mario Rossi", dedotta: false });
+      .toEqual({ nome: "Mario Rossi", dedotta: false, origine: "banca" });
     expect(controparteMovimento({ transaction_type: "debit", creditor_name: null, description: "DISPOSIZIONE a favore di ABC SRL EUR 8.920,00" }))
-      .toEqual({ nome: "ABC SRL", dedotta: true });
+      .toEqual({ nome: "ABC SRL", dedotta: true, origine: "causale" });
+  });
+
+  /**
+   * Il nome certo del server (documento abbinato, candidato del motore, natura del movimento) vale
+   * più di qualunque lettura della causale: su Vulcano copre 351 movimenti su 482 (18/11/2026).
+   */
+  describe("il nome certo del server", () => {
+    it("vince sulla causale, e non si presenta come un'ipotesi", () => {
+      const esito = controparteMovimento(
+        { transaction_type: "debit", description: "DISPOSIZIONE a favore di ABC SRL EUR 8.920,00" },
+        { nome: "ABC Costruzioni S.r.l.", certa: true, origine: "documento" },
+      );
+      expect(esito).toEqual({ nome: "ABC Costruzioni S.r.l.", dedotta: false, origine: "documento" });
+    });
+
+    it("una commissione ha come controparte la banca del conto", () => {
+      expect(controparteMovimento(
+        { transaction_type: "debit", description: "COMMISSIONI BONIFICI Bonifico num. 263210100012" },
+        { nome: "BPER Banca", certa: true, origine: "istituto" },
+      )).toEqual({ nome: "BPER Banca", dedotta: false, origine: "istituto" });
+    });
+
+    it("quello che manda la banca resta davanti a tutto", () => {
+      expect(controparteMovimento(
+        { transaction_type: "credit", debtor_name: "Mario Rossi", description: "x" },
+        { nome: "Altro Nome Srl", certa: true, origine: "motore" },
+      )).toEqual({ nome: "Mario Rossi", dedotta: false, origine: "banca" });
+    });
+
+    it("senza risposta dal server si torna alla causale, dichiarandolo", () => {
+      expect(controparteMovimento(
+        { transaction_type: "debit", description: "DISPOSIZIONE a favore di ABC SRL EUR 8.920,00" },
+        null,
+      )).toEqual({ nome: "ABC SRL", dedotta: true, origine: "causale" });
+    });
+
+    it("un nome vuoto dal server non prende il posto della causale", () => {
+      expect(controparteMovimento(
+        { transaction_type: "debit", description: "DISPOSIZIONE a favore di ABC SRL EUR 8.920,00" },
+        { nome: "   ", certa: true, origine: "motore" },
+      )).toEqual({ nome: "ABC SRL", dedotta: true, origine: "causale" });
+    });
+
+    it("un nome che il server dichiara incerto si mostra come dedotto", () => {
+      expect(controparteMovimento(
+        { transaction_type: "debit", description: "x" },
+        { nome: "Forse Questo Srl", certa: false, origine: "motore" },
+      )).toEqual({ nome: "Forse Questo Srl", dedotta: true, origine: "motore" });
+    });
   });
 });
