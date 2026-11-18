@@ -83,6 +83,7 @@ export const NATURA: Record<string, string> = {
   gia_pagata: "Fattura del fornitore già pagata",
   finanziamento: "Rata di finanziamento",
   anticipo_fatture: "Anticipo su fatture",
+  riba_distinta: "Distinta RiBa",
   sconosciuta: "Da capire",
 };
 
