@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -173,7 +174,7 @@ describe("Scheda utente — modelli e cambio accesso non si sovrappongono", () =
   it("scegliere il modello non salva; applicarlo prepara la bozza e blocca il cambio ruolo fino a salvataggio o annullamento", () => {
     const save = vi.fn();
     render(<UserRolesPermissionsTab user={{...elena(),role:"company_staff"}} onSave={save} onChangeRole={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText("Prepara i permessi da un modello"),{target:{value:"ordini"}});
+    changeFormControl(screen.getByLabelText("Prepara i permessi da un modello"),{target:{value:"ordini"}});
     expect(screen.getByRole("combobox",{name:"Ruolo principale"})).toBeEnabled();
     expect(save).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button",{name:"Applica alla bozza"}));
