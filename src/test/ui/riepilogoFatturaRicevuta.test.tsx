@@ -11,6 +11,18 @@ vi.mock("@/integrations/supabase/client", () => {
   const catena = (tabella: string): any => {
     const c: any = {};
     for (const m of ["select", "eq", "is", "order", "in", "or", "limit"]) c[m] = () => c;
+    if (tabella === "rate_fornitori") {
+      let id: string;
+      let modifica: Record<string, unknown>;
+      c.eq = (campo: string, valore: string) => { if (campo === "id") id = valore; return c; };
+      c.update = (valori: Record<string, unknown>) => { modifica = valori; return c; };
+      c.single = async () => {
+        const rata = (finto.dati["rate_fornitori[]"] as Array<{id:string}>).find(r => r.id === id);
+        if (!rata) return { error: "Rata assente" };
+        Object.assign(rata, modifica);
+        return { data: {id}, error: null };
+      };
+    }
     c.maybeSingle = async () => ({ data: finto.dati[tabella] ?? null, error: null as null });
     c.then = (ok: (v: unknown) => unknown) => ok({ data: finto.dati[`${tabella}[]`] ?? [], error: null as null });
     return c;
@@ -94,6 +106,20 @@ describe("riepilogo della fattura ricevuta", () => {
     apri();
     const label = await screen.findByText("Prossima scadenza");
     expect(label.nextElementSibling).toHaveTextContent("10 ott 2026 · 125,00 € · Ri.Ba.");
+  });
+  it("pagando una sola rata ricarica la scadenza successiva e il residuo", async () => {
+    finto.dati["rate_fornitori[]"] = [
+      { id:"r1", numero:1, stato:"da_pagare", scadenza:"2025-10-10", importo:120, metodo:"MP12" },
+      { id:"r2", numero:2, stato:"da_pagare", scadenza:"2025-11-10", importo:80, metodo:"MP12" },
+    ];
+    apri();
+    fireEvent.click(await screen.findByRole("button", {name:"Segna pagata la rata 1"}));
+    fireEvent.change(screen.getByLabelText("Data effettiva del pagamento"), {target:{value:"2025-10-09"}});
+    fireEvent.click(screen.getByRole("button", {name:"Conferma pagamento"}));
+    await screen.findByText("Rata 1 · pagata il 9 ott 2025");
+    expect(screen.getByText("Prossima scadenza").nextElementSibling).toHaveTextContent("10 nov 2025");
+    expect(screen.getByText(/Residuo fattura/)).toHaveTextContent("80,00 €");
+    expect(screen.queryByRole("button", {name:"Segna pagata la rata 1"})).toBeNull();
   });
   it("mostra la data effettiva della singola rata anche senza piano XML", async () => {
     finto.dati["rate_fornitori[]"] = [{ numero: 2, pagata_il: "2026-11-17" }];
