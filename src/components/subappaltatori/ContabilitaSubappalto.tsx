@@ -1,3 +1,4 @@
+import { pagatoSal, residuoSal } from "@/lib/subappaltatori/importiSal";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useRef, type ReactNode } from "react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
@@ -22,8 +23,7 @@ import type {
   StatoSALSub,
 } from "@/types/subappaltatori";
 
-const pagatoSal = (s: SALSubappaltatore) => Number(s.pagato_registrato ?? (s.stato === 'pagato' ? s.importo_netto : 0));
-const residuoSal = (s: SALSubappaltatore) => Math.max(0,Number(s.importo_netto)-pagatoSal(s));
+
 const statiSAL: Record<StatoSALSub, string> = {
   ricevuto: "Ricevuto",
   verificato: "Verificato",

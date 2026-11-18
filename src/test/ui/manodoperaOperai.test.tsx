@@ -39,6 +39,10 @@ vi.mock("@/hooks/useOperai", async (orig) => {
     useDiarioGiorno: () => ({ data: stato.diario, isLoading: false, error: null as Error | null }),
   };
 });
+vi.mock("@/components/manodopera/AccessoAppOperaio", async (original) => ({
+  ...await original<typeof import("@/components/manodopera/AccessoAppOperaio")>(),
+  useStatiAppOperai: () => ({ data: { a: { stato: "bloccato" }, b: { stato: "mai_dato" } } }),
+}));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => stato.permessi }));
 vi.mock("@/hooks/useSchedeManodopera", () => ({ useSchedeManodopera: () => ({ schede: stato.schede, inCaricamento: false }) }));
 vi.mock("@/hooks/useStatoPiano", () => ({ useStatoPiano: () => ({ isScopriPlan: false }) }));
@@ -162,6 +166,8 @@ describe("Operai, l'elenco", () => {
     const tabella = screen.getByRole("table");
     expect(within(tabella).getByText("1 scaduto")).toBeTruthy();
     expect(within(tabella).getByText("Ducato bianco")).toBeTruthy();
+    expect(within(tabella).getByText("App bloccata")).toBeTruthy();
+    expect(within(tabella).getByText("Accesso mai dato")).toBeTruthy();
     expect(within(tabella).getByText("Squadra Posa Nord")).toBeTruthy();
     expect(tabella.textContent).not.toMatch(/costo|€/i);
     expect(screen.getAllByText("Senza squadra").length).toBeGreaterThan(0);

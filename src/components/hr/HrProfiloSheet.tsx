@@ -1,7 +1,8 @@
+import { AccessoAppInScheda } from "@/components/manodopera/AccessoAppOperaio";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CampoIndirizzo } from "@/components/shared/CampoIndirizzo";
@@ -18,6 +19,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { accessoPiattaforma, ETICHETTA_ACCESSO, spiegazioneAccesso } from "@/lib/hr/accessoPiattaforma";
 import { useUpdateHrProfilo } from "@/hooks/useOrganigramma";
 import { useCreateHrProfilo } from "@/hooks/useCreateHrProfilo";
+import { useHrMansioni } from "@/hooks/useHrMansioni";
 import { useHrSedi } from "@/hooks/useHrSedi";
 import type { HrProfilo } from "@/types/hr";
 import { HrDocumentiSection } from "@/components/hr/HrDocumentiSection";
@@ -36,6 +38,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   profilo: HrProfilo | null;
   allProfili: HrProfilo[];
+  onApriProfilo?: (persona: HrProfilo) => void;
 }
 
 const TIPO_CONTRATTO_OPTIONS = [
@@ -64,16 +67,17 @@ export function HrProfiloSheet(props: Props) {
   const permissions = usePermissions();
   const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   if (canEdit) return <HrProfiloEditor {...props} />;
-  return <Sheet open={props.open && !!props.profilo} onOpenChange={props.onOpenChange}>
-    <SheetContent><SheetHeader><SheetTitle>{props.profilo?.nome} {props.profilo?.cognome}</SheetTitle></SheetHeader>
+  return <Dialog open={props.open && !!props.profilo} onOpenChange={props.onOpenChange}>
+    <DialogContent aria-describedby={undefined} className="top-1/2 w-[calc(100%-1.5rem)] rounded-xl sm:max-w-lg"><DialogHeader className="pr-8"><DialogTitle>{props.profilo?.nome} {props.profilo?.cognome}</DialogTitle></DialogHeader>
+      {props.profilo?.lavora_in_cantiere && <AccessoAppInScheda profiloId={props.profilo.id} />}
       <p className="mt-2 text-sm text-muted-foreground">Profilo organizzativo · sola lettura</p>
       <dl className="mt-6 space-y-4"><div><dt>Ruolo</dt><dd>{props.profilo?.mansione || "Da definire"}</dd></div>
         <div><dt>Reparto</dt><dd>{props.profilo?.reparto || "Da definire"}</dd></div></dl>
-    </SheetContent>
-  </Sheet>;
+    </DialogContent>
+  </Dialog>;
 }
 
-function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
+function HrProfiloEditor({ open, onOpenChange, profilo, allProfili, onApriProfilo }: Props) {
   const updateMutation = useUpdateHrProfilo();
   const createMutation = useCreateHrProfilo();
   const { data: sedi = [] } = useHrSedi();
@@ -81,12 +85,29 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
   const [tab, setTab] = useState("anagrafica");
 
   const companyIdAttiva = useEffectiveCompanyId();
+  const catalogo = useHrMansioni(open ? companyIdAttiva : null);
   const { data: utentiAzienda } = useCompanyStaffUsers(companyIdAttiva);
   const accesso = profilo ? accessoPiattaforma(profilo, utentiAzienda) : null;
 
   const { register, handleSubmit, reset, setValue, watch } = useForm<Partial<HrProfilo>>({
     defaultValues: profilo || {},
   });
+
+  const mansione = watch("mansione") ?? "";
+  const mansioneId = watch("mansione_id");
+  const vociCatalogo = (catalogo.data ?? []).filter(m => m.attivo || m.id === mansioneId);
+  const nomiCatalogo = new Set(vociCatalogo.map(m => m.nome.toLocaleLowerCase("it")));
+  const storiche = Array.from(new Set(["Operaio", ...allProfili.map(p => p.mansione), mansione]))
+    .filter((nome): nome is string => !!nome && !nomiCatalogo.has(nome.toLocaleLowerCase("it")))
+    .sort((a, b) => a.localeCompare(b, "it"));
+  const valoreMansione = mansioneId || vociCatalogo.find(m => m.nome === mansione)?.id || (mansione ? `testo:${mansione}` : "");
+
+  const normalizza = (v?: string | null) => (v ?? "").trim().toLocaleLowerCase("it");
+  const [nome, cognome, email, cf] = watch(["nome", "cognome", "email", "codice_fiscale"]).map(normalizza);
+  const corrispondenze = isEditing ? [] : allProfili.filter(p =>
+    (cf && normalizza(p.codice_fiscale) === cf) || (email && normalizza(p.email) === email) ||
+    (nome && cognome && normalizza(p.nome) === nome && normalizza(p.cognome) === cognome));
+  const stessoCf = corrispondenze.some(p => cf && normalizza(p.codice_fiscale) === cf);
 
   // Torna sempre alla scheda anagrafica quando si apre un profilo diverso.
   useEffect(() => { if (open) setTab("anagrafica"); }, [open, profilo?.id]);
@@ -134,6 +155,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
   }, [profilo, reset]);
 
   const onSubmit = async (data: Partial<HrProfilo>) => {
+    if (stessoCf) { toast.error("Esiste già un profilo con questo codice fiscale."); return; }
     // Remove non-DB fields that come from OrgTreeNode or joined data
     const {
       children, depth, sede, responsabile,
@@ -198,9 +220,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
   const isPending = updateMutation.isPending || createMutation.isPending;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
-        <SheetHeader className="border-b border-slate-100 px-6 pb-4 pt-6 max-sm:px-4 max-sm:pb-3 max-sm:pt-4">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent aria-describedby={undefined} className="top-1/2 flex h-[min(88dvh,52rem)] w-[calc(100%-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-xl p-0">
+        <DialogHeader className="shrink-0 border-b border-slate-100 px-6 pb-4 pt-6 max-sm:px-4 max-sm:pb-3 max-sm:pt-4">
           {isEditing && profilo ? (
             <div className="flex items-center gap-3.5 pr-8">
               <div
@@ -210,9 +232,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                 {`${profilo.nome?.[0] ?? ""}${profilo.cognome?.[0] ?? ""}`}
               </div>
               <div className="min-w-0 flex-1">
-                <SheetTitle className="truncate text-left text-lg leading-tight">
+                <DialogTitle className="truncate text-left text-lg leading-tight">
                   {profilo.nome} {profilo.cognome}
-                </SheetTitle>
+                </DialogTitle>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   {profilo.mansione && (
                     <span className="inline-flex items-center gap-1 font-medium text-slate-600">
@@ -235,7 +257,8 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                 </div>
                 {/* Una scheda del personale non è un accesso: qui si legge se
                     questa persona entra davvero nel gestionale. */}
-                {accesso && (
+                {profilo.lavora_in_cantiere && <AccessoAppInScheda profiloId={profilo.id} />}
+                {!profilo.lavora_in_cantiere && accesso && (
                   <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
                     <span
                       className={cn(
@@ -251,9 +274,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
               </div>
             </div>
           ) : (
-            <SheetTitle className="text-left">Nuovo Profilo HR</SheetTitle>
+            <DialogTitle className="text-left">Nuovo Profilo HR</DialogTitle>
           )}
-        </SheetHeader>
+        </DialogHeader>
 
         {/* Mobile: due schede su quattro (anagrafica e documenti); ruolo e
             assenze restano al computer. Su un profilo nuovo i documenti non si
@@ -288,8 +311,15 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
               {/* Mobile: nome e cognome, email e telefono, mansione e reparto,
                   contratto e assunzione, profilo attivo. Gli altri campi restano
                   nel modulo (e si salvano com'erano) ma si modificano al computer. */}
-              <ScrollArea className="flex-1 px-6 max-sm:px-4">
+              <ScrollArea className="min-h-0 flex-1 px-6 max-sm:px-4">
                 <div className="space-y-6 py-4 max-sm:flex max-sm:flex-col max-sm:space-y-3 max-sm:py-3">
+                  {corrispondenze.length > 0 && <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                    <p className="font-medium">{stessoCf ? "Codice fiscale già presente" : "Verifica se la persona è già in azienda"}</p>
+                    {corrispondenze.map(p => <div key={p.id} className="flex items-center justify-between gap-2">
+                      <span>{p.nome} {p.cognome} · {p.mansione || "Mansione da definire"}{!p.attivo && " · Inattivo"}</span>
+                      {onApriProfilo && <Button type="button" size="sm" variant="link" onClick={() => onApriProfilo(p)}>Apri profilo</Button>}
+                    </div>)}
+                  </div>}
                   {/* Dati Personali */}
                   <div>
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">DATI PERSONALI</h4>
@@ -344,7 +374,20 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                   <div className="max-sm:order-1">
                     <h4 className="text-sm font-semibold text-muted-foreground mb-3 max-sm:hidden">ORGANIGRAMMA</h4>
                     <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
-                      <div><Label>Mansione</Label><Input {...register("mansione")} /></div>
+                      <div><Label htmlFor="hr-mansione">Mansione</Label>
+                        <UniformSelect id="hr-mansione" className="w-full" value={valoreMansione} onChange={e => {
+                          const value = e.target.value;
+                          const voce = vociCatalogo.find(m => m.id === value);
+                          setValue("mansione_id", voce?.id ?? null, { shouldDirty: true });
+                          setValue("mansione", voce?.nome ?? (value ? value.slice(6) : null), { shouldDirty: true });
+                        }}>
+                          <option value="">Nessuna mansione</option>
+                          {mansioneId && !vociCatalogo.some(m => m.id === mansioneId) && <option value={mansioneId}>{mansione || "Mansione attuale"}</option>}
+                          {vociCatalogo.map(m => <option key={m.id} value={m.id}>{m.nome}{m.area ? ` · ${m.area}` : ""}</option>)}
+                          {storiche.map(nome => <option key={nome} value={`testo:${nome}`}>{nome}</option>)}
+                        </UniformSelect>
+                        {catalogo.isError && <button type="button" className="text-xs text-primary" onClick={() => catalogo.refetch()}>Ricarica catalogo mansioni</button>}
+                      </div>
                       <div><Label>Reparto</Label><Input {...register("reparto")} /></div>
                       <div className="col-span-2 max-sm:hidden">
                         <Label>Responsabile</Label>
@@ -373,7 +416,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                       <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2 max-sm:order-last">
                         <div>
                           <Label htmlFor="hr-lavora-in-cantiere">Lavora in cantiere</Label>
-                          <p className="text-xs text-muted-foreground max-sm:hidden">Compare fra gli operai in Manodopera e Mezzi e si può mettere al lavoro nelle commesse.</p>
+                          <p className="text-xs text-muted-foreground max-sm:hidden">Usa questa stessa scheda in Manodopera e Mezzi per squadre e commesse. Puoi attivare l’app in seguito dalla scheda operaio.</p>
                         </div>
                         <Switch
                           id="hr-lavora-in-cantiere"
@@ -485,9 +528,9 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
                 </div>
               </ScrollArea>
 
-              <div className="border-t px-6 py-4 flex gap-2 justify-end max-sm:px-4 max-sm:py-3">
+              <div className="shrink-0 border-t px-6 py-4 flex gap-2 justify-end max-sm:px-4 max-sm:py-3">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="max-sm:hidden">Annulla</Button>
-                <Button type="submit" disabled={isPending} className="max-sm:flex-1">
+                <Button type="submit" disabled={isPending || stessoCf} className="max-sm:flex-1">
                   {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   {isEditing ? "Salva" : "Crea Profilo"}
                 </Button>
@@ -522,7 +565,7 @@ function HrProfiloEditor({ open, onOpenChange, profilo, allProfili }: Props) {
             </div></ScrollArea>
           </TabsContent>
         </Tabs>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }

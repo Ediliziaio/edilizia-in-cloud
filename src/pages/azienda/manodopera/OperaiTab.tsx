@@ -1,3 +1,4 @@
+import { useStatiAppOperai, StatoAppOperaio, type AccessoOperaio } from "@/components/manodopera/AccessoAppOperaio";
 /**
  * Manodopera e Mezzi → Operai (26/09/2026).
  *
@@ -20,7 +21,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -28,6 +28,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import { KpiMobili, RigaMobile } from "@/components/mobile/FiltriMobile";
 import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
@@ -70,9 +71,10 @@ export default function OperaiTab() {
   const [linkAperto, setLinkAperto] = useState(false);
   const navigate = useNavigate();
   const { data: operai } = useOperai();
+  const stati = useStatiAppOperai().data;
   const senzaApp = useMemo(
-    () => (operai ?? []).filter((o) => o.attivo && !o.ha_accesso_app && !!o.employee_id),
-    [operai],
+    () => (operai ?? []).filter((o) => o.attivo && stati?.[o.id]?.stato === "mai_dato" && !!o.employee_id),
+    [operai, stati],
   );
   const idsSenzaApp = useMemo(() => senzaApp.map((o) => o.employee_id as string), [senzaApp]);
 
@@ -84,7 +86,7 @@ export default function OperaiTab() {
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-2">
         <div role="group" aria-label="Vista" className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
           {VISTE.map(({ v, etichetta }) => (
@@ -188,7 +190,7 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
   const linkCommesse = perms.canViewOrders === true || perms.isAdmin;
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-sm">
           <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Giorno prima" onClick={() => setGiorno((g) => spostaGiorno(g, -1))}>
@@ -261,11 +263,11 @@ function GiornataOperai({ onNuovo }: { onNuovo?: () => void }) {
               { label: "Assenti", valore: String(conta.assenti), onClick: () => alterna("assenti"), attivo: filtro === "assenti" },
             ]}
           />
-          <div className="hidden grid-cols-4 gap-3 sm:grid">
-            <OperationalKpiCard icon={HardHat} label="Al lavoro" value={conta.alLavoro} hint="anche chi è in pausa" tone="green" isLoading={isLoading} active={filtro === "al_lavoro"} onClick={() => alterna("al_lavoro")} />
-            <OperationalKpiCard icon={AlertTriangle} label={eOggi ? "Non hanno timbrato" : "Da controllare"} value={conta.daControllare} hint={eOggi ? "nessuna entrata oggi" : "senza entrata o uscita"} tone={conta.daControllare > 0 ? "amber" : "slate"} isLoading={isLoading} active={filtro === "da_controllare"} onClick={() => alterna("da_controllare")} />
-            <OperationalKpiCard icon={LogOut} label="Usciti" value={conta.usciti} hint="giornata finita" tone="slate" isLoading={isLoading} active={filtro === "usciti"} onClick={() => alterna("usciti")} />
-            <OperationalKpiCard icon={CalendarOff} label="Assenti" value={conta.assenti} hint={conta.riposo > 0 ? `e ${conta.riposo} a riposo` : "ferie, permessi, malattia"} tone="blue" isLoading={isLoading} active={filtro === "assenti"} onClick={() => alterna("assenti")} />
+          <div className="hidden grid-cols-4 gap-2 sm:grid">
+            <OperationalKpiCard compact icon={HardHat} label="Al lavoro" value={conta.alLavoro} hint="anche chi è in pausa" tone="green" isLoading={isLoading} active={filtro === "al_lavoro"} onClick={() => alterna("al_lavoro")} />
+            <OperationalKpiCard compact icon={AlertTriangle} label={eOggi ? "Non hanno timbrato" : "Da controllare"} value={conta.daControllare} hint={eOggi ? "nessuna entrata oggi" : "senza entrata o uscita"} tone={conta.daControllare > 0 ? "amber" : "slate"} isLoading={isLoading} active={filtro === "da_controllare"} onClick={() => alterna("da_controllare")} />
+            <OperationalKpiCard compact icon={LogOut} label="Usciti" value={conta.usciti} hint="giornata finita" tone="slate" isLoading={isLoading} active={filtro === "usciti"} onClick={() => alterna("usciti")} />
+            <OperationalKpiCard compact icon={CalendarOff} label="Assenti" value={conta.assenti} hint={conta.riposo > 0 ? `e ${conta.riposo} a riposo` : "ferie, permessi, malattia"} tone="blue" isLoading={isLoading} active={filtro === "assenti"} onClick={() => alterna("assenti")} />
           </div>
           {data.length > 0 && <BarraGiornata righe={data} />}
         </>
@@ -370,7 +372,7 @@ function SchedinaGiornata({ r, linkCommesse }: { r: OperaioOggi; linkCommesse: b
     ? `${formatOra(r.prima_entrata)} → ${r.ultima_uscita ? formatOra(r.ultima_uscita) : stato === "in_pausa" ? "in pausa" : "…"}`
     : null;
   return (
-    <li className="flex min-w-0 gap-3 bg-white px-4 py-3">
+    <li className="flex min-w-0 gap-2 bg-white px-3 py-2">
       <Link to={`/azienda/manodopera/operai/${r.profilo_id}`} className="tap-compact shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Apri ${r.nome} ${r.cognome}`}>
         <AvatarOperaio nome={r.nome} cognome={r.cognome} colore={r.colore_avatar} pallino={PALLINO_STATO[stato]} />
       </Link>
@@ -423,6 +425,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
   const [daSciogliere, setDaSciogliere] = useState<Squadra | null>(null);
   const [perNuova, setPerNuova] = useState<string[] | null>(null);
 
+  const stati = useStatiAppOperai().data;
   const statoOggi = useMemo(() => new Map(giornata.map((r) => [r.profilo_id, statoNoto(r.stato)])), [giornata]);
   const senzaSquadra = useMemo(() => operai.filter((o) => o.attivo && !o.squadra_id), [operai]);
   const linkCommesse = perms.canViewOrders === true || perms.isAdmin;
@@ -506,7 +509,7 @@ function SquadreOperai({ puoModificare, onNuova }: { puoModificare: boolean; onN
                           {p.mansione && <span className="text-muted-foreground"> · {p.mansione}</span>}
                         </Link>
                         {st && <span className="shrink-0 text-[11px] text-muted-foreground">{etichettaGiornata(st)}</span>}
-                        {p.ha_accesso_app && <Smartphone className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-label="ha l'app di cantiere" />}
+                        <StatoAppOperaio accesso={stati?.[p.id]} />
                       </li>
                     );
                   })}
@@ -614,34 +617,39 @@ type FiltroElenco = "tutti" | "app" | "documenti" | "senza_squadra";
 function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
   const { data = [], isLoading, error, refetch, isFetching } = useOperai();
   const [cerca, setCerca] = useState("");
+  const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   const [soloAttivi, setSoloAttivi] = useState(true);
   const [filtro, setFiltro] = useState<FiltroElenco>("tutti");
 
+  const stati = useStatiAppOperai().data;
   const attivi = useMemo(() => data.filter((o) => o.attivo), [data]);
   const numeri = useMemo(() => ({
     attivi: attivi.length,
-    conApp: attivi.filter((o) => o.ha_accesso_app).length,
+    conApp: attivi.filter((o) => stati?.[o.id]?.stato === "attivo").length,
     documenti: attivi.filter((o) => o.documenti_scaduti > 0 || o.documenti_in_scadenza > 0).length,
     senzaSquadra: attivi.filter((o) => !o.squadra_id).length,
-  }), [attivi]);
+  }), [attivi, stati]);
 
   const righe = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     return data.filter((o) => {
       if (soloAttivi !== o.attivo) return false;
-      if (filtro === "app" && !o.ha_accesso_app) return false;
+      if (filtro === "app" && stati?.[o.id]?.stato !== "attivo") return false;
       if (filtro === "documenti" && !(o.documenti_scaduti > 0 || o.documenti_in_scadenza > 0)) return false;
       if (filtro === "senza_squadra" && o.squadra_id) return false;
       if (!q) return true;
-      return [o.nome, o.cognome, o.mansione, o.telefono, o.mezzi, o.squadra].some((x) => x?.toLowerCase().includes(q));
+      return [o.nome, o.cognome, `${o.nome} ${o.cognome}`, `${o.cognome} ${o.nome}`, o.mansione, o.telefono, o.mezzi, o.squadra].some((x) => x?.toLowerCase().includes(q));
     });
-  }, [data, cerca, soloAttivi, filtro]);
+  }, [data, cerca, soloAttivi, filtro, stati]);
 
   const nonAttivi = data.length - attivi.length;
-  const alterna = (f: FiltroElenco) => setFiltro((x) => (x === f ? "tutti" : f));
+  const alterna = (f: FiltroElenco) => {
+    setSoloAttivi(true);
+    setFiltro(attuale => attuale === f && soloAttivi ? "tutti" : f);
+  };
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-2.5">
       <KpiMobili
         className="sm:hidden"
         voci={[
@@ -649,11 +657,11 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
           { label: "Documenti da rifare", valore: String(numeri.documenti), tono: numeri.documenti > 0 ? "text-red-600" : undefined, onClick: () => alterna("documenti"), attivo: filtro === "documenti" },
         ]}
       />
-      <div className="hidden grid-cols-4 gap-3 sm:grid">
-        <OperationalKpiCard icon={Users} label="Operai" value={numeri.attivi} hint="che lavorano in cantiere" tone="blue" isLoading={isLoading} active={filtro === "tutti" && soloAttivi} onClick={() => { setFiltro("tutti"); setSoloAttivi(true); }} />
-        <OperationalKpiCard icon={Smartphone} label="Con l'app di cantiere" value={numeri.conApp} hint="timbrano dal telefono" tone="green" isLoading={isLoading} active={filtro === "app"} onClick={() => alterna("app")} />
-        <OperationalKpiCard icon={FileWarning} label="Documenti da rifare" value={numeri.documenti} hint="scaduti o in scadenza" tone={numeri.documenti > 0 ? "red" : "green"} isLoading={isLoading} active={filtro === "documenti"} onClick={() => alterna("documenti")} />
-        <OperationalKpiCard icon={UsersRound} label="Senza squadra" value={numeri.senzaSquadra} hint="da mettere in una squadra" tone={numeri.senzaSquadra > 0 ? "amber" : "green"} isLoading={isLoading} active={filtro === "senza_squadra"} onClick={() => alterna("senza_squadra")} />
+      <div className="hidden grid-cols-4 gap-2 sm:grid">
+        <OperationalKpiCard compact icon={Users} label="Operai" value={numeri.attivi} hint="che lavorano in cantiere" tone="blue" isLoading={isLoading} active={filtro === "tutti" && soloAttivi} onClick={() => { setFiltro("tutti"); setSoloAttivi(true); }} />
+        <OperationalKpiCard compact icon={Smartphone} label="Con l'app di cantiere" value={numeri.conApp} hint="timbrano dal telefono" tone="green" isLoading={isLoading} active={filtro === "app"} onClick={() => alterna("app")} />
+        <OperationalKpiCard compact icon={FileWarning} label="Documenti da rifare" value={numeri.documenti} hint="scaduti o in scadenza" tone={numeri.documenti > 0 ? "red" : "green"} isLoading={isLoading} active={filtro === "documenti"} onClick={() => alterna("documenti")} />
+        <OperationalKpiCard compact icon={UsersRound} label="Senza squadra" value={numeri.senzaSquadra} hint="da mettere in una squadra" tone={numeri.senzaSquadra > 0 ? "amber" : "green"} isLoading={isLoading} active={filtro === "senza_squadra"} onClick={() => alterna("senza_squadra")} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -662,7 +670,7 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
           <Input id="cerca-operai" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca per nome, squadra, mezzo…" aria-label="Cerca operai" className="pl-9" />
         </div>
         {nonAttivi > 0 && (
-          <Button variant="outline" size="sm" onClick={() => setSoloAttivi((x) => !x)} aria-pressed={!soloAttivi}>
+          <Button variant="outline" size="sm" onClick={() => { setSoloAttivi((x) => !x); setFiltro("tutti"); }} aria-pressed={!soloAttivi}>
             {soloAttivi ? `Non più attivi (${nonAttivi})` : "Torna agli attivi"}
           </Button>
         )}
@@ -689,28 +697,32 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
                 sinistra={<AvatarOperaio nome={o.nome} cognome={o.cognome} colore={o.colore_avatar} />}
                 titolo={`${o.nome} ${o.cognome}`}
                 sottotitolo={[o.squadra, o.mansione, o.mezzi].filter(Boolean).join(" · ") || undefined}
-                stato={<DocumentiTesto o={o} />}
+                stato={<><DocumentiTesto o={o} /> <StatoAppOperaio accesso={stati?.[o.id]} /></>}
               />
             ))}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border bg-white sm:block">
-            <table className="w-full text-sm">
+          <div className="hidden overflow-hidden rounded-xl border bg-white sm:block">
+            <BarraScorrimentoOrizzontale contenitore={tabella} className="mx-3" />
+            <div ref={setTabella} className="overflow-x-auto">
+            <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
-                  <th scope="col" className="px-4 py-2.5">Operaio</th>
-                  <th scope="col" className="px-4 py-2.5">Squadra</th>
-                  <th scope="col" className="px-4 py-2.5">Telefono</th>
-                  <th scope="col" className="px-4 py-2.5">Documenti</th>
-                  <th scope="col" className="px-4 py-2.5">Mezzo in carico</th>
-                  <th scope="col" className="px-4 py-2.5 text-center">Cantieri</th>
-                  <th scope="col" className="px-4 py-2.5">App</th>
+                  <th scope="col" className="px-3 py-1.5">Operaio</th>
+                  <th scope="col" className="px-3 py-1.5">Mansione</th>
+                  <th scope="col" className="px-3 py-1.5">Squadra</th>
+                  <th scope="col" className="px-3 py-1.5">Telefono</th>
+                  <th scope="col" className="px-3 py-1.5">Documenti</th>
+                  <th scope="col" className="px-3 py-1.5">Mezzo in carico</th>
+                  <th scope="col" className="px-3 py-1.5 text-center">Cantieri</th>
+                  <th scope="col" className="px-3 py-1.5">App</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {righe.map((o) => <RigaElenco key={o.id} o={o} />)}
+                {righe.map((o) => <RigaElenco key={o.id} o={o} accesso={stati?.[o.id]} />)}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       )}
@@ -718,11 +730,11 @@ function ElencoOperai({ onNuovo }: { onNuovo?: () => void }) {
   );
 }
 
-function RigaElenco({ o }: { o: OperaioElenco }) {
+function RigaElenco({ o, accesso }: { o: OperaioElenco; accesso?: AccessoOperaio }) {
   const navigate = useNavigate();
   return (
     <tr className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/azienda/manodopera/operai/${o.id}`)}>
-      <td className="px-4 py-2.5">
+      <td className="px-3 py-1.5">
         <Link
           to={`/azienda/manodopera/operai/${o.id}`}
           onClick={(e) => e.stopPropagation()}
@@ -731,27 +743,28 @@ function RigaElenco({ o }: { o: OperaioElenco }) {
           <AvatarOperaio nome={o.nome} cognome={o.cognome} colore={o.colore_avatar} />
           <span className="min-w-0">
             <span className="block truncate font-medium text-slate-900">{o.nome} {o.cognome}</span>
-            {o.mansione && <span className="block truncate text-xs text-muted-foreground">{o.mansione}</span>}
+
           </span>
         </Link>
       </td>
-      <td className="px-4 py-2.5">
+      <td className="px-3 py-1.5">
+        {o.mansione || "—"}
+      </td>
+      <td className="px-3 py-1.5">
         {o.squadra ? (
           <span className="inline-flex items-center gap-1.5 text-slate-700">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: o.squadra_colore ?? "#94A3B8" }} aria-hidden="true" />{o.squadra}
           </span>
         ) : <span className="text-muted-foreground">—</span>}
       </td>
-      <td className="px-4 py-2.5 tabular-nums text-slate-700">
+      <td className="px-3 py-1.5 tabular-nums text-slate-700">
         {o.telefono ? <a href={`tel:${o.telefono}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-700 hover:underline">{o.telefono}</a> : "—"}
       </td>
-      <td className="px-4 py-2.5"><DocumentiTesto o={o} /></td>
-      <td className="max-w-[12rem] truncate px-4 py-2.5 text-slate-700">{o.mezzi ?? "—"}</td>
-      <td className="px-4 py-2.5 text-center tabular-nums">{o.cantieri_attivi || "—"}</td>
-      <td className="px-4 py-2.5">
-        {o.ha_accesso_app
-          ? <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Sì</Badge>
-          : <span className="text-muted-foreground">No</span>}
+      <td className="px-3 py-1.5"><DocumentiTesto o={o} /></td>
+      <td className="max-w-[12rem] truncate px-3 py-1.5 text-slate-700">{o.mezzi ?? "—"}</td>
+      <td className="px-3 py-1.5 text-center tabular-nums">{o.cantieri_attivi || "—"}</td>
+      <td className="px-3 py-1.5">
+        <StatoAppOperaio accesso={accesso} />
       </td>
     </tr>
   );

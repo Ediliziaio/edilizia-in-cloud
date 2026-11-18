@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PipelineCommesseLocali } from "@/components/settings/PipelineCommesseLocali";
 import { OrderStatusConfig } from "@/components/settings/OrderStatusConfig";
 import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,7 +15,7 @@ export default function SettingsOrderStatus() {
 
   return (
     <div className="space-y-4">
-      <OrderStatusConfig />
+      {effectiveCompany?.id ? <PipelineCommesseLocali key={effectiveCompany.id} azienda={effectiveCompany.id} /> : <OrderStatusConfig />}
       {/* Il flusso vale per tutta l'azienda: sta qui e non nel menu della singola commessa. */}
       {effectiveCompany?.id && (
         <>

@@ -434,6 +434,7 @@ function OrganigrammaContent() {
           onOpenChange={setOpen}
           profilo={editing}
           allProfili={profili}
+          onApriProfilo={setEditing}
         />
       ) : (
         <Sheet open={open && !!editing} onOpenChange={setOpen}>

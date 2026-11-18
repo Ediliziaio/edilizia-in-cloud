@@ -154424,6 +154424,7 @@ export type Database = {
           tipo_contratto: string
         }[]
       }
+      stati_app_operai: { Args: { p_company_id: string }; Returns: Json }
       manodopera_operaio: { Args: { p_profilo_id: string }; Returns: Json }
       manodopera_operaio_mese: {
         Args: { p_mese: string; p_profilo_id: string }

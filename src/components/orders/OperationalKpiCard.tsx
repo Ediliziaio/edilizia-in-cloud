@@ -16,6 +16,7 @@ interface OperationalKpiCardProps {
   label: ReactNode;
   value: ReactNode;
   hint?: ReactNode;
+  compact?: boolean;
   tone?: OperationalKpiTone;
   isLoading?: boolean;
   active?: boolean;
@@ -70,6 +71,7 @@ export function OperationalKpiCard({
   label,
   value,
   hint,
+  compact = false,
   tone = "slate",
   isLoading,
   active,
@@ -82,6 +84,7 @@ export function OperationalKpiCard({
     <Card
       onClick={onClick}
       role={onClick ? "button" : undefined}
+      aria-pressed={onClick ? active : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(event) => {
         if (!onClick) return;
@@ -116,12 +119,12 @@ export function OperationalKpiCard({
         >
           <Icon className={cn("h-[18px] w-[18px]", styles.icon)} />
         </div>
-        <div className="min-w-0">
+        <div className={compact ? "grid flex-1 grid-cols-[1fr_auto] items-center gap-x-2" : "min-w-0"}>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">
             {label}
           </p>
           {isLoading ? (
-            <Skeleton className="mt-1 h-7 w-28" />
+            <Skeleton className={compact ? "h-5 w-5" : "mt-1 h-7 w-28"} />
           ) : (
             <p
               className={cn(
@@ -140,7 +143,7 @@ export function OperationalKpiCard({
             </p>
           )}
           {hint && !isLoading && (
-            <p className="mt-0.5 truncate text-[10px] text-slate-500 sm:text-xs max-sm:hidden">
+            <p className="col-span-2 mt-0.5 truncate text-[10px] text-slate-500 sm:text-xs max-sm:hidden">
               {hint}
             </p>
           )}

@@ -848,6 +848,12 @@ export function UsersConfig() {
         if (auditErr) logger.error("Audit log non registrato (user_created):", auditErr);
       }
 
+      if (data.role_type === "employee" || data.also_employee) {
+        for (const key of ["hr-profili-all", "hr-organigramma", "manodopera", "stati-app-operai"]) {
+          queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["company-staff-users", effectiveCompanyId] });
       // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
@@ -909,16 +915,17 @@ export function UsersConfig() {
 
   const blockAccessMutation = useMutation({
     mutationFn: async ({ userId, block }: { userId: string; block: boolean }) => {
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from("profiles")
         .update({
           is_blocked: block,
           blocked_at: block ? new Date().toISOString() : null,
           blocked_by: block ? user?.id : null,
           block_reason: block ? "Bloccato dall'amministratore" : null,
-        } as never)
+        } as never, { count: "exact" })
         .eq("id", userId).eq("company_id", effectiveCompanyId!);
       if (error) throw error;
+      if (count === 0) throw new Error("Account non aggiornato");
       await writeAuditLog(block ? "user_locked" : "user_unlocked", userId, {
         source: "people_list",
         blocked: block,
@@ -926,6 +933,7 @@ export function UsersConfig() {
     },
     onSuccess: (_, { block }) => {
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
       toast.success(block ? "Accesso bloccato" : "Accesso ripristinato");
     },
     onError: () => toast.error("Non sono riuscito a cambiare lo stato dell'accesso. Riprova tra un attimo."),

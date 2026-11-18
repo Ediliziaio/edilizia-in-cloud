@@ -1,3 +1,4 @@
+import { pipelineCommesseDev } from "./dev/pipeline-commesse/plugin.mts";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -36,6 +37,7 @@ export default defineConfig(({ command, mode }) => ({
   },
   plugins: [
     react(),
+    pipelineCommesseDev(),
     localPlanOcrPlugin(),
     localCadPlugin(),
     // Explicitly authorized Demo 2 trial. Dev-only, fixed function, tenant checked twice.

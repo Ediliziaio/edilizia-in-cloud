@@ -21,3 +21,16 @@ it("se il personale non può essere verificato, la creazione operaio resta blocc
  expect(screen.getByRole("button",{name:/crea utente/i})).toBeDisabled();
  expect(screen.getByRole("alert")).toHaveTextContent("Non riesco a verificare il personale");
 });
+
+it("richiede una scelta esplicita prima di creare la persona e pulisce i dati del profilo deselezionato", () => {
+  render(<CreateUserWizard companyId="company" open onOpenChange={() => {}} onSubmit={vi.fn()} />);
+  fireEvent.click(screen.getByText("Operaio / Tecnico"));
+  const submit = screen.getByRole("button", { name: /crea utente/i });
+  const selector = screen.getByLabelText("Scheda del personale");
+  expect(submit).toBeDisabled();
+  changeFormControl(selector, { target: { value: "existing-worker" } });
+  expect(screen.getByLabelText("Nome")).toHaveAttribute("readonly");
+  changeFormControl(selector, { target: { value: "nuova" } });
+  expect(screen.getByLabelText("Nome")).toHaveValue("");
+  expect(screen.getByLabelText("Email")).toHaveValue("");
+});

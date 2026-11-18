@@ -135,6 +135,7 @@ export function useSyncFromEmployees() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["hr-organigramma"] });
       queryClient.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
       queryClient.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
       toast.success(
         `${result.created} profili HR creati da anagrafica dipendenti`,
@@ -186,6 +187,7 @@ export function useUpdateHrProfilo() {
       queryClient.invalidateQueries({ queryKey: ["qualifiche-addetto", companyId] });
       queryClient.invalidateQueries({ queryKey: ["addetti-qualifiche-commessa", companyId] }); queryClient.invalidateQueries({ queryKey: ["pos-riesame-proprio", companyId] });
       queryClient.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
       queryClient.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
       toast.success("Profilo HR aggiornato");
     },

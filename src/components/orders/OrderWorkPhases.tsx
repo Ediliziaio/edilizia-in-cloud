@@ -90,6 +90,7 @@ import { cn } from "@/lib/utils";
 import { assignmentName, generalCrewsForPhase } from "@/lib/orders/teamWorkPlan";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { PeriodiInCommessa } from "@/components/manodopera/PeriodiOperaio";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { AppCantiere } from "@/components/orders/AppCantiere";
 import { CantiereLogistica } from "@/components/orders/CantiereLogistica";
@@ -964,6 +965,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
 
         {/* Le ditte in subappalto (DURC e contratto), solo se ce ne sono. */}
         {showTeam && <>
+          {effectiveCompany?.id && <PeriodiInCommessa companyId={effectiveCompany.id} orderId={orderId} />}
           <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Istruzioni per il cantiere{note.length > 0 ? ` (${note.length})` : ""}</summary><div className="mt-3"><NoteCantiere orderId={orderId} fasi={phaseOptions} modificabile={puoSquadre} /></div></details>
           <OrderLaborCosts orderId={orderId} editable={canEditOrders} embedded parte="ditte" compact />
           <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">Indirizzo e viaggio</summary><div className="mt-3"><CantiereLogistica orderId={orderId} showSiteEquipment={false} /></div></details>

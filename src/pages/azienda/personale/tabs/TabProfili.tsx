@@ -1,3 +1,4 @@
+import { useStatiAppOperai, StatoAppOperaio, type AccessoOperaio } from "@/components/manodopera/AccessoAppOperaio";
 import { useState, useMemo } from "react";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
 import { useHrScadenzeCounts } from "@/hooks/useHrDocumenti";
@@ -40,6 +41,7 @@ export function TabProfili() {
      la stessa fonte usata ovunque per «chi è un utente dell'azienda». */
   const companyId = useEffectiveCompanyId();
   const { data: utentiAzienda } = useCompanyStaffUsers(companyId);
+  const statiApp = useStatiAppOperai().data;
   const canEdit = !permissions.isLoading && !permissions.solaLettura && (permissions.isAdmin || permissions.canViewPersone);
   const [paging, setPaging] = useState({ key: "", page: 0 });
   const [search, setSearch] = useState("");
@@ -66,7 +68,9 @@ export function TabProfili() {
     if (filterAccesso !== "tutti" && utentiAzienda) {
       list = list.filter((p) => {
         const stato = accessoPiattaforma(p, utentiAzienda)?.stato;
-        return filterAccesso === "entra" ? stato === "entra" : stato !== "entra";
+        if (p.lavora_in_cantiere && !statiApp?.[p.id]) return false;
+        const attivo = p.lavora_in_cantiere ? statiApp?.[p.id]?.stato === "attivo" : stato === "entra";
+        return filterAccesso === "entra" ? attivo : !attivo;
       });
     }
     if (search) {
@@ -76,16 +80,16 @@ export function TabProfili() {
       );
     }
     return list;
-  }, [profili, search, filterStato, filterReparto, filterAccesso, utentiAzienda]);
+  }, [profili, search, filterStato, filterReparto, filterAccesso, utentiAzienda, statiApp]);
 
   const kpis = useMemo(() => ({
     totali: profili.length,
     attivi: profili.filter((p) => p.attivo).length,
     cessati: profili.filter((p) => !p.attivo).length,
     entrano: utentiAzienda
-      ? profili.filter((p) => p.attivo && accessoPiattaforma(p, utentiAzienda)?.stato === "entra").length
+      ? profili.filter((p) => p.attivo && (p.lavora_in_cantiere ? statiApp?.[p.id]?.stato === "attivo" : accessoPiattaforma(p, utentiAzienda)?.stato === "entra")).length
       : null,
-  }), [profili, utentiAzienda]);
+  }), [profili, utentiAzienda, statiApp]);
   const filterKey = JSON.stringify([search, filterStato, filterReparto, filterAccesso]);
   const page = paging.key === filterKey ? paging.page : 0;
   const setPage = (value: number) => setPaging({ key: filterKey, page: value });
@@ -196,19 +200,19 @@ export function TabProfili() {
         <>
           <div className="divide-y divide-border overflow-hidden rounded-lg border bg-card sm:hidden">
             {visible.map((p) => (
-              <ProfiloRigaMobile key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} utenti={utentiAzienda} />
+              <ProfiloRigaMobile key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} utenti={utentiAzienda} app={statiApp?.[p.id]} />
             ))}
           </div>
           <div className="space-y-2 max-sm:hidden">
             {visible.map((p) => (
-              <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} utenti={utentiAzienda} />
+              <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} utenti={utentiAzienda} app={statiApp?.[p.id]} />
             ))}
           </div>
         </>
       )}
       {!isError && <HrPager total={filtered.length} page={currentPage} onPage={setPage} />}
 
-      <HrProfiloSheet open={sheetOpen} onOpenChange={setSheetOpen} profilo={selectedProfilo} allProfili={profili} />
+      <HrProfiloSheet open={sheetOpen} onOpenChange={setSheetOpen} profilo={selectedProfilo} allProfili={profili} onApriProfilo={handleEdit} />
 
       <PannelloFiltri
         aperto={filtriMobileAperti}
@@ -270,7 +274,7 @@ function BadgeAccesso({ esito, compatto }: { esito: EsitoAccesso | null; compatt
   );
 }
 
-function ProfiloRow({ profilo: p, scad, onClick, utenti }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
+function ProfiloRow({ profilo: p, scad, onClick, utenti, app }: { app?: AccessoOperaio; profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
   return (
     <Card role="button" tabIndex={0} aria-label={`Apri profilo di ${p.nome} ${p.cognome}`} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }} className={`cursor-pointer hover:shadow-md transition-shadow focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
       <CardContent className="p-3 flex items-center gap-3">
@@ -288,7 +292,7 @@ function ProfiloRow({ profilo: p, scad, onClick, utenti }: { profilo: HrProfilo;
             <span className="font-medium text-sm">{p.nome} {p.cognome}</span>
             {p.matricola && <Badge variant="outline" className="text-xs font-mono">{p.matricola}</Badge>}
             {!p.attivo && <Badge variant="secondary" className="text-xs">Cessato</Badge>}
-            <BadgeAccesso esito={accessoPiattaforma(p, utenti)} />
+            {p.lavora_in_cantiere ? <StatoAppOperaio accesso={app} /> : <BadgeAccesso esito={accessoPiattaforma(p, utenti)} />}
             {scad && scad.scaduti > 0 && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 gap-1">
                 <AlertTriangle className="h-3 w-3" />{scad.scaduti} scadut{scad.scaduti === 1 ? "o" : "i"}
@@ -321,7 +325,7 @@ function ProfiloRow({ profilo: p, scad, onClick, utenti }: { profilo: HrProfilo;
  * Mobile: una riga da ~52px (avatar, nome, mansione e reparto; documenti
  * scaduti o in scadenza a destra), senza badge, email e telefono.
  */
-function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
+function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti, app }: { app?: AccessoOperaio; profilo: HrProfilo; scad?: ScadCount; onClick: () => void; utenti: UtenteDiAzienda[] | null | undefined }) {
   return (
     <button
       type="button"
@@ -337,7 +341,7 @@ function ProfiloRigaMobile({ profilo: p, scad, onClick, utenti }: { profilo: HrP
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 truncate text-[13px] font-semibold leading-tight">
           {p.nome} {p.cognome}
-          {accessoPiattaforma(p, utenti)?.stato === "entra" && (
+          {p.lavora_in_cantiere ? <StatoAppOperaio accesso={app} /> : accessoPiattaforma(p, utenti)?.stato === "entra" && (
             <KeyRound className="h-3 w-3 shrink-0 text-emerald-600" aria-label="Entra nel gestionale" />
           )}
         </p>

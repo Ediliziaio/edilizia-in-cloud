@@ -165,7 +165,7 @@ export function OrdersMonthlyChart({
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
         {view === "count" ? "Commesse create per mese." : "Per mese di creazione. Incassato su quelle commesse, indipendentemente dalla data dell’incasso."}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <div
           role="group"
           aria-label="Visualizzazione andamento"
@@ -185,7 +185,7 @@ export function OrdersMonthlyChart({
                 setAnimateInteraction(event.detail > 0);
                 setView(item.value);
               }}
-              className={`orders-chart-control rounded-md px-3 py-1.5 text-xs font-medium ${view === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+              className={`orders-chart-control rounded-md px-2 py-1 text-xs font-medium ${view === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
             >
               {item.label}
             </button>
@@ -211,7 +211,7 @@ export function OrdersMonthlyChart({
                   setAnimateInteraction(event.detail > 0);
                   setShape(item.value);
                 }}
-                className={`orders-chart-control rounded-md px-2 py-1.5 text-xs ${shape === item.value ? "bg-blue-50 font-medium text-blue-800" : "text-slate-500"}`}
+                className={`orders-chart-control rounded-md px-2 py-1 text-xs ${shape === item.value ? "bg-blue-50 font-medium text-blue-800" : "text-slate-500"}`}
               >
                 {item.label}
               </button>
@@ -226,7 +226,7 @@ export function OrdersMonthlyChart({
               setAnimateInteraction(event.detail > 0);
               comparison.onToggle();
             }}
-            className={`orders-chart-control rounded-lg border px-3 py-1.5 text-xs font-medium ${comparison.enabled ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}
+            className={`orders-chart-control rounded-lg border px-2 py-1 text-xs font-medium ${comparison.enabled ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}
           >
             Confronta {comparison.year}
           </button>
@@ -263,7 +263,7 @@ export function OrdersMonthlyChart({
         </div>
       )}
       <div
-        className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
+        className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
         aria-label="Legenda grafico"
       >
         {view === "money" ? (
@@ -284,7 +284,7 @@ export function OrdersMonthlyChart({
         )}
       </div>
       <div
-        className={`mt-1 min-h-[160px] flex-1 basis-0 ${onSelectMonth ? "cursor-pointer" : ""}`}
+        className={`mt-1 h-[140px] shrink-0 ${onSelectMonth ? "cursor-pointer" : ""}`}
         role="img"
         aria-label={
           view === "money"
@@ -460,7 +460,7 @@ export function OrdersMonthlyChart({
         </ResponsiveContainer>
       </div>
       {onSelectMonth && (
-        <div className="mt-2">
+        <div className="mt-1">
           {selected ? (
             <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <strong className="capitalize">{monthName(selected)}</strong>
@@ -479,7 +479,7 @@ export function OrdersMonthlyChart({
           <div
             role="group"
             aria-label="Filtra commesse per mese"
-            className="grid grid-cols-6 gap-1 2xl:grid-cols-12"
+            className="grid grid-cols-6 gap-1 lg:grid-cols-12"
           >
             {data.map((month) => (
               <button
@@ -503,7 +503,7 @@ export function OrdersMonthlyChart({
 
         </div>
       )}
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
+      <div className="mt-1 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
         <p>
           {hasFuture
             ? "I mesi futuri senza dati restano vuoti; il mese in corso è parziale."

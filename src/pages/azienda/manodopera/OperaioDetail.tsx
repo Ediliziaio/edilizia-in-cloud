@@ -1,3 +1,4 @@
+import { AccessoAppInScheda, useStatiAppOperai } from "@/components/manodopera/AccessoAppOperaio";
 /**
  * /azienda/manodopera/operai/:id — la scheda di un operaio (26/09/2026).
  *
@@ -28,6 +29,9 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { PeriodiOperaio } from "@/components/manodopera/PeriodiOperaio";
+import { useSpostaOperaio, useSquadre } from "@/hooks/useOperai";
 import { AvatarOperaio } from "@/components/manodopera/AvatarOperaio";
 import { CalendarioPresenze } from "@/components/manodopera/CalendarioPresenze";
 import { LinkAccessoDialog } from "@/components/manodopera/LinkAccessoDialog";
@@ -37,6 +41,7 @@ import {
   messaggioErroreOperai, useDaiAccessoApp, useSalvaOperaio, useSchedaOperaio, type SchedaOperaio,
 } from "@/hooks/useOperai";
 import { formatDateIt } from "@/lib/formatters";
+import { percorsoSquadra, SQUADRE_OPERAI } from "@/lib/manodopera/collegamentiSquadre";
 import { cn } from "@/lib/utils";
 
 const CATEGORIE_DOCUMENTO: Record<string, string> = {
@@ -63,7 +68,7 @@ export default function OperaioDetail() {
       <div className="space-y-4" aria-busy="true" aria-label="Caricamento">
         <Skeleton className="h-5 w-24" />
         <div className="flex items-center gap-3"><Skeleton className="h-12 w-12 rounded-full" /><Skeleton className="h-8 w-64" /></div>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)}
         </div>
       </div>
@@ -103,6 +108,11 @@ function Scheda({ s }: { s: SchedaOperaio }) {
   const [appAperta, setAppAperta] = useState(false);
   const [linkAperto, setLinkAperto] = useState(false);
   const p = s.scheda;
+  const accesso = useStatiAppOperai().data?.[p.id];
+  const [sceltaSquadra, setSceltaSquadra] = useState<string | null>(null);
+  const squadre = useSquadre(sceltaSquadra !== null);
+  const sposta = useSpostaOperaio();
+  const pianificabile = puoModificare && p.attivo && p.lavora_in_cantiere;
 
   const iniziali: Partial<ValoriOperaio> = useMemo(() => ({
     nome: p.nome ?? "",
@@ -132,12 +142,12 @@ function Scheda({ s }: { s: SchedaOperaio }) {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="space-y-3">
       <Link to={ELENCO} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />Operai
       </Link>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <AvatarOperaio nome={p.nome} cognome={p.cognome} colore={p.colore_avatar} grande />
           <div className="min-w-0">
@@ -146,16 +156,28 @@ function Scheda({ s }: { s: SchedaOperaio }) {
               {p.mansione && <span>{p.mansione}</span>}
               {!p.attivo && <Badge variant="outline" className="border-slate-300 text-slate-600">Non più attivo</Badge>}
               {!p.lavora_in_cantiere && <Badge variant="outline" className="border-slate-300 text-slate-600">Non lavora in cantiere</Badge>}
-              {p.ha_accesso_app
-                ? <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700"><Smartphone className="h-3 w-3" aria-hidden="true" />Ha l'app di cantiere</Badge>
-                : <Badge variant="outline" className="border-slate-200 text-slate-500">Senza app</Badge>}
+              <AccessoAppInScheda profiloId={p.id} />
             </div>
+            {(p.telefono || p.email) && (
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                {p.telefono && (
+                  <a href={`tel:${p.telefono}`} className="inline-flex items-center gap-1.5 text-slate-700 hover:text-orange-700">
+                    <Phone className="h-4 w-4 text-slate-400" aria-hidden="true" />{p.telefono}
+                  </a>
+                )}
+                {p.email && (
+                  <a href={`mailto:${p.email}`} className="inline-flex min-w-0 items-center gap-1.5 text-slate-700 hover:text-orange-700">
+                    <Mail className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" /><span className="truncate">{p.email}</span>
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {puoModificare && (
           <div className="flex shrink-0 items-center gap-2">
-            {!p.ha_accesso_app && perms.isAdmin && p.employee_id && (
+            {accesso?.stato === "mai_dato" && perms.isAdmin && p.employee_id && (
               <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setLinkAperto(true)}>
                 <Smartphone className="h-4 w-4" aria-hidden="true" />Dagli l'app
               </Button>
@@ -170,7 +192,7 @@ function Scheda({ s }: { s: SchedaOperaio }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {p.ha_accesso_app && perms.isAdmin && p.employee_id && (
+                {accesso?.stato === "attivo" && perms.isAdmin && p.employee_id && (
                   <DropdownMenuItem onSelect={() => setLinkAperto(true)}>Manda di nuovo il link</DropdownMenuItem>
                 )}
                 {p.attivo ? (
@@ -194,24 +216,10 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         )}
       </div>
 
-      {(p.telefono || p.email) && (
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          {p.telefono && (
-            <a href={`tel:${p.telefono}`} className="inline-flex items-center gap-1.5 text-slate-700 hover:text-orange-700">
-              <Phone className="h-4 w-4 text-slate-400" aria-hidden="true" />{p.telefono}
-            </a>
-          )}
-          {p.email && (
-            <a href={`mailto:${p.email}`} className="inline-flex min-w-0 items-center gap-1.5 text-slate-700 hover:text-orange-700">
-              <Mail className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" /><span className="truncate">{p.email}</span>
-            </a>
-          )}
-        </div>
-      )}
-
+      <div className="flex flex-wrap items-center gap-2">
       {s.squadra ? (
         <Link
-          to="/azienda/manodopera?tab=operai&vista=squadre"
+          to={percorsoSquadra(SQUADRE_OPERAI, s.squadra.id)}
           className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border bg-white px-4 py-2.5 text-sm shadow-sm hover:border-orange-200"
           style={{ borderLeftWidth: 4, borderLeftColor: s.squadra.colore ?? "#94A3B8" }}
         >
@@ -234,6 +242,25 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         </p>
       )}
 
+      {pianificabile && <Button size="sm" variant="outline" onClick={() => setSceltaSquadra(s.squadra?.id ?? "nessuna")}>{s.squadra ? "Cambia squadra" : "Scegli squadra"}</Button>}
+      </div>
+      <Dialog open={sceltaSquadra !== null} onOpenChange={open => {if (!open && !sposta.isPending) setSceltaSquadra(null);}}>
+        <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Squadra di {p.nome}</DialogTitle>
+          <DialogDescription>La scelta aggiorna anche i cantieri assegnati tramite la squadra.</DialogDescription></DialogHeader>
+          {squadre.isError ? <Button variant="outline" onClick={() => squadre.refetch()}>Riprova a caricare le squadre</Button> :
+            <Select value={sceltaSquadra ?? ""} onValueChange={setSceltaSquadra} disabled={!squadre.isSuccess || sposta.isPending}>
+              <SelectTrigger aria-label="Squadra"><SelectValue placeholder="Scegli la squadra" /></SelectTrigger>
+              <SelectContent><SelectItem value="nessuna">Nessuna squadra</SelectItem>{squadre.data?.map(team => <SelectItem key={team.id} value={team.id}>{team.nome}</SelectItem>)}</SelectContent>
+            </Select>}
+          <DialogFooter><Button variant="outline" disabled={sposta.isPending} onClick={() => setSceltaSquadra(null)}>Annulla</Button>
+            <Button disabled={!sceltaSquadra || sceltaSquadra === (s.squadra?.id ?? "nessuna") || !squadre.isSuccess || sposta.isPending}
+              onClick={() => sposta.mutate({profiloId: p.id, squadraId: sceltaSquadra === "nessuna" ? null : sceltaSquadra}, {
+                onSuccess: () => {setSceltaSquadra(null); toast.success("Squadra aggiornata");},
+                onError: e => toast.error(messaggioErroreOperai(e, "Impossibile aggiornare la squadra.")),
+              })}>Salva squadra</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {!p.attivo && s.mezzi.length > 0 && (
         <div role="alert" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -244,13 +271,15 @@ function Scheda({ s }: { s: SchedaOperaio }) {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <CalendarioPresenze profiloId={p.id} />
-        <div className="space-y-4">
-          <Cantieri cantieri={s.cantieri} linkCommesse={perms.canViewOrders === true || perms.isAdmin} />
+        <div className="min-w-0 space-y-3">
+          <Cantieri cantieri={s.cantieri} linkCommesse={perms.canViewOrders === true || perms.isAdmin}>
+            {p.employee_id && <PeriodiOperaio key={p.id} companyId={p.company_id} employeeId={p.employee_id} modificabile={pianificabile} linkCommesse={perms.canViewOrders === true || perms.isAdmin} />}
+          </Cantieri>
+          <Documenti documenti={s.documenti} linkPersonale={perms.canViewPersone === true || perms.isAdmin} />
+          <Mezzi mezzi={s.mezzi} linkMezzi={perms.canViewMezzi === true || perms.isAdmin} />
         </div>
-        <Documenti documenti={s.documenti} linkPersonale={perms.canViewPersone === true || perms.isAdmin} />
-        <Mezzi mezzi={s.mezzi} linkMezzi={perms.canViewMezzi === true || perms.isAdmin} />
       </div>
 
       <OperaioDialog
@@ -309,8 +338,8 @@ function Riquadro({ titolo, icona: Icona, children, destra }: {
   destra?: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5" aria-label={titolo}>
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <section className="rounded-xl border bg-white p-3 shadow-sm" aria-label={titolo}>
+      <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
           <Icona className="h-4 w-4 text-orange-600" aria-hidden="true" />{titolo}
         </h2>
@@ -321,14 +350,12 @@ function Riquadro({ titolo, icona: Icona, children, destra }: {
   );
 }
 
-function Cantieri({ cantieri, linkCommesse }: { cantieri: SchedaOperaio["cantieri"]; linkCommesse: boolean }) {
+function Cantieri({ cantieri, linkCommesse, children }: { children: ReactNode; cantieri: SchedaOperaio["cantieri"]; linkCommesse: boolean }) {
   return (
     <Riquadro titolo="Cantieri" icona={HardHat}>
-      {cantieri.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Non è ancora assegnato a nessun cantiere. Si assegna dalla scheda della commessa.</p>
-      ) : (
+      {cantieri.length > 0 && (
         <ul className="divide-y">
-          {cantieri.map((c, i) => {
+          {[...cantieri].sort((a, b) => Number(b.in_corso) - Number(a.in_corso)).map((c, i) => {
             const testo = [c.codice, c.cliente].filter(Boolean).join(" · ") || "Commessa";
             return (
               <li key={`${c.order_id}-${i}`} className={cn("flex items-start justify-between gap-3 py-2", !c.in_corso && "opacity-60")}>
@@ -349,7 +376,7 @@ function Cantieri({ cantieri, linkCommesse }: { cantieri: SchedaOperaio["cantier
                     <span className="mb-0.5 inline-flex items-center gap-1 font-medium text-orange-700"><Crown className="h-3 w-3" aria-hidden="true" />Capocantiere</span>
                   )}
                   <span className="block tabular-nums">
-                    {c.dal ? `dal ${formatDateIt(c.dal)}` : "in corso"}{c.al ? ` al ${formatDateIt(c.al)}` : ""}
+                    {c.dal ? `dal ${formatDateIt(c.dal)}` : c.in_corso ? "In corso" : ""}{c.al ? ` al ${formatDateIt(c.al)}` : ""}
                   </span>
                 </div>
               </li>
@@ -357,6 +384,7 @@ function Cantieri({ cantieri, linkCommesse }: { cantieri: SchedaOperaio["cantier
           })}
         </ul>
       )}
+      {children}
     </Riquadro>
   );
 }
@@ -383,7 +411,10 @@ function Documenti({ documenti, linkPersonale }: { documenti: SchedaOperaio["doc
         </p>
       ) : (
         <ul className="divide-y">
-          {documenti.map((d) => (
+          {[...documenti].sort((a, b) => {
+            const priorita = {scaduto: 0, in_scadenza: 1, valido: 2, senza_scadenza: 3};
+            return priorita[a.stato] - priorita[b.stato] || (a.data_scadenza ?? "").localeCompare(b.data_scadenza ?? "");
+          }).map((d) => (
             <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
                 <span className="block truncate font-medium text-slate-900">{d.titolo || CATEGORIE_DOCUMENTO[d.categoria] || "Documento"}</span>

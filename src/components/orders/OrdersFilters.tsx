@@ -33,6 +33,7 @@ const MONTHS = [
 ];
 
 interface OrdersFiltersProps {
+  panel?: boolean;
   trailingControls?: ReactNode;
   /** Il conteggio dei risultati, in fondo alla stessa riga. */
   summary?: ReactNode;
@@ -59,7 +60,25 @@ interface OrdersFiltersProps {
   onGeneraliFilterChange?: (value: "all" | "solo" | "senza") => void;
 }
 
+export function OrderSearch({value, onChange, expand = false}: {value: string; onChange: (text: string) => void; expand?: boolean}) {
+  return (<div className={expand ? "relative min-w-32 flex-1" : "relative col-span-2 min-w-0 sm:w-[150px] sm:shrink-0 xl:w-[116px]"}>
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Cerca…"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-10 border-slate-200 bg-white pl-7 shadow-none max-sm:h-9 sm:h-8 sm:text-xs"
+            aria-label="Cerca per codice, descrizione o cliente"
+          />
+        </div>);
+}
+
+function FilterField({panel, title, children}: {panel: boolean; title: string; children: ReactNode}) {
+  return panel ? <div className="grid min-w-0 gap-1.5"><span className="text-xs font-medium text-muted-foreground">{title}</span>{children}</div> : <>{children}</>;
+}
+
 export function OrdersFilters({
+  panel = false,
   trailingControls,
   summary,
   searchQuery,
@@ -83,26 +102,17 @@ export function OrdersFilters({
 }: OrdersFiltersProps) {
   return (
     <div
-      className="flex items-start gap-2 sm:gap-1.5 lg:items-center"
+      className={panel ? "space-y-3" : "flex items-start gap-2 sm:gap-1.5 lg:items-center"}
       role="group"
       aria-label="Filtri commesse"
     >
-      <div className="grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5 xl:gap-1">
-        <div className="relative col-span-2 min-w-0 sm:w-[150px] sm:shrink-0 xl:w-[116px]">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Cerca…"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="h-10 border-slate-200 bg-white pl-7 shadow-none max-sm:h-9 sm:h-8 sm:text-xs"
-            aria-label="Cerca per codice, descrizione o cliente"
-          />
-        </div>
+      <div className={panel ? "grid grid-cols-2 items-end gap-3" : "grid min-w-0 flex-1 grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap sm:gap-1.5 xl:gap-1"}>
+        {!panel && <OrderSearch value={searchQuery} onChange={onSearchChange} />}
 
-        <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+        <FilterField panel={panel} title="Stato commessa"><Select value={statusFilter} onValueChange={onStatusFilterChange}>
           <SelectTrigger
             aria-label="Stato commessa"
-            className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[106px] sm:px-2 sm:text-xs sm:shrink-0"
+            className={panel ? "h-9 w-full bg-background text-sm" : "h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[106px] sm:px-2 sm:text-xs sm:shrink-0"}
           >
             <SelectValue placeholder="Stato" />
           </SelectTrigger>
@@ -123,8 +133,8 @@ export function OrdersFilters({
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
-        <Select
+        </Select></FilterField>
+        <FilterField panel={panel} title="Pagamento"><Select
           value={paymentFilter}
           onValueChange={(val) =>
             onPaymentFilterChange(val as "all" | "pending" | "paid" | "overdue")
@@ -132,7 +142,7 @@ export function OrdersFilters({
         >
           <SelectTrigger
             aria-label="Stato pagamento"
-            className="max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
+            className={panel ? "h-9 w-full bg-background text-sm" : "max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"}
           >
             <SelectValue placeholder="Pagamenti" />
           </SelectTrigger>
@@ -142,12 +152,12 @@ export function OrdersFilters({
             <SelectItem value="paid">Saldato</SelectItem>
             <SelectItem value="overdue">Rate scadute</SelectItem>
           </SelectContent>
-        </Select>
+        </Select></FilterField>
         {generaliFilter && onGeneraliFilterChange && (
-          <Select value={generaliFilter} onValueChange={(val) => onGeneraliFilterChange(val as "all" | "solo" | "senza")}>
+          <FilterField panel={panel} title="Tipo di commessa"><Select value={generaliFilter} onValueChange={(val) => onGeneraliFilterChange(val as "all" | "solo" | "senza")}>
             <SelectTrigger
               aria-label="Commesse generali"
-              className="h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"
+              className={panel ? "h-9 w-full bg-background text-sm" : "h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-[132px] sm:px-2 sm:text-xs sm:shrink-0"}
             >
               <SelectValue />
             </SelectTrigger>
@@ -156,9 +166,9 @@ export function OrdersFilters({
               <SelectItem value="solo">Solo generali</SelectItem>
               <SelectItem value="senza">Senza generale</SelectItem>
             </SelectContent>
-          </Select>
+          </Select></FilterField>
         )}
-        <Select value={yearFilter} onValueChange={onYearFilterChange}>
+        <FilterField panel={panel} title="Periodo"><Select value={yearFilter} onValueChange={onYearFilterChange}>
           <SelectTrigger
             aria-label="Periodo commesse"
             title={
@@ -166,7 +176,7 @@ export function OrdersFilters({
                 ? `${new Date().getFullYear()} + precedenti da gestire`
                 : undefined
             }
-            className="h-10 w-full border-slate-200 bg-white shadow-none max-md:hidden sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
+            className={panel ? "h-9 w-full bg-background text-sm" : "h-10 w-full border-slate-200 bg-white shadow-none max-md:hidden sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"}
           >
             <SelectValue placeholder="Anno">
               {yearFilter === "corrente"
@@ -189,11 +199,11 @@ export function OrdersFilters({
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
-        <Select value={monthFilter} onValueChange={onMonthFilterChange}>
+        </Select></FilterField>
+        <FilterField panel={panel} title="Mese"><Select value={monthFilter} onValueChange={onMonthFilterChange}>
           <SelectTrigger
             aria-label="Mese commesse"
-            className="max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"
+            className={panel ? "h-9 w-full bg-background text-sm" : "max-md:hidden h-10 w-full border-slate-200 bg-white shadow-none sm:h-8 sm:w-auto sm:min-w-[84px] sm:gap-1.5 sm:px-2 sm:text-xs sm:shrink-0"}
           >
             <SelectValue placeholder="Mese" />
           </SelectTrigger>
@@ -205,12 +215,12 @@ export function OrdersFilters({
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
+        </Select></FilterField>
         <Button
           variant={hideCompleted ? "default" : "outline"}
           size="sm"
           onClick={() => onHideCompletedChange(!hideCompleted)}
-          className="tap-compact col-span-2 h-9 shrink-0 gap-1.5 max-md:hidden sm:h-8 sm:px-2 sm:text-xs"
+          className={panel ? "h-9 text-xs" : "tap-compact col-span-2 h-9 shrink-0 gap-1.5 max-md:hidden sm:h-8 sm:px-2 sm:text-xs"}
           aria-label="Nascondi commesse con lavori completati"
           aria-pressed={hideCompleted}
           title="Nascondi commesse con lavori completati"
@@ -219,7 +229,7 @@ export function OrdersFilters({
           <span>Nascondi completate</span>
         </Button>
         {trailingControls}
-        {summary && (
+        {!panel && summary && (
           <div className="col-span-2 text-xs text-slate-600 sm:ml-auto sm:shrink-0 sm:whitespace-nowrap">{summary}</div>
         )}
       </div>

@@ -14,6 +14,7 @@
  * chiudono (i piccoli affiancati), e su ogni mezzo i documenti che mancano.
  */
 import { useMemo, useState } from "react";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle, ChevronRight, ClipboardCheck, EyeOff, FileWarning, HardHat, Loader2, MapPin, Plus, QrCode, Search, Settings2,
@@ -482,13 +483,13 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
         ))}
 
       {(daControllare.length > 0 || guasti.length > 0) && (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4" aria-labelledby="da-controllare">
-          <div className="mb-2 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-            <h2 id="da-controllare" className="text-sm font-semibold text-amber-900">
+        <details key={vista} className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-amber-900">
+            <AlertTriangle className="mx-1 inline h-4 w-4 text-amber-600" aria-hidden="true" />
+            <span>
               Da controllare: {daControllare.length + guasti.length}
-            </h2>
-          </div>
+            </span>
+          </summary>
           <ul className="divide-y divide-amber-200/70">
             {guasti.map((g) => (
               <li key={`guasto-${g.id}`}>
@@ -538,7 +539,7 @@ export default function MezziList({ incorporata = false }: { incorporata?: boole
               {tutteLeScadenze ? "Mostra meno" : `Mostra tutte (${daControllare.length})`}
             </button>
           )}
-        </section>
+        </details>
       )}
 
       {/* Con pochi elementi si vedono tutti: ricerca e filtro servono da sei in su. */}
@@ -752,8 +753,7 @@ function dovePerElenco(m: MezzoConAssegnazione, d: MezzoDisponibilita | undefine
     return `${formatQuantita(d.in_uso, m.unita_misura)} montati${d.cantieri > 0 ? ` su ${d.cantieri} ${d.cantieri === 1 ? "cantiere" : "cantieri"}` : ""}`;
   }
   const posto = doveSiTrova(m, libero);
-  // sul cantiere con qualcuno: si dice anche chi lo ha
-  return posto.tipo === "cantiere" && m.assegnato_persona ? `${posto.etichetta} · ${m.assegnato_persona}` : posto.etichetta;
+  return posto.etichetta;
 }
 
 function RigaMezzo({
@@ -804,7 +804,7 @@ function RigaMezzo({
     ].filter(Boolean).join(" · ");
   } else {
     // Il tipo è il titolo del gruppo: qui dove si trova.
-    dettaglio = [dovePerElenco(m, disponibilita, libero), contatore].filter(Boolean).join(" · ");
+    dettaglio = [dovePerElenco(m, disponibilita, libero), m.gestione !== "quantita" && m.assegnato_order_id ? m.assegnato_persona : null, contatore].filter(Boolean).join(" · ");
   }
 
   // «Non visto da…» solo per gli attrezzi che sono già stati letti almeno una volta:
@@ -899,21 +899,28 @@ function ElencoMezzi({
   ultimeViste: Map<string, string> | undefined;
 }) {
   const navigate = useNavigate();
+  const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   const attrezzi = classe === "attrezzatura";
   const oggi = oggiIso();
   return (
-    <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
-      <Table className="[&_td]:px-3 [&_th]:px-3">
+    <div className="min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <BarraScorrimentoOrizzontale contenitore={tabella} className="mx-3" />
+      <Table wrapperRef={setTabella} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-2 [&_th]:px-3">
         <TableHeader>
           <TableRow>
             <TableHead>{classe === "attrezzatura" ? "Attrezzatura" : "Mezzo"}</TableHead>
+            <TableHead>{attrezzi ? "Codice" : "Targa"}</TableHead>
             <TableHead>{classe === "attrezzatura" ? "Categoria" : "Tipo"}</TableHead>
             <TableHead>Dove</TableHead>
+            <TableHead>Assegnato a</TableHead>
             <TableHead>Stato</TableHead>
             <TableHead>Scadenza da guardare</TableHead>
             {/* Gli attrezzi quasi mai hanno documenti obbligatori: per loro conta quando si sono visti l'ultima volta. */}
             <TableHead>{attrezzi ? "Ultima lettura QR" : "Documenti"}</TableHead>
             <TableHead className="text-right">{attrezzi ? "Quantità / ore" : "Km / ore"}</TableHead>
+            <TableHead>Marca</TableHead>
+            <TableHead>Modello</TableHead>
+            {attrezzi && <TableHead>Matricola</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -931,12 +938,14 @@ function ElencoMezzi({
                   <Link to={`/azienda/mezzi/${m.id}`} onClick={(e) => e.stopPropagation()} className="block truncate font-medium text-slate-900 hover:text-orange-700">
                     {m.nome}
                   </Link>
-                  {(m.targa || m.codice) && <span className="font-mono text-[11px] text-slate-500">{m.targa ?? m.codice}</span>}
+
                 </TableCell>
+                <TableCell className="font-mono text-xs">{(attrezzi ? m.codice : m.targa) || "—"}</TableCell>
                 <TableCell className="text-sm text-slate-600">
                   {classe === "attrezzatura" ? (m.categoria_id ? nomeCategoria.get(m.categoria_id) : null) ?? "—" : tipoMezzoLabel(m.tipo)}
                 </TableCell>
                 <TableCell className="max-w-[220px] truncate text-sm text-slate-600">{dovePerElenco(m, disponibilita?.get(m.id), libero)}</TableCell>
+                <TableCell>{m.assegnato_persona || "—"}</TableCell>
                 <TableCell className="whitespace-nowrap text-sm">
                   {m.stato !== "in_servizio"
                     ? <Badge variant="outline" className={`px-1.5 py-0 text-[11px] ${stato.cls}`}>{stato.label}</Badge>
@@ -966,6 +975,9 @@ function ElencoMezzi({
                     ? formatQuantita(m.quantita_totale, m.unita_misura)
                     : m.contatore != null ? formatContatore(m.contatore, m.contatore_unita) : "—"}
                 </TableCell>
+                <TableCell>{m.marca || "—"}</TableCell>
+                <TableCell>{m.modello || "—"}</TableCell>
+                {attrezzi && <TableCell>{m.matricola || "—"}</TableCell>}
               </TableRow>
             );
           })}

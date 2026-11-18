@@ -19,26 +19,28 @@ interface Props {
   blockReason?: string | null;
   /** Solo l'amministratore (lo rifiuta il server a chiunque altro), mai su se stesso né su un altro amministratore. */
   puoBloccare: boolean;
+  compatto?: boolean;
 }
 
 /** Blocca o ripristina l'accesso di una persona senza cancellare niente: dati e storico restano a suo nome. */
-export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, puoBloccare }: Props) {
+export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, puoBloccare, compatto }: Props) {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const cambiaAccesso = useMutation({
     mutationFn: async (blocca: boolean) => {
-      const { error } = await supabase
+      const { error, count } = await supabase
         .from("profiles")
         .update({
           is_blocked: blocca,
           blocked_at: blocca ? new Date().toISOString() : null,
           blocked_by: blocca ? user?.id ?? null : null,
           block_reason: blocca ? "Bloccato dall'amministratore" : null,
-        } as never)
+        } as never, { count: "exact" })
         .eq("id", userId);
       if (error) throw error;
+      if (count === 0) throw new Error("Account non aggiornato");
       if (effectiveCompany?.id && user?.id) {
         await supabase.from("user_audit_log").insert({
           company_id: effectiveCompany.id,
@@ -52,6 +54,7 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
     onSuccess: (_, blocca) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
+      queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
       toast({
         title: blocca ? "Accesso bloccato" : "Accesso ripristinato",
         description: blocca ? "Non può più entrare, e non vede più niente anche se era già dentro." : "Può di nuovo accedere.",
@@ -64,11 +67,11 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 max-sm:px-3 max-sm:py-2 ${
+      className={compatto ? "inline-flex" : `flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 max-sm:px-3 max-sm:py-2 ${
         isBlocked ? "border-destructive/50 bg-destructive/5" : "bg-card"
       }`}
     >
-      <div className="flex min-w-0 items-start gap-2">
+      {!compatto && <div className="flex min-w-0 items-start gap-2">
         {isBlocked
           ? <ShieldOff className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           : <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
@@ -83,7 +86,7 @@ export function BloccoAccessoCard({ userId, isBlocked, blockedAt, blockReason, p
               : "Per chi non lavora più qui: blocca l'accesso invece di eliminare, dati e storico restano."}
           </p>
         </div>
-      </div>
+      </div>}
       <AlertDialog>
         <AlertDialogTrigger asChild>
           {isBlocked ? (

@@ -54,6 +54,8 @@ export interface OrderCosts {
 }
 
 interface OrdersTableProps {
+  riferimentiPipeline?: Map<string,string>;
+  pipelineFallback?: string;
   canDelete?: boolean;
   orders: OrderWithDetails[];
   previousReasons?: Record<string,string[]>;
@@ -110,6 +112,7 @@ function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number 
 
 export const OrdersTable = React.memo(function OrdersTable({
   canDelete = true,
+  riferimentiPipeline, pipelineFallback = "Principale",
   orders,
   previousReasons = {},
   onDelete,
@@ -306,6 +309,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
                   {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
+                  {visibleColumns.has("pipeline") && <span className="text-xs text-muted-foreground">Pipeline · {riferimentiPipeline?.get(order.id) ?? pipelineFallback}</span>}
                   {stato && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: stato.color }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
@@ -450,6 +454,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               {visibleColumns.has("work_end") && <SortableTableHead column="work_end_date" label="Fine Lavori" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
               {visibleColumns.has("payment_type") && <SortableTableHead column="payment_type" label="Tipo Pagamento" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
               {visibleColumns.has("payments") && <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("pipeline") && <TableHead>Pipeline</TableHead>}
               <SortableTableHead column="status" label="Stato" sortConfig={sortConfig} onSort={toggleSort} />
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
@@ -673,6 +678,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                       </Badge>
                     </TableCell>
                   )}
+                  {visibleColumns.has("pipeline") && <TableCell className="text-xs">{riferimentiPipeline?.get(order.id) ?? pipelineFallback}</TableCell>}
                   <TableCell>
                     {stato ? (
                       <Badge

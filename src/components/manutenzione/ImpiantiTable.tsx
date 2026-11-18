@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 /**
  * Tabella degli impianti — la vista "elenco" della manutenzione, gemella della
  * tabella dell'assistenza.
@@ -75,6 +77,7 @@ export function ImpiantiTable({
   tutteSelezionate?: boolean;
 }) {
   const selezionabile = !!onToggle;
+  const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {/* Mobile: righe compatte come l'assistenza. */}
@@ -116,7 +119,8 @@ export function ImpiantiTable({
 
       {/* Tablet/desktop: stessa tabella dell'assistenza. */}
       <div className="hidden sm:block">
-        <Table className="[&_td]:px-2.5 [&_th]:px-2.5 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
+        <BarraScorrimentoOrizzontale contenitore={tabella} className="mx-3" />
+            <Table wrapperRef={setTabella} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
           <TableHeader>
             <TableRow>
               {selezionabile && (
@@ -125,12 +129,14 @@ export function ImpiantiTable({
                 </TableHead>
               )}
               <TableHead className="w-32">Tipo</TableHead>
-              <TableHead className="min-w-[200px]">Cliente · Impianto</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Marca e modello</TableHead>
+              <TableHead>Contratto</TableHead>
               <TableHead>Priorità</TableHead>
-              <TableHead className="hidden xl:table-cell">Prossima manutenzione</TableHead>
+              <TableHead>Prossima manutenzione</TableHead>
               <TableHead>Stato</TableHead>
-              <TableHead className="hidden xl:table-cell">Assegnato</TableHead>
-              <TableHead className="hidden 2xl:table-cell">Garanzia</TableHead>
+              <TableHead>Assegnato</TableHead>
+              <TableHead>Garanzia</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
@@ -140,27 +146,18 @@ export function ImpiantiTable({
               const cliente = [im.customer?.first_name, im.customer?.last_name].filter(Boolean).join(" ") || "—";
               const sel = !!selezionati?.has(im.id);
               return (
-                <TableRow key={im.id} className={cn(im.stato === "scaduta" && "bg-red-50/50 dark:bg-red-950/10")}>
+                <TableRow key={im.id} onClick={() => onOpen(im.id)} className={cn("cursor-pointer", im.stato === "scaduta" && "bg-red-50/50 dark:bg-red-950/10")}>
                   {selezionabile && (
-                    <TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
                       <Checkbox checked={sel} onCheckedChange={() => onToggle?.(im.id)} aria-label={`Seleziona ${tipoLabel(im.tipo_impianto)}`} />
                     </TableCell>
                   )}
                   <TableCell>
                     <Badge variant="outline" className="max-w-[7.5rem] justify-start truncate capitalize">{tipoLabel(im.tipo_impianto)}</Badge>
                   </TableCell>
-                  <TableCell className="min-w-[200px]">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0">
-                        <p className="line-clamp-1 font-medium">{cliente}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {[im.marca, im.modello].filter(Boolean).join(" ") || tipoLabel(im.tipo_impianto)}
-                          {im.contrattoNome && <span> · {im.contrattoNome}</span>}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
+                  <TableCell className="font-medium">{cliente}</TableCell>
+                  <TableCell>{[im.marca, im.modello].filter(Boolean).join(" ") || "—"}</TableCell>
+                  <TableCell>{im.contrattoNome || "—"}</TableCell>
                   <TableCell>
                     {im.priorita ? (
                       <Badge variant="outline" className={cn("font-medium", PRIORITA_META[im.priorita].badge)}>{PRIORITA_META[im.priorita].label}</Badge>
@@ -168,11 +165,11 @@ export function ImpiantiTable({
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell"><ScadenzaCella iso={im.prossimaScadenza} /></TableCell>
+                  <TableCell><ScadenzaCella iso={im.prossimaScadenza} /></TableCell>
                   <TableCell>
                     <Badge className={cn(meta.badge)}>{meta.label}</Badge>
                   </TableCell>
-                  <TableCell className="hidden xl:table-cell text-sm">
+                  <TableCell className="text-sm">
                     {im.tecnicoNome ? (
                       <span className="inline-flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 text-muted-foreground" />{im.tecnicoNome}
@@ -181,8 +178,8 @@ export function ImpiantiTable({
                       <span className="text-muted-foreground">Non assegnato</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden 2xl:table-cell">{garanziaBadge(im.garanzia_scadenza) ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell>
+                  <TableCell>{garanziaBadge(im.garanzia_scadenza) ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
                     <Button variant="ghost" size="icon" onClick={() => onOpen(im.id)} aria-label="Apri impianto">
                       <ChevronRight className="h-4 w-4" />
                     </Button>

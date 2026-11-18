@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import SubappaltatoriPage from "@/pages/azienda/SubappaltatoriPage";
 import type { SubappaltatoreConDashboard } from "@/types/subappaltatori";
 import type { ContrattoDitta } from "@/hooks/useContrattiDitte";
@@ -56,7 +57,8 @@ const apri = (cerca = "?tab=subappaltatori") =>
   render(
     <MemoryRouter initialEntries={[`/azienda/manodopera${cerca}`]}>
       <Routes>
-        <Route path="/azienda/manodopera" element={<><SubappaltatoriPage incorporata /><Indirizzo /></>} />
+        <Route path="/azienda/subappaltatori/s2" element={<h1>Scheda Elettrica Futura</h1>} />
+        <Route path="/azienda/manodopera" element={<TooltipProvider><SubappaltatoriPage incorporata /><Indirizzo /></TooltipProvider>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -121,6 +123,29 @@ describe("Subappaltatori in gruppi", () => {
     fireEvent.click(riquadro("Al lavoro"));
     expect(screen.getByText("Elettrica Futura S.r.l.")).toBeInTheDocument();
     expect(screen.queryByText("Bianchi Impianti S.r.l.")).not.toBeInTheDocument();
+  });
+
+  it("in elenco conta le commesse distinte e mostra i SAL solo a chi vede i costi", () => {
+    stato.contratti.push(contratto({ id: "k4", schedaId: "s2", orderId: "o1", pagato: 125, daPagare: 75 }));
+    apri("?tab=subappaltatori&vista=elenco");
+    const riga = screen.getByRole("row", { name: /Elettrica Futura/ });
+    expect(within(riga).getByRole("cell", { name: "1" })).toBeInTheDocument();
+    expect(riga).toHaveTextContent(/125,00/);
+    expect(riga).toHaveTextContent(/75,00/);
+    cleanup();
+    stato.costi = false;
+    apri("?tab=subappaltatori&vista=elenco");
+    expect(screen.queryByRole("columnheader", { name: /SAL da pagare/ })).toBeNull();
+  });
+
+  it("apre la scheda dalla cella commesse e permette di selezionare la ditta dalla checkbox", () => {
+    apri("?tab=subappaltatori&vista=elenco");
+    const riga = within(screen.getByRole("row", { name: /Elettrica Futura/ }));
+    const selezione = riga.getByRole("checkbox");
+    fireEvent.click(selezione);
+    expect(selezione).toBeChecked();
+    fireEvent.click(riga.getByRole("cell", { name: "1" }));
+    expect(screen.getByRole("heading", { name: "Scheda Elettrica Futura" })).toBeInTheDocument();
   });
 
   it("per zona: la regione, poi le province", () => {

@@ -35,6 +35,18 @@ const disegna = () => render(
 const tabella = () => screen.getByRole("table");
 
 describe("commesse generali nella lista", () => {
+  it("mostra insieme commesse della pipeline principale e di quelle personalizzate", () => {
+    render(<MemoryRouter><OrdersTable
+      orders={[riga("a", "A1", 100), riga("b", "B1", 200)]}
+      riferimentiPipeline={new Map([["b", "Serramenti · In produzione"]])}
+      onDelete={vi.fn()} isDeleting={false} orderCosts={new Map()} visibleColumns={new Set(["pipeline"])}
+    /></MemoryRouter>);
+    const elenco = within(tabella());
+    expect(elenco.getByRole("columnheader", {name: "Pipeline"})).toBeInTheDocument();
+    expect(elenco.getByText("A1").closest("tr")).toHaveTextContent("Principale");
+    expect(elenco.getByText("B1").closest("tr")).toHaveTextContent("Serramenti · In produzione");
+  });
+
   it("chiusa: le commesse dentro non sono sparse in lista, la generale ne somma gli importi", () => {
     disegna();
     expect(within(tabella()).queryByText("ODL-1")).not.toBeInTheDocument();

@@ -47,7 +47,7 @@ export default function ManodoperaPage() {
 
   if (inCaricamento) {
     return (
-      <div className="space-y-6 max-sm:space-y-3">
+      <div className="space-y-3">
         <Skeleton className="h-8 w-60" />
         <Skeleton className="h-11 w-full max-w-md rounded-2xl" />
         <Attesa />
@@ -66,19 +66,17 @@ export default function ManodoperaPage() {
   };
 
   return (
-    <div className="space-y-6 max-sm:space-y-3">
+    <div className="space-y-3">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-950 max-sm:text-lg max-sm:leading-6">Manodopera e Mezzi</h1>
-        <p className="mt-0.5 text-sm text-slate-500 max-sm:hidden">
-          Chi lavora nei tuoi cantieri e con cosa: operai, ditte in subappalto, mezzi e attrezzi.
-        </p>
+
       </div>
 
       <Tabs value={attiva} onValueChange={cambia} className="w-full">
         {schede.length > 1 && (
           <TabsList
             className={cn(
-              "flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm scrollbar-none",
+              "flex h-auto w-full sm:w-fit justify-start gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1 scrollbar-none",
               "max-sm:grid max-sm:rounded-lg max-sm:p-1 max-sm:shadow-none",
               schede.length === 3 ? "max-sm:grid-cols-3" : "max-sm:grid-cols-2",
             )}
@@ -102,21 +100,21 @@ export default function ManodoperaPage() {
         )}
 
         {schede.includes("operai") && (
-          <TabsContent value="operai" className="mt-4 max-sm:mt-3">
+          <TabsContent value="operai" className="mt-3">
             <ErrorBoundary title="Errore nella scheda Operai">
               <Suspense fallback={<Attesa />}><OperaiTab /></Suspense>
             </ErrorBoundary>
           </TabsContent>
         )}
         {schede.includes("subappaltatori") && (
-          <TabsContent value="subappaltatori" className="mt-4 max-sm:mt-3">
+          <TabsContent value="subappaltatori" className="mt-3">
             <ErrorBoundary title="Errore nella scheda Subappaltatori">
               <Suspense fallback={<Attesa />}><SubappaltatoriPage incorporata /></Suspense>
             </ErrorBoundary>
           </TabsContent>
         )}
         {schede.includes("mezzi") && (
-          <TabsContent value="mezzi" className="mt-4 max-sm:mt-3">
+          <TabsContent value="mezzi" className="mt-3">
             <ErrorBoundary title="Errore nella scheda Mezzi">
               <Suspense fallback={<Attesa />}><MezziList incorporata /></Suspense>
             </ErrorBoundary>

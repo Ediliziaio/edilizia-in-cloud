@@ -20,6 +20,8 @@ import { ChevronsLeft, ChevronsRight, Info } from "lucide-react";
 import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/lib/orderUtils";
 
 interface OrdersPipelineViewProps {
+  controls?: React.ReactNode;
+  onMove?: (order: OrderWithDetails) => void;
   orders: OrderWithDetails[];
   statuses: OrderStatus[];
   onStatusChange?: (orderId: string, newStatusId: string) => Promise<void>;
@@ -91,7 +93,7 @@ const CONFRONTO: Record<Ordinamento, (a: OrderWithDetails, b: OrderWithDetails) 
   valore: perValore,
 };
 
-export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersPipelineViewProps) {
+export function OrdersPipelineView({ orders, statuses, onStatusChange, controls, onMove }: OrdersPipelineViewProps) {
   const [activeOrder, setActiveOrder] = useState<OrderWithDetails | null>(null);
   const [ordinamento, setOrdinamento] = useState<Ordinamento>(leggiOrdinamento);
   const [compresse, setCompresse] = useState<Set<string>>(leggiCompresse);
@@ -228,8 +230,9 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
     >
       {/* Barra della board: quante commesse, come ordinarle, comprimere le colonne */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <p className="text-sm">
+        <div className="flex min-w-0 flex-auto flex-wrap items-center gap-2">
+          {controls}
+          <p className="rounded-full bg-muted px-2 py-1 text-xs">
             <span className="font-bold tabular-nums">{orders.length}</span>{" "}
             <span className="text-muted-foreground">{orders.length === 1 ? "commessa" : "commesse"}</span>
             {commesseInRitardo > 0 && (
@@ -239,9 +242,9 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
             )}
           </p>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Ordina per</span>
+            <span className="sr-only">Ordina per</span>
             <Select value={ordinamento} onValueChange={(v) => cambiaOrdinamento(v as Ordinamento)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Ordina le commesse nelle colonne">
+              <SelectTrigger className="h-8 w-[125px] text-xs" aria-label="Ordina le commesse nelle colonne">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -274,8 +277,8 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
           </Button>
           <Popover>
             <PopoverTrigger asChild>
-              <button type="button" className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs text-muted-foreground hover:bg-muted">
-                <Info className="h-3.5 w-3.5" /> Come leggere le card
+              <button type="button" aria-label="Come leggere le card" title="Come leggere le card" className="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs text-muted-foreground hover:bg-muted">
+                <Info className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[360px] space-y-2.5 text-xs">
@@ -283,7 +286,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
               <dl className="space-y-2">
                 <div><dt className="font-semibold">Importo e incasso</dt><dd className="text-muted-foreground">Il valore della commessa e quanto è già stato incassato (barra e percentuale).</dd></div>
                 <div><dt className="font-semibold">Posa</dt><dd className="text-muted-foreground">La data di posa prevista. «Giorni di ritardo» = la data è passata e la commessa non è completata.</dd></div>
-                <div><dt className="font-semibold">Materiali</dt><dd className="text-muted-foreground">Articoli pronti su totali (in magazzino, prenotati o installati). Rosso se non ne è pronto nessuno.</dd></div>
+                <div><dt className="font-semibold">Materiali</dt><dd className="text-muted-foreground">Articoli pronti su totali (in magazzino, prenotati o installati). Rosso se la posa è in ritardo e nessun articolo è pronto.</dd></div>
                 <div><dt className="font-semibold">Squadra</dt><dd className="text-muted-foreground">Chi fa il lavoro: il primo nome e quanti altri sono assegnati. «Da assegnare» se manca.</dd></div>
                 <div><dt className="font-semibold">Ora</dt><dd className="text-muted-foreground">Il prossimo passo da fare, scelto in quest'ordine: incassare l'acconto, sbloccare la posa, ordinare i materiali, verificare gli arrivi, preparare la posa.</dd></div>
                 <div><dt className="font-semibold">«N in ritardo» sulla colonna</dt><dd className="text-muted-foreground">Quante commesse della colonna hanno la posa oltre la data prevista.</dd></div>
@@ -299,7 +302,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
         ref={setScorrimento}
         className="overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="flex min-h-[500px] w-max gap-3">
+        <div className="flex w-full gap-3">
           {/* Colonne per ogni stato */}
           {statuses.map(status => (
             <OrdersPipelineColumn
@@ -308,7 +311,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
               orders={ordersByStatus[status.id] || []}
               isDragEnabled={!!onStatusChange}
               collapsed={compresse.has(status.id)}
-              onToggleCollapse={alternaColonna}
+              onMove={onMove} onToggleCollapse={alternaColonna}
             />
           ))}
 
@@ -319,7 +322,7 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange }: OrdersP
               orders={ordersWithoutStatus}
               isDragEnabled={false}
               collapsed={compresse.has(ID_SENZA_STATO)}
-              onToggleCollapse={alternaColonna}
+              onMove={onMove} onToggleCollapse={alternaColonna}
             />
           )}
         </div>

@@ -60,8 +60,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
-import { OrdersFilters } from "@/components/orders/OrdersFilters";
+import { usePipelineLocali } from "@/lib/orders/pipelineLocali";
+import { PipelineCommesseBoard } from "@/components/orders/PipelineCommesseBoard";
+import { OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { commessaDaRiga } from "@/lib/orders/importaCommesse";
@@ -154,6 +155,19 @@ function OrdersListInner() {
   const [daRaggruppare, setDaRaggruppare] = useState<string[] | null>(null);
   const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
   const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
+  const archivioTabella = usePipelineLocali(effectiveCompany?.id ?? "");
+  const pipelineSelezionata = archivioTabella.pipeline.find(p => p.id === searchParams.get("pipeline"));
+  const idsPipeline = useMemo(() => {
+    if (!pipelineSelezionata) return null;
+    const fasi = new Set(pipelineSelezionata.fasi.map(fase => fase.id));
+    return Object.entries(archivioTabella.fasiPerCommessa)
+      .filter(([, fase]) => fasi.has(fase)).map(([id]) => id).sort();
+  }, [pipelineSelezionata, archivioTabella.fasiPerCommessa]);
+  const riferimentiPipeline = useMemo(() => {
+    const fasi = new Map(archivioTabella.pipeline.flatMap(p => p.fasi.map(f => [f.id, p.nome + " · " + f.name] as const)));
+    return new Map(Object.entries(archivioTabella.fasiPerCommessa).map(([ordine, fase]) => [ordine, fasi.get(fase) ?? "—"]));
+  }, [archivioTabella.pipeline, archivioTabella.fasiPerCommessa]);
+
   const setViewMode = useCallback((v: "table" | "pipeline") => {
     try { localStorage.setItem("orders-view-mode", v); } catch { /* Safari Private Browsing */ }
     setURLParam("viewMode", v);
@@ -402,8 +416,8 @@ function OrdersListInner() {
     && focusIds === null && countActiveFilters(sidebarFilters) === 0
     && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
     && !expectedDateRange.from && !expectedDateRange.to && monthFilter === "all";
-  const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+  const fetchOrderRows = (from: number, to: number, filtroFocus = focusIds) => readOrdersPage({
+    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds:filtroFocus, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
@@ -555,9 +569,13 @@ function OrdersListInner() {
   // corrente, vanno derivate da `rawOrders` o da una nuova query dedicata.)
 
   const {data: allOrdersForPipeline = [], isPending: pipelinePending, isError: pipelineError, refetch: retryPipeline} = useQuery({
-    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), sortField, sortDir],
-    enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady,
-    queryFn: async () => (await fetchOrderRows(0, Infinity)).orders,
+    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, sortField, sortDir],
+    enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady && !archivioTabella.caricamento && !archivioTabella.errore && !isLoadingStatuses && !isStatusesError,
+    queryFn: async () => {
+      const ids = idsPipeline && focusIds ? idsPipeline.filter(id => focusIds.includes(id)) : idsPipeline ?? focusIds;
+      if (ids?.length === 0) return [];
+      return (await fetchOrderRows(0, Infinity, ids)).orders;
+    },
     staleTime: 3 * 60 * 1000,
   });
 
@@ -676,6 +694,7 @@ function OrdersListInner() {
   // Column visibility state
   const OPTIONAL_COLUMNS = [
     { key: "date", label: "Data Commessa" },
+    { key: "pipeline", label: "Pipeline" },
     { key: "customer", label: "Cliente" },
     { key: "totalIvato", label: "Tot. Ivato" },
     { key: "imponibile", label: "Imponibile" },
@@ -696,11 +715,15 @@ function OrdersListInner() {
     { key: "payment_type", label: "Tipo Pagamento" },
   ] as const;
 
-  const DEFAULT_COLUMNS = new Set(["date", "customer", "totalIvato", "imponibile", "collected", "due", "variableCosts", "payments"]);
+  const DEFAULT_COLUMNS = new Set(["pipeline", "date", "customer", "totalIvato", "imponibile", "collected", "due", "variableCosts", "payments"]);
 
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem("orders-visible-columns-v2");
+      const saved = localStorage.getItem("orders-visible-columns-v3");
+      if (!saved) {
+        const precedenti = localStorage.getItem("orders-visible-columns-v2");
+        if (precedenti) return new Set(["pipeline", ...JSON.parse(precedenti)]);
+      }
       if (saved) return new Set(JSON.parse(saved));
     } catch { /* storage non disponibile — silenzioso */ }
     return new Set(DEFAULT_COLUMNS);
@@ -720,7 +743,7 @@ function OrdersListInner() {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      try { localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
+      try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
       return next;
     });
   };
@@ -1427,6 +1450,120 @@ function OrdersListInner() {
     return valori;
   }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione, orderPerms.canViewBilling, isNative]);
 
+  const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !(needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError));
+  const filtriCommesse = (<OrdersFilters panel={barraBacheca}
+            trailingControls={viewMode === "table" ? (
+              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
+                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
+                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Data creazione</SelectItem>
+                    <SelectItem value="order_code">Codice commessa</SelectItem>
+                    <SelectItem value="description">Descrizione</SelectItem>
+                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
+                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
+                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
+                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
+                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
+                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↓ Recenti"
+                        : "↓ Z → A"
+                    }</SelectItem>
+                    <SelectItem value="asc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↑ Vecchi"
+                        : "↑ A → Z"
+                    }</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                      <Columns className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[280px] p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Colonne visibili</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisibleColumns(new Set(DEFAULT_COLUMNS));
+                            try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground underline"
+                        >
+                          Ripristina
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
+                        {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
+                          <label
+                            key={col.key}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                          >
+                            <Checkbox
+                              checked={visibleColumns.has(col.key)}
+                              onCheckedChange={() => toggleColumn(col.key)}
+                              className="shrink-0"
+                            />
+                            <span className="text-xs truncate">{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {(sortField !== "created_at" || sortDir !== "desc") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="col-span-2 h-8 text-xs sm:col-span-1"
+                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
+                  >
+                    Ripristina
+                  </Button>
+                )}
+              </div>
+            ) : undefined}
+            summary={
+              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
+                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
+              </span>
+            }
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statuses={statuses}
+            yearFilter={yearFilter}
+            onYearFilterChange={handleYearChange}
+            availableYears={availableYears}
+            paymentFilter={paymentFilter}
+            onPaymentFilterChange={setPaymentFilter}
+            generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
+            onGeneraliFilterChange={setGeneraliFilter}
+            monthFilter={monthFilter}
+            onMonthFilterChange={handleMonthChange}
+            hasAnyFilter={hasAnyFilter}
+            onClearAllFilters={clearAllFilters}
+            hideCompleted={hideCompleted && statusFilter === "all"}
+            onHideCompletedChange={(value) => {
+              setHideCompleted(value);
+              if (value) setStatusFilter("all");
+            }}
+          />);
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="orders-workspace flex flex-col gap-3">
@@ -1582,10 +1719,10 @@ function OrdersListInner() {
 
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
-          <div className="flex flex-col bg-eic-navy-deep p-3 text-white">
+          <div className="flex flex-col bg-eic-navy-deep px-3 py-2 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3 max-md:hidden">
               <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3">
-                <div className="flex h-9 w-9 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
@@ -1610,7 +1747,7 @@ function OrdersListInner() {
             {orderPerms.canViewMargins && <OrdersMarginSummary average={margineMedio} completed={margineConseguito}
               loading={isEconomicStatsLoading || scopeMarginsPending} error={scopeMarginsError || isGlobalStatsError || isStatusesError} />}
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {!isGlobalStatsError && !isStatusesError && <div className={`mt-3 grid flex-1 grid-cols-1 gap-2 min-[380px]:grid-cols-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
+            {!isGlobalStatsError && !isStatusesError && <div className={`mt-1.5 grid grid-cols-1 gap-1.5 min-[380px]:grid-cols-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
               {riquadriRiepilogo.map((id) => {
                 const v = valoriRiepilogo[id];
                 const voce = CATALOGO_RIQUADRI.find(c => c.id === id);
@@ -1633,7 +1770,7 @@ function OrdersListInner() {
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside id="orders-annual-chart" className="flex min-w-0 border-t border-slate-200 bg-white p-3 xl:border-l xl:border-t-0">
+          <aside id="orders-annual-chart" className="flex min-w-0 border-t border-slate-200 bg-white px-3 py-2 xl:border-l xl:border-t-0">
             {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
               <div aria-label="Caricamento andamento" className="flex h-[160px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
@@ -1677,125 +1814,13 @@ function OrdersListInner() {
       />
 
       <div className="order-3 space-y-2 sm:order-none">
-          <OrdersFilters
-            trailingControls={viewMode === "table" ? (
-              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
-                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created_at">Data creazione</SelectItem>
-                    <SelectItem value="order_code">Codice commessa</SelectItem>
-                    <SelectItem value="description">Descrizione</SelectItem>
-                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
-                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
-                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
-                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
-                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↓ Recenti"
-                        : "↓ Z → A"
-                    }</SelectItem>
-                    <SelectItem value="asc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↑ Vecchi"
-                        : "↑ A → Z"
-                    }</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                      <Columns className="h-3.5 w-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-[280px] p-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Colonne visibili</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVisibleColumns(new Set(DEFAULT_COLUMNS));
-                            try { localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
-                          }}
-                          className="text-xs text-muted-foreground hover:text-foreground underline"
-                        >
-                          Ripristina
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
-                        {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
-                          <label
-                            key={col.key}
-                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
-                          >
-                            <Checkbox
-                              checked={visibleColumns.has(col.key)}
-                              onCheckedChange={() => toggleColumn(col.key)}
-                              className="shrink-0"
-                            />
-                            <span className="text-xs truncate">{col.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {(sortField !== "created_at" || sortDir !== "desc") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="col-span-2 h-8 text-xs sm:col-span-1"
-                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
-                  >
-                    Ripristina
-                  </Button>
-                )}
-              </div>
-            ) : undefined}
-            summary={
-              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
-                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
-              </span>
-            }
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            statuses={statuses}
-            yearFilter={yearFilter}
-            onYearFilterChange={handleYearChange}
-            availableYears={availableYears}
-            paymentFilter={paymentFilter}
-            onPaymentFilterChange={setPaymentFilter}
-            generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
-            onGeneraliFilterChange={setGeneraliFilter}
-            monthFilter={monthFilter}
-            onMonthFilterChange={handleMonthChange}
-            hasAnyFilter={hasAnyFilter}
-            onClearAllFilters={clearAllFilters}
-            hideCompleted={hideCompleted && statusFilter === "all"}
-            onHideCompletedChange={(value) => {
-              setHideCompleted(value);
-              if (value) setStatusFilter("all");
-            }}
-          />
+          {barraBacheca ? null : filtriCommesse}
 
 
           {/* Content */}
           {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
             <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {void retryScopeMargins(); void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</Button></div>
-          ) : isOrdersError ? (
+          ) : viewMode === "table" && isOrdersError ? (
             <Card className="border-red-200 bg-red-50/70">
               <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -1813,7 +1838,7 @@ function OrdersListInner() {
                 </Button>
               </CardContent>
             </Card>
-          ) : isOrdersLoading ? (
+          ) : viewMode === "table" && isOrdersLoading ? (
             <Card>
               <CardContent className="p-6 space-y-4">
                 {[...Array(6)].map((_, i) => (
@@ -1827,7 +1852,7 @@ function OrdersListInner() {
                 ))}
               </CardContent>
             </Card>
-          ) : visibleOrders.length === 0 ? (
+          ) : visibleOrders.length === 0 && viewMode !== "pipeline" ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1868,15 +1893,19 @@ function OrdersListInner() {
                 )}
               </CardContent>
             </Card>
-          ) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
-            <OrdersPipelineView
+          ) : viewMode === "pipeline" && archivioTabella.errore ? (<div role="alert">{archivioTabella.errore} <Button variant="outline" onClick={() => void archivioTabella.riprova()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
+            <PipelineCommesseBoard azienda={effectiveCompany?.id ?? ""} key={effectiveCompany?.id}
+              filtri={<><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />Filtri{hasAnyFilter ? " attivi" : ""}</Button></PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">Filtri commesse</h3>{filtriCommesse}</PopoverContent></Popover></>}
               orders={allOrdersForPipeline}
               statuses={statuses}
-              onStatusChange={handleStatusChange}
+              onStatusChange={orderPerms.canEditOrders && !orderPerms.solaLettura ? handleStatusChange : undefined}
             />
           ) : (
             <div className="space-y-4 max-sm:space-y-0">
               <OrdersTable
+                riferimentiPipeline={riferimentiPipeline}
+                pipelineFallback={archivioTabella.errore ? "Non disponibile" : archivioTabella.caricamento ? "…" : "Principale"}
                 canDelete={canDeleteOrders}
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}
