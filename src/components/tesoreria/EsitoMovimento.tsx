@@ -78,6 +78,7 @@ export const NATURA: Record<string, string> = {
   spesa_bancaria: "Spesa bancaria",
   spesa_carta: "Spesa con carta",
   gia_riconciliato: "Già collegato",
+  gia_incassata: "Fattura già segnata pagata",
   sconosciuta: "Da capire",
 };
 
