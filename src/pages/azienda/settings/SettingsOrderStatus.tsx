@@ -15,7 +15,7 @@ export default function SettingsOrderStatus() {
 
   return (
     <div className="space-y-4">
-      {effectiveCompany?.id ? <PipelineCommesseLocali key={effectiveCompany.id} azienda={effectiveCompany.id} /> : <OrderStatusConfig />}
+      {import.meta.env.DEV && effectiveCompany?.id ? <PipelineCommesseLocali key={effectiveCompany.id} azienda={effectiveCompany.id} /> : <OrderStatusConfig />}
       {/* Il flusso vale per tutta l'azienda: sta qui e non nel menu della singola commessa. */}
       {effectiveCompany?.id && (
         <>

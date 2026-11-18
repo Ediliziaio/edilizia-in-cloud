@@ -26,7 +26,7 @@ export function usePipelineLocali(azienda: string) {
   const client = useQueryClient();
   const {user} = useAuth();
   const key = ["pipeline-commesse-condivise", azienda, user?.id];
-  const query = useQuery({queryKey:key, enabled:!!azienda && !!user?.id, queryFn:()=>richiesta<Archivio>(azienda),
+  const query = useQuery({queryKey:key, enabled:import.meta.env.DEV && !!azienda && !!user?.id, queryFn:()=>richiesta<Archivio>(azienda),
     refetchInterval:5000, refetchOnWindowFocus:"always", retry:1});
   const archivio = query.data ?? vuoto;
   async function scrivi(body: object) {

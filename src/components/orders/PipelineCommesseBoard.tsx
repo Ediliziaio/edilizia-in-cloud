@@ -43,6 +43,7 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
     const stato = fasi.get(assegnata);
     return stato ? [{...o, current_status_id:stato.id, status:stato}] : [];
   });
+  if (!import.meta.env.DEV) return <OrdersPipelineView controls={filtri} orders={orders} statuses={statuses} onStatusChange={onStatusChange} />;
   if (archivio.caricamento) return <p role="status">Caricamento pipeline…</p>;
   if (archivio.errore) return <p role="alert">{archivio.errore} <Button variant="link" onClick={() => void archivio.riprova()}>Riprova</Button></p>;
   const controls = <>
