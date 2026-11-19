@@ -1,3 +1,4 @@
+import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
@@ -60,12 +61,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -931,64 +926,37 @@ export default function FattureRicevutePage() {
   // La fattura leggibile (righe, totali, fornitore) con «Stampa / Salva PDF»:
   // prima per le ricevute c'era solo l'XML grezzo.
   const handleViewFattura = async (f: FatturaRicevuta) => {
-    if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
-    const { data, error } = await supabase
-      .from("fatture_ricevute" as never)
-      .select("xml_raw,indice_corpo" as never)
-      .eq("id", f.id)
-      .eq("company_id", companyId!)
-      .maybeSingle();
-    if (error) {
-      toast.error("Impossibile leggere la fattura", { description: error.message });
-      return;
+    try {
+      const { data, error } = await supabase.from("fatture_ricevute" as never)
+        .select("xml_raw,indice_corpo" as never).eq("id", f.id).eq("company_id", companyId!).maybeSingle();
+      if (error) throw error;
+      const originale = data as { xml_raw: string | null; indice_corpo: number | null } | null;
+      const xml = await leggiXmlRicevuta({ ...originale, xml_url: f.xml_url });
+      if (!xml) {
+        if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
+        toast.info("Fattura non disponibile in formato leggibile", { description: "Il gestionale di origine ha fornito i dati senza il file originale." });
+        return;
+      }
+      const vista = fatturaRicevutaHtml(xml, new DOMParser(), { indiceCorpo: originale?.indice_corpo ?? 0 });
+      if (!vista) throw new Error("Il file non è una fattura elettronica leggibile. Puoi scaricare il file originale.");
+      setFatturaVista({ ...vista, origine: f });
+      if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
+    } catch (e) {
+      toast.error("Impossibile leggere la fattura", { description: e instanceof Error ? e.message : undefined });
     }
-    const originale = data as { xml_raw: string | null; indice_corpo: number | null } | null;
-    const xml = originale?.xml_raw ?? null;
-    if (!xml) {
-      toast.info("Fattura non disponibile in formato leggibile", {
-        description: "Arriva dal gestionale, che espone i dati ma non il file originale.",
-      });
-      return;
-    }
-    const vista = fatturaRicevutaHtml(xml, new DOMParser(), { indiceCorpo: originale?.indice_corpo ?? 0 });
-    if (!vista) {
-      toast.error("Il file non è una fattura elettronica leggibile", {
-        description: "Puoi comunque scaricare il file originale.",
-      });
-      return;
-    }
-    setFatturaVista({ ...vista, origine: f });
-    if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
   };
 
-  // Il file originale nell'archivio se c'è; altrimenti l'XML salvato con la fattura
-  // (le fatture importate a mano non sempre hanno la copia in archivio).
   const handleScaricaOriginale = async (f: FatturaRicevuta) => {
-    if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
     try {
-      let data: Blob | null = null;
-      if (f.xml_url) {
-        const r = await supabase.storage.from("fatture-xml").download(f.xml_url);
-        if (r.error) throw r.error;
-        data = r.data;
-      } else {
-        const r = await supabase.from("fatture_ricevute" as never).select("xml_raw" as never)
-          .eq("id", f.id).eq("company_id", companyId!).maybeSingle();
-        const xml = (r.data as { xml_raw: string | null } | null)?.xml_raw;
-        if (!xml) throw new Error("Nessun file disponibile per questa fattura");
-        data = new Blob([xml], { type: "application/xml" });
-      }
-      if (!data) throw new Error("File non trovato");
-      const url = URL.createObjectURL(data);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = f.xml_url?.split("/").pop() ?? `${f.cedente_piva ?? "fattura"}_${String(f.numero_fattura).replace(/[^a-zA-Z0-9-]/g, "_")}.xml`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      toast.error("Impossibile scaricare l'XML", {
-        description: err instanceof Error ? err.message : undefined,
-      });
+      if (f.xml_url) { await scaricaOriginaleRicevuta(f); return; }
+      const { data, error } = await supabase.from("fatture_ricevute" as never).select("xml_raw" as never)
+        .eq("id", f.id).eq("company_id", companyId!).maybeSingle();
+      if (error) throw error;
+      const xml_raw = (data as { xml_raw: string | null } | null)?.xml_raw;
+      if (!xml_raw && f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
+      await scaricaOriginaleRicevuta({ ...f, xml_raw });
+    } catch (e) {
+      toast.error("Impossibile scaricare il file originale", { description: e instanceof Error ? e.message : undefined });
     }
   };
 

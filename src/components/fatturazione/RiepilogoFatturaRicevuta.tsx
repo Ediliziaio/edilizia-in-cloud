@@ -42,6 +42,12 @@ import {
 import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import { leggiFattureXmlStampabili, riferimentiRigaXml } from "@/lib/fatturazione/fatturaXmlTabellare";
 import { AltriDatiXmlRicevuta, CampiXmlRicevuta, RiferimentiXmlRicevuta, RigheXmlAggiuntiveRicevuta } from "./DatiXmlRicevuta";
+import { leggiXmlRicevuta, scaricaOriginaleRicevuta } from "@/lib/fatturazione/originaleRicevuta";
+import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
+import { FatturaRicevutaCompletaDialog } from "./FatturaRicevutaCompletaDialog";
+import { useExpensePaymentDetail } from "@/hooks/useExpensePaymentDetail";
+import { ExpensePaymentSummary } from "@/components/orders/ExpensePaymentSummary";
+import "./riepilogo-ricevuta.css";
 
 /**
  * La fattura ricevuta come si legge su carta: chi la manda, cosa fattura, quanto,
@@ -108,6 +114,10 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
     .maybeSingle();
   if (error) throw error;
   if (!f) return null;
+  // Alcuni import conservano solo il file nell'archivio, anche in formato p7m.
+  let erroreXml: string | null = null;
+  try { f.xml_raw = await leggiXmlRicevuta(f); }
+  catch (e) { erroreXml = e instanceof Error ? e.message : "File originale non disponibile"; }
 
   const [quote, oda, costo, fornitore, suggerita, subappalto, pagamento, rateRegistrate] = await Promise.all([
     db.from("fattura_ricevuta_ordini").select("importo, purchase_orders(id, oda_number, orders(id, order_code))").eq("fattura_id", fatturaId).eq("company_id", companyId),
@@ -217,7 +227,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   return {
     riparto,
     rateRegistrate: ((rateRegistrate.data ?? []) as Dettaglio["rateRegistrate"]).filter(r => r.stato !== "stornata"),
-    fattura: { ...f, pagata_il: pagamento.data?.pagata_il ?? f.pagata_il, rate_pagate: pagamento.data?.rate_pagate, rate_totali: pagamento.data?.rate_totali },
+    fattura: { ...f, errore_xml: erroreXml, pagata_il: pagamento.data?.pagata_il ?? f.pagata_il, rate_pagate: pagamento.data?.rate_pagate, rate_totali: pagamento.data?.rate_totali },
     ordini,
     costo: costo.data
       ? { id: costo.data.id, amount: costo.data.amount ?? null, category: costo.data.category ?? null, commessa: commessaDi(costo.data.orders), ripartito: allocazioni.length > 1 }
@@ -280,6 +290,9 @@ function ContenutoRiepilogo({
   const [modificaQuote, setModificaQuote] = useState(false);
   const [confronto, setConfronto] = useState(false);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
+  const [vistaCompleta, setVistaCompleta] = useState<FatturaRicevutaVista | null>(null);
+  const pagamentoCosto = useExpensePaymentDetail(d?.costo?.id, !!permessi.canViewCosts);
+  const statoPagamento = pagamentoCosto.data?.id === d?.costo?.id && Number.isFinite(Number(pagamentoCosto.data?.totale)) ? pagamentoCosto.data : null;
   const queryClient = useQueryClient();
   const aggiorna = () => {
     queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
@@ -390,11 +403,22 @@ function ContenutoRiepilogo({
     }
     onClose();
   };
-  const nota = String(f?.tipo_documento ?? "") === "TD04";
+  const nota = isNotaCreditoRicevuta(String(f?.tipo_documento ?? ""));
   // Con la contabilità generale accesa una riga può diventare un cespite (registro dei beni ammortizzabili).
   const cespitiPerRiga = !!f && contiRighe.modo === "piano" && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && !nota;
   const cespitiFattura = useCespitiDellaFattura(companyId ?? "", String(f?.id ?? ""), cespitiPerRiga);
   const haXml = !!f && (Number(f.xml_bytes) > 0 || !!f.xml_url || !!f.xml_raw);
+  const apriCompleta = () => {
+    const vista = typeof f?.xml_raw === "string" ? fatturaRicevutaHtml(f.xml_raw, new DOMParser(), { indiceCorpo: Number(f.indice_corpo ?? 0) }) : null;
+    if (vista) setVistaCompleta(vista);
+    else if (azioni.onVersioneCompleta) azioni.onVersioneCompleta();
+    else toast.error("Il file non è una fattura elettronica leggibile", { description: "Scarica il file originale per consultarlo." });
+  };
+  const scaricaOriginale = async () => {
+    if (!f?.xml_raw && !f?.xml_url && azioni.onScaricaOriginale) { azioni.onScaricaOriginale(); return; }
+    try { if (f) await scaricaOriginaleRicevuta(f); }
+    catch (e) { toast.error("Impossibile scaricare il file originale", { description: e instanceof Error ? e.message : undefined }); }
+  };
   const imponibile = f?.imponibile_totale != null ? Number(f.imponibile_totale) : aliquote.reduce((s, a) => s + a.imponibile, 0);
   const iva = f?.iva_totale != null ? Number(f.iva_totale) : aliquote.reduce((s, a) => s + a.imposta, 0);
   const totale = f?.totale_documento != null ? Number(f.totale_documento) : imponibile + iva;
@@ -412,6 +436,7 @@ function ContenutoRiepilogo({
 
   return (
     <>
+    {vistaCompleta && <FatturaRicevutaCompletaDialog vista={vistaCompleta} onClose={() => setVistaCompleta(null)} onScaricaOriginale={scaricaOriginale} />}
     {rataScelta && companyId && <PagaRataDialog companyId={companyId} scelta={rataScelta} onClose={() => setRataScelta(null)} />}
     {modificaQuote && f && companyId && <CollegaFatturaCommesseDialog suImponibile companyId={companyId}
       fattura={{ id: String(f.id), numero: String(f.numero_fattura ?? ""), fornitore: String(f.cedente_ragione_sociale ?? ""),
@@ -419,11 +444,25 @@ function ContenutoRiepilogo({
       onChiudi={() => setModificaQuote(false)} />}
     {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
     {confronto && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
-    <Radice open={!!fatturaId && !confronto && !modificaQuote && !rataScelta} onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
+    {!!fatturaId && !confronto && !modificaQuote && !rataScelta && !pagamenti && !vistaCompleta && <Radice open onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
-        className={`commessa-modal-layout ${isMobile ? "max-h-[90dvh] rounded-t-2xl px-4 pb-6" : "max-h-[92dvh] max-w-3xl"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
+        className={`commessa-modal-layout ricevuta-riepilogo ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
+        <SheetHeader data-ui="dialog-header" className="ricevuta-testata text-left space-y-2">
+          <SheetTitle className="pr-6 text-lg leading-tight">{String(f?.cedente_ragione_sociale || "Fattura ricevuta")}</SheetTitle>
+          <SheetDescription className="text-sm">
+            {f ? <>{nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} · emessa il {formatDateShort(String(f.data_fattura ?? ""))}
+              {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}</> : "Caricamento del documento"}
+          </SheetDescription>
+          {f && <div role="group" aria-label="Azioni della fattura" className="ricevuta-azioni">
+            {haXml && <>
+              <Button variant="outline" size="sm" onClick={apriCompleta}><FileText className="h-4 w-4 mr-1.5" />Versione completa e stampa</Button>
+              <Button variant="outline" size="sm" onClick={() => void scaricaOriginale()}><Download className="h-4 w-4 mr-1.5" />Scarica il file originale</Button>
+            </>}
+            {permessi.canViewCosts && <Button variant="outline" size="sm" onClick={() => setConfronto(true)}><ArrowLeftRight className="mr-2 h-4 w-4" />Confronta con DDT e ordini</Button>}
+          </div>}
+        </SheetHeader>
         <div className="commessa-modal-body">
         {isLoading || !f ? (
           <div className="space-y-3 pt-6">
@@ -439,19 +478,6 @@ function ContenutoRiepilogo({
           </div>
         ) : (
           <div className="space-y-5">
-            <SheetHeader className="text-left space-y-1">
-              <SheetTitle className="pr-6 text-lg leading-tight">{String(f.cedente_ragione_sociale || "Fornitore senza nome")}</SheetTitle>
-              <SheetDescription className="text-sm">
-                {nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} · emessa il {formatDateShort(String(f.data_fattura ?? ""))}
-                {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}
-              </SheetDescription>
-            </SheetHeader>
-            {aspettoGenerale && <dl className="commessa-document-summary" aria-label="Importi del documento">
-              {[["Imponibile", imponibile], ["IVA", iva], ["Totale documento", totale]].map(([titolo, valore]) => <div key={String(titolo)}><dt>{titolo}</dt><dd>{formatCurrency(Number(valore))}</dd></div>)}
-            </dl>}
-
-            {permessi.canViewCosts && <Button variant="outline" className="w-full justify-start border-blue-200 bg-blue-50/50 text-blue-900 hover:bg-blue-50" onClick={() => setConfronto(true)}><ArrowLeftRight className="mr-2 h-4 w-4" />Confronta con DDT e ordini</Button>}
-
             {/* Fornitore: senza dati non resta un riquadro vuoto. */}
             {(f.cedente_piva || f.cedente_cf || indirizzo || f.ai_riassunto || f.categoria_ai) ? (
             <section className="rounded-lg border p-3 text-sm space-y-1">
@@ -476,8 +502,9 @@ function ContenutoRiepilogo({
               </section>
             )}
 
+            <div className="ricevuta-overview">
             {/* Collegamenti */}
-            <section className="space-y-2">
+            <section className="ricevuta-collegamenti rounded-lg border p-3 space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="h-4 w-4" /> A cosa è collegata</h3>
               <dl className="grid grid-cols-[6.5rem_1fr] items-baseline gap-x-3 gap-y-2 text-sm sm:grid-cols-[8.5rem_1fr]">
                 <dt className="text-muted-foreground">Fornitore</dt>
@@ -549,7 +576,7 @@ function ContenutoRiepilogo({
                         <td className="pr-3">{r.id ? <Link title={r.nome} className="text-primary hover:underline" to={`/azienda/ordini/${r.id}`}>
                           {r.nome.split(" · ")[0]} · <span>{r.codice}</span>
                         </Link> : r.nome}</td>
-                        <td className="pr-3 text-right tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 }) + "%"}</td>
+                        <td className="pr-3 text-right whitespace-nowrap tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 }) + "%"}</td>
                         <td className="text-right whitespace-nowrap tabular-nums">{formatCurrency(r.centesimi / 100)}</td>
                       </tr>)}</tbody>
                     </table>
@@ -584,30 +611,6 @@ function ContenutoRiepilogo({
                   {f.verifica_manuale === "da_rettificare" && f.rettifica_motivo ? <p className="mt-1 text-xs text-muted-foreground">{String(f.rettifica_motivo)}</p> : null}
                 </dd>
 
-                {!nonSiPaga(String(f.tipo_documento ?? "")) && <>
-                  <dt className="text-muted-foreground">{scadenze.length > 1 && !saldata ? "Prossima scadenza" : "Scadenza pagamento"}</dt>
-                  <dd>{scadenza?.data ? <>
-                    <strong>{formatDateShort(scadenza.data)}</strong>
-                    {scadenza.importo != null && ` · ${formatCurrency(scadenza.importo)}`}
-                    {scadenza.metodo && ` · ${/^(riba|ri\.ba\.?)$/i.test(scadenza.metodo) ? "Ri.Ba." : scadenza.metodo}`}
-                  </> : "Non indicata"}</dd>
-                </>}
-                <dt className="text-muted-foreground">Pagamento</dt>
-                <dd>
-                  <span>{f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` :
-                    Number(f.rate_pagate) > 0 ? `Pagate ${f.rate_pagate} rate su ${f.rate_totali}` : saldata ? "Pagata" : "Non saldata"}</span>
-                  {!nonSiPaga(String(f.tipo_documento ?? "")) && rateRegistrate.length > 0 && <div className="space-y-1">
-                    <div className="font-medium">Residuo fattura · {rateRegistrate.some(r => r.stato !== "pagata" && r.importo == null) ? "Da verificare" : formatCurrency(rateRegistrate.reduce((somma,r) => somma + (r.stato === "pagata" ? 0 : Math.round((r.importo ?? 0) * 100)), 0) / 100)}</div>
-                    {!saldata && rateRegistrate.filter(r => r.stato !== "pagata" && !r.pagata_il).map(r => <div key={r.id || r.numero} className="flex flex-wrap items-center gap-2 text-xs">
-                      <span>Rata {r.numero} · {r.scadenza ? formatDateShort(r.scadenza) : "senza scadenza"}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
-                      {permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs"
-                        aria-label={`Segna pagata la rata ${r.numero}`} onClick={() => setRataScelta({id:r.id, stato:r.stato, importo:r.importo!, titolo:`Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}`})}>Segna pagata</Button>}
-                    </div>)}
-                  </div>}
-                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">Rata {r.numero} · pagata{r.pagata_il ? ` il ${formatDateShort(r.pagata_il)}` : ""}</div>)}
-                </dd>
-
-
                 <dt className="text-muted-foreground">Nei costi</dt>
                 <dd>
                   {d.costo ? (
@@ -626,7 +629,82 @@ function ContenutoRiepilogo({
               {azioni.extraCollegamenti?.(d)}
             </section>
 
+            <section aria-label="Pagamenti della fattura" className="ricevuta-pagamenti rounded-lg border p-3 space-y-3">
+              <h3 className="text-sm font-semibold">Pagamenti e residuo</h3>
+              {statoPagamento && <ExpensePaymentSummary totale={Number(statoPagamento.totale)} pagato={Number(statoPagamento.pagato)} residuo={Number(statoPagamento.residuo)} />}
+              {pagamentoCosto.isError && <p role="alert" className="text-xs text-destructive">Pagamenti non disponibili. <Button variant="link" size="sm" onClick={() => void pagamentoCosto.refetch()}>Riprova</Button></p>}
+              {statoPagamento?.da_verificare && <p role="status" className="text-xs text-amber-800">Ci sono registrazioni storiche da confrontare prima di aggiungere un pagamento.</p>}
+              <dl className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+                {!nonSiPaga(String(f.tipo_documento ?? "")) && <>
+                  <dt className="text-muted-foreground">{scadenze.length > 1 && !saldata ? "Prossima scadenza" : "Scadenza pagamento"}</dt>
+                  <dd>{scadenza?.data ? <>
+                    <strong>{formatDateShort(scadenza.data)}</strong>
+                    {scadenza.importo != null && ` · ${formatCurrency(scadenza.importo)}`}
+                    {scadenza.metodo && ` · ${/^(riba|ri\.ba\.?)$/i.test(scadenza.metodo) ? "Ri.Ba." : scadenza.metodo}`}
+                  </> : "Non indicata"}</dd>
+                </>}
+                <dt className="text-muted-foreground">Pagamento</dt>
+                <dd>
+                  <span>{statoPagamento ? (statoPagamento.da_verificare ? "Da verificare" : statoPagamento.residuo <= 0 ? "Saldata" : statoPagamento.pagato > 0 ? "Pagamento parziale" : "Non saldata") : f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` :
+                    Number(f.rate_pagate) > 0 ? `Pagate ${f.rate_pagate} rate su ${f.rate_totali}` : saldata ? "Pagata" : "Non saldata"}</span>
+                  {!nonSiPaga(String(f.tipo_documento ?? "")) && rateRegistrate.length > 0 && <div className="space-y-1">
+                    {!statoPagamento && <div className="font-medium">Residuo fattura · {rateRegistrate.some(r => r.stato !== "pagata" && r.importo == null) ? "Da verificare" : formatCurrency(rateRegistrate.reduce((somma,r) => somma + (r.stato === "pagata" ? 0 : Math.round((r.importo ?? 0) * 100)), 0) / 100)}</div>}
+                    {!saldata && rateRegistrate.filter(r => r.stato !== "pagata" && !r.pagata_il).map(r => <div key={r.id || r.numero} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span>Rata {r.numero} · {r.scadenza ? formatDateShort(r.scadenza) : "senza scadenza"}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
+                      {!d.costo && permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs"
+                        aria-label={`Segna pagata la rata ${r.numero}`} onClick={() => setRataScelta({id:r.id, stato:r.stato, importo:r.importo!, titolo:`Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}`})}>Segna pagata</Button>}
+                    </div>)}
+                  </div>}
+                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">Rata {r.numero} · pagata{r.pagata_il ? ` il ${formatDateShort(r.pagata_il)}` : ""}</div>)}
+                </dd>
+
+
+              </dl>
+              {d.costo && permessi.canViewCosts && <Button variant="outline" size="sm" onClick={() => setPagamenti(d.costo!.id)}>Vedi movimenti e registra pagamento</Button>}
+            {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
+            {(() => {
+              const p = nota ? null : pianoDocumento;
+              if (!p) return null;
+              const giorno = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "senza data");
+              return (
+                <details className="ricevuta-piano space-y-2 border-t pt-3 text-sm" open={!rateRegistrate.length}>
+                  <summary className="cursor-pointer font-medium">Scadenze indicate in fattura{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</summary>
+                  <p className="text-xs text-muted-foreground">Importi e date previsti nel documento. I versamenti effettivi si consultano dalla barra delle azioni.</p>
+                  {p.rate.length > 0 && (
+                    <ul className="divide-y">
+                      {p.rate.map((r, i) => (
+                        <li key={i} className="flex flex-wrap justify-between gap-x-3 py-1">
+                          <span>{p.rate.length > 1 ? `Rata ${i + 1} · ` : ""}{giorno(r.scadenza)}{r.metodo === "RiBa" ? " · Ri.Ba. (ricevuta bancaria)" : r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700"> · pagata il {giorno(r.pagataIl)}</span> : null}</span>
+                          <span className="tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {p.cassa ? <p className="flex justify-between text-muted-foreground"><span>Cassa previdenziale (nell'imponibile)</span><span className="tabular-nums">{formatCurrency(p.cassa)}</span></p> : null}
+                  {p.bollo ? <p className="flex justify-between text-muted-foreground"><span>Bollo</span><span className="tabular-nums">{formatCurrency(p.bollo)}</span></p> : null}
+                  {p.ritenuta ? (
+                    <p className="flex justify-between text-amber-800">
+                      <span>Ritenuta d'acconto{p.ritenuta.aliquota ? ` ${p.ritenuta.aliquota.toLocaleString("it-IT")}%` : ""}: la versi tu con F24 (1040) il 16 del mese dopo il pagamento</span>
+                      <span className="tabular-nums">− {formatCurrency(p.ritenuta.importo)}</span>
+                    </p>
+                  ) : null}
+                  {p.garanzia ? (
+                    <p className="flex justify-between text-amber-800"><span>Trattenuta a garanzia: si paga allo svincolo</span><span className="tabular-nums">{formatCurrency(p.garanzia)}</span></p>
+                  ) : null}
+                  {p.netto != null && (p.ritenuta || p.rate.length > 1) ? (
+                    <p className="flex justify-between border-t pt-1 font-semibold"><span>Da pagare al fornitore</span><span className="tabular-nums">{formatCurrency(p.netto)}</span></p>
+                  ) : null}
+                </details>
+              );
+            })()}
+
+            </section>
+            </div>
+            <dl className="ricevuta-totali-documento grid grid-cols-3 gap-2" aria-label="Importi del documento">
+              {[["Imponibile", imponibile], ["IVA", iva], ["Totale documento", totale]].map(([titolo, valore]) => <div key={String(titolo)} className="rounded-lg bg-muted/40 p-3"><dt className="text-xs text-muted-foreground">{titolo}</dt><dd className="font-semibold tabular-nums">{formatCurrency(Number(valore))}</dd></div>)}
+            </dl>
             {xmlFattura && <RiferimentiXmlRicevuta fattura={xmlFattura} />}
+            {f.errore_xml ? <p role="status" className="text-xs text-muted-foreground">{String(f.errore_xml)} <Button variant="link" size="sm" onClick={aggiorna}>Riprova XML</Button></p> : null}
             {typeof f.xml_raw === "string" && f.xml_raw.trim() && !xmlFattura && <p role="status" className="text-xs text-muted-foreground">I dettagli dell’XML non sono leggibili. Consulta il file originale.</p>}
 
             {/* Righe */}
@@ -722,43 +800,6 @@ function ContenutoRiepilogo({
               </div>
             </section>
 
-            {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
-            {(() => {
-              const p = nota ? null : pianoDocumento;
-              if (!p) return null;
-              const giorno = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "senza data");
-              return (
-                <section aria-label="Pagamento" className="space-y-2 rounded-lg border p-3 text-sm">
-                  <p className="font-semibold">Scadenze indicate in fattura{p.condizioni ? <span className="font-normal text-muted-foreground"> · {p.condizioni}</span> : null}</p>
-                  <p className="text-xs text-muted-foreground">Importi e date previsti nel documento. I versamenti effettivi si consultano dalla barra delle azioni.</p>
-                  {p.rate.length > 0 && (
-                    <ul className="divide-y">
-                      {p.rate.map((r, i) => (
-                        <li key={i} className="flex flex-wrap justify-between gap-x-3 py-1">
-                          <span>{p.rate.length > 1 ? `Rata ${i + 1} · ` : ""}{giorno(r.scadenza)}{r.metodo === "RiBa" ? " · Ri.Ba. (ricevuta bancaria)" : r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700"> · pagata il {giorno(r.pagataIl)}</span> : null}</span>
-                          <span className="tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {p.cassa ? <p className="flex justify-between text-muted-foreground"><span>Cassa previdenziale (nell'imponibile)</span><span className="tabular-nums">{formatCurrency(p.cassa)}</span></p> : null}
-                  {p.bollo ? <p className="flex justify-between text-muted-foreground"><span>Bollo</span><span className="tabular-nums">{formatCurrency(p.bollo)}</span></p> : null}
-                  {p.ritenuta ? (
-                    <p className="flex justify-between text-amber-800">
-                      <span>Ritenuta d'acconto{p.ritenuta.aliquota ? ` ${p.ritenuta.aliquota.toLocaleString("it-IT")}%` : ""}: la versi tu con F24 (1040) il 16 del mese dopo il pagamento</span>
-                      <span className="tabular-nums">− {formatCurrency(p.ritenuta.importo)}</span>
-                    </p>
-                  ) : null}
-                  {p.garanzia ? (
-                    <p className="flex justify-between text-amber-800"><span>Trattenuta a garanzia: si paga allo svincolo</span><span className="tabular-nums">{formatCurrency(p.garanzia)}</span></p>
-                  ) : null}
-                  {p.netto != null && (p.ritenuta || p.rate.length > 1) ? (
-                    <p className="flex justify-between border-t pt-1 font-semibold"><span>Da pagare al fornitore</span><span className="tabular-nums">{formatCurrency(p.netto)}</span></p>
-                  ) : null}
-                </section>
-              );
-            })()}
-
             {/* La contabile del bonifico, il DDT, il contratto: si ritrovano dalla fattura. */}
             <AllegatiFattura companyId={companyId} madre={{ fatturaRicevutaId: String(f.id) }} />
 
@@ -766,18 +807,7 @@ function ContenutoRiepilogo({
             <NoteInterneFattura tabella="fatture_ricevute" id={String(f.id)} companyId={companyId} valore={f.note_interne ? String(f.note_interne) : null}
               puoModificare={!permessi.solaLettura} chiaviDaAggiornare={["fatture-ricevute", "fattura-ricevuta-riepilogo"]} />
 
-            <div className="flex flex-wrap gap-2 border-t pt-4">
-              {haXml && azioni.onVersioneCompleta ? (
-                <Button variant="outline" size="sm" onClick={azioni.onVersioneCompleta}>
-                  <FileText className="h-4 w-4 mr-1.5" /> Versione completa e stampa
-                </Button>
-              ) : null}
-              {haXml && azioni.onScaricaOriginale ? (
-                <Button variant="ghost" size="sm" onClick={azioni.onScaricaOriginale}>
-                  <Download className="h-4 w-4 mr-1.5" /> Scarica il file originale
-                </Button>
-              ) : null}
-            </div>
+
           </div>
         )}
         </div>
@@ -790,7 +820,7 @@ function ContenutoRiepilogo({
           {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
         </DialogFooter>
       </Contenuto>
-    </Radice>
+    </Radice>}
     </>
   );
 }
