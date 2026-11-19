@@ -310,7 +310,7 @@ function OrdersListInner() {
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
-        .select("id, created_at, customer_id, expected_date, work_start_date, total_amount, vat_rate, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, deposit_expected_date, deposit_2_expected_date, balance_expected_date, financing_expected_date, installments:order_installments(position, type, amount, is_paid, paid_date, expected_date, fattura:documenti_fiscali(id, importo_pagato)), variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at)")
+        .select("id, created_at, customer_id, expected_date, work_start_date, total_amount, vat_rate, vat_breakdown, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, deposit_expected_date, deposit_2_expected_date, balance_expected_date, financing_expected_date, installments:order_installments(position, type, amount, is_paid, paid_date, expected_date, fattura:documenti_fiscali(id, importo_pagato)), variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at)")
         .eq("company_id", effectiveCompany.id)
         .is("deleted_at", null);
       if (isYearCorrente) query = query.lt("created_at",new Date(currentYear + 1,0,1).toISOString());
@@ -515,7 +515,7 @@ function OrdersListInner() {
     queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       if (!effectiveCompany?.id || !comparisonPeriod) return [];
       const query = supabase.from("orders").select(`
-        id, created_at, total_amount, vat_rate, payment_type, financing_cost,
+        id, created_at, total_amount, vat_rate, vat_breakdown, payment_type, financing_cost,
         deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid,
         balance_amount, balance_paid, financing_amount, financing_paid,
         installments:order_installments(position, type, amount, is_paid, paid_date, expected_date, fattura:documenti_fiscali(id, importo_pagato)),
@@ -548,7 +548,7 @@ function OrdersListInner() {
       let query = supabase
         .from("orders")
         .select(`
-          id, created_at, total_amount, vat_rate, payment_type, financing_cost,
+          id, created_at, total_amount, vat_rate, vat_breakdown, payment_type, financing_cost,
           deposit_amount, deposit_paid,
           deposit_2_amount, deposit_2_paid,
           balance_amount, balance_paid,

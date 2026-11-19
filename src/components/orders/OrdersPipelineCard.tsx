@@ -93,11 +93,24 @@ function getPaymentTypeLabel(paymentType?: string | null) {
 function getCustomerName(order: OrderWithDetails) {
   const nome = formatPersonName(order.customer) || order.client_name?.trim();
   if (!nome) return "Cliente non indicato";
-  if (nome !== nome.toLocaleUpperCase("it-IT")) return nome;
   return nome.replace(/\p{L}+(?:\.\p{L}+)*/gu, parola => {
-    if (SIGLE_SOCIETARIE.test(parola)) return parola;
+    if (parola !== parola.toLocaleUpperCase("it-IT") || SIGLE_SOCIETARIE.test(parola)) return parola;
     return parola[0].toLocaleUpperCase("it-IT") + parola.slice(1).toLocaleLowerCase("it-IT");
   });
+}
+
+function getOrderDescription(order: OrderWithDetails) {
+  const descrizione = order.description?.trim() || "Descrizione non indicata";
+  const prefisso = descrizione.match(/^(.+?)\s+[-–—]\s+([\s\S]+)$/u);
+  if (!prefisso) return descrizione;
+  const confronta = (valore: string) => valore.trim().replace(/\s+/g, " ").toLocaleLowerCase("it-IT");
+  const cliente = order.customer;
+  const nomi = [
+    order.client_name,
+    formatPersonName(cliente),
+    cliente && formatPersonName({ first_name: cliente.last_name, last_name: cliente.first_name }),
+  ];
+  return nomi.some(nome => nome && confronta(nome) === confronta(prefisso[1])) ? prefisso[2] : descrizione;
 }
 
 function formatPersonName(person?: { first_name: string | null; last_name: string | null } | null) {
@@ -194,7 +207,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   const needsMaterials = materials.total > 0 && materials.ready < materials.total;
   const customerName = getCustomerName(order);
   const codice = order.order_code?.trim();
-  const descrizione = order.description?.trim() || "Descrizione non indicata";
+  const descrizione = getOrderDescription(order);
   const labor = getLaborSummary(order);
   const giorni = getDaysToExpectedDate(order);
   const posa = statoPosa(giorni, order.expected_date ? formatDateShort(order.expected_date) : null);

@@ -230,6 +230,7 @@ export function calculateInstallmentCollections({
   installments,
   totalAmount,
   vatRate,
+  totaleLordo,
   financingCost = 0,
   financingCostMode,
   includeFinancing = false,
@@ -238,6 +239,8 @@ export function calculateInstallmentCollections({
   installments: InstallmentLike[];
   totalAmount: number | string | null | undefined;
   vatRate: number | string | null | undefined;
+  /** Totale pattuito con IVA calcolata per aliquota, comprese le varianti. */
+  totaleLordo?: number;
   financingCost?: number | string | null;
   financingCostMode?: ModalitaCostoFinanziaria | null;
   includeFinancing?: boolean;
@@ -259,7 +262,10 @@ export function calculateInstallmentCollections({
     ? varianti.reduce((sum, v) => (v.il && v.il > (saldo.paid_date as string).slice(0, 10) ? sum + money(v.importo) : sum), 0)
     : 0;
   // Al centesimo prima di sottrarre, come le rate e il database.
-  const totalGross = roundMoney((money(totalAmount) - variantiDopo) * (1 + money(vatRate) / 100));
+  const moltiplicatore = 1 + money(vatRate) / 100;
+  const totalGross = roundMoney(totaleLordo == null
+    ? (money(totalAmount) - variantiDopo) * moltiplicatore
+    : totaleLordo - variantiDopo * moltiplicatore);
   const rawBalance = roundMoney(totalGross - otherInstallments - costoDaSottrarreAlSaldo(money(financingCost), financingCostMode));
   const balanceAmount = Math.max(0, rawBalance);
   // Trattenuto: costo sulla sola erogazione; separato: nessuna riduzione.
