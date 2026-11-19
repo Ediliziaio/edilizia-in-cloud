@@ -9,6 +9,7 @@ import {
   channelMessagesQueryKey,
   readChannelMessagesHasOlder,
   readChannelMessagesItems,
+  refreshChannelMessages,
   upsertChannelMessage,
   type ChannelMessagesCache,
 } from "@/lib/chat/channelMessagesCache";
@@ -16,6 +17,22 @@ import {
 type Msg = { id: string; content: string };
 
 const m = (id: string, content = ""): Msg => ({ id, content });
+
+describe("refreshChannelMessages", () => {
+  it("conserva lo storico caricato mentre arrivano messaggi e modifiche", () => {
+    const previous = { items: [m("a"), m("b"), m("c"), m("d")], hasOlder: false };
+    expect(refreshChannelMessages(previous, [m("c", "modificato"), m("e")], true, 2))
+      .toEqual({ items: [m("a"), m("b"), m("c", "modificato"), m("e")], hasOlder: false });
+  });
+  it("non costruisce una cronologia con un buco dopo una lunga disconnessione", () => {
+    expect(refreshChannelMessages({ items: [m("a"), m("b"), m("c")], hasOlder: false }, [m("z")], true, 2))
+      .toEqual({ items: [m("z")], hasOlder: true });
+  });
+  it("svuota la cache se il server non restituisce più messaggi", () => {
+    expect(refreshChannelMessages({ items: [m("a"), m("b"), m("c")], hasOlder: false }, [], false, 2))
+      .toEqual({ items: [], hasOlder: false });
+  });
+});
 
 describe("channelMessagesQueryKey", () => {
   it("è identica alla chiave storica usata da entrambi i componenti", () => {
