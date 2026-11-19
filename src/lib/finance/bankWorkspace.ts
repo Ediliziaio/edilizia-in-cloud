@@ -150,6 +150,8 @@ export async function bankRpc<T>(
     "bank_proposte_lotto",
     "cassa_voci_movimenti",
     "cassa_movimenti_da_classificare",
+    "tesoreria_conti",
+    "tesoreria_controparti",
   ].includes(name);
   const { data, error } = read
     ? await withAbortableClientTimeout(

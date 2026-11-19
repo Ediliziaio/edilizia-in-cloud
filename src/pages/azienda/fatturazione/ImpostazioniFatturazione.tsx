@@ -1,5 +1,7 @@
 import { useState, useRef } from "react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
+import { ibanValido, pulisciIbanConto } from "@/lib/fatturazione/contiAzienda";
+import type { ContoFatturazione } from "@/types/fatturazione";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -161,6 +163,10 @@ export default function ImpostazioniFatturazione() {
   const provvisori = campiProvvisori(azienda as unknown as Record<string, unknown> | null | undefined);
   const current: Record<string, any> = { ...(azienda?.id ? schedaDaMostrare(azienda as unknown as Record<string, unknown>) : schedaDalProfilo(profilo)), ...form };
   const updateField = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }));
+  // Gli altri conti dell'azienda: si scrivono qui, si scelgono in fattura.
+  const altriConti: ContoFatturazione[] = Array.isArray(current.conti_fatturazione) ? current.conti_fatturazione : [];
+  const scriviConto = (i: number, campi: Partial<ContoFatturazione>) =>
+    updateField("conti_fatturazione", altriConti.map((c, k) => (k === i ? { ...c, ...campi } : c)));
   // Rende il numero come il backend (formatta_numero_documento): stesso template nella scheda.
   const renderNumero = (formato: string | null | undefined, prefisso: string, n: number, anno: number): string => {
     const tpl = formato && String(formato).trim() ? String(formato) : "{prefisso}-{yyyy}-{nnnn}";
@@ -697,6 +703,43 @@ export default function ImpostazioniFatturazione() {
                   <Label htmlFor="conto-intestatario" className="text-xs">Intestatario</Label>
                   <Input id="conto-intestatario" value={current.intestatario_conto ?? ""} onChange={(e) => updateField("intestatario_conto", e.target.value)} className="text-xs" placeholder="Mario Rossi S.r.l." />
                 </div>
+              </div>
+
+              {/* Gli altri conti: chi lavora con più banche li scrive qui una volta e poi li sceglie
+                  dalla tendina in fattura, invece di riscrivere l'IBAN ogni volta (19/11/2026).
+                  I conti della Tesoreria non servono: l'Open Banking manda l'IBAN mascherato. */}
+              <div className="mt-5 border-t pt-4 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium">Altri conti</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Se incassi su più banche, aggiungile qui: in fattura le scegli dalla tendina. Quello sopra resta proposto di serie.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" className="shrink-0"
+                    onClick={() => updateField("conti_fatturazione", [...(altriConti), { nome: "", iban: "", bic: "", banca: "" }])}>
+                    Aggiungi conto
+                  </Button>
+                </div>
+                {altriConti.map((c, i) => (
+                  <div key={i} className="grid grid-cols-1 gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1.6fr_auto]">
+                    <Input aria-label={`Nome del conto ${i + 1}`} value={c.nome ?? ""} placeholder="BCC conto lavori"
+                      className="text-xs"
+                      onChange={(e) => scriviConto(i, { nome: e.target.value })} />
+                    <div className="space-y-1">
+                      <Input aria-label={`IBAN del conto ${i + 1}`} value={c.iban ?? ""} placeholder="IT60X0542811101000000123456"
+                        className={`font-mono uppercase text-xs ${c.iban && !ibanValido(c.iban) ? "border-destructive" : ""}`}
+                        onChange={(e) => scriviConto(i, { iban: pulisciIbanConto(e.target.value) })} />
+                      {c.iban && !ibanValido(c.iban) && (
+                        <p className="text-[10px] text-destructive">IBAN non valido: IT, 2 cifre, 1 lettera e 22 fra cifre e lettere.</p>
+                      )}
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" aria-label={`Togli il conto ${i + 1}`}
+                      onClick={() => updateField("conti_fatturazione", altriConti.filter((_, k) => k !== i))}>
+                      Togli
+                    </Button>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

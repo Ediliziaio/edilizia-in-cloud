@@ -488,6 +488,14 @@ export interface ArticoloNative {
   updated_at: string;
 }
 
+/** Un conto dell'azienda che si può scegliere in fattura: nome che si riconosce, IBAN, BIC, banca. */
+export interface ContoFatturazione {
+  nome: string;
+  iban: string;
+  bic?: string;
+  banca?: string;
+}
+
 export interface AnagraficaAzienda {
   id: string;
   company_id: string;
@@ -508,6 +516,13 @@ export interface AnagraficaAzienda {
   numero_iscr_registro_imprese?: string;
   regime_fiscale: string;
   iban_principale?: string;
+  /**
+   * Gli ALTRI conti dell'azienda da proporre in fattura, oltre al principale (19/11/2026). Chi lavora
+   * con due banche li scrive una volta in Impostazioni e poi li sceglie dalla tendina, invece di
+   * riscrivere l'IBAN a mano. I conti della Tesoreria non servono: l'Open Banking manda l'IBAN
+   * mascherato, che su una fattura non si può scrivere.
+   */
+  conti_fatturazione?: ContoFatturazione[];
   bic_swift?: string;
   intestatario_conto?: string;
   nome_banca?: string;

@@ -215,16 +215,14 @@ export default function TransactionsFeed({
     companyId,
     (data.data?.rows ?? []).map((r) => r.id),
   );
+  // I conti col nome che si legge — «BPER Banca ···0769» — deciso dal server, lo stesso che compare
+  // nella colonna «Conto» e nel popup: l'Open Banking li chiama tutti «Account» (19/11/2026).
   const accounts = useQuery({
     queryKey: ["bank-workspace-accounts", companyId, refreshKey],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bank_accounts_operativi")
-        .select("id,display_name,account_name,iban,currency")
-        .eq("company_id", companyId)
-        .order("created_at");
-      if (error) throw error;
-      return data ?? [];
+      const righe = await bankRpc<Array<{ id: string; nome: string; currency: string | null; attivo: boolean }>>(
+        "tesoreria_conti", { p_company: companyId });
+      return righe ?? [];
     },
     enabled: !!companyId,
   });
@@ -597,7 +595,7 @@ export default function TransactionsFeed({
             <option value="all">Tutti i conti</option>
             {accounts.data?.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.display_name || a.account_name || a.iban || "Conto"}
+                {a.nome}{a.attivo === false ? " · chiuso" : ""}
               </option>
             ))}
           </UniformSelect>
@@ -774,7 +772,7 @@ export default function TransactionsFeed({
                   {k === "state"
                     ? states[v]
                     : k === "account"
-                      ? accounts.data?.find((a) => a.id === v)?.display_name ||
+                      ? accounts.data?.find((a) => a.id === v)?.nome ||
                         "Conto selezionato"
                       : `${({ search: "Ricerca", direction: "Direzione", category: "Categoria", currency: "Valuta", linked: "Collegamenti", from: "Dal", to: "Al", min: "Minimo", max: "Massimo" } as Record<string, string>)[k] ?? k}: ${v}`}
                 </span>
