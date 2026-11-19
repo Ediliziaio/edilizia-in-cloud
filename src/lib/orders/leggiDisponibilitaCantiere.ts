@@ -21,7 +21,7 @@ export async function disponibilitaAltriCantieri(client: SupabaseClient, azienda
   const richieste = new Set(ids);
   const idDipendenti = ids.filter((id) => !id.startsWith("hr:"));
   const idProfili = ids.filter((id) => id.startsWith("hr:")).map((id) => id.slice(3));
-  const vuoto = { data: [], error: null };
+  const vuoto: { data: never[]; error: null } = { data: [], error: null };
   const [dip, prof, singoli] = await Promise.all([
     idDipendenti.length ? client.from("hr_profili").select("id,employee_id,ore_giornaliere").eq("attivo", true).eq("company_id", azienda).in("employee_id", idDipendenti) : vuoto,
     idProfili.length ? client.from("hr_profili").select("id,employee_id,ore_giornaliere").eq("attivo", true).eq("company_id", azienda).in("id", idProfili) : vuoto,

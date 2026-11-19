@@ -8,6 +8,7 @@ import { italianHolidays, projectHoliday, type Holiday } from "../personale/cale
 
 type SquadraLetta = { id: string; nome: string; componenti: { id: string; nome: string; cognome: string }[] };
 type RigaOperaio = LaborEmployee & { first_name: string | null; last_name: string | null };
+const RISPOSTA_VUOTA: { data: never[]; error: null } = { data: [], error: null };
 
 export async function preparaPiani(client: SupabaseClient, azienda: string, commessa: string, bozza: BozzaPrevisto): Promise<PianoPrevisto[]> {
   const finestra = giorniPrevisti(bozza.dal, bozza.al, () => true);
@@ -19,9 +20,9 @@ export async function preparaPiani(client: SupabaseClient, azienda: string, comm
   const [{ data: fasiLette, error: ef }, { data: sottofasiLette, error: es }, { data: vociLette, error: ev },
     { data: squadreLette, error: eq }, { data: parametri, error: ep }, { data: festivita, error: et }] = await Promise.all([
     client.from("order_work_phases").select("id").eq("company_id", azienda).eq("order_id", commessa).in("id", fasi),
-    sottofasi.length ? client.from("order_work_subphases").select("id,phase_id").in("phase_id", fasi).in("id", sottofasi) : { data: [], error: null },
-    voci.length ? client.from("order_work_phase_voci").select("id,phase_id").eq("company_id", azienda).eq("order_id", commessa).in("id", voci) : { data: [], error: null },
-    bozza.squadre.length ? client.rpc("manodopera_squadre", { p_company_id: azienda }, { get: true }) : { data: [], error: null },
+    sottofasi.length ? client.from("order_work_subphases").select("id,phase_id").in("phase_id", fasi).in("id", sottofasi) : RISPOSTA_VUOTA,
+    voci.length ? client.from("order_work_phase_voci").select("id,phase_id").eq("company_id", azienda).eq("order_id", commessa).in("id", voci) : RISPOSTA_VUOTA,
+    bozza.squadre.length ? client.rpc("manodopera_squadre", { p_company_id: azienda }, { get: true }) : RISPOSTA_VUOTA,
     client.from("costo_personale_parametri").select("profilo,mensilita,inps,inail,cassa_edile,tfr,altri,ore_produttive").eq("company_id", azienda),
     client.from("hr_festivita").select("data,descrizione,ricorrente").eq("company_id", azienda),
   ]);
@@ -37,7 +38,7 @@ export async function preparaPiani(client: SupabaseClient, azienda: string, comm
   const profili = new Map(squadreScelte.flatMap((s) => s.componenti.map((p) => [p.id, p] as const)));
   if (profili.size + new Set(bozza.persone).size > 200) throw new Error("Seleziona fino a 100 operai per piano.");
   const legami = profili.size ? await client.from("hr_profili").select("id,employee_id")
-    .eq("company_id", azienda).in("id", [...profili.keys()]) : { data: [], error: null };
+    .eq("company_id", azienda).in("id", [...profili.keys()]) : RISPOSTA_VUOTA;
   if (legami.error || legami.data?.length !== profili.size) throw new Error("Impossibile leggere i profili dei componenti della squadra.");
   const dipendentePerProfilo = new Map((legami.data ?? []).map((p) => [p.id, p.employee_id as string | null]));
   const squadre = squadreScelte.map((s) => ({
@@ -49,7 +50,7 @@ export async function preparaPiani(client: SupabaseClient, azienda: string, comm
   if (!ids.length && !inclusi.size || inclusi.size + persone.length > 100) throw new Error("Seleziona da 1 a 100 operai, compresi i componenti delle squadre.");
   const { data: dipendenti, error } = ids.length ? await client.from("employees")
     .select("id,user_id,first_name,last_name,costo_orario,gross_salary,inps_rate,monthly_hours,profilo_costo,role_type,qualifica,area")
-    .eq("company_id", azienda).eq("is_active", true).in("id", ids) : { data: [], error: null };
+    .eq("company_id", azienda).eq("is_active", true).in("id", ids) : RISPOSTA_VUOTA;
   if (error || dipendenti?.length !== ids.length) throw new Error("Una persona non è più disponibile in azienda.");
   const parametriCosto = parametriDaRighe(parametri);
   const operai: OperaioPrevisto[] = (dipendenti as RigaOperaio[]).map((p) => ({
