@@ -22,6 +22,8 @@ import { useCatalogoVociRapportino } from "@/hooks/useCatalogoVociRapportino";
 import { formatCurrency } from "@/lib/formatters";
 import { avvisoUnita, CercaNelListino, COLORE_FONTE } from "@/components/orders/CercaNelListino";
 import { DocumentiRapportino } from "@/components/orders/DocumentiRapportino";
+import { CampiViaggioRapportino } from "./CampiViaggioRapportino";
+import { dettagliViaggio, leggiDettagliViaggio, misureViaggioValide, unitaChilometro, voceTrasporto, type BozzaViaggio } from "@/lib/campo/viaggiRapportino";
 import {
   etichettaPrezzo, prezzoModificatoAMano, totaliQuadro,
   type FontePrezzo, type MancanzaCosto, type VoceListino,
@@ -38,6 +40,7 @@ type OreInEconomia = { modo: "voce"; tariffa_id: string; codice: string | null; 
 interface Voce {
   id: string; descrizione: string; quantita: number; unita: string; costo_unitario: number | null; vendita_unitaria: number | null;
   codice?: string | null; prezzo_fonte?: FontePrezzo | null; vendita_proposta?: number | null; prezzo_a_mano?: boolean | null;
+  viaggio?: unknown;
 }
 interface Mezzo {
   mezzo_id: string; nome: string | null; noleggio: boolean; ore: number; ore_stimate: boolean; costo_orario: number | null; importo: number | null;
@@ -85,7 +88,7 @@ const DOVE_PREZZO: Record<FontePrezzo, string> = { cantiere: "eccezione di canti
 
 const numero = (v: string) => { const n = Number(v.replace(",", ".")); return Number.isFinite(n) ? n : 0; };
 const testoNumero = (n: number | null | undefined) => (n == null ? "" : String(n).replace(".", ","));
-type Bozza = { descrizione: string; quantita: string; unita: string; costo: string; vendita: string; voce: VoceListino | null };
+type Bozza = { descrizione: string; quantita: string; unita: string; costo: string; vendita: string; voce: VoceListino | null; viaggio?: BozzaViaggio };
 const VUOTA: Bozza = { descrizione: "", quantita: "1", unita: "cad", costo: "", vendita: "", voce: null };
 
 // Le funzioni nuove non sono ancora nei tipi generati.
@@ -109,6 +112,8 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
         rapportino_id: rapportinoId, descrizione: v.descrizione.trim(), quantita: numero(v.quantita) || 1, unita: v.unita.trim() || "cad",
         costo_unitario: v.costo.trim() ? numero(v.costo) : null, vendita_unitaria: v.vendita.trim() ? numero(v.vendita) : null,
         ...(v.voce ? { tariffa_id: v.voce.tariffa_id } : {}),
+        ...(v.viaggio || (voceTrasporto(v.descrizione, v.unita) && unitaChilometro(v.unita))
+          ? { viaggio: dettagliViaggio(v.viaggio ?? {}, v.unita, v.quantita) } : {}),
       });
       if (error) throw error;
     },
@@ -150,7 +155,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
   });
   if (!data || !Array.isArray(data.persone) || (!data.persone.length && !data.voci?.length && !data.personale_aggregato && !puoModificare)) return null;
 
-  const voci = data.voci ?? [];
+  const voci = (data.voci ?? []).map((voce) => ({ ...voce, viaggio: voce.viaggio ? leggiDettagliViaggio(voce.viaggio) : null }));
   const mezzi = Array.isArray(data.mezzi) ? data.mezzi : [];
   const mancanze = Array.isArray(data.costo_da_completare) ? data.costo_da_completare : [];
   const economia = data.ore_in_economia;
@@ -168,8 +173,13 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
 
   const scegliDalListino = (v: VoceListino) => setNuova((n) => ({
     ...(n ?? VUOTA), voce: v, descrizione: v.descrizione, unita: v.unita,
+    quantita: unitaChilometro(v.unita) ? "" : (n?.quantita || "1"),
     costo: testoNumero(v.costo_unitario), vendita: testoNumero(v.prezzo),
+    viaggio: voceTrasporto(v.categoria ?? "", v.unita) ? {} : undefined,
   }));
+  const datiViaggioValidi = !nuova ||
+    ((!nuova.viaggio || misureViaggioValide(nuova.viaggio)) &&
+      (!(nuova.viaggio || voceTrasporto(nuova.descrizione, nuova.unita)) || numero(nuova.quantita) > 0));
   const venditaScritta = nuova && nuova.vendita.trim() ? numero(nuova.vendita) : null;
   const aManoNuova = !!nuova?.voce && "prezzo" in nuova.voce && venditaScritta != null && prezzoModificatoAMano(venditaScritta, nuova.voce.prezzo ?? null);
 
@@ -282,6 +292,11 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             </span>
             <span className="text-xs text-muted-foreground">{Number(v.quantita).toLocaleString("it-IT")} {v.unita}{v.costo_unitario != null ? ` × ${euro(v.costo_unitario)}` : ""}</span>
             <span className="text-right text-xs text-blue-800">{ricavoVoce(v) != null && vedeImporti ? `ricavo ${euro(ricavoVoce(v))}` : ""}</span>
+            {v.viaggio && (
+              <span className="col-span-2 text-xs text-muted-foreground">
+                {[[v.viaggio.carico, v.viaggio.scarico].filter(Boolean).join(" → "), v.viaggio.mezzo, v.viaggio.km != null && `${v.viaggio.km} km`, v.viaggio.ddt && `DDT ${v.viaggio.ddt}`].filter(Boolean).join(" · ")}
+              </span>
+            )}
             {vedeImporti && v.prezzo_fonte !== undefined && (
               <span className={`col-span-2 text-[11px] ${v.prezzo_fonte ? COLORE_FONTE[v.prezzo_fonte] : "text-muted-foreground"}`}>
                 {v.prezzo_fonte === "mancante" && v.vendita_unitaria == null ? "Prezzo da definire" : etichettaPrezzo(v.prezzo_fonte)}
@@ -292,7 +307,7 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
         ))}
       </ul>
       {puoAggiungere && (nuova ? (
-        <form className="grid grid-cols-6 gap-1.5 border-t p-2" onSubmit={(e) => { e.preventDefault(); if (nuova.descrizione.trim()) aggiungi.mutate(nuova); }}>
+        <form className="grid grid-cols-6 gap-1.5 border-t p-2" onSubmit={(e) => { e.preventDefault(); if (nuova.descrizione.trim() && datiViaggioValidi) aggiungi.mutate(nuova); }}>
           <CercaNelListino className="col-span-6" dove={{ rapportinoId }} onScegli={scegliDalListino} />
           {nuova.voce && (
             <p className="col-span-6 flex flex-wrap items-center gap-x-2 text-xs">
@@ -305,21 +320,27 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
           )}
           {!nuova.voce && vociPronte.length > 0 && (
             <UniformSelect aria-label="Scegli la voce" className="col-span-6 h-8 rounded-md border bg-background px-2 text-[13px]" value={vociPronte.find((v) => v.nome === nuova.descrizione)?.id ?? ""}
-              onChange={(e) => { const v = vociPronte.find((x) => x.id === e.target.value); setNuova(v ? { ...nuova, descrizione: v.nome, unita: v.unita, costo: v.costo_unitario?.toString() ?? "", vendita: v.vendita_unitaria?.toString() ?? "" } : { ...nuova, descrizione: "" }); }}>
+              onChange={(e) => { const v = vociPronte.find((x) => x.id === e.target.value); setNuova(v ? { ...nuova, descrizione: v.nome, unita: v.unita, quantita: unitaChilometro(v.unita) ? "" : "1", costo: v.costo_unitario?.toString() ?? "", vendita: v.vendita_unitaria?.toString() ?? "", viaggio: undefined } : { ...nuova, descrizione: "", viaggio: undefined }); }}>
               <option value="">{aMano ? "Voci del rapportino, o scrivila sotto" : "Voci del rapportino"}</option>
               {vociPronte.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
             </UniformSelect>
           )}
           {!nuova.voce && aMano && <Input aria-label="Descrizione voce" placeholder="Oppure scrivi la voce (es. trasporto, nolo)" className="col-span-6 h-8 text-[13px]" value={nuova.descrizione} onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })} />}
-          <Input aria-label="Quantità" inputMode="decimal" placeholder="Q.tà" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.quantita} onChange={(e) => setNuova({ ...nuova, quantita: e.target.value })} />
+          <Input aria-label={unitaChilometro(nuova.unita) ? "Km percorsi" : "Quantità"} inputMode="decimal" placeholder={unitaChilometro(nuova.unita) ? "Km" : "Q.tà"} className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.quantita} onChange={(e) => setNuova({ ...nuova, quantita: e.target.value })} />
           <Input aria-label="Unità" placeholder="Unità" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.unita} onChange={(e) => setNuova({ ...nuova, unita: e.target.value })} />
           <Input aria-label="Costo unitario" inputMode="decimal" placeholder="Costo €" className="col-span-2 h-8 text-[13px]" value={nuova.costo} onChange={(e) => setNuova({ ...nuova, costo: e.target.value })} />
           {vedeImporti ? (
             <Input aria-label="Vendita unitaria" inputMode="decimal" placeholder={nuova.voce?.fonte === "mancante" ? "Prezzo da definire" : "Vendita €"} className="col-span-2 h-8 text-[13px]" value={nuova.vendita} onChange={(e) => setNuova({ ...nuova, vendita: e.target.value })} />
           ) : <span className="col-span-2 self-center text-[11px] text-muted-foreground">{nuova.voce ? "Prezzo dal listino" : ""}</span>}
+          {(nuova.viaggio || voceTrasporto(nuova.descrizione, nuova.unita)) && (
+            <div className="col-span-6">
+              <CampiViaggioRapportino valore={nuova.viaggio ?? {}} quantitaInKm={unitaChilometro(nuova.unita)} onChange={(viaggio) => setNuova({ ...nuova, viaggio })} />
+              {!datiViaggioValidi && <p className="mt-1 text-xs text-destructive">Controlla quantità, chilometri e ore del viaggio.</p>}
+            </div>
+          )}
           <div className="col-span-6 flex justify-end gap-1.5">
             <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => setNuova(null)}>Annulla</Button>
-            <Button type="submit" size="sm" className="h-7" disabled={aggiungi.isPending || !nuova.descrizione.trim() || (!nuova.voce && !aMano && !vociPronte.some((v) => v.nome === nuova.descrizione))}>Aggiungi</Button>
+            <Button type="submit" size="sm" className="h-7" disabled={aggiungi.isPending || !nuova.descrizione.trim() || !datiViaggioValidi || (!nuova.voce && !aMano && !vociPronte.some((v) => v.nome === nuova.descrizione))}>Aggiungi</Button>
           </div>
         </form>
       ) : (
