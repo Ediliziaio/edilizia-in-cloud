@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { percheScadenzaNonModificabile, type ModificaScadenza } from "@/lib/finance/modificaScadenza";
+import { eseguiPerRiga, messaggioErroreOperazione } from "@/lib/operazioniPerRiga";
 
 export interface Scadenza {
   id: string;
@@ -244,19 +246,44 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("scadenze")
-        .update({ status: "annullata" })
-        .eq("id", id);
+      const riga = scadenzeQuery.data?.data.find((s) => s.id === id);
+      if (!riga) throw new Error("Ricarica le scadenze e riprova.");
+      const motivo = percheScadenzaNonModificabile(riga);
+      if (motivo) throw new Error(motivo);
+      const { error } = await supabase.rpc("scadenza_annulla_manuale" as never, { p_id: id, p_versione: riga.updated_at } as never);
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshFinancialQueries(queryClient);
       toast.success("Scadenza annullata");
       queryClient.invalidateQueries({ queryKey: queryKeys.scadenzario.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.scadenze(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     },
-    onError: (e) => toast.error("Errore", { description: String(e) }),
+    onError: (e) => toast.error("Scadenza non annullata", { description: messaggioErroreOperazione(e) }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ riga, dati }: { riga: Scadenza; dati: ModificaScadenza }) => {
+      const motivo = percheScadenzaNonModificabile(riga);
+      if (motivo) throw new Error(motivo);
+      const { error } = await supabase.rpc("scadenza_modifica_manuale" as never, { p_id: riga.id, p_versione: riga.updated_at, p_dati: dati } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => { refreshFinancialQueries(queryClient); toast.success("Scadenza modificata"); },
+  });
+  const cancelManyMutation = useMutation({
+    mutationFn: (righe: Scadenza[]) => eseguiPerRiga(righe, async (s) => {
+      const motivo = percheScadenzaNonModificabile(s);
+      if (motivo) throw new Error(motivo);
+      const { error } = await supabase.rpc("scadenza_annulla_manuale" as never, { p_id: s.id, p_versione: s.updated_at } as never);
+      if (error) throw error;
+    }),
+    onSuccess: ({ completate, errori }) => {
+      refreshFinancialQueries(queryClient);
+      if (completate.length) toast.success(`${completate.length} scadenze annullate`, { description: errori.length ? `${errori.length} non elaborate: trovi il motivo nell'elenco.` : undefined });
+      else toast.error("Nessuna scadenza annullata");
+    },
   });
 
   const annullaIncassoMutation = useMutation({
@@ -304,6 +331,8 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
     markPaid: markPaidMutation,
     create: createMutation,
     cancel: cancelMutation,
+    update: updateMutation,
+    cancelMany: cancelManyMutation,
     annullaIncasso: annullaIncassoMutation,
   };
 }

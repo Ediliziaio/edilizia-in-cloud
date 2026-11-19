@@ -32,6 +32,12 @@ import { DaVerificareCard } from "@/components/contabilita/DaVerificareCard";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
+import { usePermissions } from "@/hooks/usePermissions";
+import { perchePrimaNotaNonEliminabile } from "@/hooks/usePrimaNota";
+import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
+import { linkFattura, linkTesoreriaMovimento } from "@/lib/finance/collegamentiFinanza";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -48,8 +54,10 @@ function PrimaNotaInner() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const apriOrigine = (e: PrimaNotaEntry) => navigate(e.documento_fiscale_id ? linkFattura(e.documento_fiscale_id, true) : e.bank_transaction_id ? linkTesoreriaMovimento(e.bank_transaction_id) : e.cost_id ? "/azienda/costi" : e.scadenza_id ? "/azienda/scadenzario" : e.invoice_id ? linkFattura(e.invoice_id, false) : "/azienda/documenti");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
@@ -126,23 +134,41 @@ function PrimaNotaInner() {
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
 
-  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, update, updateNotes, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, removeMany, update, updateNotes, fetchAllForExport } = usePrimaNota({
     fromDate: cercaSuTutteLeDate ? undefined : fromDate,
     toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
     search,
     isAuto: isAutoFilter,
   }, page, pageSize);
+  const selezione = useSelezioneRighe(entries, JSON.stringify([effectiveCompany?.id, page, pageSize, fromDate, toDate, direction, search, autoView]));
+  const eliminabili = selezione.selezionate.filter((e) => !perchePrimaNotaNonEliminabile(e));
+  const escluse = selezione.selezionate.flatMap((e) => {
+    const motivo = perchePrimaNotaNonEliminabile(e);
+    return motivo ? [{ nome: e.description, motivo }] : [];
+  });
+  const [erroriEliminazione, setErroriEliminazione] = useState<Array<{ nome: string; motivo: string }>>([]);
+  const eliminaSelezionate = async () => {
+    if (removeMany.isPending || eliminabili.length === 0) return;
+    const righe = [...eliminabili];
+    const somma = (verso: string) => righe.filter((r) => r.direction === verso).reduce((n, r) => n + Number(r.amount), 0);
+    if (!await confirm({ title: `Eliminare ${righe.length} registrazioni?`, description: `Entrate: ${formatCurrency(somma("entrata"))}. Uscite: ${formatCurrency(somma("uscita"))}. ${escluse.length ? `${escluse.length} righe collegate a documenti restano escluse. ` : ""}Gli incassi collegati verranno annullati e le fatture torneranno da incassare. L'eliminazione è definitiva.`, confirmLabel: "Elimina registrazioni", variant: "destructive" })) return;
+    setErroriEliminazione([]);
+    const esito = await removeMany.mutateAsync(righe);
+    selezione.mantieni(esito.errori.map((e) => e.riga.id));
+    setErroriEliminazione(esito.errori.map((e) => ({ nome: e.riga.description, motivo: e.motivo })));
+  };
   const [isExporting, setIsExporting] = useState(false);
 
   // Running balance (from oldest to newest, then reverse for display)
   const entriesWithBalance = useMemo(() => {
     const sorted = [...entries].sort((a, b) => a.entry_date.localeCompare(b.entry_date) || a.created_at.localeCompare(b.created_at));
     let balance = 0;
-    const withBal = sorted.map((e) => {
+    const withBal: Array<PrimaNotaEntry & { runningBalance: number }> = [];
+    for (const e of sorted) {
       balance += e.direction === "entrata" ? e.amount : -e.amount;
-      return { ...e, runningBalance: balance };
-    });
+      withBal.push({ ...e, runningBalance: balance });
+    }
     return withBal.reverse();
   }, [entries]);
 
@@ -448,6 +474,14 @@ function PrimaNotaInner() {
         </div>
       </div>
 
+      {permessi.isAdmin && entries.length > 0 && <BarraSelezioneRighe
+        nome="i movimenti" selezionate={selezione.selezionate.length} consentite={eliminabili.length}
+        tutte={selezione.tutte} parziale={selezione.parziale}
+        entrate={eliminabili.filter((e) => e.direction === "entrata").reduce((n, e) => n + Number(e.amount), 0)}
+        uscite={eliminabili.filter((e) => e.direction === "uscita").reduce((n, e) => n + Number(e.amount), 0)}
+        azione="Elimina selezionate" inCorso={removeMany.isPending} escluse={escluse}
+        onPagina={selezione.pagina} onAzione={() => void eliminaSelezionate()} />}
+      <ErroriOperazioneRighe errori={erroriEliminazione} />
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -470,6 +504,7 @@ function PrimaNotaInner() {
             {entriesWithBalance.map((e) => (
               <div key={e.id} className={`flex items-center gap-2.5 px-3 py-2.5${perchePrimaNotaNonModificabile(e) ? "" : " cursor-pointer active:bg-muted/50"}`}
                 onClick={() => { if (!perchePrimaNotaNonModificabile(e)) setDaModificare(e); }}>
+                {permessi.isAdmin && <span onClick={(ev) => ev.stopPropagation()}><Checkbox aria-label={`Seleziona ${e.description}`} checked={selezione.ids.has(e.id)} disabled={removeMany.isPending} onCheckedChange={() => selezione.alterna(e.id)} /></span>}
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-semibold leading-tight truncate">{e.description}</p>
                   <AllegatoPrimaNota url={e.attachment_url} nome={e.attachment_name} />
@@ -482,6 +517,8 @@ function PrimaNotaInner() {
                 <p className={`shrink-0 text-[13px] font-semibold tabular-nums ${e.direction === "entrata" ? "text-green-700" : "text-destructive"}`}>
                   {e.direction === "uscita" ? "−" : "+"}{formatCurrency(e.amount)}
                 </p>
+                {!perchePrimaNotaNonModificabile(e) && <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label={`Modifica ${e.description}`} onClick={(ev) => { ev.stopPropagation(); setDaModificare(e); }}><Pencil className="h-4 w-4" /></Button>}
+                {perchePrimaNotaNonModificabile(e) && <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" title={perchePrimaNotaNonModificabile(e) ?? undefined} aria-label={`Apri origine di ${e.description}`} onClick={(ev) => { ev.stopPropagation(); apriOrigine(e); }}><ExternalLink className="h-4 w-4" /></Button>}
               </div>
             ))}
           </div>
@@ -491,6 +528,7 @@ function PrimaNotaInner() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                {permessi.isAdmin && <th className="w-10 p-3"><span className="sr-only">Selezione</span></th>}
                 <th className="text-left p-3 font-medium">Data</th>
                 <th className="text-left p-3 font-medium hidden sm:table-cell">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
@@ -504,6 +542,7 @@ function PrimaNotaInner() {
             <tbody>
               {entriesWithBalance.map((e) => (
                 <tr key={e.id} className="border-b hover:bg-muted/30">
+                  {permessi.isAdmin && <td className="p-3"><Checkbox aria-label={`Seleziona ${e.description}`} checked={selezione.ids.has(e.id)} disabled={removeMany.isPending} onCheckedChange={() => selezione.alterna(e.id)} /></td>}
                   <td className="p-3">
                     <div className="flex items-center gap-1.5">
                       {e.is_auto && <span title="Auto-generato"><Bot className="h-3.5 w-3.5 text-muted-foreground" /></span>}
@@ -580,12 +619,13 @@ function PrimaNotaInner() {
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {!e.is_auto && !e.documento_fiscale_id && (
+                    {permessi.isAdmin && !perchePrimaNotaNonEliminabile(e) && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                         aria-label="Elimina movimento di prima nota"
+                        disabled={removeMany.isPending || remove.isPending}
                         onClick={async () => {
                           if (
                             await confirm({
@@ -602,6 +642,7 @@ function PrimaNotaInner() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
+                    {perchePrimaNotaNonModificabile(e) && <Button size="sm" variant="ghost" className="text-xs" title={perchePrimaNotaNonModificabile(e) ?? undefined} onClick={() => apriOrigine(e)}>Apri origine</Button>}
                     </div>
                   </td>
                 </tr>

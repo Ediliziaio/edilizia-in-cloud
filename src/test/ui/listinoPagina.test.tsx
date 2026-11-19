@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ role: state.role, effectiveCompany: { id: "azienda-1" } }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
+vi.mock("@/hooks/useMaterialiListino", () => ({ useMaterialiListino: () => ({ data: [] as unknown[], isLoading: false }) }));
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error, info: vi.fn(), warning: vi.fn() } }));
 vi.mock("@/hooks/useFamilies", () => ({
   useFamilies: () => ({ families: state.families, isLoading: false, isError: false, refetch: vi.fn() }),

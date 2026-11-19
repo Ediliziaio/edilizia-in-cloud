@@ -867,7 +867,7 @@ describe("Fornitori: parole", () => {
     );
     expect(
       state.scritture
-        .filter((s) => s.op === "update")
+        .filter((s) => s.op === "update" && s.table !== "suppliers")
         .every(
           (s) => (s.payload as { supplier_id: string }).supplier_id === "f1",
         ),
@@ -875,6 +875,7 @@ describe("Fornitori: parole", () => {
     expect(
       state.scritture.some((s) => s.table === "suppliers" && s.op === "delete"),
     ).toBe(true);
+    expect(state.scritture.find((s) => s.table === "suppliers" && s.op === "update")?.payload).toMatchObject({ product_categories: ["Serramenti", "Edilizia"] });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
   it("se l'unione non riesce lo dice in italiano", async () => {
@@ -1503,5 +1504,40 @@ describe("Aggiunta rapida del fornitore dalla commessa", () => {
     expect(
       screen.getByRole("button", { name: "Aggiungi nuovo fornitore" }),
     ).toBeDisabled();
+  });
+});
+
+ describe("Fornitori: più categorie sulla stessa anagrafica", () => {
+  it("sceglie Idraulica e Climatizzazione e salva entrambe", async () => {
+    montaAnagrafica();
+    const finestra = await apriNuovoFornitore();
+    fireEvent.change(within(finestra).getByLabelText(/Nome del fornitore/), { target: { value: "Termo Forniture" } });
+    fireEvent.click(within(finestra).getByLabelText("Cosa vende"));
+    fireEvent.click(await screen.findByRole("option", { name: "Idraulica" }));
+    fireEvent.click(screen.getByRole("option", { name: "Climatizzazione" }));
+    fireEvent.click(within(finestra).getByLabelText("Cosa vende"));
+    expect(within(finestra).getByRole("button", { name: "Rimuovi categoria Idraulica" })).toBeInTheDocument();
+    expect(within(finestra).getByRole("button", { name: "Rimuovi categoria Climatizzazione" })).toBeInTheDocument();
+    fireEvent.click(within(finestra).getByRole("button", { name: "Crea" }));
+    await waitFor(() => expect(state.scritture.find((s) => s.table === "suppliers" && s.op === "insert")?.payload).toMatchObject({ product_category: "Idraulica", product_categories: ["Idraulica", "Climatizzazione"] }));
+  });
+  it("riapre le categorie esistenti e ne rimuove una conservando l'altra", async () => {
+    state.fornitori = [{ ...ROSSI(), product_category: "Idraulica", product_categories: ["Idraulica", "Climatizzazione"] }];
+    montaAnagrafica();
+    fireEvent.click(await screen.findByRole("button", { name: "Modifica Rossi Serramenti Srl" }));
+    const finestra = await screen.findByRole("dialog");
+    fireEvent.click(within(finestra).getByRole("button", { name: "Rimuovi categoria Idraulica" }));
+    expect(within(finestra).queryByRole("button", { name: "Rimuovi categoria Idraulica" })).toBeNull();
+    expect(within(finestra).getByRole("button", { name: "Rimuovi categoria Climatizzazione" })).toBeInTheDocument();
+    fireEvent.click(within(finestra).getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(state.scritture.find((s) => s.table === "suppliers" && s.op === "update")?.payload).toMatchObject({ product_category: "Climatizzazione", product_categories: ["Climatizzazione"] }));
+  });
+  it("filtra per la seconda categoria e mostra il fornitore una sola volta", async () => {
+    state.fornitori = [{ ...ROSSI(), product_category: "Idraulica", product_categories: ["Idraulica", "Climatizzazione"] }, BIANCHI()];
+    montaAnagrafica();
+    await screen.findByText("Rossi Serramenti Srl");
+    await scegli(screen.getByLabelText("Filtra per categoria"), /^Climatizzazione$/);
+    expect(screen.getAllByText("Rossi Serramenti Srl")).toHaveLength(1);
+    expect(screen.queryByText("Bianchi Materiali")).toBeNull();
   });
 });

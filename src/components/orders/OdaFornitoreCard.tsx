@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/formatters";
+import { categorieFornitore } from "@/lib/fornitori/categorieFornitore";
 import { lazy, Suspense, useState } from "react";
 import { Mail, Phone, Pencil, Truck, UserRound, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -64,10 +65,10 @@ export function OdaFornitoreCard({supplier}: {supplier?: Supplier | null}) {
         {dato("Plafond",supplier.credit_limit != null ? formatCurrency(supplier.credit_limit) : null)}
         {dato("Valutazione",supplier.rating != null ? `${supplier.rating}/5` : null)}
         {dato("Stato",supplier.is_active === false ? "Non attivo" : "Attivo")}
-        {dato("Sito web",supplier.website)}{dato("Categoria",supplier.product_category)}{dato("Note del fornitore",supplier.notes)}
+        {dato("Sito web",supplier.website)}{dato("Categorie",categorieFornitore(supplier).join(" · "))}{dato("Note del fornitore",supplier.notes)}
       </dl></details>
       {(permissions.canEditSettingsSuppliers || permissions.canManageSuppliers) && <p className="mt-3 text-xs text-slate-500">La modifica aggiorna l’anagrafica condivisa con Impostazioni → Fornitori.</p>}
     </QuoteCard>
-    {editing && <Suspense fallback={<p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apertura anagrafica…</p>}><FornitoreEditor aperta fornitore={supplier} esteroIniziale={!!supplier.is_foreign} fornitori={[supplier]} categorieEsistenti={supplier.product_category ? [supplier.product_category] : []} salvataggio={saving} onChiudi={()=>{if (!saving) setEditing(false);}} onSalva={form=>void save(form)} /></Suspense>}
+    {editing && <Suspense fallback={<p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apertura anagrafica…</p>}><FornitoreEditor aperta fornitore={supplier} esteroIniziale={!!supplier.is_foreign} fornitori={[supplier]} categorieEsistenti={categorieFornitore(supplier)} salvataggio={saving} onChiudi={()=>{if (!saving) setEditing(false);}} onSalva={form=>void save(form)} /></Suspense>}
   </>;
 }

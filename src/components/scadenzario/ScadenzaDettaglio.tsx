@@ -14,6 +14,7 @@ import { notaLeggibile, tempoScadenza } from "@/lib/finance/dettaglioScadenza";
 import { etichettaMetodo } from "@/lib/finance/metodoScadenza";
 import { controparteScadenza, type Scadenza } from "@/hooks/useScadenzario";
 import { siAnnullaIncasso } from "@/lib/finance/annulloIncassoScadenza";
+import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
 
 interface Pagamento { id: string; entry_date: string; amount: number; payment_method: string | null; description: string | null; reversal_of: string | null }
 interface Abbinamento {
@@ -26,13 +27,15 @@ interface Abbinamento {
  * commessa, gli incassi o pagamenti registrati e il bonifico abbinato. Ogni
  * voce porta alla sua scheda; il bonifico si apre in Tesoreria.
  */
-export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota }: {
+export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaIncasso, onNota, onModifica, onAnnullaScadenza }: {
   scadenza: Scadenza;
   onClose: () => void;
   onMarkPaid: (s: Scadenza) => void;
   onAnnullaIncasso?: (s: Scadenza) => void;
   /** Scrive la nota dal dettaglio (16/11/2026): prima si poteva solo dall'elenco. */
   onNota?: (s: Scadenza, nota: string | null) => Promise<unknown>;
+  onModifica?: (s: Scadenza) => void;
+  onAnnullaScadenza?: (s: Scadenza) => void;
 }) {
   const entrata = s.direction === "entrata";
   const stato = statoScadenza(s);
@@ -218,6 +221,9 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
           </section>
 
           <div className="flex flex-wrap gap-2 border-t pt-3">
+            {onModifica && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onModifica(s)}>Modifica scadenza</Button>}
+            {onAnnullaScadenza && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onAnnullaScadenza(s)}>Annulla scadenza</Button>}
+            {percheScadenzaNonModificabile(s) && <p className="w-full text-xs text-muted-foreground">{percheScadenzaNonModificabile(s)}</p>}
             {aperta && <Button onClick={() => onMarkPaid(s)}><CreditCard className="mr-1 h-4 w-4" />{entrata ? "Incassa" : "Paga"}</Button>}
             {onAnnullaIncasso && siAnnullaIncasso(s) && <Button variant="outline" onClick={() => onAnnullaIncasso(s)}><Undo2 className="mr-1 h-4 w-4" />Annulla incasso</Button>}
             {s.invoice_id && !nativa.isPending && <Button variant="outline" asChild><Link to={linkFattura(s.invoice_id, !!nativa.data)}>Apri la fattura</Link></Button>}

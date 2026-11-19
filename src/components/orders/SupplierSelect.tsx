@@ -28,6 +28,7 @@ import {
 import { invalidaFornitori } from "@/lib/suppliers/cacheFornitori";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { categorieFornitore } from "@/lib/fornitori/categorieFornitore";
 
 interface SupplierSelectProps {
   searchable?: boolean;
@@ -147,7 +148,7 @@ export function SupplierSelect({
               { value: "none", label: "Nessun fornitore" },
               ...suppliers
                 .filter((s) => s.is_active !== false || s.id === value)
-                .map((s) => ({ value: s.id, label: s.name })),
+                .map((s) => ({ value: s.id, label: [s.name, categorieFornitore(s).join(" · ")].filter(Boolean).join(" — ") })),
             ]}
           />
         ) : (
@@ -167,6 +168,7 @@ export function SupplierSelect({
                 <SelectItem key={supplier.id} value={supplier.id}>
                   <span>
                     {supplier.name} ({supplier.vat_rate ?? 22}%)
+                    {categorieFornitore(supplier).length > 0 && <span className="ml-2 text-xs text-muted-foreground">{categorieFornitore(supplier).join(" · ")}</span>}
                   </span>
                 </SelectItem>
               ))}
@@ -218,7 +220,7 @@ export function SupplierSelect({
         categorieEsistenti={[
           ...new Set(
             suppliers
-              .map((s) => s.product_category)
+              .flatMap(categorieFornitore)
               .filter((c): c is string => !!c),
           ),
         ]}

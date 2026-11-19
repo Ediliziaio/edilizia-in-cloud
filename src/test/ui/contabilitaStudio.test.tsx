@@ -10,7 +10,9 @@ import { MemoryRouter } from "react-router-dom";
 const state = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: Record<string, unknown> }>,
   liquidati: new Set<string>(),
+  manuale: false,
 }));
+beforeEach(() => { state.manuale = false; });
 
 const conti = [
   { id: "clienti", codice: "05.01", descrizione: "Crediti verso clienti", natura: "attivo", sezione_cee: "SPA", voce_cee: "C.II.1", mastro_id: null as string | null, movimentabile: true, attivo: true, codice_standard: "05.01" },
@@ -39,7 +41,7 @@ const esercizio = { anno: 2026, chiuso_il: null as string | null, stampato_fino_
     "Movimento di prima nota del 03/02/2026 (1000 €, «bonifico»): su «Partite da verificare», va classificato."], errori: [] as string[] } };
 
 function builder(table: string) {
-  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? scritture
+  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? [...scritture, ...(state.manuale ? [scrittura(4, "2026-11-19", "manuale", "Giroconto di prova", [["banca", 100, 0, null], ["clienti", 0, 100, null]])] : [])]
     : table === "contabilita_esercizi" ? esercizio : [];
   const b: Record<string, unknown> = {};
   for (const m of ["select", "eq", "order", "range", "limit", "in", "is", "maybeSingle", "single"]) b[m] = () => b;
@@ -115,4 +117,32 @@ it("quello che la generazione non sa classificare si vede: «Da guardare»", asy
   fireEvent.click(riquadro);
   expect(screen.getByText(/40.00 € fra totale e imponibile più IVA/)).toBeTruthy();
   expect(screen.getByText(/va classificato/)).toBeTruthy();
+});
+
+it("rettifica una manuale con il modulo precompilato, conservando la quadratura", async () => {
+  state.manuale = true;
+  apri("scritture");
+  fireEvent.click(await screen.findByRole("button", { name: "Rettifica" }));
+  expect(screen.getByRole("heading", { name: "Rettifica scrittura" })).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Giroconto di prova")).toBeInTheDocument();
+  for (const campo of screen.getAllByDisplayValue("100")) fireEvent.change(campo, { target: { value: "150" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salva rettifica" }));
+  await waitFor(() => expect(state.rpc.find((r) => r.fn === "contabilita_rettifica_scrittura")?.args).toMatchObject({
+    p_scrittura: "s4", p_causale: "Giroconto di prova", p_righe: [
+      { conto_id: "banca", dare: 150, avere: 0 }, { conto_id: "clienti", dare: 0, avere: 150 },
+    ],
+  }));
+});
+
+it("nella selezione mista storna solo la scrittura manuale", async () => {
+  state.manuale = true;
+  apri("scritture");
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Seleziona le scritture di questa pagina" }));
+  expect(screen.getByText("4 selezionate · 1 elaborabili")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Storna selezionate" }));
+  fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Registrazione duplicata" } });
+  fireEvent.click(screen.getByRole("button", { name: "Conferma storni" }));
+  await waitFor(() => expect(state.rpc.filter((r) => r.fn === "contabilita_storna_scrittura")).toEqual([
+    { fn: "contabilita_storna_scrittura", args: { p_scrittura: "s4", p_data: expect.any(String), p_motivo: "Registrazione duplicata" } },
+  ]));
 });

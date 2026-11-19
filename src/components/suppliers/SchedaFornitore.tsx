@@ -2,6 +2,7 @@ import { Building2, CreditCard, MapPin, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { etichettaPagamentoFornitore } from "@/lib/impostazioni/pagamentiFornitori";
 import { formatCurrency } from "@/lib/formatters";
+import { categorieFornitore } from "@/lib/fornitori/categorieFornitore";
 import {
   etichettaRuoloReferente,
   referentiDi,
@@ -175,6 +176,7 @@ export function SchedaFornitore({
           />
           <Dato nome="P.IVA" valore={s.vat_number} />
           <Dato nome="Codice fiscale" valore={s.fiscal_code} />
+          <Dato nome="Categorie merceologiche" valore={categorieFornitore(s).join(" · ")} />
           <Dato nome="PEC" valore={s.pec} />
           <Dato nome="Codice destinatario SDI" valore={s.codice_sdi} />
           <Dato

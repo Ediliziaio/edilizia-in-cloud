@@ -30,6 +30,13 @@ import { GRUPPI_METODO, etichettaMetodo, filtroMetodo, type GruppoMetodo } from 
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
+import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
+import { ModificaScadenzaDialog } from "@/components/scadenzario/ModificaScadenzaDialog";
+import { percheScadenzaNonModificabile } from "@/lib/finance/modificaScadenza";
+import { formatCurrency } from "@/lib/formatters";
 const MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"];
 
 // Periodi rapidi (16/11/2026): quelli che servono davvero a chi paga e incassa. «Da» e «A»
@@ -75,6 +82,8 @@ function getDateRange(preset: string, today = new Date()): { from: string; to: s
 }
 
 export default function Scadenzario() {
+  const confirm = useConfirm();
+  const permessi = usePermissions();
   const isMobile = useIsMobile();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -171,8 +180,10 @@ export default function Scadenzario() {
     metodo: filterMetodo && filterMetodo !== "all" ? (filterMetodo as GruppoMetodo) : null,
   }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo]);
 
-  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
+  const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
+  const [daModificare, setDaModificare] = useState<Scadenza | null>(null);
+  const [erroriAnnullamento, setErroriAnnullamento] = useState<Array<{ nome: string; motivo: string }>>([]);
   // Il dettaglio segue la riga aggiornata: dopo un incasso si vede il nuovo stato.
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   const scadenzaAperta = dettaglio ? scadenze.find((x) => x.id === dettaglio) ?? null : null;
@@ -289,6 +300,26 @@ export default function Scadenzario() {
       s.marketing_contacts?.company_name?.toLowerCase().includes(q)
     );
   }, [scadenze, search]);
+  const selezione = useSelezioneRighe(filtered, JSON.stringify([companyId, page, pageSize, serverFilters, search]));
+  const annullabili = selezione.selezionate.filter((s) => !percheScadenzaNonModificabile(s));
+  const escluse = selezione.selezionate.flatMap((s) => {
+    const motivo = percheScadenzaNonModificabile(s);
+    return motivo ? [{ nome: s.description, motivo }] : [];
+  });
+  const annullaSelezionate = async () => {
+    const righe = [...annullabili];
+    if (righe.length === 0 || cancelMany.isPending) return;
+    const somma = (verso: string) => righe.filter((s) => s.direction === verso).reduce((n, s) => n + Number(s.amount), 0);
+    if (!await confirm({ title: `Annullare ${righe.length} scadenze?`, description: `Entrate previste: ${formatCurrency(somma("entrata"))}. Uscite previste: ${formatCurrency(somma("uscita"))}. ${escluse.length ? `${escluse.length} righe collegate a documenti o pagamenti restano escluse. ` : ""}Le scadenze manuali selezionate usciranno dagli importi ancora aperti. I pagamenti registrati restano invariati.`, confirmLabel: "Annulla scadenze", variant: "destructive" })) return;
+    setErroriAnnullamento([]);
+    const esito = await cancelMany.mutateAsync(righe);
+    selezione.mantieni(esito.errori.map((e) => e.riga.id));
+    setErroriAnnullamento(esito.errori.map((e) => ({ nome: e.riga.description, motivo: e.motivo })));
+  };
+  const annullaSingola = async (s: Scadenza) => {
+    if (!await confirm({ title: "Annullare questa scadenza?", description: `${s.description}: ${formatCurrency(s.amount)}. La scadenza uscirà dagli importi ancora aperti.`, confirmLabel: "Annulla scadenza", variant: "destructive" })) return;
+    try { await cancel.mutateAsync(s.id); setDettaglio(null); } catch { /* Il messaggio è gestito dalla mutation. */ }
+  };
 
   // Counts for tabs — use totalCount from server for the active tab; use summary for overdue badge
   // Conteggi per tutti i tab dalla summary (year-scoped, server-side). Fallback al
@@ -555,11 +586,21 @@ export default function Scadenzario() {
           </div>
         ) : (
           <>
+            {!permessi.solaLettura && filtered.length > 0 && <BarraSelezioneRighe nome="le scadenze" selezionate={selezione.selezionate.length} consentite={annullabili.length}
+              tutte={selezione.tutte} parziale={selezione.parziale}
+              entrate={annullabili.filter((s) => s.direction === "entrata").reduce((n, s) => n + Number(s.amount), 0)}
+              uscite={annullabili.filter((s) => s.direction === "uscita").reduce((n, s) => n + Number(s.amount), 0)}
+              azione="Annulla selezionate" inCorso={cancelMany.isPending} escluse={escluse} onPagina={selezione.pagina} onAzione={() => void annullaSelezionate()} />}
+            <ErroriOperazioneRighe errori={erroriAnnullamento} />
             <ScadenzarioTable
               scadenze={filtered}
               onNota={(s, nota) => updateNotes(s.id, nota)}
               onMarkPaid={(s) => setPayDialog(s)}
-              onCancel={(id) => cancel.mutate(id)}
+              onCancel={(id) => { const s = scadenze.find((x) => x.id === id); if (s) void annullaSingola(s); }}
+              onModifica={!permessi.solaLettura ? setDaModificare : undefined}
+              selezionate={selezione.ids}
+              onSeleziona={!permessi.solaLettura ? selezione.alterna : undefined}
+              inCorso={cancelMany.isPending || cancel.isPending || update.isPending}
               onAnnullaIncasso={setDaAnnullare}
               onAdd={() => setNewOpen(true)}
               onRowClick={(s) => setDettaglio(s.id)}
@@ -649,6 +690,8 @@ export default function Scadenzario() {
           onMarkPaid={(x) => { setDettaglio(null); setPayDialog(x); }}
           onAnnullaIncasso={(x) => { setDettaglio(null); setDaAnnullare(x); }}
           onNota={(x, nota) => updateNotes(x.id, nota)}
+          onModifica={!permessi.solaLettura ? (s) => { setDettaglio(null); setDaModificare(s); } : undefined}
+          onAnnullaScadenza={!permessi.solaLettura ? (s) => void annullaSingola(s) : undefined}
         />
       )}
       <MarkPaidDialog
@@ -660,6 +703,8 @@ export default function Scadenzario() {
         }}
         isPending={markPaid.isPending}
       />
+      {daModificare && <ModificaScadenzaDialog key={`${daModificare.id}-${daModificare.updated_at}`} scadenza={daModificare} onClose={() => setDaModificare(null)} isPending={update.isPending}
+        onConfirm={async (dati) => { await update.mutateAsync({ riga: daModificare, dati }); setDaModificare(null); }} />}
       <AnnullaIncassoDialog
         scadenza={daAnnullare}
         onClose={() => setDaAnnullare(null)}

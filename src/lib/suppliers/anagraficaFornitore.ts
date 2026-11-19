@@ -1,6 +1,7 @@
 import { isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
 import { erroreFormatoOda, erroreProssimoOda } from "@/lib/acquisti/numerazioneOda";
 import type { Json } from "@/integrations/supabase/types";
+import { categorieFornitore, normalizzaCategorie } from "@/lib/fornitori/categorieFornitore";
 
 /** Ruoli dei referenti: a chi va l'ordine, a chi la fattura, chi riceve il camion. */
 export const RUOLI_REFERENTE = [
@@ -54,6 +55,7 @@ export interface Supplier {
   phone: string | null;
   website: string | null;
   product_category: string | null;
+  product_categories?: string[] | null;
   /** Dove va il costo: vedi src/lib/fornitori/tipiFornitore.ts. */
   tipo?: string | null;
   notes: string | null;
@@ -110,6 +112,7 @@ export interface SupplierFormData {
   phone: string;
   website: string;
   product_category: string;
+  product_categories?: string[];
   /** Uno dei TIPI_FORNITORE, o vuoto. */
   tipo: string;
   notes: string;
@@ -161,6 +164,7 @@ export const emptyForm: SupplierFormData = {
   phone: "",
   website: "",
   product_category: "",
+  product_categories: [],
   tipo: "",
   notes: "",
   payment_method: "",
@@ -246,6 +250,7 @@ export function supplierToForm(s: Supplier): SupplierFormData {
     phone: s.phone || "",
     website: s.website || "",
     product_category: s.product_category || "",
+    product_categories: categorieFornitore(s),
     tipo: s.tipo ?? "",
     notes: s.notes || "",
     payment_method: s.payment_method || "",
@@ -329,6 +334,7 @@ function numeroOpzionale(value: string): number | null {
 }
 
 export function validaDettagliFornitore(form: SupplierFormData): string | null {
+  if (categorieFornitore(form).length > 30) return "Puoi assegnare al massimo 30 categorie a un fornitore.";
   if (!isValidEmail(form.contact_email))
     return "Inserisci un’email valida per il referente.";
   if (!isValidPhone(form.contact_phone))
@@ -415,7 +421,8 @@ export function payloadFornitore(data: SupplierFormData) {
     email: normalizeOptional(data.email.toLowerCase()),
     phone: normalizeOptional(data.phone),
     website: sitoFornitore(data.website),
-    product_category: normalizeOptional(data.product_category),
+    product_category: categorieFornitore(data)[0] ?? null,
+    product_categories: categorieFornitore(data),
     tipo: isTipoFornitore(data.tipo) ? data.tipo : null,
     notes: normalizeOptional(data.notes),
     payment_method: normalizeOptional(data.payment_method),
@@ -471,6 +478,8 @@ export function contattiPerUnione(source: Supplier, target: Supplier) {
   }
   // I dati d'acquisto del doppione passano solo dove l'altro è vuoto.
   const extra: Partial<Supplier> = {};
+  const categorieUnite = normalizzaCategorie([...categorieFornitore(target), ...categorieFornitore(source)]);
+  if (categorieUnite.length) { extra.product_categories = categorieUnite; extra.product_category = categorieUnite[0]; }
   for (const campo of [
     "email_ordini", "pec", "codice_sdi", "codice_cliente",
     "ritiro_indirizzo", "ritiro_citta", "ritiro_note",
@@ -499,7 +508,7 @@ export function ricercaFornitore(s: Supplier, query: string): boolean {
     !q ||
     [
       s.name,
-      s.product_category,
+      ...categorieFornitore(s),
       s.city,
       s.province,
       s.vat_number,

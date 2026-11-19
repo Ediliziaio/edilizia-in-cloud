@@ -15,6 +15,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
+import { categorieFornitore } from "@/lib/fornitori/categorieFornitore";
 import { format } from "date-fns";
 import { SuppliersConfig } from "@/components/settings/SuppliersConfig";
 import { SuppliersOperational } from "@/pages/azienda/Suppliers";
@@ -91,7 +92,7 @@ export function SupplierReportsPanel() {
     const byCategory = suppliers.reduce<
       Record<string, { count: number; spend: number }>
     >((acc, supplier) => {
-      const key = supplier.product_category || "Senza categoria";
+      const key = categorieFornitore(supplier).join(" + ") || "Senza categoria";
       acc[key] = acc[key] ?? { count: 0, spend: 0 };
       acc[key].count += 1;
       acc[key].spend += supplier.oda_total ?? 0;
@@ -199,7 +200,7 @@ export function SupplierReportsPanel() {
                   <div className="min-w-0">
                     <p className="font-medium truncate">{supplier.name}</p>
                     <p className="break-words text-xs text-muted-foreground">
-                      {supplier.product_category || "Senza categoria"} ·{" "}
+                      {categorieFornitore(supplier).join(" · ") || "Senza categoria"} ·{" "}
                       {supplier.oda_count ?? 0} OdA
                     </p>
                   </div>
@@ -535,7 +536,7 @@ export default function SettingsSuppliers() {
       name: s.name ?? "",
       tipo: s.is_foreign ? "Estero" : "Italiano",
       attivo: s.is_active ? "Sì" : "No",
-      product_category: s.product_category ?? "",
+      product_category: categorieFornitore(s).join("; "),
       vat_number: s.vat_number ?? "",
       fiscal_code: s.fiscal_code ?? "",
       email: s.email ?? "",
@@ -879,7 +880,7 @@ export default function SettingsSuppliers() {
         categorieEsistenti={[
           ...new Set(
             suppliers
-              .map((s) => s.product_category)
+              .flatMap(categorieFornitore)
               .filter((c): c is string => !!c),
           ),
         ]}

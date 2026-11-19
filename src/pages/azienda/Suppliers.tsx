@@ -53,6 +53,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { categorieFornitore } from "@/lib/fornitori/categorieFornitore";
 
 type DatiDettaglioFornitore = ReturnType<typeof useSupplierDetail>;
 type OdaRiga = DatiDettaglioFornitore["oda"][number];
@@ -251,9 +252,9 @@ function SuppliersList({
                       {s.contact_name || "Referente da aggiungere"}
                       {s.contact_role ? ` · ${s.contact_role}` : ""}
                     </p>
-                    {s.product_category && (
+                    {categorieFornitore(s).length > 0 && (
                       <Badge variant="outline" className="text-xs mt-0.5">
-                        {s.product_category}
+                        {categorieFornitore(s).join(" · ")}
                       </Badge>
                     )}
                   </div>
@@ -427,8 +428,8 @@ function SupplierDetail({
         <div>
           <Titolo className="text-2xl font-bold">{supplier.name}</Titolo>
           <div className="flex items-center gap-3 mt-1">
-            {supplier.product_category && (
-              <Badge variant="outline">{supplier.product_category}</Badge>
+            {categorieFornitore(supplier).length > 0 && (
+              <Badge variant="outline">{categorieFornitore(supplier).join(" · ")}</Badge>
             )}
             <RatingStars rating={supplier.rating} />
             {!supplier.is_active && <Badge variant="secondary">Inattivo</Badge>}
@@ -618,7 +619,7 @@ function SupplierDetail({
         categorieEsistenti={[
           ...new Set(
             suppliers
-              .map((s) => s.product_category)
+              .flatMap(categorieFornitore)
               .filter((c): c is string => !!c),
           ),
         ]}

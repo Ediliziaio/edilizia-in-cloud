@@ -1,4 +1,5 @@
 import { INFO_TIPO_FORNITORE, isTipoFornitore, type TipoFornitore } from "@/lib/fornitori/tipiFornitore";
+import { categorieFornitore, fornitoreInCategoria, normalizzaCategorie } from "@/lib/fornitori/categorieFornitore";
 import { Link } from "react-router-dom";
 import { loadCatalogPages } from "@/lib/listino/loadCatalogPages";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -305,7 +306,7 @@ function SupplierTable({
                   <p className="break-words font-semibold">{s.name}</p>
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {[s.product_category, s.city].filter(Boolean).join(" · ") ||
+                  {[categorieFornitore(s).join(" · "), s.city].filter(Boolean).join(" · ") ||
                     "Categoria e città non indicate"}
                 </p>
               </div>
@@ -400,9 +401,9 @@ function SupplierTable({
               </p>
             </TableCell>
             <TableCell>
-              {supplier.product_category ? (
+              {categorieFornitore(supplier).length > 0 ? (
                 <span className="inline-flex rounded-full border bg-muted/40 px-2 py-0.5 text-xs">
-                  {supplier.product_category}
+                  {categorieFornitore(supplier).join(" · ")}
                 </span>
               ) : (
                 "—"
@@ -679,10 +680,7 @@ export function SuppliersConfig({
 
   const existingCategories = useMemo(() => {
     if (!suppliers) return [];
-    const cats = new Set(
-      suppliers.map((s) => s.product_category).filter(Boolean) as string[],
-    );
-    return Array.from(cats).sort();
+    return normalizzaCategorie(suppliers.flatMap(categorieFornitore)).sort((a, b) => a.localeCompare(b, "it"));
   }, [suppliers]);
 
   const existingProvinces = useMemo(() => {
@@ -719,7 +717,7 @@ export function SuppliersConfig({
         (statusFilter === "active" && s.is_active) ||
         (statusFilter === "inactive" && !s.is_active);
       const matchesCategory =
-        categoryFilter === "all" || s.product_category === categoryFilter;
+        categoryFilter === "all" || fornitoreInCategoria(s, categoryFilter);
       const matchesProvince =
         provinceFilter === "all" ||
         s.province?.toUpperCase() === provinceFilter;
@@ -731,7 +729,7 @@ export function SuppliersConfig({
     return [...filtered].sort((a, b) => {
       if (sortBy === "category")
         return (
-          (a.product_category || "").localeCompare(b.product_category || "") ||
+          categorieFornitore(a).join(" · ").localeCompare(categorieFornitore(b).join(" · ")) ||
           a.name.localeCompare(b.name)
         );
       if (sortBy === "city")

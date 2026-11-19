@@ -339,7 +339,8 @@ describe("le finestre che installano avvisano e non si fanno scavalcare dal dopp
   });
 
   it("il pulsante resta spento finché l'anteprima non è arrivata", () => {
-    expect(nuovaArea).toMatch(/disabled=\{occupato \|\| !companyId \|\| anteprima\.isLoading \|\| recente\}/);
+    expect(nuovaArea).toContain("const creazioneBloccata = occupato || erroreCaricamento;");
+    expect(nuovaArea).toMatch(/disabled=\{creazioneBloccata \|\| !companyId \|\| anteprima\.isLoading \|\| recente\}/);
     expect(admin).toMatch(/disabled=\{!aziendaId \|\| inCorso \|\| anteprima\.isLoading \|\| recente\}/);
   });
 

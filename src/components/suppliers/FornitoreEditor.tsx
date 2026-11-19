@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 import { SUPPLIER_CATEGORY_SUGGESTIONS } from "@/lib/suppliers/partnerRelations";
+import { categorieFornitore, chiaveCategoria, normalizzaCategorie } from "@/lib/fornitori/categorieFornitore";
 import {
   emptyForm,
   supplierToForm,
@@ -116,8 +117,16 @@ function FornitoreDialogAperta({
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
   const categorie = [
-    ...new Set([...categorieEsistenti, ...SUPPLIER_CATEGORY_SUGGESTIONS]),
+    ...normalizzaCategorie([...categorieEsistenti, ...SUPPLIER_CATEGORY_SUGGESTIONS, ...categorieFornitore(formData)]),
   ];
+  const categorieScelte = categorieFornitore(formData);
+  const alternaCategoria = (categoria: string) => setFormData((prima) => {
+    const esistenti = categorieFornitore(prima);
+    const nuove = esistenti.some((c) => chiaveCategoria(c) === chiaveCategoria(categoria))
+      ? esistenti.filter((c) => chiaveCategoria(c) !== chiaveCategoria(categoria))
+      : normalizzaCategorie([...esistenti, categoria]);
+    return { ...prima, product_categories: nuove, product_category: nuove[0] ?? "" };
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const vaiASezione = (id: string) => {
     const contenitore = scrollRef.current;
@@ -350,6 +359,7 @@ function FornitoreDialogAperta({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="supplier-categoria">Cosa vende</Label>
+                    <p className="text-xs text-muted-foreground">Puoi scegliere più categorie, per esempio Idraulica e Climatizzazione.</p>
                     <Popover
                       open={categoryPopoverOpen}
                       onOpenChange={setCategoryPopoverOpen}
@@ -362,8 +372,8 @@ function FornitoreDialogAperta({
                           aria-expanded={categoryPopoverOpen}
                           className="w-full justify-between font-normal"
                         >
-                          {formData.product_category ||
-                            "Seleziona categoria..."}
+                          <span className="min-w-0 truncate">{categorieScelte.join(" · ") ||
+                            "Seleziona categoria..."}</span>
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
@@ -396,15 +406,14 @@ function FornitoreDialogAperta({
                                     key={cat}
                                     value={cat}
                                     onSelect={() => {
-                                      updateField("product_category", cat);
-                                      setCategoryPopoverOpen(false);
+                                      alternaCategoria(cat);
                                       setCategorySearch("");
                                     }}
                                   >
                                     <Check
                                       className={cn(
                                         "mr-2 h-4 w-4",
-                                        formData.product_category === cat
+                                        categorieScelte.some((c) => chiaveCategoria(c) === chiaveCategoria(cat))
                                           ? "opacity-100"
                                           : "opacity-0",
                                       )}
@@ -421,11 +430,7 @@ function FornitoreDialogAperta({
                                   <CommandItem
                                     value={`create-${categorySearch}`}
                                     onSelect={() => {
-                                      updateField(
-                                        "product_category",
-                                        categorySearch.trim(),
-                                      );
-                                      setCategoryPopoverOpen(false);
+                                      alternaCategoria(categorySearch.trim());
                                       setCategorySearch("");
                                     }}
                                     className="text-primary"
@@ -439,6 +444,7 @@ function FornitoreDialogAperta({
                         </Command>
                       </PopoverContent>
                     </Popover>
+                    {categorieScelte.length > 0 && <div className="flex flex-wrap gap-1" aria-label="Categorie del fornitore">{categorieScelte.map((cat) => <Button key={cat} type="button" variant="secondary" size="sm" className="h-auto min-h-8 max-w-full whitespace-normal text-left text-xs" disabled={salvataggio} aria-label={`Rimuovi categoria ${cat}`} onClick={() => alternaCategoria(cat)}>{cat} ×</Button>)}</div>}
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 mt-3">

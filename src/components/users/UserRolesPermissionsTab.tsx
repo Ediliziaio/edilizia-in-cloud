@@ -559,8 +559,8 @@ export function UserRolesPermissionsTab({
             {onToggleAdditionalRole && !pendingRoleChange && aggiuntiviDisponibili(selectedRole).length > 0 && (
               <>
                 <Separator />
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium">Funzioni aggiuntive <span className="font-normal text-muted-foreground">· {additionalRoles.length} attive</span></summary>
+                <div role="group" aria-label="Funzioni aggiuntive">
+                  <p className="text-sm font-medium">Funzioni aggiuntive <span className="font-normal text-muted-foreground">· {additionalRoles.length} attive</span></p>
                   <p className="mt-3 text-xs text-muted-foreground mb-3 flex items-start gap-1.5">
                     <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
                     Se questa persona fa <strong>anche</strong> altro, attivalo qui: tiene il suo ruolo
@@ -605,7 +605,7 @@ export function UserRolesPermissionsTab({
                       );
                     })}
                   </div>
-                </details>
+                </div>
               </>
             )}
 
