@@ -498,7 +498,7 @@ function useInternalChat(companyIdOverride?: string) {
       .filter((m) => m.channel_id === ch.id)
       .map((m) => m.user_id);
 
-    return channelMemberIds.length === 0 || channelMemberIds.every((id) => internalProfileIds.has(id));
+    return channelMemberIds.length === 0 || channelMemberIds.every((id) => id === userId || internalProfileIds.has(id));
   });
 
   // Last message per visible channel for preview — avoid loading non-member/private previews.

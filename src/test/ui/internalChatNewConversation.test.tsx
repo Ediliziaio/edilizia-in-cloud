@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  joined: false, membersError: false, event: undefined as (() => void) | undefined,
+  joined: false, membersError: false, ownProfileMissing: false, event: undefined as (() => void) | undefined,
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({
   user: { id: "me" }, profile: { id: "me", first_name: "Mario", last_name: "Staff", email: "me@example.test" },
@@ -15,7 +15,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc: async (fn: string) => ({ data: fn === "get_internal_chat_profiles" ? [
     { id: "me", first_name: "Mario", last_name: "Staff", email: "me@example.test" },
     { id: "other", first_name: "Giulia", last_name: "Collega", email: "other@example.test" },
-  ] : [], error: null }),
+  ].filter(p => !state.ownProfileMissing || p.id !== "me") : [], error: null }),
   from: (table: string) => {
     let personal = false;
     const result = (): { data: unknown[]; error: Error | null } => {
@@ -49,7 +49,7 @@ function open() {
   return render(<QueryClientProvider client={client}><MemoryRouter><InternalChat /></MemoryRouter></QueryClientProvider>);
 }
 beforeEach(() => {
-  state.joined = false; state.membersError = false; state.event = undefined;
+  state.joined = false; state.membersError = false; state.ownProfileMissing = false; state.event = undefined;
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(async () => { cleanup(); await Promise.resolve(); });
@@ -67,5 +67,11 @@ describe("Chat Team con una nuova conversazione", () => {
     expect(await screen.findByText("Chat non caricata")).toBeInTheDocument();
     expect(screen.queryByText("Nessuna chat")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Riprova" })).toBeInTheDocument();
+  });
+  it("conserva una chat autorizzata se l'account corrente non è nel selettore colleghi", async () => {
+    state.joined = true; state.ownProfileMissing = true; open();
+    expect(await screen.findAllByText("Giulia Collega")).not.toHaveLength(0);
+    expect(screen.queryByText("Nessuna chat")).not.toBeInTheDocument();
+    expect(screen.queryByText("?")).not.toBeInTheDocument();
   });
 });

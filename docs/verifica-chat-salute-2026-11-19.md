@@ -1,6 +1,6 @@
 # Verifica chat e salute della piattaforma — 19 novembre 2026
 
-La Chat Team rispetta le conversazioni private: entrando in Renova come super admin non si diventa partecipanti delle chat dei dipendenti. La schermata vuota dell’account admin non dimostra un guasto nell’invio. Il selettore colleghi risponde; i dati e le policy RLS delle tre tabelle chat sono presenti. Dei 64 canali diretti Renova, 53 coinvolgono clienti esterni e sono esclusi intenzionalmente dalla chat interna.
+La Chat Team rispetta le conversazioni private: entrando in Renova come super admin non si diventa partecipanti delle chat dei dipendenti. La schermata vuota dell’account admin non dimostra un guasto nell’invio. Il selettore colleghi risponde; i dati e le policy RLS delle tre tabelle chat sono presenti. Il controllo finale sul nome e sul flag di sistema identifica tutti i 64 canali Renova come conversazioni `silvio-ai`: non risultano ancora conversazioni Team fra persone. Il conteggio iniziale dei soli canali con tipo `dm` non distingueva l’assistente dai colleghi; non viene usato come prova di chat Team esistenti.
 
 I difetti riprodotti sono l’elenco che non scopre nuove conversazioni, soprattutto quando parte vuoto, la dipendenza dai dettagli dei partecipanti per mostrare canali già autorizzati e l’assenza di recupero dei messaggi aperti quando Realtime non risponde. La correzione rilegge le membership al primo messaggio, alla riconnessione e ogni 15 secondi in primo piano. Le pagine dello storico già lette restano nella cache quando gli ultimi messaggi si aggiornano. Avatar dell’account corrente ed elenco vuoto in vista super admin sono più chiari. Nessun permesso di accesso alle chat private è stato ampliato.
 
@@ -30,7 +30,7 @@ Nessun file. È stata sostituita la subscription chat che funzionava solo con un
 
 ## Security fix
 
-RLS chat invariata. Nuova tabella tentativi e RPC di scrittura riservate al service role. RPC di monitoraggio con verifica staff/super admin e nessun accesso anonimo. Scope azienda/utente e rilascio di timer/subscription verificati nei test. La prova SQL rifiuta un database diverso da `eic_chat_salute_test` o una connessione TCP.
+RLS chat invariata. Nuova tabella tentativi e RPC di scrittura riservate al service role. RPC di monitoraggio con verifica staff/super admin e nessun accesso anonimo. Scope azienda/utente e rilascio di timer/subscription verificati nei test. La prova SQL rifiuta un database diverso da `eic_chat_salute_test` o una connessione TCP. Eseguita anche una prova con due dispatcher concorrenti: una sola richiesta simulata accodata. Lo stesso collaudo entra in CI in un container PostgreSQL senza rete e blocca il deploy delle edge function.
 
 ## Bug corretti
 
@@ -56,12 +56,12 @@ Query delle nuove membership ogni 15 secondi solo in primo piano; subscription c
 
 ## Checklist test finale
 
-- Test chat, badge, storico, credito, autorizzazioni e registro: esiti nei log/CI.
+- Test chat, badge, storico, credito, autorizzazioni e registro: 105 test mirati passati; controlli CI in corso.
 - Interfaccia chat: arrivo di una conversazione nuova e stato di errore con Riprova verificati.
 - SQL PostgreSQL 17 isolato: PASS per lease, rinvio, ripresa, tetto errori, gruppi prima del limite e autorizzazioni.
 - Deno check della funzione modificata: PASS.
 - Audit Bun sul lockfile: PASS (nessun advisory).
-- Lint file modificati: cinque errori già presenti in InternalChat; nessun nuovo errore e una dipendenza effect corretta. Il lint globale è documentato separatamente.
+- Lint file modificati: cinque errori già presenti in InternalChat; nessun nuovo errore e una dipendenza effect corretta. Il lint globale conta 911 errori e 3.179 warning; non è un controllo pulito del progetto.
 - Invio/ricezione con due utenti reali, Safari, Firefox, responsive visuale e Lighthouse: non eseguiti in produzione.
 
 ## Problemi non risolti
