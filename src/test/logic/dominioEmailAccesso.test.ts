@@ -16,9 +16,9 @@ function prepara(o: Opzioni = {}) {
     rpc: async () => ({ data: o.amministrate ?? [], error: o.errorePermessi ? new Error("lettura fallita") : null }),
   };
   const admin = {
-    rpc: async (nome: string) => ({ data: nome === "has_role" ? false : o.permesso ?? false, error: null }),
+    rpc: async (nome: string): Promise<{data:boolean;error:Error|null}> => ({ data: nome === "has_role" ? false : o.permesso ?? false, error: null }),
     from: () => {
-      const q = { select: () => q, eq: () => q, maybeSingle: async () => ({data:{sola_lettura:o.solaLettura ?? false},error:null}) };
+      const q = { select: () => q, eq: () => q, maybeSingle: async (): Promise<{data:{sola_lettura:boolean};error:Error|null}> => ({data:{sola_lettura:o.solaLettura ?? false},error:null}) };
       return q;
     },
   };

@@ -64,6 +64,6 @@ Nessuna richiesta ai provider calendario assenti; letture locali limitate a un a
 | Limite giornaliero bancario 429 | Vincolo provider | Attendere `resets_at` / retry indicato |
 | Crediti, carta o abbonamento bloccati | Requisiti account | Ripristino da parte del titolare; il sistema continua a controllare lo stato |
 | Eventuale OAuth revocato o collegamento calendario scaduto | Richiede l'account del titolare | Ricollegamento dall'app; errore conservato |
-| Rilascio e collaudo chat della PR 158 | Ultima preview in corso | Merge dopo tutti i controlli e verifica online |
+| Rilascio e collaudo chat della PR 158 | Merge eseguito dopo tutti i controlli verdi | Verifica deploy e interfaccia online; regole chat sul database reale già collaudate in rollback |
 
 Verdetto: difetti riprodotti corretti e coperti da test; nessuna certificazione generale della piattaforma.

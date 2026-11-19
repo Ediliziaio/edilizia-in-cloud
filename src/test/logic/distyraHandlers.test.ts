@@ -152,7 +152,7 @@ describe("Ripresa delle pagine bancarie", () => {
     expect(r.status).toBe(200); expect(await r.json()).toMatchObject({movimenti:2});
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect((await db.pg.query("select * from bank_transactions")).rows).toHaveLength(2);
-    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).not.toBeNull();
+    expect((await db.pg.query<{last_sync_at:string|null}>("select last_sync_at from bank_connections")).rows[0].last_sync_at).not.toBeNull();
   });
   it("un token scaduto conserva le righe importate e non dichiara la sincronizzazione completa", async () => {
     await preparaConto();
@@ -163,7 +163,7 @@ describe("Ripresa delle pagine bancarie", () => {
     expect(await r.json()).toMatchObject({code:"invalid_continuation",error:expect.stringContaining("già importati restano salvati")});
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect((await db.pg.query("select * from bank_transactions")).rows).toHaveLength(1);
-    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
+    expect((await db.pg.query<{last_sync_at:string|null}>("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
   });
 });
 
