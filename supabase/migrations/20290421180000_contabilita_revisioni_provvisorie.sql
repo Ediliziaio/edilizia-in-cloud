@@ -71,7 +71,7 @@ BEGIN
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('contabilita-genera:' || v_company, 0));
   SELECT * INTO s FROM public.contabilita_scritture WHERE id = p_scrittura FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Scrittura non più presente: ricarica l’elenco' USING ERRCODE = '40001'; END IF;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scrittura non più presente: ricarica l’elenco' USING ERRCODE = 'PT409'; END IF;
   PERFORM 1 FROM public.contabilita_esercizi WHERE company_id = s.company_id AND anno = s.esercizio FOR UPDATE;
   IF EXISTS (SELECT 1 FROM public.contabilita_esercizi WHERE company_id = s.company_id AND anno = s.esercizio
              AND (chiuso_il IS NOT NULL OR stampato_fino_al >= s.data_registrazione)) THEN
@@ -81,7 +81,7 @@ BEGIN
     RAISE EXCEPTION 'La scrittura fa parte di uno storno: il suo storico deve restare completo' USING ERRCODE = '22023';
   END IF;
   IF p_revisione IS NOT NULL AND s.revisione <> p_revisione THEN
-    RAISE EXCEPTION 'La scrittura è cambiata: ricaricala prima di correggerla' USING ERRCODE = '40001';
+    RAISE EXCEPTION 'La scrittura è cambiata: ricaricala prima di correggerla' USING ERRCODE = 'PT409';
   END IF;
   RETURN s;
 END $function$;
@@ -143,7 +143,7 @@ CREATE OR REPLACE FUNCTION public.contabilita_modifica_scrittura(
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
 DECLARE s public.contabilita_scritture;
 BEGIN
-  IF p_revisione IS NULL THEN RAISE EXCEPTION 'Ricarica la scrittura prima di modificarla' USING ERRCODE='40001'; END IF;
+  IF p_revisione IS NULL THEN RAISE EXCEPTION 'Ricarica la scrittura prima di modificarla' USING ERRCODE='PT409'; END IF;
   s := public.contabilita_verifica_provvisoria(p_scrittura,p_revisione);
   IF s.origine <> 'manuale' THEN RAISE EXCEPTION 'Correggi i dati nel documento di origine: la scrittura lo seguirà' USING ERRCODE = '22023'; END IF;
   RETURN public.contabilita_sostituisci_provvisoria(s.id,p_revisione,
@@ -154,7 +154,7 @@ CREATE OR REPLACE FUNCTION public.contabilita_elimina_scrittura(p_scrittura uuid
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $function$
 DECLARE s public.contabilita_scritture; v_context text;
 BEGIN
-  IF p_revisione IS NULL THEN RAISE EXCEPTION 'Ricarica la scrittura prima di eliminarla' USING ERRCODE='40001'; END IF;
+  IF p_revisione IS NULL THEN RAISE EXCEPTION 'Ricarica la scrittura prima di eliminarla' USING ERRCODE='PT409'; END IF;
   s := public.contabilita_verifica_provvisoria(p_scrittura,p_revisione);
   IF s.origine <> 'manuale' THEN RAISE EXCEPTION 'La scrittura nasce da un documento: correggi quel documento per mantenere i saldi allineati' USING ERRCODE = '22023'; END IF;
   IF nullif(btrim(p_motivo),'') IS NULL THEN RAISE EXCEPTION 'Indica il motivo dell’eliminazione' USING ERRCODE = '22023'; END IF;
@@ -183,12 +183,12 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Fattura non disponibile per questa azienda' USING ERRCODE='42501'; END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('contabilita-genera:'||f.company_id,0));
   SELECT * INTO f FROM public.fatture_ricevute WHERE id=p_fattura FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'La fattura non è più disponibile: ricarica' USING ERRCODE='40001'; END IF;
+  IF NOT FOUND THEN RAISE EXCEPTION 'La fattura non è più disponibile: ricarica' USING ERRCODE='PT409'; END IF;
   IF jsonb_typeof(p_conti) IS DISTINCT FROM 'object' OR p_precedenti IS NULL THEN
     RAISE EXCEPTION 'Conti delle righe non validi' USING ERRCODE='22023';
   END IF;
   IF f.conti_righe IS DISTINCT FROM p_precedenti THEN
-    RAISE EXCEPTION 'I conti della fattura sono cambiati in un’altra sessione: ricarica prima di salvare' USING ERRCODE='40001';
+    RAISE EXCEPTION 'I conti della fattura sono cambiati in un’altra sessione: ricarica prima di salvare' USING ERRCODE='PT409';
   END IF;
   FOR r IN SELECT key,value FROM jsonb_each(p_conti) LOOP
     IF jsonb_typeof(r.value) <> 'string' THEN RAISE EXCEPTION 'Conto di riga non valido' USING ERRCODE='22023'; END IF;

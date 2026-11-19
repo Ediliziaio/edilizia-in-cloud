@@ -134,7 +134,7 @@ describe("Correzione delle scritture provvisorie", () => {
     const s=await nuova();
     await expect(rpc("contabilita_sostituisci_provvisoria",[s,1,JSON.stringify(dati),JSON.stringify([righe()[0],{...righe()[1],avere:80}]),"Correzione"])).rejects.toThrow(/non quadra/);
     await expect(rpc("contabilita_sostituisci_provvisoria",[s,1,JSON.stringify(dati),JSON.stringify(righe(estero)),"Correzione"])).rejects.toThrow(/Conto non valido/);
-    await expect(rpc("contabilita_elimina_scrittura",[s,9,"Errore"])).rejects.toThrow(/è cambiata/);
+    await expect(rpc("contabilita_elimina_scrittura",[s,9,"Errore"])).rejects.toMatchObject({code:"PT409",message:expect.stringMatching(/è cambiata/)});
     expect((await pg.query<Record<string, unknown>>("select count(*)::int n from contabilita_righe")).rows[0].n).toBe(2);
   });
   it("elimina solo la manuale provvisoria e conserva lo storico della cancellazione", async () => {
