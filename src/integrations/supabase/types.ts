@@ -85098,6 +85098,7 @@ export type Database = {
           total_amount: number
           updated_at: string
           valorizzazione: string | null
+          vat_breakdown: Json | null
           vat_rate: number | null
           version: number
           warehouse_arrival_date: string | null
@@ -85189,6 +85190,7 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           valorizzazione?: string | null
+          vat_breakdown?: Json | null
           vat_rate?: number | null
           version?: number
           warehouse_arrival_date?: string | null
@@ -85280,6 +85282,7 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           valorizzazione?: string | null
+          vat_breakdown?: Json | null
           vat_rate?: number | null
           version?: number
           warehouse_arrival_date?: string | null
