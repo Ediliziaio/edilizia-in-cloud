@@ -36,3 +36,21 @@ export function addWorkflowStatuses(existing: OrderStatus[], model: OrderWorkflo
   if (!out.some(s => s.is_support_phase || workflowName(s.name) === "assistenza")) out.push({id: newId(), name: "Assistenza", icon: "Wrench", color: "#64748B", position: out.length, is_support_phase: true});
   return out;
 }
+
+/** Applica gli stati standard a una pipeline separata, conservando gli ID già usati. */
+export function applyPipelineWorkflow(existing: readonly OrderStatus[], model: OrderWorkflowModel, newId: () => string): OrderStatus[] {
+  const previous = new Map(existing.map((status) => [workflowName(status.name), status]));
+  const used = new Set<string>();
+  const standard = model.statuses.map((step) => {
+    const name = step.meaning === "acquired" ? "Contratto Firmato" : step.name;
+    const match = previous.get(workflowName(name)) ?? (
+      step.meaning === "acquired" ? previous.get(workflowName(step.name)) : undefined
+    );
+    if (match) {
+      used.add(match.id);
+      return step.meaning === "acquired" ? { ...match, name } : { ...match };
+    }
+    return { id: newId(), name, icon: step.icon, color: step.color };
+  });
+  return [...standard, ...existing.filter((status) => !used.has(status.id))];
+}

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UniformSelect } from "@/components/ui/uniform-select";
 import { usePermissions } from "@/hooks/usePermissions";
+import { applyPipelineWorkflow, orderWorkflowModel, ORDER_WORKFLOW_MODELS } from "@/lib/orders/workflowModels";
 import { OrderStatusConfig } from "./OrderStatusConfig";
 import { PRINCIPALE, usePipelineLocali, type PipelineLocale } from "@/lib/orders/pipelineLocali";
 
@@ -26,7 +27,7 @@ export function PipelineCommesseLocali({ azienda }: { azienda: string }) {
       <UniformSelect id="pipeline-impostazioni" value={corrente?.id ?? PRINCIPALE} onChange={e => {scegli(e.target.value); scrivi(null);}}>
         <option value={PRINCIPALE}>Principale</option>{pipeline.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
       </UniformSelect>
-      {modifica && <Button size="sm" variant="outline" onClick={() => apri({ id: crypto.randomUUID(), nome:"", fasi:[nuovaFase("Da avviare"), nuovaFase("In corso"), nuovaFase("Completata")] })}><Plus className="mr-1 h-4 w-4"/>Nuova pipeline</Button>}
+      {modifica && <Button size="sm" variant="outline" onClick={() => apri({ id: crypto.randomUUID(), nome:"", fasi:[nuovaFase("Contratto Firmato"), nuovaFase("In corso"), nuovaFase("Completata")] })}><Plus className="mr-1 h-4 w-4"/>Nuova pipeline</Button>}
       <Link className="text-sm text-primary hover:underline" to={`/azienda/ordini?view=pipeline&pipeline=${corrente?.id ?? PRINCIPALE}`}>Apri nelle commesse</Link>
     </div>
     {erroreLettura && <p role="alert">{erroreLettura} <Button variant="link" onClick={() => void riprova()}>Riprova</Button></p>}
@@ -38,7 +39,21 @@ export function PipelineCommesseLocali({ azienda }: { azienda: string }) {
       e.preventDefault(); if (occupato) return; setOccupato(true); try { await salvaPipeline(bozza); scegli(bozza.id); scrivi(null); } catch (err) {setErrore(err instanceof Error ? err.message : "Salvataggio non riuscito.");} finally {setOccupato(false);}
     }}>
       <label className="block text-sm font-medium">Nome pipeline<Input required autoFocus value={bozza.nome} onChange={e => scrivi({...bozza,nome:e.target.value})} placeholder="Es. Serramenti" /></label>
-      <div className="space-y-2"><p className="text-sm font-medium">Fasi in ordine di lavorazione</p>
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium" htmlFor="modello-pipeline-commessa">Usa un modello standard</label>
+        <UniformSelect id="modello-pipeline-commessa" value="" disabled={occupato} onChange={(event) => {
+          const modello = orderWorkflowModel(event.target.value);
+          if (!modello) return;
+          const fasi = bozza.versione ? bozza.fasi : [];
+          scrivi({ ...bozza, nome: bozza.nome.trim() ? bozza.nome : modello.label, fasi: applyPipelineWorkflow(fasi, modello, () => crypto.randomUUID()) });
+          setErrore("");
+        }}>
+          <option value="">Scegli il tipo di lavoro</option>
+          {ORDER_WORKFLOW_MODELS.map((modello) => <option key={modello.key} value={modello.key}>{modello.label}</option>)}
+        </UniformSelect>
+        <p className="text-xs text-muted-foreground">Gli stati standard iniziano da «Contratto Firmato». Controlla le fasi e salva la pipeline.</p>
+      </div>
+      <div className="space-y-2"><p className="text-sm font-medium">Stati in ordine di avanzamento</p>
         {bozza.fasi.map((f,i) => <div className="flex items-center gap-2" key={f.id}>
           <input type="color" aria-label={`Colore fase ${i+1}`} value={f.color} onChange={e => scrivi({...bozza, fasi:bozza.fasi.map(x => x.id===f.id ? {...x,color:e.target.value} : x)})}/>
           <Input required aria-label={`Nome fase ${i+1}`} value={f.name} onChange={e => scrivi({...bozza, fasi:bozza.fasi.map(x => x.id===f.id ? {...x,name:e.target.value} : x)})}/>
@@ -48,7 +63,7 @@ export function PipelineCommesseLocali({ azienda }: { azienda: string }) {
       <Button type="button" size="sm" variant="outline" onClick={() => scrivi({...bozza,fasi:[...bozza.fasi,nuovaFase()]})}>Aggiungi fase</Button>
       {errore && <p role="alert" className="text-sm text-destructive">{errore}</p>}
       <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => scrivi(null)}>Annulla</Button><Button disabled={occupato} type="submit">Salva pipeline</Button></div>
-    </form> : corrente ? <section className="rounded-xl border bg-card p-4"><div className="flex items-center justify-between"><h2 className="font-semibold">{corrente.nome}</h2>{modifica && <Button variant="outline" size="sm" onClick={() => apri(corrente)}>Modifica fasi</Button>}</div>
+    </form> : corrente ? <section className="rounded-xl border bg-card p-4"><div className="flex items-center justify-between"><h2 className="font-semibold">{corrente.nome}</h2>{modifica && <Button variant="outline" size="sm" onClick={() => apri(corrente)}>Modifica stati</Button>}</div>
       <ol className="mt-2 divide-y">{corrente.fasi.map(f => <li className="flex items-center gap-2 py-2 text-sm" key={f.id}><span className="h-3 w-3 rounded-full" style={{backgroundColor:f.color}}/>{f.name}</li>)}</ol>
     </section> : <OrderStatusConfig/>}
   </div>;
