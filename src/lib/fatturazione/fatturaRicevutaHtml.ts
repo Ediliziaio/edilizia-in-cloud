@@ -17,6 +17,9 @@ import { altriDatiRicevuta, campoRicevutaHtml, dettagliRigaRicevuta } from './de
 const esc = (v: unknown): string =>
   String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** I riferimenti in stampa entrano in una stringa CSS, non in markup HTML. */
+const stringaCss = (v: string): string => '"' + v.replace(/[\\<>"\p{Cc}]/gu, c => '\\' + c.codePointAt(0)!.toString(16) + ' ') + '"';
+
 const eur = (n: unknown, valuta = 'EUR'): string => {
   try { return new Intl.NumberFormat("it-IT", { style: "currency", currency: valuta }).format(Number(n) || 0); }
   catch { return `${num(n)} ${esc(valuta)}`; }
@@ -155,6 +158,7 @@ export function fatturaRicevutaHtml(
 
   const causali = corpoXml ? Array.from(corpoXml.getElementsByTagName("Causale")).map(c => c.textContent?.trim() ?? "").filter(Boolean) : [];
 
+  const riferimentoStampa = stringaCss('Documento n. ' + f.numero_fattura + ' · ' + dataIt(f.data_fattura));
   const emessa = !!opzioni.emessa;
   const titolo = emessa
     ? `Fattura elettronica ${f.numero_fattura} - ${extra?.cliente.nome ?? ""}`.replace(/ - $/, "")
@@ -163,10 +167,14 @@ export function fatturaRicevutaHtml(
   const html = `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8"><title>${esc(titolo)}</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page {
+    size: A4; margin: 12mm 12mm 16mm;
+    @bottom-left { content: ${riferimentoStampa}; font-family: Arial, sans-serif; font-size: 8pt; color: #64748b; }
+    @bottom-right { content: "Pagina " counter(page) " di " counter(pages); font-family: Arial, sans-serif; font-size: 8pt; color: #64748b; }
+  }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10pt; color: #0f172a; margin: 0; padding: 16px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  @media print { body { padding: 0; } }
+  h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
   h1 { font-size: 16pt; margin: 0 0 2px; }
   h3 { font-size: 8pt; text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin: 0 0 4px; }
   .testa { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px; }
@@ -190,9 +198,9 @@ export function fatturaRicevutaHtml(
   .xml-completo h2 { font-size: 13pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
   .xml-gruppo { margin: 8px 0 8px 8px; padding-left: 8px; border-left: 1px solid #e2e8f0; }
   .xml-gruppo h4 { font-size: inherit; margin: 7px 0 4px; break-after: avoid; }
-  .xml-campo { display: grid; grid-template-columns: minmax(100px, 32%) minmax(0, 1fr); gap: 8px; padding: 2px 0; break-inside: avoid; }
-  .xml-campo dt { color: #64748b; }
-  .xml-campo dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .xml-campo { display: flex; gap: 8px; padding: 2px 0; break-inside: avoid; }
+  .xml-campo dt { flex: 0 0 32%; min-width: 100px; color: #64748b; overflow-wrap: anywhere; }
+  .xml-campo dd { flex: 1; min-width: 0; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .xml-foglia, .dettagli-riga dl { margin: 0; }
   .xml-valore { white-space: pre-wrap; overflow-wrap: anywhere; }
   thead { display: table-header-group; }
@@ -202,6 +210,10 @@ export function fatturaRicevutaHtml(
   .blocco { margin-bottom: 12px; break-inside: avoid; page-break-inside: avoid; }
   .avviso { background: #fef3c7; border: 1px solid #fde68a; padding: 6px 8px; font-size: 9pt; }
   .pie { margin-top: 18px; font-size: 8pt; color: #94a3b8; }
+  @media print {
+    body { padding: 0; }
+    .xml-completo { break-before: page; page-break-before: always; margin-top: 0; }
+  }
 </style></head><body>
   <div class="testa">
     <div>

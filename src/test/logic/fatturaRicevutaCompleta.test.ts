@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import schemaFattura from '../fixtures/fatturapa-1.2.2/Schema_del_file_xml_FatturaPA_v1.2.2.xsd?raw';
+import { fileOriginale, xmlDaFile } from '../../../supabase/functions/_shared/ricevuteOpenapi';
 import { fatturaRicevutaHtml } from '@/lib/fatturazione/fatturaRicevutaHtml';
 
 function completa() {
@@ -19,7 +21,69 @@ function completa() {
 const vista = (xml = completa()) => fatturaRicevutaHtml(xml, new DOMParser())!;
 const doc = (xml = completa()) => new DOMParser().parseFromString(vista(xml).html, 'text/html');
 
+/** Catalogo strutturale, non una fattura da inviare: percorre anche entrambi i
+ * rami delle choice per verificare ogni campo dichiarato nello schema in uso. */
+function catalogoSchema() {
+  const ns = 'http://www.w3.org/2001/XMLSchema';
+  const schema = new DOMParser().parseFromString(schemaFattura, 'application/xml');
+  const tipi = new Map(Array.from(schema.getElementsByTagNameNS(ns, 'complexType')).map(t => [t.getAttribute('name'), t]));
+  let progressivo = 0;
+  const colonne: Record<string, string> = { NumeroLinea: '1', Descrizione: 'ARTICOLO-CATALOGO', UnitaMisura: 'pz', Quantita: '2', PrezzoUnitario: '12.34', PrezzoTotale: '24.68', AliquotaIVA: '22.00', Natura: 'N2.2' };
+  function elemento(e: Element, percorso = ''): string {
+    const nome = e.getAttribute('name');
+    if (!nome) return ''; // ds:Signature è verificata dalle prove dedicate alla firma.
+    const qui = percorso + '/' + nome;
+    const tipo = tipi.get(e.getAttribute('type')?.split(':').at(-1) ?? '');
+    if (tipo) {
+      const figli = Array.from(tipo.getElementsByTagNameNS(ns, 'element')).map(f => elemento(f, qui)).join('');
+      return '<' + nome + (nome === 'FatturaElettronica' ? ' versione="FPR12" SistemaEmittente="CATALOGO"' : '') + '>' + figli + '</' + nome + '>';
+    }
+    progressivo++;
+    let valore = 'VALORE-' + progressivo + '-' + nome;
+    if (percorso.endsWith('/DettaglioLinee') && nome in colonne) valore = colonne[nome];
+    else if (nome === 'TipoDocumento') valore = 'TD24';
+    else if (nome === 'Divisa') valore = 'EUR';
+    else if (nome === 'FormatoTrasmissione') valore = 'FPR12';
+    else if (nome === 'Data' && percorso.endsWith('/DatiGeneraliDocumento')) valore = '2026-11-19';
+    else if (nome === 'Numero') valore = 'CATALOGO-SCHEMA';
+    else if (nome === 'Attachment') valore = btoa('ALLEGATO-CATALOGO-' + progressivo);
+    return '<' + nome + '>' + valore + '</' + nome + '>';
+  }
+  const radice = Array.from(schema.documentElement.children).find(e => e.localName === 'element' && e.getAttribute('name') === 'FatturaElettronica')!;
+  return { xml: elemento(radice), nomi: new Set(Array.from(schema.getElementsByTagNameNS(ns, 'element')).map(e => e.getAttribute('name')).filter(Boolean)) };
+}
+
 describe('Copia leggibile completa dell’XML del fornitore', () => {
+  it('copre ogni campo dichiarato nello schema, compresi quelli non ancora conosciuti dal gestionale', () => {
+    const { xml, nomi } = catalogoSchema();
+    const byte = new TextEncoder().encode(xml);
+    expect(fileOriginale(byte)).toEqual(byte);
+    expect(xmlDaFile(byte)).toBe(xml);
+    const originale = new DOMParser().parseFromString(xml, 'application/xml');
+    const v = vista(xml);
+    const documento = new DOMParser().parseFromString(v.html, 'text/html');
+    const elementi = Array.from(originale.getElementsByTagName('*'));
+    expect(new Set(elementi.map(e => e.localName))).toEqual(nomi);
+    expect(nomi.size).toBeGreaterThanOrEqual(170);
+    for (const el of elementi) {
+      if (el.children.length) continue;
+      const valore = el.textContent!.trim();
+      if (el.localName === 'Attachment') expect(v.allegatiFile?.some(a => a.base64 === valore)).toBe(true);
+      else if (valore.startsWith('VALORE-')) expect(documento.body.textContent, el.tagName).toContain(valore);
+    }
+    const riga = documento.querySelector('table[aria-label="Righe della fattura"] tbody tr')!.textContent;
+    for (const valore of ['ARTICOLO-CATALOGO', 'pz', '2', '12,34', '24,68', '22%', 'N2.2']) expect(riga).toContain(valore);
+  });
+
+  it('prepara riferimento e numeri di pagina senza permettere che il numero fattura chiuda lo stile', () => {
+    const h = vista(completa().replace('TEST-COMPLETA', 'F&quot; &lt;/style&gt;&lt;img src=x&gt;')).html;
+    const documento = new DOMParser().parseFromString(h, 'text/html');
+    expect(documento.querySelectorAll('style')).toHaveLength(1);
+    expect(documento.querySelectorAll('img,script')).toHaveLength(0);
+    expect(documento.querySelector('style')!.textContent).toContain('@bottom-right');
+    expect(documento.querySelector('style')!.textContent).toContain('counter(pages)');
+  });
+
   it('conserva tutti i riferimenti e i dati dell’intestazione, del documento, del trasporto e delle rate', () => {
     const testo = doc().body.textContent;
     for (const atteso of ['TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'VIA FORNITORE', '12B', 'TEL-TEST', 'fornitore@example.test', 'VIA CLIENTE', 'RT01', '12.34', 'TC04', '7.89', 'ODA-TEST', 'COMMESSA-TEST', 'CUP-TEST', 'CIG-TEST', 'CONTRATTO-TEST', 'CONSEGNA-TEST', 'VIA CONSEGNA', 'NORMA-TEST', 'TP01', 'BANCA-UNO', 'BANCA-DUE', 'IBAN-UNO', 'IBAN-DUE', 'BIC-TEST', 'COD-PAGAMENTO', '19/12/2026', '19/01/2027']) expect(testo).toContain(atteso);
