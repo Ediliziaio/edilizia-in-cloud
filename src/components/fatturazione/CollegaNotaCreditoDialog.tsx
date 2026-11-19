@@ -161,7 +161,7 @@ export function CollegaNotaCreditoDialog({ nota, onChiudi }: { nota: NotaDaColle
   const nomeCandidata = (id: string) => candidate.find((c) => c.id === id)?.numero_fattura ?? "";
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
-      <DialogContent struttura="scorrevole" className="max-h-[90dvh] max-w-xl overflow-y-auto">
+      <DialogContent ampiezza="conferma" struttura="scorrevole" className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Quale fattura storna?</DialogTitle>
           <DialogDescription>

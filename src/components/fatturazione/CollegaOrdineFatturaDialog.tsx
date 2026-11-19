@@ -169,7 +169,7 @@ function SceltaOrdiniFattura({
 
   return (
     <Dialog open={open} onOpenChange={chiudi}>
-      <DialogContent struttura="scorrevole" className="sm:max-w-xl">
+      <DialogContent ampiezza="conferma" struttura="scorrevole">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4 text-orange-500" />
