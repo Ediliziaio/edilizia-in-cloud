@@ -874,20 +874,23 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               } }} />
           </>}
         </div>}
-        {sezione === "chi" && <div className="space-y-4">
-          {previsioniVisibili}
-          {previsionale.disponibile && fase && <Button type="button" size="sm" variant="outline" onClick={() => setOrganizza({ ...organizza, sezione: "previsionale" })}>Apri previsionale</Button>}
+        {sezione === "chi" && <div className="space-y-3">
+          {fase && <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold">Assegnazioni attuali</h4>
+            {previsionale.disponibile && <Button type="button" size="sm" variant="outline" onClick={() => vaiA("previsionale")}>Apri previsionale</Button>}
+          </div>}
           {voce && renderVoce && <details className="rounded-lg border p-3">
-            <summary className="cursor-pointer text-sm font-semibold">Dettagli della voce e assegnazioni attuali</summary>
+            <summary className="cursor-pointer text-sm font-semibold">Dettaglio della voce</summary>
             <div className="mt-3">{renderVoce(organizza.attiva, chiudiOrganizza)}</div>
           </details>}
           {fase && !voce && schedaDi(fase, true, "chi")}
+          {previsioniVisibili}
           {(puoModificare || puoSquadre) && (!advanced
-            ? <PianificaAssegnazione key={organizza.attiva} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
+            ? <PianificaAssegnazione key={`assegnazione:${organizza.attiva}`} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
               calendario={calendario} puoPersone={puoModificare} puoSquadre={puoSquadre && (!voce || puoModificare)} puoDate={puoModificare}
               puoVoci={puoModificare && chiSottofasi.dati.disponibile}
               doveAssegnato={(id, tipo, ambiti) => ambiti.filter((a) => assegnatoSu(id, tipo, a)).length} onPassaggi={passaggiPiano} onOccupato={setOccupato} />
-            : <AddAssignmentDialog key={organizza.attiva} orderId={orderId} phaseId={fase?.id ?? null} incorporato aperto={true}
+            : <AddAssignmentDialog key={`assegnazione-avanzata:${organizza.attiva}`} orderId={orderId} phaseId={fase?.id ?? null} incorporato aperto={true}
               employees={employees} externalTeams={externalTeams} phases={phaseOptions} existingAssignments={[...unassigned, ...phases.flatMap((p) => p.assignments)]}
               onOccupato={setOccupato} onAperto={() => setAvanzate(false)} onAdd={(payload, opts) => addAssignment.mutate(payload, opts)} />)}
           {!advanced && !voce && !occupato && (puoModificare || puoSquadre) && bersagli.length === 1 && <Button variant="ghost" size="sm" onClick={() => setAvanzate(true)}>Dettagli avanzati di assegnazione</Button>}
@@ -1467,6 +1470,7 @@ function PhaseCard({
   // "Pronti" = coperti da giacenza o da un OdA
   const prontiCount = materials.length - missingMaterials.length;
   const planningIssues = phasePlanningIssues(phase, squadreFase.length > 0 || squadreGenerali.length > 0, missingMaterials.length);
+  const avvisi = apertaSubito ? planningIssues.filter((issue) => sezione === "sottofasi" && issue.section === "dates") : planningIssues;
 
   // Avviso: fase non completata in partenza entro 7 giorni con materiali da ordinare
   const startWarning = useMemo(() => {
@@ -1817,8 +1821,8 @@ function PhaseCard({
         </AlertDialog>
       )}
 
-      {planningIssues.length > 0 && <div className="flex flex-wrap items-center gap-1 px-3 pb-2 sm:px-4" aria-label={`Da organizzare: ${phase.name}`}>
-        {planningIssues.map(issue => <Button key={issue.section} variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 text-xs text-amber-800 hover:bg-amber-50" aria-label={`${issue.label}: ${phase.name}`} onClick={() => { setOpen(true); setDettagli(true); setTargetSection({section: issue.section}); }}>{isMobile && issue.section === "people" ? "+ Assegna chi la fa" : <><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />{issue.label}</>}</Button>)}
+      {avvisi.length > 0 && <div className="flex flex-wrap items-center gap-1 px-3 pb-2 sm:px-4" aria-label={`Da organizzare: ${phase.name}`}>
+        {avvisi.map(issue => <Button key={issue.section} variant="ghost" size="sm" className="h-auto min-h-8 whitespace-normal px-2 text-xs text-amber-800 hover:bg-amber-50" aria-label={`${issue.label}: ${phase.name}`} onClick={() => { setOpen(true); setDettagli(true); setTargetSection({section: issue.section}); }}>{isMobile && issue.section === "people" ? "+ Assegna chi la fa" : <><AlertTriangle className="mr-1 h-3 w-3 shrink-0" aria-hidden="true" />{issue.label}</>}</Button>)}
       </div>}
 
       {/* Corpo collassabile: esecutori + materiali */}
@@ -1912,10 +1916,11 @@ function PhaseCard({
               </>}{vedi("chi") && !compatta && <>
               {/* ── Chi la fa: squadre, poi persone e ditte ── */}
               <div ref={peopleRef} tabIndex={-1} aria-label={`Assegnazioni di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
+                {sezione !== "chi" && <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                   Chi la fa
-                </span>
+                </span>}
                 <div className="min-w-0 flex-1 space-y-2">
+                  {sezione === "chi" && !chiLaFa.length && !squadreGenerali.length && <p className="text-sm text-muted-foreground">Nessuna persona, squadra o ditta assegnata.</p>}
                   {squadreGenerali.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 px-2.5 py-2 text-xs"><span>Squadra della commessa: <strong>{squadreGenerali.map(s => s.nome).join(", ")}</strong> · nel periodo assegnato</span><Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={`Vedi squadra generale per ${phase.name}`} onClick={onManageGeneral}>Vedi assegnazione generale</Button></div>}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <SquadreFase orderId={orderId} fase={{ id: phase.id, name: phase.name }} modificabile={puoSquadre} mostraAggiungi={false} />
@@ -1978,12 +1983,13 @@ function PhaseCard({
 
               </>}{vedi("materiali") && !compatta && (!isMobile || apertaSubito || planningIssues.some((i) => i.section === "materials")) && <>
               {/* ── Materiali della fase (order_items.phase_id) ── */}
-              {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
+              {(sezione === "materiali" || canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-                  <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
+                  {sezione !== "materiali" && <span className="w-24 shrink-0 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
                     Materiali
-                  </span>
+                  </span>}
                   <div className="min-w-0 flex-1 space-y-2">
+                  {sezione === "materiali" && materials.length === 0 && <p className="text-sm text-muted-foreground">Nessun materiale collegato alla fase.</p>}
                   {materials.length > 0 && <div className="divide-y rounded-lg border">
                   {materials.map((m) => (
                     <div key={m.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1.5">

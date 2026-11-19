@@ -188,57 +188,61 @@ export function PianificaAssegnazione({ ambiti, persone, squadre, calendario, pu
 
   const dateParziali = (!!dal !== !!al) && (salvaDate || bersagli.some((a) => !a.faseId));
   return (
-    <section aria-label="Pianifica assegnazione" className="space-y-4">
-      <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-        <p className="flex items-center gap-2 text-sm font-semibold"><UsersRound className="h-4 w-4 text-primary" />{previsionale ? salvato ? "Modifica previsione" : "Nuova previsione" : "Nuova assegnazione"}</p>
-        <p className="mt-1 break-words text-sm text-muted-foreground">{bersagli.map((a) => a.nome).join(" · ") || "Seleziona almeno una lavorazione."}</p>
+    <section aria-label="Pianifica assegnazione" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border bg-muted/30 px-3 py-2.5">
+        <h4 className="flex items-center gap-2 text-sm font-semibold"><UsersRound className="h-4 w-4 text-primary" />{previsionale ? salvato ? "Modifica previsione" : "Nuova previsione" : "Nuova assegnazione"}</h4>
+        <p className="min-w-0 break-words text-xs text-muted-foreground">{bersagli.map((a) => a.nome).join(" · ") || "Seleziona almeno una lavorazione."}</p>
       </div>
       {senzaSottofase && <p role="status" className="text-sm text-muted-foreground">Per assegnare questa voce agli operai, crea la sottofase dal suo riepilogo oppure seleziona la fase.</p>}
       {!previsionale && haVoci && !puoVoci && <p role="status" className="text-sm text-muted-foreground">Le assegnazioni sulle sottofasi non sono disponibili per questa commessa.</p>}
-      <fieldset disabled={inCorso || inRipresa} className="min-w-0 space-y-4">
-        <Input aria-label="Cerca operai e squadre" placeholder="Cerca operai e squadre" value={cerca} onChange={(e) => setCerca(e.target.value)} />
-        <div className="grid gap-3 sm:grid-cols-2">
-          {puoPersone && <div className="space-y-2">
-            <h4 className="text-sm font-semibold">Operai</h4>
-            <div className="max-h-44 overflow-y-auto rounded-lg border p-2">
-              {persone.filter((p) => visibile(p.label)).map((p) => (
-                <label key={p.id} className="flex min-h-8 items-center gap-2 rounded px-1 text-sm hover:bg-muted">
-                  <Checkbox checked={componenti.has(p.id) || scelte.includes(p.id)} disabled={componenti.has(p.id) || giaSuTutte(p.id, "persona") || inCorso || inRipresa}
-                    onCheckedChange={(si) => setScelte((prima) => si ? [...prima, p.id] : prima.filter((id) => id !== p.id))} />
-                  {p.label}{componenti.has(p.id) && <span className="text-xs text-muted-foreground">in squadra</span>}
-                  {su(p.id, "persona") > 0 && <span className="text-xs text-muted-foreground">già assegnato{bersagli.length > 1 ? ` · ${su(p.id, "persona")}/${bersagli.length}` : ""}</span>}
-                </label>
-              ))}
-              {!persone.some((p) => visibile(p.label)) && <p className="p-1 text-sm text-muted-foreground">Nessun operaio.</p>}
+      <fieldset disabled={inCorso || inRipresa} className="min-w-0 space-y-3">
+        <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_14rem]">
+          <div className="min-w-0 space-y-3">
+            <Input aria-label="Cerca operai e squadre" placeholder="Cerca operai e squadre" value={cerca} onChange={(e) => setCerca(e.target.value)} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {puoPersone && <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Operai</h4>
+                <div className="max-h-44 overflow-y-auto rounded-lg border p-2">
+                  {persone.filter((p) => visibile(p.label)).map((p) => (
+                    <label key={p.id} className="flex min-h-8 items-center gap-2 rounded px-1 text-sm hover:bg-muted">
+                      <Checkbox checked={componenti.has(p.id) || scelte.includes(p.id)} disabled={componenti.has(p.id) || giaSuTutte(p.id, "persona") || inCorso || inRipresa}
+                        onCheckedChange={(si) => setScelte((prima) => si ? [...prima, p.id] : prima.filter((id) => id !== p.id))} />
+                      {p.label}{componenti.has(p.id) && <span className="text-xs text-muted-foreground">in squadra</span>}
+                      {su(p.id, "persona") > 0 && <span className="text-xs text-muted-foreground">già assegnato{bersagli.length > 1 ? ` · ${su(p.id, "persona")}/${bersagli.length}` : ""}</span>}
+                    </label>
+                  ))}
+                  {!persone.some((p) => visibile(p.label)) && <p className="p-1 text-sm text-muted-foreground">Nessun operaio.</p>}
+                </div>
+              </div>}
+              {puoSquadre && <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Squadre interne</h4>
+                <div className="max-h-44 overflow-y-auto rounded-lg border p-2">
+                  {squadre.filter((s) => visibile(s.nome)).map((s) => (
+                    <label key={s.id} className="flex min-h-8 items-center gap-2 rounded px-1 text-sm hover:bg-muted">
+                      <Checkbox checked={team.includes(s.id)} disabled={giaSuTutte(s.id, "squadra") || inCorso || inRipresa}
+                        onCheckedChange={(si) => setTeam((prima) => si ? [...prima, s.id] : prima.filter((id) => id !== s.id))} />
+                      <span>{s.nome} <span className="text-xs text-muted-foreground">· {s.componenti.length}</span></span>
+                      {su(s.id, "squadra") > 0 && <span className="text-xs text-muted-foreground">già assegnata{bersagli.length > 1 ? ` · ${su(s.id, "squadra")}/${bersagli.length}` : ""}</span>}
+                    </label>
+                  ))}
+                  {!squadre.some((s) => visibile(s.nome)) && <p className="p-1 text-sm text-muted-foreground">Nessuna squadra.</p>}
+                </div>
+              </div>}
             </div>
-          </div>}
-          {puoSquadre && <div className="space-y-2">
-            <h4 className="text-sm font-semibold">Squadre interne</h4>
-            <div className="max-h-44 overflow-y-auto rounded-lg border p-2">
-              {squadre.filter((s) => visibile(s.nome)).map((s) => (
-                <label key={s.id} className="flex min-h-8 items-center gap-2 rounded px-1 text-sm hover:bg-muted">
-                  <Checkbox checked={team.includes(s.id)} disabled={giaSuTutte(s.id, "squadra") || inCorso || inRipresa}
-                    onCheckedChange={(si) => setTeam((prima) => si ? [...prima, s.id] : prima.filter((id) => id !== s.id))} />
-                  <span>{s.nome} <span className="text-xs text-muted-foreground">· {s.componenti.length}</span></span>
-                  {su(s.id, "squadra") > 0 && <span className="text-xs text-muted-foreground">già assegnata{bersagli.length > 1 ? ` · ${su(s.id, "squadra")}/${bersagli.length}` : ""}</span>}
-                </label>
-              ))}
-              {!squadre.some((s) => visibile(s.nome)) && <p className="p-1 text-sm text-muted-foreground">Nessuna squadra.</p>}
-            </div>
-          </div>}
-        </div>
-        <div className="space-y-2 rounded-lg border p-3">
-          <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4" />Periodo previsto</h4>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <label className="min-w-0 space-y-1 text-sm">Dal<Input aria-label="Dal" className="w-full min-w-0" type="date" value={dal} onChange={(e) => setDal(e.target.value)} /></label>
-            <label className="min-w-0 space-y-1 text-sm">Al<Input aria-label="Al" className="w-full min-w-0" type="date" min={dal || undefined} value={al} onChange={(e) => setAl(e.target.value)} /></label>
-            <label className="space-y-1 text-sm">Ore al giorno per persona<Input inputMode="decimal" value={oreGiorno} onChange={(e) => { setOreGiorno(e.target.value); setQuoteScritte({}); }} /></label>
           </div>
-          <p className="text-xs text-muted-foreground">Calendario di cantiere · {calendario.sabato ? "sabato incluso" : "lunedì–venerdì"} · festività escluse</p>
-          {mostraDateFase && <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={salvaDate} disabled={inCorso || inRipresa} onCheckedChange={(si) => setSalvaDate(si === true)} />Applica il periodo alle lavorazioni selezionate
-          </label>}
-          {periodo && !valido && <p role="alert" className="text-sm text-destructive">Controlla le date. Serve almeno un giorno lavorativo e un numero di ore maggiore di 0 e fino a 24.</p>}
+          <div className="space-y-2 rounded-lg border p-3">
+            <h4 className="flex items-center gap-2 text-sm font-semibold"><CalendarDays className="h-4 w-4" />Periodo previsto</h4>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+              <label className="min-w-0 space-y-1 text-sm">Dal<Input aria-label="Dal" className="w-full min-w-0" type="date" value={dal} onChange={(e) => setDal(e.target.value)} /></label>
+              <label className="min-w-0 space-y-1 text-sm">Al<Input aria-label="Al" className="w-full min-w-0" type="date" min={dal || undefined} value={al} onChange={(e) => setAl(e.target.value)} /></label>
+              <label className="space-y-1 text-sm">Ore al giorno per persona<Input inputMode="decimal" value={oreGiorno} onChange={(e) => { setOreGiorno(e.target.value); setQuoteScritte({}); }} /></label>
+            </div>
+            <p className="text-xs text-muted-foreground">Calendario di cantiere · {calendario.sabato ? "sabato incluso" : "lunedì–venerdì"} · festività escluse</p>
+            {mostraDateFase && <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={salvaDate} disabled={inCorso || inRipresa} onCheckedChange={(si) => setSalvaDate(si === true)} />Applica il periodo alle lavorazioni selezionate
+            </label>}
+            {periodo && !valido && <p role="alert" className="text-sm text-destructive">Controlla le date. Serve almeno un giorno lavorativo e un numero di ore maggiore di 0 e fino a 24.</p>}
+          </div>
         </div>
         {previsionale && bersagli.length > 1 && <section className="space-y-2 rounded-lg border p-3" aria-label="Ripartizione delle ore">
           <div className="flex flex-wrap items-center justify-between gap-2">
