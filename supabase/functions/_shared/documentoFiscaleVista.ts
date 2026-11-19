@@ -12,6 +12,7 @@
  */
 
 import { normalizzaHex, schiarisci, testoSuChiaro } from "./temaColori.ts";
+import { cssLogoDocumentoFiscale } from "./logoDocumentoFiscale.ts";
 import {
   ETICHETTA_TIPO_RIFERIMENTO,
   numeriLineaDi,
@@ -335,7 +336,7 @@ export function importoInEvidenza(doc: Record<string, unknown>): { etichetta: st
  * Chrome allinea le celle di tabella in alto anche con `vertical-align:
  * baseline`, e l'etichetta piccola finiva 3 punti sopra il valore grande.
  */
-export function cssFoglio(t: TemaFattura): string {
+export function cssFoglio(t: TemaFattura, logo?: unknown): string {
   return `
 .fd-foglio { box-sizing: border-box; width: 210mm; padding: 12mm 14mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; background: #ffffff; color: #1e293b; font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9pt; line-height: 1.45; font-variant-numeric: tabular-nums; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .fd-foglio *, .fd-foglio *::before, .fd-foglio *::after { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -344,6 +345,7 @@ export function cssFoglio(t: TemaFattura): string {
 .fd-testata { display: flex; justify-content: space-between; align-items: flex-start; gap: 8mm; }
 .fd-emittente { flex: 1 1 auto; min-width: 0; }
 .fd-foglio .fd-logo { display: block; height: 22mm; width: auto; max-width: 70mm; object-fit: contain; object-position: left center; margin: 0 0 3mm; }
+${cssLogoDocumentoFiscale(logo)}
 .fd-ragione { font-size: 13pt; font-weight: 700; line-height: 1.2; color: #0f172a; }
 .fd-forma { margin-top: 0.4mm; font-size: 8pt; color: #64748b; }
 .fd-dati { margin-top: 1.4mm; font-size: 7.8pt; line-height: 1.55; color: #475569; }

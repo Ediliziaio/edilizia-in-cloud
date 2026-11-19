@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
 import { generaComputoPdf } from "@/lib/computo/esportaComputo";
 import { bozzaVuota, voceVuota, vociDaBozza } from "@/lib/computo/editorNativo";
 import { bozzaDalModello, leggiModelloComputo, modelloComputoDiSerie, vesteDalModello } from "@/lib/computo/modelloComputo";
@@ -35,6 +36,18 @@ describe("lettura del modello salvato", () => {
 describe("il PDF del preventivo con computo usa la veste del modello", () => {
   const genera = (veste: ReturnType<typeof vesteDalModello> | undefined) =>
     generaComputoPdf(vociDaBozza(bozza), { ...bozza, presentazione: "preventivo", azienda: "Impresa Esempio", stato: "", veste });
+  it.each(["#ff0000", "#ffffff"])("conserva il colore della copertina %s salvato e lo applica esattamente alla prima pagina", async colore => {
+    const modello = leggiModelloComputo(JSON.parse(JSON.stringify({ ...modelloComputoDiSerie(), coloreCopertina: colore })));
+    expect(modello.coloreCopertina).toBe(colore);
+    const doc = await genera(vesteDalModello(modello));
+    const prima = (doc.internal.pages as unknown as Record<number, string[]>)[1].join("\n");
+    expect(prima).toContain(colore === "#ff0000" ? "1. 0. 0. rg" : "1. g");
+    if (process.env.DOCUMENTI_PDF_QA_DIR) {
+      await mkdir(process.env.DOCUMENTI_PDF_QA_DIR, { recursive: true });
+      await writeFile(`${process.env.DOCUMENTI_PDF_QA_DIR}/computo-copertina-${colore === "#ffffff" ? "bianca" : "rossa"}.pdf`, Buffer.from(doc.output("arraybuffer")));
+    }
+    expect(leggiModelloComputo({ coloreCopertina: "colore invalido", premessa: "Testo conservato" })).toMatchObject({ coloreCopertina: "", premessa: "Testo conservato" });
+  });
   it("premessa, firme e piè di pagina compaiono", async () => {
     const pdf = (await genera({ ...vesteDalModello(modelloComputoDiSerie()), premessa: "Gentile cliente ecco il computo", mostraFirma: true, firmatario: "Mario Rossi titolare", piePagina: "Impresa Esempio srl - Monza" })).output();
     expect(pdf).toContain("Gentile cliente ecco il computo");

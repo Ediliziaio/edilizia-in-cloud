@@ -10103,6 +10103,7 @@ export type Database = {
           indirizzo_via: string
           intestatario_conto: string | null
           iva_per_cassa: boolean
+          pdf_logo: Json
           logo_url: string | null
           metodo_pagamento_default: string | null
           nc_serie_condivisa: boolean
@@ -10184,6 +10185,7 @@ export type Database = {
           indirizzo_via: string
           intestatario_conto?: string | null
           iva_per_cassa?: boolean
+          pdf_logo?: Json
           logo_url?: string | null
           metodo_pagamento_default?: string | null
           nc_serie_condivisa?: boolean
@@ -10265,6 +10267,7 @@ export type Database = {
           indirizzo_via?: string
           intestatario_conto?: string | null
           iva_per_cassa?: boolean
+          pdf_logo?: Json
           logo_url?: string | null
           metodo_pagamento_default?: string | null
           nc_serie_condivisa?: boolean

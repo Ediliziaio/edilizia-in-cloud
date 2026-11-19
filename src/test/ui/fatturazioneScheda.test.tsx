@@ -16,13 +16,13 @@ import ImpostazioniFatturazione from "@/pages/azienda/fatturazione/ImpostazioniF
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 
 /** Le colonne di anagrafica_azienda: un database che rifiuta le altre le segnala con un errore. */
-const COLONNE = new Set("id company_id ragione_sociale partita_iva codice_fiscale forma_giuridica indirizzo_via indirizzo_numero_civico indirizzo_cap indirizzo_comune indirizzo_provincia indirizzo_nazione codice_sdi pec codice_rea capitale_sociale numero_iscr_registro_imprese regime_fiscale iban_principale bic_swift intestatario_conto nome_banca logo_url colore_primario font_fattura telefono email sito_web ultimo_numero_fattura ultimo_numero_nc ultimo_numero_ddt ultimo_numero_preventivo prefisso_fattura prefisso_nc prefisso_ddt prefisso_preventivo anno_corrente reset_numeratore_annuale note_fattura_default condizioni_pagamento_default sdi_provider sdi_api_key sdi_configurato created_at updated_at ultimo_numero_proforma sdi_progressivo_anno sdi_progressivo_invio sdi_firma_provider sdi_firma_api_key sdi_firma_username split_payment_pa socio_unico anno_corrente_proforma prefisso_proforma anno_corrente_preventivo durc_expiry_date anno_corrente_fattura bollo_virtuale_auto iva_per_cassa rivalsa_inps ritenuta_acconto_default ritenuta_aliquota_default ritenuta_causale_default ritenuta_tipo_default cassa_previdenziale_default cassa_tipo_default cassa_aliquota_default metodo_pagamento_default termini_pagamento_default testo_intro_default testo_conclusivo_default tipo_documento_default rea_ufficio stato_liquidazione conservazione_ade_aderito_il formato_numero nc_serie_condivisa".split(" "));
+const COLONNE = new Set("id company_id ragione_sociale partita_iva codice_fiscale forma_giuridica indirizzo_via indirizzo_numero_civico indirizzo_cap indirizzo_comune indirizzo_provincia indirizzo_nazione codice_sdi pec codice_rea capitale_sociale numero_iscr_registro_imprese regime_fiscale iban_principale bic_swift intestatario_conto nome_banca logo_url pdf_logo colore_primario font_fattura telefono email sito_web ultimo_numero_fattura ultimo_numero_nc ultimo_numero_ddt ultimo_numero_preventivo prefisso_fattura prefisso_nc prefisso_ddt prefisso_preventivo anno_corrente reset_numeratore_annuale note_fattura_default condizioni_pagamento_default sdi_provider sdi_api_key sdi_configurato created_at updated_at ultimo_numero_proforma sdi_progressivo_anno sdi_progressivo_invio sdi_firma_provider sdi_firma_api_key sdi_firma_username split_payment_pa socio_unico anno_corrente_proforma prefisso_proforma anno_corrente_preventivo durc_expiry_date anno_corrente_fattura bollo_virtuale_auto iva_per_cassa rivalsa_inps ritenuta_acconto_default ritenuta_aliquota_default ritenuta_causale_default ritenuta_tipo_default cassa_previdenziale_default cassa_tipo_default cassa_aliquota_default metodo_pagamento_default termini_pagamento_default testo_intro_default testo_conclusivo_default tipo_documento_default rea_ufficio stato_liquidazione conservazione_ade_aderito_il formato_numero nc_serie_condivisa".split(" "));
 
 /**
  * Le colonne che qualcuno legge: XML FatturaPA, PDF, numerazione, editor delle fatture, invio allo SDI. Un campo
  * della pagina che non è qui non ha effetto.
  */
-const CON_LETTORE = new Set("ragione_sociale partita_iva codice_fiscale forma_giuridica pec email telefono sito_web indirizzo_via indirizzo_numero_civico indirizzo_cap indirizzo_comune indirizzo_provincia indirizzo_nazione regime_fiscale rea_ufficio codice_rea capitale_sociale stato_liquidazione durc_expiry_date logo_url colore_primario metodo_pagamento_default iban_principale bic_swift nome_banca intestatario_conto prefisso_fattura ultimo_numero_fattura prefisso_nc ultimo_numero_nc prefisso_ddt ultimo_numero_ddt formato_numero nc_serie_condivisa iva_per_cassa split_payment_pa socio_unico bollo_virtuale_auto conservazione_ade_aderito_il".split(" "));
+const CON_LETTORE = new Set("ragione_sociale partita_iva codice_fiscale forma_giuridica pec email telefono sito_web indirizzo_via indirizzo_numero_civico indirizzo_cap indirizzo_comune indirizzo_provincia indirizzo_nazione regime_fiscale rea_ufficio codice_rea capitale_sociale stato_liquidazione durc_expiry_date logo_url pdf_logo colore_primario metodo_pagamento_default iban_principale bic_swift nome_banca intestatario_conto prefisso_fattura ultimo_numero_fattura prefisso_nc ultimo_numero_nc prefisso_ddt ultimo_numero_ddt formato_numero nc_serie_condivisa iva_per_cassa split_payment_pa socio_unico bollo_virtuale_auto conservazione_ade_aderito_il".split(" "));
 
 const stato = vi.hoisted(() => ({
   riga: null as Record<string, unknown> | null,
@@ -157,6 +157,22 @@ function vai(percorso = "/azienda/impostazioni/fatturazione?tab=nativa") {
 }
 const salva = () => fireEvent.click(screen.getAllByRole("button", { name: /Salva modifiche|Crea la scheda e salva/ })[0]);
 const apriScheda = (nome: string) => fireEvent.mouseDown(screen.getByRole("tab", { name: nome }), { button: 0 });
+
+it("salva posizione, dimensione e distanza del logo e le ritrova riaprendo le impostazioni PDF", async () => {
+  stato.riga = { ...RIGA_COMPLETA, logo_url: "https://esempio.test/logo.png" };
+  const pagina = vai("/azienda/impostazioni/fatturazione?sezione=pdf");
+  fireEvent.click(screen.getByRole("button", { name: "In alto a destra" }));
+  fireEvent.change(screen.getByRole("slider", { name: /Dimensione del logo/ }), { target: { value: "150" } });
+  fireEvent.change(screen.getByRole("slider", { name: /Distanza dall'alto/ }), { target: { value: "8" } });
+  salva();
+  await waitFor(() => expect(stato.aggiornamenti[0]?.pdf_logo).toEqual({ posizione: "destra", dimensione: 150, spazioSopra: 8 }));
+  expect(stato.messaggi.some(m => m.tipo === "ok")).toBe(true);
+  stato.riga = { ...stato.riga, pdf_logo: stato.aggiornamenti[0].pdf_logo };
+  pagina.unmount(); vai("/azienda/impostazioni/fatturazione?sezione=pdf");
+  expect(screen.getByRole("button", { name: "In alto a destra" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("slider", { name: /Dimensione del logo/ })).toHaveValue("150");
+  expect(screen.getByRole("slider", { name: /Distanza dall'alto/ })).toHaveValue("8");
+});
 
 describe("il «Salva» manda solo colonne che esistono", () => {
   it("cambiare l'IBAN e un interruttore: una modifica sola, tutte colonne vere, «Impostazioni salvate»", async () => {
