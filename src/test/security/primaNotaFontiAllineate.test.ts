@@ -38,6 +38,12 @@ beforeAll(async()=>{
     return jsonb_build_object('prima_nota_id',pn.id);end$$;`);
   await pg.exec(await readFile("supabase/migrations/20290421200000_pagamenti_misti_prove_bancarie.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421200000_pagamenti_misti_prove_bancarie.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421201000_prima_nota_cassa_banche_distinte.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421201000_prima_nota_cassa_banche_distinte.sql","utf8"));
+  await pg.exec(`create function dettaglio_pagamento_costo(p_costo uuid) returns jsonb language sql as $$
+    select jsonb_build_object('movimenti',jsonb_agg(jsonb_build_object('id',p.id,'metodo',p.payment_method))) from prima_nota_entries p where p.cost_id=p_costo$$;`);
+  await pg.exec(await readFile("supabase/migrations/20290421202000_pagamenti_identita_conto_dettaglio.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421202000_pagamenti_identita_conto_dettaglio.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421194000_prima_nota_incassi_importati_da_confrontare.sql","utf8"));
   await pg.exec(`create trigger bank_proof_payment_removed before delete or update of amount,direction,bank_transaction_id on prima_nota_entries for each row execute function private.bank_proof_payment_lifecycle();`);
 },30000);
@@ -226,6 +232,12 @@ describe("Prima nota e fonti finanziarie",()=>{
     await quota(80,100,banca1);await quota(81,100,banca2);await riconciliaCosto(100);
     expect(await count()).toBe(2);
     expect((await pg.query<{id:string}>("select id from prima_nota_entries where bank_transaction_id=$1",[tx])).rows).toEqual([{id:id(80)}]);
+  });
+  it("una banca con Cassa nel nome resta una banca quando il conto è identificato",async()=>{
+    await quota(80,100,banca1);await pg.query("update prima_nota_entries set account_label='Cassa di Risparmio' where id=$1",[id(80)]);await riconciliaCosto(100);
+    expect((await pg.query<{id:string}>("select id from prima_nota_entries where bank_transaction_id=$1",[tx])).rows).toEqual([{id:id(80)}]);
+    await expect(rpc("public.registra_pagamento_costo",[costo,id(90),100,'2026-11-17','bonifico',null,tx,id(80)])).resolves.toMatchObject({prima_nota_id:id(80)});
+    expect((await rpc<{movimenti:{bank_account_id:string}[]}>('public.dettaglio_pagamento_costo',[costo])).movimenti[0].bank_account_id).toBe(banca1);
   });
   it("gli altri acconti della stessa fattura non impediscono l’identificazione della quota esatta",async()=>{
     await quota(80,100,banca1);await quota(81,40,banca1);await quota(82,60,banca1);await riconciliaCosto(40);
