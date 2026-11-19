@@ -3,16 +3,23 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
-const state = vi.hoisted(() => ({ insert: vi.fn(), remove: vi.fn(), eq: vi.fn(), result: null as Promise<unknown> | null, error: vi.fn(), log: vi.fn() }));
+const state = vi.hoisted(() => ({ insert: vi.fn(), remove: vi.fn(), eq: vi.fn(), result: null as Promise<unknown> | null, error: vi.fn(), log: vi.fn(), mobile: false, canEditOrders: true }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company-demo" }, user: { id: "me" }, profile: { first_name: "Demo", last_name: "Utente" } }) }));
-vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ onlyAssigned: false }) }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ onlyAssigned: false, canViewOrders: true, canEditOrders: state.canEditOrders }) }));
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => state.mobile }));
 vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/useTaskStatuses", async () => { const { DEFAULT_TASK_STATUS_DEFINITIONS } = await import("@/lib/taskStatuses"); return { useTaskStatuses: () => ({ statuses: DEFAULT_TASK_STATUS_DEFINITIONS }) }; });
 vi.mock("@/components/tasks/TaskTemplatePicker", () => ({ TaskTemplatePicker: (): null => null }));
 vi.mock("@/components/shared/EntityCustomFieldsSection", () => ({ EntityCustomFieldsSection: (): null => null }));
 vi.mock("@/lib/taskActivityLog", () => ({ logTaskActivity: state.log, describeTaskChanges: () => "modificata" }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }), useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: ({ queryKey }: { queryKey: unknown[] }) => ({
+    data: queryKey[0] === "scarico-cantiere-orders-v2"
+      ? [{ id: "order-demo", order_code: "DEMO-01", customer_name: "Cliente Demo" }]
+      : queryKey[0] === "scarico-order-lookup" ? null : [],
+  }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
 vi.mock("sonner", () => ({ toast: { error: state.error, success: vi.fn(), warning: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
   const q: Record<string, unknown> = {};
@@ -28,8 +35,11 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: () => {
 const task: NonNullable<ComponentProps<typeof TaskDialog>["task"]> = { id: "task-demo", title: "Task dimostrativo", notes: "", status: "da_fare", priority: "normale", due_date: null, assigned_to: null, order_id: null, stock_item_id: null, cost_id: null, contact_id: null, opportunity_id: null, ticket_id: null, category: "generale" };
 beforeEach(() => {
   state.insert.mockClear(); state.remove.mockClear(); state.eq.mockClear(); state.error.mockClear(); state.log.mockReset().mockResolvedValue(undefined);
+  state.mobile = false;
+  state.canEditOrders = true;
   state.result = Promise.resolve({ data: { id: "task-demo", title: "Task dimostrativo" }, error: null });
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function setup(editing = false) {
@@ -98,4 +108,27 @@ it("checklist e ripetizione restano modificabili nella sola bozza con controlli 
   expect(screen.getByRole("combobox", { name: "Ogni" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Termina il (opz.)" })).toBeInTheDocument();
   expect(state.insert).not.toHaveBeenCalled();
+});
+
+it.each([false, true])("collega una commessa con categoria Generale, vista mobile %s", async (mobile) => {
+  state.mobile = mobile;
+  render(<MemoryRouter><TaskDialog open onOpenChange={vi.fn()} onSaved={vi.fn()} /></MemoryRouter>);
+  const advanced = screen.getByRole("button", { name: "Collegamenti e opzioni" });
+  if (advanced.getAttribute("aria-expanded") === "true") fireEvent.click(advanced);
+  const orderPicker = screen.getByRole("combobox", { name: "Commessa" });
+  fireEvent.click(orderPicker);
+  fireEvent.click(await screen.findByRole("option", { name: /DEMO-01/i }));
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Compito di commessa" } });
+  fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
+  await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({
+    category: "generale",
+    order_id: "order-demo",
+    activity_scope: "ufficio",
+  })));
+});
+
+it("mostra la commessa in sola lettura a chi può consultarla", () => {
+  state.canEditOrders = false;
+  render(<MemoryRouter><TaskDialog open onOpenChange={vi.fn()} onSaved={vi.fn()} /></MemoryRouter>);
+  expect(screen.getByRole("combobox", { name: "Commessa" })).toBeDisabled();
 });

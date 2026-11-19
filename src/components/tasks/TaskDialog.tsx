@@ -2,7 +2,6 @@ import { useUfficiAttivi } from "@/hooks/useUffici";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { useMemo, useState, useEffect, useRef, useId } from "react";
 import { useDialogFocusReturn } from "@/hooks/useDialogFocusReturn";
-import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -43,9 +42,9 @@ import {
   ChevronDown,
   Plus,
   X,
-  ExternalLink,
 } from "lucide-react";
 import { TaskTemplatePicker } from "./TaskTemplatePicker";
+import { TaskOrderLink } from "./TaskOrderLink";
 import { addDays, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -267,10 +266,15 @@ export function TaskDialog({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const taskQueryClient = useQueryClient();
   const { effectiveCompany, user, profile } = useAuth();
-  const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
-  const { onlyAssigned: onlyAssignedCrm, isAdmin: officeAdmin, solaLettura: officeReadOnly } = usePermissions();
+  const {
+    onlyAssigned: onlyAssignedCrm,
+    isAdmin: officeAdmin,
+    solaLettura: officeReadOnly,
+    canViewOrders,
+    canEditOrders,
+  } = usePermissions();
   // Mobile: titolo, note, a chi, priorità, scadenza, stato (in modifica) e i
   // collegamenti. Modelli, assistente AI, checklist iniziale, categoria e
   // stima ore restano al desktop: si aggiungono anche dopo, dal dettaglio.
@@ -491,24 +495,6 @@ export function TaskDialog({
     );
   };
 
-  const { data: orders = [] } = useQuery({
-    queryKey: queryKeys.taskLookups.orders(companyId),
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data } = await supabase
-        .from("orders")
-        .select("id, description, order_code")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      return data || [];
-    },
-    enabled:
-      open &&
-      !!companyId &&
-      (category === "ordini" || category === "pagamenti"),
-  });
-
   const { data: stockItems = [] } = useQuery({
     queryKey: queryKeys.taskLookups.stock(companyId),
     queryFn: async () => {
@@ -620,10 +606,17 @@ export function TaskDialog({
         }
       }
 
+      const links = collegamentiAttivita(
+        { contactId, opportunityId, orderId, stockItemId, costId, ticketId: ticketId || defaultTicketId },
+        contattoDellOpportunita,
+      );
+      const previousOrderId = task?.order_id ?? null;
+      const newOfficeLink = !!links.order_id && links.order_id !== previousOrderId &&
+        (!task?.activity_scope || task.activity_scope === "generale");
+      const activityScope = (!isEditing ? defaultActivityScope : undefined) ??
+        (newOfficeLink ? "ufficio" : undefined);
       const payload: Omit<TablesInsert<"tasks">, "created_by"> = {
-        ...(!isEditing && defaultActivityScope
-          ? { activity_scope: defaultActivityScope }
-          : {}),
+        ...(activityScope ? { activity_scope: activityScope } : {}),
         company_id: companyId,
         title: title.trim(),
         notes: notes.trim() || null,
@@ -632,20 +625,7 @@ export function TaskDialog({
         due_date: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
         ufficio_id: officeId || null,
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
-        // I collegamenti NON dipendono dalla categoria: l'attività resta
-        // attaccata a ciò da cui nasce, e con un'opportunità si porta dietro il
-        // suo contatto (vedi lib/attivita/collegamenti.ts).
-        ...collegamentiAttivita(
-          {
-            contactId,
-            opportunityId,
-            orderId,
-            stockItemId,
-            costId,
-            ticketId: ticketId || defaultTicketId,
-          },
-          contattoDellOpportunita,
-        ),
+        ...links,
         category,
         estimated_hours: normalizedEstimatedHours,
         is_recurring: isRecurring && recurrenceRule !== "none",
@@ -730,7 +710,10 @@ export function TaskDialog({
         toast.success("Attività creata");
       }
 
-      invalidateOfficeWorkspace(taskQueryClient, orderId || defaultOrderId);
+      invalidateOfficeWorkspace(taskQueryClient, links.order_id);
+      if (previousOrderId && previousOrderId !== links.order_id) {
+        invalidateOfficeWorkspace(taskQueryClient, previousOrderId);
+      }
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
@@ -1042,7 +1025,6 @@ export function TaskDialog({
                   value={category}
                   onValueChange={(v) => {
                     setCategory(v);
-                    setOrderId("");
                     setStockItemId("");
                     setCostId("");
                     setContactId("");
@@ -1137,6 +1119,16 @@ export function TaskDialog({
               </div>
             </div>
           </div>
+
+          {(canViewOrders || task?.order_id || defaultOrderId) && (
+            <TaskOrderLink
+              companyId={companyId}
+              value={orderId}
+              onChange={setOrderId}
+              disabled={saving || officeReadOnly || !canEditOrders}
+              fixed={!!defaultOrderId || (!!task?.order_id && task.activity_scope !== undefined && task.activity_scope !== "generale")}
+            />
+          )}
 
           <div className="rounded-md border bg-muted/20">
             <button
@@ -1256,40 +1248,6 @@ export function TaskDialog({
                 )}
               </div>
 
-              {(category === "ordini" || category === "pagamenti") && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor={`${fieldId}-order`}>Commessa collegata</Label>
-                    {orderId && orderId !== "none" && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onOpenChange(false);
-                          navigate(`/azienda/ordini/${orderId}`);
-                        }}
-                        className="flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" /> Apri commessa
-                      </button>
-                    )}
-                  </div>
-                  <Select value={orderId} onValueChange={setOrderId}>
-                    <SelectTrigger id={`${fieldId}-order`}>
-                      <SelectValue placeholder="Seleziona commessa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nessuno</SelectItem>
-                      {orders.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>
-                          {o.order_code ? `${o.order_code} - ` : ""}
-                          {o.description?.slice(0, 40)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               {category === "magazzino" && (
                 <div className="space-y-2">
                   <Label htmlFor={`${fieldId}-stock`}>Articolo magazzino</Label>
@@ -1363,12 +1321,6 @@ export function TaskDialog({
                 </Select>
               </div>
 
-              {category === "generale" && (
-                <p className="text-xs text-muted-foreground">
-                  Contatto e opportunità si collegano sempre; per ordine,
-                  magazzino e costo scegli la categoria corrispondente.
-                </p>
-              )}
             </div>
           )}
 
