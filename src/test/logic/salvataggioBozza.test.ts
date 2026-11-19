@@ -20,6 +20,12 @@ describe("payload di salvataggio della bozza", () => {
     expect(p.anagrafica_id).toBeNull();
   });
 
+  it("una bozza con il cliente rimosso salva anche la cancellazione dei suoi dati", () => {
+    const p = buildSavePayload(stato({ anagrafica_id: undefined, cliente_snapshot: undefined }));
+    expect(p.anagrafica_id).toBeNull();
+    expect(p.cliente_snapshot).toEqual({});
+  });
+
   it("date, orari e numeri svuotati diventano null", () => {
     const p = buildSavePayload(stato({ data_scadenza: "", data_validita: "", ddt_data_ora_consegna: "", ddt_numero_colli: "", arrotondamento: NaN })) as Record<string, unknown>;
     expect(p.data_scadenza).toBeNull();

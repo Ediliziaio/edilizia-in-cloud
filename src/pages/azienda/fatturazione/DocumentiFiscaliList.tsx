@@ -30,7 +30,7 @@ import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { IncassiFatturaDialog } from "@/components/fatturazione/IncassiFattura";
 import { residuoDaIncassare } from "@/lib/fatturazione/incassi";
 import { faseSdi } from "@/lib/fatturazione/sdiCassetto";
-import { getScadenzaInfo, STATI_FILTRO_DOCUMENTI } from "@/lib/fatturazione/filtriDocumenti";
+import { getScadenzaInfo, STATI_FILTRO_DOCUMENTI, TIPI_ELENCO_FATTURE } from "@/lib/fatturazione/filtriDocumenti";
 import { DocumentiFooter } from "@/components/fatturazione/DocumentiFooter";
 import { Button } from "@/components/ui/button";
 import { CollegaEmessaDialog } from "@/components/fatturazione/CollegaEmessaDialog";
@@ -107,7 +107,7 @@ const TIPO_TABS: {
   emptyTitle: string;
   emptyDescription: string;
 }[] = [
-  { id: "fattura", label: "Fatture", tipos: ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "reverse_charge_interno", "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue", "autofattura", "nota_debito", "fattura_riepilogativa"], icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
+  { id: "fattura", label: "Fatture", tipos: TIPI_ELENCO_FATTURE, icon: FileText, countKey: "fatture", emptyTitle: "Nessuna fattura trovata", emptyDescription: "Crea la tua prima fattura per iniziare." },
   { id: "proforma", label: "Pro forma", tipos: ["proforma"], icon: Clock, countKey: "proforma", emptyTitle: "Nessun proforma trovato", emptyDescription: "Crea un proforma da inviare al cliente prima della fattura definitiva." },
   { id: "nota_credito", label: "Note di Credito", tipos: ["nota_credito"], icon: FileWarning, countKey: "nota_credito", emptyTitle: "Nessuna nota di credito", emptyDescription: "Le note di credito emesse per stornare fatture appariranno qui." },
   { id: "ddt", label: "DDT", tipos: ["ddt"], icon: Truck, countKey: "ddt", emptyTitle: "Nessun DDT trovato", emptyDescription: "I documenti di trasporto emessi appariranno qui." },
@@ -261,16 +261,37 @@ function DocumentiFiscaliListInner() {
   // Chi fattura con un altro programma: vede anche le importate, non crea documenti.
   const esterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
   const puoCreare = !esterna && !isCommercialistaMode;
+  const elencoEmesse = activeTab === "fattura";
+  const isTrash = activeTab === "annullate";
+  const statiFiltro = elencoEmesse
+    ? [{ value: "all", label: "Tutti i documenti" }, { value: "bozza", label: "Bozza" }, { value: "emessa", label: "Emessi" }, { value: "annullata", label: "Annullati" }, { value: "stornata", label: "Stornati" }]
+    : esterna
+    ? STATI_FILTRO_DOCUMENTI.filter((o) => o.value !== "bozza" && !o.value.startsWith("sdi:"))
+    : STATI_FILTRO_DOCUMENTI;
+  const statoRichiesto = searchParams.get("stato");
+  const statoFilter = !isTrash && statiFiltro.some((stato) => stato.value === statoRichiesto)
+    ? statoRichiesto!
+    : "all";
+  const soloBozzeFatture = elencoEmesse && !esterna && statoFilter === "bozza";
+  const setStatoFilter = (stato: string, azzeraRicerca = false) => {
+    const params = new URLSearchParams(searchParams);
+    if (stato === "all") params.delete("stato");
+    else params.set("stato", stato);
+    if (azzeraRicerca) params.delete("cerca");
+    setSearchParams(params, { replace: true });
+  };
+
   const [incassoImportata, setIncassoImportata] = useState<DocumentoFiscale | null>(null);
   const [daRiaprire, setDaRiaprire] = useState<DocumentoFiscale | null>(null);
   const apriDocumento = (doc: DocumentoFiscale) => {
     // Le importate hanno il loro dettaglio, con la stessa impaginazione e senza azioni che creano.
-    navigate(doc.origine === "importata" ? `/azienda/documenti/importata/${doc.id}` : `/azienda/documenti/${doc.id}/dettaglio`);
+    if (doc.origine === "importata") navigate(`/azienda/documenti/importata/${doc.id}`);
+    else if (soloBozzeFatture && doc.stato === "bozza" && puoCreare) navigate(`/azienda/documenti/${doc.id}`);
+    else navigate(`/azienda/documenti/${doc.id}/dettaglio`);
   };
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
-  const [statoFilter, setStatoFilter] = useState<string>("all");
   // «?cerca=» arriva da Clienti fiscali: le fatture di quel cliente.
   const [searchRaw, setSearchRaw] = useState(() => searchParams.get("cerca") ?? "");
   const search = useDebounce(searchRaw, 300);
@@ -293,19 +314,24 @@ function DocumentiFiscaliListInner() {
 
   // Current tab config
   const currentTab = TIPO_TABS.find((t) => t.id === activeTab) ?? TIPO_TABS[0];
-  const isTrash = activeTab === "annullate";
-  const elencoEmesse = activeTab === "fattura";
-
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
-  const handleTabChange = (tabId: string) => {
-    setSearchParams(tabId === "fattura" ? {} : { tipo: tabId }, { replace: true });
+  const azzeraFiltriElenco = () => {
     setPage(0);
-    setStatoFilter("all");
     setSelectedMonth(null);
     setSearchRaw("");
     setFiltriEmesse(FILTRI_EMESSE_VUOTI);
     clearSelection();
+  };
+
+  const handleTabChange = (tabId: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("stato");
+    params.delete("cerca");
+    if (tabId === "fattura") params.delete("tipo");
+    else params.set("tipo", tabId);
+    setSearchParams(params, { replace: true });
+    azzeraFiltriElenco();
   };
 
   const toggleSelect = useCallback((id: string) => {
@@ -349,13 +375,13 @@ function DocumentiFiscaliListInner() {
       stato: statoFilterArr,
       emessi: !isTrash && statoFilter === "emessa",
       scaduta: !isTrash && statoFilter === "scaduta",
-      search: search || undefined,
+      search: searchRaw ? search || undefined : undefined,
       data_da: dataDa,
       data_a: dataA,
       page,
       perPage: PER_PAGE,
       showDeleted: isTrash,
-      ordinamento: elencoEmesse ? ordinamento : activeTab === "nota_credito" ? "progressivo" as const : "data" as const,
+      ordinamento: soloBozzeFatture ? "aggiornamento" as const : elencoEmesse ? ordinamento : activeTab === "nota_credito" ? "progressivo" as const : "data" as const,
       sdi: elencoEmesse && filtriEmesse.sdi !== "all" ? filtriEmesse.sdi : sdiFilter,
       incasso: elencoEmesse && filtriEmesse.incasso !== "all" ? filtriEmesse.incasso : undefined,
       cliente: elencoEmesse ? clienteFiltro : undefined,
@@ -375,10 +401,10 @@ function DocumentiFiscaliListInner() {
   const loadingKey = JSON.stringify([activeTab, page, search, selectedMonth, statoFilter]);
   const showSlowLoading = isLoading && slowLoadingKey === loadingKey;
   const { data: counts } = useDocumentCounts();
-  const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear);
+  const { data: timelineMonths } = useMonthlyTimeline(isTrash ? null : currentTab.tipos, timelineYear, { enabled: !soloBozzeFatture });
   // L'anno prima serve solo alla variazione dei numeri veloci, e solo da tablet in su.
   const { data: timelineMonthsPrima } = useMonthlyTimeline(currentTab.tipos, timelineYear - 1, {
-    enabled: !isTrash && activeTab === "fattura" && !isMobile,
+    enabled: !isTrash && !soloBozzeFatture && activeTab === "fattura" && !isMobile,
   });
 
   useEffect(() => {
@@ -510,20 +536,9 @@ function DocumentiFiscaliListInner() {
 
   const nFiltriEmesse = elencoEmesse ? (Object.keys(filtriEmesse) as (keyof FiltriEmesse)[]).filter(k => filtriEmesse[k] !== FILTRI_EMESSE_VUOTI[k]).length : 0;
   const hasFilters = statoFilter !== "all" || searchRaw || selectedMonth || nFiltriEmesse > 0;
-  // Le fasi SDI e le bozze sono del documento nativo: a chi importa non servono.
-  const statiFiltro = elencoEmesse
-    ? [{ value: "all", label: "Tutti i documenti" }, { value: "bozza", label: "Bozza" }, { value: "emessa", label: "Emessi" }, { value: "annullata", label: "Annullati" }, { value: "stornata", label: "Stornati" }]
-    : esterna
-    ? STATI_FILTRO_DOCUMENTI.filter((o) => o.value !== "bozza" && !o.value.startsWith("sdi:"))
-    : STATI_FILTRO_DOCUMENTI;
-
   const clearFilters = () => {
-    setStatoFilter("all");
-    setSearchRaw("");
-    setSelectedMonth(null);
-    setFiltriEmesse(FILTRI_EMESSE_VUOTI);
-    setPage(0);
-    clearSelection();
+    setStatoFilter("all", true);
+    azzeraFiltriElenco();
   };
 
   const cambiaFiltriEmesse = (patch: Partial<FiltriEmesse>) => {
@@ -656,7 +671,16 @@ function DocumentiFiscaliListInner() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Mobile: solo «Nuovo»; report, abbinamento e impostazioni restano al desktop. */}
+            {elencoEmesse && !esterna && (
+              <Button type="button" variant={soloBozzeFatture ? "secondary" : "outline"} size="sm" aria-pressed={soloBozzeFatture}
+                className="gap-1.5 max-sm:h-8 max-sm:px-3 max-sm:text-xs" onClick={() => {
+                  setStatoFilter(soloBozzeFatture ? "all" : "bozza", true);
+                  azzeraFiltriElenco();
+                }}>
+                <FileText className="h-4 w-4" aria-hidden="true" />
+                Fatture in bozza
+              </Button>
+            )}
             <Button variant="outline" size="sm" asChild className="gap-1.5 max-sm:hidden">
               <Link to="/azienda/documenti/report">
                 <BarChart3 className="h-4 w-4" />
@@ -730,7 +754,7 @@ function DocumentiFiscaliListInner() {
       {esterna && effectiveCompany?.id && <ImportInCorsoBanner companyId={effectiveCompany.id} />}
 
       {/* ── Numeri veloci (solo Fatture) ───────────────── */}
-      {!isTrash && activeTab === "fattura" && timelineMonths && (
+      {!isTrash && !soloBozzeFatture && activeTab === "fattura" && timelineMonths && (
         <RiepilogoFatture
           mesi={timelineMonths}
           mesiAnnoPrima={timelineMonthsPrima}
@@ -742,7 +766,7 @@ function DocumentiFiscaliListInner() {
       {/* ── Monthly Timeline ───────────────────────────── */}
       {/* Strip 12 mesi a scorrimento: filtro secondario ingombrante su mobile.
           Solo da tablet in su; su telefono si resta su "tutti i mesi". */}
-      {!isTrash && timelineMonths && timelineMonths.length > 0 && (
+      {!isTrash && !soloBozzeFatture && timelineMonths && timelineMonths.length > 0 && (
         <div className="hidden md:block">
           <MonthlyTimeline
             months={timelineMonths}
@@ -765,7 +789,7 @@ function DocumentiFiscaliListInner() {
       )}
 
       {/* Numeri saltati e mesi sospetti nelle emesse (16/11/2026): stavano in cima alle ricevute. */}
-      {!isTrash && activeTab === "fattura" && effectiveCompany?.id && (
+      {!isTrash && !soloBozzeFatture && activeTab === "fattura" && effectiveCompany?.id && (
         <div className="max-md:hidden"><CompletezzaFatture companyId={effectiveCompany.id} /></div>
       )}
 
@@ -850,7 +874,7 @@ function DocumentiFiscaliListInner() {
         </div>
 
         {elencoEmesse && <FiltriFattureEmesse valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
-        {elencoEmesse && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); setPage(0); clearSelection(); }}>
+        {elencoEmesse && !soloBozzeFatture && <Select value={ordinamento} onValueChange={v => { setOrdinamento(v as "progressivo" | "data"); setPage(0); clearSelection(); }}>
           <SelectTrigger aria-label="Ordina fatture" className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="progressivo">Anno e numero ↓</SelectItem><SelectItem value="data">Data emissione ↓</SelectItem></SelectContent>
         </Select>}
@@ -864,8 +888,10 @@ function DocumentiFiscaliListInner() {
       </div>
       {elencoEmesse && <FiltriEmesseAttivi valore={filtriEmesse} cambia={cambiaFiltriEmesse} />}
 
-      {!isTrash && !esterna && (activeTab === "fattura" || activeTab === "nota_credito") && (
-        <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Le bozze senza numero sono in fondo all'anno; le trovi anche con il filtro Bozza.</p>
+      {soloBozzeFatture ? (
+        <p className="text-xs text-muted-foreground">Le bozze modificate più di recente sono in cima. Apri una bozza per continuare a compilarla.</p>
+      ) : !isTrash && !esterna && activeTab === "nota_credito" && (
+        <p className="text-xs text-muted-foreground">Ordine per anno e numero decrescente. Puoi trovare le bozze con il filtro Bozza.</p>
       )}
 
       {/* ── Bulk Actions Bar ───────────────────────────── */}
@@ -954,7 +980,7 @@ function DocumentiFiscaliListInner() {
         // Mobile: una riga di testo, senza riquadro tratteggiato né icona grande.
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-20 text-center max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:py-6">
           <currentTab.icon className="h-16 w-16 text-muted-foreground/30 mb-4 max-sm:hidden" />
-          <p className="text-lg font-medium max-sm:text-sm">{currentTab.emptyTitle}</p>
+          <p className="text-lg font-medium max-sm:text-sm">{soloBozzeFatture ? "Nessuna fattura in bozza" : currentTab.emptyTitle}</p>
           <p className="text-sm text-muted-foreground mt-1 max-sm:hidden">
             {hasFilters ? "Prova a modificare i filtri." : esterna ? "I documenti arrivano dal tuo gestionale a ogni sincronizzazione." : currentTab.emptyDescription}
           </p>

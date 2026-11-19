@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Clock, Loader2, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle, Mail, Printer, FileText } from "lucide-react";
+import { ArrowLeft, Check, Clock, Loader2, Trash2, MoreHorizontal, Copy, Download, Eye, AlertCircle, Mail, Printer, FileText, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -86,7 +86,8 @@ interface Props {
   isSaving: boolean;
   isDirty: boolean;
   lastSaved: Date | null;
-  /** Ci sono modifiche non ancora salvate: appena aperta, una fattura già salvata non ne ha. */
+  bozzaProvvisoria?: boolean;
+  onSalva?: () => void;
   onEmetti: () => void;
   onDelete: () => void;
   onFieldChange: (field: string, value: unknown) => void;
@@ -114,7 +115,7 @@ interface Props {
 }
 
 export function EditorTopBar({
-  state, isSaving, lastSaved, isDirty, onEmetti, onDelete, validationErrorCount,
+  state, isSaving, lastSaved, isDirty, bozzaProvvisoria, onSalva, onEmetti, onDelete, validationErrorCount,
   erroriInEvidenza, onVaiAlRiepilogo, onEmissioneBloccata,
   onPreview, onBack, onInviaSDI, onAggiornaStatoSdi, onDownloadPDF, onDownloadXML, onSendEmail, onDuplicate,
   onConvertToFattura, isInviaSDILoading, isAggiornaStatoLoading, isConvertLoading, isEmitting,
@@ -205,13 +206,13 @@ export function EditorTopBar({
           )}
 
           {/* Autosave indicator */}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div aria-live="polite" className="flex items-center gap-1.5 text-xs text-muted-foreground">
             {isSaving ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 <span className="hidden sm:inline">Salvataggio...</span>
               </>
-            ) : !isDirty && state.id ? (
+            ) : !isDirty && state.id && !bozzaProvvisoria ? (
               <>
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 <span className="hidden sm:inline">{lastSaved ? `Salvata ${formatRelativeTime(lastSaved)}` : isBozza ? "Bozza salvata" : "Documento salvato"}</span>
@@ -226,7 +227,7 @@ export function EditorTopBar({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 sm:border-l sm:pl-3 sm:ml-1">
+        <div className="flex flex-wrap items-center gap-2 sm:border-l sm:pl-3 sm:ml-1">
           {/* Preview button */}
           <Button
             variant="outline"
@@ -322,6 +323,14 @@ export function EditorTopBar({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {onSalva && (
+            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5"
+              disabled={isSaving || isEmitting || isInviaSDILoading} onClick={onSalva}>
+              <Save className="h-3.5 w-3.5" aria-hidden="true" />
+              {isBozza ? "Salva bozza" : "Salva modifiche"}
+            </Button>
+          )}
+
           {isBozza && (
             <>
               <AlertDialog>
@@ -329,6 +338,7 @@ export function EditorTopBar({
                   <Button
                     variant="ghost"
                     size="sm"
+                    disabled={isSaving || isEmitting}
                     className="text-destructive hover:text-destructive/80 h-8 text-xs gap-1"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -344,7 +354,7 @@ export function EditorTopBar({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    <AlertDialogAction onClick={onDelete} disabled={isSaving || isEmitting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                       Elimina bozza
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -354,7 +364,7 @@ export function EditorTopBar({
               <Button
                 size="sm"
                 className="h-8 gap-1.5 shadow-sm"
-                disabled={isEmitting}
+                disabled={isSaving || isEmitting}
                 onClick={() => {
                   // Le regole di blocco non cambiano: con dati mancanti non si emette.
                   if ((validationErrorCount ?? 0) > 0) onEmissioneBloccata?.();
@@ -377,7 +387,7 @@ export function EditorTopBar({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={onEmetti} disabled={isEmitting || (validationErrorCount ?? 0) > 0}>
+                    <AlertDialogAction onClick={onEmetti} disabled={isSaving || isEmitting || (validationErrorCount ?? 0) > 0}>
                       {isEmitting ? "Emissione in corso…" : "Emetti documento"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
