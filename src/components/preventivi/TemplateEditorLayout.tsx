@@ -1,5 +1,6 @@
 import { createContext, useContext, useId, useState, type ReactNode } from "react";
-import { ChevronDown, Eye, Pencil } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { SceltaVistaDocumento, type VistaEditorDocumento } from "@/components/shared/DocumentEditorWorkspace";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -30,22 +31,20 @@ export const useTemplateEditorModuleId = () => useContext(LocalModuleContext);
 
 /** Keeps one mounted preview: switching the compact view must not reset drafts or zoom. */
 export function TemplateEditorWorkspace({ children, moduleId }: { children: ReactNode; moduleId?: string }) {
-  const [view, setView] = useState<"edit" | "preview">("edit");
+  const [view, setView] = useState<VistaEditorDocumento>("modifica");
+  const idVista = useId();
   return <LocalModuleContext.Provider value={moduleId}><div className="space-y-3" data-template-workspace onClickCapture={event => {
     if (!(event.target as HTMLElement).closest("[data-show-template-preview]")) return;
     const workspace = event.currentTarget;
-    setView("preview");
+    setView("anteprima");
     requestAnimationFrame(() => {
       const preview = workspace.querySelector<HTMLElement>("[data-template-preview]");
       preview?.scrollIntoView({ block: "start", behavior: "smooth" });
       preview?.focus({ preventScroll: true });
     });
   }}>
-    <div role="group" aria-label="Vista del modello" className="flex w-fit max-w-full gap-1 rounded-lg border bg-card p-1 lg:hidden">
-      <Button type="button" variant={view === "edit" ? "default" : "ghost"} aria-pressed={view === "edit"} onClick={() => setView("edit")} className="flex-1 gap-2"><Pencil className="h-4 w-4" />Modifica</Button>
-      <Button type="button" variant={view === "preview" ? "default" : "ghost"} aria-pressed={view === "preview"} onClick={() => setView("preview")} className="flex-1 gap-2"><Eye className="h-4 w-4" />Anteprima</Button>
-    </div>
-    <div className={cn(templateEditorLayout.grid, view === "edit"
+    <SceltaVistaDocumento vista={view} onChange={setView} controls={idVista} className="lg:hidden" />
+    <div id={idVista} className={cn(templateEditorLayout.grid, view === "modifica"
       ? "[&>[data-template-preview]]:hidden lg:[&>[data-template-preview]]:block"
       : "[&>[data-template-navigation]]:hidden lg:[&>[data-template-navigation]]:block [&>[data-template-content]]:hidden lg:[&>[data-template-content]]:block")}>{children}</div>
   </div></LocalModuleContext.Provider>;

@@ -5,6 +5,7 @@ import { Download, Loader2, Printer } from "lucide-react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useAuth } from "@/contexts/AuthContext";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
+import { FoglioFatturaAdattabile } from "@/components/fatturazione/FoglioFatturaAdattabile";
 import { AnteprimaXmlFattura } from "@/components/fatturazione/AnteprimaXmlFattura";
 import { TIPI_SDI } from "@/lib/fatturazione/sdiCassetto";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
@@ -25,6 +26,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
   // Le due anteprime: il PDF che legge il cliente e il file XML che parte allo SDI.
   const [vista, setVista] = useState<"pdf" | "xml">("pdf");
   const xmlDisponibile = TIPI_SDI.includes(state.tipo) && !["preventivo", "proforma", "ddt"].includes(state.tipo);
+  const mostraXml = vista === "xml" && xmlDisponibile;
 
   const handlePrint = useCallback(() => {
     const el = previewRef.current;
@@ -66,12 +68,12 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0 max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between shrink-0">
+      <DialogContent className="flex h-[90dvh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 space-y-2 border-b px-4 py-3 pr-12 text-left">
           <DialogTitle className="text-sm font-medium">
             Anteprima — {state.numero || "Documento"}
           </DialogTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {xmlDisponibile && (
               <div className="mr-1 flex rounded-md border p-0.5">
                 {([["pdf", "PDF"], ["xml", "XML allo SDI"]] as const).map(([v, etichetta]) => (
@@ -87,14 +89,14 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
                 ))}
               </div>
             )}
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handlePrint} disabled={vista === "xml"}>
+            <Button variant="outline" size="sm" onClick={handlePrint} disabled={mostraXml}>
               <Printer className="h-3 w-3 mr-1.5" />
               Stampa
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs"
+              aria-label="Apri PDF per la stampa"
               onClick={handleDownloadPDF}
               disabled={pdfLoading || !state.id}
             >
@@ -107,15 +109,17 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
             </Button>
           </div>
         </DialogHeader>
-        <div className="flex flex-1 justify-center overflow-auto bg-muted/30 p-6">
-          {vista === "xml" && xmlDisponibile ? (
-            <div className="w-full max-w-2xl">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-muted/30 p-2 sm:p-4">
+          {mostraXml ? (
+            <div className="mx-auto w-full max-w-2xl">
               <AnteprimaXmlFattura documento={state} azienda={azienda ?? null} />
             </div>
           ) : (
-            <div ref={previewRef}>
-              <PreviewFattura documento={state} azienda={azienda ?? null} logoAziendale={effectiveCompany?.logo_url} scale={0.85} />
-            </div>
+            <FoglioFatturaAdattabile>
+              <div ref={previewRef}>
+                <PreviewFattura documento={state} azienda={azienda ?? null} logoAziendale={effectiveCompany?.logo_url} scale={1} />
+              </div>
+            </FoglioFatturaAdattabile>
           )}
         </div>
       </DialogContent>

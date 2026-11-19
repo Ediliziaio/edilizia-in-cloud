@@ -576,11 +576,11 @@ describe("Preventivo generico: ogni campo ha il suo nome", () => {
   it("i gruppi di pulsanti (posizione del logo, densità, bordi, caratteri) hanno un nome e dicono quale è scelto", () => {
     apri();
     apriModello("Offerta standard");
-    for (const nome of ["Posizione", "Dimensione", "Densità righe", "Bordi tabella", "Carattere", "Altezza riga", "Palette pronte"]) {
+    for (const nome of ["Posizione del logo", "Dimensione del logo", "Densità righe", "Bordi tabella", "Carattere", "Altezza riga", "Palette pronte"]) {
       expect(screen.getByRole("group", { name: nome }), nome).toBeInTheDocument();
     }
-    expect(within(screen.getByRole("group", { name: "Posizione" })).getByRole("button", { name: "Sinistra" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(screen.getByRole("group", { name: "Posizione" })).getByRole("button", { name: "Destra" })).toHaveAttribute("aria-pressed", "false");
+    expect(within(screen.getByRole("group", { name: "Posizione del logo" })).getByRole("button", { name: "Sinistra" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("group", { name: "Posizione del logo" })).getByRole("button", { name: "Destra" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("i selettori dei blocchi e le specifiche di una scheda prodotto hanno un nome", () => {

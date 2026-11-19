@@ -14,7 +14,6 @@ import {
   RefreshCw,
   Palette,
   Check,
-  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -23,6 +22,7 @@ import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import {
   TIPI_MODELLI_PDF,
   NOMI_MODELLI_PDF,
+  aspettoDelModello,
   modelloPdfStandard,
   normalizzaModelloPdf,
   type ModelloPdf,
@@ -38,6 +38,9 @@ import { anteprimaModello } from "@/lib/modelliPdf/anteprima";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
 import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
+import { DocumentEditorWorkspace } from "@/components/shared/DocumentEditorWorkspace";
+import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,7 +93,7 @@ function Libreria() {
   const record = query.data?.find((r) => r.document_type === selected);
   const titoli = { ...NOMI_MODELLI_PDF, contratti: "Contratti e condizioni" };
   const select = (tipo: TipoModelloPdf | "contratti") => {
-    if (saving || !conferma()) return;
+    if (saving || tipo === selected || !conferma()) return;
     setDirty(false);
     setParams({ modello: tipo }, { replace: true });
   };
@@ -157,7 +160,7 @@ function Libreria() {
             Caricamento dei modelli aziendali…
           </CardContent>
         </Card>
-      ) : query.error ? (
+      ) : query.error && !query.data ? (
         <Card>
           <CardContent className="space-y-3 p-6">
             <p role="alert">{query.error.message}</p>
@@ -169,15 +172,16 @@ function Libreria() {
           key={`${selected}:${record?.updated_at ?? "standard"}`}
           tipo={selected}
           record={record}
+          altriModelli={(query.data ?? []).filter((modello) => modello.document_type !== selected)}
           canEdit={canEdit}
           onDirty={setDirty}
           onSaving={setSaving}
           save={query.save}
           reload={async () => {
-            if (conferma()) {
-              setDirty(false);
-              await query.refetch();
-            }
+            if (!conferma()) return false;
+            const esito = await query.refetch();
+            if (esito.isError) throw esito.error;
+            return true;
           }}
         />
       )}
@@ -187,6 +191,7 @@ function Libreria() {
 function EditorModello({
   tipo,
   record,
+  altriModelli,
   canEdit,
   onDirty,
   onSaving,
@@ -195,11 +200,12 @@ function EditorModello({
 }: {
   tipo: TipoModelloPdf;
   record?: ModelloPdfSalvato;
+  altriModelli: ModelloPdfSalvato[];
   canEdit: boolean;
   onDirty: (v: boolean) => void;
   onSaving: (v: boolean) => void;
   save: ReturnType<typeof useDocumentPdfTemplates>["save"];
-  reload: () => Promise<void>;
+  reload: () => Promise<boolean>;
 }) {
   const { effectiveCompany } = useAuth();
   const savingGuard = useRef(false);
@@ -207,10 +213,32 @@ function EditorModello({
     normalizzaModelloPdf(tipo, record?.config),
   );
   const [draft, setDraft] = useState(base);
-  const [busy, setBusy] = useState(false);
+  const [operazione, setOperazione] = useState<"salva" | "ricarica" | null>(null);
+  const busy = operazione !== null;
   const [error, setError] = useState("");
   const [version, setVersion] = useState(record?.updated_at ?? null);
+  const [sezione, setSezione] = useState("aspetto");
   const dirty = JSON.stringify(draft) !== JSON.stringify(base);
+  const scarta = () => {
+    setDraft(base);
+    setError("");
+    onDirty(false);
+  };
+  const ricarica = async () => {
+    if (savingGuard.current) return;
+    savingGuard.current = true;
+    setOperazione("ricarica");
+    onSaving(true);
+    try {
+      if (await reload()) scarta();
+    } catch {
+      setError("Ricarica non riuscita. La bozza è ancora aperta.");
+    } finally {
+      savingGuard.current = false;
+      setOperazione(null);
+      onSaving(false);
+    }
+  };
   const patch = (value: Partial<ModelloPdf>) => {
     const next = { ...draft, ...value };
     setDraft(next);
@@ -221,10 +249,11 @@ function EditorModello({
     if (busy || !canEdit || savingGuard.current) return;
     if (!draft.nome.trim()) {
       setError("Indica il nome del modello.");
+      setSezione("aspetto");
       return;
     }
     savingGuard.current = true;
-    setBusy(true);
+    setOperazione("salva");
     onSaving(true);
     setError("");
     try {
@@ -239,7 +268,7 @@ function EditorModello({
       setError(e instanceof Error ? e.message : "Salvataggio non riuscito.");
     } finally {
       savingGuard.current = false;
-      setBusy(false);
+      setOperazione(null);
       onSaving(false);
     }
   };
@@ -263,15 +292,15 @@ function EditorModello({
     patch({ clausole });
   };
   return (
-    <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]">
-      <Card className="min-w-0 xl:max-h-[calc(75vh+32px)] xl:overflow-y-auto">
-        <CardHeader className="border-b">
+    <div className="min-w-0 space-y-4">
+      <Card>
+        <CardHeader className="space-y-3 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-lg">
               <Palette className="h-5 w-5 text-orange-500" />
               {NOMI_MODELLI_PDF[tipo]}
             </CardTitle>
-            <Badge variant={dirty ? "outline" : "secondary"}>
+            <Badge aria-live="polite" variant={dirty ? "outline" : "secondary"}>
               {dirty
                 ? "Modifiche da salvare"
                 : record &&
@@ -282,11 +311,26 @@ function EditorModello({
             </Badge>
           </div>
           <p className="text-xs text-slate-500">
-            Le modifiche salvate verranno usate nelle nuove generazioni. Il PDF
-            di esempio si aggiorna mentre lavori.
+            Salva il modello per usare queste impostazioni nei prossimi PDF di questo tipo.
           </p>
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={salva} disabled={!canEdit || !dirty || busy}>
+              <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {operazione === "salva" ? "Salvataggio…" : "Salva modello"}
+            </Button>
+            {canEdit && <DiscardDocumentDraft disabled={!dirty || busy} onDiscard={scarta} />}
+            <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={ricarica}>
+              <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              {operazione === "ricarica" ? "Ricarico…" : "Ricarica"}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-5 p-5">
+      </Card>
+      <DocumentEditorWorkspace colonne="xl:grid-cols-[minmax(0,.95fr)_minmax(0,1.05fr)]"
+        previewClassName="xl:sticky xl:top-4"
+        editor={<Card>
+        <CardContent className="space-y-4 p-4 sm:p-5">
           {!canEdit && (
             <p
               role="status"
@@ -296,7 +340,14 @@ function EditorModello({
               modifica delle impostazioni cantieri.
             </p>
           )}
-          <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-5">
+          <Tabs value={sezione} onValueChange={setSezione}>
+            <TabsList className="mb-3 flex h-auto flex-wrap justify-start gap-1">
+              <TabsTrigger value="aspetto">Aspetto e logo</TabsTrigger>
+              <TabsTrigger value="contenuti">Testi e condizioni</TabsTrigger>
+              <TabsTrigger value="chiusura">{isRapporto ? "Piè di pagina" : "Firma e piè di pagina"}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="aspetto">
+            <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-5">
             <div className="space-y-2">
               <Label htmlFor="pdf-nome">Nome del modello</Label>
               <Input
@@ -358,7 +409,30 @@ function EditorModello({
                 </UniformSelect>
               </div>
             </div>
-            <div className="space-y-3 rounded-xl border bg-slate-50/60 p-4">
+            <div className="space-y-4 rounded-lg border p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="pdf-logo">Mostra il logo aziendale</Label>
+                <Switch id="pdf-logo" checked={draft.mostraLogo}
+                  onCheckedChange={(mostraLogo) => patch({ mostraLogo })} />
+              </div>
+              {draft.mostraLogo && <LogoSizeControl value={draft.scalaLogo} onChange={(scalaLogo) => patch({ scalaLogo })} />}
+            </div>
+            {altriModelli.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="pdf-copia-aspetto">Copia l’impaginazione da</Label>
+                <UniformSelect id="pdf-copia-aspetto" value="" onChange={(e) => {
+                  const sorgente = altriModelli.find((modello) => modello.document_type === e.target.value);
+                  if (sorgente) patch(aspettoDelModello(normalizzaModelloPdf(sorgente.document_type, sorgente.config)));
+                }} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
+                  <option value="">Scegli un modello salvato</option>
+                  {altriModelli.map((modello) => <option key={modello.document_type} value={modello.document_type}>
+                    {NOMI_MODELLI_PDF[modello.document_type]}
+                  </option>)}
+                </UniformSelect>
+                <p className="text-xs text-muted-foreground">Applica colori, carattere, margini, logo e numerazione alla bozza.</p>
+              </div>
+            )}
+            <div className="space-y-3 rounded-xl border bg-muted/40 p-4">
               <div>
                 <h3 className="font-medium">Stile e impaginazione</h3>
                 <p className="text-xs text-slate-500">
@@ -448,8 +522,6 @@ function EditorModello({
                     <option value={10}>Grande · 10 pt</option>
                   </UniformSelect>
                 </div>
-                <LogoSizeControl value={draft.scalaLogo} disabled={!draft.mostraLogo}
-                  onChange={scalaLogo => patch({ scalaLogo })} />
                 <div className="space-y-2">
                   <Label htmlFor="pdf-riquadri">
                     Sfondo riquadri e tabelle
@@ -485,6 +557,17 @@ function EditorModello({
                   onCheckedChange={(value) => patch({ righeAlternate: value })}
                 />
               </div>
+            </div>
+            <div className="space-y-1">
+              <Button type="button" variant="ghost" size="sm" onClick={() => patch(modelloPdfStandard(tipo))}>
+                <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden="true" />Ripristina standard
+              </Button>
+              <p className="text-xs text-muted-foreground">Riporta stile e testi ai valori iniziali nella bozza.</p>
+            </div>
+            </fieldset>
+            </TabsContent>
+            <TabsContent value="chiusura">
+            <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="pdf-numerazione">Numeri di pagina</Label>
                 <Switch
@@ -507,15 +590,26 @@ function EditorModello({
                   piè di pagina.
                 </p>
               </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-              <Label htmlFor="pdf-logo">Mostra il logo aziendale</Label>
-              <Switch
-                id="pdf-logo"
-                checked={draft.mostraLogo}
-                onCheckedChange={(value) => patch({ mostraLogo: value })}
-              />
-            </div>
+            {!isRapporto && (
+              <>
+                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <Label htmlFor="pdf-firma">Spazio per l’accettazione</Label>
+                  <Switch id="pdf-firma" checked={draft.mostraFirma}
+                    onCheckedChange={(mostraFirma) => patch({ mostraFirma })} />
+                </div>
+                {draft.mostraFirma && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pdf-etichetta-firma">Dicitura della firma</Label>
+                    <Input id="pdf-etichetta-firma" maxLength={90} placeholder="Dicitura standard"
+                      value={draft.etichettaFirma} onChange={(e) => patch({ etichettaFirma: e.target.value })} />
+                  </div>
+                )}
+              </>
+            )}
+            </fieldset>
+            </TabsContent>
+            <TabsContent value="contenuti">
+            <fieldset disabled={!canEdit || busy} className="min-w-0 space-y-5">
             <div className="space-y-2">
               <Label htmlFor="pdf-introduzione">Testo introduttivo</Label>
               <Textarea
@@ -636,81 +730,18 @@ function EditorModello({
                 onChange={(e) => patch({ conclusione: e.target.value })}
               />
             </div>
-            {!isRapporto && (
-              <>
-                <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                  <Label htmlFor="pdf-firma">Spazio per l’accettazione</Label>
-                  <Switch
-                    id="pdf-firma"
-                    checked={draft.mostraFirma}
-                    onCheckedChange={(value) => patch({ mostraFirma: value })}
-                  />
-                </div>
-                {draft.mostraFirma && (
-                  <div className="space-y-2">
-                    <Label htmlFor="pdf-etichetta-firma">
-                      Dicitura della firma
-                    </Label>
-                    <Input
-                      id="pdf-etichetta-firma"
-                      maxLength={90}
-                      placeholder="Dicitura standard"
-                      value={draft.etichettaFirma}
-                      onChange={(e) =>
-                        patch({ etichettaFirma: e.target.value })
-                      }
-                    />
-                  </div>
-                )}
-              </>
-            )}
           </fieldset>
           <div className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
             {isRapporto
               ? "Attività, foto e firme registrate restano collegate al rapportino originale. I dati aziendali sono riportati in basso, su massimo due righe."
               : "Fornitore, commessa, destinazione e importi vengono compilati dal documento. I dati aziendali sono riportati nel piè di pagina, su massimo due righe."}
           </div>
-          {error && (
-            <p role="alert" className="text-sm text-red-700">
-              {error}
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2 border-t pt-4">
-            <Button
-              type="button"
-              onClick={salva}
-              disabled={!dirty || busy || !canEdit}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {busy ? "Salvataggio…" : "Salva modello"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!canEdit || busy}
-              onClick={() => patch(modelloPdfStandard(tipo))}
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Ripristina standard
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={busy}
-              onClick={reload}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Ricarica
-            </Button>
-          </div>
+          </TabsContent>
+          </Tabs>
         </CardContent>
-      </Card>
-      <div className="min-w-0">
-        <div className="mb-3 flex items-center gap-2 text-sm text-slate-600">
-          <ArrowRight className="h-4 w-4 text-orange-500" />
-          Anteprima con dati di esempio
-        </div>
-        <div className="h-[75vh] min-h-[480px] overflow-hidden rounded-xl border bg-white">
+      </Card>}
+        anteprima={<section aria-label="Anteprima con dati di esempio">
+        <div className="h-[72dvh] min-h-[380px] overflow-hidden rounded-xl border bg-card">
           <PdfBlobLivePreviewPanel
             renderBlobUrl={render}
             depsKey={JSON.stringify([
@@ -720,12 +751,13 @@ function EditorModello({
               draft,
             ])}
             downloadFileName={`anteprima-${tipo}.pdf`}
-            allowOpenInNewTab={false}
             showDownloadOnMobile
+            headerLabel="PDF con dati di esempio"
             debounceMs={650}
           />
         </div>
-      </div>
+      </section>}
+      />
     </div>
   );
 }
