@@ -126,6 +126,17 @@ jobs:
           src/test/ui/contabilitaStudio.test.tsx
           src/test/logic/bilancioASezioni.test.ts
 
+      - name: Received invoice links and split payments
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/ui/expensePaymentDialog.test.tsx
+          src/test/ui/riepilogoFatturaRicevuta.test.tsx
+          src/test/ui/collegamentiFattura.test.tsx
+          src/test/logic/financialPaymentPropagation.test.ts
+          src/test/ui/collegaOrdiniFattura.test.tsx
+          src/test/logic/fatturaQuoteOrdini.test.ts
+          src/test/logic/collegaDdtFattura.test.ts
+
       # xmllint valida ogni XML dei test contro lo schema XSD ufficiale FatturaPA 1.2.2
       # (src/test/fixtures/fatturapa-1.2.2): senza, i test falliscono, non si saltano.
       - name: xmllint for the FatturaPA XSD schema

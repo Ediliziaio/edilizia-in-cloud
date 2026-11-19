@@ -70,6 +70,19 @@ beforeEach(() => {
 });
 
 describe("riepilogo della fattura ricevuta", () => {
+  it("mantiene i dati fiscali nella testata del fornitore e mostra più ordini con le loro quote",async()=>{
+    finto.dati.fatture_ricevute={...conXml(),stato:'contabilizzata',cedente_indirizzo:'Via di prova 12',cedente_comune:'Milano',cedente_cap:'20100'};
+    finto.dati['fattura_ricevuta_ordini[]']=[{importo:100,purchase_orders:{id:'o1',oda_number:'ODA-100',orders:{id:'c1',order_code:'C-1'}}},{importo:75.49,purchase_orders:{id:'o2',oda_number:'ODA-200',orders:{id:'c2',order_code:'C-2'}}}];
+    finto.dati['orders[]']=[{id:'c1',order_code:'C-1'},{id:'c2',order_code:'C-2'}];
+    apri();
+    const dati=await screen.findByLabelText('Dati del fornitore');
+    expect(dati.closest('.ricevuta-testata')).not.toBeNull();
+    expect(dati).toHaveTextContent('P.IVA IT01234567890');
+    expect(dati).toHaveTextContent('Via di prova 12');
+    expect(screen.getByRole('link',{name:/ODA-100.*100,00/})).toBeVisible();
+    expect(screen.getByRole('link',{name:/ODA-200.*75,49/})).toBeVisible();
+    expect(screen.getByRole('group',{name:'Azioni della fattura'}).closest('.ricevuta-testata-riga')).not.toBeNull();
+  });
   it("mostra targhe e DDT sulla riga corrispondente, precisione XML, causale e altri riferimenti nel popup", async () => {
     finto.dati.fatture_ricevute=conXml();
     apri();

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -55,6 +55,19 @@ const monta = (puoModificare = true, cedentePiva: string | null = null, permessi
 );
 
 describe("Collegamenti della fattura, come righe del riepilogo", () => {
+  it("mantiene più mezzi e rende consultabili tutti i DDT senza attribuire l’intera fattura a ogni mezzo",async()=>{
+    const originali=righe.fattura_ricevuta_mezzi;
+    righe.fattura_ricevuta_mezzi=[{id:'m1',mezzo_id:'v1',importo:60,confermata:true,mezzi:{nome:'Furgone',targa:'AA000AA'}},{id:'m2',mezzo_id:'v2',importo:null,confermata:true,mezzi:{nome:'Autocarro',targa:'BB111BB'}}];
+    try{
+      monta();
+      expect(await screen.findByText('Furgone · AA000AA')).toBeVisible();
+      expect(screen.getByText('Autocarro · BB111BB')).toBeVisible();
+      expect(screen.getByText('60,00 €')).toBeVisible();
+      expect(screen.getByText('quota da attribuire')).toBeVisible();
+      fireEvent.click(screen.getByRole('button',{name:'Altri 2'}));
+      for(let n=0;n<8;n++)expect(screen.getByText('DDT-'+n)).toBeVisible();
+    } finally {righe.fattura_ricevuta_mezzi=originali;}
+  });
   it("niente moduli a vista: mezzo da confermare, primi DDT e nota di credito", async () => {
     monta();
     expect(await screen.findByText(/Gru · AB123CD/)).toBeTruthy();

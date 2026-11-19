@@ -450,18 +450,29 @@ function ContenutoRiepilogo({
         className={`commessa-modal-layout ricevuta-riepilogo ${isMobile ? "max-h-[94dvh] rounded-t-2xl px-4 pb-4" : "max-h-[92dvh]"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
       >
         <SheetHeader data-ui="dialog-header" className="ricevuta-testata text-left space-y-2">
-          <SheetTitle className="pr-6 text-lg leading-tight">{String(f?.cedente_ragione_sociale || "Fattura ricevuta")}</SheetTitle>
+          <div className="ricevuta-testata-riga">
+            <div className="ricevuta-identita">
+              <SheetTitle className="ricevuta-fornitore text-lg leading-tight">{String(f?.cedente_ragione_sociale || "Fattura ricevuta")}</SheetTitle>
+              {f && (f.cedente_piva || f.cedente_cf || indirizzo) ? <div aria-label="Dati del fornitore" className="ricevuta-anagrafica text-muted-foreground">
+                <div className="flex flex-wrap gap-x-3">
+                  {f.cedente_piva ? <span>P.IVA {String(f.cedente_piva)}</span> : null}
+                  {f.cedente_cf && f.cedente_cf !== f.cedente_piva ? <span>C.F. {String(f.cedente_cf)}</span> : null}
+                </div>
+                {indirizzo ? <p>{indirizzo}</p> : null}
+              </div> : null}
+            </div>
+            {f && <div role="group" aria-label="Azioni della fattura" className="ricevuta-azioni">
+              {haXml && <>
+                <Button variant="outline" size="sm" title="Versione completa e stampa" aria-label="Versione completa e stampa" onClick={apriCompleta}><FileText />Versione completa</Button>
+                <Button variant="outline" size="sm" title="Scarica il file originale" aria-label="Scarica il file originale" onClick={() => void scaricaOriginale()}><Download />Originale</Button>
+              </>}
+              {permessi.canViewCosts && <Button variant="outline" size="sm" title="Confronta con DDT e ordini" aria-label="Confronta con DDT e ordini" onClick={() => setConfronto(true)}><ArrowLeftRight />DDT e ordini</Button>}
+            </div>}
+          </div>
           <SheetDescription className="text-sm">
             {f ? <>{nomeTipoDocumento(String(f.tipo_documento ?? ""))} n. {String(f.numero_fattura ?? "—")} · emessa il {formatDateShort(String(f.data_fattura ?? ""))}
               {f.data_ricezione_sdi ? ` · arrivata dallo SDI il ${formatDateShort(String(f.data_ricezione_sdi))}` : ""}</> : "Caricamento del documento"}
           </SheetDescription>
-          {f && <div role="group" aria-label="Azioni della fattura" className="ricevuta-azioni">
-            {haXml && <>
-              <Button variant="outline" size="sm" onClick={apriCompleta}><FileText className="h-4 w-4 mr-1.5" />Versione completa e stampa</Button>
-              <Button variant="outline" size="sm" onClick={() => void scaricaOriginale()}><Download className="h-4 w-4 mr-1.5" />Scarica il file originale</Button>
-            </>}
-            {permessi.canViewCosts && <Button variant="outline" size="sm" onClick={() => setConfronto(true)}><ArrowLeftRight className="mr-2 h-4 w-4" />Confronta con DDT e ordini</Button>}
-          </div>}
         </SheetHeader>
         <div className="commessa-modal-body">
         {isLoading || !f ? (
@@ -479,13 +490,8 @@ function ContenutoRiepilogo({
         ) : (
           <div className="space-y-5">
             {/* Fornitore: senza dati non resta un riquadro vuoto. */}
-            {(f.cedente_piva || f.cedente_cf || indirizzo || f.ai_riassunto || f.categoria_ai) ? (
+            {(f.ai_riassunto || f.categoria_ai) ? (
             <section className="rounded-lg border p-3 text-sm space-y-1">
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                {f.cedente_piva ? <span>P.IVA {String(f.cedente_piva)}</span> : null}
-                {f.cedente_cf && f.cedente_cf !== f.cedente_piva ? <span>C.F. {String(f.cedente_cf)}</span> : null}
-                {indirizzo ? <span>{indirizzo}</span> : null}
-              </div>
               {f.ai_riassunto ? (
                 <p className="flex gap-1.5 pt-1"><Sparkles className="h-4 w-4 shrink-0 text-primary mt-0.5" />{String(f.ai_riassunto)}</p>
               ) : null}
@@ -544,11 +550,11 @@ function ContenutoRiepilogo({
                   )}
                 </dd>
 
-                <dt className="text-muted-foreground">Ordine d'acquisto</dt>
+                <dt className="text-muted-foreground">Ordini d'acquisto</dt>
                 <dd className="flex flex-wrap items-center gap-1.5">
                   {d.ordini.length === 0 ? <span className="text-muted-foreground">Nessuno</span> : d.ordini.map((o) => (
-                    <Link key={o.id} to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${o.id}`, aspettoGenerale?.generaleId)} className="underline-offset-2 hover:underline">
-                      <Badge variant="outline">{o.oda_number}{o.importo != null ? ` · ${formatCurrency(o.importo)}` : ""}</Badge>
+                    <Link key={o.id} to={percorsoDocumentoGenerale(`/azienda/ordini-acquisto/${o.id}`, aspettoGenerale?.generaleId)} className="min-w-0 max-w-full underline-offset-2 hover:underline">
+                      <Badge variant="outline" className="max-w-full whitespace-normal text-left [overflow-wrap:anywhere]">{o.oda_number}{o.importo != null ? ` · ${formatCurrency(o.importo)}` : ""}</Badge>
                     </Link>
                   ))}
                   {azioni.onCollegaOrdine && f.stato !== "contabilizzata" ? (
@@ -571,7 +577,7 @@ function ContenutoRiepilogo({
                 <dt className="text-muted-foreground">Commessa</dt>
                 <dd className="min-w-0 space-y-1">
                   {permessi.canViewCosts && riparto.length > 0 ? (
-                    <table aria-label="Quote per destinazione" className="text-sm">
+                    <table aria-label="Quote per destinazione" className="ricevuta-quote text-sm">
                       <tbody>{riparto.map(r => <tr key={r.id ?? r.nome}>
                         <td className="pr-3">{r.id ? <Link title={r.nome} className="text-primary hover:underline" to={`/azienda/ordini/${r.id}`}>
                           {r.nome.split(" · ")[0]} · <span>{r.codice}</span>
