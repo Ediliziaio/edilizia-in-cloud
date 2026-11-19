@@ -432,6 +432,9 @@ interface RigaErrore {
   codice: number | null;
   azienda_nome: string | null;
   gravita: string;
+  categoria: "azione_richiesta" | "errore_tecnico";
+  numero_eventi: number;
+  primo_evento: string;
 }
 
 /**
@@ -441,18 +444,19 @@ interface RigaErrore {
  * Dalla segnalazione di un cliente non c'era modo di arrivare all'errore
  * corrispondente senza uscire dalla piattaforma.
  */
-function ErroriRecenti() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin-errori-recenti"],
+export function ErroriRecenti() {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["admin-errori-raggruppati"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_errori_recenti" as never, {
+      const { data, error } = await supabase.rpc("admin_errori_raggruppati" as never, {
         p_ore: 48,
-        p_limit: 60,
+        p_limit: 100,
       } as never);
       if (error) throw error;
       return (data ?? []) as unknown as RigaErrore[];
     },
     staleTime: 60_000,
+    refetchInterval: 120_000,
   });
 
   const righe = data ?? [];
@@ -462,12 +466,20 @@ function ErroriRecenti() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Errori nelle ultime 48 ore
+          Segnalazioni nelle ultime 48 ore
         </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Segnalazioni raggruppate per causa. Crediti, carta e abbonamento richiedono un intervento sull’account;
+          gli errori tecnici sono indicati separatamente. Il conteggio conserva tutti gli eventi del gruppo.
+        </p>
       </CardHeader>
       <CardContent className="p-0 overflow-x-auto">
         {isLoading && <div className="p-4"><Skeleton className="h-16 w-full" /></div>}
-        {!isLoading && righe.length === 0 && (
+        {error && <div role="alert" className="px-6 pb-4 text-sm text-destructive">
+          Non riesco a caricare le segnalazioni.
+          <Button variant="outline" size="sm" className="ml-2" onClick={() => refetch()}>Riprova</Button>
+        </div>}
+        {!isLoading && !error && righe.length === 0 && (
           <p className="text-sm text-muted-foreground px-6 pb-6">
             Nessun errore registrato. Man mano che la misurazione si estende alle
             altre funzioni, questa lista diventerà più rappresentativa.
@@ -477,7 +489,9 @@ function ErroriRecenti() {
           <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Quando</TableHead>
+                <TableHead>Ultimo evento</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Occorrenze</TableHead>
                 <TableHead>Origine</TableHead>
                 <TableHead>Componente</TableHead>
                 <TableHead>Messaggio</TableHead>
@@ -489,6 +503,12 @@ function ErroriRecenti() {
                 <TableRow key={`${e.origine}-${e.id}`}>
                   <TableCell className="text-xs whitespace-nowrap">
                     {formatDistanceToNow(new Date(e.avvenuto_il), { addSuffix: true, locale: it })}
+                  </TableCell>
+                  <TableCell><Badge variant={e.categoria === "azione_richiesta" ? "outline" : "destructive"}>
+                    {e.categoria === "azione_richiesta" ? "Azione richiesta" : "Errore tecnico"}
+                  </Badge></TableCell>
+                  <TableCell className="tabular-nums" title={`Primo evento: ${format(new Date(e.primo_evento), "dd/MM/yyyy HH:mm", { locale: it })}`}>
+                    {e.numero_eventi}
                   </TableCell>
                   <TableCell>
                     <Badge

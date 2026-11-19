@@ -25,11 +25,13 @@ import {
   channelMessagesQueryKey,
   readChannelMessagesHasOlder,
   readChannelMessagesItems,
+  refreshChannelMessages,
   upsertChannelMessage,
   type ChannelMessagesCache,
 } from "@/lib/chat/channelMessagesCache";
 import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAuth } from "@/contexts/AuthContext";
+import { useInternalChatUpdates } from "@/hooks/useInternalChatUpdates";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeErrorMessage } from "@/lib/edgeFunctionError";
@@ -331,6 +333,7 @@ function useInternalChat(companyIdOverride?: string) {
   const companyId = companyIdOverride ?? effectiveCompany?.id ?? authProfile?.company_id ?? null;
   const userId = user?.id;
   const queryClient = useQueryClient();
+  useInternalChatUpdates(companyId, userId);
 
   const {
     data: myMemberships = [],
@@ -411,6 +414,7 @@ function useInternalChat(companyIdOverride?: string) {
   const {
     data: profiles = [],
     isLoading: profilesLoading,
+    isError: profilesError,
     refetch: refetchProfiles,
   } = useQuery({
     queryKey: ["internal-chat-profiles", companyId, userId],
@@ -448,6 +452,9 @@ function useInternalChat(companyIdOverride?: string) {
         supabase.from("employees").select("user_id").eq("company_id", companyId!).not("user_id", "is", null),
         supabase.from("subappaltatori").select("user_id").eq("company_id", companyId!).not("user_id", "is", null),
       ]);
+      for (const result of [permissionsRes, employeesRes, subcontractorsRes]) {
+        if (result.error) throw result.error;
+      }
 
       const internalIds = new Set<string>();
       if (userId) internalIds.add(userId);
@@ -476,7 +483,9 @@ function useInternalChat(companyIdOverride?: string) {
   }, [profiles]);
 
   const myChannels = channels.filter((ch) => {
-    if (!members.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
+    // La membership personale è già verificata. Non far sparire la lista
+    // mentre la query dei dettagli degli altri partecipanti è ancora in corso.
+    if (!myMemberships.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
     // Le conversazioni multiple della pagina /azienda/silvio-ai sono canali
     // 'silvio-ai' con titolo personalizzato: NON devono comparire nella lista
     // Chat (vivono solo in quella pagina). Qui resta SOLO il Silvio canonico
@@ -504,7 +513,6 @@ function useInternalChat(companyIdOverride?: string) {
   //   (vedi useEffect sotto) → l'aggiornamento avviene sempre entro 15s anche
   //   se la realtime channel-specific fallisce.
   const channelIds = useMemo(() => myChannels.map((c) => c.id), [myChannels]);
-  const channelIdsKey = useMemo(() => channelIds.join("|"), [channelIds]);
   const {
     data: sidebarState = { lastMessages: {}, unreadCounts: {} },
     refetch: refetchSidebarState,
@@ -568,32 +576,6 @@ function useInternalChat(companyIdOverride?: string) {
   const lastMessages = sidebarState.lastMessages;
   const unreadCounts = sidebarState.unreadCounts;
 
-  // v8.6.50 — Realtime sub globale (no filtro channel_id) per garantire che
-  // la sidebar preview si aggiorni anche per i canali NON attivi (es. quando
-  // Silvio in un canale di background risponde). La sub channel-specific in
-  // useChannelMessages copre solo il canale aperto.
-  // Le notifiche browser sono gestite a livello componente (vedi InternalChat
-  // default export) per avere accesso a selectedChannelId/profileMap/handleSelect.
-  useEffect(() => {
-    if (!companyId || channelIds.length === 0) return;
-    const sub = supabase
-      .channel(`chat-list-${companyId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "internal_chat_messages",
-          filter: `company_id=eq.${companyId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(sub); };
-  }, [companyId, channelIds.length, channelIdsKey, queryClient]);
-
   const markChannelRead = useCallback(async (channelId: string) => {
     if (!userId) return;
     await supabase.from("internal_chat_members")
@@ -625,7 +607,7 @@ function useInternalChat(companyIdOverride?: string) {
     // aziende con molti canali. Il count membri compare quando arriva
     // (rendering condizionale già robusto a `members === []`).
     isLoading: membershipsLoading || channelsLoading,
-    isError: membershipsError || channelsError || membersError,
+    isError: membershipsError || channelsError || membersError || profilesError,
     refetchChatData: () => {
       refetchMemberships();
       refetchChannels();
@@ -663,12 +645,15 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         .limit(MESSAGES_PAGE_SIZE + 1);
       if (error) throw error;
       const rows = ((data ?? []).map(normalizzaMetadatiMessaggio));
-      return {
-        items: rows.slice(0, MESSAGES_PAGE_SIZE).reverse(),
-        hasOlder: rows.length > MESSAGES_PAGE_SIZE,
-      } satisfies ChannelMessagesData;
+      return refreshChannelMessages<Message>(
+        queryClient.getQueryData<ChannelMessagesData>(queryKey),
+        rows.slice(0, MESSAGES_PAGE_SIZE).reverse(),
+        rows.length > MESSAGES_PAGE_SIZE, MESSAGES_PAGE_SIZE,
+      );
     },
     retry: 2,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   });
 
   const messages = useMemo(() => readChannelMessagesItems<Message>(data), [data]);
@@ -728,7 +713,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         if (status === "SUBSCRIBED") void queryClient.invalidateQueries({ queryKey });
       });
     return () => { supabase.removeChannel(sub); };
-  }, [channelId, queryClient, onNewMessage]);
+  }, [channelId, queryClient, onNewMessage, queryKey]);
 
   return { messages, isError, refetch, hasOlder: readChannelMessagesHasOlder(data) ?? false, loadOlder, isLoadingOlder };
 }
@@ -1283,7 +1268,7 @@ interface InternalChatProps {
 export default function InternalChat({ companyIdOverride, embedded }: InternalChatProps = {}) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, profile: currentUserProfile, isImpersonating } = useAuth();
   const isCompanyAdmin = role === "company_admin" || role === "super_admin";
   const {
     channels, members, profiles, companyId, userId,
@@ -1334,11 +1319,12 @@ export default function InternalChat({ companyIdOverride, embedded }: InternalCh
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
+    if (currentUserProfile?.id === userId) m.set(userId, currentUserProfile);
     m.set(SILVIO_SENDER_ID, { id: SILVIO_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio@ediliziacloud.internal" });
     // Silvio Superadmin: stesso nome "Silvio" (visivamente identico al cliente)
     m.set(SILVIO_ADMIN_SENDER_ID, { id: SILVIO_ADMIN_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio-admin@ediliziacloud.internal" });
     return m;
-  }, [profiles]);
+  }, [profiles, currentUserProfile, userId]);
 
   const channelMembers = useMemo(
     () => members.filter((m) => m.channel_id === selectedChannelId),
@@ -2445,7 +2431,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 {searchQuery ? "Nessun risultato" : "Nessuna chat"}
               </p>
               <p className="text-[13px] text-muted-foreground mt-1">
-                Inizia una conversazione con una persona dell'azienda
+                {isImpersonating && role === "super_admin"
+                  ? "Vedi le chat del tuo account. Le conversazioni private dei colleghi restano visibili ai partecipanti."
+                  : "Inizia una conversazione con una persona dell'azienda"}
               </p>
               <div className="flex gap-2 mt-4">
                 <Button size="sm" variant="outline" className="rounded-full" onClick={() => setCreateDmOpen(true)}>

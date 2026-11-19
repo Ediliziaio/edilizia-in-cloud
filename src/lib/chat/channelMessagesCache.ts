@@ -63,3 +63,16 @@ export function upsertChannelMessage<TMsg extends { id: string }>(
   next[idx] = msg;
   return { items: next, hasOlder };
 }
+
+/** Un aggiornamento degli ultimi messaggi conserva le pagine già lette, se si sovrappongono. */
+export function refreshChannelMessages<TMsg extends { id: string }>(
+  previous: ChannelMessagesCacheInput<TMsg>, latest: TMsg[], hasOlder: boolean, pageSize: number,
+): ChannelMessagesCache<TMsg> {
+  const items = readChannelMessagesItems(previous);
+  const overlap = latest.length ? items.findIndex((item) => item.id === latest[0].id) : -1;
+  if (items.length <= pageSize || overlap < 0) return { items: latest, hasOlder };
+  return {
+    items: [...items.slice(0, overlap), ...latest],
+    hasOlder: readChannelMessagesHasOlder(previous) ?? hasOlder,
+  };
+}

@@ -16,6 +16,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { serveConMetricheRapida } from "../_shared/withMetricsRapida.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { callOpenRouterAddebitato, CreditoAiInsufficiente } from "../_shared/ai-provider/openrouterAddebitato.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -50,7 +52,7 @@ function extractDomain(email: string): string {
 }
 const PERSONAL_DOMAINS = new Set(["gmail.com", "libero.it", "hotmail.com", "outlook.com", "yahoo.it", "yahoo.com", "icloud.com", "tin.it", "virgilio.it", "alice.it", "pec.it"]);
 
-Deno.serve(async (req) => {
+export async function estraiOpportunita(req: Request): Promise<Response> {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
@@ -87,6 +89,19 @@ Deno.serve(async (req) => {
       .eq("id", emailId).maybeSingle();
     if (emErr || !email) return json({ error: "email_not_found" }, 404, cors);
 
+    const registraTentativo = async (esito: "credito" | "errore", errore: string) => {
+      const { error } = await supabase.rpc("email_opportunita_segna_tentativo", {
+        p_email_id: emailId, p_esito: esito, p_errore: errore.slice(0, 300),
+      });
+      if (error) throw new Error("Impossibile registrare il prossimo tentativo di estrazione");
+    };
+    const pagamento = await checkPaymentMethod(supabase, email.company_id);
+    if (!pagamento.allowed) {
+      const motivo = pagamento.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE;
+      await registraTentativo("credito", motivo);
+      return json({ error: motivo, code: "payment_method_required" }, 402, cors);
+    }
+
     const corpo = `${email.subject || ""}\n${stripHtml(email.raw_text, email.raw_html)}`.slice(0, 6000).trim();
 
     // ── Estrazione richiesta (Haiku via OpenRouter) ─────────────────────────
@@ -105,8 +120,13 @@ Deno.serve(async (req) => {
            idempotency_key: `email_opportunita_${email.id}`, estimated_tokens_total: 3000 });
       aiText = ai.content || "{}";
     } catch (e) {
-      if (e instanceof CreditoAiInsufficiente) return json({ error: "insufficient_credits", message: e.messaggio }, 402, cors);
-      return json({ error: "ai_error", detail: e instanceof Error ? e.message : String(e) }, 502, cors);
+      if (e instanceof CreditoAiInsufficiente) {
+        await registraTentativo("credito", e.messaggio);
+        return json({ error: "insufficient_credits", message: e.messaggio }, 402, cors);
+      }
+      const detail = e instanceof Error ? e.message : String(e);
+      await registraTentativo("errore", detail);
+      return json({ error: "ai_error", detail }, 502, cors);
     }
     let ext: any = {};
     try { const m = aiText.match(/\{[\s\S]*\}/); ext = m ? JSON.parse(m[0]) : {}; } catch { ext = {}; }
@@ -156,14 +176,21 @@ Deno.serve(async (req) => {
         created_by: createdBy,
       })
       .select("*").single();
-    if (insErr) return json({ error: "save_failed", detail: insErr.message }, 500, cors);
+    if (insErr) {
+      await registraTentativo("errore", insErr.message);
+      return json({ error: "save_failed", detail: insErr.message }, 500, cors);
+    }
+    const { error: clearError } = await supabase.from("email_opportunita_tentativi").delete().eq("email_id", emailId);
+    if (clearError) console.warn("[email-ai-opportunita] tentativo concluso non eliminato");
 
     return json({ ok: true, bozza, cliente_trovato: !!clienteMatchId, model: HAIKU_MODEL }, 200, cors);
   } catch (e) {
     console.error("[email-ai-opportunita] error", e);
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, cors);
   }
-});
+}
+
+serveConMetricheRapida("email-ai-opportunita", estraiOpportunita);
 
 function json(payload: any, status: number, headers: Record<string, string>) {
   return new Response(JSON.stringify(payload), { status, headers: { ...headers, "Content-Type": "application/json" } });
