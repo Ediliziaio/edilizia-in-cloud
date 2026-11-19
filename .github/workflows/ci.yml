@@ -118,6 +118,7 @@ jobs:
           src/test/security/scavoloContabilita.test.ts
           src/test/security/primaNotaFontiAllineate.test.ts
           src/test/security/primaNotaContiSpecifici.test.ts
+          src/test/logic/contiPrimaNota.test.ts
           src/test/ui/primaNotaBanche.test.tsx
           src/test/ui/primaNotaModifica.test.tsx
           src/test/ui/primaNotaUploadFallito.test.tsx

@@ -30,7 +30,7 @@ export function ExpensePaymentDialog({ costId, onClose }: {costId: string; onClo
   const detail = useExpensePaymentDetail(costId);
   const conti = useContiPrimaNota(detail.data?.company_id, editing);
   const disponibili = (conti.data ?? []).filter(c => {
-    const cassa = !c.bank_account_id && /cassa/i.test(c.account_label);
+    const cassa = c.cassa ?? (!c.bank_account_id && /cassa/i.test(c.account_label));
     return method === 'contanti' ? cassa : !cassa;
   });
   const scelto = disponibili.find(c => c.valore === conto);
