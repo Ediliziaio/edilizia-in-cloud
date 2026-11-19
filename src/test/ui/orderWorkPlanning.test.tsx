@@ -130,20 +130,20 @@ describe("Lavorazioni e squadra", () => {
   it("mostra una sola scheda di assegnazioni passando tra le schede di una fase", async () => {
     state.phases = [phase({ start_date: null, end_date: null })];
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
-    fireEvent.click(screen.getByRole("button", { name: "Assegna", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Assegna$/ }));
     const dialog = within(await screen.findByRole("dialog", { name: "Organizza il lavoro" }));
-    fireEvent.click(dialog.getByRole("button", { name: "Opere murarie", exact: true }));
+    fireEvent.click(dialog.getByRole("button", { name: /^Opere murarie$/ }));
 
     expect(dialog.getAllByLabelText("Assegnazioni di Opere murarie")).toHaveLength(1);
     expect(dialog.getByRole("region", { name: "Pianifica assegnazione" })).toBeVisible();
     expect(dialog.queryByRole("button", { name: "Completa le date: Opere murarie" })).not.toBeInTheDocument();
 
-    fireEvent.click(dialog.getByRole("button", { name: "Riepilogo", exact: true }));
+    fireEvent.click(dialog.getByRole("button", { name: /^Riepilogo$/ }));
     expect(dialog.getByRole("button", { name: "Completa le date: Opere murarie" })).toBeVisible();
-    fireEvent.click(dialog.getByRole("button", { name: "Chi lavora", exact: true }));
+    fireEvent.click(dialog.getByRole("button", { name: /^Chi lavora$/ }));
     fireEvent.click(dialog.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     expect(dialog.getAllByLabelText("Assegnazioni di Opere murarie")).toHaveLength(1);
-    expect(dialog.getByRole("button", { name: "Ditta", exact: true })).toBeVisible();
+    expect(dialog.getByRole("button", { name: /^Ditta$/ })).toBeVisible();
   });
   it.each(["pronto", "caricamento", "errore"])("raccoglie le figure nella stessa organizzazione, anche con fasi in stato %s", status => {
     state.loading = status === "caricamento";
