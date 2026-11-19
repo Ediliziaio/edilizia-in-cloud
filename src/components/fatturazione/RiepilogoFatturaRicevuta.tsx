@@ -107,7 +107,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, da_leggere, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, xml_raw, indice_corpo, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, da_leggere, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, xml_raw, indice_corpo, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_suggerito_motivo, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -593,12 +593,13 @@ function ContenutoRiepilogo({
                     </Button>
                     {d.suggerita && !riparto.some(r => r.id) && !(isTipoFornitore(d.fornitore?.tipo) && INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].commessa === "no") && (
                       <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <Sparkles className="h-3.5 w-3.5 text-primary" /><span>L'AI suggerisce</span>
+                        <Sparkles className="h-3.5 w-3.5 text-primary" /><span>{f.order_suggerito_motivo ? "Riferimento trovato" : "L'AI suggerisce"}</span>
                         <Badge variant="outline">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
                         <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>Collega</Button>
                       </div>
                     )}
                   </>}
+                  {permessi.canViewCosts && !d.ordini.length && !riparto.some(r => r.id) && f.order_suggerito_motivo ? <p className="text-xs text-muted-foreground">{String(f.order_suggerito_motivo)}</p> : null}
                 </dd>
 
                 {permessi.canViewCosts && (

@@ -70,6 +70,20 @@ beforeEach(() => {
 });
 
 describe("riepilogo della fattura ricevuta", () => {
+  it("mostra il riferimento del cliente che giustifica la proposta della commessa",async()=>{
+    finto.dati.fatture_ricevute={...FIC,order_id_suggerito:'o9',order_suggerito_motivo:'Da confermare: cliente Biemme citato nella causale'};
+    apri();
+    expect(await screen.findByText('Riferimento trovato')).toBeVisible();
+    expect(screen.getByText('Da confermare: cliente Biemme citato nella causale')).toBeVisible();
+    expect(screen.getByRole('button',{name:'Collega'})).toBeVisible();
+  });
+  it("spiega i riferimenti ambigui senza presentare una commessa già scelta",async()=>{
+    finto.dati.fatture_ricevute={...FIC,order_id_suggerito:null,order_suggerito_motivo:'Riferimenti da verificare: più cantieri dello stesso cliente'};
+    apri();
+    expect(await screen.findByText('Riferimenti da verificare: più cantieri dello stesso cliente')).toBeVisible();
+    expect(screen.queryByText('Riferimento trovato')).toBeNull();
+    expect(screen.getByRole('button',{name:'Ripartisci imponibile'})).toBeVisible();
+  });
   it("mantiene i dati fiscali nella testata del fornitore e mostra più ordini con le loro quote",async()=>{
     finto.dati.fatture_ricevute={...conXml(),stato:'contabilizzata',cedente_indirizzo:'Via di prova 12',cedente_comune:'Milano',cedente_cap:'20100'};
     finto.dati['fattura_ricevuta_ordini[]']=[{importo:100,purchase_orders:{id:'o1',oda_number:'ODA-100',orders:{id:'c1',order_code:'C-1'}}},{importo:75.49,purchase_orders:{id:'o2',oda_number:'ODA-200',orders:{id:'c2',order_code:'C-2'}}}];
