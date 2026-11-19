@@ -1,4 +1,4 @@
--- Da applicare e riallineare al registro solo al rilascio autorizzato.
+-- PR 150: rilascio autorizzato. Versione riservata dopo verifica del registro.
 -- Proiezione in lettura: nessuna scadenza/copertura/pagamento viene creato o modificato.
 set local lock_timeout = '3s';
 set local statement_timeout = '60s';

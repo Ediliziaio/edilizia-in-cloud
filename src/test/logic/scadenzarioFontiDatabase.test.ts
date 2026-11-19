@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { existsSync, readFileSync } from "node:fs";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-const nome = "20290420110000_scadenzario_fonti_commesse_costi.sql";
+const nome = "20290421110000_scadenzario_fonti_commesse_costi.sql";
 const sql = readFileSync(existsSync(`supabase/migrations/${nome}`) ? `supabase/migrations/${nome}` : `docs/migrazioni-pronte/${nome}`, "utf8");
 const a = "a0000000-0000-4000-a000-000000000001";
 const b = "b0000000-0000-4000-a000-000000000001";

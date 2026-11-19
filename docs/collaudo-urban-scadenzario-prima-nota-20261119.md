@@ -69,15 +69,16 @@ va letto sulla revisione della PR destinata al rilascio.
 
 ## Rilascio
 
-La migrazione pronta è
-`docs/migrazioni-pronte/20290420110000_scadenzario_fonti_commesse_costi.sql`.
-Resta fuori da `supabase/migrations` fino all'autorizzazione del rilascio, perché
-il controllo Supabase applica i file presenti in quella cartella al primo push.
+La migrazione è `supabase/migrations/20290421110000_scadenzario_fonti_commesse_costi.sql`.
+Il rilascio della PR 150, comprese le due RPC, è stato autorizzato dall'utente.
+La versione proposta inizialmente era già occupata dalla preparazione delle forniture:
+prima dell'applicazione è stata scelta e verificata libera `20290421110000`.
+La migrazione è stata applicata con MCP e il registro è stato immediatamente
+riallineato alla versione del file. Non sono richiesti backfill o cancellazioni
+di movimenti reali. Le RPC sono disponibili prima del frontend che le usa.
 
-Al rilascio autorizzato: verificare che la versione sia ancora libera, applicare
-con MCP `apply_migration`, riallineare immediatamente la versione nel registro,
-spostare il file in `supabase/migrations`, completare i controlli della revisione
-e fare merge. Le RPC vanno disponibili prima del frontend che le usa.
-Non sono richiesti backfill o cancellazioni di movimenti reali.
+Typecheck locale e CI della revisione iniziale sono passati; 113 test mirati in
+17 file superati. La revisione di rilascio ripete i controlli dopo l'allineamento
+con main e il trasferimento della migrazione nella cartella definitiva.
 
 Le personalizzazioni PDF della PR 149 restano separate da questa correzione.
