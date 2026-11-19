@@ -18,7 +18,7 @@ vi.mock("@/contexts/AuthContext", () => ({
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({ canEditSettingsOrders: true, solaLettura: state.solaLettura }),
 }));
-vi.mock("@/components/orders/PlaybookEditorDialog", () => ({ PlaybookEditorDialog: () => null }));
+vi.mock("@/components/orders/PlaybookEditorDialog", () => ({ PlaybookEditorDialog: (): null => null }));
 vi.mock("@/components/settings/OrderStatusConfig", () => ({ OrderStatusConfig: () => <p>Stati della pipeline principale</p> }));
 vi.mock("@/lib/orders/pipelineLocali", () => ({
   PRINCIPALE: "principale",
