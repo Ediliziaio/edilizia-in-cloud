@@ -97,6 +97,44 @@ export interface RigaOdaConsegna {
   discount_percent?: number | string | null;
   vat_rate?: number | string | null;
   price_pending?: boolean | null;
+  unit_of_measure?: string | null;
+}
+
+/** Le quantità si sommano solo fra righe con la stessa unità. */
+export function quantitaFornitura(righe: RigaOdaConsegna[]) {
+  const unita = new Map<string, { um: string; ordinate: number; ricevute: number; residue: number }>();
+  let complete = 0;
+  for (const r of righe) {
+    const ordinate = Math.max(0, num(r.quantity));
+    const ricevute = Math.max(0, num(r.quantity_received));
+    const um = r.unit_of_measure?.trim() || 'unità';
+    const q = unita.get(um) ?? { um, ordinate: 0, ricevute: 0, residue: 0 };
+    q.ordinate += ordinate;
+    q.ricevute += ricevute;
+    q.residue += Math.max(0, ordinate - ricevute);
+    unita.set(um, q);
+    if (ricevute >= ordinate) complete++;
+  }
+  return { complete, righe: righe.length, completa: righe.length > 0 && complete === righe.length, unita: [...unita.values()] };
+}
+
+export interface PagamentoFornitura {
+  id: string;
+  totale: number;
+  pagato: number;
+  residuo: number;
+  da_verificare: boolean;
+  /** Quota di una fattura ripartita su più ODA; il documento resta pagabile per intero. */
+  quota?: number;
+}
+
+export function totalePagamentiFornitura(dettagli: PagamentoFornitura[]) {
+  const unici = [...new Map(dettagli.map(d => [d.id, d])).values()];
+  const somma = (campo: 'totale' | 'pagato' | 'residuo') => Math.round(unici.reduce((s, d) => {
+    const quota = Math.max(0, Math.min(1, d.quota ?? 1));
+    return s + num(d[campo]) * quota;
+  }, 0) * 100) / 100;
+  return { totale: somma('totale'), pagato: somma('pagato'), residuo: somma('residuo'), daVerificare: unici.some(d => d.da_verificare) };
 }
 
 export interface ConsegnatoFatturato {

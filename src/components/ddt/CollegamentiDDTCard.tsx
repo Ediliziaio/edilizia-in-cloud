@@ -1,4 +1,5 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 // ============================================================================
 // CollegamentiDDTCard — a che cosa è legata una bolla, e come cambiarlo
 // ----------------------------------------------------------------------------
@@ -186,8 +187,7 @@ export function CollegamentiDDTCard({
       setBozza(null);
       if (!cambiato) return;
       toast.success("Collegamenti aggiornati");
-      for (const key of [["ddt-ricezione"], ["ddt-controllo-ordini"], ["ddt-righe-ordine"], ["purchase-orders"]])
-        void qc.invalidateQueries({ queryKey: key });
+      refreshMaterialQueries(qc);
     },
     onError: (e: Error) => toast.error("Collegamenti non salvati", { description: e.message }),
   });
@@ -530,8 +530,7 @@ function ScegliFattura({ ddt, onChiudi }: { ddt: DDTRicezioneWithJoins; onChiudi
       salvaCollegamentoDdt({ companyId: ddt.company_id, fatturaId, ddtId: ddt.id, numero: ddt.numero_ddt, data: ddt.data_ricezione }),
     onSuccess: () => {
       toast.success("Fattura collegata alla bolla");
-      void qc.invalidateQueries({ queryKey: ["ddt-fatture-collegate"] });
-      void qc.invalidateQueries({ queryKey: ["fattura-collegamenti"] });
+      refreshMaterialQueries(qc);
       onChiudi();
     },
     onError: (e: Error) => toast.error("Fattura non collegata", { description: e.message }),

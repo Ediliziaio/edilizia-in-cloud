@@ -4,6 +4,7 @@ import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorriment
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { AzioniInBloccoRicevute } from "@/components/fatturazione/AzioniInBloccoRicevute";
 import type { RicevutaInBlocco } from "@/lib/fatturazione/azioniInBlocco";
 import { PagamentoRicevutaCella, etichettaTipoRicevuta, isNotaCreditoRicevuta, usePagamentiParzialiRicevute, usePagamentiRicevute } from "@/components/fatturazione/PagamentoRicevuta";
@@ -806,14 +807,7 @@ export default function FattureRicevutePage() {
       return data as { esito: string; imponibile: number; fornitore_riconosciuto: boolean };
     },
     onSuccess: (esito, _id) => {
-      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
-      // NB: la chiave e' quella del registro condiviso — ["company-costs"]
-      // scritta a mano non corrisponde a nessuna query e la pagina Costi
-      // restava ferma sui dati vecchi.
-      queryClient.invalidateQueries({ queryKey: queryKeys.costs.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.companyCosts(companyId) });
-      queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
+      refreshFinancialQueries(queryClient);
       const dettaglio = esito.esito === "costo_ridotto"
         ? `Il costo dell'ordine collegato è stato ridotto della nota di credito (${formatCurrency(Math.abs(esito.imponibile))} imponibile).`
         : esito.esito === "costo_aggiornato"
@@ -907,10 +901,8 @@ export default function FattureRicevutePage() {
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
-      queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["fatture-quote-ordini"] });
-      queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
       setCollegaFattura(null);
       toast.success(
         v.quote.length === 0
@@ -929,13 +921,9 @@ export default function FattureRicevutePage() {
   // riga con le spunte, duplicati segnalati, esito. Qui resta solo cosa
   // ricaricare quando ha finito.
   const dopoImportazione = () => {
+    refreshFinancialQueries(queryClient);
     invalidaStatisticheFatturazione(queryClient, companyId);
     queryClient.invalidateQueries({ queryKey: ["anagrafiche-native", companyId] });
-    queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-    queryClient.invalidateQueries({ queryKey: ["fattura-ricevuta-riepilogo"] });
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    queryClient.invalidateQueries({ queryKey: ["fatture-emesse-importate", companyId] });
-    queryClient.invalidateQueries({ queryKey: ["emessa-importata-dettaglio", companyId] });
     queryClient.invalidateQueries({ queryKey: ["emessa-importata-originale", companyId] });
   };
 
@@ -1893,7 +1881,7 @@ export default function FattureRicevutePage() {
         onClose={() => setPdfInCoda((coda) => coda.slice(1))}
         onCaricata={() => {
           setPdfInCoda((coda) => coda.slice(1));
-          void queryClient.invalidateQueries({ queryKey: ["fatture-ricevute"] });
+          refreshFinancialQueries(queryClient);
         }}
       />
       {/* La fattura leggibile + stampa / PDF */}

@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-const m = vi.hoisted(() => ({ rpc: vi.fn() }));
+const m = vi.hoisted(() => ({ rpc: vi.fn(), documento: vi.fn(), collegate: vi.fn() }));
 vi.mock("@/hooks/usePermissions", () => ({
   usePermissions: () => ({
     canViewCosts: true,
@@ -28,12 +28,13 @@ vi.mock("@/hooks/useDDTRicezione", () => ({
 vi.mock("@/lib/ddt/documentiPersistenti", () => ({
   documentiDb: {
     rpc: m.rpc,
-    from: () => {
+    from: (tabella: string) => {
       const q = {
         select: () => q,
         eq: () => q,
+        maybeSingle: () => m.documento(),
         then: (resolve: any) =>
-          Promise.resolve({ data: [], error: null }).then(resolve),
+          (tabella === 'fattura_ddt' ? m.collegate() : Promise.resolve({ data: [], error: null })).then(resolve),
       };
       return q;
     },
@@ -47,9 +48,11 @@ const invoice = {
   cedente_ragione_sociale: "Fornitore prova",
 };
 const clients: QueryClient[] = [];
-beforeEach(() =>
-  m.rpc.mockReset().mockResolvedValue({ data: [invoice], error: null }),
-);
+beforeEach(() => {
+  m.rpc.mockReset().mockResolvedValue({ data: [invoice, { ...invoice, id: 'seconda', numero_fattura: '2020-46' }], error: null });
+  m.documento.mockReset().mockResolvedValue({ data: { id: 'fattura', righe: [{ descrizione: 'Rete', quantita: 1, unita_misura: 'mq', prezzo_unitario: 30, imponibile: 24 }] }, error: null });
+  m.collegate.mockReset().mockResolvedValue({ data: [], error: null });
+});
 afterEach(() => {
   for (const c of clients) c.clear();
   clients.length = 0;
@@ -113,4 +116,35 @@ it("un errore della ricerca mostra il ritentativo e permette di ricaricare le fa
   m.rpc.mockResolvedValue({ data: [invoice], error: null });
   fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
   await formOptions().findByRole("option", { name: /2020-45/ });
+});
+it('propone il prezzo scontato della fattura senza scritture e azzera i dati scegliendo un’altra fattura', async () => {
+  apri();
+  await formOptions().findByRole('option', { name: /2020-45/ });
+  changeFormControl(screen.getByLabelText('Fattura dello stesso fornitore'), { target: { value: 'fattura' } });
+  await waitFor(() => expect(screen.getByLabelText('Prezzo in fattura Rete')).toHaveValue('24'));
+  expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('1');
+  expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeDisabled();
+  expect(m.rpc.mock.calls.every(([nome]) => nome === 'ddt_fatture_fornitore')).toBe(true);
+  changeFormControl(screen.getByLabelText('Prezzo in fattura Rete'), { target: { value: '26' } });
+  expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('1');
+  fireEvent.click(screen.getByLabelText(/Ho confrontato le righe/));
+  expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeEnabled();
+  m.documento.mockResolvedValue({ data: { id: 'seconda', righe: [{ descrizione: 'Rete', quantita: 2, unita_misura: 'mq', prezzo_unitario: 40, imponibile: 80 }] }, error: null });
+  changeFormControl(screen.getByLabelText('Fattura dello stesso fornitore'), { target: { value: 'seconda' } });
+  await waitFor(() => expect(screen.getByLabelText('Prezzo in fattura Rete')).toHaveValue('40'));
+  expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('2');
+  expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeDisabled();
+  m.documento.mockResolvedValue({ data: { id: 'fattura', righe: [{ descrizione: 'Rete', quantita: 1, unita_misura: 'mq', prezzo_unitario: 30, imponibile: 24 }] }, error: null });
+  changeFormControl(screen.getByLabelText('Fattura dello stesso fornitore'), { target: { value: 'fattura' } });
+  await waitFor(() => expect(screen.getByLabelText('Prezzo in fattura Rete')).toHaveValue('24'));
+  expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeDisabled();
+});
+it('propone l’unica fattura già collegata al DDT senza chiedere di riselezionarla e senza scritture', async () => {
+  m.collegate.mockResolvedValue({ data: [{ id: 'link', numero_ddt: '1', fatture_ricevute: invoice }], error: null });
+  apri();
+  await waitFor(() => expect(screen.getByLabelText('Fattura dello stesso fornitore')).toHaveValue('fattura'));
+  await waitFor(() => expect(screen.getByLabelText('Prezzo in fattura Rete')).toHaveValue('24'));
+  expect(screen.getByLabelText('Quantità fatturata Rete')).toHaveValue('1');
+  expect(screen.getByRole('button', { name: 'Salva il confronto prezzi' })).toBeDisabled();
+  expect(m.rpc.mock.calls.every(([nome]) => nome === 'ddt_fatture_fornitore')).toBe(true);
 });

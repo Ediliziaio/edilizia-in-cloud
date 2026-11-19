@@ -5,6 +5,7 @@ import { it } from "date-fns/locale";
 import { formatCurrency } from "@/lib/formatters";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { useOrderEconomicsBase } from "@/hooks/useOrderEconomicsBase";
+import { useImpegniAcquisti } from "@/hooks/useImpegniAcquisti";
 import { useCostoPrevistoCommessa } from "@/hooks/useCostoPrevistoCommessa";
 import { useEsposizioneCommessa, type RataEsposizione } from "@/hooks/useEsposizioneCommessa";
 import type { EconItem } from "@/lib/orders/economics";
@@ -51,6 +52,10 @@ export function OrderFinancialOverview(props: Props) {
   const { totalAmount, vatRate, items, canViewAmounts, canViewMargins } = props;
   const canViewCosts = props.canViewCosts ?? canViewMargins;
   const { actual, quality, isPending, isError } = useOrderEconomicsBase(props.orderId, totalAmount, items, canViewMargins);
+  const impegni = useImpegniAcquisti(props.orderId, canViewMargins && canViewCosts);
+  const impegno = impegni.data?.impegno ?? 0;
+  const conImpegni = impegno > 0.005;
+  const distinzioneDisponibile = impegni.isSuccess;
   const previsto = useCostoPrevistoCommessa(props.orderId, canViewMargins);
   const { esposizione, isLoading: cassaLoading, isError: cassaError } = useEsposizioneCommessa({
     orderId: props.orderId,
@@ -98,7 +103,7 @@ export function OrderFinancialOverview(props: Props) {
       ? "Sui costi registrati"
     : scarto > 0.5
       ? `Oltre il previsto di ${formatCurrency(scarto)}`
-      : `Speso il ${fine.spesoPct}% del previsto · restano ${formatCurrency(fine.residuo)}`;
+      : `${conImpegni ? 'Coperto da costi e impegni' : 'Speso'} il ${fine.spesoPct}% del previsto · restano ${formatCurrency(fine.residuo)}`;
   const previstoHint = !previstoReady
     ? previsto.isError ? "Lavorazioni non disponibili" : "Caricamento lavorazioni…"
     : !numeri.previsto
@@ -180,27 +185,29 @@ export function OrderFinancialOverview(props: Props) {
           )}
           {canViewMargins && <>
             <Cella
-              label="Costi sostenuti"
+              label={conImpegni || !distinzioneDisponibile ? "Costi e impegni" : "Costi registrati"}
               value={costiReady ? formatCurrency(numeri.reale.costi) : "—"}
               hint={costiHint}
-              dettaglio={costiReady ? dettaglioCosti(actual) : undefined}
+              dettaglio={costiReady ? [dettaglioCosti(actual), distinzioneDisponibile
+                ? `${formatCurrency(Math.max(0, actual.costs - impegno))} costi registrati · ${formatCurrency(impegno)} impegni ODA oltre i costi registrati`
+                : impegni.isError ? 'Distinzione tra costi e impegni non disponibile' : 'Verifico gli impegni degli ordini…'].filter(Boolean).join(' · ') : undefined}
               progresso={fine ? Math.min(100, fine.spesoPct) : undefined}
-              progressoNome="Previsto già speso"
+              progressoNome={conImpegni ? "Previsto coperto da costi e impegni" : "Previsto già speso"}
               progressoColore={fine ? (fine.spesoPct > 100 ? "bg-red-400" : fine.spesoPct > 90 ? "bg-amber-400" : "bg-sky-400") : undefined}
               evidenza={canViewCosts && !cassaLoading && !cassaError && esposizione.daPagare > 0.005
                 ? `Da pagare ${formatCurrency(esposizione.daPagare)}`
-                : canViewCosts && !cassaLoading && !cassaError && costiReady && numeri.reale.costi > 0 ? "Tutto pagato" : undefined}
+                : canViewCosts && !cassaLoading && !cassaError && costiReady && numeri.reale.costi > 0 ? "Nessun costo registrato da pagare" : undefined}
               evidenzaTitolo="Costi registrati non ancora pagati (fatture, costi della commessa, provvigioni), IVA compresa. Gli ordini ai fornitori non ancora fatturati non ci sono."
               onClick={props.onOpenEconomics}
             />
             <Cella
-              label="Margine reale"
+              label={conImpegni || !distinzioneDisponibile ? "Margine con impegni" : "Margine su costi registrati"}
               value={realeReady ? formatCurrency(numeri.reale.margine) : "—"}
               aside={realeReady ? pctTesto(numeri.reale.marginePct) : undefined}
               evidenza={fine ? `A fine lavori ≈ ${formatCurrency(fine.margine)} · ${pctTesto(fine.marginePct)}` : undefined}
               evidenzaTitolo="Stima: ai costi sostenuti si aggiunge il previsto che resta da spendere. Se si è già oltre il previsto, contano i costi veri."
               evidenzaTono={fine && fine.margine < 0 ? "text-red-200" : "text-emerald-200"}
-              hint={!realeReady ? realeHint : fine && fine.residuo > 0.5 ? "Ad oggi: ricavo intero meno i costi fin qui" : quality.label}
+              hint={!realeReady ? realeHint : conImpegni ? 'Include gli impegni degli ODA, anche se non ancora fatturati' : fine && fine.residuo > 0.5 ? "Ad oggi: ricavo intero meno i costi registrati" : quality.label}
               tone={realeReady ? toneMargine(numeri.reale.margine, quality.status === "partial") : "text-white"}
               onClick={props.onOpenEconomics}
             />

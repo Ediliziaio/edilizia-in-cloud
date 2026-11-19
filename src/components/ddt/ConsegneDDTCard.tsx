@@ -1,4 +1,5 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import {
   useConsegneDDT,
   type ConsegnaDdt as Consegna,
@@ -288,22 +289,8 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
       setScelte({});
       setConfermo(false);
       toast.success("Consegna confermata: aggiornate solo le quantità scelte");
-      for (const key of [
-        ["ddt-consegne"],
-        ["ddt-controllo-ordini"],
-        ["ddt-righe-ordine"],
-        ["ddt-ricezione"],
-        ["fattura-confronto"],
-        queryKeys.ddtRicezione.all,
-        ["purchase-orders"],
-        ["purchase-order-items"],
-        ["order-items"],
-        ["order_items"],
-        ["materiali-per-fase"],
-        ["materiali"],
-        queryKeys.warehouse.all,
-      ])
-        void qc.invalidateQueries({ queryKey: key });
+      refreshMaterialQueries(qc);
+      void qc.invalidateQueries({ queryKey: queryKeys.warehouse.all });
     },
     onError: (e: Error) => {
       toast.error("Consegna non confermata", {
