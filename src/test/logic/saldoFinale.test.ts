@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { calculateCollectedGrossFromInstallments } from "@/lib/commissions";
+import { calcolaIvaContratto, lordoPattuitoConQuote } from "@/lib/orders/ivaMista";
 import { conSaldoFinale, importoSaldoFinale, indiceSaldoFinale, rateDaIncassare, sommaRateNonSaldo, type CommessaPerRate, type RataDaLeggere } from "@/lib/orders/saldoFinale";
 
 // DEMO-2024-H021: 211.764,71 + IVA 10% = 232.941,18; acconto, SAL intermedio e saldo.
@@ -75,9 +76,9 @@ describe("modifica commessa con una variante approvata", () => {
       { type: "balance", position: 1, amount: 39380 },
       { type: "balance", position: 2, amount: 29535 },
     ];
-    expect(importoSaldoFinale(rate, (86000 + 3500) * 1.1)).toBe(29535);
-    const codice = readFileSync(resolve(process.cwd(), "src/pages/azienda/EditOrder.tsx"), "utf8");
-    expect(codice).toContain("(total + variazioniApprovate) * (1 + vat / 100)");
+    const lordo = lordoPattuitoConQuote(86000 + 3500, 10, calcolaIvaContratto(86000, 10));
+    expect(lordo).toBe(98450);
+    expect(importoSaldoFinale(rate, lordo)).toBe(29535);
   });
 });
 

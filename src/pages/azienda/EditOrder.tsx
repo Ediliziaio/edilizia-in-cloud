@@ -1,7 +1,7 @@
 import {ScegliPianoPagamento} from "@/components/orders/ScegliPianoPagamento";
 import {pianoSalDaOrdine, verificaPianoSal, type PianoSalAperto} from "@/lib/orders/pianoSalAperto";
 import {verificaSupportoPianoSal} from "@/lib/orders/pianoSalServizio";
-import {calcolaIvaContratto, ivaMistaDaOrdine, IVA_MISTA, serializzaIvaMista, type QuoteIvaMista} from "@/lib/orders/ivaMista";
+import {calcolaIvaContratto, ivaMistaDaOrdine, IVA_MISTA, lordoPattuitoConQuote, serializzaIvaMista, type QuoteIvaMista} from "@/lib/orders/ivaMista";
 import {verificaSupportoIvaMista} from "@/lib/orders/ivaMistaServizio";
 import { emailDaMostrare, nomeCliente } from "@/lib/orders/nuovaCommessaProposte";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
@@ -249,7 +249,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const fiscal = calcolaIvaContratto(totalAmount, vatRate, vatSplit);
   const vat = fiscal.effectiveRate;
   const fCostForBalance = paymentType === "financing" ? (parseDecimalIT(financingCost)) : 0;
-  const totalWithVat = fiscal.gross + variazioniApprovate * (1 + vat / 100);
+  const totalWithVat = lordoPattuitoConQuote(total + variazioniApprovate, vat, fiscal);
   // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
   // e si tolgono dal residuo (stessa regola della vista in sola lettura).
   const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance, financingCostMode);
