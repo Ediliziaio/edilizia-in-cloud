@@ -160,6 +160,8 @@ export function PrezziDaFatturaCard({
         ["ddt-valorizzazioni"],
         queryKeys.ddtRicezione.all,
         ["order-items"],
+        ["order_items"],
+        ["materiali-per-fase"],
         ["materiali"],
         queryKeys.warehouse.stockAll,
         queryKeys.warehouse.itemsAll,

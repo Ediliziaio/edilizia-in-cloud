@@ -43,6 +43,37 @@ function disegna(onScelto = vi.fn()) {
 }
 
 describe("Collegare una fattura a più ordini", () => {
+  it("una nuova fattura parte senza ordini, quote e ricerca della precedente", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const props = { open: true, onOpenChange: vi.fn(), companyId: "co", fattura: FATTURA, onScelto: vi.fn() };
+    const vista = (p = props) => <QueryClientProvider client={qc}><CollegaOrdineFatturaDialog {...p} /></QueryClientProvider>;
+    const { rerender } = render(vista());
+    await screen.findByText("ODA-2026-001");
+    fireEvent.click(screen.getByRole("checkbox", { name: /ODA-2026-001/ }));
+    fireEvent.change(screen.getByPlaceholderText("Cerca per numero ordine o fornitore..."), { target: { value: "ODA-2026-001" } });
+    // Il chiamante chiude dopo il salvataggio senza passare da onOpenChange.
+    rerender(vista({ ...props, open: false }));
+    rerender(vista({ ...props, fattura: { ...FATTURA, id: "f2", imponibile_totale: 700 } }));
+    await screen.findByText("ODA-2026-002");
+    expect((screen.getByPlaceholderText("Cerca per numero ordine o fornitore...") as HTMLInputElement).value).toBe("");
+    expect(screen.getAllByRole("checkbox").every(x => !(x as HTMLInputElement).checked)).toBe(true);
+    expect((screen.getByRole("button", { name: "Collega" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: /ODA-2026-002/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Collega" }));
+    expect(props.onScelto).toHaveBeenCalledWith([{ purchase_order_id: "b", importo: 700 }]);
+  });
+
+  it("chiudere e riaprire la stessa fattura azzera una scelta non salvata", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const vista = (open: boolean) => <QueryClientProvider client={qc}><CollegaOrdineFatturaDialog open={open} onOpenChange={() => {}} companyId="co" fattura={FATTURA} onScelto={vi.fn()} /></QueryClientProvider>;
+    const { rerender } = render(vista(true));
+    await screen.findByText("ODA-2026-001");
+    fireEvent.click(screen.getByRole("checkbox", { name: /ODA-2026-001/ }));
+    rerender(vista(false));
+    rerender(vista(true));
+    await screen.findByText("ODA-2026-001");
+    expect(screen.getAllByRole("checkbox").every(x => !(x as HTMLInputElement).checked)).toBe(true);
+  });
   it("un ordine solo: tutta la fattura su quello", async () => {
     const onScelto = disegna();
     await screen.findByText("ODA-2026-001");

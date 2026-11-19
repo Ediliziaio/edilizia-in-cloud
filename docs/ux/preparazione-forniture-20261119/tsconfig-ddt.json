@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.app.json",
+  "compilerOptions": { "incremental": false, "types": ["vitest/globals", "node"] },
+  "include": [
+    "../../../src/components/fatturazione/CollegaOrdineFatturaDialog.tsx",
+    "../../../src/components/ddt/ConsegneDDTCard.tsx",
+    "../../../src/components/ddt/PrezziDaFatturaCard.tsx",
+    "../../../src/components/orders/articoli/FormSuMisura.tsx",
+    "../../../src/components/orders/materiali/MaterialiPerFase.tsx",
+    "../../../src/lib/orders/preparazioneForniture.ts",
+    "../../../src/test/logic/materialiPrezziDocumentiSql.test.ts",
+    "../../../src/test/ui/collegaOrdiniFattura.test.tsx",
+    "../../../src/test/logic/preparazioneForniture.test.ts",
+    "../../../src/**/*.d.ts",
+    "../../../src/test/setup.ts"
+  ]
+}

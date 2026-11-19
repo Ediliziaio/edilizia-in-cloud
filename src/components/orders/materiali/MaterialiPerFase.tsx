@@ -125,6 +125,8 @@ const ICONA_FONTE: Record<FontePrezzo, typeof Library> = {
   scomposizione: Layers,
   offerta: FileCheck,
   ordine: ShoppingCart,
+  ddt: FileCheck,
+  fattura: FileCheck,
   manuale: PenLine,
 };
 

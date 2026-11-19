@@ -73,7 +73,7 @@ let contatore = 0;
 const nuovaChiave = () => `pos-${++contatore}`;
 const posizioneVuota = (riferimento: string): PosizioneBozza => ({ chiave: nuovaChiave(), riferimento, larghezza: "", altezza: "", pezzi: "1", costo: "" });
 
-const COSTI_DA_TENERE = new Set(["manuale", "ordine", "offerta"]);
+const COSTI_DA_TENERE = new Set(["manuale", "ordine", "offerta", "ddt", "fattura"]);
 
 function daRiga(r: OrderItem, indice: number): PosizioneBozza {
   return {
