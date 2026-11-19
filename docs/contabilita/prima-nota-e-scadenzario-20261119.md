@@ -63,6 +63,14 @@ La ricostruzione completa dello storico non gira su questa macchina perché
 Docker è assente: viene verificata dal relativo job CI, insieme a typecheck e
 build. Il rilascio richiede l'esito dei controlli della PR.
 
+La preview da zero ha inoltre rilevato un `LOCK TABLE` fuori transazione nella
+migrazione storica `20290317151100`. Il file ora dichiara `BEGIN`/`COMMIT`, come
+le altre migrazioni con lock; le regole SQL rimangono le stesse. Il database
+principale l'aveva già applicata con MCP dentro una transazione e non viene
+rieseguita. La prima ricostruzione e un push successivo della PR avevano anche
+avviato due esecuzioni concorrenti sulla stessa preview: il secondo tentativo
+si era fermato per versione duplicata, senza duplicati nei file.
+
 Rollback applicativo: revert dei file frontend. Il vecchio percorso continua
 a funzionare con i nuovi oggetti presenti. Se serve sospendere le notifiche,
 rimuovere i quindici trigger `finanza_revisione` con una nuova migrazione;
