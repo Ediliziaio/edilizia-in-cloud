@@ -234,6 +234,28 @@ describe("Hub fatture per chi fattura con un altro programma", () => {
   });
 });
 
+describe("Fatture in bozza", () => {
+  it("ha un accesso visibile che azzera la ricerca e apre la vista filtrata", () => {
+    s.esterna = false;
+    s.documenti = [];
+    monta("/azienda/documenti?cerca=cliente");
+    fireEvent.click(screen.getByRole("button", { name: "Fatture in bozza" }));
+    expect(screen.getByRole("button", { name: "Fatture in bozza" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti?stato=bozza");
+    expect(screen.getByText("Nessuna fattura in bozza")).toBeInTheDocument();
+    expect(s.filtri.at(-1)).toMatchObject({ stato: ["bozza"], ordinamento: "aggiornamento", page: 0, search: undefined });
+  });
+
+  it("il collegamento diretto apre la lista e consente di riprendere una bozza", () => {
+    s.esterna = false;
+    s.documenti = [{ ...importata, id: "b-1", origine: "nativa", numero: "Bozza B0000001", stato: "bozza" }];
+    monta("/azienda/documenti?stato=bozza");
+    expect(s.filtri.at(-1)).toMatchObject({ stato: ["bozza"], ordinamento: "aggiornamento" });
+    fireEvent.click(screen.getAllByText("Bozza B0000001")[0]);
+    expect(screen.getByTestId("dove")).toHaveTextContent("/azienda/documenti/b-1");
+  });
+});
+
 describe("Rotte e menu: una pagina sola", () => {
   it("/azienda/documenti non chiede più il modo nativo; creare sì", () => {
     expect(sorgenteRotte).toMatch(/path="documenti" element=\{withCompanyPermissionOrCommercialista\("canViewBilling", <FeatureRoute featureKey="documenti"><DocumentiFiscaliList \/>/);

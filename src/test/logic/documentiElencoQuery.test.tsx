@@ -55,4 +55,13 @@ describe("Query elenco fatture: archivio, azienda e filtri combinati", () => {
     expect(s.ops).toContainEqual(["from", "documenti_fiscali_elenco"]);
     expect(s.ops.find(o => o[0] === "or")?.[1]).toContain("data_emissione.eq.2026-11-12");
   });
+  it("ordina le bozze dalla modifica più recente nel perimetro della stessa azienda", async () => {
+    const { result } = renderHook(() => useDocumentiFiscali({ conImportate: true, stato: ["bozza"], ordinamento: "aggiornamento" }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(s.ops).toContainEqual(["eq", "company_id", "azienda-a"]);
+    expect(s.ops).toContainEqual(["is", "deleted_at", null]);
+    expect(s.ops).toContainEqual(["in", "stato", ["bozza"]]);
+    const ordini = s.ops.filter((o) => o[0] === "order");
+    expect(ordini).toEqual([["order", "updated_at", { ascending: false }], ["order", "id", { ascending: false }]]);
+  });
 });

@@ -1,5 +1,12 @@
-import type { DocumentoFiscale } from "@/types/fatturazione";
+import type { DocumentoFiscale, TipoDocumento } from "@/types/fatturazione";
 import { residuoDaIncassare } from "./incassi";
+
+export const PERCORSO_FATTURE_IN_BOZZA = "/azienda/documenti?stato=bozza";
+export const TIPI_ELENCO_FATTURE: TipoDocumento[] = [
+  "fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "reverse_charge_interno",
+  "integrazione_servizi_estero", "integrazione_beni_ue", "integrazione_beni_extra_ue",
+  "autofattura", "nota_debito", "fattura_riepilogativa",
+];
 
 /** Un'unica scelta per desktop e telefono; emissione e invio SDI sono distinti. */
 export const STATI_FILTRO_DOCUMENTI = [
