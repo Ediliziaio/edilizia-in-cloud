@@ -13,7 +13,7 @@
  */
 import { normalizzaUnita } from "./generaDistinta";
 
-export type FontePrezzo = "listino" | "ultimo_acquisto" | "scomposizione" | "offerta" | "ordine" | "manuale";
+export type FontePrezzo = "listino" | "ultimo_acquisto" | "scomposizione" | "offerta" | "ordine" | "manuale" | "ddt" | "fattura";
 
 export const ETICHETTA_FONTE_PREZZO: Record<FontePrezzo, string> = {
   listino: "Listino",
@@ -22,6 +22,8 @@ export const ETICHETTA_FONTE_PREZZO: Record<FontePrezzo, string> = {
   offerta: "Offerta aggiudicata",
   ordine: "Ordine",
   manuale: "Scritto a mano",
+  ddt: "DDT confermato",
+  fattura: "Fattura ricevuta",
 };
 
 export interface PrezzoProposto {
@@ -78,7 +80,7 @@ export function scegliPrezzo(d: DatiPrezzo): PrezzoProposto | null {
 /** Il prezzo che la riga ha già, con la fonte (le righe di prima non la scrivevano). */
 export function prezzoAttuale(m: { purchase_price?: number | null; prezzo_fonte?: string | null; article_template_id?: string | null }): PrezzoProposto | null {
   const p = numero(m.purchase_price);
-  if (!positivo(p)) return null;
+  if (p == null || p < 0 || (p === 0 && !m.prezzo_fonte)) return null;
   const fonte = (m.prezzo_fonte as FontePrezzo | null) ?? (m.article_template_id ? "listino" : "manuale");
   return { prezzo: p, fonte: ETICHETTA_FONTE_PREZZO[fonte] ? fonte : "manuale", dettaglio: null };
 }

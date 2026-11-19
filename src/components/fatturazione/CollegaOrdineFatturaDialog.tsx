@@ -58,7 +58,13 @@ function normFiscale(v: string | null | undefined): string {
   return (v ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^IT/, "");
 }
 
-export function CollegaOrdineFatturaDialog({
+export function CollegaOrdineFatturaDialog(props: Props) {
+  // Il salvataggio chiude dal chiamante: onOpenChange non passa sempre da
+  // chiudi(). Una nuova fattura o una riapertura deve avere una scelta vuota.
+  return <SceltaOrdiniFattura key={`${props.companyId}:${props.fattura?.id}:${props.open}`} {...props} />;
+}
+
+function SceltaOrdiniFattura({
   open, onOpenChange, companyId, fattura, onScelto, saving,
 }: Props) {
   const [ricerca, setRicerca] = useState("");

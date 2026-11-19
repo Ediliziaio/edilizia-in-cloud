@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { catalogoComeScomposizioni, SCOMPOSIZIONI_STANDARD, vociPerImport } from "@/lib/distinta/scomposizioniStandard";
 import { generaDistinta, normalizzaTesto, trovaScomposizione } from "@/lib/distinta/generaDistinta";
-import { prezzoAttuale, scegliPrezzo, totaleStimato, chiaveDescrizione } from "@/lib/distinta/prezziMateriali";
+import { prezzoAttuale, scegliPrezzo, totaleStimato, chiaveDescrizione, ETICHETTA_FONTE_PREZZO } from "@/lib/distinta/prezziMateriali";
 import { capitoliIncerti, fondiProposte, leggiSuggerimentiFase, VALORE_NUOVA, VALORE_SENZA, type SuggerimentoFase } from "@/lib/distinta/faseProposta";
 import { propostaFasi } from "@/lib/distinta/fasiMateriali";
 import { conteggioStati, eliminabile, eMateriale, filtraPerFonte, ordinaRighe } from "@/lib/distinta/elencoArticoli";
@@ -106,6 +106,11 @@ describe("prezzo d'acquisto proposto: priorità delle fonti", () => {
   });
   it("il prezzo già scritto vince; totale con i proposti e i mancanti", () => {
     expect(prezzoAttuale({ purchase_price: 3, prezzo_fonte: "offerta" })?.fonte).toBe("offerta");
+    expect(prezzoAttuale({ purchase_price: 3, prezzo_fonte: "fattura" })?.fonte).toBe("fattura");
+    expect(ETICHETTA_FONTE_PREZZO.fattura).toBe("Fattura ricevuta");
+    expect(ETICHETTA_FONTE_PREZZO.ddt).toBe("DDT confermato");
+    expect(prezzoAttuale({ purchase_price: 0, prezzo_fonte: "fattura" })).toMatchObject({ prezzo: 0, fonte: "fattura" });
+    expect(prezzoAttuale({ purchase_price: 0 })).toBeNull();
     expect(prezzoAttuale({ purchase_price: 3, article_template_id: "a" })?.fonte).toBe("listino");
     const t = totaleStimato(
       [{ id: "a", quantity: 2, purchase_price: 10 }, { id: "b", quantity: 3, purchase_price: 0 }, { id: "c", quantity: 1 }],

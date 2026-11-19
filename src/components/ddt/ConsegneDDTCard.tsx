@@ -299,6 +299,7 @@ export function ConsegneDDTCard({ ddt }: { ddt: DDTRicezione }) {
         ["purchase-order-items"],
         ["order-items"],
         ["order_items"],
+        ["materiali-per-fase"],
         ["materiali"],
         queryKeys.warehouse.all,
       ])

@@ -1,7 +1,11 @@
 import { expect, it } from "vitest";
-import { nuovaRigaPreparazione, calcolaPreparazione, cambiaBaseIva, articoloDaPreparazione, ripartisciPreparazione, errorePrecisioneOda, numeroCampo, type RigaPreparazione } from "@/lib/orders/preparazioneForniture";
+import { nuovaRigaPreparazione, calcolaPreparazione, cambiaBaseIva, articoloDaPreparazione, ripartisciPreparazione, errorePrecisioneOda, numeroCampo, fontePrezzoArticolo, type RigaPreparazione } from "@/lib/orders/preparazioneForniture";
 const riga = (q=3, rate=22): RigaPreparazione => nuovaRigaPreparazione({name:"Prodotto",quantity:q,status:"da_ordinare",position:0,vat_rate:rate,purchase_price:0},"riga");
 const prezzo = (r: RigaPreparazione, valore:string, modo:"unitario"|"totale"="unitario",ivato=false):RigaPreparazione => ({...r,prezzo:{versione:1,modo,ivato,valore}});
+it("mostra la fonte DDT o fattura anche per gli articoli preparati prima della consegna",()=>{
+ expect(fontePrezzoArticolo({prezzo_fonte:'fattura'})).toBe('Fattura ricevuta');
+ expect(fontePrezzoArticolo({prezzo_fonte:'ddt',stock_item_id:'origine-magazzino'})).toBe('DDT confermato');
+});
 it("unitario e totale riga hanno comportamenti distinti al cambio quantità",()=>{
  const u=prezzo(riga(),"10"), t=prezzo(riga(),"30","totale");
  expect(calcolaPreparazione({...u,quantita:"5"}).netto).toBe(50);

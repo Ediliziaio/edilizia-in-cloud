@@ -110,6 +110,8 @@ export function articoloDaPreparazione(r: RigaPreparazione): OrderItem {
 }
 
 export function fontePrezzoArticolo(a: Pick<OrderItem, "stock_item_id" | "ddt_riga_origine_id" | "prezzo_fonte">): string {
+  if (a.prezzo_fonte === "fattura") return "Fattura ricevuta";
+  if (a.prezzo_fonte === "ddt") return "DDT confermato";
   if (a.ddt_riga_origine_id) return "DDT / fattura collegata";
   if (a.stock_item_id) return "Magazzino";
   if (a.prezzo_fonte === "ordine") return "ODA";
