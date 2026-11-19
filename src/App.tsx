@@ -575,7 +575,6 @@ const App = () => (
       },
     }}
   >
-    <FinancialRefreshBridge />
     <TooltipProvider>
      <ConfirmProvider>
       {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}
@@ -598,6 +597,7 @@ const App = () => (
           <MobileBootstrap />
         </Suspense>
         <AuthProvider>
+          <FinancialRefreshBridge />
           <PaymentGateDialog />
           <AnalyticsProvider>
           <Force2FAGuard>
