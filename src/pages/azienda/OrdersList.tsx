@@ -1,5 +1,5 @@
 import {AvvisoAttesaCommesse} from "@/components/orders/AvvisoAttesaCommesse";
-import {withAbortableClientTimeout,withClientTimeout} from "@/lib/query-timeout";
+import {withAbortableClientTimeout} from "@/lib/query-timeout";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
@@ -7,7 +7,7 @@ import {OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
 import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
-import {readOrdersPage, soloQuesteCommesse} from "@/lib/orders/listQuery";
+import {readOrdersPage, soloQuesteCommesse, type OrdersReaderFilters} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
 import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
@@ -37,18 +37,18 @@ const OrderCommissionsOverview = lazy(() =>
   }))
 );
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
-import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
-import SupplierRfqsList from "@/pages/azienda/SupplierRfqsList";
-import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
-import GlobalErrors from "@/pages/azienda/GlobalErrors";
-import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
+const PurchaseOrdersList = lazy(() => import("@/pages/azienda/PurchaseOrdersList"));
+const SupplierRfqsList = lazy(() => import("@/pages/azienda/SupplierRfqsList"));
+const DDTRicezioneList = lazy(() => import("@/pages/azienda/DDTRicezioneList"));
+const GlobalErrors = lazy(() => import("@/pages/azienda/GlobalErrors"));
+const MarginalitaCantieri = lazy(() => import("@/pages/azienda/MarginalitaCantieri"));
 import { format } from "date-fns";
 import { annualComparisonPeriod, comparableOrderMonths, orderChartMonthFilter } from "@/lib/orders/monthlyChart";
 import { OrdersMarginSummary } from "@/components/orders/OrdersMarginSummary";
 import { OrdersSummaryCard } from "@/components/orders/OrdersSummaryCard";
 import { directMarginSummary, groupedSummaryCards, netOrderTotals } from "@/lib/orders/summaryIndicators";
 import { useOrdersPayables } from "@/hooks/useOrdersPayables";
-import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
+const OrdersMonthlyChart = lazy(() => import("@/components/orders/OrdersMonthlyChart").then(module => ({default: module.OrdersMonthlyChart})));
 
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -300,18 +300,16 @@ function OrdersListInner() {
     ? workflowStatuses.reduce((max, s) => s.position > max.position ? s : max, workflowStatuses[0]).id
     : null;
 
-  // KPI stats principali: reagiscono solo all'annualità, non ai filtri operativi
-  // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
-  // ma possono essere letti per anno quando serve.
-  const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
-    queryKey: ["orders-global-stats", "annual-management-v4-vat", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
+  // Il perimetro del pregresso alimenta i filtri prima dei totali aziendali.
+  const { data: gestione, dataUpdatedAt: gestioneResultAt, isError: errorePerimetro, refetch: ricaricaPerimetro } = useQuery({
+    queryKey: ["orders-global-stats", "perimetro-gestione-v1", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets],
     queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
-      const EMPTY = { annualVat: netOrderTotals([]), annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[], unitaInVenditaIds: [] as string[] };
-      if (!effectiveCompany?.id) return EMPTY;
+      const companyId = effectiveCompany?.id;
+      if (!companyId) throw new Error("Azienda non disponibile.");
       let query = supabase
         .from("orders")
         .select("id, created_at, customer_id, expected_date, work_start_date, total_amount, vat_rate, vat_breakdown, deposit_amount, deposit_2_amount, balance_amount, deposit_paid, deposit_2_paid, balance_paid, financing_amount, financing_cost, financing_paid, payment_type, current_status_id, deposit_expected_date, deposit_2_expected_date, balance_expected_date, financing_expected_date, installments:order_installments(position, type, amount, is_paid, paid_date, expected_date, fattura:documenti_fiscali(id, importo_pagato)), variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at)")
-        .eq("company_id", effectiveCompany.id)
+        .eq("company_id", companyId)
         .is("deleted_at", null);
       if (isYearCorrente) query = query.lt("created_at",new Date(currentYear + 1,0,1).toISOString());
       if (!isYearCorrente && hasSelectedYear && selectedYear) {
@@ -320,58 +318,24 @@ function OrdersListInner() {
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
       }
       query = query.order("id").abortSignal(readSignal);
-      const allRows = await leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from, to) => query.range(from, to)) as unknown as OrderWithDetails[]);
-      readSignal.throwIfAborted();
-      const tickets = orderPerms.canViewTickets ? await readAllOrderRows((from,to) => supabase.from("tickets")
-        .select("id, order_id, status").eq("company_id",effectiveCompany.id).not("order_id","is",null)
-        .not("status","in",`(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from,to).abortSignal(readSignal)) : [];
+      const [allRows, tickets] = await Promise.all([
+        readAllOrderRows((from, to) => query.range(from, to))
+          .then(rows => leggiModalitaCommesse(companyId, rows as unknown as OrderWithDetails[], readSignal)),
+        orderPerms.canViewTickets ? readAllOrderRows((from, to) => supabase.from("tickets")
+          .select("order_id").eq("company_id", companyId).not("order_id", "is", null)
+          .not("status", "in", `(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from, to).abortSignal(readSignal)) : [],
+      ]);
       readSignal.throwIfAborted();
       const ticketIds = new Set(tickets.flatMap(ticket => ticket.order_id ? [ticket.order_id] : []));
       const rows = isYearCorrente ? currentManagementScope(allRows,currentYear,lastStatusId,supportStatusId,ticketIds) : allRows;
-      // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
-      const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
-      // Caparre, acconti e saldi delle unità in vendita contano come incassato anche nei riquadri in alto.
-      readSignal.throwIfAborted();
-      const { incassi: incassiUnita, permute: permuteUnita, statoVendita } = generaliConfigurate ? await leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined, statoVendita: undefined };
-      const generali = new Set(generaliIds);
-      // Nemmeno le unità ancora in vendita: sono appartamenti da vendere, non lavori né crediti
-      // (44 unità di URBAN VISION contavano come 44 contratti firmati da incassare, 14/11).
-      const righeCheContano = generali.size
-        ? rows.filter(order => !generali.has(order.id) && !unitaInVendita(statoVendita?.get(order.id)))
-        : rows;
-      const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
-      const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
-      const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
-      const annualVat = netOrderTotals(annualRows.map(order => ({ ...orderEconomics([order], incassiUnita, permuteUnita), vatRate: order.vat_rate })));
-      const previous = orderEconomics(previousRows, incassiUnita, permuteUnita);
-      const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
-      const reasons = {work:0,support:0,payment:0};
-      Object.values(previousReasons).forEach(values => {
-        if (values.includes("Lavori aperti")) reasons.work++;
-        if (values.includes("Assistenza aperta")) reasons.support++;
-        if (values.includes("Saldo da incassare")) reasons.payment++;
-      });
       const supportOrderIds = rows.filter(order => (!!supportStatusId && order.current_status_id === supportStatusId) || ticketIds.has(order.id)).map(order => order.id);
-      const totalGross = annual.sold;
-      const collected = annual.collected;
-      const pending = annual.pending;
-      let countAssistenza = 0;
-      let countCompletati = 0;
-      for (const o of righeCheContano) {
-        if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) countAssistenza++;
-        else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
-      }
-      const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
-      const unitaInVenditaIds = [...(statoVendita?.entries() ?? [])].filter(([, v]) => unitaInVendita(v)).map(([id]) => id);
-      return { annualVat, annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds, unitaInVenditaIds };
-    }, "Riepilogo commesse", 20_000, signal),
+      return { rows, ticketIds: [...ticketIds], supportOrderIds };
+    }, "Perimetro commesse", 20_000, signal),
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: "always",
     staleTime: 5 * 60 * 1000,
   });
 
-  const scopeOrders = globalStats?.scopeRows ?? EMPTY_ORDERS;
+  const scopeOrders = gestione?.rows ?? EMPTY_ORDERS;
   const paymentIds = useMemo(() => paymentFilter === "all" && sidebarFilters.paymentStatus === "all" ? null :
     scopeOrders.filter(order => matchesOrderPayment(order, paymentFilter) && matchesOrderPayment(order, sidebarFilters.paymentStatus)).map(order => order.id),
     [scopeOrders, paymentFilter, sidebarFilters.paymentStatus]);
@@ -379,7 +343,7 @@ function OrdersListInner() {
   const listScopeIds = useMemo(() => orderScopeGroupIds(scopeOrders,scopeGroup,currentYear), [scopeOrders,scopeGroup,currentYear]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
-    enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
+    enabled: !!effectiveCompany?.id && !!gestione && (orderPerms.canViewMargins || orderPerms.canViewCosts),
     queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       const rows: OrderMarginRow[] = [];
       for (let from = 0; from < scopeOrderIds.length; from += 100) {
@@ -404,13 +368,15 @@ function OrdersListInner() {
     }
     return marginGroups[controlFocus];
   }, [controlFocus, marginGroups, scopeOrders, orderPerms.canViewMargins]);
-  const needsScope = isYearCorrente || statusFilter === "__assistenza__" || controlFocus !== "all" || paymentFilter !== "all" || sidebarFilters.paymentStatus !== "all";
-  const focusReady = (!(isYearCorrente || statusFilter === "__assistenza__") || !!globalStats) && (controlFocus === "all" || (!isLoadingGlobalStats && !scopeMarginsPending)) && (paymentIds === null || !!globalStats);
+  const needsScope = isYearCorrente || statusFilter === "__assistenza__" || controlFocus !== "all" || paymentIds !== null;
+  const richiedeMargini = controlFocus !== "all" && orderPerms.canViewMargins;
+  const focusReady = (!needsScope || !!gestione) && (!richiedeMargini || !scopeMarginsPending);
+  const scopeError = (needsScope && errorePerimetro) || (richiedeMargini && scopeMarginsError);
 
   function filterReaderKey() {
     return JSON.stringify([debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter,
       amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId,
-      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds]);
+      contractDateRange, warehouseDateRange, expectedDateRange, sidebarFilters, focusIds, paymentIds, listScopeIds, gestione?.supportOrderIds]);
   }
 
   // Senza ricerca né filtri sulle righe, le pagine contano solo generali e commesse normali: le
@@ -422,20 +388,44 @@ function OrdersListInner() {
     && focusIds === null && countActiveFilters(sidebarFilters) === 0
     && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
     && !expectedDateRange.from && !expectedDateRange.to && monthFilter === "all";
-  const fetchOrderRows = (from: number, to: number, filtroFocus = focusIds) => readOrdersPage({
-    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds:filtroFocus, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
-  },from,to);
+  const filtriLettura: OrdersReaderFilters = {
+    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:gestione?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+  };
+  const fetchOrderRows = (from: number, to: number, filtroFocus = focusIds, signal?: AbortSignal) =>
+    readOrdersPage({ ...filtriLettura, focusIds: filtroFocus }, from, to, signal);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
-    queryKey: ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
-    queryFn: () => withClientTimeout(fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),"Elenco commesse",20_000),
-    enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
-    placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
+    queryKey: ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, monthFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, gestione?.supportOrderIds],
+    queryFn: ({ signal }) => withAbortableClientTimeout((readSignal) =>
+      fetchOrderRows((page - 1) * pageSize, page * pageSize - 1, focusIds, readSignal), "Elenco commesse", 20_000, signal),
+    enabled: !!effectiveCompany?.id && viewMode === "table" && focusReady && !isLoadingStatuses && !isStatusesError,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 
-  const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
+  // Con ordinamento dal più recente, una pagina piena dell'anno corrente
+  // è anche la prima pagina del perimetro con il pregresso.
+  const puoAnticipareElenco = viewMode === "table" && isYearCorrente && scopeGroup === "all" && page === 1
+    && sortField === "created_at" && sortDir === "desc" && controlFocus === "all"
+    && statusFilter === "all" && paymentIds === null && generaliFilter === "all" && customerFilter === "all"
+    && !searchQuery && !debouncedSearch && !hideCompleted && !amountMin && !amountMax
+    && salespersonFilter === "all" && laborFilter === "all" && supplierFilter === "all"
+    && countActiveFilters(sidebarFilters) === 0 && monthFilter === "all"
+    && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
+    && !expectedDateRange.from && !expectedDateRange.to;
+  const {data: primaPagina} = useQuery({
+    queryKey: ["orders", effectiveCompany?.id, "prima-pagina", currentYear, pageSize, soloPrimoLivello],
+    enabled: !!effectiveCompany?.id && puoAnticipareElenco && !ordersResult,
+    queryFn: ({ signal }) => withAbortableClientTimeout((readSignal) => readOrdersPage({
+      ...filtriLettura, isYearCorrente: false, hasSelectedYear: true, selectedYear: currentYear, periodIds: null,
+    }, 0, pageSize - 1, readSignal), "Prima pagina commesse", 12_000, signal),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const mostraPrimaPagina = puoAnticipareElenco && !ordersResult && primaPagina?.orders.length === pageSize;
+  const rawOrders = ordersResult?.orders ?? (mostraPrimaPagina ? primaPagina!.orders : EMPTY_ORDERS);
+  const conteggioInAttesa = !isStatusesError && !scopeError && !isOrdersError && (mostraPrimaPagina || isOrdersFetching || !ordersResult);
+  const elencoInizializzato = !!ordersResult || mostraPrimaPagina || isOrdersError || viewMode === "pipeline";
   // La pagina taglia l'elenco: una generale può stare qui e le sue commesse in un'altra pagina.
   // I totali della sua riga vogliono tutte le sue commesse, quindi quelle mancanti si leggono a parte.
   const idFiglieFuoriPagina = useMemo(() => {
@@ -476,7 +466,7 @@ function OrdersListInner() {
     queryFn: async () => (await readOrdersPage(soloQuesteCommesse(effectiveCompany!.id, idFiglieFuoriPagina), 0, Infinity)).orders,
   });
   const totalCount = ordersResult?.totalCount ?? 0;
-  const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && (isLoadingOrders || !ordersResult || !focusReady);
+  const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && !mostraPrimaPagina && (isLoadingOrders || !ordersResult || !focusReady);
 
   const { data: availableYears = [] } = useQuery({
     queryKey: ["orders-available-years", effectiveCompany?.id],
@@ -511,7 +501,7 @@ function OrdersListInner() {
   const comparisonEnabled = compareChart && !!comparisonPeriod;
   const {data: previousChartOrders = [], isPending: comparisonPending, isError: comparisonError, refetch: retryComparison} = useQuery({
     queryKey: ["orders-monthly-sales-chart", "comparison-v1", effectiveCompany?.id, comparisonPeriod?.previousFrom.toISOString(), comparisonPeriod?.previousTo.toISOString()],
-    enabled: !!effectiveCompany?.id && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts && comparisonEnabled,
+    enabled: !!effectiveCompany?.id && elencoInizializzato && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts && comparisonEnabled,
     queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       if (!effectiveCompany?.id || !comparisonPeriod) return [];
       const query = supabase.from("orders").select(`
@@ -523,67 +513,79 @@ function OrdersListInner() {
       `).eq("company_id", effectiveCompany.id).is("deleted_at", null)
         .gte("created_at", comparisonPeriod.previousFrom.toISOString())
         .lt("created_at", comparisonPeriod.previousTo.toISOString());
-      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to).abortSignal(readSignal)));
+      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to).abortSignal(readSignal)), readSignal);
     }, "Andamento commesse", 20_000, signal),
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: monthlyOrders = [], isLoading: isLoadingMonthlyOrders, isError: isMonthlyOrdersError } = useQuery({
-    queryKey: ["orders-monthly-sales-chart", "annual-v3", effectiveCompany?.id, yearFilter, currentYear],
-    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
-      if (!effectiveCompany?.id) return [];
-      const from = new Date();
-      let to: Date | null = null;
-      if (isYearCorrente || (hasSelectedYear && selectedYear)) {
-        const chartYear = isYearCorrente ? currentYear : selectedYear!;
-        from.setFullYear(chartYear, 0, 1);
-        from.setHours(0, 0, 0, 0);
-        to = new Date(chartYear, 11, 31, 23, 59, 59, 999);
-      } else {
-        from.setMonth(from.getMonth() - 11);
-        from.setDate(1);
-        from.setHours(0, 0, 0, 0);
-      }
+  // Il grafico e il riepilogo condividono le righe finanziarie già lette.
+  // La serie limita i mesi in fase di aggregazione.
+  const monthlyOrders = scopeOrders;
+  const isLoadingMonthlyOrders = !elencoInizializzato || !gestione;
+  const isMonthlyOrdersError = isStatusesError || errorePerimetro;
 
-      let query = supabase
-        .from("orders")
-        .select(`
-          id, created_at, total_amount, vat_rate, vat_breakdown, payment_type, financing_cost,
-          deposit_amount, deposit_paid,
-          deposit_2_amount, deposit_2_paid,
-          balance_amount, balance_paid,
-          financing_amount, financing_paid,
-          installments:order_installments(position, type, amount, is_paid, paid_date, expected_date, fattura:documenti_fiscali(id, importo_pagato)),
-          variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at)
-        `)
-        .eq("company_id", effectiveCompany.id)
-        .gte("created_at", from.toISOString());
-      query = query.is("deleted_at", null).abortSignal(readSignal);
-      if (to) query = query.lte("created_at", to.toISOString());
-      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to)));
-    }, "Andamento commesse", 20_000, signal),
-    // Si scarica solo col grafico aperto (23/10/2026): prima leggeva tutte le
-    // commesse dell'anno con rate e varianti anche a grafico chiuso. Su mobile
-    // il grafico non c'è.
-    enabled: !!effectiveCompany?.id && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts,
-
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // (Rimossa la query "aggregates" filtrata: le KPI cards ora usano globalStats
-  // che NON reagisce ai filtri. Se in futuro serviranno statistiche della vista
-  // corrente, vanno derivate da `rawOrders` o da una nuova query dedicata.)
-
-  const {data: allOrdersForPipeline = [], isPending: pipelinePending, isError: pipelineError, refetch: retryPipeline} = useQuery({
+  const {data: allOrdersForPipeline = [], isPending: pipelinePending, isFetching: pipelineFetching, isError: pipelineError, refetch: retryPipeline} = useQuery({
     queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, sortField, sortDir],
     enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady && !archivioTabella.caricamento && !archivioTabella.errore && !isLoadingStatuses && !isStatusesError,
-    queryFn: async () => {
+    queryFn: ({ signal }) => withAbortableClientTimeout(async (readSignal) => {
       const ids = idsPipeline && focusIds ? idsPipeline.filter(id => focusIds.includes(id)) : idsPipeline ?? focusIds;
       if (ids?.length === 0) return [];
-      return (await fetchOrderRows(0, Infinity, ids)).orders;
-    },
+      return (await fetchOrderRows(0, Infinity, ids, readSignal)).orders;
+    }, "Pipeline commesse", 20_000, signal),
     staleTime: 3 * 60 * 1000,
   });
+  const conteggioNonDisponibile = isStatusesError || scopeError || (viewMode === "pipeline" ? pipelineError || !!archivioTabella.errore : isOrdersError);
+  const conteggioFiltri = conteggioNonDisponibile ? null : viewMode === "pipeline"
+    ? (pipelinePending || pipelineFetching ? null : allOrdersForPipeline.length)
+    : (conteggioInAttesa ? null : totalCount);
+
+  const { data: globalStats, isLoading: isLoadingGlobalStats, isError: erroreRiepilogo } = useQuery({
+    queryKey: ["orders-global-stats", "riepilogo-v1", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, gestioneResultAt, generaliConfigurate],
+    queryFn: ({signal}) => withAbortableClientTimeout(async (readSignal) => {
+      if (!effectiveCompany?.id || !gestione) throw new Error("Perimetro commesse non disponibile.");
+      const { rows } = gestione;
+      const ticketIds = new Set(gestione.ticketIds);
+      const [generaliIds, { incassi: incassiUnita, permute: permuteUnita, statoVendita }] = await Promise.all([
+        generaliConfigurate ? leggiIdGenerali(effectiveCompany.id) : [],
+        generaliConfigurate ? leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined, statoVendita: undefined },
+      ]);
+      readSignal.throwIfAborted();
+      const generali = new Set(generaliIds);
+      // Nemmeno le unità ancora in vendita: sono appartamenti da vendere, non lavori né crediti
+      // (44 unità di URBAN VISION contavano come 44 contratti firmati da incassare, 14/11).
+      const righeCheContano = generali.size
+        ? rows.filter(order => !generali.has(order.id) && !unitaInVendita(statoVendita?.get(order.id)))
+        : rows;
+      const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
+      const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
+      const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
+      const annualVat = netOrderTotals(annualRows.map(order => ({ ...orderEconomics([order], incassiUnita, permuteUnita), vatRate: order.vat_rate })));
+      const previous = orderEconomics(previousRows, incassiUnita, permuteUnita);
+      const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
+      const reasons = {work:0,support:0,payment:0};
+      Object.values(previousReasons).forEach(values => {
+        if (values.includes("Lavori aperti")) reasons.work++;
+        if (values.includes("Assistenza aperta")) reasons.support++;
+        if (values.includes("Saldo da incassare")) reasons.payment++;
+      });
+      const totalGross = annual.sold;
+      const collected = annual.collected;
+      const pending = annual.pending;
+      let countAssistenza = 0;
+      let countCompletati = 0;
+      for (const o of righeCheContano) {
+        if (o.current_status_id && supportStatusId && o.current_status_id === supportStatusId) countAssistenza++;
+        else if (o.current_status_id && lastStatusId && o.current_status_id === lastStatusId) countCompletati++;
+      }
+      const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
+      const unitaInVenditaIds = [...(statoVendita?.entries() ?? [])].filter(([, v]) => unitaInVendita(v)).map(([id]) => id);
+      return { annualVat, annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, generaliIds, unitaInVenditaIds };
+    }, "Riepilogo commesse", 20_000, signal),
+    enabled: !!gestione && elencoInizializzato,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const isGlobalStatsError = errorePerimetro || erroreRiepilogo;
 
   // Batch queries for cost calculations — use rawOrders IDs to avoid circular dep with salespeopleMap
   const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
@@ -1043,7 +1045,7 @@ function OrdersListInner() {
 
   // Da telefono la parte blu è il riassunto dei soldi. Fatturato: il registro vendite, come nel cruscotto.
   const { data: kpiFatturazione, isLoading: billingLoading } = useDashboardBillingKPI(
-    effectiveCompany?.id ?? null, isNative && orderPerms.canViewBilling && sceltaRiepilogo.riquadri.includes("fatturato"));
+    effectiveCompany?.id ?? null, elencoInizializzato && isNative && orderPerms.canViewBilling && sceltaRiepilogo.riquadri.includes("fatturato"));
   const costiSostenuti = useMemo(() => {
     if (!scopeMargins || !globalStats) return null;
     const delPeriodo = new Set(globalStats.annualIds);
@@ -1096,7 +1098,7 @@ function OrdersListInner() {
 
   const chartWithComparison = useMemo(() => {
     if (!comparisonEnabled || !comparisonPeriod || comparisonPending || comparisonError) return monthlySalesChart;
-    const values = (rows: typeof monthlyOrders) => rows.filter(order => !unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))).map(order => ({
+    const values = (rows: ReadonlyArray<Pick<OrderWithDetails, "id" | "created_at">>) => rows.filter(order => !unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))).map(order => ({
       created_at: order.created_at!, venduto: getGrossOrderAmount(order as any),
       incassato: getAmountCollected(order as any), daIncassare: getAmountDue(order as any),
     }));
@@ -1406,7 +1408,7 @@ function OrdersListInner() {
   const costiDaPagare = useOrdersPayables(effectiveCompany?.id, globalStats?.annualIds ?? [], orderPerms.canViewCosts && !!globalStats && !isGlobalStatsError && !isStatusesError);
   const riquadriRiepilogo = groupedSummaryCards(riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo));
   // I numeri delle generali li dà il server, già filtrati per permesso: si chiedono solo se un riquadro li usa.
-  const { data: numeriGenerali, isPending: numeriGeneraliPending } = useCruscottoGenerali(usaGenerali(riquadriRiepilogo));
+  const { data: numeriGenerali, isPending: numeriGeneraliPending } = useCruscottoGenerali(elencoInizializzato && usaGenerali(riquadriRiepilogo));
   const nettoIncassato = globalStats?.annualVat?.collected;
   const nettoResiduo = globalStats?.annualVat?.pending;
   const quotaIncassata = nettoIncassato != null && nettoResiduo != null && nettoIncassato + nettoResiduo > 0 ? Math.max(0, nettoIncassato) / (Math.max(0, nettoIncassato) + Math.max(0, nettoResiduo)) * 100 : null;
@@ -1456,7 +1458,7 @@ function OrdersListInner() {
     return valori;
   }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione, orderPerms.canViewBilling, isNative]);
 
-  const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !(needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError));
+  const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
   const filtriCommesse = (<OrdersFilters panel={barraBacheca}
             trailingControls={viewMode === "table" ? (
               <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
@@ -1545,7 +1547,7 @@ function OrdersListInner() {
             ) : undefined}
             summary={
               <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
-                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
+                <strong className="tabular-nums text-slate-900">{conteggioFiltri ?? (conteggioNonDisponibile ? "—" : "…")}</strong> risultati
               </span>
             }
             searchQuery={searchQuery}
@@ -1757,7 +1759,7 @@ function OrdersListInner() {
               {riquadriRiepilogo.map((id) => {
                 const v = valoriRiepilogo[id];
                 const voce = CATALOGO_RIQUADRI.find(c => c.id === id);
-                const inAttesa = voce?.gruppo !== "commesse" ? numeriGeneraliPending : id === "fatturato" ? billingLoading
+                const inAttesa = voce?.gruppo !== "commesse" ? numeriGeneraliPending : id === "fatturato" ? !elencoInizializzato || billingLoading
                   : isEconomicStatsLoading || ((voce?.permesso === "costi" || voce?.permesso === "margini") && scopeMarginsPending);
                 const ring = id === "incassato" && quotaIncassata != null ? { value: quotaIncassata, label: "Quota incassata", color: "green" as const }
                   : id === "costi" && incidenzaCosti != null ? { value: incidenzaCosti, label: "Costi commesse sul fatturato aziendale", color: "amber" as const } : undefined;
@@ -1777,17 +1779,17 @@ function OrdersListInner() {
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
           <aside id="orders-annual-chart" className="flex min-w-0 border-t border-slate-200 bg-white px-3 py-2 xl:border-l xl:border-t-0">
-            {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
+            {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>{ if (isStatusesError) void retryStatuses(); else void ricaricaPerimetro(); }}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
               <div aria-label="Caricamento andamento" className="flex h-[160px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
-            ) : <OrdersMonthlyChart months={chartWithComparison}
+            ) : <Suspense fallback={<p className="p-4 text-sm text-muted-foreground" role="status">Caricamento grafico…</p>}><OrdersMonthlyChart months={chartWithComparison}
               serie={serieVisibili(sceltaRiepilogo.graficoSerie, permessiRiepilogo)}
               vistaIniziale={sceltaRiepilogo.graficoVista === "numero" ? "count" : "money"}
               formaIniziale={sceltaRiepilogo.graficoForma === "barre" ? "bars" : "lines"}
               comparison={comparisonPeriod ? {year:comparisonPeriod.previousYear, enabled:comparisonEnabled, onToggle:()=>setCompareChart(value=>!value), loading:comparisonPending, error:comparisonError, onRetry:()=>void retryComparison(), label:comparisonPeriod.label} : undefined} period={isYearCorrente ? String(currentYear) : hasSelectedYear ? String(selectedYear) : "Ultimi 12 mesi"}
               selectedMonth={hasMonth ? `${monthYear}-${String(month+1).padStart(2,"0")}` : null}
-              onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} />}
+              onSelectMonth={(key) => {const patch=orderChartMonthFilter(key,yearFilter,currentYear,scopeGroup);if(patch){setURLParams(patch);setPage(1);}}} /></Suspense>}
           </aside>
           )}
         </div>
@@ -1798,7 +1800,7 @@ function OrdersListInner() {
         filters={sidebarFilters}
         onFiltersChange={setSidebarFilters}
         statuses={statuses}
-        ordersCount={isOrdersFetching || isOrdersLoading ? null : visibleTotalCount}
+        ordersCount={conteggioFiltri}
         optionsError={filterOptionsError}
         onRetryOptions={() => void retryFilterOptions()}
         isOpen={sidebarOpen}
@@ -1823,11 +1825,19 @@ function OrdersListInner() {
           {barraBacheca ? null : filtriCommesse}
 
 
-          {(isOrdersLoading || isEconomicStatsLoading) && <AvvisoAttesaCommesse key={effectiveCompany?.id} onRetry={()=>window.location.reload()}/>}
+          {viewMode === "table" && isOrdersLoading && !scopeError && <AvvisoAttesaCommesse key={effectiveCompany?.id} onRetry={() => {
+            if (isLoadingStatuses || isStatusesError) void retryStatuses();
+            else if (focusReady) void refetchOrders();
+            else if (gestione && richiedeMargini) void retryScopeMargins();
+            else void ricaricaPerimetro();
+          }}/>}
+          {mostraPrimaPagina && (scopeError || isOrdersError
+            ? <div role="alert" className="text-sm text-amber-800">Elenco completo non disponibile. <Button size="sm" variant="link" onClick={() => { if (scopeError) void ricaricaPerimetro(); else void refetchOrders(); }}>Riprova</Button></div>
+            : <p role="status" className="text-sm text-muted-foreground">Calcolo del conteggio e del pregresso…</p>)}
           {/* Content */}
-          {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
-            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {void retryScopeMargins(); void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</Button></div>
-          ) : viewMode === "table" && isOrdersError ? (
+          {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : scopeError && !mostraPrimaPagina ? (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {if (controlFocus !== "all") void retryScopeMargins(); void ricaricaPerimetro();}}>Riprova</Button></div>
+          ) : viewMode === "table" && isOrdersError && !mostraPrimaPagina ? (
             <Card className="border-red-200 bg-red-50/70">
               <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -1865,7 +1875,7 @@ function OrdersListInner() {
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Nessuna commessa trovata</h3>
                 <p className="text-muted-foreground mb-4">
-                  {stats.totalOrders === 0
+                  {globalStats && stats.totalOrders === 0
                     ? "Non hai ancora creato nessuna commessa."
                     : controlFocus !== "all"
                       ? "Nessuna commessa corrisponde al focus operativo selezionato in questa pagina."
@@ -1879,11 +1889,11 @@ function OrdersListInner() {
                   <Button variant="outline" onClick={() => setControlFocus("all")}>
                     Mostra tutte le commesse
                   </Button>
-                ) : stats.totalOrders > 0 && hasAnyFilter ? (
+                ) : hasAnyFilter ? (
                   <Button variant="outline" onClick={clearAllFilters} className="gap-2">
                     Pulisci tutti i filtri
                   </Button>
-                ) : stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && !nienteDaCreare && (
+                ) : globalStats && stats.totalOrders === 0 && !isCommercialistaMode && canCreateOrders && !nienteDaCreare && (
                   conBivio ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />
@@ -1919,7 +1929,7 @@ function OrdersListInner() {
                 onDelete={(id) => deleteOrderMutation.mutateAsync(id)}
                 isDeleting={deleteOrderMutation.isPending}
                 orderCosts={orderCostsMap}
-                costsState={scopeMarginsError || isGlobalStatsError ? "error" : scopeMarginsPending ? "loading" : "ready"}
+                costsState={scopeMarginsError || errorePerimetro ? "error" : scopeMarginsPending ? "loading" : "ready"}
                 statuses={statuses}
                 onBulkStatusChange={handleBulkStatusChange}
                 onBulkDelete={canDeleteOrders ? handleBulkDelete : undefined}
@@ -2129,6 +2139,7 @@ export default function OrdersList() {
         </ErrorBoundary>
       )}
 
+      <Suspense fallback={<p className="p-8 text-center text-sm text-muted-foreground" role="status">Caricamento sezione…</p>}>
       {activeTab === "offerte" && (
         <ErrorBoundary title="Errore nel caricamento richieste d'offerta">
           <SupplierRfqsList />
@@ -2156,6 +2167,7 @@ export default function OrdersList() {
       {activeTab === "marginalita" && (
         <MarginalitaCantieri />
       )}
+      </Suspense>
 
     </div>
   );

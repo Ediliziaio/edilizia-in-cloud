@@ -11,7 +11,7 @@ function Prova({initial={pipelineId:"principale",faseId:"principale-firmato"},it
 function scegli(label:string,option:string){fireEvent.keyDown(screen.getByRole("combobox",{name:label}),{key:"ArrowDown"});fireEvent.click(screen.getByRole("option",{name:option}));}
 describe("tipologia e stato iniziale della nuova commessa",()=>{
  it("selezionata una pipeline, mostra soltanto i suoi stati",()=>{
-  render(<Prova/>);scegli("Tipologia / pipeline","Serramenti");
+  render(<Prova/>);scegli("Pipeline commessa","Serramenti");
   expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"faseId":"s-rilievo"');
   fireEvent.keyDown(screen.getByRole("combobox",{name:"Stato iniziale"}),{key:"ArrowDown"});
   expect(screen.getByRole("option",{name:"Posa programmata"})).toBeInTheDocument();expect(screen.queryByRole("option",{name:"Contratto firmato"})).toBeNull();
@@ -19,23 +19,28 @@ describe("tipologia e stato iniziale della nuova commessa",()=>{
   expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"faseId":"s-posa"');
  });
  it("cambiando tipologia non mantiene uno stato appartenente alla precedente",()=>{
-  render(<Prova initial={{pipelineId:"serramenti",faseId:"s-posa"}}/>);scegli("Tipologia / pipeline","Tetti");
+  render(<Prova initial={{pipelineId:"serramenti",faseId:"s-posa"}}/>);scegli("Pipeline commessa","Tetti");
   expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"faseId":"t-ponteggio"');
  });
  it("riapre la scelta della bozza senza sostituirla con lo stato principale",()=>{
   render(<Prova initial={{pipelineId:"serramenti",faseId:"s-posa"}}/>);
-  expect(screen.getByRole("combobox",{name:"Tipologia / pipeline"})).toHaveTextContent("Serramenti");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Posa programmata");
+  expect(screen.getByRole("combobox",{name:"Pipeline commessa"})).toHaveTextContent("Serramenti");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Posa programmata");
  });
- it("la sola pipeline principale conserva il modulo semplice",()=>{
-  render(<Prova items={[]}/>);expect(screen.queryByRole("combobox",{name:"Tipologia / pipeline"})).toBeNull();expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Contratto firmato");
+ it("mostra la pipeline di riferimento anche quando esiste solo Principale",()=>{
+  render(<Prova items={[]}/>);expect(screen.getByRole("combobox",{name:"Pipeline commessa"})).toHaveTextContent("Principale");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Contratto firmato");
  });
  it("richiede una tipologia operativa se la pipeline principale è nascosta",()=>{
   render(<Prova principale={false}/>);
   expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toBeDisabled();
-  fireEvent.keyDown(screen.getByRole("combobox",{name:"Tipologia / pipeline"}),{key:"ArrowDown"});
+  fireEvent.keyDown(screen.getByRole("combobox",{name:"Pipeline commessa"}),{key:"ArrowDown"});
   expect(screen.queryByRole("option",{name:"Principale"})).toBeNull();
   fireEvent.click(screen.getByRole("option",{name:"Serramenti"}));
   expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Rilievo definitivo");
+ });
+ it("spiega che mancano gli stati quando la scelta è disabilitata",()=>{
+  render(<StatoPipelineIniziale pipeline={[]} statiPrincipali={[]} value={{pipelineId:"principale",faseId:"vecchio"}} onChange={()=>{}}/>);
+  expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("Questa pipeline non ha stati disponibili");
  });
  it("una pipeline eliminata non torna silenziosamente a Principale",()=>{
   render(<Prova initial={{pipelineId:"sparita",faseId:"s-rilievo"}}/>);expect(screen.getByRole("alert")).toHaveTextContent("non è più disponibile");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toBeDisabled();expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"pipelineId":"sparita"');

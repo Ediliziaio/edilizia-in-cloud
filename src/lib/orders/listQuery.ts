@@ -46,14 +46,17 @@ export const soloQuesteCommesse = (companyId: string, ids: string[]): OrdersRead
 });
 
 /** The same scoped reader serves table, pipeline and exports. Filters precede range. */
-export async function readOrdersPage(filters: OrdersReaderFilters, from: number, to: number): Promise<{orders: OrderWithDetails[]; totalCount: number}> {
-  const {companyId, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir} = filters;
+export async function readOrdersPage(filters: OrdersReaderFilters, from: number, to: number, signal?: AbortSignal): Promise<{orders: OrderWithDetails[]; totalCount: number}> {
+  const {companyId, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir} = filters;
 
       if (!companyId) return { orders: [] as OrderWithDetails[], totalCount: 0 };
 
       // Join filters are resolved before the main order query and pagination.
       let allowedOrderIds: string[] | null = filters.periodIds ?? null;
-      const intersect = (ids: string[]) => { allowedOrderIds = allowedOrderIds === null ? ids : allowedOrderIds.filter(id => ids.includes(id)); };
+      const intersect = (ids: string[]) => {
+        const allowed = new Set(ids);
+        allowedOrderIds = allowedOrderIds === null ? [...allowed] : allowedOrderIds.filter(id => allowed.has(id));
+      };
 
       if (focusIds !== null) intersect(focusIds);
       if (statusFilter === "__assistenza__" && filters.supportOrderIds) intersect(filters.supportOrderIds);
@@ -77,9 +80,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           : await readAllOrderRows((start,end) => supabase.from("order_employees").select("order_id").eq("employee_id",realId).order("id").range(start,end));
         const ids = (laborOrders || []).map(r => r.order_id);
         if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
-        allowedOrderIds = allowedOrderIds
-          ? allowedOrderIds.filter(id => ids.includes(id))
-          : ids;
+        intersect(ids);
       }
 
       if (supplierFilter !== "all") {
@@ -89,9 +90,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           .eq("supplier_id", supplierFilter).order("id").range(start, end));
         const ids = [...new Set((suppOrders || []).map(r => r.order_id))];
         if (ids.length === 0) return { orders: [] as OrderWithDetails[], totalCount: 0 };
-        allowedOrderIds = allowedOrderIds
-          ? allowedOrderIds.filter(id => ids.includes(id))
-          : ids;
+        intersect(ids);
       }
 
       const sf = sidebarFilters;
@@ -116,9 +115,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         return { orders: [] as OrderWithDetails[], totalCount: 0 };
       }
 
-      let query = supabase
-        .from("orders")
-        .select(`
+      const columns = `
           id, order_code, description, client_name, total_amount, deposit_amount, balance_amount,
           vat_rate, vat_breakdown, created_at, expected_date, work_start_date, work_end_date,
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
@@ -134,11 +131,15 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           order_items(id, status, quantity),
           order_employees(employee:employees(id, first_name, last_name)),
           order_external_teams(external_team:external_teams(id, name))
-        `, { count: "exact" })
+        `;
+      const buildQuery = (projection: string, ids: string[] | null, count = false) => {
+      let query = supabase.from("orders")
+        .select(projection, count ? { count: "exact" } : undefined)
         .eq("company_id", companyId)
         .is("deleted_at", null);
+      if (signal) query = query.abortSignal(signal);
 
-      if (allowedOrderIds !== null && allowedOrderIds.length <= 100) query = query.in("id", allowedOrderIds);
+      if (ids !== null) query = query.in("id", ids);
       if (filters.generaliFilter === "solo") query = query.or("workflow_kind.eq.generale,commessa_generale_id.not.is.null");
       if (filters.generaliFilter === "senza") query = query.or("workflow_kind.neq.generale").or("commessa_generale_id.is.null");
       if (filters.soloPrimoLivello) query = query.is("commessa_generale_id", null);
@@ -171,10 +172,8 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
         // Sentinel "Assistenza": solo ordini in fase Assistenza
         if (filters.supportOrderIds) { /* resolved tickets and workflow scope above */ }
         else if (supportStatusId) query = query.eq("current_status_id", supportStatusId);
-        else return {orders:[],totalCount:0};
       } else if (statusFilter === "__completati__") {
         if (lastStatusId) query = query.eq("current_status_id", lastStatusId);
-        else return {orders:[],totalCount:0};
       } else if (statusFilter !== "all") {
         query = query.eq("current_status_id", statusFilter);
       }
@@ -207,16 +206,37 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           nullsFirst: isDateSort ? false : (sortDir === "asc"),
         }).order("id", {ascending: true});
 
-      // Avoid oversized IN URLs. The less common large-id case reads bounded
-      // pages in the same database order, intersects, then paginates the result.
-      if ((allowedOrderIds !== null && allowedOrderIds.length > 100) || to === Infinity) {
+      return query;
+      };
+      if ((statusFilter === "__assistenza__" && !supportStatusId && !filters.supportOrderIds)
+        || (statusFilter === "__completati__" && !lastStatusId)) return { orders: [], totalCount: 0 };
+      signal?.throwIfAborted();
+
+      // Per i perimetri grandi, ordina e interseca solo gli ID. Rate, materiali
+      // e assegnazioni si leggono soltanto per le righe della pagina richiesta.
+      if (allowedOrderIds !== null && allowedOrderIds.length > 100) {
+        const idsQuery = buildQuery("id", null);
+        const rows = await readAllOrderRows((start, end) => idsQuery.range(start, end));
+        const allowed = new Set(allowedOrderIds);
+        const matching = (rows as unknown as Array<{id: string}>).map(row => row.id).filter(id => allowed.has(id));
+        const pageIds = matching.slice(from, to === Infinity ? undefined : to + 1);
+        const byId = new Map<string, OrderWithDetails>();
+        for (let offset = 0; offset < pageIds.length; offset += 100) {
+          signal?.throwIfAborted();
+          const { data, error } = await buildQuery(columns, pageIds.slice(offset, offset + 100));
+          if (error) throw error;
+          for (const row of (data ?? []) as unknown as OrderWithDetails[]) byId.set(row.id, row);
+        }
+        const pageRows = pageIds.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
+        return { orders: await leggiModalitaCommesse(companyId, pageRows, signal), totalCount: matching.length };
+      }
+      const query = buildQuery(columns, allowedOrderIds, to !== Infinity);
+      if (to === Infinity) {
         const rows = await readAllOrderRows((start, end) => query.range(start, end));
-        const allowed = allowedOrderIds === null ? null : new Set(allowedOrderIds);
-        const matching = allowed ? rows.filter(row => allowed.has(row.id)) : rows;
-        return {orders:matching.slice(from, to === Infinity ? undefined : to + 1) as unknown as OrderWithDetails[], totalCount:matching.length};
+        return { orders: await leggiModalitaCommesse(companyId, rows.slice(from) as unknown as OrderWithDetails[], signal), totalCount: rows.length };
       }
       const { data, error, count } = await query.range(from, to);
       if (error) throw error;
       // Le date delle varianti (offline_signed_on…) mancano nei tipi generati: ci sono nel database.
-      return { orders: await leggiModalitaCommesse(companyId, (data ?? []) as unknown as OrderWithDetails[]), totalCount: count ?? 0 };
+      return { orders: await leggiModalitaCommesse(companyId, (data ?? []) as unknown as OrderWithDetails[], signal), totalCount: count ?? 0 };
 }

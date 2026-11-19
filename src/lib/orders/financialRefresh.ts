@@ -15,7 +15,7 @@ const prefixes = new Set([
   'bank-reconciliation', 'bank-lotto-movimenti', 'bank-lotto-candidati', 'bank-movimenti-workspace', 'bank-movimento', 'bank-candidati', 'bank-contesto-movimenti', 'esposizione-commessa', 'suppliers', 'commessa-fatture-fornitori',
   'generale-fatture-fornitori', 'generale-controllo-forniture', 'generale-cassa-effettiva', 'generale-piano-reale', 'commessa-generale-riepilogo',
   'incassi-registrati', 'incassi-unita', 'generale-unita',
-  'commessa-importi-finanziari', 'orders-global-stats', 'orders-monthly-chart', 'mappa-commesse-generali',
+  'commessa-importi-finanziari', 'orders-global-stats', 'orders-monthly-chart', 'orders-monthly-sales-chart', 'mappa-commesse-generali',
 ]);
 // Gli acquisti cambiano insieme documento, quantità, prezzi e conto economico.
 // Nessun polling globale: si avvisano le altre schede soltanto dopo un salvataggio.

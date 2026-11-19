@@ -292,7 +292,7 @@ export function OrdersMonthlyChart({
             : "Numero di commesse create per mese"
         }
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={140}>
           <ComposedChart
             data={data}
             margin={{ top: 18, right: 12, left: 0, bottom: 0 }}
