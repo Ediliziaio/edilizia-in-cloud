@@ -1,3 +1,5 @@
+import { normalizzaScalaLogo } from "./dimensioniLogo.ts";
+
 /** Contratto condiviso da editor, generatori nel browser e rapportini server. */
 export const TIPI_MODELLI_PDF = [
   "materiali",
@@ -123,9 +125,7 @@ export function normalizzaModelloPdf(
     dimensioneTesto: [8, 9, 10].includes(v.dimensioneTesto as number)
       ? (v.dimensioneTesto as number)
       : 0,
-    scalaLogo: [70, 85, 100].includes(v.scalaLogo as number)
-      ? (v.scalaLogo as number)
-      : 100,
+    scalaLogo: normalizzaScalaLogo(v.scalaLogo),
     coloreRiquadri:
       typeof v.coloreRiquadri === "string" &&
       /^#[0-9a-f]{6}$/i.test(v.coloreRiquadri)

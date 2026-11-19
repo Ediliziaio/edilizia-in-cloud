@@ -1,4 +1,5 @@
 import type { jsPDF } from "jspdf";
+import { dimensioniLogo } from "../../../supabase/functions/_shared/dimensioniLogo";
 import type { IntestazioneComputo } from "./esportaComputo";
 import { alberoComputo, numeroVoce, tariffaVoce, type NodoComputo, type VoceComputo } from "./alberoComputo";
 import { formatEuro } from "./computoStrutturato";
@@ -97,10 +98,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
     doc.setFillColor(c.evidenza); doc.rect(0, fotoH, 7, H - fotoH, "F");
     let yc = 62;
     if (logo) {
-      const lw = Math.min(170, 50 * logo.larghezza / logo.altezza);
-      doc.setFillColor("#FFFFFF"); doc.roundedRect(m - 8, yc - 30, lw + 16, 64, 5, 5, "F");
-      try { doc.addImage(logo.dati, logo.formato, m, yc - 23, lw, 50); } catch { /* un logo illeggibile non ferma il preventivo */ }
-      yc += 60;
+      const misure = dimensioniLogo(logo, { larghezza: 170, altezza: 50 }, veste?.scalaLogo, { larghezza: width - 16, altezza: 125 });
+      doc.setFillColor("#FFFFFF"); doc.roundedRect(m - 8, yc - 30, misure.larghezza + 16, misure.altezza + 14, 5, 5, "F");
+      try { doc.addImage(logo.dati, logo.formato, m, yc - 23, misure.larghezza, misure.altezza); } catch { /* un logo illeggibile non ferma il preventivo */ }
+      yc += misure.altezza + 10;
     }
     if (foto) yc = fotoH + 34;
     font(15, true, c.testo); doc.text(short(i.azienda || "Preventivo con computo metrico", width), m, yc); yc += 15;
@@ -143,7 +144,8 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const copertina: "fascia" | "sobria" = veste?.copertina === "sobria" ? "sobria" : "fascia";
   const suColore: boolean = false;
   const testoCopertina = suColore ? t.bianco : t.inchiostro;
-  const logoW = logo ? Math.min(150, 46 * logo.larghezza / logo.altezza) : 0;
+  const misureLogo = logo ? dimensioniLogo(logo, { larghezza: 150, altezza: 46 }, veste?.scalaLogo, { larghezza: width * 0.6, altezza: 115 }) : null;
+  const logoW = misureLogo?.larghezza ?? 0;
   const spazioTesto = width - (logo ? logoW + 24 : 0);
   font(25, true); const titolo = wrap(i.titolo, width - 38);
   font(8); const metadati = wrap([i.numero, i.dataDocumento, i.revisione && `Rev. ${i.revisione}`].filter(Boolean).join("  |  ") || (stato ? "BOZZA" : " "), width - 38);
@@ -154,11 +156,12 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   if (copertina === "fascia") { doc.setFillColor(t.fondo); doc.rect(0, 0, W, 10, "F"); }
   if (logo) {
     const lx = right - logoW, ly = m - 8;
-    if (suColore) { doc.setFillColor("#FFFFFF"); doc.roundedRect(lx - 6, ly - 6, logoW + 12, 58, 4, 4, "F"); }
-    try { doc.addImage(logo.dati, logo.formato, lx, ly, logoW, 46); } catch { /* un logo illeggibile non ferma il preventivo */ }
+    if (suColore) { doc.setFillColor("#FFFFFF"); doc.roundedRect(lx - 6, ly - 6, logoW + 12, misureLogo!.altezza + 12, 4, 4, "F"); }
+    try { doc.addImage(logo.dati, logo.formato, lx, ly, logoW, misureLogo!.altezza); } catch { /* un logo illeggibile non ferma il preventivo */ }
   }
   paragraph(i.azienda || "Preventivo con computo metrico", 13, suColore ? t.bianco : t.inchiostroMarca, true, spazioTesto);
   if (i.dettagliAzienda) paragraph(i.dettagliAzienda, 8, suColore ? t.bianco : t.grigio, false, spazioTesto);
+  if (misureLogo) y = Math.max(y, m - 8 + misureLogo.altezza);
   y += 27;
   const sopratitolo = veste?.sopratitolo?.trim().toUpperCase();
   font(8, true, suColore ? t.bianco : t.inchiostroMarca); doc.text(i.soloRiepilogo ? "PIANO DEI LAVORI / SINTESI PER CAPITOLI" : i.senzaPrezzi ? "COMPUTO METRICO / LAVORAZIONI E QUANTITÀ" : sopratitolo || "PREVENTIVO / COMPUTO METRICO ESTIMATIVO", m, y);
