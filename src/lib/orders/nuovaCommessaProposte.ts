@@ -4,7 +4,7 @@
  * Il modulo partiva sempre dal 22%, ma 435 commesse reali su 466 sono al 10%:
  * bastava non toccare il campo per sbagliare totale e rate.
  */
-const ALIQUOTE_PROPONIBILI = new Set([4, 5, 10, 22]);
+const ALIQUOTE_PROPONIBILI = new Set([4, 10, 22]);
 /** Sotto questo numero di commesse non c'è un'abitudine da seguire. */
 const COMMESSE_MINIME = 3;
 

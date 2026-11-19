@@ -736,7 +736,7 @@ export function FinancialSummary({
             <SelectContent>
               <SelectItem value="0">0% · da confermare il regime</SelectItem>
               <SelectItem value="4">4%</SelectItem>
-              <SelectItem value="5">5%</SelectItem>
+              {vatRate === "5" && <SelectItem value="5" disabled>5% · aliquota già impostata</SelectItem>}
               <SelectItem value="10">10%</SelectItem>
               <SelectItem value="22">22%</SelectItem>
               {onVatSplitChange && <SelectItem value={IVA_MISTA}>IVA mista · 10% e 22%</SelectItem>}

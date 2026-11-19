@@ -3,6 +3,9 @@ import {useState} from "react";
 import {afterEach, describe, expect, it} from "vitest";
 import {FinancialSummary} from "@/components/orders/FinancialSummary";
 import {calcolaIvaContratto, type QuoteIvaMista} from "@/lib/orders/ivaMista";
+import {apriMenu, setupRadixMenus} from "@/test/helpers/radixMenus";
+
+setupRadixMenus();
 const net:QuoteIvaMista={mode:"net",amount10:"7.000,00",amount22:"3.000,00"};
 function Prova({initial=net}:{initial?:QuoteIvaMista}){
   const [split,setSplit]=useState(initial);const [total,setTotal]=useState("10.000,00");
@@ -11,6 +14,12 @@ function Prova({initial=net}:{initial?:QuoteIvaMista}){
 }
 afterEach(cleanup);
 describe("quote IVA dentro il riepilogo del contratto",()=>{
+  it("offre l’IVA mista e omette il 5% dalle aliquote selezionabili", async () => {
+    render(<Prova/>);
+    await apriMenu("Aliquota IVA");
+    expect(screen.getByRole("option", {name: "IVA mista · 10% e 22%"})).toBeInTheDocument();
+    expect(screen.queryByRole("option", {name: /^5%/})).not.toBeInTheDocument();
+  });
   it("mostra entrambe le quote e converte con il selettore",()=>{
     render(<Prova/>);
     expect(screen.getByLabelText("Quota al 10% · IVA esclusa")).toHaveValue("7.000,00");

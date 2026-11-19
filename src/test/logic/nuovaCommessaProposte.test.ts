@@ -9,9 +9,9 @@ describe("Aliquota proposta", () => {
     expect(aliquotaAbituale([10, 10])).toBeNull();
     expect(aliquotaAbituale([])).toBeNull();
   });
-  it("lo 0% e le aliquote strane non si propongono e non contano", () => {
-    expect(aliquotaAbituale([0, 0, 0, 0, 14, null, "", undefined])).toBeNull();
-    expect(aliquotaAbituale([0, 0, 0, 0, 22, 22, 22])?.aliquota).toBe(22);
+  it("esclude lo 0%, il 5% e le aliquote non previste dal suggerimento", () => {
+    expect(aliquotaAbituale([0, 0, 0, 5, "5.0", 5, 14, null, "", undefined])).toBeNull();
+    expect(aliquotaAbituale([5, 5, 5, 5, 22, 22, 22])).toEqual({ aliquota: 22, commesse: 3, totale: 3 });
   });
 });
 
