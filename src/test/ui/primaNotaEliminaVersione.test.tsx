@@ -36,6 +36,17 @@ it("selezionare originale e storno non invoca due volte il pagamento già elimin
   expect(esito.errori).toEqual([]); expect(esito.completate).toHaveLength(2);
   expect(state.rpc.mock.calls.filter(([name]) => name === "prima_nota_elimina_registrazione")).toHaveLength(1);
 });
+it("elabora l'originale prima dello storno selezionato per primo, anche se il costo è annullato", async () => {
+  state.rows.unshift({ ...payment, id: "storno", direction: "entrata", reversal_of: "p1", auto_source: "storno_pagamento" });
+  state.rpc.mockImplementation(async (name: string, args?: { p_id?: string }) => ({
+    data: name === "prima_nota_elimina_registrazione" ? { eliminati_ids: ["p1", "storno"] } : {},
+    error: name === "prima_nota_elimina_registrazione" && args?.p_id === "storno" ? { code: "P0001", message: "Il costo è annullato: elimina il pagamento originale insieme al relativo storno." } : null,
+  }));
+  const { result } = await open();
+  const esito = await act(async () => result.current.removeMany.mutateAsync(state.rows));
+  expect(esito.errori).toEqual([]); expect(esito.completate).toHaveLength(2);
+  expect(state.rpc.mock.calls.filter(([name]) => name === "prima_nota_elimina_registrazione").map(([, args]) => args.p_id)).toEqual(["p1"]);
+});
 it("mostra il conflitto di versione come riga non eliminata e permette di conservare la selezione", async () => {
   const { result } = await open();
   state.rpc.mockImplementation(async (name: string) => ({ data: {}, error: name === "prima_nota_elimina_registrazione" ? { code: "PT409", message: "La registrazione è cambiata. Ricaricala prima di eliminarla." } : null }));
