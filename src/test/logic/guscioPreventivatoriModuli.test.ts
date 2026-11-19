@@ -48,6 +48,9 @@ describe("rotte con l'altezza bloccata", () => {
       expect(rottaDelGuscio(`/azienda/${modulo}`)).toBe(false);
       expect(rottaDelGuscio(`/azienda/${modulo}/listino`)).toBe(false);
     }
+    expect(rottaDelGuscio("/azienda/marketing/preventivi/computo")).toBe(true);
+    expect(rottaDelGuscio("/azienda/marketing/preventivi/computo/")).toBe(true);
+    expect(rottaDelGuscio("/azienda/marketing/preventivi/computo/altro")).toBe(false);
     expect(rottaDelGuscio("/azienda/marketing/preventivi/nuovo")).toBe(false);
     expect(rottaDelGuscio("/azienda/fotovoltaico/nuovo")).toBe(false); // il Fotovoltaico sta sotto «marketing»
     // …e lì l'elenco, i componenti e la scheda del progetto non sono il wizard

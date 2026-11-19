@@ -10,17 +10,17 @@ const formati = [
   ["elenco-prezzi", "Elenco prezzi unitari", "Ogni voce col prezzo in cifre e in lettere, senza quantità."],
 ] as const;
 
-/** Il formato scelto a colpo d'occhio, nel passo Documento: quattro schede invece di una tendina. */
+/** Il formato scelto a colpo d'occhio, nel passo Documento. */
 export function ComputoFormatoSchede({ value, onChange, disabled }: {
   value: BozzaComputo["formatoPdf"]; onChange: (value: BozzaComputo["formatoPdf"]) => void; disabled?: boolean;
 }) {
-  return <div role="radiogroup" aria-label="Documento PDF" className="grid gap-2 sm:grid-cols-2">
+  return <div role="radiogroup" aria-label="Documento PDF" className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 170px), 1fr))" }}>
     {formati.map(([v, titolo, testo]) => {
       const scelto = (value ?? "cliente") === v;
       return <button key={v} type="button" role="radio" aria-checked={scelto} disabled={disabled} onClick={() => onChange(v)}
-        className={`rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${scelto ? "border-orange-400 bg-orange-50 ring-1 ring-orange-300" : "border-slate-200 bg-white hover:border-orange-200"}`}>
+        className={`rounded-lg border p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 disabled:cursor-not-allowed disabled:opacity-60 ${scelto ? "border-orange-400 bg-orange-50 ring-1 ring-orange-300" : "border-slate-200 bg-white hover:border-orange-200"}`}>
         <span className="block text-sm font-medium text-slate-900">{titolo}</span>
-        <span className="mt-0.5 block text-xs text-muted-foreground">{testo}</span>
+        <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{testo}</span>
       </button>;
     })}
   </div>;

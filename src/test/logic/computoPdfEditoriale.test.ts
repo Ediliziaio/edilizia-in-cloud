@@ -43,7 +43,7 @@ describe("computo editoriale completo", () => {
     const b = computoCompletoDimostrativo();
     const doc = await generaComputoPdf(vociDaBozza(b), { titolo: b.titolo, impaginazione: "editoriale", mostraPrezziUnitari: false, dettaglioMisure: true });
     expect(doc.output()).not.toContain("PREZZO UNITARIO");
-    expect(doc.output()).toContain("IMPORTO VOCE"); expect(doc.output()).toContain("MISURAZIONI");
+    expect(doc.output()).toContain("IMPORTO VOCE"); expect(doc.output()).toContain("Formula:");
     expect(doc.output()).toContain("TOTALE IMPONIBILE");
   });
   it("esclude codici, fonti e importi solo dalla presentazione", async () => {
@@ -65,11 +65,11 @@ describe("computo editoriale completo", () => {
     const doc = await generaComputoPdf(vociDaBozza(bozza), { ...bozza, azienda: "Edilizia in Cloud", impaginazione: "editoriale", dettaglioMisure: true, indirizzoIntervento: bozza.indirizzo });
     const out = doc.output();
     for (const v of bozza.voci) expect(out).toContain(v.tariffa);
-    expect(out).toContain("MISURAZIONI"); expect(out).toContain("PARTI");
+    expect(out).toContain("Formula:"); expect(out).toContain("Parti");
     expect(out).toContain("Riepilogo economico"); expect(out).toContain("Perimetro e condizioni");
     expect(out).toContain("NP.13"); expect(out.match(/\(TOTALE IMPONIBILE\)/g)).toHaveLength(1);
     expect(doc.getNumberOfPages()).toBeGreaterThan(3);
-    // Le colonne economiche riducono la larghezza delle descrizioni, senza tagliarle.
+    // Descrizioni complete e dettagli leggibili restano in un documento compatto.
     expect(doc.getNumberOfPages()).toBeLessThanOrEqual(6);
     if (process.env.COMPUTO_PDF_QA_OUTPUT) {
       await mkdir("output/pdf", { recursive: true }); await mkdir("output/computo", { recursive: true });
@@ -81,7 +81,7 @@ describe("computo editoriale completo", () => {
     const bozza = computoCompletoDimostrativo();
     const doc = await generaComputoPdf(vociDaBozza(bozza), { ...bozza, titolo: "Ristrutturazione - computo senza prezzi", azienda: "Edilizia in Cloud", indirizzoIntervento: bozza.indirizzo, impaginazione: "editoriale", dettaglioMisure: true, senzaPrezzi: true });
     const out = doc.output();
-    expect(out).toContain("NP.13"); expect(out).toContain("MISURAZIONI");
+    expect(out).toContain("NP.13"); expect(out).toContain("Formula:");
     expect(out).not.toContain("PREZZO UNITARIO"); expect(out).not.toContain("TOTALE IMPONIBILE"); expect(out).not.toContain("Riepilogo economico");
     if (process.env.COMPUTO_PDF_QA_OUTPUT) await writeFile("output/pdf/computo-ristrutturazione-senza-prezzi.pdf", Buffer.from(doc.output("arraybuffer")));
   });

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, Download, History, Eye, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Plus, Sparkles, Trash2, Undo2, Upload } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, Download, History, Eye, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Plus, Sparkles, Trash2, Undo2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TestoCheCresce } from "@/components/ui/testo-che-cresce";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { QuotePageHeader, QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import { CorpoPreventivatore } from "@/components/preventivatore/CorpoPreventivatore";
 import { BarraFasi } from "@/components/preventivatore/BarraFasi";
@@ -22,6 +21,7 @@ import { calcolaDetrazione } from "@/lib/computo/detrazioneComputo";
 import { calcolaSconto } from "@/lib/computo/scontoComputo";
 import { analizzaEconomia, eventoPerCommessa, testoQuando, testoTermine } from "@/lib/computo/economiaComputo";
 import ComputoCapitoli from "./ComputoCapitoli";
+import { destinazioneVoceComputo } from "@/lib/computo/destinazioniPdf";
 import ComputoMisure from "./ComputoMisure";
 import ComputoUnitaSelect from "./ComputoUnitaSelect";
 import { nomeCointestatario } from "@/lib/preventivatore/cointestatario";
@@ -44,14 +44,14 @@ import {
 } from "@/lib/computo/editorNativo";
 import { rigaDatiFiscali } from "@/lib/preventivatore/datiFiscaliCliente";
 
-const desktopSnapshot = () => window.matchMedia("(min-width: 1280px)").matches;
+const desktopSnapshot = () => window.matchMedia("(min-width: 1024px)").matches;
 const AddVocePicker = lazy(() => import("@/components/ristrutturazione/ComputoEditor/AddVocePicker"));
 // Gli stessi strumenti AI di Ristrutturazione e degli altri moduli; si caricano solo quando si aprono.
 const ImportaVociDialog = lazy(() => import("./ImportaVociDialog"));
 const ComputoSilvioAi = lazy(() => import("./ComputoSilvioAi"));
 const MAX_VOCI_SILVIO = 100;
 const subscribeDesktop = (notify: () => void) => {
-  const m = window.matchMedia("(min-width: 1280px)"); m.addEventListener("change", notify);
+  const m = window.matchMedia("(min-width: 1024px)"); m.addEventListener("change", notify);
   return () => m.removeEventListener("change", notify);
 };
 
@@ -72,10 +72,12 @@ function costoDaListino(p: PickedVoce): string {
   return costo > 0 ? String(Math.round(costo * 100) / 100).replace(".", ",") : "";
 }
 
-export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzienda, colore: coloreMarchio, onBack, fase, initialFase = 0, onFaseChange, consentiListini = false, ai, cloud, modello, logoUrl, vediMargini = false, firmaOnline, puoRiscrivereCondizioni = true }: {
-  storageKey: string; azienda?: string; dettagliAzienda?: string; colore?: string; onBack?: () => void;
+export default function ComputoNativoEditor({ storageKey, companyId, azienda, dettagliAzienda, datiAzienda, datiIniziali, colore: coloreMarchio, onBack, fase, initialFase = 0, onFaseChange, consentiListini = false, ai, cloud, modello, logoUrl, vediMargini = false, firmaOnline, puoRiscrivereCondizioni = true }: {
+  storageKey: string; companyId?: string; azienda?: string; dettagliAzienda?: string; colore?: string; onBack?: () => void;
+  datiAzienda?: import("@/lib/computo/esportaComputo").IntestazioneComputo["datiAzienda"];
   /** Il modello del computo dell'azienda: veste del PDF e condizioni con cui parte un computo nuovo. */
   modello?: ModelloComputo; logoUrl?: string | null;
+  datiIniziali?: Partial<BozzaComputo>;
   /** Permessi «costi» e «margini»: costo stimato delle voci, margini e cassa nel passo Economia. */
   vediMargini?: boolean;
   /** Permesso «Riscrivere le condizioni su un documento»: senza, le condizioni contrattuali si leggono e basta. */
@@ -90,7 +92,9 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   cloud?: { status: string; onChange: (bozza: BozzaComputo) => void };
 }) {
   const [faseLocale, setFaseLocale] = useState(initialFase);
+  const [anteprimePassi, setAnteprimePassi] = useState<Record<number, boolean>>({ 4: true });
   const step = fase ?? faseLocale;
+  const anteprimaVisibile = anteprimePassi[step] ?? false;
   const desktop = useSyncExternalStore(subscribeDesktop, desktopSnapshot, () => false);
   const [caricando, setCaricando] = useState(false);
   // Il passo nuovo si apre in cima (11/11/2026): su un computo di 164 lavorazioni «Avanti» sta in fondo
@@ -108,7 +112,8 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     let raw: string | null = null;
     try {
       raw = localStorage.getItem(storageKey);
-      return { raw, bozza: raw ? leggiBozzaComputo(raw) : modello ? bozzaDalModello(bozzaVuota(), modello) : bozzaVuota(), errore: "" };
+      const nuova = modello ? bozzaDalModello(bozzaVuota(), modello) : bozzaVuota();
+      return { raw, bozza: raw ? leggiBozzaComputo(raw) : { ...nuova, ...datiIniziali }, errore: "" };
     } catch { return { raw, bozza: bozzaVuota(), errore: "La bozza locale non è leggibile. Conserva l'originale o apri una copia valida." }; }
   });
   const [bozza, setBozza] = useState(iniziale.bozza);
@@ -156,7 +161,9 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   }, [anteprima]);
   const precedente = useRef(iniziale.raw);
   const importInput = useRef<HTMLInputElement>(null);
-  const apriVoce = (id: string) => setScelta(id);
+  const [vocePdf, setVocePdf] = useState<{ id: string; richiesta: number } | null>(null);
+  const puntaVocePdf = useCallback((id: string) => setVocePdf(prima => ({ id, richiesta: (prima?.richiesta ?? 0) + 1 })), []);
+  const apriVoce = (id: string) => { setScelta(id); puntaVocePdf(id); };
 
   const modificato = useRef(false);
   const corrente = useRef(bozza);
@@ -175,7 +182,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       if (typeof data === "string" && data.trim()) setBozza(b => (b.numero.trim() ? b : { ...b, numero: data }));
     })();
   }, [bozza, aziendaNumero, iniziale.raw]);
-  // Nessuna voce aperta finché l'utente non ne sceglie una: il pannello di lato si apre solo a richiesta.
+  // Nessuna voce aperta finché l'utente non ne sceglie una: i dettagli si aprono sotto la riga solo a richiesta.
   const v = scelta ? bozza.voci.find(r => r.id === scelta) : undefined;
   const risultati = useMemo(() => bozza.voci.map(r => calcolaVoce(r, senzaPrezzi)), [bozza.voci, senzaPrezzi]);
   const invalide = risultati.filter(r => r.errori.length).length;
@@ -229,9 +236,10 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
   const daQuantificare = bozza.voci.filter(r => r.daQuantificare).length;
   /** Quello che ferma davvero il documento. Il piano dei pagamenti no: ferma la firma e la commessa. */
   const bloccaDocumento = !bozza.titolo.trim() || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore;
-  const intestazione = useMemo(() => ({ titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,
+  const intestazione = useMemo(() => ({ companyId: companyId ?? firmaOnline?.companyId ?? ai?.companyId, titolo: bozza.titolo, committente: bozza.mostraDatiCliente === false ? null : [bozza.committente.trim(), nomeCointestatario(bozza)].filter(Boolean).join(" e "), oggetto: bozza.oggetto,
     datiFiscaliCommittente: bozza.mostraDatiCliente === false ? null : rigaDatiFiscali(datiFiscaliBozza(bozza)),
-    stato: "Bozza - non ancora inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, colore,
+    stato: "Bozza - non ancora inviata", senzaPrezzi, presentazione, azienda, dettagliAzienda, datiAzienda, colore,
+    datiCliente: { codiceFiscale: bozza.clienteCodiceFiscale, partitaIva: bozza.clientePartitaIva, email: bozza.clienteEmail, telefono: bozza.clienteTelefono, indirizzo: bozza.indirizzo, sdi: bozza.clienteSdi },
     numero: bozza.numero, ivaModalita: bozza.ivaModalita, ivaAliquota: bozza.ivaAliquota, ivaNota: bozza.ivaNota,
     indirizzoIntervento: bozza.mostraDatiCliente === false ? "" : bozza.indirizzo,
     nascondiCliente: bozza.mostraDatiCliente === false, condizioni: bozza.mostraCondizioni === false ? "" : bozza.condizioni,
@@ -244,6 +252,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     inclusioni: bozza.mostraCondizioni === false ? "" : bozza.inclusioni, esclusioni: bozza.mostraCondizioni === false ? "" : bozza.esclusioni,
     tempi: bozza.mostraCondizioni === false ? "" : bozza.tempi, pagamenti: bozza.mostraCondizioni === false ? "" : bozza.pagamenti,
     veste: veste && { ...veste, premessa: bozza.sezioniPdf.premessa === false ? "" : veste.premessa }, sezioni: bozza.sezioniPdf,
+    contrattoOrigine: bozza.contrattoOrigine,
     cronoprogramma: bozza.mostraCronoprogrammaPdf === false || bozza.sezioniPdf.cronoprogramma === false ? null : bozza.cronoprogramma, sconto: bozza.sconto,
     ratePagamento: bozza.mostraCondizioni === false || bozza.sezioniPdf.pagamenti === false || pianoErrore ? [] : pianoPdf,
     ritenutaPagamenti: bozza.mostraCondizioni === false || bozza.sezioniPdf.pagamenti === false || pianoErrore ? null : ritenutaPdf,
@@ -251,7 +260,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     condizioniContrattuali: bozza.mostraCondizioni === false || bozza.sezioniPdf.contrattuali === false ? "" : bozza.condizioniContrattuali,
     firmaCommittente: bozza.committente.trim(), firmaCointestatario: nomeCointestatario(bozza) ?? "",
     immagineCopertina: idFoto ? fotoCopertina : null, vociOpzionali }),
-  [bozza, senzaPrezzi, presentazione, azienda, dettagliAzienda, colore, veste, pianoPdf, pianoErrore, ritenutaPdf, spesaCliente, idFoto, fotoCopertina, vociOpzionali]);
+  [bozza, senzaPrezzi, presentazione, companyId, firmaOnline?.companyId, ai?.companyId, azienda, dettagliAzienda, datiAzienda, colore, veste, pianoPdf, pianoErrore, ritenutaPdf, spesaCliente, fiscaleDocumento.totale, idFoto, fotoCopertina, vociOpzionali]);
   const liveKey = useMemo(() => JSON.stringify([bozza, intestazione]), [bozza, intestazione]);
   const renderLive = useCallback(async () => {
     const { generaDocumentoComputo } = await import("@/lib/computo/esportaComputo");
@@ -434,9 +443,53 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     cambia({ ...bozza, voci: righe });
   };
 
-  return <section className="min-w-0 space-y-4" aria-label="Editor computo metrico">
+  const dettaglioVoce = <fieldset disabled={conflitto || erroreLettura || esportando || caricando} aria-label="Modifica lavorazione nella riga" className="min-w-0" onFocusCapture={() => { if (v) puntaVocePdf(v.id); }}>{v && <div className="min-w-0 space-y-4">
+            <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Voce {v.numero || bozza.voci.indexOf(v) + 1}</h3><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" className="h-8 gap-1" onClick={() => setScelta("")}><X className="h-3.5 w-3.5" />Chiudi dettagli</Button>
+              <Button variant="ghost" size="icon" aria-label="Sposta voce su" title="Sposta su" disabled={bozza.voci.indexOf(v) === 0} onClick={() => riordina(-1)}><ArrowUp className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Sposta voce giù" title="Sposta giù" disabled={bozza.voci.indexOf(v) === bozza.voci.length - 1} onClick={() => riordina(1)}><ArrowDown className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Duplica voce" title="Duplica voce" disabled={bozza.voci.length >= 5000} onClick={() => {
+                const copia = { ...v, id: crypto.randomUUID(), misure: v.misure.map(m => ({ ...m, id: crypto.randomUUID() })) };
+                const i = bozza.voci.indexOf(v);
+                cambia({ ...bozza, voci: [...bozza.voci.slice(0, i + 1), copia, ...bozza.voci.slice(i + 1)] }); setScelta(copia.id);
+              }}><Copy className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label="Elimina voce" title="Elimina voce" onClick={() => { cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) }); setScelta(""); }}><Trash2 className="h-4 w-4" /></Button>
+            </div></div>
+            <div className="space-y-1"><Label htmlFor="voce-descrizione">Descrizione della lavorazione</Label><TestoCheCresce id="voce-descrizione" minRighe={2} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([['Codice tariffa', 'tariffa'], ['Unità di misura', 'unita'], ['Quantità', 'quantita'], ['Prezzo unitario', 'prezzo']] as const).map(([label, key]) =>
+              <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label>{key === "unita"
+                ? <ComputoUnitaSelect key={v.id} value={v.unita} onChange={unita => modificaVoce({ unita, corpo: unita === "corpo" || unita === "a corpo" })} />
+                : <Input id={`voce-${key}`} maxLength={key === "tariffa" ? 160 : 40} inputMode={key === "quantita" || key === "prezzo" ? "decimal" : "text"}
+                  disabled={key === "quantita" && !!v.misure.length} value={key === "quantita" && v.misure.length ? String(calcolaVoce(v).quantita ?? "").replace(".", ",") : v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} />}</div>)}</div>
+            {vediMargini && (() => {
+              const r = calcolaVoce(v); const cu = numeroEditor(v.costo ?? "");
+              const margine = cu != null && r.prezzo != null && r.prezzo > 0 ? (r.prezzo - cu) / r.prezzo * 100 : null;
+              return <div className="flex flex-wrap items-end gap-3 rounded-md border border-dashed bg-white p-2">
+                <div className="w-44 space-y-1"><Label htmlFor="voce-costo" className="text-xs">Costo unitario stimato</Label>
+                  <Input id="voce-costo" className="h-9" inputMode="decimal" maxLength={40} placeholder="€ per unità" value={v.costo ?? ""} onChange={e => modificaVoce({ costo: e.target.value })} /></div>
+                <p className="pb-2 text-xs text-muted-foreground">{margine == null ? "Serve per margini e cassa nel passo Economia. Non va nel PDF." : <>Margine sulla voce <strong className={margine < 10 ? "text-red-700" : margine < 20 ? "text-amber-700" : "text-emerald-700"}>{margine.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</strong> · non va nel PDF</>}</p>
+              </div>;
+            })()}
+            <ComputoMisure misure={v.misure} unita={v.unita} onChange={misure => modificaVoce({ misure })} />
+            <details className="border-y py-3"><summary className="cursor-pointer text-sm font-medium">Classificazione e opzioni tecniche</summary><div className="mt-3 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">{([['Capitolo', 'capitolo'], ['Categoria', 'categoria'], ['Sottocategoria', 'sottocategoria']] as const).map(([label, key]) =>
+                <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label><Input id={`voce-${key}`} maxLength={300} value={v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} /></div>)}</div>
+              <div className="space-y-1"><Label htmlFor="voce-fonte">Fonte del prezzo</Label><Input id="voce-fonte" maxLength={500} value={v.fonte ?? ""} onChange={e => modificaVoce({ fonte: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-note-misure">Misure di riferimento originali (non usate nel calcolo)</Label><TestoCheCresce id="voce-note-misure" minRighe={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
+              <div className="space-y-1"><Label htmlFor="voce-comune">Descrizione comune del gruppo</Label><TestoCheCresce id="voce-comune" minRighe={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
+              <div>{([['Opzionale (fuori dal totale)', 'opzionale'], ['Da quantificare più avanti', 'daQuantificare'], ['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
+                <ComputoOpzione key={key} label={label} checked={v[key]} onChange={value => modificaVoce({ [key]: value })} />)}</div>
+            </div></details>
+            <div className="flex flex-wrap justify-between gap-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>Importo voce: {calcolaVoce(v).importo == null ? "Da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>
+          </div>}</fieldset>;
+
+  const comandoPdf = <Button type="button" variant="outline" size="sm" aria-pressed={desktop && anteprimaVisibile}
+    onClick={() => { if (desktop) setAnteprimePassi(v => ({ ...v, [step]: !anteprimaVisibile })); else void esporta(true); }}>
+    <Eye className="mr-1 h-4 w-4" />{desktop && anteprimaVisibile ? "Nascondi PDF" : "Mostra PDF"}
+  </Button>;
+
+  return <section className="min-w-0 space-y-2" aria-label="Editor computo metrico">
     {onBack && <Button variant="ghost" size="sm" disabled={caricando || esportando} onClick={onBack}><ArrowLeft className="mr-1 h-4 w-4" />Preventivi</Button>}
-    <QuotePageHeader title="Preventivo con computo" numero={bozza.numero || "BOZZA"} subtitle={bozza.committente || "Nuovo preventivo"}
+    <QuotePageHeader className="rounded-lg px-3 py-2 sm:px-3 sm:py-2 [&_h1]:text-lg [&_h1]:sm:text-xl" title="Preventivo / computo metrico" numero={bozza.numero || "BOZZA"} subtitle={bozza.committente || "Nuovo preventivo"}
       icon={<FileSpreadsheet className="h-5 w-5" />} actions={<>
         {/* Le copie di sicurezza servono di rado: stanno qui. Quando c'è un problema compaiono nell'avviso. */}
         <DropdownMenu>
@@ -449,6 +502,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
             <DropdownMenuItem disabled={conflitto} onSelect={() => importInput.current?.click()}><Upload className="mr-2 h-4 w-4" />Riapri una copia salvata…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {step !== 2 && comandoPdf}
         <Button variant="outline" size="sm" disabled={caricando || esportando || !bozza.voci.length || !bozza.titolo.trim()} onClick={() => esporta(true)}><Eye className="mr-1 h-4 w-4" />Anteprima</Button>
         <QuotePrimaryButton aria-label="Scarica preventivo" size="sm" disabled={esportando || caricando || !bozza.voci.length || !!invalide || !!erroreIva || !!sconto.errore || !bozza.titolo.trim()} onClick={() => esporta()}>
           {esportando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}Scarica PDF
@@ -465,7 +519,7 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
     <div ref={testaFasi} aria-hidden="true" className="scroll-mt-4" />
     <BarraFasi passi={[{ key: "0", label: "Dati" }, { key: "1", label: "Progetto" }, { key: "2", label: "Computo" }, { key: "3", label: "Economia" }, { key: "4", label: "Documento" }]}
       corrente={String(step)} completati={new Set([!!bozza.titolo.trim() && !!bozza.committente.trim(), true, !!bozza.voci.length && !invalide, !!bozza.voci.length && !invalide && !erroreIva && !sconto.errore, documentoPronto].flatMap((ok, n) => ok ? [String(n)] : []))}
-      onSelect={n => cambiaFase(Number(n))} ariaLabel="Fasi del preventivo con computo" />
+      onSelect={n => cambiaFase(Number(n))} ariaLabel="Fasi del preventivo / computo metrico" />
     <input type="file" aria-label="File bozza computo" ref={importInput} accept=".json" hidden onChange={async e => {
       const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
       setCaricando(true);
@@ -482,24 +536,27 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
         {conflitto && <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Ricarica versione salvata</Button>}
       </span>
     </div>}
-    <CorpoPreventivatore className="px-0 py-0 sm:px-0" anteprima={<div className="flex h-[65dvh] min-h-[420px] flex-col gap-2">
+    <CorpoPreventivatore anteprimaCompatta className="gap-3 px-0 py-0 sm:px-0" anteprimaNascosta={!anteprimaVisibile} anteprima={<div className="flex h-[65dvh] min-h-[420px] flex-col gap-2">
       <ComputoFormatoSelect label="Variante anteprima PDF" value={bozza.formatoPdf} disabled={esportando || caricando || conflitto || erroreLettura} onChange={value => cambia(applicaVarianteComputo(bozza, value))} />
-      <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderLive} depsKey={liveKey} debounceMs={900} enabled={desktop} downloadFileName="preventivo-computo.pdf" /></div>
+      <div className="min-h-0 flex-1"><PdfBlobLivePreviewPanel renderBlobUrl={renderLive} depsKey={liveKey} debounceMs={900} enabled={desktop && anteprimaVisibile} downloadFileName="preventivo-computo.pdf"
+        activeDestination={step === 2 && vocePdf ? destinazioneVoceComputo(vocePdf.id) : null} destinationRequest={vocePdf?.richiesta}
+        destinationLabel={`Voce ${bozza.voci.find(r => r.id === vocePdf?.id)?.numero || bozza.voci.findIndex(r => r.id === vocePdf?.id) + 1}`} /></div>
     </div>}>
     <fieldset disabled={conflitto || erroreLettura || esportando || caricando} className="min-w-0 space-y-4">
       {step === 0 && <ComputoDati bozza={bozza} onChange={cambiaParte} />}
       {step === 1 && <ComputoProgetto scope={storageKey} allegati={bozza.allegati ?? []} onBusy={setCaricando} onChange={allegati => cambiaParte({ allegati })}
         fotoCopertina={idFoto} onFotoCopertina={id => cambiaParte({ fotoCopertina: id })} />}
-      {step === 2 && <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      {step === 2 && <div className="space-y-2">
+      <div className="sticky top-16 z-10 flex flex-wrap items-center justify-between gap-2 bg-slate-50/95 py-1">
         <div className="min-w-0"><h2 className="text-base font-semibold">Computo metrico</h2>
-          <p className="text-xs text-muted-foreground">I totali si aggiornano mentre scrivi.</p></div>
-        <div aria-label="Riepilogo del computo" className="text-right text-sm tabular-nums"><span className="block text-xs text-muted-foreground">{bozza.voci.length} {bozza.voci.length === 1 ? "voce" : "voci"}{invalide ? ` · ${invalide} da completare` : ""}</span>
-          <strong className="text-lg">{formatEuro(totale)} €</strong>{!!invalide && <span className="block text-[11px] text-amber-700">parziale</span>}</div>
+          <p className="text-[11px] text-muted-foreground">Capitoli, lavorazioni e misure. Puoi completare i prezzi dopo.</p></div>
+        <div className="flex items-center gap-3"><div aria-label="Riepilogo del computo" className="flex items-center gap-2 text-right text-sm tabular-nums"><span className="text-xs text-muted-foreground">{bozza.voci.length} {bozza.voci.length === 1 ? "voce" : "voci"}{invalide ? ` · ${invalide} da completare` : ""}</span>
+          <strong className="text-base">{formatEuro(totale)} €</strong>{!!invalide && <span className="text-[11px] text-amber-700">parziale</span>}</div>
+          {comandoPdf}</div>
       </div>
       {/* Una riga sola (29/10/2026): prima erano un riquadro arancione con tre righe di spiegazione e, sotto, un'altra riga di pulsanti. */}
       <div>
-        <div role="group" aria-label="Parti da un computo che hai già" className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Parti da un computo che hai già" className="flex flex-wrap items-center gap-1.5 [&>button]:h-8 [&>button]:text-xs [&>span>button]:h-8 [&>span>button]:text-xs">
           {ai && <>
             <Button size="sm" className="bg-blue-950 text-white hover:bg-blue-900" disabled={bozza.voci.length > MAX_VOCI_SILVIO}
               title={bozza.voci.length > MAX_VOCI_SILVIO ? `Silvio lavora su preventivi fino a ${MAX_VOCI_SILVIO} voci: questo ne ha ${bozza.voci.length}.` : "Descrivi il lavoro, anche a voce: Silvio propone le voci e tu le rivedi"}
@@ -527,14 +584,15 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
           }}><Sparkles className="h-3 w-3 text-orange-500" />{a.nome.length > 28 ? `${a.nome.slice(0, 26)}…` : a.nome}</Button>)}
         <span className="text-muted-foreground">· Silvio la legge e propone le voci</span>
       </div>}
-      <ComputoCapitoli voci={bozza.voci} capitoliVuoti={bozza.capitoli ?? []} aperta={v?.id}
+      <ComputoCapitoli indiceLaterale={!anteprimaVisibile} voci={bozza.voci} capitoliVuoti={bozza.capitoli ?? []} aperta={v?.id}
+        onAttiva={puntaVocePdf}
         onApri={id => (id ? apriVoce(id) : setScelta(""))} onAdd={aggiungi}
         onModifica={(id, patch) => cambia({ ...bozza, voci: bozza.voci.map(r => r.id === id ? { ...r, ...patch } : r) })}
         onCapitoli={capitoli => cambia({ ...bozza, capitoli })}
         onRename={(prima, dopo) => cambia({ ...bozza, capitoli: (bozza.capitoli ?? []).map(n => n === prima ? dopo : n), voci: bozza.voci.map(r => (r.capitolo.trim() || "Opere edili") === prima ? { ...r, capitolo: dopo } : r) })}
         onEliminaCapitolo={nome => { cambia({ ...bozza, capitoli: (bozza.capitoli ?? []).filter(n => n !== nome), voci: bozza.voci.filter(r => (r.capitolo.trim() || "Opere edili") !== nome) }); setScelta(""); }}
         onListino={consentiListini ? capitolo => setPicker({ capitolo }) : undefined}
-        />
+        renderDettaglio={() => dettaglioVoce} />
       </div>}
       {step === 3 && <ComputoEconomia bozza={bozza} totale={totale} onChange={cambiaParte} vediMargini={vediMargini} onCronoprogramma={() => cambiaFase(4)}
         onCostiDalListino={firmaOnline?.companyId ? costiDalListino : undefined} conModelliAzienda={!!firmaOnline?.companyId} />}
@@ -580,52 +638,6 @@ export default function ComputoNativoEditor({ storageKey, azienda, dettagliAzien
       </QuotePrimaryButton>}
     </nav>
     </CorpoPreventivatore>
-    {/* La voce aperta si modifica in un pannello di lato (29/10/2026): aperta dentro l'elenco allungava la pagina di
-        mezzo schermo per voce. Non modale: l'elenco e l'anteprima restano visibili e si passa da una voce all'altra. */}
-    <Sheet modal={false} open={!!v} onOpenChange={open => { if (!open) setScelta(""); }}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:w-[620px] sm:max-w-[620px]" onInteractOutside={e => e.preventDefault()}>
-        <SheetHeader><SheetTitle>{v ? (v.descrizione.trim().split("\n")[0].slice(0, 80) || "Nuova lavorazione") : "Voce"}</SheetTitle>
-          <SheetDescription>{v ? `${v.capitolo.trim() || "Opere edili"} · ${calcolaVoce(v).importo == null ? "da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}` : ""}</SheetDescription></SheetHeader>
-        <fieldset disabled={conflitto || erroreLettura || esportando || caricando} className="mt-4 min-w-0">{v && <div className="min-w-0 space-y-4">
-            <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Voce {bozza.voci.indexOf(v) + 1}</h3><div className="flex gap-1">
-              <Button variant="ghost" size="icon" aria-label="Sposta voce su" title="Sposta su" disabled={bozza.voci.indexOf(v) === 0} onClick={() => riordina(-1)}><ArrowUp className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Sposta voce giù" title="Sposta giù" disabled={bozza.voci.indexOf(v) === bozza.voci.length - 1} onClick={() => riordina(1)}><ArrowDown className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Duplica voce" title="Duplica voce" disabled={bozza.voci.length >= 5000} onClick={() => {
-                const copia = { ...v, id: crypto.randomUUID(), misure: v.misure.map(m => ({ ...m, id: crypto.randomUUID() })) };
-                const i = bozza.voci.indexOf(v);
-                cambia({ ...bozza, voci: [...bozza.voci.slice(0, i + 1), copia, ...bozza.voci.slice(i + 1)] }); setScelta(copia.id);
-              }}><Copy className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" aria-label="Elimina voce" title="Elimina voce" onClick={() => { cambia({ ...bozza, voci: bozza.voci.filter(r => r.id !== v.id) }); setScelta(""); }}><Trash2 className="h-4 w-4" /></Button>
-            </div></div>
-            <div className="space-y-1"><Label htmlFor="voce-descrizione">Descrizione della lavorazione</Label><TestoCheCresce id="voce-descrizione" minRighe={4} maxLength={30000} value={v.descrizione} onChange={e => modificaVoce({ descrizione: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{([['Codice tariffa', 'tariffa'], ['Unità di misura', 'unita'], ['Quantità', 'quantita'], ['Prezzo unitario', 'prezzo']] as const).map(([label, key]) =>
-              <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label>{key === "unita"
-                ? <ComputoUnitaSelect key={v.id} value={v.unita} onChange={unita => modificaVoce({ unita, corpo: unita === "corpo" || unita === "a corpo" })} />
-                : <Input id={`voce-${key}`} maxLength={key === "tariffa" ? 160 : 40} inputMode={key === "quantita" || key === "prezzo" ? "decimal" : "text"}
-                  disabled={key === "quantita" && !!v.misure.length} value={key === "quantita" && v.misure.length ? String(calcolaVoce(v).quantita ?? "").replace(".", ",") : v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} />}</div>)}</div>
-            {vediMargini && (() => {
-              const r = calcolaVoce(v); const cu = numeroEditor(v.costo ?? "");
-              const margine = cu != null && r.prezzo != null && r.prezzo > 0 ? (r.prezzo - cu) / r.prezzo * 100 : null;
-              return <div className="flex flex-wrap items-end gap-3 rounded-md border border-dashed bg-white p-2">
-                <div className="w-44 space-y-1"><Label htmlFor="voce-costo" className="text-xs">Costo unitario stimato</Label>
-                  <Input id="voce-costo" className="h-9" inputMode="decimal" maxLength={40} placeholder="€ per unità" value={v.costo ?? ""} onChange={e => modificaVoce({ costo: e.target.value })} /></div>
-                <p className="pb-2 text-xs text-muted-foreground">{margine == null ? "Serve per margini e cassa nel passo Economia. Non va nel PDF." : <>Margine sulla voce <strong className={margine < 10 ? "text-red-700" : margine < 20 ? "text-amber-700" : "text-emerald-700"}>{margine.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</strong> · non va nel PDF</>}</p>
-              </div>;
-            })()}
-            <ComputoMisure misure={v.misure} unita={v.unita} onChange={misure => modificaVoce({ misure })} />
-            <details className="border-y py-3"><summary className="cursor-pointer text-sm font-medium">Classificazione e opzioni tecniche</summary><div className="mt-3 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">{([['Capitolo', 'capitolo'], ['Categoria', 'categoria'], ['Sottocategoria', 'sottocategoria']] as const).map(([label, key]) =>
-                <div key={key} className="min-w-0 space-y-1"><Label htmlFor={`voce-${key}`}>{label}</Label><Input id={`voce-${key}`} maxLength={300} value={v[key]} onChange={e => modificaVoce({ [key]: e.target.value })} /></div>)}</div>
-              <div className="space-y-1"><Label htmlFor="voce-fonte">Fonte del prezzo</Label><Input id="voce-fonte" maxLength={500} value={v.fonte ?? ""} onChange={e => modificaVoce({ fonte: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="voce-note-misure">Misure di riferimento originali (non usate nel calcolo)</Label><TestoCheCresce id="voce-note-misure" minRighe={4} maxLength={30000} value={v.noteMisure ?? ""} onChange={e => modificaVoce({ noteMisure: e.target.value })} /></div>
-              <div className="space-y-1"><Label htmlFor="voce-comune">Descrizione comune del gruppo</Label><TestoCheCresce id="voce-comune" minRighe={4} maxLength={30000} value={v.descrizioneComune ?? ""} onChange={e => modificaVoce({ descrizioneComune: e.target.value })} /></div>
-              <div>{([['Opzionale (fuori dal totale)', 'opzionale'], ['Da quantificare più avanti', 'daQuantificare'], ['A corpo', 'corpo'], ['Oneri sicurezza', 'sicurezza'], ['Detrazione', 'detrazione']] as const).map(([label, key]) =>
-                <ComputoOpzione key={key} label={label} checked={v[key]} onChange={value => modificaVoce({ [key]: value })} />)}</div>
-            </div></details>
-            <div className="flex flex-wrap justify-between gap-3 text-sm"><ul className="text-amber-800">{calcolaVoce(v, senzaPrezzi).errori.map(e => <li key={e}>{e}</li>)}</ul><strong>Importo voce: {calcolaVoce(v).importo == null ? "Da completare" : `${formatEuro(calcolaVoce(v).importo!)} €`}</strong></div>
-          </div>}</fieldset>
-      </SheetContent>
-    </Sheet>
     {revisioniAperte && <ComputoRevisioni bozza={bozza} open onOpenChange={setRevisioniAperte} onChange={cambiaParte} />}
     {aiAperta && ai && <Suspense fallback={<p role="status">Apro Silvio AI…</p>}>
       <ComputoSilvioAi open bozza={bozza} fileIniziale={fileChat} companyId={ai.companyId} draftId={ai.draftId} intestazione={intestazione}

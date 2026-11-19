@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import SettingsQuoteTemplates from "@/pages/azienda/settings/SettingsQuoteTemplates";
+import SettingsQuoteTemplatesUnificato, { QuoteTemplatesLegacy as SettingsQuoteTemplates } from "@/pages/azienda/settings/SettingsQuoteTemplates";
 import { confermaNavigazioneImpostazioni } from "@/hooks/useSettingsDraftGuard";
 import { TESTO_SOLA_LETTURA } from "@/pages/azienda/settings/SettingsQuoteTemplates/constants";
 import { DEFAULT_TEMPLATE, type QuoteTemplate } from "@/types/quoteTemplate";
@@ -70,6 +70,7 @@ vi.mock("@/components/ui/rich-text-editor-safe", () => ({
   ),
 }));
 vi.mock("@/pages/azienda/settings/SettingsQuoteTemplates/ModuliVenditaPanel", () => ({ ModuliVenditaPanel: () => <p>Pannello Moduli</p> }));
+vi.mock("@/components/computo/ComputoModelloPanel", () => ({ default: () => <div data-testid="builder-unico">Builder unico del preventivo</div> }));
 
 const modello = (id: string, nome: string, extra: Partial<QuoteTemplate> = {}): QuoteTemplate =>
   ({
@@ -163,10 +164,30 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("pagina pubblica del preventivatore unificato", () => {
+  it.each(["", "?tab=documenti", "?tab=computo"])("apre il builder unico da %s senza cancellare i modelli precedenti", async suffisso => {
+    const prima = JSON.stringify(state.templates);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/azienda/impostazioni/template-preventivi${suffisso}`]}><SettingsQuoteTemplatesUnificato /><Indirizzo /></MemoryRouter></QueryClientProvider>);
+    expect(screen.getByTestId("builder-unico")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Preventivo / computo metrico", selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Offerte complete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Libreria modelli" })).not.toBeInTheDocument();
+    await waitFor(() => expect(indirizzo()).toBe("/azienda/impostazioni/template-preventivi?tab=computo"));
+    expect(JSON.stringify(state.templates)).toBe(prima); expect(state.upsert).not.toHaveBeenCalled(); expect(state.remove).not.toHaveBeenCalled();
+  });
+  it("mantiene i collegamenti ai moduli di settore", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti"]}><SettingsQuoteTemplatesUnificato /><Indirizzo /></MemoryRouter></QueryClientProvider>);
+    expect(screen.getByText("Pannello Moduli")).toBeInTheDocument(); expect(screen.queryByTestId("builder-unico")).not.toBeInTheDocument();
+    expect(indirizzo()).toContain("modulo=serramenti");
+  });
+});
+
 describe("Preventivo generico: l'elenco", () => {
-  it("la pagina apre ancora sulla scheda «Preventivo generico» (decisione D10 ancora aperta: non si cambia)", () => {
+  it("la libreria precedente resta leggibile per compatibilità con i modelli salvati", () => {
     apri();
-    expect(screen.getByRole("tab", { name: "Preventivo generico", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Libreria modelli", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /^Moduli/ })).toHaveAttribute("aria-selected", "false");
     expect(screen.queryByText("Pannello Moduli")).toBeNull();
   });
@@ -359,7 +380,7 @@ describe("Preventivo generico: l'indice dell'editor", () => {
       // l'indirizzo non cambia: niente #…, niente ?tab=… perso (decide quale scheda è aperta)
       expect(indirizzo(), voce).toBe("/azienda/impostazioni/template-preventivi?tab=documenti");
     }
-    expect(screen.getByRole("tab", { name: "Preventivo generico", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Libreria modelli", selected: true })).toBeInTheDocument();
   });
 
   it("l'evidenziazione si spegne da sola dopo un paio di secondi", async () => {

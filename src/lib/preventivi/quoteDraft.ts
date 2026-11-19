@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { misurePreventivoSchema } from "./misurePreventivo";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import type { BonusLine } from "@/lib/orders/bonusFiscali";
 import type { FinancingProposal } from "@/components/marketing/preventivi/QuoteFinancingPanel";
@@ -17,6 +18,7 @@ const item = z.object({
   name: text, description: text, quantity: number, unit_price: number,
   discount_percent: number, vat_rate: number.nullable(), unit_of_measure: nullableText,
   sort_order: number, prezzo_acquisto: number, mostra_nel_pdf: flag, is_optional: flag,
+  misureComputo: misurePreventivoSchema.optional(),
 }).passthrough();
 
 // Versione 2 mantiene anche i campi facoltativi del documento. Le vecchie

@@ -8,6 +8,7 @@ import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { serializeQuoteDraft, readQuoteDraft, quoteDraftInputHash } from "@/lib/preventivi/quoteDraft";
+import { descrizioneConMisure, righeConMisureIncomplete, salvaMisurePreventivo } from "@/lib/preventivi/misurePreventivo";
 
 // Execute the real handlers, with synthetic services only. This catches ordering
 // regressions that pure helper tests cannot see, without loading the giant editor.
@@ -107,7 +108,7 @@ function fixture(failAttachment: boolean, legacy = false, newQuote = false) {
     latestDraftSerializedRef: { current: '{"notes":"snapshot"}' }, lastCloudSavedSnapshotRef: { current: '{"notes":"snapshot"}' },
     createdQuoteRef: { current: null as string | null }, quoteDraftInputHash,
     setPartialQuoteId: (value: string | null) => { context.partialQuoteId = value; }, setPendingEditNavId: noop, newQuoteCompletedRef: { current: false },
-    searchParams: new URLSearchParams(), items: [], selectedMaterials: [], bonusLines: [],
+    searchParams: new URLSearchParams(), items: [], selectedMaterials: [], bonusLines: [], descrizioneConMisure, righeConMisureIncomplete, salvaMisurePreventivo,
     totaliPro: { costo_totale: 0, overhead_totale: 0, margine_totale_pct: 100 },
     subtotal: 100, discountAmt: 0, vatAmount: 22, total: 122,
     templateValues: {}, contractFields: [], tipoCliente: "privato",

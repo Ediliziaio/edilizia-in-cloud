@@ -20,6 +20,7 @@ import { ComandiDocumento } from "./ConfrontoDocumentiLayout";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { readPdfPreview, revokePdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { edileEditorDestinations, resolveEdileSectionPage, type SectionDestinationDocument } from "@/components/preventivi/pdf/sectionDestinations";
+import { resolvePdfDestination } from "@/lib/pdfDestination";
 
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2.5;
@@ -90,6 +91,10 @@ function disposePdfDocument(document: PdfDocumentHandle | null) {
 interface Props {
   /** Editor section/chapter identity; changing it never regenerates the PDF. */
   activeSection?: string | null;
+  /** Singola voce: pagina e posizione native, senza rigenerare per la sola selezione. */
+  activeDestination?: string | null;
+  destinationLabel?: string;
+  destinationRequest?: number;
   /** Costruisce (async) il blob URL del PDF con mock + template correnti. */
   renderBlobUrl: () => Promise<string>;
   /** Chiave che rappresenta lo stato visivo: quando cambia, rigenera (debounced). */
@@ -107,6 +112,9 @@ interface Props {
 
 export function PdfBlobLivePreviewPanel({
   activeSection,
+  activeDestination,
+  destinationLabel = "Voce selezionata",
+  destinationRequest = 0,
   renderBlobUrl,
   depsKey,
   enabled = true,
@@ -148,7 +156,7 @@ export function PdfBlobLivePreviewPanel({
   const pendingPositionRef = useRef<ViewPosition | null>(null);
   const lastVisiblePositionRef = useRef<ViewPosition | null>(null);
   const layoutRef = useRef<{ document: PdfDocumentHandle; position: ViewPosition } | null>(null);
-  const lastNavigationRef = useRef<{ document: PdfDocumentHandle; section: string; page: number } | null>(null);
+  const lastNavigationRef = useRef<{ document: PdfDocumentHandle; section: string; page: number; request: number } | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -299,34 +307,44 @@ export function PdfBlobLivePreviewPanel({
     const container = containerRef.current;
     const layout = layoutRef.current;
     if (!container || container.clientWidth <= 24 || !layout || layout.document !== pdfDocRef.current) return;
-    if (!edileEditorDestinations(activeSection).length) {
+    if (!activeDestination && !edileEditorDestinations(activeSection).length) {
       lastNavigationRef.current = null;
       return;
     }
-    void resolveEdileSectionPage(layout.document, activeSection).then(page => {
+    const identity = activeDestination ?? activeSection!;
+    const target: ReturnType<typeof resolvePdfDestination> = activeDestination ? resolvePdfDestination(layout.document, activeDestination)
+      : resolveEdileSectionPage(layout.document, activeSection).then((page): Awaited<ReturnType<typeof resolvePdfDestination>> => page == null ? null : { page, top: null });
+    void target.then(async destination => {
+      let offset = 0;
+      if (destination?.top != null) {
+        const page = await layout.document.getPage(destination.page);
+        const height = page.getViewport({ scale: 1 }).height;
+        offset = height > 0 ? Math.min(1, Math.max(0, (height - destination.top) / height)) : 0;
+      }
       if (token !== navigationTokenRef.current || layout.document !== pdfDocRef.current) return;
-      if (page === null) {
-        setSectionStatus("Sezione non presente in questo PDF: vista mantenuta.");
+      if (destination === null) {
+        setSectionStatus(activeDestination ? "Voce non presente in questo PDF: vista mantenuta." : "Sezione non presente in questo PDF: vista mantenuta.");
         lastNavigationRef.current = null;
         return;
       }
+      const { page } = destination;
       const previous = lastNavigationRef.current;
-      if (!previous || previous.section !== activeSection) {
+      if (!previous || previous.section !== identity || (activeDestination && (previous.document !== layout.document || previous.request !== destinationRequest))) {
         const canvas = container.querySelector<HTMLCanvasElement>(`canvas[data-page="${page}"]`);
         // Scroll this panel only, never the editor/browser window. PDF.js gets
         // the page from the native destination; no text search or fixed index.
-        if (canvas) container.scrollTop = Math.max(0, canvasTop(container, canvas) - 12);
+        if (canvas) container.scrollTop = Math.max(0, canvasTop(container, canvas) + offset * canvas.getBoundingClientRect().height - 12);
       } else if (previous.document !== layout.document) {
         // Stay at the user's offset within the selected chapter after edits,
         // even when preceding content gained/lost pages. Zoom is independent.
         restorePosition(container, { ...layout.position, page: page + layout.position.page - previous.page }, layout.document.numPages);
       }
-      lastNavigationRef.current = { document: layout.document, section: activeSection!, page };
+      lastNavigationRef.current = { document: layout.document, section: identity, page, request: destinationRequest };
       lastVisiblePositionRef.current = capturePosition(container);
-      setSectionStatus(`Sezione selezionata · pagina ${page} di ${layout.document.numPages}`);
-    });
+      setSectionStatus(`${activeDestination ? destinationLabel : "Sezione selezionata"} · pagina ${page} di ${layout.document.numPages}`);
+    }).catch(() => { /* Una rigenerazione può chiudere il documento durante la risoluzione. */ });
     return invalidateNavigation;
-  }, [activeSection, layoutRevision, viewportWidth, invalidateNavigation]);
+  }, [activeSection, activeDestination, destinationLabel, destinationRequest, layoutRevision, viewportWidth, invalidateNavigation]);
 
   useEffect(() => () => {
     disposePdfDocument(pdfDocRef.current);
@@ -386,7 +404,7 @@ export function PdfBlobLivePreviewPanel({
           )}
         </div>
       </div>
-      {sectionStatus && edileEditorDestinations(activeSection).length > 0 && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionStatus}</p>}
+      {sectionStatus && (activeDestination || edileEditorDestinations(activeSection).length > 0) && <p role="status" className="shrink-0 border-b px-3 py-1 text-[10px] text-muted-foreground">{sectionStatus}</p>}
       </ComandiDocumento>
       <div data-confronto-superficie={affiancato ? true : undefined} className={affiancato ? "relative min-h-0 flex-1 overflow-auto rounded border bg-slate-100 p-2" : "relative flex-1 min-h-0 overflow-auto bg-muted/40"} ref={containerRef} data-pdf-scroll-container onScroll={() => {
         const container = containerRef.current;

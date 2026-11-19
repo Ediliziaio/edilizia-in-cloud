@@ -9,6 +9,10 @@ import type { QuadroEconomico } from "./quadroEconomico";
 import { formatEuro } from "./computoStrutturato";
 import type { AllegatoPdfComputo } from "./allegatiLocali";
 import type { ImpostazioniIvaComputo } from "./ivaComputo";
+import { personalizzaDocumento } from "./personalizzaDocumento";
+import { compilaTestiComputo } from "./testiDocumentoComputo";
+import { preparaAssetModello, registraFontModello } from "./assetModello";
+import { fontStandard } from "./fontDocumento";
 
 export type RigaStampa =
   | { tipo: "capitolo"; livello: number; testo: string }
@@ -19,6 +23,7 @@ export type RigaStampa =
   | { tipo: "totale"; testo: string; importo: number };
 
 export interface IntestazioneComputo extends ImpostazioniIvaComputo {
+  companyId?: string;
   titolo: string;
   commessa?: string | null;
   stazioneAppaltante?: string | null;
@@ -34,6 +39,8 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   presentazione?: "tecnico" | "preventivo";
   azienda?: string;
   dettagliAzienda?: string;
+  datiAzienda?: { partitaIva?: string | null; indirizzo?: string | null; email?: string | null; telefono?: string | null };
+  datiCliente?: { codiceFiscale?: string; partitaIva?: string; email?: string; telefono?: string; indirizzo?: string; sdi?: string };
   colore?: string;
   /** La veste del modello del computo dell'azienda (Impostazioni → Modelli preventivi): copertina, logo, premessa, firme, piè di pagina. */
   veste?: import("./modelloComputo").VesteComputo;
@@ -46,11 +53,12 @@ export interface IntestazioneComputo extends ImpostazioniIvaComputo {
   /** La ritenuta a garanzia del piano dei pagamenti (11/11/2026): una riga in fondo alle rate. */
   ritenutaPagamenti?: import("./pianoPagamentiPdf").RitenutaPdf | null;
   /** Le sezioni del documento scelte nel passo Documento: una sezione spenta non esce. */
-  sezioni?: Partial<Record<"copertina" | "indice" | "riepilogo" | "firme", boolean>>;
+  sezioni?: Partial<import("./editorNativo").BozzaComputo["sezioniPdf"]>;
   /** La detrazione fiscale già calcolata sul totale del documento. */
   calcoloDetrazione?: import("./detrazioneComputo").CalcoloDetrazione | null;
   /** Le condizioni contrattuali del modello dell'azienda, modificate nel singolo preventivo. */
   condizioniContrattuali?: string;
+  contrattoOrigine?: { id: string; nome: string; versione: number } | null;
   /** Chi firma per il committente e l'eventuale cointestatario, separati: `committente` li ha già uniti con «e». */
   firmaCommittente?: string;
   /** Le voci opzionali, fuori dal totale: escono in una sezione a parte. */
@@ -204,21 +212,26 @@ export async function esportaComputoXlsx(voci: VoceComputo[], intestazione: Inte
 
 /** PDF orizzontale con le colonne classiche, «Riporto / A riportare» a ogni pagina e riepilogo finale. */
 export async function generaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo) {
+  intestazione = await preparaAssetModello(compilaTestiComputo(personalizzaDocumento(intestazione), voci));
   const mod = await import("jspdf");
   const JsPDF = mod.default ?? (mod as typeof mod & { jsPDF?: typeof mod.default }).jsPDF;
+  const nuovoPdf = (orientation: "portrait" | "landscape" = "portrait") => {
+    const pdf = new JsPDF({ orientation, unit: "pt", format: "a4" });
+    registraFontModello(pdf, intestazione.veste); return pdf;
+  };
   if (intestazione.impaginazione === "elenco-prezzi") {
     const { disegnaElencoPrezzi } = await import("./stampaElencoPrezzi");
-    return disegnaElencoPrezzi(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);
+    return disegnaElencoPrezzi(nuovoPdf(), voci, intestazione);
   }
   if (intestazione.impaginazione === "primus") {
     const { disegnaComputoPrimus } = await import("./stampaPrimus");
-    return disegnaComputoPrimus(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);
+    return disegnaComputoPrimus(nuovoPdf(), voci, intestazione);
   }
   if (intestazione.presentazione === "preventivo" || intestazione.impaginazione === "editoriale") {
     const { disegnaPreventivoComputo } = await import("./preventivoComputoPdf");
-    return disegnaPreventivoComputo(new JsPDF({ orientation: "portrait", unit: "pt", format: "a4" }), voci, intestazione);
+    return disegnaPreventivoComputo(nuovoPdf(), voci, intestazione);
   }
-  const doc = new JsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const doc = nuovoPdf("landscape");
   const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight();
   const m = 28;
   const completa = () => {
@@ -370,10 +383,18 @@ export async function generaComputoPdf(voci: VoceComputo[], intestazione: Intest
 }
 
 export async function generaDocumentoComputo(voci: VoceComputo[], intestazione: IntestazioneComputo, allegati: AllegatoPdfComputo[] = []): Promise<Blob> {
-  const doc = await generaComputoPdf(voci, { ...intestazione, senzaPiede: !!allegati.length });
-  if (!allegati.length) return doc.output("blob");
+  const i = compilaTestiComputo(personalizzaDocumento(intestazione), voci);
+  const doc = await generaComputoPdf(voci, { ...i, senzaPiede: i.senzaPiede || !!allegati.length });
+  const fontCustom = !fontStandard(i.veste?.fontFamiglia) || !fontStandard(i.veste?.fontTitoli ?? i.veste?.fontFamiglia);
+  const base = fontCustom ? await (await import("./compatibilitaFontPdf")).normalizzaFontPdf(doc.output("arraybuffer")) : doc.output("blob");
+  if (!allegati.length) return base;
   const { appendiAllegatiPdf } = await import("./appendiAllegatiPdf");
-  return appendiAllegatiPdf(doc.output("arraybuffer"), allegati);
+  return appendiAllegatiPdf(await base.arrayBuffer(), allegati, {
+    mostraNumeriPagina: i.senzaPiede ? false : i.veste?.mostraNumeriPagina,
+    fontFamiglia: fontStandard(i.veste?.fontFamiglia) ? i.veste?.fontFamiglia : "helvetica",
+    piePagina: i.senzaPiede ? "" : i.stato === "" ? i.veste?.piePagina?.trim() || i.azienda || "" : i.stato ?? "Bozza locale",
+    saltaPiedePrimaPagina: (i.presentazione === "preventivo" || i.impaginazione === "editoriale") && ["piena", "editoriale"].includes(i.veste?.copertina ?? "piena") && i.sezioni?.copertina !== false,
+  });
 }
 
 export async function esportaComputoPdf(voci: VoceComputo[], intestazione: IntestazioneComputo, allegati: AllegatoPdfComputo[] = []): Promise<void> {

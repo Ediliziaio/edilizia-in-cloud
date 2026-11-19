@@ -143,6 +143,7 @@ export function useCondizioniArchivio() {
     inCaricamento: clausole.isLoading || modelli.isLoading,
     clausole: clausole.data?.righe ?? [],
     modelli: modelli.data?.righe ?? [],
+    riprova: () => Promise.all([clausole.refetch(), modelli.refetch()]),
     salvaClausola, clausoleDiPartenza, eliminaClausola, salvaModello, eliminaModello,
   };
 }

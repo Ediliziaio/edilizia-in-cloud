@@ -48,10 +48,10 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy, fot
     } catch (e) { if (attivo.current) setErrore(e instanceof Error ? e.message : "File non salvato: riprova."); }
     finally { if (attivo.current) { setBusy(false); onBusy(false); } }
   };
-  return <section className="space-y-4" aria-label="Progetto e allegati">
+  return <section className="space-y-3 rounded-xl border bg-white p-4" aria-label="Progetto e allegati">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0"><h2 className="text-base font-semibold">Foto e tavole del progetto</h2>
-        <p className="text-xs text-muted-foreground">Facoltative · {allegati.length}/20 allegati</p></div>
+        <p className="text-xs text-muted-foreground">{allegati.length}/20 allegati · {allegati.filter(a => a.includi).length} nel PDF · {(allegati.reduce((n, a) => n + a.dimensione, 0) / 1024 / 1024).toLocaleString("it-IT", { maximumFractionDigits: 1 })}/50 MB</p></div>
       <div className="flex w-full items-center gap-2 sm:w-auto"><Label htmlFor="allegato-tipo" className="shrink-0 text-xs text-muted-foreground">I prossimi file sono</Label>
         <Select value={tipo} disabled={busy} onValueChange={value => setTipo(value as typeof tipo)}>
           <SelectTrigger id="allegato-tipo" className="h-9 w-36"><SelectValue /></SelectTrigger>
@@ -71,21 +71,22 @@ export default function ComputoProgetto({ scope, allegati, onChange, onBusy, fot
       const files = Array.from(e.target.files ?? []); e.target.value = ""; void carica(files);
     }} />
     {errore && <p role="alert" className="text-sm text-rose-700">{errore}</p>}
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{allegati.map((a, index) => <article key={a.id} className="min-w-0 overflow-hidden rounded-lg border">
-      <div className="flex h-32 items-center justify-center bg-slate-50">
+    {!allegati.length && <p className="py-3 text-sm text-muted-foreground">Puoi proseguire senza allegati. Aggiungi foto del sopralluogo o tavole e scegli quali inserire nel documento.</p>}
+    <div className="divide-y rounded-lg border empty:hidden">{allegati.map((a, index) => <article key={a.id} className="flex min-w-0 flex-wrap items-center gap-3 p-3">
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-50">
         {urls[a.id] && a.mime.startsWith("image/") ? <img src={urls[a.id]} alt={a.nome} className="h-full w-full object-contain" /> : <FileText className="h-10 w-10 text-slate-400" />}
       </div>
-      <div className="space-y-2 p-3"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="break-words text-sm font-medium">{a.nome}</h3><p className="text-xs capitalize text-muted-foreground">{a.tipo} · {(a.dimensione / 1024 / 1024).toFixed(2)} MB</p></div>
-        <Button variant="ghost" size="icon" title="Rimuovi allegato" aria-label={`Rimuovi ${a.nome}`} disabled={busy} onClick={() => onChange(allegati.filter(r => r.id !== a.id))}><Trash2 className="h-4 w-4" /></Button></div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
-          <label className="flex items-center gap-2 text-sm"><Switch aria-label={`Includi ${a.nome} nel PDF`} checked={a.includi} disabled={busy} onCheckedChange={includi => onChange(allegati.map(r => r.id === a.id ? { ...r, includi } : r))} />Includi nel PDF</label>
-          <div className="flex gap-1">{([-1, 1] as const).map(delta => <Button key={delta} size="icon" variant="ghost" title={delta < 0 ? "Sposta prima" : "Sposta dopo"} aria-label={`${delta < 0 ? "Anticipa" : "Posticipa"} ${a.nome}`} disabled={busy || index + delta < 0 || index + delta >= allegati.length} onClick={() => {
-            const next = [...allegati]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; onChange(next);
-          }}>{delta < 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}</Button>)}</div>
-        </div>
-        {onFotoCopertina && a.mime.startsWith("image/") && <Button type="button" size="sm" variant={fotoCopertina === a.id ? "default" : "outline"} className="h-7 w-full text-xs" aria-pressed={fotoCopertina === a.id}
+      <div className="min-w-0 flex-1 space-y-1"><h3 className="break-words text-sm font-medium">{a.nome}</h3><p className="text-xs capitalize text-muted-foreground">{a.tipo} · {(a.dimensione / 1024 / 1024).toFixed(2)} MB</p>
+        {urls[a.id] && <a href={urls[a.id]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary" title="Apri allegato"><ExternalLink className="h-3 w-3" />Apri allegato</a>}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 max-sm:w-full">
+        {onFotoCopertina && a.mime.startsWith("image/") && <Button type="button" size="sm" variant={fotoCopertina === a.id ? "default" : "outline"} className="h-8 text-xs" aria-pressed={fotoCopertina === a.id}
           onClick={() => onFotoCopertina(fotoCopertina === a.id ? "" : a.id)}>{fotoCopertina === a.id ? "In copertina · togli" : "Usa in copertina"}</Button>}
-        {urls[a.id] && <a href={urls[a.id]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-primary" title="Apri allegato"><ExternalLink className="h-4 w-4" />Apri allegato</a>}
+        <label className="flex items-center gap-2 text-xs"><Switch aria-label={`Includi ${a.nome} nel PDF`} checked={a.includi} disabled={busy} onCheckedChange={includi => onChange(allegati.map(r => r.id === a.id ? { ...r, includi } : r))} />Includi nel PDF</label>
+        <div className="flex gap-0.5">{([-1, 1] as const).map(delta => <Button key={delta} size="icon" variant="ghost" className="h-8 w-8" title={delta < 0 ? "Sposta prima" : "Sposta dopo"} aria-label={`${delta < 0 ? "Anticipa" : "Posticipa"} ${a.nome}`} disabled={busy || index + delta < 0 || index + delta >= allegati.length} onClick={() => {
+          const next = [...allegati]; [next[index], next[index + delta]] = [next[index + delta], next[index]]; onChange(next);
+        }}>{delta < 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}</Button>)}
+        <Button variant="ghost" size="icon" title="Rimuovi allegato" aria-label={`Rimuovi ${a.nome}`} disabled={busy} onClick={() => onChange(allegati.filter(r => r.id !== a.id))}><Trash2 className="h-4 w-4" /></Button></div>
       </div>
     </article>)}</div>
   </section>;

@@ -2,10 +2,12 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { AllegatoPdfComputo } from "./allegatiLocali";
 
 /** Le tavole rimangono vettoriali: si incorporano in nuove pagine, mai rasterizzate. */
-export async function appendiAllegatiPdf(base: ArrayBuffer, allegati: AllegatoPdfComputo[]): Promise<Blob> {
+export async function appendiAllegatiPdf(base: ArrayBuffer, allegati: AllegatoPdfComputo[], opzioni: {
+  mostraNumeriPagina?: boolean; fontFamiglia?: "helvetica" | "times" | "courier"; piePagina?: string; saltaPiedePrimaPagina?: boolean;
+} = {}): Promise<Blob> {
   const doc = await PDFDocument.load(new Uint8Array(base));
   const basePages = doc.getPageCount();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const font = await doc.embedFont(opzioni.fontFamiglia === "times" ? StandardFonts.TimesRoman : opzioni.fontFamiglia === "courier" ? StandardFonts.Courier : StandardFonts.Helvetica);
   const ascii = (s: string) => s.normalize("NFKD").replace(/[^\x20-\x7e]/g, "");
   for (const a of allegati) {
     const bytes = new Uint8Array(await a.blob.arrayBuffer());
@@ -36,6 +38,15 @@ export async function appendiAllegatiPdf(base: ArrayBuffer, allegati: AllegatoPd
     }
   }
   const pages = doc.getPages();
-  pages.forEach((page, n) => page.drawText(`Bozza locale | Pagina ${n + 1} di ${pages.length}`, { x: 40, y: 20, size: 7, font, color: rgb(.38, .44, .52) }));
+  pages.forEach((page, n) => {
+    if (n === 0 && opzioni.saltaPiedePrimaPagina) return;
+    let testo = ascii(opzioni.piePagina ?? "Bozza locale");
+    while (font.widthOfTextAtSize(testo, 7) > page.getWidth() - 180 && testo.length) testo = testo.slice(0, -1);
+    if (testo) page.drawText(testo, { x: 40, y: 20, size: 7, font, color: rgb(.38, .44, .52) });
+    if (opzioni.mostraNumeriPagina !== false) {
+      const numero = `Pagina ${n + 1} di ${pages.length}`;
+      page.drawText(numero, { x: page.getWidth() - 40 - font.widthOfTextAtSize(numero, 7), y: 20, size: 7, font, color: rgb(.38, .44, .52) });
+    }
+  });
   return new Blob([await doc.save() as Uint8Array<ArrayBuffer>], { type: "application/pdf" });
 }

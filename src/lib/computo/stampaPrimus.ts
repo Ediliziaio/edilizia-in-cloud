@@ -1,6 +1,8 @@
 import type { jsPDF } from "jspdf";
+import { segnaVoceComputoPdf } from "./destinazioniPdf";
 import { disegnaCronoprogramma } from "./stampaCronoprogramma";
 import type { IntestazioneComputo } from "./esportaComputo";
+import { nomeFontModello } from "./assetModello";
 import { alberoComputo, numeroVoce, tariffaVoce, type MisuraComputo, type NodoComputo, type VoceComputo } from "./alberoComputo";
 import { formatEuro } from "./computoStrutturato";
 import { calcolaIvaComputo } from "./ivaComputo";
@@ -43,7 +45,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
   const xNumero = m + 2, xDesc = m + 54, fineDesc = c.pu - c.dim - 6, largDesc = fineDesc - xDesc;
 
   const font = (size = 7.5, stile: "normal" | "bold" | "italic" | "bolditalic" = "normal", colore = t.inchiostro) => {
-    doc.setFont("helvetica", stile); doc.setFontSize(size); doc.setTextColor(colore);
+    doc.setFont(nomeFontModello(i.veste, size >= 11), stile); doc.setFontSize(size); doc.setTextColor(colore);
   };
   const avvolgi = (s: string, w: number): string[] => doc.splitTextToSize(s, w);
   const accorcia = (s: string, w: number) => {
@@ -73,7 +75,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
 
   // ── Testata di ogni pagina dopo la prima ────────────────────────────────
   const testataCorrente = () => {
-    font(8, "bold", t.inchiostroMarca); doc.text(accorcia(i.azienda || "Computo metrico", larghezza - 160), m, m);
+    if (i.veste?.mostraIntestazione !== false) { font(8, "bold", t.inchiostroMarca); doc.text(accorcia(i.azienda || "Computo metrico", larghezza - 160), m, m); }
     font(7, "normal", t.grigio);
     doc.text(accorcia([conPrezzi ? "Computo metrico estimativo" : "Computo metrico", i.numero].filter(Boolean).join(" · "), 160), destra, m, { align: "right" });
     font(7, "normal", t.grigioChiaro); doc.text(accorcia(i.titolo, larghezza), m, m + 10);
@@ -131,8 +133,10 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
       doc.setFillColor("#FFFFFF"); doc.roundedRect(destra - w - 8, 12, w + 8, h, 3, 3, "F");
       try { doc.addImage(logo.dati, logo.formato, destra - w - 4, 14, w, h - 4); } catch { /* un logo illeggibile non ferma il computo */ }
     }
-    font(12, "bold", t.bianco); doc.text(accorcia(i.azienda || "", larghezza - (logo ? 160 : 0)), m, 30);
-    if (i.dettagliAzienda) { font(7, "normal", t.bianco); doc.text(accorcia(i.dettagliAzienda, larghezza - (logo ? 160 : 0)), m, 44); }
+    if (i.veste?.mostraIntestazione !== false) {
+      font(12, "bold", t.bianco); doc.text(accorcia(i.azienda || "", larghezza - (logo ? 160 : 0)), m, 30);
+      if (i.dettagliAzienda) { font(7, "normal", t.bianco); doc.text(accorcia(i.dettagliAzienda, larghezza - (logo ? 160 : 0)), m, 44); }
+    }
     y = banda + 26;
     font(7, "bold", t.inchiostroMarca);
     doc.text((conPrezzi ? "COMPUTO METRICO ESTIMATIVO" : "COMPUTO METRICO").split("").join(" "), m, y);
@@ -217,6 +221,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     const numero = numeroVoce(v);
     const { descrizione, righe, marcatori, righeTariffa, misure, minimo } = preparaVoce(v);
     serve(minimo);
+    segnaVoceComputoPdf(doc, v.id, y);
     const inizio = y;
     const pagina = doc.getNumberOfPages();
     font(7.5, "bold", t.inchiostroMarca); doc.text(numero, xNumero, y);
@@ -357,6 +362,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
       ["Piano dei pagamenti", testoPianoPagamenti(i.ratePagamento, i.ivaModalita === "applicata", i.mostraImporti !== false, i.ritenutaPagamenti)],
       ["Modalità di pagamento", i.pagamenti ?? ""],
       ["Note e condizioni", i.condizioni ?? ""],
+      ["Condizioni contrattuali", i.condizioniContrattuali ? [i.contrattoOrigine && `${i.contrattoOrigine.nome} · versione ${i.contrattoOrigine.versione}`, i.condizioniContrattuali].filter(Boolean).join("\n\n") : ""],
     ] as const).filter(([, s]) => s.trim());
     for (const [titolo, testo] of blocchi) {
       serve(40); y += 8;
@@ -383,18 +389,20 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
 
   // ── Impaginazione ──────────────────────────────────────────────────────
   intestazioneDocumento();
-  pagineTabella = true;
-  intestazioneColonne();
-  nodi.forEach((n, k) => disegnaNodo(n, 0, k + 1));
+  if (!i.soloRiepilogo && i.sezioni?.lavorazioni !== false) {
+    pagineTabella = true;
+    intestazioneColonne();
+    nodi.forEach((n, k) => disegnaNodo(n, 0, k + 1));
+  }
   // Finita la tabella non c'è più niente da riportare: la pagina del riepilogo non ripete colonne e RIPORTO.
   pagineTabella = false;
-  if (conPrezzi) disegnaRiepilogo();
+  if (conPrezzi && i.sezioni?.riepilogo !== false) disegnaRiepilogo();
   if (i.cronoprogramma?.fasi.length) {
-    const dopo = disegnaCronoprogramma(doc, i.cronoprogramma, { margine: m, colore: t.fondo, tinta: t.tinta, inchiostro: t.inchiostro, grigio: t.grigio, filetto: t.filetto, titolo: i.titolo });
+    const dopo = disegnaCronoprogramma(doc, i.cronoprogramma, { margine: m, colore: t.fondo, tinta: t.tinta, inchiostro: t.inchiostro, grigio: t.grigio, filetto: t.filetto, titolo: i.titolo, fontFamiglia: nomeFontModello(i.veste) });
     if (dopo != null) y = dopo;
   }
   disegnaNote();
-  disegnaFirma();
+  if (i.veste?.mostraFirma !== false && i.sezioni?.firme !== false) disegnaFirma();
 
   // Piede: stato e numero di pagina, su ogni pagina.
   const pagine = doc.getNumberOfPages();
@@ -403,7 +411,7 @@ export function disegnaComputoPrimus(doc: jsPDF, voci: VoceComputo[], i: Intesta
     y = H - 24; filetto(m, destra, t.filetto, 0.4);
     font(6.5, "normal", t.grigioChiaro);
     doc.text(accorcia(i.parziale ? "Bozza parziale: lavorazioni da completare" : i.stato || i.veste?.piePagina?.trim() || i.azienda || "", larghezza - 80), m, H - 14);
-    doc.text(`Pagina ${p} di ${pagine}`, destra, H - 14, { align: "right" });
+    if (i.veste?.mostraNumeriPagina !== false) doc.text(`Pagina ${p} di ${pagine}`, destra, H - 14, { align: "right" });
   }
   return doc;
 }

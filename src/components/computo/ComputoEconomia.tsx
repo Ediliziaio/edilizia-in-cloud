@@ -103,20 +103,26 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0"><h2 className="text-base font-semibold">Economia del preventivo</h2>
         <p className="text-xs text-muted-foreground">Il peso dei capitoli, lo sconto e l'IVA. Le voci restano ai loro prezzi: lo sconto è una riga del riepilogo.</p></div>
-      <div className="text-right tabular-nums"><span className="block text-xs text-muted-foreground">{sconto.importo > 0 ? "Imponibile scontato" : "Imponibile"}</span><strong className="text-lg">{formatEuro(netto)} €</strong></div>
     </div>
 
-    <section aria-label="Riepilogo per capitolo" className="overflow-x-auto rounded-lg border bg-white">
-      <table className="w-full min-w-[480px] text-sm">
-        <thead><tr className="border-b bg-slate-50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-          <th className="px-3 py-2 font-medium">Capitolo</th><th className="w-16 px-2 py-2 text-right font-medium">Voci</th><th className="w-40 px-2 py-2 font-medium">Incidenza</th><th className="w-32 px-3 py-2 text-right font-medium">Importo</th>{vediMargini && <th className="w-24 px-3 py-2 text-right font-medium">Margine</th>}
+    <dl aria-label="Importi del preventivo" className="grid gap-2 sm:grid-cols-3">
+      {([ ["Totale dei lavori", `${formatEuro(totale)} €`], ["Sconto", `${formatEuro(sconto.importo)} €`], [analisi.totaleCliente == null ? "Imponibile · IVA da definire" : "Totale cliente", `${formatEuro(analisi.totaleCliente ?? netto)} €`] ] as const).map(([nome, valore], k) =>
+        <div key={nome} className={`min-w-0 rounded-lg border px-4 py-3 ${k === 2 ? "border-blue-200 bg-blue-50/60" : "bg-white"}`}><dt className="text-xs text-muted-foreground">{nome}</dt><dd className="mt-1 break-words text-lg font-semibold tabular-nums">{valore}</dd></div>)}
+    </dl>
+    <div className="grid items-start gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 440px), 1fr))" }}>
+    <section aria-label="Riepilogo per capitolo" className="min-w-0 overflow-hidden rounded-lg border bg-white">
+      <h3 className="border-b px-3 py-2 text-sm font-semibold">Riepilogo per capitolo <span className="ml-1 text-xs font-normal text-muted-foreground">{capitoli.size} capitoli</span></h3>
+      <div className="max-h-[420px] overflow-auto">
+      <table className="w-full min-w-[440px] table-fixed text-xs">
+        <thead className="sticky top-0 z-10"><tr className="border-b bg-slate-50 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+          <th className="px-3 py-2 font-medium">Capitolo</th><th className="w-10 px-1 py-2 text-right font-medium">Voci</th><th className="w-16 px-1 py-2 text-right font-medium">Incidenza</th><th className="w-32 px-2 py-2 text-right font-medium">Importo</th>{vediMargini && <th className="w-16 px-2 py-2 text-right font-medium">Margine</th>}
         </tr></thead>
         <tbody>{[...capitoli].map(([nome, c]) => {
           const perc = totale > 0 ? c.importo / totale * 100 : 0;
           return <tr key={nome} className="border-b last:border-0">
-            <td className="px-3 py-2">{nome}{!!c.daCompletare && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">{c.daCompletare} da completare</span>}</td>
+            <td className="px-3 py-2"><span className="line-clamp-2" title={nome}>{nome}</span>{!!c.daCompletare && <span className="text-[11px] text-amber-800">{c.daCompletare} da completare</span>}</td>
             <td className="px-2 py-2 text-right tabular-nums">{c.voci}</td>
-            <td className="px-2 py-2"><div className="flex items-center gap-2"><div className="h-1.5 flex-1 rounded bg-slate-100" aria-hidden="true"><div className="h-full rounded bg-orange-500" style={{ width: `${Math.min(100, Math.max(0, perc))}%` }} /></div><span className="w-11 text-right text-xs tabular-nums text-muted-foreground">{perc.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</span></div></td>
+            <td className="px-1 py-2 text-right tabular-nums text-muted-foreground">{perc.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%</td>
             <td className="px-3 py-2 text-right font-medium tabular-nums">{formatEuro(c.importo)} €</td>
             {vediMargini && (() => { const m = analisi.perCapitolo.get(nome); const p = m && m.costo > 0 && m.ricavo > 0 ? (m.ricavo - m.costo) / m.ricavo * 100 : null;
               return <td className={`px-3 py-2 text-right text-xs tabular-nums ${p == null ? "text-muted-foreground" : p < 10 ? "text-red-700" : p < 20 ? "text-amber-700" : "text-emerald-700"}`}>{p == null ? "senza costo" : `${p.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`}</td>; })()}
@@ -124,11 +130,12 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
         })}</tbody>
         <tfoot><tr className="border-t bg-slate-50 font-semibold"><td className="px-3 py-2" colSpan={3}>Totale dei lavori{sicurezza > 0 && <span className="ml-2 text-xs font-normal text-muted-foreground">di cui oneri della sicurezza {formatEuro(sicurezza)} €</span>}</td><td className="px-3 py-2 text-right tabular-nums">{formatEuro(totale)} €</td>{vediMargini && <td />}</tr></tfoot>
       </table>
+      </div>
     </section>
-
+    <div className="min-w-0 space-y-3">
     <section aria-label="Sconto" className="space-y-3 rounded-lg border bg-white p-3">
       <h3 className="text-sm font-semibold">Sconto</h3>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1"><Label htmlFor="sconto-tipo" className="text-xs">Tipo di sconto</Label>
           <Select value={s.tipo} onValueChange={tipo => cambiaSconto({ tipo: tipo as BozzaComputo["sconto"]["tipo"] })}>
             <SelectTrigger id="sconto-tipo" className="h-9"><SelectValue /></SelectTrigger>
@@ -137,7 +144,7 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
         {s.tipo !== "nessuno" && <>
           <div className="space-y-1"><Label htmlFor="sconto-valore" className="text-xs">{s.tipo === "percentuale" ? "Percentuale" : "Importo in euro"}</Label>
             <Input id="sconto-valore" className="h-9 tabular-nums" inputMode="decimal" maxLength={40} placeholder={s.tipo === "percentuale" ? "Es. 5" : "Es. 1.500"} value={s.valore} aria-invalid={!!sconto.errore} onChange={e => cambiaSconto({ valore: e.target.value })} /></div>
-          <div className="space-y-1"><Label htmlFor="sconto-descrizione" className="text-xs">Come si legge nel PDF</Label>
+          <div className="space-y-1 sm:col-span-2"><Label htmlFor="sconto-descrizione" className="text-xs">Come si legge nel PDF</Label>
             <Input id="sconto-descrizione" className="h-9" maxLength={120} placeholder="Sconto" value={s.descrizione} onChange={e => cambiaSconto({ descrizione: e.target.value })} /></div>
         </>}
       </div>
@@ -145,8 +152,10 @@ export default function ComputoEconomia({ bozza, totale, onChange, vediMargini =
       {sconto.importo > 0 && <p className="text-xs text-muted-foreground">{sicurezza > 0 && <>Calcolato su {formatEuro(totale - sicurezza)} €: gli oneri della sicurezza ({formatEuro(sicurezza)} €) non sono soggetti a ribasso. </>}{sconto.etichetta}: -{formatEuro(sconto.importo)} €{sconto.percentuale != null && s.tipo === "importo" ? `, pari al ${sconto.percentuale.toLocaleString("it-IT")}% dei lavori` : ""}.</p>}
     </section>
 
-    <ComputoIva value={bozza} imponibile={netto} onChange={patch => onChange(patch)}
+    <ComputoIva compatto value={bozza} imponibile={netto} onChange={patch => onChange(patch)}
       righePrima={sconto.importo > 0 ? [["Totale dei lavori", `${formatEuro(totale)} €`], [`${sconto.etichetta}${s.tipo === "percentuale" ? ` ${s.valore.trim()}%` : ""}`, `-${formatEuro(sconto.importo)} €`]] : []} />
+    </div>
+    </div>
 
     <section aria-label="Piano dei pagamenti" className="space-y-3 rounded-lg border bg-white p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
