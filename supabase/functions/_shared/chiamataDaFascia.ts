@@ -169,7 +169,7 @@ export async function fissaChiamataDaFascia(admin: any, opz: {
   }).select("id").single();
   if (error) throw error;
 
-  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: opz.companyId, userId: cal.owner_id ?? null });
+  await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: opz.companyId, userId: cal.owner_id ?? null }, admin);
   await admin.from("marketing_contact_activities").insert({
     company_id: opz.companyId,
     contact_id: opz.contactId,

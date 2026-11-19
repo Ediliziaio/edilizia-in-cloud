@@ -129,6 +129,44 @@ it("una revoca bancaria fallita non viene dichiarata disconnessa localmente",asy
  await db.pg.exec("update bank_connections set status='linked',provider_connection_id='remote'");fetcher.mockResolvedValue(Response.json({error:"provider_unavailable"},{status:503}));const r=await request({action:"disconnect"});expect(r.status).toBe(503);expect((await db.pg.query<{status:string}>("select status from bank_connections")).rows[0].status).toBe("linked");
 });
 
+describe("Ripresa delle pagine bancarie", () => {
+  async function preparaConto() {
+    await db.pg.exec(`update bank_connections set status='linked',provider_connection_id='remote';
+      insert into bank_accounts(id,company_id,connection_id,external_account_id,is_active)
+      values('eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee','${company}','${conn}','a1',true);`);
+  }
+  const movimento = (id: string) => ({ id,account_id:"a1",amount:50,credit_debit:"CRDT",status:"BOOK",booking_date:"2026-11-19" });
+  it("invia solo il token alle pagine successive e salva tutto lo storico", async () => {
+    await preparaConto();
+    fetcher.mockImplementation(async url => {
+      const q = new URL(String(url)).searchParams;
+      if (!q.has("continuation")) {
+        expect(Object.fromEntries(q)).toEqual({ history:"all",resumable:"true",enrich:"true" });
+        return Response.json({ complete:false,continuation:"token-ripresa",transactions:[movimento("prima")] });
+      }
+      if (q.size !== 1) return Response.json({error:"invalid_continuation"},{status:400});
+      expect(q.get("continuation")).toBe("token-ripresa");
+      return Response.json({ complete:true,transactions:[movimento("seconda")] });
+    });
+    const r = await request({action:"sync"});
+    expect(r.status).toBe(200); expect(await r.json()).toMatchObject({movimenti:2});
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect((await db.pg.query("select * from bank_transactions")).rows).toHaveLength(2);
+    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).not.toBeNull();
+  });
+  it("un token scaduto conserva le righe importate e non dichiara la sincronizzazione completa", async () => {
+    await preparaConto();
+    fetcher.mockResolvedValueOnce(Response.json({complete:false,continuation:"scaduto",transactions:[movimento("prima")]}))
+      .mockResolvedValueOnce(Response.json({error:"invalid_continuation",detail:"dato privato del provider"},{status:400}));
+    const r = await request({action:"sync"});
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({code:"invalid_continuation",error:expect.stringContaining("già importati restano salvati")});
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect((await db.pg.query("select * from bank_transactions")).rows).toHaveLength(1);
+    expect((await db.pg.query("select last_sync_at from bank_connections")).rows[0].last_sync_at).toBeNull();
+  });
+});
+
 it("disconnettere libera i posti e disattiva i conti soltanto dopo la revoca",async()=>{
  await db.pg.exec(`update bank_connections set status='linked',provider_connection_id='remote';insert into bank_accounts(id,company_id,connection_id,external_account_id,is_active) values('eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee','${company}','${conn}','a1',true);insert into bank_account_choices values('${company}','eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee');`);fetcher.mockResolvedValue(Response.json({ok:true}));expect((await request({action:"disconnect"})).status).toBe(200);expect((await db.pg.query("select * from bank_account_choices")).rows).toHaveLength(0);expect((await db.pg.query<{is_active:boolean}>("select is_active from bank_accounts")).rows[0].is_active).toBe(false);
 });

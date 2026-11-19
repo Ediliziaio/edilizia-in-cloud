@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     // Sul Google/Apple Calendar del responsabile, subito: prima l'appuntamento
     // restava solo in EiC e il commerciale non lo vedeva sul telefono.
     if (creato?.id) {
-      await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id ?? null });
+      await sincronizzaCalendariEsterni({ azione: "push-event", appointmentId: creato.id, companyId: cal.company_id, userId: cal.owner_id ?? null }, admin);
     }
     // Nel registro attività della scheda: chi apre il contatto vede la prenotazione.
     if (creato?.id && contactId) {

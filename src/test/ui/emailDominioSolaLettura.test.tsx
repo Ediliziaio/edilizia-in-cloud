@@ -54,9 +54,10 @@ const dominio = (): Record<string, unknown> => ({
   ],
 });
 
-function mostra(domini: unknown[]) {
+function mostra(domini: unknown[], letturaFallita = false) {
   invoke.mockImplementation(async (nome: string, args: { body: { action: string } }) => {
     if (nome === "manage-email-domain" && args.body.action === "get_status") {
+      if (letturaFallita) return { data: null, error: { message: "non-2xx", context: { json: async () => ({error:"Accesso al dominio non consentito"}) } } };
       return { data: { success: true, domains: domini, mittenti: {} }, error: null as unknown };
     }
     return { data: { success: true }, error: null as unknown };
@@ -84,6 +85,14 @@ afterEach(() => {
 });
 
 describe("senza nessun dominio", () => {
+  it("un errore di lettura non mostra il modulo per un dominio inesistente", async () => {
+    mostra([],true);
+    expect(await screen.findByText("Dominio email non caricato")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("Accesso al dominio non consentito");
+    expect(screen.getByRole("button",{name:"Riprova"})).toBeTruthy();
+    expect(screen.queryByLabelText("Il tuo dominio")).toBeNull();
+    expect(screen.queryByText("Le email funzionano già.")).toBeNull();
+  });
   it("chi amministra può registrarlo", async () => {
     mostra([]);
     const campo = await screen.findByLabelText("Il tuo dominio");

@@ -54,6 +54,7 @@ export function erroreDistyra(status: number, body: Record<string, unknown> | nu
   const resetsAt = testo(body?.resets_at) ?? undefined;
   let message = "Il servizio bancario non è disponibile. Riprova più tardi.";
   if (code === "bank_fetch_limit_reached") message = "La banca ha raggiunto il limite giornaliero delle richieste. Non serve ricollegare il conto: riprova dopo il ripristino del limite.";
+  else if (code === "invalid_continuation") message = "La sessione di lettura dei movimenti è scaduta o non è più valida. I movimenti già importati restano salvati. Riprova con un nuovo aggiornamento, senza ricollegare il conto.";
   else if (status === 429) message = "Troppe richieste al servizio bancario. Attendi prima di riprovare.";
   else if (status === 409) message = "Il consenso bancario non è ancora pronto o deve essere rinnovato. Verifica il collegamento.";
   else if (status === 502 || status === 503) message = "La banca non risponde. Il collegamento esistente resta disponibile: riprova più tardi.";

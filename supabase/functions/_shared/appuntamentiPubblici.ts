@@ -6,6 +6,8 @@
 
 // deno-lint-ignore-file no-explicit-any
 
+import { providersAppuntamento } from "./providersAppuntamento.ts";
+
 const GIORNI = ["domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"];
 const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 
@@ -193,23 +195,30 @@ export function bottoneGestione(url: string, etichetta = "Sposta o disdici"): st
 /**
  * Porta un appuntamento nato o cambiato lato server (prenotazione pubblica,
  * spostamento o disdetta dal link del cliente) sui calendari esterni del
- * responsabile. Fino al 09/09/2026 non lo faceva nessuno: la pagina /prenota
- * scriveva solo in EiC, e l'appuntamento non compariva mai su Google Calendar
- * di chi lo doveva ricevere. Best effort: le edge rispondono 404 se non c'e'
- * niente di collegato, e il giro dei 15 minuti recupera comunque i mancanti.
+ * responsabile. Interroga soltanto il provider agganciato al calendario o
+ * realmente collegato al responsabile: chiamare tutti generava 404 continui
+ * per servizi mai configurati. Gli errori del provider scelto restano visibili.
  */
 export async function sincronizzaCalendariEsterni(args: {
   azione: "push-event" | "update-event" | "delete-event";
   appointmentId: string;
   companyId: string;
   userId: string | null;
-}): Promise<void> {
+}, admin: any): Promise<void> {
   const base = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!base || !serviceKey || !args.userId) return;
+  let providers: Awaited<ReturnType<typeof providersAppuntamento>>;
+  try { providers = await providersAppuntamento(admin,args); }
+  catch (e) {
+    console.warn("[appuntamentiPubblici] destinazione calendario non verificabile:", e instanceof Error ? e.message : String(e));
+    return;
+  }
+  const funzioni = {google:"google-calendar-sync",apple:"apple-calendar-sync",outlook:"outlook-calendar-booking-sync"};
   const body = JSON.stringify({ action: args.azione, appointmentId: args.appointmentId, companyId: args.companyId, userId: args.userId });
   await Promise.allSettled(
-    ["google-calendar-sync", "apple-calendar-sync", "outlook-calendar-booking-sync"].map(async (fn) => {
+    providers.map(async (provider) => {
+      const fn = funzioni[provider];
       try {
         const res = await fetch(`${base}/functions/v1/${fn}`, {
           method: "POST",
@@ -217,8 +226,7 @@ export async function sincronizzaCalendariEsterni(args: {
           body,
           signal: AbortSignal.timeout(12000),
         });
-        // 404 = quel provider non e' collegato: normale, non e' un errore.
-        if (!res.ok && res.status !== 404 && res.status !== 409) {
+        if (!res.ok) {
           console.warn(`[appuntamentiPubblici] ${fn} ${args.azione}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
         }
       } catch (e) {

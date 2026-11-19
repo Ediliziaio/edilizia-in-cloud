@@ -22,6 +22,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 import { serveConMetriche } from "../_shared/withMetrics.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
@@ -81,6 +82,7 @@ async function authorize(
   userClient: SupabaseClient,
   admin: SupabaseClient,
   companyId: string,
+  scrittura = true,
 ): Promise<{ userId: string; isSuperAdmin: boolean }> {
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) throw new Error("Unauthorized");
@@ -92,41 +94,31 @@ async function authorize(
 
   if (isSA === true) return { userId: user.id, isSuperAdmin: true };
 
-  // Membership check via profiles (user_roles does not have company_id column)
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("company_id")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if ((profile as { company_id?: string } | null)?.company_id !== companyId) {
-    throw new Error("Non autorizzato");
+  // La sola azienda del profilo escludeva gli amministratori multi-azienda.
+  // Usiamo gli stessi accessi attivi e non scaduti delle policy del dominio.
+  await verifyCompanyAccess(admin, user.id, companyId);
+  const { data: amministrate, error: amministrateError } = await userClient.rpc("aziende_amministrate" as never);
+  if (amministrateError) throw new Error("Impossibile verificare i permessi sul dominio email");
+  if (Array.isArray(amministrate) && amministrate.includes(companyId)) {
+    return { userId: user.id, isSuperAdmin: false };
   }
 
-  // Must have company_admin role
-  const { data: roles } = await admin
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id);
-
-  const isCompanyAdmin = (roles ?? []).some((r: { role: string }) =>
-    r.role === "company_admin"
-  );
-  if (isCompanyAdmin) return { userId: user.id, isSuperAdmin: false };
-
   // Non amministratore: basta il permesso di vista, se non è in sola lettura.
-  const { data: haPermesso } = await admin.rpc("has_permission_for_company" as never, {
+  const { data: haPermesso, error: permessoError } = await admin.rpc("has_permission_for_company" as never, {
     _user_id: user.id,
     _permission: "can_view_marketing_email",
     _company_id: companyId,
   } as never);
+  if (permessoError) throw new Error("Impossibile verificare i permessi sul dominio email");
   if (haPermesso === true) {
-    const { data: sp } = await admin
+    if (!scrittura) return { userId: user.id, isSuperAdmin: false };
+    const { data: sp, error: staffError } = await admin
       .from("staff_permissions")
       .select("sola_lettura")
       .eq("user_id", user.id)
       .eq("company_id", companyId)
       .maybeSingle();
+    if (staffError) throw new Error("Impossibile verificare i permessi sul dominio email");
     if (!(sp as { sola_lettura?: boolean } | null)?.sola_lettura) {
       return { userId: user.id, isSuperAdmin: false };
     }
@@ -656,7 +648,7 @@ serveConMetriche("manage-email-domain", async (req) => {
 
     const admin = buildAdmin();
     const userClient = await buildUserClient(authHeader);
-    await authorize(userClient, admin, body.company_id);
+    await authorize(userClient, admin, body.company_id, body.action !== "get_status");
 
     switch (body.action) {
       case "add_domain": {
@@ -685,7 +677,7 @@ serveConMetriche("manage-email-domain", async (req) => {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("manage-email-domain error:", msg);
     return new Response(JSON.stringify({ error: msg }), {
-      status: msg === "Unauthorized" || msg === "Non autorizzato" ? 401 : 500,
+      status: msg === "Unauthorized" ? 401 : msg.startsWith("Non autorizzato") ? 403 : 500,
       headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }
