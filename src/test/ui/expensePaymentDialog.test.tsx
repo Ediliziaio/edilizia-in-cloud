@@ -5,7 +5,7 @@ import { ExpensePaymentDialog } from '@/components/orders/ExpensePaymentDialog';
 import { SalPaymentDialog } from '@/components/subappaltatori/SalPaymentDialog';
 import type { SALSubappaltatore } from '@/types/subappaltatori';
 Element.prototype.scrollIntoView ??= () => {};
-const fake=vi.hoisted(()=>({rpc:vi.fn(),readonly:false,treasury:false,paid:0,total:1220,fail:false,movimenti:[] as {id:string;data:string;importo:number;direzione:string;conto:string;metodo:string;bank_account_id?:string|null;banca:null;riferimento:null;storno_di:null}[],conti:[] as {valore:string;etichetta:string;account_label:string;bank_account_id:string|null;conto_liquidita_id:string|null}[]}));
+const fake=vi.hoisted(()=>({rpc:vi.fn(),readonly:false,treasury:false,paid:0,total:1220,fail:false,movimenti:[] as {id:string;data:string;importo:number;direzione:string;conto:string;metodo:string;bank_account_id?:string|null;banca:null;riferimento:null;storno_di:null}[],conti:[] as {valore:string;etichetta:string;account_label:string;bank_account_id:string|null;conto_liquidita_id:string|null;cassa?:boolean}[]}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{rpc:fake.rpc}}));
 vi.mock('@/hooks/useContiPrimaNota',()=>({useContiPrimaNota:()=>({data:fake.conti,isError:false,isFetching:false})}));
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({canViewCosts:true,solaLettura:fake.readonly,canViewSubappaltatoriAmministrazione:false,canViewTesoreria:fake.treasury,canManagePayments:false,isAdmin:false})}));
@@ -17,7 +17,7 @@ beforeEach(()=>{
     if(name==='registra_pagamento_costo'||name==='registra_pagamento_costo_con_conto'){
       if(fake.fail)return {data:null,error:{message:'Connessione interrotta, esito da verificare'}};
       fake.paid+=Number(args.p_importo);
-      fake.movimenti.push({id:String(fake.movimenti.length+1),data:String(args.p_data),importo:Number(args.p_importo),direzione:'uscita',conto:args.p_metodo==='contanti'?'Cassa':fake.conti.find(c=>c.bank_account_id===args.p_conto_banca)?.account_label??'Banca',metodo:String(args.p_metodo),bank_account_id:args.p_conto_banca as string|null,banca:null,riferimento:null,storno_di:null});
+      fake.movimenti.push({id:String(fake.movimenti.length+1),data:String(args.p_data),importo:Number(args.p_importo),direzione:'uscita',conto:args.p_metodo==='contanti'?'Cassa':fake.conti.find(c=>c.bank_account_id===args.p_conto_banca&&c.conto_liquidita_id===args.p_conto_liquidita)?.account_label??'Banca',metodo:String(args.p_metodo),bank_account_id:args.p_conto_banca as string|null,banca:null,riferimento:null,storno_di:null});
       return {data:{residuo:Math.round((fake.total-fake.paid)*100)/100},error:null};
     }
     throw new Error(`RPC inattesa ${name}`);
@@ -82,6 +82,28 @@ describe('Pagamento contestuale di una spesa',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Registra pagamento'}));
     fireEvent.keyDown(screen.getByLabelText('Metodo'),{key:'ArrowDown'});fireEvent.click(await screen.findByRole('option',{name:'Contanti'}));
     expect(screen.queryByLabelText('Conto del pagamento')).toBeNull();expect(screen.getByText('Il movimento sarà registrato in cassa.')).toBeVisible();
+  });
+  it('distingue i sottoconti bancari dalla cassa in base al tipo del piano',async()=>{
+    fake.conti=[
+      {valore:'conto:bank',etichetta:'B1 · Cassa di Risparmio',account_label:'Cassa di Risparmio',bank_account_id:null,conto_liquidita_id:'bank',cassa:false},
+      {valore:'conto:cash',etichetta:'C1 · Fondo ufficio',account_label:'Fondo ufficio',bank_account_id:null,conto_liquidita_id:'cash',cassa:true},
+    ];
+    mount();fireEvent.click(await screen.findByRole('button',{name:'Registra pagamento'}));
+    fireEvent.keyDown(screen.getByLabelText('Conto del pagamento'),{key:'ArrowDown'});
+    expect(await screen.findByRole('option',{name:'B1 · Cassa di Risparmio'})).toBeVisible();
+    expect(screen.queryByRole('option',{name:'C1 · Fondo ufficio'})).toBeNull();
+    fireEvent.click(screen.getByRole('option',{name:'B1 · Cassa di Risparmio'}));
+    fireEvent.change(screen.getByLabelText('Importo'),{target:{value:'100'}});fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));
+    const registra=await screen.findByRole('button',{name:'Registra pagamento'});await waitFor(()=>expect(registra).toBeEnabled());fireEvent.click(registra);
+    fireEvent.keyDown(screen.getByLabelText('Metodo'),{key:'ArrowDown'});fireEvent.click(await screen.findByRole('option',{name:'Contanti'}));
+    fireEvent.keyDown(screen.getByLabelText('Conto del pagamento'),{key:'ArrowDown'});
+    expect(await screen.findByRole('option',{name:'C1 · Fondo ufficio'})).toBeVisible();
+    expect(screen.queryByRole('option',{name:'B1 · Cassa di Risparmio'})).toBeNull();
+    fireEvent.click(screen.getByRole('option',{name:'C1 · Fondo ufficio'}));
+    fireEvent.change(screen.getByLabelText('Importo'),{target:{value:'50'}});fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));
+    await screen.findByRole('button',{name:'Registra pagamento'});
+    expect(fake.rpc).toHaveBeenCalledWith('registra_pagamento_costo_con_conto',expect.objectContaining({p_metodo:'bonifico',p_conto_liquidita:'bank',p_conto_banca:null}));
+    expect(fake.rpc).toHaveBeenCalledWith('registra_pagamento_costo_con_conto',expect.objectContaining({p_metodo:'contanti',p_conto_liquidita:'cash',p_conto_banca:null}));
   });
   it('nel SAL propone il pagamento esistente e precompila la sola quota disponibile',async()=>{
     fake.rpc.mockImplementation(async(name:string)=>({error:null,data:name==='pagamenti_sal_candidati'?{documenti:[{id:'cost',numero:'F1'}],pagamenti:[{id:'payment',data:'2026-10-01',disponibile:100,riferimento:'CRO DEMO'}]}:{}}));
