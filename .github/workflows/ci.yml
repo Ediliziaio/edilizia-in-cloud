@@ -112,6 +112,20 @@ jobs:
           src/test/ui/primaNotaStorniFuoriPagina.test.tsx
           src/test/ui/annullaIncassoScadenza.test.tsx
 
+      - name: Provisional journal revisions, VAT protocols and bank alignment
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/security/scavoloContabilita.test.ts
+          src/test/security/primaNotaFontiAllineate.test.ts
+          src/test/security/primaNotaContiSpecifici.test.ts
+          src/test/ui/primaNotaBanche.test.tsx
+          src/test/ui/primaNotaModifica.test.tsx
+          src/test/ui/primaNotaUploadFallito.test.tsx
+          src/test/ui/contoPerRiga.test.tsx
+          src/test/ui/contoPerRigaDalPiano.test.tsx
+          src/test/ui/contabilitaStudio.test.tsx
+          src/test/logic/bilancioASezioni.test.ts
+
       # xmllint valida ogni XML dei test contro lo schema XSD ufficiale FatturaPA 1.2.2
       # (src/test/fixtures/fatturapa-1.2.2): senza, i test falliscono, non si saltano.
       - name: xmllint for the FatturaPA XSD schema

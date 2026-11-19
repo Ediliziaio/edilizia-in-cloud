@@ -382,6 +382,14 @@ function ContenutoRiepilogo({
     fornitorePiva: f?.cedente_piva ? String(f.cedente_piva) : null });
   // Con il piano dei conti anche una fattura di una riga sola sceglie il conto della riga: è quello che va nel giornale.
   const contiPerRiga = !!f && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && (righe.length > 1 || (righe.length === 1 && contiRighe.modo === "piano"));
+  const chiudiRiepilogo = () => {
+    if (contiRighe.salvando) return;
+    if (contiRighe.modificati) {
+      toast.info("Ci sono conti non salvati", { description: "Usa «Salva conti della fattura» oppure «Annulla modifiche ai conti» prima di chiudere." });
+      return;
+    }
+    onClose();
+  };
   const nota = String(f?.tipo_documento ?? "") === "TD04";
   // Con la contabilità generale accesa una riga può diventare un cespite (registro dei beni ammortizzabili).
   const cespitiPerRiga = !!f && contiRighe.modo === "piano" && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && !nota;
@@ -411,7 +419,7 @@ function ContenutoRiepilogo({
       onChiudi={() => setModificaQuote(false)} />}
     {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
     {confronto && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
-    <Radice open={!!fatturaId && !confronto && !modificaQuote && !rataScelta} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Radice open={!!fatturaId && !confronto && !modificaQuote && !rataScelta} onOpenChange={(o) => { if (!o) chiudiRiepilogo(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
         className={`commessa-modal-layout ${isMobile ? "max-h-[90dvh] rounded-t-2xl px-4 pb-6" : "max-h-[92dvh] max-w-3xl"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
@@ -778,7 +786,7 @@ function ContenutoRiepilogo({
             {ricevutaDaLeggere({ stato: String(d.fattura.stato ?? ''), da_leggere: d.fattura.da_leggere as boolean | null | undefined }) ? 'Segna come letta' : 'Segna come non letta'}
           </Button>}
 
-          <Button variant="outline" onClick={onClose}>Chiudi riepilogo</Button>
+          <Button variant="outline" onClick={chiudiRiepilogo}>Chiudi riepilogo</Button>
           {!isLoading && d && f && (d.costo && permessi.canViewCosts ? <Button onClick={()=>setPagamenti(d.costo!.id)}>Pagamenti e residuo</Button> : <PagamentoRicevutaCella forma="pulsante" id={String(f.id)} numero={String(f.numero_fattura??'')} tipo={String(f.tipo_documento??'')} pagataIl={f.pagata_il?String(f.pagata_il):null} />)}
         </DialogFooter>
       </Contenuto>

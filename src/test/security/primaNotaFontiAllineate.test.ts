@@ -1,0 +1,135 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import { readFile } from "node:fs/promises";
+const pg=new PGlite();
+const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
+const company=id(1),other=id(2),user=id(3),invoice=id(10),tx=id(20),rec=id(30),payment=id(40),pn=id(50);
+async function rpc<T = Record<string,unknown>>(fn:string,args:unknown[]):Promise<T>{return(await pg.query<{v:T}>(`select to_jsonb(${fn}(${args.map((_,i)=>`$${i+1}`).join(",")})) v`,args)).rows[0].v;}
+beforeAll(async()=>{
+  await pg.exec(`create role anon;create role authenticated;create role service_role;create schema private;create schema auth;
+    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.user',true),'')::uuid$$;
+    create function public.utente_bloccato() returns boolean language sql stable as $$select false$$;
+    create function auth.role() returns text language sql stable as $$select 'authenticated'::text$$;
+    create function user_can_access_company(uuid) returns boolean language sql stable as $$select $1=nullif(current_setting('test.company',true),'')::uuid$$;
+    create function utente_sola_lettura(uuid) returns boolean language sql stable as $$select coalesce(current_setting('test.readonly',true),'false')='true'$$;
+    create function contabilita_puo_scrivere(uuid) returns boolean language sql stable as $$select user_can_access_company($1) and not utente_sola_lettura($1)$$;
+    create function puo_incassare_fatture(uuid) returns boolean language sql stable as $$select contabilita_puo_scrivere($1)$$;
+    create function puo_gestire_scadenze(uuid) returns boolean language sql stable as $$select contabilita_puo_scrivere($1)$$;
+    create table invoices(id uuid primary key,company_id uuid,deleted_at timestamptz,document_type text default 'invoice',invoice_number text,client_company_name text,total numeric,paid_amount numeric,status text,external_provider text,payment_date date);
+    create table invoice_payments(id uuid primary key,company_id uuid,invoice_id uuid,amount numeric,payment_date date,payment_method text,reference text,created_by uuid);
+    create table documenti_fiscali(id uuid primary key,company_id uuid);
+    create table fatture_ricevute(id uuid primary key,company_id uuid,company_cost_id uuid);
+    create table bank_transactions(id uuid primary key,company_id uuid,amount numeric,amount_eur numeric,currency text default 'EUR',booking_date date,value_date date,description text,reconciliation_status text default 'pending',chiuso_senza_documento text);
+    create table bank_reconciliations(id uuid primary key,company_id uuid,transaction_id uuid,matched_amount numeric,unmatched_at timestamptz,unmatch_reason text,prima_nota_id uuid,invoice_id uuid,documento_id uuid,movimento_id uuid,scadenza_id uuid,fattura_ricevuta_id uuid);
+    create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,direction text,category text,description text,amount numeric check(amount>0),entry_date date not null,payment_method text,bank_transaction_id uuid,account_label text,is_auto boolean default false,auto_source text,created_by uuid,payment_payload jsonb,invoice_id uuid,documento_fiscale_id uuid,movimento_id uuid,scadenza_id uuid,cost_id uuid,reversal_of uuid,reference_number text);
+    grant usage on schema public,auth to authenticated;`);
+  await pg.exec(await readFile("supabase/migrations/20290421183000_prima_nota_fonti_allineate.sql","utf8"));
+  await pg.exec(`create trigger bank_proof_payment_removed before delete or update of amount,direction,bank_transaction_id on prima_nota_entries for each row execute function private.bank_proof_payment_lifecycle();`);
+},30000);
+beforeEach(async()=>{
+  await pg.exec(`reset role;truncate prima_nota_entries,invoice_payments,invoices,documenti_fiscali,fatture_ricevute,bank_transactions,bank_reconciliations cascade;
+    select set_config('test.company','${company}',false),set_config('test.user','${user}',false),set_config('test.readonly','false',false);
+    insert into invoices(id,company_id,invoice_number,client_company_name,total,paid_amount,status) values('${invoice}','${company}','1/217','Cliente prova',11000,0,'issued');
+    insert into bank_transactions(id,company_id,amount,booking_date,description) values('${tx}','${company}',11000,'2026-11-17','Bonifico fattura 1/217');`);
+});
+afterAll(()=>pg.close());
+const count=async()=>Number((await pg.query<{n:number}>("select count(*)::int n from prima_nota_entries")).rows[0].n);
+const pay=async(reference:string|null=null,amount=11000)=>pg.query<Record<string, unknown>>("insert into invoice_payments(id,company_id,invoice_id,amount,payment_date,payment_method,reference,created_by) values($1,$2,$3,$4,'2026-11-17','bonifico',$5,$6)",[payment,company,invoice,amount,reference,user]);
+const reconcile=async()=>{
+  await pg.query<Record<string, unknown>>("insert into bank_reconciliations(id,company_id,transaction_id,invoice_id,matched_amount) values($1,$2,$3,$4,11000)",[rec,company,tx,invoice]);
+  await pg.exec(`update bank_transactions set reconciliation_status='reconciled' where id='${tx}'`);
+};
+describe("Prima nota e fonti finanziarie",()=>{
+  it("una riconciliazione crea il movimento mancante senza aggiungere pagamenti della fattura",async()=>{
+    await reconcile();expect(await count()).toBe(1);
+    expect((await pg.query<Record<string, unknown>>("select amount::float amount,bank_transaction_id from prima_nota_entries")).rows).toEqual([{amount:11000,bank_transaction_id:tx}]);
+    expect((await pg.query<Record<string, unknown>>("select count(*)::int n from invoice_payments")).rows[0].n).toBe(0);
+    expect((await pg.query<Record<string, unknown>>("select paid_amount from invoices")).rows[0].paid_amount).toBe("0");
+    await pg.exec(`update bank_transactions set reconciliation_status='reconciled' where id='${tx}'`);expect(await count()).toBe(1);
+  });
+  it("il pagamento bancario e il successivo riallineamento non duplicano l'incasso",async()=>{
+    await reconcile();await pay(`recon:${rec}`);
+    await rpc("public.prima_nota_allinea_fonti",[company,false,"both"]);expect(await count()).toBe(1);
+    expect(Number((await pg.query<Record<string, unknown>>("select sum(amount) totale from prima_nota_entries")).rows[0].totale)).toBe(11000);
+  });
+  it("un incasso già registrato manualmente viene collegato, conservando identità e importo",async()=>{
+    await pg.query<Record<string, unknown>>("insert into prima_nota_entries(id,company_id,direction,amount,entry_date,invoice_id) values($1,$2,'entrata',11000,'2026-11-17',$3)",[pn,company,invoice]);
+    await reconcile();expect(await count()).toBe(1);
+    expect((await pg.query<Record<string, unknown>>("select id,bank_transaction_id from prima_nota_entries")).rows).toEqual([{id:pn,bank_transaction_id:tx}]);
+  });
+  it("un caso ambiguo resta da verificare e non aggiunge denaro alla prima nota",async()=>{
+    await pg.query<Record<string, unknown>>("insert into prima_nota_entries(company_id,direction,amount,entry_date,invoice_id) values($1,'entrata',5000,'2026-11-17',$2)",[company,invoice]);
+    await reconcile();expect(await count()).toBe(1);
+    const p=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,true,"both"]);expect(p.da_verificare).toHaveLength(1);
+  });
+  it("collegare una prova approvata alla propria banca mantiene valida la riconciliazione",async()=>{
+    await pg.query("insert into prima_nota_entries(id,company_id,direction,amount,entry_date,invoice_id) values($1,$2,'entrata',11000,'2026-11-17',$3)",[pn,company,invoice]);
+    await pg.query("insert into bank_reconciliations(id,company_id,transaction_id,prima_nota_id,matched_amount) values($1,$2,$3,$4,11000)",[rec,company,tx,pn]);
+    await pg.exec("update bank_transactions set reconciliation_status='reconciled'");
+    expect((await pg.query<{bank_transaction_id:string}>("select bank_transaction_id from prima_nota_entries")).rows[0].bank_transaction_id).toBe(tx);
+    expect((await pg.query<{unmatched_at:null}>("select unmatched_at from bank_reconciliations")).rows[0].unmatched_at).toBeNull();
+    await pg.exec("update prima_nota_entries set amount=10000");
+    expect((await pg.query<{unmatched_at:unknown}>("select unmatched_at from bank_reconciliations")).rows[0].unmatched_at).not.toBeNull();
+  });
+  it("un incasso non bancario alimenta la prima nota e segue modifica e cancellazione del pagamento",async()=>{
+    await pay(null,2000);expect(await count()).toBe(1);
+    const prima=(await pg.query<Record<string, unknown>>("select id from prima_nota_entries")).rows[0].id;
+    await pg.query<Record<string, unknown>>("update invoice_payments set amount=1800 where id=$1",[payment]);
+    expect((await pg.query<Record<string, unknown>>("select id,amount from prima_nota_entries")).rows).toEqual([{id:prima,amount:"1800"}]);
+    await pg.query<Record<string, unknown>>("delete from invoice_payments where id=$1",[payment]);expect(await count()).toBe(0);
+  });
+  it("la registrazione dalla prima nota non viene ricopiata dal trigger del registro pagamenti",async()=>{
+    await pg.query<Record<string, unknown>>("insert into prima_nota_entries(id,company_id,direction,amount,entry_date,invoice_id) values($1,$2,'entrata',11000,'2026-11-17',$3)",[pn,company,invoice]);
+    await pay(`prima_nota:${pn}`);expect(await count()).toBe(1);
+  });
+  it("rappresenta il rimborso della nota di credito come uscita",async()=>{
+    await pg.exec(`update invoices set document_type='credit_note'`);await pay();
+    expect((await pg.query<Record<string, unknown>>("select direction,amount from prima_nota_entries")).rows).toEqual([{direction:"uscita",amount:"11000"}]);
+  });
+  it("non ricopia gli incassi nativi già gestiti dal loro movimento di cassa",async()=>{
+    await pg.query<Record<string, unknown>>("insert into documenti_fiscali values($1,$2)",[invoice,company]);await pay();expect(await count()).toBe(0);
+  });
+  it("l'anteprima non scrive e il controllo si applica anche senza una banca collegata",async()=>{
+    // Simula un pagamento storico precedente all'installazione del ponte.
+    await pg.exec("alter table invoice_payments disable trigger z_prima_nota_ponte_pagamento");await pay(null,2000);
+    await pg.exec("alter table invoice_payments enable trigger z_prima_nota_ponte_pagamento");
+    const p=await rpc<{total:number}>("public.prima_nota_allinea_fonti",[company,true,"both"]);expect(p.total).toBe(1);expect(await count()).toBe(0);
+    await rpc("public.prima_nota_allinea_fonti",[company,false,"both"]);await rpc("public.prima_nota_allinea_fonti",[company,false,"both"]);expect(await count()).toBe(1);
+  });
+  it("annullare la riconciliazione rimuove solo la copia bancaria generata dal ponte",async()=>{
+    await reconcile();await pg.exec(`update bank_reconciliations set unmatched_at=now();update bank_transactions set reconciliation_status='pending'`);expect(await count()).toBe(0);
+  });
+  it("rifiuta utenti in sola lettura e accessi ad altre aziende",async()=>{
+    await pg.exec("select set_config('test.readonly','true',false)");await expect(rpc("public.prima_nota_allinea_fonti",[company,false,"both"])).rejects.toThrow(/permesso/);
+    await pg.exec("select set_config('test.readonly','false',false)");await expect(rpc("public.prima_nota_allinea_fonti",[other,false,"both"])).rejects.toThrow(/permesso/);
+  });
+  it("una riconciliazione mista completa solo la quota mancante senza ricopiare l'incasso nativo",async()=>{
+    await pg.query<Record<string, unknown>>("insert into bank_reconciliations(id,company_id,transaction_id,invoice_id,matched_amount) values($1,$2,$3,$4,7000),($5,$2,$3,$6,4000)",[rec,company,tx,invoice,id(31),id(11)]);
+    await pg.query<Record<string, unknown>>("insert into prima_nota_entries(id,company_id,direction,amount,entry_date,invoice_id,bank_transaction_id) values($1,$2,'entrata',4000,'2026-11-17',$3,$4)",[pn,company,id(11),tx]);
+    await pg.exec("update bank_transactions set reconciliation_status='reconciled'");
+    expect(await count()).toBe(2);
+    expect(Number((await pg.query<Record<string, unknown>>("select sum(amount) totale from prima_nota_entries")).rows[0].totale)).toBe(11000);
+    await pg.exec("update bank_transactions set reconciliation_status='reconciled'");expect(await count()).toBe(2);
+  });
+  it("l'anteprima conta una sola volta il bonifico raggiunto sia dalla banca sia dal pagamento",async()=>{
+    await pg.exec("alter table bank_transactions disable trigger z_prima_nota_ponte_banca;alter table invoice_payments disable trigger z_prima_nota_ponte_pagamento");
+    await reconcile();await pay(`recon:${rec}`);
+    await pg.exec("alter table bank_transactions enable trigger z_prima_nota_ponte_banca;alter table invoice_payments enable trigger z_prima_nota_ponte_pagamento");
+    const p=await rpc<{total:number}>("public.prima_nota_allinea_fonti",[company,true,"both"]);expect(p.total).toBe(1);expect(await count()).toBe(0);
+  });
+  it("non collega un pagamento di un'altra azienda a una registrazione manuale",async()=>{
+    await pay(null,2000);
+    await expect(pg.query<Record<string, unknown>>("insert into prima_nota_entries(company_id,invoice_id,invoice_payment_id,direction,amount,entry_date) values($1,$2,$3,'entrata',2000,'2026-11-17')",[other,invoice,payment])).rejects.toThrow(/non corrisponde/);
+  });
+  it("un saldo importato senza rate usa il pagato effettivo e non il totale della fattura",async()=>{
+    await pg.query<Record<string, unknown>>("update invoices set external_provider='fattureincloud',paid_amount=500,payment_date='2026-11-16' where id=$1",[invoice]);
+    const p=await rpc<{total:number}>("public.prima_nota_allinea_fonti",[company,true,"both"]);expect(p.total).toBe(1);expect(await count()).toBe(0);
+    await rpc("public.prima_nota_allinea_fonti",[company,false,"both"]);
+    expect(Number((await pg.query<Record<string, unknown>>("select amount from prima_nota_entries")).rows[0].amount)).toBe(500);
+    await rpc("public.prima_nota_allinea_fonti",[company,false,"both"]);expect(await count()).toBe(1);
+  });
+  it("un saldo importato senza data effettiva resta da verificare",async()=>{
+    await pg.query<Record<string, unknown>>("update invoices set external_provider='fattureincloud',paid_amount=500 where id=$1",[invoice]);
+    const p=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);expect(p.da_verificare).toHaveLength(1);expect(await count()).toBe(0);
+  });
+});

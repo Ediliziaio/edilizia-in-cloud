@@ -23,6 +23,7 @@ it("conserva modulo e allegato dopo un errore e consente di riprovare senza salv
   fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "12" } });
   const file = new File(["Documento sintetico"], "prova.pdf", { type: "application/pdf" });
   fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [file] } });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Registra" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Registra" }));
   await waitFor(() => expect(mocks.error).toHaveBeenCalledWith(expect.stringContaining("non è stata salvata")));
   expect(confirm).not.toHaveBeenCalled();

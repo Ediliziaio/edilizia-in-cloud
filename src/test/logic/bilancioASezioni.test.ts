@@ -47,4 +47,14 @@ describe("Bilancio a sezioni contrapposte", () => {
     const html = htmlBilancioSezioni({ azienda: { ragione_sociale: "Prova" } as never, bilancio: b, periodo: "Esercizio 2026" });
     for (const t of ["ATTIVO", "PASSIVO E NETTO", "COSTI", "RICAVI", "Utile dell'esercizio", "1.500,00"]) expect(html).toContain(t);
   });
+  it("sintetizza i soggetti mantenendo distinti i fornitori Italia ed estero", () => {
+    const piano = [conto("italia","2010","FORNITORI ITALIA","passivo",null,false),conto("estero","2012","FORNITORI ESTERO","passivo",null,false),
+      conto("a","201000001","Fornitore Alfa","passivo","italia"),conto("b","201000002","Fornitore Beta","passivo","italia"),conto("c","201200001","Fornitore Gamma","passivo","estero")];
+    const saldi=piano.filter(c=>c.movimentabile).map((c,i)=>({conto:c,dare:0,avere:(i+1)*100,saldo:-(i+1)*100}));
+    const sintetico=bilancioASezioni(saldi,piano);
+    expect(sintetico.passivo.mastri.map(m=>[m.descrizione,m.totale,m.conti.length])).toEqual([["FORNITORI ITALIA",300,0],["FORNITORI ESTERO",300,0]]);
+    const html=htmlBilancioSezioni({azienda:{ragione_sociale:"Prova"},bilancio:sintetico,periodo:"Prova"});
+    expect(html).not.toContain("Fornitore Alfa");
+    expect(bilancioASezioni(saldi,piano,{dettaglioPartitari:true}).passivo.mastri[0].conti).toHaveLength(2);
+  });
 });

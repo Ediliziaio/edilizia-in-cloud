@@ -28,13 +28,10 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { exportXlsx } from "@/lib/controlloGestione/exportXlsx";
 import { costruisciRegistro, htmlRegistroPrimaNota, periodoInLettere, righeExcelPrimaNota } from "@/lib/contabilita/registroPrimaNota";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DaVerificareCard } from "@/components/contabilita/DaVerificareCard";
 import { toast } from "sonner";
-import { queryKeys } from "@/lib/queryKeys";
 import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
@@ -42,6 +39,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { perchePrimaNotaNonEliminabile } from "@/hooks/usePrimaNota";
 import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
 import { linkFattura, linkTesoreriaMovimento } from "@/lib/finance/collegamentiFinanza";
+import { AllineamentoPrimaNota } from "@/components/prima-nota/AllineamentoPrimaNota";
+import { useContiPrimaNota } from "@/hooks/useContiPrimaNota";
 import { StornaPagamentiCosto } from "@/components/prima-nota/StornaPagamentiCosto";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -57,7 +56,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function origineMovimento(e: PrimaNotaEntry) {
   if (!e.is_auto) return "Manuale";
-  const nomi: Record<string, string> = { fattura_emessa: "Fattura", incasso_fattura: "Incasso", nota_credito: "Nota credito", company_cost_payment: "Pagamento costo", storno_pagamento: "Storno pagamento" };
+  const nomi: Record<string, string> = { fattura_emessa: "Fattura", incasso_fattura: "Incasso", invoice_payment: "Incasso o rimborso", bank_alignment: "Banca riconciliata", bank_transaction: "Movimento bancario", invoice: "Incasso importato", nota_credito: "Nota credito", company_cost_payment: "Pagamento costo", storno_pagamento: "Storno pagamento" };
   return nomi[e.auto_source ?? ""] ?? e.auto_source?.replaceAll("_", " ") ?? "Automatica";
 }
 
@@ -65,8 +64,9 @@ function PrimaNotaInner() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
+  const contiPrimaNota = useContiPrimaNota(effectiveCompany?.id);
+  const [contoFiltro, setContoFiltro] = useState("tutti");
   const permessi = usePermissions();
-  const queryClient = useQueryClient();
   const confirm = useConfirm();
   const apriOrigine = (e: PrimaNotaEntry) => navigate(e.bank_transaction_id ? linkTesoreriaMovimento(e.bank_transaction_id) : e.documento_fiscale_id ? linkFattura(e.documento_fiscale_id, true) : e.cost_id ? `/azienda/costi?costo=${encodeURIComponent(e.cost_id)}` : e.scadenza_id ? "/azienda/scadenzario" : e.invoice_id ? linkFattura(e.invoice_id, false) : "/azienda/documenti");
   const [dettaglioId, setDettaglioId] = useState<string | null>(null);
@@ -74,52 +74,7 @@ function PrimaNotaInner() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
-  const importMutation = useMutation({
-    mutationFn: async (action: "from_banking" | "from_invoices" | "both") => {
-      // 2026-05-27 (UX audit): precheck banca collegata per i path che la
-      // usano. Prima il toast "Nessuna novità da importare" era ambiguo:
-      // l'utente non sapeva se non c'era nulla o se mancava la connessione.
-      if (action === "from_banking" || action === "both") {
-        const { count } = await supabase
-          .from("bank_connections")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", effectiveCompany?.id ?? "")
-          .in("status", ["linked", "active"]);
-        if (!count || count === 0) {
-          throw new Error("NO_BANK_CONNECTION");
-        }
-      }
-      const res = await supabase.functions.invoke("sync-prima-nota", {
-        body: { company_id: effectiveCompany?.id, action },
-      });
-      if (res.error) throw res.error;
-      return res.data as { total: number; imported_banking: number; imported_invoices: number };
-    },
-    onSuccess: (data) => {
-      if (data.total === 0) {
-        toast.info("Nessuna novità da importare");
-      } else {
-        const parts = [];
-        if (data.imported_banking > 0) parts.push(`${data.imported_banking} da banca`);
-        if (data.imported_invoices > 0) parts.push(`${data.imported_invoices} da fatture`);
-        toast.success(`Importate ${data.total} registrazioni`, { description: parts.join(", ") });
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
-    },
-    onError: (e: Error) => {
-      if (e.message === "NO_BANK_CONNECTION") {
-        toast.error("Nessuna banca collegata", {
-          description: "Collega prima il conto in Tesoreria per importare i movimenti automaticamente.",
-          action: {
-            label: "Vai a Tesoreria",
-            onClick: () => navigate("/azienda/tesoreria?tab=connessioni"),
-          },
-        });
-      } else {
-        toast.error("Errore importazione", { description: String(e) });
-      }
-    },
-  });
+  const [allineaAperto, setAllineaAperto] = useState(false);
   const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const [direction, setDirection] = useState<"entrata" | "uscita" | "">("");
@@ -143,7 +98,11 @@ function PrimaNotaInner() {
     { value: "anno", label: `Anno ${new Date().getFullYear()}`, da: `${new Date().getFullYear()}-01-01`, a: `${new Date().getFullYear()}-12-31` },
   ];
   const periodoScelto = periodiRapidi.find((p) => p.da === fromDate && p.a === toDate)?.value ?? "altro";
-  const nFiltriMobile = [direction !== "", autoView !== "tutte", periodoScelto !== "mese"].filter(Boolean).length;
+  const nFiltriMobile = [direction !== "", autoView !== "tutte", periodoScelto !== "mese", contoFiltro !== "tutti"].filter(Boolean).length;
+  const filtroConto = <Select value={contoFiltro} onValueChange={v => { setContoFiltro(v); setPage(1); }}>
+    <SelectTrigger className="h-9 w-full sm:w-56" aria-label="Filtra per conto"><SelectValue /></SelectTrigger>
+    <SelectContent><SelectItem value="tutti">Tutti i conti</SelectItem><SelectItem value="cassa">Cassa</SelectItem>{contiPrimaNota.data?.map(c => <SelectItem key={c.valore} value={c.valore}>{c.etichetta}</SelectItem>)}</SelectContent>
+  </Select>;
 
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
@@ -154,8 +113,11 @@ function PrimaNotaInner() {
     direction: direction || undefined,
     search,
     isAuto: isAutoFilter,
+    bankAccountId: contoFiltro.startsWith("banca:") ? contoFiltro.slice(6) : undefined,
+    liquiditaId: contoFiltro.startsWith("conto:") ? contoFiltro.slice(6) : undefined,
+    accountLabel: contoFiltro === "cassa" ? "cassa" : undefined,
   }, page, pageSize);
-  const selezione = useSelezioneRighe(entries, JSON.stringify([effectiveCompany?.id, page, pageSize, fromDate, toDate, direction, search, autoView]));
+  const selezione = useSelezioneRighe(entries, JSON.stringify([effectiveCompany?.id, page, pageSize, fromDate, toDate, direction, search, autoView, contoFiltro]));
   const eliminabili = selezione.selezionate.filter((e) => !perchePrimaNotaNonEliminabile(e));
   const escluse = selezione.selezionate.flatMap((e) => {
     const motivo = perchePrimaNotaNonEliminabile(e);
@@ -334,6 +296,7 @@ function PrimaNotaInner() {
   const eurTondo = (v: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(v);
   return (
     <div className="space-y-6 max-sm:space-y-3">
+      <AllineamentoPrimaNota company={effectiveCompany?.id} open={allineaAperto} onOpenChange={setAllineaAperto} />
       {/* Header */}
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -343,7 +306,7 @@ function PrimaNotaInner() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Prima Nota</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Registrazioni contabili, movimenti automatici e saldo operativo.</p>
+              <p className="mt-0.5 text-sm text-slate-500">Movimenti di cassa e banca, incassi, pagamenti e saldo progressivo.</p>
             </div>
           </div>
         <div className="flex gap-2 flex-wrap">
@@ -361,12 +324,11 @@ function PrimaNotaInner() {
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem
                 className="gap-2"
-                onSelect={() => importMutation.mutate("both")}
-                disabled={importMutation.isPending}
+                onSelect={() => setAllineaAperto(true)}
                 title="Importa automaticamente da movimenti bancari riconciliati e fatture pagate"
               >
-                {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Importa da banca e fatture
+                <RefreshCw className="h-4 w-4" />
+                Allinea banca e fatture
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2" onSelect={() => { void apriStampa(); }} disabled={preparo}>
@@ -383,13 +345,19 @@ function PrimaNotaInner() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={() => setNewOpen(true)} className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-8 max-sm:px-3 max-sm:text-xs">
-            <Plus className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">Nuova Registrazione</span>
-            <span className="sm:hidden">Nuova</span>
-          </Button>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button className="bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm max-sm:h-8 max-sm:px-3 max-sm:text-xs"><Plus className="mr-1 h-4 w-4" />Nuova registrazione</Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem onSelect={() => setNewOpen(true)}>Movimento di cassa o banca</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate(`/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura&anno=${fromDate.slice(0, 4)}`)}>Scrittura Dare/Avere · stipendi e altri costi</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-3 text-sm">
+        <p className="text-muted-foreground">Per rilevare un costo prima del pagamento, registrare gli stipendi o gestire più conti usa le scritture Dare/Avere.</p>
+        <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => navigate("/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture")}>Scritture Dare/Avere</Button><Button size="sm" variant="outline" onClick={() => setAllineaAperto(true)}>Verifica allineamento</Button><Button size="sm" variant="outline" onClick={() => navigate("/azienda/tesoreria")}>Banca e riconciliazione</Button></div>
       </div>
 
       {stampa && (
@@ -453,6 +421,7 @@ function PrimaNotaInner() {
           i 220px (a 1024 si riduceva a «C…») e, se non c'è posto, gli altri
           filtri vanno a capo. */}
       <div className="sm:flex sm:flex-wrap sm:items-center sm:gap-3 max-sm:hidden">
+        {filtroConto}
         {/* Search — full width on mobile, flexible on desktop */}
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -681,9 +650,10 @@ function PrimaNotaInner() {
         aperto={filtriMobileAperti}
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
-        onAzzera={() => { setDirection(""); setAutoView("tutte"); setFromDate(meseCorrente.da); setToDate(meseCorrente.a); setPage(1); }}
+        onAzzera={() => { setDirection(""); setAutoView("tutte"); setContoFiltro("tutti"); setFromDate(meseCorrente.da); setToDate(meseCorrente.a); setPage(1); }}
         risultati={isLoading ? undefined : totalCount}
       >
+        {filtroConto}
         <PilloleFiltro
           titolo="Periodo"
           valore={periodoScelto}
