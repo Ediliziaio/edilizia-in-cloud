@@ -16,6 +16,8 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
 import type { AsseVariantiDati } from "@/lib/listino/organizzaListino";
 import { invalidaListinoNelPreventivatore } from "@/lib/serramenti/cacheListino";
+import type { AreaStandard, TipologiaStandard } from "@/lib/listino/areeStandard";
+import { tipologiaDiArea } from "@/lib/listino/organizzaListino";
 
 export interface NuovaLineaAsse {
   macrocategoriaId: string;
@@ -115,6 +117,23 @@ export function useOrganizzaListino() {
     invalidaListinoNelPreventivatore(qc);
   };
 
+  const creaArea = useMutation<{ prima_id: string; tipologie: number }, Error, { area: AreaStandard; tipologie: TipologiaStandard[] }>({
+    mutationFn: ({ area, tipologie }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      return chiama("listino_crea_area", {
+        p_company_id: companyId,
+        p_area: area.verticale,
+        p_nome_area: area.nome,
+        p_tipologia: tipologiaDiArea(area.chiave),
+        p_tipologie: tipologie.map((t) => ({ nome: t.nome, categoria_tipo: t.accessorio ? "accessorio" : "principale", fv_categoria: t.fvCategoria })),
+      });
+    },
+    onSuccess: async () => {
+      invalida();
+      await qc.invalidateQueries({ queryKey: ["listino-macrocategorie", companyId] });
+    },
+  });
+
   const aggiungiLinea = useMutation<EsitoNuovaLinea, Error, NuovaLineaAsse>({
     mutationFn: (p) =>
       chiama<EsitoNuovaLinea>("listino_aggiungi_linea", {
@@ -206,5 +225,5 @@ export function useOrganizzaListino() {
     }),
     onSuccess: invalida,
   });
-  return { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia, completaInfissi, preparaModelliInfissi, completaPrezziInfissi };
+  return { creaArea, aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia, completaInfissi, preparaModelliInfissi, completaPrezziInfissi };
 }

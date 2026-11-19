@@ -909,9 +909,8 @@ export function useCompanyStaff(aziendaDellOpportunita?: string | null) {
 
 /**
  * Returns i VENDITORI assegnabili alle opportunità (campo "Venditore").
- * Sono i ruoli commerciali — super_admin / company_admin / salesperson — così
- * che anche un titolare/admin che vende (tipico nelle PMI) sia assegnabile e
- * finisca nelle statistiche venditori (la RPC raggruppa per assigned_to).
+ * Serve il ruolo salesperson, anche aggiuntivo: un titolare che vende attiva
+ * «Anche Venditore». Il solo ruolo amministrativo non assegna attività commerciali.
  * ESCLUDE chi è SOLO call center: il CC resta selezionabile nel suo campo
  * dedicato (useCompanyCallCenterUsers), ma non è un "venditore che chiude".
  */
@@ -923,11 +922,7 @@ export function useCompanySalespeople(aziendaDellOpportunita?: string | null) {
   const data = useMemo(
     () =>
       (staffQuery.data || [])
-        // tieni admin/titolari e venditori; escludi chi ha SOLO il ruolo call_center
-        .filter((p) => {
-          const roles = p.roles ?? [];
-          return roles.length === 0 || roles.some((r) => r !== "call_center");
-        })
+        .filter((p) => p.roles?.includes("salesperson"))
         .map((p) => ({
           id: p.id,
           name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),

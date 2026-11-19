@@ -10,8 +10,11 @@ import { MemoryRouter } from "react-router-dom";
 const state = vi.hoisted(() => ({
   rpc: [] as Array<{ fn: string; args: Record<string, unknown> }>,
   liquidati: new Set<string>(),
+  manuale: false,
   mostraF24: false,
+  csv: vi.fn(),
 }));
+beforeEach(() => { state.manuale = false; });
 
 const conti = [
   { id: "clienti", codice: "05.01", descrizione: "Crediti verso clienti", natura: "attivo", sezione_cee: "SPA", voce_cee: "C.II.1", mastro_id: null as string | null, movimentabile: true, attivo: true, codice_standard: "05.01" },
@@ -40,7 +43,7 @@ const esercizio = { anno: 2026, chiuso_il: null as string | null, stampato_fino_
     "Movimento di prima nota del 03/02/2026 (1000 €, «bonifico»): su «Partite da verificare», va classificato."], errori: [] as string[] } };
 
 function builder(table: string) {
-  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? (state.mostraF24 ? [{ ...scrittura(4, "2026-02-16", "f24", "Versamento F24", [["banca", 0, 50, null], ["iva", 50, 0, null]]), origine_id: "versamento-4" }] : scritture)
+  const dati = table === "contabilita_conti" ? conti : table === "contabilita_scritture" ? (state.mostraF24 ? [{ ...scrittura(4, "2026-02-16", "f24", "Versamento F24", [["banca", 0, 50, null], ["iva", 50, 0, null]]), origine_id: "versamento-4" }] : [...scritture, ...(state.manuale ? [scrittura(4, "2026-11-19", "manuale", "Giroconto di prova", [["banca", 100, 0, null], ["clienti", 0, 100, null]])] : [])])
     : table === "f24_entries" ? { tributo_code: "6001", tributo_descrizione: "IVA gennaio", importo: 50, stato: "pagato", data_pagamento: "2026-02-16" }
     : table === "contabilita_esercizi" ? esercizio : [];
   const b: Record<string, unknown> = {};
@@ -70,6 +73,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-finta" } }) }));
 vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: { ragione_sociale: "Prova srl" } }) }));
+vi.mock("@/lib/csv", () => ({ scaricaCsv: state.csv }));
+vi.mock("@/components/shared/PrintPreviewModal", () => ({ PrintPreviewModal: ({ htmlContent }: { htmlContent: string }) => <div data-testid="stampa">{htmlContent}</div> }));
 
 import ContabilitaGenerale from "@/components/contabilita/ContabilitaGenerale";
 
@@ -119,6 +124,35 @@ it("quello che la generazione non sa classificare si vede: «Da guardare»", asy
   expect(screen.getByText(/va classificato/)).toBeTruthy();
 });
 
+it("rettifica una manuale con il modulo precompilato, conservando la quadratura", async () => {
+  state.manuale = true;
+  apri("scritture");
+  fireEvent.click(await screen.findByRole("button", { name: "Apri scrittura 4/2026" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Rettifica" }));
+  expect(screen.getByRole("heading", { name: "Rettifica scrittura" })).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Giroconto di prova")).toBeInTheDocument();
+  for (const campo of screen.getAllByDisplayValue("100")) fireEvent.change(campo, { target: { value: "150" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salva rettifica" }));
+  await waitFor(() => expect(state.rpc.find((r) => r.fn === "contabilita_rettifica_scrittura")?.args).toMatchObject({
+    p_scrittura: "s4", p_causale: "Giroconto di prova", p_righe: [
+      { conto_id: "banca", dare: 150, avere: 0 }, { conto_id: "clienti", dare: 0, avere: 150 },
+    ],
+  }));
+});
+
+it("nella selezione mista storna solo la scrittura manuale", async () => {
+  state.manuale = true;
+  apri("scritture");
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Seleziona le scritture di questa pagina" }));
+  expect(screen.getByText("4 selezionate · 1 elaborabili")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Storna selezionate" }));
+  fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Registrazione duplicata" } });
+  fireEvent.click(screen.getByRole("button", { name: "Conferma storni" }));
+  await waitFor(() => expect(state.rpc.filter((r) => r.fn === "contabilita_storna_scrittura")).toEqual([
+    { fn: "contabilita_storna_scrittura", args: { p_scrittura: "s4", p_data: expect.any(String), p_motivo: "Registrazione duplicata" } },
+  ]));
+});
+
 it("apre dal giornale il versamento F24 della scrittura", async () => {
   state.mostraF24 = true;
   apri("giornale");
@@ -127,4 +161,16 @@ it("apre dal giornale il versamento F24 della scrittura", async () => {
   fireEvent.click(versamento);
   expect(versamento.closest("details")?.open).toBe(true);
   expect(versamento.closest("details")?.textContent).toMatch(/IVA gennaio.*50,00.*pagato.*16\/02\/2026/);
+});
+
+it("stampa ed esporta il giornale filtrato conservando solo le scritture cercate", async () => {
+  state.csv.mockClear();
+  apri("giornale");
+  fireEvent.change(await screen.findByLabelText("Cerca nelle scritture"), { target: { value: "Incasso F1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Esporta vista filtrata" }));
+  expect(state.csv).toHaveBeenCalledWith("libro-giornale-2026-filtrato", expect.stringContaining("Incasso F1"));
+  expect(state.csv.mock.calls[0][1]).not.toContain("Fattura ricevuta A7");
+  fireEvent.click(screen.getByRole("button", { name: "Stampa vista filtrata" }));
+  expect(await screen.findByTestId("stampa")).toHaveTextContent("Incasso F1");
+  expect(screen.getByTestId("stampa").textContent).not.toContain("Fattura ricevuta A7");
 });

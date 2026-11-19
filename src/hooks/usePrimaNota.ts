@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { ACCONTI_SU_FATTURE_IN_CLOUD } from "@/lib/fatturazione/incassi";
+import { eseguiPerRiga } from "@/lib/operazioniPerRiga";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 
 
 /**
@@ -73,6 +75,9 @@ export function perchePrimaNotaNonModificabile(e: Pick<PrimaNotaEntry, "is_auto"
   if (e.cost_id) return "È il pagamento di un costo: si cambia dal costo.";
   return null;
 }
+
+/** La cancellazione segue le stesse origini della modifica. */
+export const perchePrimaNotaNonEliminabile = perchePrimaNotaNonModificabile;
 
 /** I campi del modulo di registrazione, gli stessi per una nuova e per una modifica. */
 export interface DatiRegistrazione {
@@ -349,6 +354,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   // Modifica (10/11/2026): la registrazione e l'incasso della sua fattura cambiano insieme
   // (prima_nota_modifica): importo, data e metodo seguono; la fattura si può cambiare o togliere.
   const invalidaIncassi = () => {
+    refreshFinancialQueries(queryClient);
     queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.cashflow.summary(companyId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
@@ -407,6 +413,24 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     onError: (e) => toast.error("Registrazione non eliminata", { description: e instanceof Error ? e.message : String(e) }),
   });
 
+  const deleteManyMutation = useMutation({
+    mutationFn: async (righe: PrimaNotaEntry[]) => {
+      const esito = await eseguiPerRiga(righe, async (riga) => {
+        const motivo = perchePrimaNotaNonEliminabile(riga);
+        if (motivo) throw new Error(motivo);
+        const { error } = await rpc.rpc("prima_nota_elimina", { p_id: riga.id });
+        if (error) throw error;
+      });
+      return { ...esito, fic: await tocca_fattureincloud(esito.completate.map((r) => r.invoice_id)) };
+    },
+    onSuccess: ({ completate, errori, fic }) => {
+      invalidaIncassi();
+      const descrizione = [errori.length ? `${errori.length} non eliminate: trovi il motivo nell'elenco.` : "", fic ? "Aggiorna gli incassi collegati anche su Fatture in Cloud." : ""].filter(Boolean).join(" ");
+      if (completate.length) toast.success(`${completate.length} registrazioni eliminate`, { description: descrizione || undefined });
+      else toast.error("Nessuna registrazione eliminata", { description: descrizione });
+    },
+  });
+
   const totalCount = entriesQuery.data?.totalCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -425,6 +449,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     monthlyChart: monthlyChartQuery.data,
     create: createMutation,
     remove: deleteMutation,
+    removeMany: deleteManyMutation,
     update: updateMutation,
     fetchAllForExport,
   };

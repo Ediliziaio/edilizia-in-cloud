@@ -123952,6 +123952,7 @@ export type Database = {
           pec: string | null
           phone: string | null
           postal_code: string | null
+          product_categories: string[]
           product_category: string | null
           province: string | null
           rating: number | null
@@ -124005,6 +124006,7 @@ export type Database = {
           pec?: string | null
           phone?: string | null
           postal_code?: string | null
+          product_categories?: string[]
           product_category?: string | null
           province?: string | null
           rating?: number | null
@@ -124058,6 +124060,7 @@ export type Database = {
           pec?: string | null
           phone?: string | null
           postal_code?: string | null
+          product_categories?: string[]
           product_category?: string | null
           province?: string | null
           rating?: number | null

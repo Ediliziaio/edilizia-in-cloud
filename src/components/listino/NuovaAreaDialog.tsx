@@ -16,6 +16,9 @@ import { Check, ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAnteprimaInstallazione, useModelliAreaMutations, useModelliDisponibili } from "@/hooks/useModelliArea";
@@ -33,23 +36,26 @@ import {
 import { areeDaAggiungere, nomeTipologiaLibero } from "@/lib/listino/organizzaListino";
 import { AvvisoInstallazioneModello } from "./AvvisoInstallazioneModello";
 import { iconaArea } from "./iconaArea";
+import { preparaAreaPersonalizzata } from "@/lib/listino/nuovaArea";
 
 interface Props {
   aree: AreaListino[];
   /** Tutte le tipologie dell'azienda: i nomi sono unici. */
   macrocategorie: ReadonlyArray<{ nome: string }>;
   inCorso: boolean;
+  erroreCaricamento?: boolean;
+  onRiprova?: () => void;
   onChiudi: () => void;
   onCrea: (area: AreaStandard, tipologie: TipologiaStandard[]) => void;
   /** Dopo l'installazione di un modello: l'area da aprire nel listino. */
   onAreaDaModello?: (area: string) => void;
 }
 
-type Modo = "modello" | "vuota";
+type Modo = "modello" | "vuota" | "personalizzata";
 
 const giorno = (iso: string) => new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCrea, onAreaDaModello }: Props) {
+export function NuovaAreaDialog({ aree, macrocategorie, inCorso, erroreCaricamento = false, onRiprova, onChiudi, onCrea, onAreaDaModello }: Props) {
   const disponibili = useMemo(() => areeDaAggiungere(aree), [aree]);
   const [scelta, setScelta] = useState<AreaStandard | null>(disponibili[0] ?? null);
   const [escluse, setEscluse] = useState<Set<string>>(() => new Set());
@@ -59,10 +65,14 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
   const { data: modelli = [], isLoading: caricoModelli } = useModelliDisponibili(true);
   const { installa } = useModelliAreaMutations();
   const [modoScelto, setModoScelto] = useState<Modo | null>(null);
+  const [nomeLibero, setNomeLibero] = useState("");
+  const [tipologieLibere, setTipologieLibere] = useState("");
+  const personalizzata = preparaAreaPersonalizzata(nomeLibero, tipologieLibere, aree);
   const modo: Modo = modoScelto ?? (modelli.length > 0 ? "modello" : "vuota");
   const [modelloId, setModelloId] = useState<string | null>(null);
   const modello = modelli.find((m) => m.id === modelloId) ?? modelli[0] ?? null;
   const occupato = inCorso || installa.isPending;
+  const creazioneBloccata = occupato || erroreCaricamento;
   // Cosa succederebbe alle maggiorazioni dell'azienda, prima di installare: il modello arriva «senza» e senza questo
   // controllo i prodotti nuovi perdono in silenzio quelle che l'azienda ha già (Renova, 05/10/2026).
   const anteprima = useAnteprimaInstallazione({ modelloId: modello?.id ?? null, companyId, enabled: modo === "modello" });
@@ -139,12 +149,12 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
           </DialogDescription>
         </DialogHeader>
 
-        {modelli.length > 0 && (
-          <div role="tablist" aria-label="Come aggiungere l'area" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+          <div role="tablist" aria-label="Come aggiungere l'area" className={cn("grid grid-cols-2 gap-1 rounded-lg bg-muted p-1", modelli.length > 0 && "sm:grid-cols-3")}>
             {(
               [
-                ["modello", "Con i prodotti di un modello"],
+                ...(modelli.length > 0 ? [["modello", "Con i prodotti di un modello"] as const] : []),
                 ["vuota", "Solo le tipologie"],
+                ["personalizzata", "Area personalizzata"],
               ] as const
             ).map(([valore, testo]) => (
               <button
@@ -153,7 +163,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
                 role="tab"
                 aria-selected={modo === valore}
                 disabled={occupato}
-                onClick={() => setModoScelto(valore)}
+                onClick={() => setModoScelto(valore as Modo)}
                 className={cn(
                   "rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   modo === valore ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
@@ -163,9 +173,28 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
               </button>
             ))}
           </div>
+
+        {erroreCaricamento && (
+          <div role="alert" className="rounded-md border border-destructive/40 p-3 text-sm">
+            Le tipologie del listino non si sono caricate. Riprova prima di aggiungere un'area.
+            {onRiprova && <Button variant="outline" size="sm" className="ml-2" onClick={onRiprova}>Riprova</Button>}
+          </div>
         )}
 
-        {modo === "modello" && modello ? (
+        {modo === "personalizzata" ? (
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+            <div className="space-y-2">
+              <Label htmlFor="nome-area-libera">Nome dell'area</Label>
+              <Input id="nome-area-libera" value={nomeLibero} onChange={(e) => setNomeLibero(e.target.value)} maxLength={80} disabled={occupato} placeholder="Per esempio Tende da sole" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tipologie-area-libera">Tipologie iniziali, una per riga</Label>
+              <Textarea id="tipologie-area-libera" value={tipologieLibere} onChange={(e) => setTipologieLibere(e.target.value)} rows={5} disabled={occupato} placeholder={"Tende a bracci\nPergole\nAccessori"} aria-describedby="area-libera-aiuto area-libera-problema" />
+            </div>
+            <p id="area-libera-aiuto" className="text-sm text-muted-foreground">Crei la struttura del listino. Poi puoi aggiungere linee e prodotti. L'area personalizzata non attiva un preventivatore specializzato.</p>
+            <p id="area-libera-problema" aria-live="polite" className="text-sm text-muted-foreground">{personalizzata.problema ?? `${personalizzata.area?.tipologie.length} tipologie pronte da creare.`}</p>
+          </div>
+        ) : modo === "modello" && modello ? (
           <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
             <div role="radiogroup" aria-label="Modello da aggiungere" className="grid gap-2">
               {modelli.map((m) => {
@@ -230,8 +259,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
           </p>
         ) : disponibili.length === 0 ? (
           <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            Hai già tutte le aree standard. Per un settore diverso crea una tipologia da «Tipologie» e scegli il suo
-            verticale.
+            Hai già tutte le aree standard. Per un settore diverso scegli «Area personalizzata».
           </p>
         ) : (
           <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
@@ -316,10 +344,14 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
           <Button variant="ghost" onClick={onChiudi} disabled={occupato} className="h-10 w-full sm:w-auto">
             {modo === "vuota" && disponibili.length === 0 ? "Chiudi" : "Annulla"}
           </Button>
-          {modo === "modello" && modello ? (
+          {modo === "personalizzata" ? (
+            <Button disabled={creazioneBloccata || !personalizzata.area} className="h-10 w-full sm:w-auto" onClick={() => {
+              if (personalizzata.area) onCrea(personalizzata.area, personalizzata.area.tipologie);
+            }}>{inCorso ? "Creazione…" : "Crea area personalizzata"}</Button>
+          ) : modo === "modello" && modello ? (
             <Button
               onClick={installaModello}
-              disabled={occupato || !companyId || anteprima.isLoading || recente}
+              disabled={creazioneBloccata || !companyId || anteprima.isLoading || recente}
               className="h-10 w-full sm:w-auto"
             >
               {installa.isPending ? (
@@ -336,7 +368,7 @@ export function NuovaAreaDialog({ aree, macrocategorie, inCorso, onChiudi, onCre
             scelta && (
               <Button
                 onClick={() => onCrea(scelta, daCreare)}
-                disabled={occupato || daCreare.length === 0}
+                disabled={creazioneBloccata || daCreare.length === 0}
                 className="h-10 w-full sm:w-auto"
               >
                 {inCorso ? (

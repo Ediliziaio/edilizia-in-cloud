@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -37,6 +36,12 @@ import { DaVerificareCard } from "@/components/contabilita/DaVerificareCard";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { NumeroVeloce } from "@/components/charts/grafici/NumeroVeloce";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
+import { usePermissions } from "@/hooks/usePermissions";
+import { perchePrimaNotaNonEliminabile } from "@/hooks/usePrimaNota";
+import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
+import { linkFattura, linkTesoreriaMovimento } from "@/lib/finance/collegamentiFinanza";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -59,8 +64,10 @@ function PrimaNotaInner() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { effectiveCompany } = useAuth();
+  const permessi = usePermissions();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const apriOrigine = (e: PrimaNotaEntry) => navigate(e.documento_fiscale_id ? linkFattura(e.documento_fiscale_id, true) : e.bank_transaction_id ? linkTesoreriaMovimento(e.bank_transaction_id) : e.cost_id ? "/azienda/costi" : e.scadenza_id ? "/azienda/scadenzario" : e.invoice_id ? linkFattura(e.invoice_id, false) : "/azienda/documenti");
   const [dettaglioId, setDettaglioId] = useState<string | null>(null);
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [page, setPage] = useState(1);
@@ -140,62 +147,44 @@ function PrimaNotaInner() {
   // Chi cerca un nome non sa in che mese sta: la ricerca guarda tutte le date, non il periodo aperto.
   const cercaSuTutteLeDate = search.trim() !== "";
 
-  const { entries, isLoading, erroreElenco, ricaricaElenco, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, update, updateNotes, fetchAllForExport } = usePrimaNota({
+  const { entries, isLoading, erroreElenco, ricaricaElenco, totalCount, totalPages, saldo, isSaldoLoading, monthlyChart, create, remove, removeMany, update, updateNotes, fetchAllForExport } = usePrimaNota({
     fromDate: cercaSuTutteLeDate ? undefined : fromDate,
     toDate: cercaSuTutteLeDate ? undefined : toDate,
     direction: direction || undefined,
     search,
     isAuto: isAutoFilter,
   }, page, pageSize);
+  const selezione = useSelezioneRighe(entries, JSON.stringify([effectiveCompany?.id, page, pageSize, fromDate, toDate, direction, search, autoView]));
+  const eliminabili = selezione.selezionate.filter((e) => !perchePrimaNotaNonEliminabile(e));
+  const escluse = selezione.selezionate.flatMap((e) => {
+    const motivo = perchePrimaNotaNonEliminabile(e);
+    return motivo ? [{ nome: e.description, motivo }] : [];
+  });
+  const [erroriEliminazione, setErroriEliminazione] = useState<Array<{ nome: string; motivo: string }>>([]);
+  const eliminaSelezionate = async () => {
+    if (removeMany.isPending || eliminabili.length === 0) return;
+    const righe = [...eliminabili];
+    const somma = (verso: string) => righe.filter((r) => r.direction === verso).reduce((n, r) => n + Number(r.amount), 0);
+    if (!await confirm({ title: `Eliminare ${righe.length} registrazioni?`, description: `Entrate: ${formatCurrency(somma("entrata"))}. Uscite: ${formatCurrency(somma("uscita"))}. ${escluse.length ? `${escluse.length} righe collegate a documenti restano escluse. ` : ""}Gli incassi collegati verranno annullati e le fatture torneranno da incassare. L'eliminazione è definitiva.`, confirmLabel: "Elimina registrazioni", variant: "destructive" })) return;
+    setErroriEliminazione([]);
+    const esito = await removeMany.mutateAsync(righe);
+    selezione.mantieni(esito.errori.map((e) => e.riga.id));
+    setErroriEliminazione(esito.errori.map((e) => ({ nome: e.riga.description, motivo: e.motivo })));
+  };
   const [isExporting, setIsExporting] = useState(false);
 
   // Running balance (from oldest to newest, then reverse for display)
   const entriesWithBalance = useMemo(() => {
     const sorted = [...entries].sort((a, b) => a.entry_date.localeCompare(b.entry_date) || a.created_at.localeCompare(b.created_at));
     let balance = 0;
-    const withBal = [];
+    const withBal: Array<PrimaNotaEntry & { runningBalance: number }> = [];
     for (const e of sorted) {
       balance += e.direction === "entrata" ? e.amount : -e.amount;
       withBal.push({ ...e, runningBalance: balance });
     }
     return withBal.reverse();
   }, [entries]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [deleting, setDeleting] = useState(false);
-  const viewKey = JSON.stringify([effectiveCompany?.id, page, pageSize, search, direction, autoView, fromDate, toDate]);
-  const [selectionView, setSelectionView] = useState(viewKey);
-  if (selectionView !== viewKey) {
-    setSelectionView(viewKey);
-    setSelectedIds([]);
-  }
   if (!isLoading && !erroreElenco && page > totalPages) setPage(totalPages);
-  const selected = entriesWithBalance.filter(entry => selectedIds.includes(entry.id));
-  const canDeleteSelection = selected.length > 0 && selected.every(e => !e.is_auto && !e.documento_fiscale_id);
-
-  async function deleteSelection(rows: PrimaNotaEntry[]) {
-    if (deleting || !rows.length || rows.some(e => e.is_auto || e.documento_fiscale_id)) return;
-    const single = rows.length === 1;
-    const confirmed = await confirm({
-      title: single ? "Eliminare il movimento?" : `Eliminare ${rows.length} movimenti?`,
-      description: (single ? `${rows[0].description} · ${formatCurrency(rows[0].amount)}.` : `Hai selezionato ${rows.length} movimenti di prima nota.`)
-        + (rows.some(e => e.invoice_id) ? " Gli incassi associati verranno rimossi dalle fatture collegate." : "")
-        + " L’eliminazione è definitiva.",
-      confirmLabel: "Elimina",
-      variant: "destructive",
-    });
-    if (!confirmed) return;
-    setDeleting(true);
-    try {
-      for (const row of rows) {
-        await remove.mutateAsync(row.id);
-        setSelectedIds(ids => ids.filter(id => id !== row.id));
-      }
-    } catch {
-      // The mutation reports the error. Leave the remaining rows selected for retry.
-    } finally {
-      setDeleting(false);
-    }
-  }
   const dettaglio = entriesWithBalance.find(e => e.id === dettaglioId);
 
   // Grafico ultimi 6 mesi: alimentato dalla query dedicata `monthlyChart` (tutte
@@ -500,6 +489,14 @@ function PrimaNotaInner() {
         </div>
       </div>
 
+      {permessi.isAdmin && entries.length > 0 && <BarraSelezioneRighe
+        nome="i movimenti" selezionate={selezione.selezionate.length} consentite={eliminabili.length}
+        tutte={selezione.tutte} parziale={selezione.parziale}
+        entrate={eliminabili.filter((e) => e.direction === "entrata").reduce((n, e) => n + Number(e.amount), 0)}
+        uscite={eliminabili.filter((e) => e.direction === "uscita").reduce((n, e) => n + Number(e.amount), 0)}
+        azione="Elimina selezionate" inCorso={removeMany.isPending} escluse={escluse}
+        onPagina={selezione.pagina} onAzione={() => void eliminaSelezionate()} />}
+      <ErroriOperazioneRighe errori={erroriEliminazione} />
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -521,30 +518,12 @@ function PrimaNotaInner() {
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
-          {selected.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2 text-sm">
-              <span aria-live="polite">{selected.length === 1 ? "1 movimento selezionato" : `${selected.length} movimenti selezionati`}</span>
-              {selected.length === 1 && (
-                <Button size="sm" variant="outline" disabled={deleting} onClick={() => {
-                  const entry = selected[0];
-                  if (perchePrimaNotaNonModificabile(entry)) setDettaglioId(entry.id);
-                  else setDaModificare(entry);
-                }}><Pencil className="mr-1 h-4 w-4" />Modifica</Button>
-              )}
-              <Button size="sm" variant="outline" className="text-destructive" disabled={deleting || !canDeleteSelection}
-                onClick={() => void deleteSelection(selected)}><Trash2 className="mr-1 h-4 w-4" />Elimina</Button>
-              <Button size="sm" variant="ghost" disabled={deleting} onClick={() => setSelectedIds([])}>Deseleziona</Button>
-              {!canDeleteSelection && <span className="text-xs text-muted-foreground">Per eliminare, deseleziona i movimenti automatici o collegati a un documento fiscale.</span>}
-            </div>
-          )}
           <BarraScorrimentoOrizzontale contenitore={scrollContainer} className="mx-3 my-2" />
-          <div ref={setScrollContainer} className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scorri movimenti di prima nota">
+          <div ref={setScrollContainer} className="relative overflow-x-auto" tabIndex={0} role="region" aria-label="Scorri movimenti di prima nota">
           <table aria-label="Movimenti di prima nota" className="w-full whitespace-nowrap text-sm [&_td]:px-3 [&_td]:py-2">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="w-9 px-3"><Checkbox aria-label="Seleziona tutti i movimenti della pagina" disabled={deleting}
-                  checked={selected.length === 0 ? false : selected.length === entriesWithBalance.length ? true : "indeterminate"}
-                  onCheckedChange={checked => setSelectedIds(checked ? entriesWithBalance.map(e => e.id) : [])} /></th>
+                <th className="w-9 px-3"><span className="sr-only">Selezione</span></th>
                 <th className="text-left p-3 font-medium">Data</th>
                 <th className="text-left p-3 font-medium">Categoria</th>
                 <th className="text-left p-3 font-medium">Descrizione</th>
@@ -556,16 +535,14 @@ function PrimaNotaInner() {
             </thead>
             <tbody>
               {entriesWithBalance.map((e) => (
-                <tr key={e.id} className="cursor-pointer border-b hover:bg-muted/40 data-[selected=true]:bg-primary/5" data-selected={selectedIds.includes(e.id)}
+                <tr key={e.id} className="cursor-pointer border-b hover:bg-muted/40 data-[selected=true]:bg-primary/5" data-selected={selezione.ids.has(e.id)}
                   onClick={event => {
                     const target = event.target;
                     if (target instanceof Element && event.currentTarget.contains(target) && !target.closest("button, a, input")) {
                       setDettaglioId(e.id);
                     }
                   }}>
-                  <td onClick={event => event.stopPropagation()}><Checkbox aria-label={`Seleziona ${e.description} · ${formatCurrency(e.amount)}`}
-                    disabled={deleting} checked={selectedIds.includes(e.id)}
-                    onCheckedChange={checked => setSelectedIds(ids => checked ? [...ids, e.id] : ids.filter(id => id !== e.id))} /></td>
+                  <td className="p-3" onClick={event => event.stopPropagation()}>{permessi.isAdmin && <Checkbox aria-label={`Seleziona ${e.description}`} checked={selezione.ids.has(e.id)} disabled={removeMany.isPending} onCheckedChange={() => selezione.alterna(e.id)} />}</td>
                   <td className="p-3">
                     <div className="flex items-center gap-1.5">
                       {format(new Date(e.entry_date), "dd/MM/yyyy", { locale: it })}
@@ -601,7 +578,7 @@ function PrimaNotaInner() {
                   <td>{origineMovimento(e)}</td>
                   <td>{e.documenti_fiscali?.id ? (
                         <button
-                          onClick={() => navigate(`/azienda/documenti/${e.documenti_fiscali!.id}`)}
+                          onClick={() => navigate(linkFattura(e.documenti_fiscali!.id, true))}
                           className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
                         >
                           <FileText className="h-3 w-3" />
@@ -627,25 +604,37 @@ function PrimaNotaInner() {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        aria-label="Modifica movimento di prima nota"
+                        aria-label={`Modifica ${e.description}`}
                         title="Modifica"
                         onClick={() => setDaModificare(e)}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {!e.is_auto && !e.documento_fiscale_id && (
+                    {permessi.isAdmin && !perchePrimaNotaNonEliminabile(e) && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                         aria-label="Elimina movimento di prima nota"
-                        disabled={deleting}
-                        onClick={() => void deleteSelection([e])}
+                        disabled={removeMany.isPending || remove.isPending}
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: "Eliminare il movimento?",
+                              description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota.${e.invoice_id ? " La fattura collegata tornerà da incassare." : ""} L'operazione non può essere annullata.`,
+                              confirmLabel: "Elimina",
+                              variant: "destructive",
+                            })
+                          ) {
+                            remove.mutate(e.id);
+                          }
+                        }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
+                    {perchePrimaNotaNonModificabile(e) && <Button size="sm" variant="ghost" className="text-xs" title={perchePrimaNotaNonModificabile(e) ?? undefined} aria-label={`Apri origine di ${e.description}`} onClick={() => apriOrigine(e)}>Apri origine</Button>}
                     </div>
                   </td>
                 </tr>
@@ -765,7 +754,7 @@ function PrimaNotaInner() {
             {perchePrimaNotaNonModificabile(dettaglio) && <p className="text-xs text-muted-foreground">Per correggere importo e data, apri la registrazione di origine.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {dettaglio.documenti_fiscali?.id && <Button variant="outline" onClick={() => navigate(`/azienda/documenti/${dettaglio.documenti_fiscali!.id}`)}>Apri documento</Button>}
+            {dettaglio.documenti_fiscali?.id && <Button variant="outline" onClick={() => navigate(linkFattura(dettaglio.documenti_fiscali!.id, true))}>Apri documento</Button>}
             {perchePrimaNotaNonModificabile(dettaglio) ? <ModificaCollegamentiMovimento key={dettaglio.id} movimento={dettaglio} /> : <Button onClick={() => { setModificaDalDettaglio(true); setDaModificare(dettaglio); setDettaglioId(null); }}>Modifica movimento e collegamenti</Button>}
           </div>
         </DialogContent>}

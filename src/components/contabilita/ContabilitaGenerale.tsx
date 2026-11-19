@@ -23,7 +23,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useSelezioneRighe } from "@/hooks/useSelezioneRighe";
+import { eseguiPerRiga, messaggioErroreOperazione } from "@/lib/operazioniPerRiga";
+import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
+import { percheScritturaNonRettificabile } from "@/lib/contabilita/rettificaScrittura";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { scaricaCsv } from "@/lib/csv";
 import { FiscalSectionHeader } from "@/components/fatturazione/FiscalSectionLayout";
@@ -127,7 +132,11 @@ function useScritture(companyId: string | undefined, anno: number) {
         tutte.push(...((data ?? []) as Scrittura[]));
         if ((data ?? []).length < PAGINA) break;
       }
-      return tutte;
+      // Anche uno storno registrato nell'anno successivo rende l'originale già stornato.
+      const { data: ids, error: erroreStorni } = await db.rpc("contabilita_storni_dell_esercizio", { p_company: companyId, p_anno: anno });
+      if (erroreStorni) throw erroreStorni;
+      const stornate = new Set<string>(Array.isArray(ids) ? ids : []);
+      return tutte.map((s) => ({ ...s, stornata: stornate.has(s.id) }));
     },
   });
 }
@@ -360,6 +369,11 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
   const [stampa, setStampa] = useState<string | null>(null);
   const [dettaglioId, setDettaglioId] = useState<string | null>(null);
   const [storno, setStorno] = useState<Scrittura | null>(null);
+  const [rettifica, setRettifica] = useState<Scrittura | null>(null);
+  const [storniAperti, setStorniAperti] = useState(false);
+  const [dataStorni, setDataStorni] = useState(oggi());
+  const [motivoStorni, setMotivoStorni] = useState("");
+  const [erroriStorni, setErroriStorni] = useState<Array<{ nome: string; motivo: string }>>([]);
   // Un esercizio vero ha migliaia di scritture: a video le prime, la stampa le ha tutte.
   const [mostra, setMostra] = useState(300);
   const [definitiva, setDefinitiva] = useState(false);
@@ -402,11 +416,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
     },
     onError: (e) => toast.error("Scritture non generate", { description: e instanceof Error ? e.message : String(e) }),
   });
-  const stornate = useMemo(() => new Set((scritture.data ?? []).map((s) => s.storno_di).filter(Boolean)), [scritture.data]);
-
-  if (scritture.isLoading || scritture.isError) {
-    return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
-  }
+  const stornate = useMemo(() => new Set((scritture.data ?? []).flatMap((s) => [...(s.storno_di ? [s.storno_di] : []), ...(s.stornata ? [s.id] : [])])), [scritture.data]);
   const elenco = scritture.data ?? [];
   const dettaglio = elenco.find(s => s.id === dettaglioId);
   const q = cerca.trim().toLowerCase();
@@ -420,10 +430,30 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       || s.contabilita_righe.some((r) => (nomi.get(r.conto_id) ?? "").toLowerCase().includes(q) || (r.descrizione ?? "").toLowerCase().includes(q));
   });
   const conFiltri = !!q || !!mese;
-  const selezione = conFiltri ? new Set(filtrate.map(s => s.id)) : undefined;
-  const g = costruisciGiornale(elenco, conti, 0, selezione);
+  const filtroGiornale = conFiltri ? new Set(filtrate.map(s => s.id)) : undefined;
+  const g = costruisciGiornale(elenco, conti, 0, filtroGiornale);
   // Il filtro dell'origine vale per l'elenco delle scritture; ricerca e mese valgono anche nel libro giornale.
   const visibili = filtro === "tutte" ? filtrate : filtrate.filter((s) => gruppoDi(s.origine) === filtro);
+  const selezione = useSelezioneRighe(visibili.slice(0, mostra), JSON.stringify([companyId, anno, filtro, mese, cerca, mostra, giornale]));
+  const stornabili = selezione.selezionate.filter((s) => !percheScritturaNonRettificabile(s, stornate));
+  const escluse = selezione.selezionate.flatMap((s) => {
+    const motivo = percheScritturaNonRettificabile(s, stornate);
+    return motivo ? [{ nome: `${s.numero}/${s.esercizio}`, motivo }] : [];
+  });
+  const stornaSelezionate = useMutation({
+    mutationFn: () => eseguiPerRiga([...stornabili], async (s) => {
+      const { error } = await db.rpc("contabilita_storna_scrittura", { p_scrittura: s.id, p_data: dataStorni, p_motivo: motivoStorni.trim() });
+      if (error) throw error;
+    }),
+    onSuccess: ({ completate, errori }) => {
+      void qc.invalidateQueries({ queryKey: chiave(companyId) });
+      selezione.mantieni(errori.map((e) => e.riga.id));
+      setErroriStorni(errori.map((e) => ({ nome: `${e.riga.numero}/${e.riga.esercizio}`, motivo: e.motivo })));
+      setStorniAperti(false);
+      if (completate.length) toast.success(`${completate.length} scritture stornate`);
+      else toast.error("Nessuna scrittura stornata");
+    },
+  });
   const quante = (k: GruppoOrigine) => (k === "tutte" ? filtrate.length : filtrate.filter((s) => gruppoDi(s.origine) === k).length);
   // Per i riquadri: ultima data registrata e quante scritture per mese (fino al mese dell'ultima).
   const ultima = elenco.reduce<string | null>((u, s) => (!u || s.data_registrazione > u ? s.data_registrazione : u), null);
@@ -437,11 +467,14 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         indirizzo_via: a?.indirizzo_via ?? null, indirizzo_numero_civico: a?.indirizzo_numero_civico ?? null, indirizzo_cap: a?.indirizzo_cap ?? null,
         indirizzo_comune: a?.indirizzo_comune ?? null, indirizzo_provincia: a?.indirizzo_provincia ?? null, logo_url: a?.logo_url ?? null,
       },
-      selezione: filtrata ? selezione : undefined,
+      selezione: filtrata ? filtroGiornale : undefined,
       scritture: elenco, conti, dal: `${anno}-01-01`, al: `${anno}-12-31`,
     }));
   };
 
+  if (scritture.isLoading || scritture.isError) {
+    return <FiscalQueryState loading={scritture.isLoading} error={scritture.isError} onRetry={() => void scritture.refetch()} />;
+  }
   return (
     <div className="space-y-3">
       {stampa && (
@@ -496,7 +529,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             <>
               {conFiltri && <>
                 <Button size="sm" variant="outline" onClick={() => apriStampa(true)}>Stampa vista filtrata</Button>
-                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, selezione))}>Esporta vista filtrata</Button>
+                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, filtroGiornale))}>Esporta vista filtrata</Button>
               </>}
               <Button size="sm" variant="outline" onClick={() => setDefinitiva(true)}><Lock className="mr-1 h-4 w-4" />Stampa definitiva</Button>
               <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}`, csvGiornale(elenco, conti))}
@@ -512,6 +545,13 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         </div>
       </div>
 
+      {!giornale && visibili.length > 0 && <BarraSelezioneRighe nome="le scritture" selezionate={selezione.selezionate.length} consentite={stornabili.length}
+        tutte={selezione.tutte} parziale={selezione.parziale}
+        entrate={stornabili.reduce((n, s) => n + s.contabilita_righe.reduce((t, r) => t + Number(r.dare || 0), 0), 0)}
+        uscite={stornabili.reduce((n, s) => n + s.contabilita_righe.reduce((t, r) => t + Number(r.avere || 0), 0), 0)}
+        entrateLabel="Dare" usciteLabel="Avere" azione="Storna selezionate" inCorso={stornaSelezionate.isPending}
+        escluse={escluse} onPagina={selezione.pagina} onAzione={() => setStorniAperti(true)} />}
+      <ErroriOperazioneRighe errori={erroriStorni} />
       {giornale ? (
         <TabellaContabile>
           <table className="w-full text-sm">
@@ -523,7 +563,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
                 <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">{conFiltri ? "Nessuna scrittura con questi filtri." : `Nessuna scrittura nel ${anno}.`}</td></tr>
               ) : g.righe.slice(0, mostra * 5).map((r) => (
                 <tr key={r.progressivo} className={`cursor-pointer ${r.primaDellaScrittura ? "border-t" : ""}`}
-                  onClick={e => { e.currentTarget.querySelector("button")?.focus(); setDettaglioId(r.scritturaId); }}>
+                  onClick={e => { e.currentTarget.querySelector<HTMLButtonElement>("button[aria-haspopup]")?.focus(); setDettaglioId(r.scritturaId); }}>
                   <td className="p-2 font-mono text-xs">{r.primaDellaScrittura ? r.numero : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? dataIt(r.data) : ""}</td>
                   <td className="p-2">{r.primaDellaScrittura ? r.causale : ""}</td>
@@ -555,13 +595,14 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           ) : <TabellaContabile>
             <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>{["N.", "Data", "Causale", "Descrizione", "Importo"].map(t => <th key={t} className={t === "Importo" ? "p-2 text-right" : "p-2"}>{t}</th>)}</tr>
+                <tr><th className="relative w-10 p-2"><span className="sr-only">Selezione</span></th>{["N.", "Data", "Causale", "Descrizione", "Importo"].map(t => <th key={t} className={t === "Importo" ? "p-2 text-right" : "p-2"}>{t}</th>)}</tr>
               </thead>
               <tbody>{visibili.slice(0, mostra).map(s => (
                 <tr key={s.id} className="cursor-pointer border-t" onClick={e => {
-                  e.currentTarget.querySelector("button")?.focus();
+                  e.currentTarget.querySelector<HTMLButtonElement>("button[aria-haspopup]")?.focus();
                   setDettaglioId(s.id);
                 }}>
+                  <td className="px-2" onClick={e => e.stopPropagation()}><Checkbox aria-label={`Seleziona scrittura ${s.numero}/${s.esercizio}`} checked={selezione.ids.has(s.id)} disabled={stornaSelezionate.isPending} onCheckedChange={() => selezione.alterna(s.id)} /></td>
                   <td className="px-2"><button type="button" aria-haspopup="dialog" aria-label={`Apri scrittura ${s.numero}/${s.esercizio}`} className="py-2 font-mono text-xs text-primary hover:underline">{s.numero}/{s.esercizio}</button></td>
                   <td className="px-2">{dataIt(s.data_registrazione)}</td>
                   <td className="px-2">{s.causale}{s.storno_di || stornate.has(s.id) ? <span className="ml-2 text-xs text-muted-foreground">{s.storno_di ? "storno" : "stornata"}</span> : null}</td>
@@ -583,24 +624,32 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
       <DettaglioScrittura dettaglio={dettaglio} companyId={companyId} nomi={nomi}
         onClose={() => setDettaglioId(null)}
         onConto={conto => periodo.set({ vista: "mastrini", conto, anno: String(anno) })}
-        onStorno={dettaglio && !dettaglio.storno_di && !stornate.has(dettaglio.id) ? setStorno : undefined} />
+        onStorno={dettaglio && !dettaglio.storno_di && !stornate.has(dettaglio.id) ? setStorno : undefined}
+        onRettifica={dettaglio && !percheScritturaNonRettificabile(dettaglio, stornate) ? setRettifica : undefined} />
       <StampaDefinitiva open={definitiva} onOpenChange={setDefinitiva} companyId={companyId} anno={anno}
         onStampa={(dal, al) => setStampa(htmlLibroGiornale({ azienda: intestazioneDa(anagrafica.data), scritture: elenco, conti, dal, al, definitiva: true }))} />
-      <NuovaScrittura open={nuova} onOpenChange={setNuova} companyId={companyId} conti={conti}
+      <NuovaScrittura key={rettifica?.id ?? "nuova"} open={nuova || !!rettifica} onOpenChange={(v) => { setNuova(v); if (!v) setRettifica(null); }} companyId={companyId} conti={conti} daRettificare={rettifica}
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
       <StornaScrittura scrittura={storno} onClose={() => setStorno(null)}
         onFatto={() => void qc.invalidateQueries({ queryKey: chiave(companyId) })} />
+      <Dialog open={storniAperti} onOpenChange={(v) => { if (!stornaSelezionate.isPending) setStorniAperti(v); }}><DialogContent>
+        <DialogHeader><DialogTitle>Storna {stornabili.length} scritture manuali</DialogTitle><DialogDescription>Per ogni scrittura viene registrato lo storno in Dare/Avere. Gli originali e il loro storico restano nel giornale.</DialogDescription></DialogHeader>
+        <Label htmlFor="storni-data">Data degli storni</Label><Input id="storni-data" type="date" value={dataStorni} disabled={stornaSelezionate.isPending} onChange={(e) => setDataStorni(e.target.value)} />
+        <Label htmlFor="storni-motivo">Motivo</Label><Input id="storni-motivo" value={motivoStorni} disabled={stornaSelezionate.isPending} onChange={(e) => setMotivoStorni(e.target.value)} />
+        <DialogFooter><Button variant="outline" disabled={stornaSelezionate.isPending} onClick={() => setStorniAperti(false)}>Annulla</Button><Button variant="destructive" disabled={stornaSelezionate.isPending || !dataStorni || !motivoStorni.trim() || !stornabili.length} onClick={() => stornaSelezionate.mutate()}>{stornaSelezionate.isPending ? "Storno in corso…" : "Conferma storni"}</Button></DialogFooter>
+      </DialogContent></Dialog>
     </div>
   );
 }
 
-function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onStorno }: {
+function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onStorno, onRettifica }: {
   dettaglio: Scrittura | undefined;
   companyId: string;
   nomi: ReadonlyMap<string, string>;
   onClose: () => void;
   onConto: (id: string) => void;
   onStorno?: (scrittura: Scrittura) => void;
+  onRettifica?: (scrittura: Scrittura) => void;
 }) {
   return (
     <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) onClose(); }}>
@@ -628,6 +677,7 @@ function DettaglioScrittura({ dettaglio, companyId, nomi, onClose, onConto, onSt
             </table>
           </TabellaContabile>
           <DialogFooter>
+            {onRettifica && <Button variant="outline" onClick={() => { onClose(); onRettifica(dettaglio); }}>Rettifica</Button>}
             {onStorno && <Button variant="outline" onClick={() => { onClose(); onStorno(dettaglio); }}><Undo2 className="mr-1 h-4 w-4" />Storna</Button>}
             <Button onClick={onClose}>Chiudi</Button>
           </DialogFooter>
@@ -687,14 +737,14 @@ function VersamentoCollegato({ companyId, id }: { companyId: string; id: string 
   </details>;
 }
 
-function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto }: {
-  open: boolean; onOpenChange: (v: boolean) => void; companyId: string; conti: ContoContabile[]; onFatto: () => void;
+function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto, daRettificare }: {
+  open: boolean; onOpenChange: (v: boolean) => void; companyId: string; conti: ContoContabile[]; onFatto: () => void; daRettificare?: Scrittura | null;
 }) {
-  const [data, setData] = useState(oggi());
-  const [causale, setCausale] = useState("Giroconto");
-  const [descrizione, setDescrizione] = useState("");
-  const [docNumero, setDocNumero] = useState("");
-  const [righe, setRighe] = useState<RigaBozza[]>([rigaVuota(), rigaVuota()]);
+  const [data, setData] = useState(daRettificare?.data_registrazione ?? oggi());
+  const [causale, setCausale] = useState(daRettificare?.causale ?? "Giroconto");
+  const [descrizione, setDescrizione] = useState(daRettificare?.descrizione ?? "");
+  const [docNumero, setDocNumero] = useState(daRettificare?.documento_numero ?? "");
+  const [righe, setRighe] = useState<RigaBozza[]>(() => daRettificare ? [...daRettificare.contabilita_righe].sort((a,b) => a.riga-b.riga).map((r) => ({ conto_id: r.conto_id, dare: Number(r.dare) ? String(r.dare) : "", avere: Number(r.avere) ? String(r.avere) : "", descrizione: r.descrizione ?? "" })) : [rigaVuota(), rigaVuota()]);
   const movimentabili = conti.filter((c) => c.movimentabile && c.attivo);
   const esito = controllaBozza(righe, conti);
   const reset = () => { setData(oggi()); setCausale("Giroconto"); setDescrizione(""); setDocNumero(""); setRighe([rigaVuota(), rigaVuota()]); };
@@ -703,22 +753,22 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto }: {
   const registra = useMutation({
     mutationFn: async () => {
       const usate = righe.filter((r) => r.conto_id || r.dare.trim() || r.avere.trim());
-      const { error } = await db.rpc("contabilita_registra_scrittura", {
-        p_company: companyId, p_data: data, p_causale: causale, p_descrizione: descrizione || null,
-        p_documento_numero: docNumero || null, p_documento_data: null,
+      const { error } = await db.rpc(daRettificare ? "contabilita_rettifica_scrittura" : "contabilita_registra_scrittura", {
+        ...(daRettificare ? { p_scrittura: daRettificare.id } : { p_company: companyId }), p_data: data, p_causale: causale, p_descrizione: descrizione || null,
+        p_documento_numero: docNumero || null, p_documento_data: daRettificare?.documento_data ?? null,
         p_righe: usate.map((r) => ({ conto_id: r.conto_id, dare: importo(r.dare), avere: importo(r.avere), descrizione: r.descrizione || null })),
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Scrittura registrata"); reset(); onOpenChange(false); onFatto(); },
-    onError: (e) => toast.error("Scrittura non registrata", { description: e instanceof Error ? e.message : String(e) }),
+    onSuccess: () => { toast.success(daRettificare ? "Scrittura rettificata: originale stornato e nuova registrazione salvata" : "Scrittura registrata"); reset(); onOpenChange(false); onFatto(); },
+    onError: (e) => toast.error("Scrittura non registrata", { description: messaggioErroreOperazione(e) }),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!registra.isPending) onOpenChange(v); }}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Nuova scrittura</DialogTitle></DialogHeader>
-        <div className="space-y-3">
+        <DialogHeader><DialogTitle>{daRettificare ? "Rettifica scrittura" : "Nuova scrittura"}</DialogTitle>{daRettificare && <DialogDescription>Salvando, la scrittura {daRettificare.numero}/{daRettificare.esercizio} viene stornata e sostituita con questa registrazione. Se i dati non sono validi, entrambe le operazioni vengono annullate.</DialogDescription>}</DialogHeader>
+        <fieldset disabled={registra.isPending} className="space-y-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <div className="space-y-1"><Label>Data</Label><Input type="date" value={data} onChange={(e) => setData(e.target.value)} /></div>
             <div className="space-y-1">
@@ -760,11 +810,11 @@ function NuovaScrittura({ open, onOpenChange, companyId, conti, onFatto }: {
           {esito.problemi.length > 0 && righe.some((r) => r.conto_id || r.dare || r.avere) ? (
             <ul className="list-disc pl-5 text-xs text-destructive">{esito.problemi.map((x) => <li key={x}>{x}</li>)}</ul>
           ) : null}
-        </div>
+        </fieldset>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button variant="outline" disabled={registra.isPending} onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button onClick={() => registra.mutate()} disabled={registra.isPending || esito.problemi.length > 0 || !causale.trim() || !data}>
-            {registra.isPending ? "Registrazione…" : "Registra"}
+            {registra.isPending ? "Registrazione…" : daRettificare ? "Salva rettifica" : "Registra"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -781,7 +831,7 @@ function StornaScrittura({ scrittura, onClose, onFatto }: { scrittura: Scrittura
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Scrittura stornata"); setMotivo(""); onClose(); onFatto(); },
-    onError: (e) => toast.error("Storno non registrato", { description: e instanceof Error ? e.message : String(e) }),
+    onError: (e) => toast.error("Storno non registrato", { description: messaggioErroreOperazione(e) }),
   });
   return (
     <Dialog open={!!scrittura} onOpenChange={(v) => { if (!v) onClose(); }}>

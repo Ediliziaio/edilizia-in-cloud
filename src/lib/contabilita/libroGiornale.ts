@@ -45,6 +45,7 @@ export interface Scrittura {
   origine: string;
   origine_id?: string | null;
   storno_di: string | null;
+  stornata?: boolean;
   contabilita_righe: RigaScrittura[];
 }
 

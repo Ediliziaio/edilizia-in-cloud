@@ -33,6 +33,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSettingsDraftGuard } from "@/hooks/useSettingsDraftGuard";
 import { messaggioErrorePersone } from "@/lib/users/erroriPersone";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
+import { invalidaRuoliOperativi } from "@/lib/permessi/cacheRuoliOperativi";
 import { isNetworkError, isTransientTimeoutError, sembraErrorePostgresGrezzo, userErrorMessage } from "@/lib/userErrorMessage";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -115,7 +116,7 @@ export default function SettingsUserDetail() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
-  const { isLoading: authLoading, user: currentUser, isImpersonating, effectiveCompany } = useAuth();
+  const { isLoading: authLoading, user: currentUser, isImpersonating, effectiveCompany, refreshAuth } = useAuth();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
 
@@ -257,11 +258,11 @@ export default function SettingsUserDetail() {
       } as never);
       if (error) throw error;
     },
-    onSuccess: (_, { role: addRole, add }) => {
+    onSuccess: async (_, { role: addRole, add }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
-      queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      await invalidaRuoliOperativi(queryClient, userData?.access_company_id ?? userData?.company_id ?? effectiveCompany.id);
+      if (userId === currentUser?.id) await refreshAuth();
       const testi = TESTI_RUOLO_AGGIUNTIVO[addRole];
       toast({
         title: add ? `Ruolo "${testi.nome}" aggiunto` : `Ruolo "${testi.nome}" rimosso`,
@@ -415,11 +416,11 @@ export default function SettingsUserDetail() {
         await salvaPermessiUtente(userId, companyId, permessi);
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
-      queryClient.invalidateQueries({ queryKey: ["company-staff-users"] });
-      queryClient.invalidateQueries({ queryKey: ["salespeople"] });
+      await invalidaRuoliOperativi(queryClient, userData?.access_company_id ?? userData?.company_id ?? effectiveCompany.id);
+      if (userId === currentUser?.id) await refreshAuth();
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
     },
     onError: (e: unknown) => {

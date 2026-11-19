@@ -99,7 +99,7 @@ export const TESTI_RUOLO_AGGIUNTIVO: Record<RuoloAggiuntivo, { nome: string; cos
   },
   employee: {
     nome: NOME_RUOLO.employee,
-    cosaFa: "Entra anche nell'Area Campo: rapportini, timbrature e cantieri assegnati.",
-    tolto: "Non entra più nell'Area Campo.",
+    cosaFa: "Compare tra i dipendenti ed entra nell'Area Campo: rapportini, timbrature e cantieri assegnati.",
+    tolto: "Non entra più nell'Area Campo. La scheda dipendente e lo storico restano.",
   },
 };

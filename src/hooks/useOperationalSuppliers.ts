@@ -30,6 +30,7 @@ export interface SupplierWithStats {
   website: string | null;
   payment_method: string | null;
   product_category: string | null;
+  product_categories?: string[] | null;
   notes: string | null;
   is_foreign: boolean;
   vat_rate: number | null;

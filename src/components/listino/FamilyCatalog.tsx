@@ -9,7 +9,7 @@
  * tipologie standard e le linee, collega una tipologia al preventivatore
  * della sua area.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -138,12 +138,12 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
     isError: errorCestino,
     refetch: refetchCestino,
   } = useFamiliesCestino();
-  const { macrocategorie } = useListinoMacrocategorie();
+  const { macrocategorie, isLoading: caricamentoTipologie, isError: erroreTipologie, refetch: ricaricaTipologie } = useListinoMacrocategorie();
   const { categorie } = useListinoCategorie();
   const { deleteFamily, restoreFamily, hardDeleteFamily, duplicateFamily, updateFamily } = useFamilyMutations();
   const { createMacrocategoria, updateMacrocategoria } = useMacrocategorieMutations();
   const { createCategoria } = useCategorieMutations();
-  const { aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia, completaInfissi } = useOrganizzaListino();
+  const { creaArea: creaAreaListino, aggiungiLinea, allineaLinee, prezziLinee, copiaTipologia, variantiTipologia, completaInfissi } = useOrganizzaListino();
   const { indice: schedeLinea } = useSchedeLinea();
 
   const [vista, setVistaStato] = useState<VistaListino>(() => {
@@ -239,6 +239,7 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
   const [variantiAperte, setVariantiAperte] = useState<TipologiaListino | null>(null);
   const [daAllineare, setDaAllineare] = useState<TipologiaListino | null>(null);
   const [creazioneInCorso, setCreazioneInCorso] = useState(false);
+  const invioAreaInCorso = useRef(false);
   const [schedaAperta, setSchedaAperta] = useState<{ tipologia: TipologiaListino; linea: LineaListino } | null>(null);
   // Ogni riga resta bloccata finché la SUA modifica non è conclusa: con
   // l'isPending della mutation un secondo clic veloce annullava il primo.
@@ -522,26 +523,20 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
 
   /** «+ Area»: le tipologie standard scelte, e l'area c'è. */
   const creaArea = async (areaStd: AreaStandard, tipologie: TipologiaStandard[]) => {
-    if (creazioneInCorso || tipologie.length === 0) return;
+    if (invioAreaInCorso.current || creazioneInCorso || caricamentoTipologie || erroreTipologie || tipologie.length === 0) return;
+    invioAreaInCorso.current = true;
     setCreazioneInCorso(true);
-    const base = prossimoOrdine();
-    const nomi = [...macrocategorie];
-    let create = 0;
-    let prima: string | null = null;
     try {
-      for (const [i, standard] of tipologie.entries()) {
-        const id = await creaStandard(areaStd, standard, base + i * 10, nomi);
-        prima = prima ?? id;
-        create += 1;
-      }
-      toast.success(`Area ${areaStd.nome} aggiunta con ${create} ${create === 1 ? "tipologia" : "tipologie"}`);
+      const esito = await creaAreaListino.mutateAsync({ area: areaStd, tipologie });
+      toast.success(`Area ${areaStd.nome} aggiunta con ${esito.tipologie} ${esito.tipologie === 1 ? "tipologia" : "tipologie"}`);
+      setCerca("");
+      setFiltri(FILTRI_LISTINO_INIZIALI);
       setNuovaArea(false);
-      cambiaSelezione({ area: areaStd.chiave, tipologia: prima ? `macro:${prima}` : null });
+      cambiaSelezione({ area: areaStd.chiave, tipologia: `macro:${esito.prima_id}` });
     } catch (err) {
-      toast.error(create > 0 ? `Create ${create} tipologie su ${tipologie.length}` : "Area non aggiunta", {
-        description: translateListinoError(err).message,
-      });
+      toast.error("Area non aggiunta", { description: translateListinoError(err).message });
     } finally {
+      invioAreaInCorso.current = false;
       setCreazioneInCorso(false);
     }
   };
@@ -1390,7 +1385,9 @@ export function FamilyCatalog({ onGestisciTipologie, guida }: FamilyCatalogProps
         <NuovaAreaDialog
           aree={aree}
           macrocategorie={macrocategorie}
-          inCorso={creazioneInCorso}
+          inCorso={creazioneInCorso || caricamentoTipologie}
+          erroreCaricamento={erroreTipologie}
+          onRiprova={() => void ricaricaTipologie()}
           onChiudi={() => setNuovaArea(false)}
           onCrea={(areaStd, tipologie) => void creaArea(areaStd, tipologie)}
           onAreaDaModello={(area) => cambiaSelezione({ area })}
