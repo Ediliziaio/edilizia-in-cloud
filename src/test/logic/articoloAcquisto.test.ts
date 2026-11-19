@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { valoriArticoloAcquisto } from "@/lib/orders/articoloAcquisto";
+import { totaliRigheOda } from "@/lib/orders/articoloAcquisto";
+import { totaliNuovoOda, rigaLibera } from "@/lib/orders/nuovoOdaCommessa";
 describe("Articoli negli ordini di acquisto", () => {
   it("usa solo il costo di acquisto", () => {
     expect(
@@ -27,6 +29,16 @@ describe("Articoli negli ordini di acquisto", () => {
       valoriArticoloAcquisto({ standard_cost: 1, vat_rate: null }).vat_rate,
     ).toBe(22);
   });
+});
+
+it("anteprima e documento ODA sommano le colonne arrotondate di ogni riga", () => {
+  const righe = [
+    { quantity:3, unit_price:0.0084, vat_rate:22, discount_percent:0 },
+    { quantity:3, unit_price:0.0084, vat_rate:10, discount_percent:0 },
+  ];
+  // Netto 0,03 + 0,03; IVA 0,01 + 0,00, come le colonne SQL generate.
+  expect(totaliRigheOda(righe)).toEqual({imponibile:0.06,iva:0.01,totale:0.07,daConfermare:0});
+  expect(totaliNuovoOda(righe.map((r,i)=>({...rigaLibera(String(i)),...r,price_pending:false})))).toEqual({imponibile:0.06,iva:0.01,totale:0.07});
 });
 
 it("totali solo delle righe con prezzo concordato", async () => {

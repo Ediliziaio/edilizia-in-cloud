@@ -87,6 +87,8 @@ export interface FornitoreDialogProps {
   salvataggio: boolean;
   onChiudi: () => void;
   onSalva: (dati: SupplierFormData) => void;
+  /** Inserimento dentro un editor esistente, senza un secondo dialog. */
+  inline?: boolean;
 }
 
 /** Si monta solo da aperta: ogni apertura riparte dai dati del fornitore (o da vuota), senza un effetto che li ricopi. */
@@ -99,6 +101,7 @@ export function FornitoreEditor({
 }
 
 function FornitoreDialogAperta({
+  inline = false,
   fornitore,
   esteroIniziale,
   datiIniziali,
@@ -242,26 +245,7 @@ function FornitoreDialogAperta({
     onSalva(formData);
   };
 
-  return (
-    <Dialog
-      open
-      onOpenChange={(aperta) => {
-        if (!aperta) chiudi();
-      }}
-    >
-      <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b px-5 py-4">
-          <DialogTitle>
-            {fornitore ? "Modifica fornitore" : "Nuovo fornitore"}
-          </DialogTitle>
-          <DialogDescription>
-            Solo il nome è obbligatorio. Completa i contatti del referente, i
-            dati fiscali e le condizioni d’acquisto quando sono disponibili.
-            Puoi registrare anche consulenti, professionisti e subappaltatori.
-            Dopo il salvataggio, apri la scheda «Contratti e ruoli» per
-            incarichi, scadenze e allegati privati.
-          </DialogDescription>
-        </DialogHeader>
+  const formFornitore = (
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <nav
             aria-label="Sezioni del fornitore"
@@ -1193,6 +1177,38 @@ function FornitoreDialogAperta({
             </Button>
           </DialogFooter>
         </form>
+  );
+  const contenuto = <>
+        <div className="shrink-0 border-b px-5 py-4">
+          <h3 className="text-lg font-semibold">{fornitore ? "Modifica fornitore" : "Nuovo fornitore"}</h3>
+          <p className="text-sm text-muted-foreground">Solo il nome è obbligatorio. Puoi completare gli altri dati in seguito.</p>
+        </div>
+        {formFornitore}
+      </>;
+
+  if (inline) return <section aria-label="Nuovo fornitore" className="flex min-h-0 flex-col rounded-lg border bg-background">{contenuto}</section>;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(aperta) => {
+        if (!aperta) chiudi();
+      }}
+    >
+      <DialogContent className="flex max-h-[94dvh] max-w-6xl flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-5 py-4">
+          <DialogTitle>
+            {fornitore ? "Modifica fornitore" : "Nuovo fornitore"}
+          </DialogTitle>
+          <DialogDescription>
+            Solo il nome è obbligatorio. Completa i contatti del referente, i
+            dati fiscali e le condizioni d’acquisto quando sono disponibili.
+            Puoi registrare anche consulenti, professionisti e subappaltatori.
+            Dopo il salvataggio, apri la scheda «Contratti e ruoli» per
+            incarichi, scadenze e allegati privati.
+          </DialogDescription>
+        </DialogHeader>
+        {formFornitore}
       </DialogContent>
     </Dialog>
   );

@@ -81,6 +81,7 @@ const RientroMagazzinoDialog = lazy(() => import("./RientroMagazzinoDialog"));
 export interface EditorArticoli {
   items: OrderItem[];
   onItemsChange: (items: OrderItem[]) => void;
+  onSalvaForniture?: (righe: OrderItem[], richiesta: string) => Promise<void>;
   onItemUpdate: (item: OrderItem) => void;
   onAttachmentsRefresh?: () => void;
   companyId: string;
@@ -1233,6 +1234,7 @@ export function MaterialiPerFase({ orderId, orderCode, editor, silvio }: {
             richiesta={richiesta}
             items={editor.items}
             onItemsChange={editor.onItemsChange}
+            onSalvaForniture={editor.onSalvaForniture}
             onItemUpdate={editor.onItemUpdate}
             onAttachmentsRefresh={editor.onAttachmentsRefresh}
             editable={permessi.canEditOrders}

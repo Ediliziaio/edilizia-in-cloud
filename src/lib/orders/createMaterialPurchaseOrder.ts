@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { loadMaterialCoverage, loadUnmappedPurchaseOrders } from "@/hooks/useMaterialProcurement";
-import { pendingMaterials, procurementLines, type ProcurementItem } from "./materialProcurement";
+import { pendingMaterials, procurementLines, prezzoAcquistoDaDefinire, type ProcurementItem } from "./materialProcurement";
 import { logger } from "@/utils/logger";
 
 export class IncompletePurchaseOrderError extends Error {
@@ -45,14 +45,14 @@ export async function createMaterialPurchaseOrder(input: {
     const current: ProcurementItem[] = [];
     for (let start = 0; start < ids.length; start += 100) {
       const { data, error } = await supabase.from("order_items")
-        .select("id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, orders!inner(company_id)")
+        .select("id, name, quantity, purchase_price, prezzo_da_definire, prezzo_fonte, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, orders!inner(company_id)")
         .eq("order_id", orderId).eq("orders.company_id", companyId).in("id", ids.slice(start, start + 100));
       if (error) throw error;
       current.push(...(data ?? []) as unknown as ProcurementItem[]);
     }
     const coverage = await loadMaterialCoverage(companyId, ids);
     const candidates = pendingMaterials(current, coverage).filter(i => i.supplier_id === supplierId);
-    const snapshot = (i: ProcurementItem) => JSON.stringify([i.name, Number(i.quantity), Number(i.purchase_price ?? 0), Number(i.vat_rate ?? 22), i.posizioni ?? []]);
+    const snapshot = (i: ProcurementItem) => JSON.stringify([i.name, Number(i.quantity), Number(i.purchase_price ?? 0), prezzoAcquistoDaDefinire(i), Number(i.vat_rate ?? 22), i.posizioni ?? []]);
     if (candidates.length !== ids.length || candidates.some(i => snapshot(i) !== snapshot(input.items.find(p => p.id === i.id)!))) {
       throw new Error("Articoli o quantità già coperte sono cambiati. Aggiorna e verifica la selezione prima di creare l’OdA.");
     }

@@ -34,15 +34,10 @@ export function totaliRigheOda(
       daConfermare++;
       continue;
     }
-    const netto =
-      Math.round(
-        Number(r.quantity) *
-          Number(r.unit_price) *
-          (1 - Number(r.discount_percent) / 100) *
-          100,
-      ) / 100;
-    imponibile += netto;
-    iva += Math.round(netto * Number(r.vat_rate)) / 100;
+    // Le colonne generate dell'ODA arrotondano separatamente netto e IVA di ogni riga.
+    const base = Number(r.quantity) * Number(r.unit_price) * (1 - Number(r.discount_percent) / 100);
+    imponibile += Math.round((base + Number.EPSILON) * 100) / 100;
+    iva += Math.round((base * Number(r.vat_rate) / 100 + Number.EPSILON) * 100) / 100;
   }
   return {
     imponibile: Math.round(imponibile * 100) / 100,

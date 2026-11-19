@@ -74,7 +74,8 @@ export function raggruppaRighe<T extends RigaConGruppo>(righe: T[]): VoceElenco<
 export function misureLeggibili(m: Record<string, number> | null | undefined): string | null {
   const l = m?.larghezza_mm;
   const h = m?.altezza_mm;
-  return l && h ? `${l} × ${h}` : null;
+  const p = m?.profondita_mm;
+  return l && h ? `${l} × ${h}${p ? ` × ${p}` : ""}` : null;
 }
 
 export const ETICHETTA_STATO_MISURE: Record<StatoMisure, string> = {
@@ -91,6 +92,8 @@ export interface PosizioneBozza {
   riferimento: string;
   larghezza: string;
   altezza: string;
+  profondita?: string;
+  dettagli?: string;
   pezzi: string;
   /** Costo scritto a mano; vuoto = quello calcolato dal listino. */
   costo: string;
@@ -112,7 +115,7 @@ export function costoScritto(t: string): number | null {
 
 /** Una posizione mai toccata: riferimento automatico e nessuna misura. Non diventa una riga. */
 export function posizioneIntatta(p: PosizioneBozza): boolean {
-  return !p.id && !p.larghezza.trim() && !p.altezza.trim() && !p.costo.trim() && /^P\d+$/i.test(p.riferimento.trim());
+  return !p.id && !p.larghezza.trim() && !p.altezza.trim() && !p.profondita?.trim() && !p.dettagli?.trim() && !p.costo.trim() && /^P\d+$/i.test(p.riferimento.trim());
 }
 
 /**
@@ -134,6 +137,9 @@ export function erroreDiPosizione(p: PosizioneBozza): string | null {
     return `${nome}: le misure vanno scritte in millimetri (1200, non 1,2).`;
   }
   if (!!p.larghezza.trim() !== !!p.altezza.trim()) return `${nome}: scrivi sia L sia H, o lasciale vuote entrambe.`;
+  if (p.profondita?.trim() && (!l || !h || numero(p.profondita) == null || numero(p.profondita)! <= 0)) {
+    return `${nome}: la profondità deve essere positiva, in millimetri, insieme a L e H.`;
+  }
   const pz = numero(p.pezzi);
   if (pz == null || pz <= 0 || !Number.isInteger(pz)) return `${nome}: i pezzi sono un numero intero maggiore di zero.`;
   if (p.costo.trim()) {
@@ -178,9 +184,9 @@ export function specifichePosizione(scelte: string[]): string {
 }
 
 /** Misure provvisorie della riga, con le stesse chiavi del preventivo. */
-export function misureDaBozza(l: number | null, h: number | null): Record<string, number> | null {
+export function misureDaBozza(l: number | null, h: number | null, profondita?: number | null): Record<string, number> | null {
   if (l == null || h == null) return null;
-  return { larghezza_mm: l, altezza_mm: h, mq: Math.round((l / 1000) * (h / 1000) * 10000) / 10000 };
+  return { larghezza_mm: l, altezza_mm: h, ...(profondita != null ? { profondita_mm: profondita } : {}), mq: Math.round((l / 1000) * (h / 1000) * 10000) / 10000 };
 }
 
 export { numero as numeroDaCampo };

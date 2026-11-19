@@ -1,3 +1,4 @@
+import { errorePrecisioneOda } from "./preparazioneForniture";
 import { ODA_STATI_EMESSI } from "@/lib/odaStatus";
 
 /** Quantities, never inferred from the article name. A purchased service can
@@ -7,6 +8,8 @@ export interface ProcurementItem {
   name: string;
   quantity: number;
   purchase_price?: number | null;
+  prezzo_da_definire?: boolean;
+  prezzo_fonte?: string | null;
   supplier_id?: string | null;
   vat_rate?: number | null;
   stock_item_id?: string | null;
@@ -95,17 +98,25 @@ export function pendingMaterials<T extends ProcurementItem>(items: T[], rows: Pr
   });
 }
 
+export function prezzoAcquistoDaDefinire(item: Pick<ProcurementItem,"purchase_price"|"prezzo_da_definire"|"prezzo_fonte">): boolean {
+  return item.prezzo_da_definire === true || (!(Number(item.purchase_price) > 0) && !item.prezzo_fonte);
+}
+
 export function procurementLines(items: ProcurementItem[]) {
   return items.flatMap(item => {
     if (!item.id || !positive(item.quantity)) throw new Error("Articolo non salvato o quantità non valida");
     const price = Number(item.purchase_price ?? 0);
     const vat = Number(item.vat_rate ?? 22);
+    const precisione = errorePrecisioneOda(price, item.quantity, vat);
+    if (precisione) throw new Error(`${item.name}: ${precisione}`);
     if (!Number.isFinite(price) || price < 0 || !Number.isFinite(vat) || vat < 0 || vat > 100) throw new Error("Costo o IVA non validi");
     return (item.posizioni?.length ? item.posizioni.map(p => ({
       description: `${item.name} — ${p.descrizione}${p.misure ? ` ${p.misure}` : ""}`, quantity: p.quantita,
-    })) : [{ description: item.name, quantity: item.quantity }]).map(row => ({
-      ...row, order_item_id: item.id!, unit_price: price, vat_rate: vat,
-      discount_percent: 0, unit_of_measure: unitaMateriale(item),
-    }));
+    })) : [{ description: item.name, quantity: item.quantity }]).map(row => {
+      const errore = errorePrecisioneOda(price,row.quantity,vat);
+      if (errore) throw new Error(`${row.description}: ${errore}`);
+      return { ...row, order_item_id: item.id!, unit_price: price, vat_rate: vat,
+        price_pending: prezzoAcquistoDaDefinire(item), discount_percent: 0, unit_of_measure: unitaMateriale(item) };
+    });
   });
 }

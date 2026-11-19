@@ -32,6 +32,7 @@ import { userErrorMessage } from "@/lib/userErrorMessage";
 interface SupplierSelectProps {
   searchable?: boolean;
   allowCreate?: boolean;
+  inlineCreate?: boolean;
   onSupplierNameChange?: (name: string) => void;
   value?: string;
   onValueChange: (
@@ -54,6 +55,7 @@ export function SupplierSelect({
   fallbackCompanyId,
   searchable = false,
   allowCreate = true,
+  inlineCreate = false,
   onSupplierNameChange,
 }: SupplierSelectProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -212,6 +214,7 @@ export function SupplierSelect({
       )}
       <FornitoreEditor
         aperta={dialogOpen}
+        inline={inlineCreate}
         fornitore={null}
         esteroIniziale={false}
         fornitori={suppliers}

@@ -7,6 +7,7 @@ export function invalidaFornitori(client: QueryClient) {
       "suppliers-config",
       "suppliers",
       "suppliers-for-orders",
+      "order-item-suppliers",
       "suppliers-for-payments",
       "suppliers-export",
       "operational-suppliers",

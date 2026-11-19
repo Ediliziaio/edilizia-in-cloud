@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.app.json",
+  "compilerOptions": { "incremental": false, "types": ["vitest/globals", "node"] },
+  "include": [
+    "../../../src/components/orders/OrderItemsList.tsx",
+    "../../../src/components/orders/articoli/*.tsx",
+    "../../../src/components/orders/materiali/MaterialiPerFase.tsx",
+    "../../../src/components/orders/SupplierSelect.tsx",
+    "../../../src/components/suppliers/FornitoreEditor.tsx",
+    "../../../src/pages/azienda/OrderDetail.tsx",
+    "../../../src/lib/orders/preparazioneForniture.ts",
+    "../../../src/lib/orders/salvaPreparazioneForniture.ts",
+    "../../../src/test/logic/preparazione*.test.ts",
+    "../../../src/test/logic/salvaPreparazioneForniture.test.ts",
+    "../../../src/test/logic/simulazioneAcquisti.test.ts",
+    "../../../src/test/ui/aggiungiArticolo.test.tsx",
+    "../../../src/**/*.d.ts",
+    "../../../src/test/setup.ts",
+    "../../../dev/articoli-popup-unico/*.tsx"
+  ]
+}

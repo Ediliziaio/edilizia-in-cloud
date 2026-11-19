@@ -50,7 +50,7 @@ async function righeAttuali(companyId: string, g: GruppoOrdine): Promise<Procure
   // A blocchi di 100, come createMaterialPurchaseOrder: l'URL di PostgREST ha un limite.
   for (let da = 0; da < g.ids.length; da += 100) {
     const { data, error } = await supabase.from("order_items")
-      .select("id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, orders!inner(company_id)")
+      .select("id, name, quantity, purchase_price, prezzo_da_definire, prezzo_fonte, vat_rate, supplier_id, stock_item_id, status, posizioni, unita_misura, orders!inner(company_id)")
       .eq("order_id", g.orderId).eq("orders.company_id", companyId).in("id", g.ids.slice(da, da + 100));
     if (error) throw error;
     righe.push(...((data ?? []) as unknown as ProcurementItem[]));

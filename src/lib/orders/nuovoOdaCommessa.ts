@@ -1,3 +1,5 @@
+import { errorePrecisioneOda } from "./preparazioneForniture";
+import { totaliRigheOda } from "./articoloAcquisto";
 /**
  * Un ordine d'acquisto nato dalla commessa, nel popup «Nuovo ordine» (30/10/2026).
  *
@@ -8,7 +10,7 @@
  * order_item_id, così il pianificatore sa cosa è coperto) e righe libere per
  * quello che in commessa non c'è (un sacco di malta, un noleggio).
  */
-import { unitaMateriale, type ProcurementItem } from "./materialProcurement";
+import { unitaMateriale, prezzoAcquistoDaDefinire, type ProcurementItem } from "./materialProcurement";
 
 export interface RigaNuovoOda {
   /** Chiave locale della riga nel popup. */
@@ -31,7 +33,6 @@ const n = (v: unknown, d = 0) => {
   const x = Number(v);
   return Number.isFinite(x) ? x : d;
 };
-const centesimi = (x: number) => Math.round(x * 100) / 100;
 
 /**
  * Le righe dagli articoli ancora da comprare. Spuntate solo quelle del
@@ -51,7 +52,7 @@ export function righeDagliArticoli(
       quantity: n(i.quantity),
       unit_of_measure: unitaMateriale(i),
       unit_price: n(i.purchase_price),
-      price_pending: !(n(i.purchase_price) > 0),
+      price_pending: prezzoAcquistoDaDefinire(i),
       vat_rate: n(i.vat_rate, 22),
       scelta: !!fornitoreScelto && i.supplier_id === fornitoreScelto,
       fornitore_articolo: i.supplier_id ?? null,
@@ -84,18 +85,11 @@ export interface TotaliNuovoOda {
 }
 
 export function totaliNuovoOda(righe: RigaNuovoOda[]): TotaliNuovoOda {
-  let imponibile = 0;
-  let iva = 0;
-  for (const r of righeInOrdine(righe)) {
-    const riga = n(r.quantity) * n(r.unit_price);
-    imponibile += riga;
-    iva += (riga * n(r.vat_rate)) / 100;
-  }
-  return {
-    imponibile: centesimi(imponibile),
-    iva: centesimi(iva),
-    totale: centesimi(imponibile + iva),
-  };
+  const { imponibile, iva, totale } = totaliRigheOda(righeInOrdine(righe).map(r => ({
+    quantity:n(r.quantity),unit_price:n(r.unit_price),vat_rate:n(r.vat_rate),discount_percent:0,
+    price_pending:!!r.price_pending && n(r.unit_price) === 0,
+  })));
+  return { imponibile, iva, totale };
 }
 
 /** Il motivo per cui l'ordine non si può creare, o null. */
@@ -114,6 +108,8 @@ export function erroreNuovoOda(input: {
       return "Ogni riga ha bisogno di una descrizione.";
     if (!(n(r.quantity) > 0))
       return `«${r.description.trim()}»: la quantità deve essere maggiore di zero.`;
+    const precisione = errorePrecisioneOda(r.unit_price, r.quantity, r.vat_rate);
+    if (precisione) return `${r.description}: ${precisione}`;
     if (n(r.unit_price, -1) < 0)
       return `«${r.description.trim()}»: il prezzo non può essere negativo.`;
     if (n(r.vat_rate, -1) < 0 || n(r.vat_rate) > 100)

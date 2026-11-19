@@ -21,6 +21,8 @@ import { calcolaPrezzoFamiglia, useFamilyGrid } from "@/hooks/useFamilyPricing";
 import { formatCurrency } from "@/lib/formatters";
 import { conAssiVisibili, defaultSelections, normalizzaSelezione } from "@/lib/serramenti/assiCondizionati";
 import { cn } from "@/lib/utils";
+import { SupplierSelect } from "../SupplierSelect";
+import { VAT_RATES } from "@/lib/vatUtils";
 import {
   costoDiListino, costoScritto, erroreDiPosizione, misureDaBozza, numeroDaCampo, posizioniDaSalvare, specifichePosizione,
   type EsitoCosto, type PosizioneBozza, type StatoMisure,
@@ -36,6 +38,10 @@ export interface ProdottoSuMisura {
   codice?: string | null;
   supplierId?: string | null;
   iva?: number | null;
+  templateId?: string | null;
+  descrizione?: string | null;
+  costoIniziale?: number | null;
+  pezziIniziali?: number;
 }
 
 export interface EsitoSuMisura {
@@ -47,6 +53,7 @@ export interface EsitoSuMisura {
 
 interface Props {
   prodotto: ProdottoSuMisura;
+  companyId?: string;
   canViewCosts: boolean;
   /** La fase in cui nasce (vista per fase della commessa). */
   phaseId?: string | null;
@@ -59,7 +66,7 @@ interface Props {
   gruppoId: string;
   extra?: ReactNode;
   onAnnulla: () => void;
-  onConferma: (esito: EsitoSuMisura) => void;
+  onConferma: (esito: EsitoSuMisura) => void | Promise<void>;
 }
 
 let contatore = 0;
@@ -75,8 +82,10 @@ function daRiga(r: OrderItem, indice: number): PosizioneBozza {
     riferimento: r.riferimento ?? "",
     larghezza: r.misure_preventivo?.larghezza_mm ? String(r.misure_preventivo.larghezza_mm) : "",
     altezza: r.misure_preventivo?.altezza_mm ? String(r.misure_preventivo.altezza_mm) : "",
+    profondita: r.misure_preventivo?.profondita_mm ? String(r.misure_preventivo.profondita_mm) : "",
+    dettagli: r.description ?? "",
     pezzi: String(r.quantity),
-    costo: r.purchase_price && (COSTI_DA_TENERE.has(r.prezzo_fonte ?? "") || !r.family_id) ? String(r.purchase_price) : "",
+    costo: r.purchase_price != null && !r.prezzo_da_definire && (r.purchase_price > 0 || !!r.prezzo_fonte) && (COSTI_DA_TENERE.has(r.prezzo_fonte ?? "") || !r.family_id) ? String(r.purchase_price) : "",
     bloccata: !!r.status && r.status !== "da_ordinare",
   };
 }
@@ -167,7 +176,7 @@ function ConListino({ family: completa, ...props }: Props & { family: FamilyWith
 }
 
 function Tabella({
-  prodotto, canViewCosts, phaseId, righeEsistenti, puoTogliereSalvate, copiaDi, gruppoId, extra, onAnnulla, onConferma,
+  prodotto, companyId, canViewCosts, phaseId, righeEsistenti, puoTogliereSalvate, copiaDi, gruppoId, extra, onAnnulla, onConferma,
   family, selezioni, scelte, calcola, assi,
 }: Props & {
   family: FamilyWithAxes | null;
@@ -178,24 +187,30 @@ function Tabella({
 }) {
   const inModifica = !!righeEsistenti?.length;
   const [posizioni, setPosizioni] = useState<PosizioneBozza[]>(() => {
-    if (!righeEsistenti?.length) return [posizioneVuota("P1")];
+    if (!righeEsistenti?.length) return [{ ...posizioneVuota("P1"), costo: prodotto.costoIniziale != null ? String(prodotto.costoIniziale) : "", pezzi: String(prodotto.pezziIniziali ?? 1) }];
     const esistenti = righeEsistenti.map(daRiga);
     // `copiaDi` è una riga del gruppo: la copia riparte da lì, ma è una posizione nuova.
     if (!copiaDi) return esistenti;
     const copia = { ...daRiga(copiaDi, 0), chiave: nuovaChiave(), id: undefined as string | undefined, bloccata: false, riferimento: riferimentoSuccessivo(esistenti.map((e) => e.riferimento)) };
     return [...esistenti, copia];
   });
+  const [fornitore, setFornitore] = useState<string | undefined>(() => righeEsistenti?.[0]?.supplier_id ?? prodotto.supplierId ?? family?.supplier_id ?? undefined);
+  const [iva, setIva] = useState(() => righeEsistenti?.[0]?.vat_rate ?? prodotto.iva ?? family?.vat_rate ?? IVA_PREDEFINITA_PCT);
+  const [profonditaVisibile, setProfonditaVisibile] = useState(() => !!righeEsistenti?.some(r => r.misure_preventivo?.profondita_mm));
+  const fornitoreOriginale = righeEsistenti?.[0]?.supplier_id ?? prodotto.supplierId ?? family?.supplier_id ?? undefined;
+  const fornitoreDiverso = fornitore !== fornitoreOriginale;
+  const tutteBloccate = !!righeEsistenti?.length && righeEsistenti.every(r => r.status && r.status !== "da_ordinare");
   const [senzaListino, setSenzaListino] = useState(!calcola);
   const [statoMisure, setStatoMisure] = useState<StatoMisure>((righeEsistenti?.[0]?.measure_status as StatoMisure | null | undefined) ?? "da_rilevare");
   const [errore, setErrore] = useState<string | null>(null);
   const [fuoco, setFuoco] = useState<string | null>(null);
   const contenitore = useRef<HTMLDivElement>(null);
   const inviato = useRef(false);
+  const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
     if (!fuoco) return;
     contenitore.current?.querySelector<HTMLInputElement>(`[data-campo="${fuoco}"]`)?.focus();
-    setFuoco(null);
   }, [fuoco, posizioni.length]);
 
   const cambia = (chiave: string, campi: Partial<PosizioneBozza>) =>
@@ -217,7 +232,7 @@ function Tabella({
   };
 
   const esitoDi = (p: PosizioneBozza): EsitoCosto => {
-    if (!calcola || senzaListino) return { costo: null, fuoriListino: false, avviso: null };
+    if (!calcola || senzaListino || fornitoreDiverso) return { costo: null, fuoriListino: false, avviso: null };
     return calcola(numeroDaCampo(p.larghezza), numeroDaCampo(p.altezza));
   };
 
@@ -228,7 +243,7 @@ function Tabella({
     return { pezzi: t.pezzi + pezzi, costo: t.costo + (costo ?? 0) * pezzi, mancanti: t.mancanti + (costo == null ? 1 : 0) };
   }, { pezzi: 0, costo: 0, mancanti: 0 });
 
-  const conferma = () => {
+  const conferma = async () => {
     if (inviato.current) return;
     setErrore(null);
     if (valide.length === 0) { setErrore("Scrivi almeno una posizione: bastano il riferimento o le misure."); return; }
@@ -246,6 +261,8 @@ function Tabella({
       const scritto = costoScritto(p.costo);
       const esistente = p.id ? righeEsistenti?.[Number(p.id.slice(5))] : undefined;
       const prezzo = scritto ?? esito.costo ?? 0;
+      const fornitoreRiga = esistente && !fornitoreDiverso ? esistente.supplier_id : fornitore;
+      const ivaRiga = esistente && iva === (righeEsistenti?.[0]?.vat_rate ?? prodotto.iva ?? family?.vat_rate ?? IVA_PREDEFINITA_PCT) ? esistente.vat_rate : iva;
       const campi: Partial<OrderItem> = {
         name: prodotto.nome,
         quantity: numeroDaCampo(p.pezzi)!,
@@ -253,11 +270,15 @@ function Tabella({
         gruppo_id: gruppoId,
         family_id: family?.id ?? null,
         axis_selections: selezioni,
-        misure_preventivo: misureDaBozza(l, h),
+        misure_preventivo: misureDaBozza(l, h, numeroDaCampo(p.profondita ?? "")),
+        description: p.dettagli?.trim() || undefined,
+        supplier_id: fornitoreRiga,
+        vat_rate: ivaRiga,
         // Senza misure non si può dire confermata.
         measure_status: l == null || h == null ? "da_rilevare" : statoMisure,
-        specifiche: specifichePosizione(scelte) || null,
+        specifiche: specifichePosizione(scelte) || esistente?.specifiche || prodotto.descrizione || null,
         purchase_price: prezzo,
+        prezzo_da_definire: scritto == null && esito.costo == null,
         standard_cost: esito.costo ?? 0,
         prezzo_fonte: scritto != null ? "manuale" : esito.costo != null ? "listino" : null,
         unita_misura: "pz",
@@ -266,7 +287,11 @@ function Tabella({
         const uguale = esistente.quantity === campi.quantity
           && (esistente.riferimento ?? null) === campi.riferimento
           && (esistente.misure_preventivo?.larghezza_mm ?? null) === l && (esistente.misure_preventivo?.altezza_mm ?? null) === h
+          && (esistente.misure_preventivo?.profondita_mm ?? null) === numeroDaCampo(p.profondita ?? "")
+          && (esistente.description ?? "") === (campi.description ?? "")
+          && (esistente.supplier_id ?? undefined) === (fornitoreRiga ?? undefined) && esistente.vat_rate === ivaRiga
           && esistente.measure_status === campi.measure_status
+          && !!esistente.prezzo_da_definire === campi.prezzo_da_definire
           && JSON.stringify(esistente.axis_selections ?? null) === JSON.stringify(selezioni)
           && (scritto == null ? !COSTI_DA_TENERE.has(esistente.prezzo_fonte ?? "") : (esistente.purchase_price ?? 0) === scritto);
         if (!uguale) aggiornate.push({ prima: esistente, dopo: { ...esistente, ...campi } });
@@ -276,8 +301,7 @@ function Tabella({
         ...(campi as OrderItem),
         status: "da_ordinare",
         position: i,
-        vat_rate: family?.vat_rate ?? prodotto.iva ?? IVA_PREDEFINITA_PCT,
-        supplier_id: family?.supplier_id ?? prodotto.supplierId ?? undefined,
+        article_template_id: prodotto.templateId ?? null,
         categoria: prodotto.categoria ?? null,
         product_code: prodotto.codice ?? null,
         unit_price: 0,
@@ -289,7 +313,10 @@ function Tabella({
     const tolte = (righeEsistenti ?? []).filter((_, i) => !tenute.has(`riga-${i}`));
     if (inModifica && nuove.length === 0 && aggiornate.length === 0 && tolte.length === 0) { onAnnulla(); return; }
     inviato.current = true;
-    onConferma({ nuove, aggiornate, tolte });
+    setSalvando(true);
+    try { await onConferma({ nuove, aggiornate, tolte }); }
+    catch (e) { inviato.current = false; setErrore(e instanceof Error ? e.message : "Non riesco ad aggiungere le posizioni. Riprova."); }
+    finally { setSalvando(false); }
   };
 
   const colonne = canViewCosts
@@ -298,6 +325,21 @@ function Tabella({
 
   return (
     <div className="space-y-3" ref={contenitore}>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+        <div className="min-w-0 space-y-1">
+          <Label>Fornitore</Label>
+          {tutteBloccate ? <p className="text-sm text-muted-foreground">Le posizioni già avviate mantengono il proprio fornitore.</p> : <SupplierSelect searchable inlineCreate value={fornitore} onValueChange={id => { if (id !== fornitore) setPosizioni(prima => prima.map(p => p.bloccata ? p : { ...p, costo: "" })); setFornitore(id); }} fallbackCompanyId={companyId} />}
+          <p className="text-xs text-muted-foreground">{fornitore ? "Fornitore proposto dal prodotto, modificabile prima dell’ordine." : "Puoi preparare le posizioni e scegliere il fornitore in seguito."}</p>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="iva-su-misura">IVA acquisto</Label>
+          <Select value={String(iva)} onValueChange={v => setIva(Number(v))} disabled={tutteBloccate}>
+            <SelectTrigger id="iva-su-misura"><SelectValue /></SelectTrigger>
+            <SelectContent>{VAT_RATES.map(r => <SelectItem key={r.value} value={String(r.value)}>{r.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </div>
+      {fornitoreDiverso && <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">Hai cambiato fornitore: verifica i costi delle posizioni. Il prezzo calcolato dal listino precedente non viene riutilizzato.</p>}
       {assi}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         {calcola && canViewCosts && (
@@ -318,6 +360,10 @@ function Tabella({
         </div>
       </div>
 
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Switch checked={profonditaVisibile} onCheckedChange={setProfonditaVisibile} aria-label="Mostra profondità" />
+        Profondità per cassonetti e altri prodotti
+      </label>
       <div className="space-y-2">
         <div className={cn("hidden gap-2 px-0.5 text-xs text-muted-foreground sm:grid", colonne)}>
           <span>Rif.</span><span>L mm</span><span>H mm</span><span>Pz</span>
@@ -333,23 +379,29 @@ function Tabella({
                 <Input aria-label={`Riferimento posizione ${i + 1}`} data-campo={`rif-${p.chiave}`} value={p.riferimento} disabled={p.bloccata}
                   onChange={(e) => cambia(p.chiave, { riferimento: e.target.value })} onKeyDown={(e) => invio(e, i)}
                   placeholder="Cucina" className={cn("h-9", canViewCosts ? "sm:col-span-1" : "col-span-4 sm:col-span-1")} />
-                <Input aria-label={`Larghezza in mm, posizione ${i + 1}`} data-campo={`l-${p.chiave}`} inputMode="numeric" value={p.larghezza} disabled={p.bloccata}
-                  onChange={(e) => cambia(p.chiave, { larghezza: e.target.value })} onKeyDown={(e) => invio(e, i)} placeholder="L" className="order-2 h-9 sm:order-none" />
-                <Input aria-label={`Altezza in mm, posizione ${i + 1}`} inputMode="numeric" value={p.altezza} disabled={p.bloccata}
-                  onChange={(e) => cambia(p.chiave, { altezza: e.target.value })} onKeyDown={(e) => invio(e, i)} placeholder="H" className="order-3 h-9 sm:order-none" />
-                <Input aria-label={`Pezzi, posizione ${i + 1}`} inputMode="numeric" value={p.pezzi} disabled={p.bloccata}
-                  onChange={(e) => cambia(p.chiave, { pezzi: e.target.value })} onKeyDown={(e) => invio(e, i)} className="order-4 h-9 sm:order-none" />
+                <div className="order-2 sm:order-none"><label htmlFor={`l-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">L mm</label><Input id={`l-${p.chiave}`} aria-label={`Larghezza in mm, posizione ${i + 1}`} data-campo={`l-${p.chiave}`} inputMode="numeric" value={p.larghezza} disabled={p.bloccata}
+                  onChange={(e) => cambia(p.chiave, { larghezza: e.target.value })} onKeyDown={(e) => invio(e, i)} placeholder="L" className="h-9" /></div>
+                <div className="order-3 sm:order-none"><label htmlFor={`h-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">H mm</label><Input id={`h-${p.chiave}`} aria-label={`Altezza in mm, posizione ${i + 1}`} inputMode="numeric" value={p.altezza} disabled={p.bloccata}
+                  onChange={(e) => cambia(p.chiave, { altezza: e.target.value })} onKeyDown={(e) => invio(e, i)} placeholder="H" className="h-9" /></div>
+                <div className="order-4 sm:order-none"><label htmlFor={`q-${p.chiave}`} className="mb-1 block text-xs text-muted-foreground sm:hidden">Pz</label><Input id={`q-${p.chiave}`} aria-label={`Pezzi, posizione ${i + 1}`} inputMode="numeric" value={p.pezzi} disabled={p.bloccata}
+                  onChange={(e) => cambia(p.chiave, { pezzi: e.target.value })} onKeyDown={(e) => invio(e, i)} className="h-9" /></div>
                 {canViewCosts && (
                   <Input aria-label={`Costo, posizione ${i + 1}`} inputMode="decimal" value={p.costo} disabled={p.bloccata}
                     onChange={(e) => cambia(p.chiave, { costo: e.target.value })} onKeyDown={(e) => invio(e, i)}
                     placeholder={esito.costo != null ? formatCurrency(esito.costo) : "da definire"}
                     className="order-1 col-span-3 h-9 text-right sm:order-none sm:col-span-1" />
                 )}
-                <Button type="button" variant="ghost" size="icon" className="order-5 h-9 w-8 sm:order-none" disabled={!eliminabile}
+                <Button type="button" variant="ghost" size="icon" className="order-5 mt-5 h-9 w-8 sm:order-none sm:mt-0" disabled={!eliminabile}
                   aria-label={`Togli la posizione ${p.riferimento || i + 1}`}
                   onClick={() => setPosizioni((prima) => prima.filter((x) => x.chiave !== p.chiave))}>
                   <Trash2 className="h-3.5 w-3.5" aria-hidden />
                 </Button>
+              </div>
+              <div className="mt-1 grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)]">
+                {profonditaVisibile && <Input aria-label={`Profondità in mm, posizione ${i + 1}`} inputMode="decimal" value={p.profondita ?? ""} disabled={p.bloccata}
+                  onChange={e => cambia(p.chiave, { profondita: e.target.value })} placeholder="P mm" className="h-8 text-xs" />}
+                <Input aria-label={`Dettagli posizione ${i + 1}`} value={p.dettagli ?? ""} disabled={p.bloccata}
+                  onChange={e => cambia(p.chiave, { dettagli: e.target.value })} placeholder="Apertura, colore, avvolgimento, note per il fornitore…" className={cn("h-8 text-xs", !profonditaVisibile && "sm:col-span-2")} />
               </div>
               {(esito.avviso || p.bloccata) && (
                 <p className={cn("mt-0.5 text-[11px]", esito.fuoriListino ? "text-red-700" : "text-muted-foreground")}>
@@ -374,8 +426,8 @@ function Tabella({
           {canViewCosts && totali.mancanti > 0 && <> · {totali.mancanti} da definire</>}
         </p>
         <div className="flex gap-2 max-sm:w-full">
-          <Button type="button" variant="outline" onClick={onAnnulla} className="max-sm:flex-1">Annulla</Button>
-          <Button type="button" onClick={conferma} className="max-sm:flex-1">{inModifica ? "Salva" : "Aggiungi"}</Button>
+          <Button type="button" variant="outline" onClick={onAnnulla} disabled={salvando} className="max-sm:flex-1">Annulla</Button>
+          <Button type="button" onClick={() => void conferma()} disabled={salvando} className="max-sm:flex-1">{salvando ? "Salvataggio…" : inModifica ? "Salva" : "Aggiungi"}</Button>
         </div>
       </div>
     </div>

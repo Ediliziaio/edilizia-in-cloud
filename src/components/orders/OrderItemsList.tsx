@@ -25,11 +25,6 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,6 +81,9 @@ export interface OrderItem {
   supplier_id?: string;
   supplier_name?: string;
   purchase_price?: number;
+  preparazione_prezzo?: import("@/lib/orders/preparazioneForniture").PrezzoPreparazione;
+  costo_stimato_iniziale?: number | null;
+  origine_materiale?: string | null;
   prezzo_da_definire?: boolean;
   ddt_riga_origine_id?: string | null;
   vat_rate?: number;
@@ -152,7 +150,8 @@ export type RichiestaArticolo =
 
 interface OrderItemsListProps {
   items: OrderItem[];
-  onItemsChange: (items: OrderItem[]) => void;
+  onItemsChange: (items: OrderItem[]) => void | Promise<void>;
+  onSalvaForniture?: (righe: OrderItem[], richiesta: string) => Promise<void>;
   editable?: boolean;
   allowEdit?: boolean;
   showStatusControls?: boolean;
@@ -282,6 +281,7 @@ interface Supplier {
 export function OrderItemsList({
   items,
   onItemsChange,
+  onSalvaForniture,
   editable = true,
   allowEdit = false,
   showStatusControls = false,
@@ -311,7 +311,7 @@ export function OrderItemsList({
       all'inserimento. In modifica si apre da sola: i valori esistenti devono
       restare visibili. */
   const [showAltriDettagli, setShowAltriDettagli] = useState(false);
-  /** Il popup per inserire (ricerca unica e su misura). La finestra sotto resta per modificare. */
+  /** Ricerca e modifica condividono lo spazio articoli. */
   const [popupNuovo, setPopupNuovo] = useState(false);
   const [azzeraPopup, setAzzeraPopup] = useState(0);
   const [gruppoInModifica, setGruppoInModifica] = useState<GruppoDaModificare | null>(null);
@@ -562,6 +562,8 @@ export function OrderItemsList({
   };
 
   const openEditDialog = (index: number, comeCopia = false) => {
+    setPopupNuovo(false);
+    setDialogOpen(false);
     // Una posizione su misura si corregge insieme alle altre del suo gruppo.
     const dalGruppo = items[index];
     if (dalGruppo?.gruppo_id) {
@@ -656,7 +658,7 @@ export function OrderItemsList({
     return true;
   };
 
-  const dalPopupMagazzino = (voce: { id: string; name: string; description?: string | null; supplier_id?: string | null; unit_cost: number; vat_rate?: number | null }, quantita: number) => {
+  const dalPopupMagazzino = (voce: { id: string; name: string; description?: string | null; supplier_id?: string | null; unit_cost: number; vat_rate?: number | null; unita_misura?: string | null }, quantita: number) => {
     onItemsChange([...items, {
       name: voce.name,
       description: voce.description || undefined,
@@ -667,6 +669,7 @@ export function OrderItemsList({
       purchase_price: voce.unit_cost,
       vat_rate: voce.vat_rate ?? 22,
       stock_item_id: voce.id,
+      unita_misura: voce.unita_misura ?? "pz",
       ...(faseNuovo !== undefined ? { phase_id: faseNuovo } : {}),
     }]);
     onStockPick?.(voce.id, quantita);
@@ -1069,7 +1072,7 @@ export function OrderItemsList({
   };
 
   const renderNewArticleForm = () => (
-    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+    <div className="space-y-4">
       {/* ── Section 1: Articolo ─────────────────────────── */}
       <div className="space-y-3">
         <h4 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground">
@@ -1205,10 +1208,7 @@ export function OrderItemsList({
           {canViewCosts && (
           <div className="space-y-2">
             <Label>
-              Costo Acquisto
-              {itemStandardCost != null && itemStandardCost > 0 && (
-                <span className="text-xs text-muted-foreground font-normal"> (reale pagato)</span>
-              )}
+              Costo unitario previsto
             </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
@@ -1262,7 +1262,7 @@ export function OrderItemsList({
         </h4>
         <div className="space-y-2">
           <Label>Fornitore <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
-          <SupplierSelect value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
+          <SupplierSelect searchable inlineCreate value={itemSupplierId} onValueChange={handleSupplierChange} fallbackCompanyId={fallbackCompanyId} />
         </div>
       </div>
 
@@ -1577,19 +1577,31 @@ export function OrderItemsList({
   // vista per fase della commessa (soloFinestra).
   const finestra = (
     <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingIndex !== null ? "Modifica Articolo" : "Nuovo Articolo"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingIndex !== null
-                ? "Modifica i dettagli dell'articolo"
-                : "Aggiungi un articolo alla commessa"}
-            </DialogDescription>
-          </DialogHeader>
-          {dialogError && (
+
+      <AggiungiArticoloDialog
+        open={popupNuovo || dialogOpen}
+        onOpenChange={(aperto) => { if (!aperto) { setPopupNuovo(false); setDialogOpen(false); setGruppoInModifica(null); setDoppione(null); } }}
+        companyId={companyId}
+        canViewCosts={canViewCosts}
+        phaseId={faseNuovo}
+        onAggiungiRiga={dalPopupAggiungiRiga}
+        onPrendiDaMagazzino={dalPopupMagazzino}
+        onEsitoSuMisura={dalPopupSuMisura}
+        azzera={azzeraPopup}
+        gruppoDaModificare={gruppoInModifica}
+        puoTogliereSalvate={editable && allowDelete && !(onItemUpdate && allowEdit)}
+        stockBloccato={stockPickBlockedReason}
+        onOpenWarehouseExit={onOpenWarehouseExit}
+        onAddLabor={onAddLabor}
+        altreFonti={altreFonti}
+        fornitori={suppliers}
+        onSalvaPreparazione={async (righe, richiesta) => {
+          if (onSalvaForniture) await onSalvaForniture(righe, richiesta);
+          else await onItemsChange([...items, ...righe.map((r,n) => ({...r,position:items.length+n}))]);
+        }}
+        articoli={items}
+        onModificaArticolo={openEditDialog}
+        modificaArticolo={dialogOpen ? <div>          {dialogError && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {dialogError}
             </div>
@@ -1632,13 +1644,10 @@ export function OrderItemsList({
               </DialogFooter>
             </>
           )}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={!!doppione} onOpenChange={(o) => !o && setDoppione(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>«{doppione?.esistente.name}» c'è già</DialogTitle>
-              <DialogDescription>
+</div> : undefined}
+        confermaDoppione={doppione ? <div>            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">«{doppione?.esistente.name}» c'è già</h3>
+              <div className="text-sm text-muted-foreground">
                 {doppione && <>
                   Nella commessa{doppione.esistente.phase_id ? ", nella stessa fase," : ""} c'è già questo articolo
                   ({doppione.esistente.quantity.toLocaleString("it-IT")} {doppione.esistente.unita_misura || "pz"}).
@@ -1648,33 +1657,16 @@ export function OrderItemsList({
                       ? " Prezzo o fornitore sono diversi da quelli della riga che c'è: aggiungilo come riga a parte, così il costo resta giusto."
                       : " Le quantità non si sommano (riga già avviata, unità diversa, posizioni o prelievo dal magazzino): se serve davvero, aggiungilo come riga a parte."}
                 </>}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex-wrap gap-2">
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
               <Button type="button" variant="ghost" onClick={() => setDoppione(null)}>Annulla</Button>
               <Button type="button" variant="outline" onClick={() => risolviDoppione("separata")}>Aggiungi come riga a parte</Button>
               {sommabile && (
                 <Button type="button" onClick={() => risolviDoppione("somma")}>Somma la quantità</Button>
               )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      <AggiungiArticoloDialog
-        open={popupNuovo}
-        onOpenChange={(aperto) => { setPopupNuovo(aperto); if (!aperto) setGruppoInModifica(null); }}
-        companyId={companyId}
-        canViewCosts={canViewCosts}
-        phaseId={faseNuovo}
-        onAggiungiRiga={dalPopupAggiungiRiga}
-        onPrendiDaMagazzino={dalPopupMagazzino}
-        onEsitoSuMisura={dalPopupSuMisura}
-        azzera={azzeraPopup}
-        gruppoDaModificare={gruppoInModifica}
-        puoTogliereSalvate={editable && allowDelete && !(onItemUpdate && allowEdit)}
-        stockBloccato={stockPickBlockedReason}
-        onOpenWarehouseExit={onOpenWarehouseExit}
-        onAddLabor={onAddLabor}
-        altreFonti={altreFonti}
+            </div>
+</div> : undefined}
       />
     </>
   );

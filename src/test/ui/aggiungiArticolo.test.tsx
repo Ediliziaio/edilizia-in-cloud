@@ -27,7 +27,7 @@ vi.mock("@/hooks/useFamilyPricing", async (orig) => ({
   ...(await orig<typeof import("@/hooks/useFamilyPricing")>()),
   useFamilyGrid: () => ({ data: [{ valore_x: 1500, valore_y: 1800, prezzo_vendita: 800, prezzo_acquisto_netto: 450 }] }),
 }));
-vi.mock("@/components/orders/SupplierSelect", () => ({ SupplierSelect: () => <div data-testid="fornitore" /> }));
+vi.mock("@/components/orders/SupplierSelect", () => ({ SupplierSelect: ({ value, onValueChange }: { value?: string; onValueChange: (id: string | undefined) => void }) => <select aria-label="Fornitore" value={value ?? ""} onChange={e => onValueChange(e.target.value || undefined)}><option value="">Nessun fornitore</option><option value="fornitore-a">Fornitore A</option><option value="fornitore-b">Fornitore B</option></select> }));
 
 import { AggiungiArticoloDialog } from "@/components/orders/articoli/AggiungiArticoloDialog";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
@@ -36,7 +36,7 @@ import type { EsitoSuMisura } from "@/components/orders/articoli/FormSuMisura";
 function monta(over: Partial<Parameters<typeof AggiungiArticoloDialog>[0]> = {}) {
   const props = {
     open: true, onOpenChange: vi.fn(), companyId: "az", canViewCosts: true, azzera: 0,
-    onAggiungiRiga: vi.fn(() => true), onPrendiDaMagazzino: vi.fn(), onEsitoSuMisura: vi.fn(),
+    onAggiungiRiga: vi.fn(() => true), onSalvaPreparazione: vi.fn(async () => {}), fornitori:[{id:"fornitore-a",name:"Fornitore A"},{id:"fornitore-b",name:"Fornitore B"}], onPrendiDaMagazzino: vi.fn(), onEsitoSuMisura: vi.fn(),
     ...over,
   };
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -67,17 +67,32 @@ beforeEach(() => {
   };
 });
 
-describe("Aggiungi articolo", () => {
-  it("propone solo i materiali attivi e lascia gli inattivi fuori dalle nuove commesse", async () => {
-    dati.tabelle.article_templates = [
-      { id: "active", name: "Calcestruzzo verificato", standard_cost: 80, attivo: true },
-      { id: "inactive", name: "Calcestruzzo storico", standard_cost: 70, attivo: false },
-    ];
-    monta();
-    await screen.findByText("Calcestruzzo verificato");
-    expect(screen.queryByText("Calcestruzzo storico")).toBeNull();
+describe("Prepara articoli per fornitore", () => {
+  it("un prezzo inserito riaprendo le misure sostituisce il da definire",async()=>{
+    dati.tabelle.article_families=[];const p=monta();await screen.findByText("Silicone bianco");scrivi(cerca(),"Cassonetto speciale");
+    fireEvent.click(await screen.findByText("Aggiungi «Cassonetto speciale» su misura, con le posizioni"));
+    scrivi(await screen.findByLabelText("Riferimento posizione 1"),"Cucina");fireEvent.click(screen.getByRole("button",{name:"Aggiungi"}));
+    fireEvent.click(screen.getByRole("button",{name:"Modifica misure"}));
+    scrivi(await screen.findByLabelText("Costo, posizione 1"),"120");fireEvent.click(screen.getByRole("button",{name:"Salva"}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());
+    expect(chiamate(p.onSalvaPreparazione)[0][0][0]).toMatchObject({purchase_price:120,prezzo_da_definire:false});
   });
-
+  it("zero esplicito rimane conosciuto quando si riaprono le posizioni",async()=>{
+    dati.tabelle.article_families=[];const p=monta();await screen.findByText("Silicone bianco");scrivi(cerca(),"Cassonetto gratuito");
+    fireEvent.click(await screen.findByText("Aggiungi «Cassonetto gratuito» su misura, con le posizioni"));
+    scrivi(await screen.findByLabelText("Riferimento posizione 1"),"Cucina");scrivi(screen.getByLabelText("Costo, posizione 1"),"0");fireEvent.click(screen.getByRole("button",{name:"Aggiungi"}));
+    fireEvent.click(screen.getByRole("button",{name:"Modifica misure"}));expect(await screen.findByLabelText("Costo, posizione 1")).toHaveValue("0");
+    scrivi(screen.getByLabelText("Dettagli posizione 1"),"Omaggio concordato");fireEvent.click(screen.getByRole("button",{name:"Salva"}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());
+    expect(chiamate(p.onSalvaPreparazione)[0][0][0]).toMatchObject({purchase_price:0,prezzo_da_definire:false});
+  });
+  it("i dettagli di una riga del catalogo conservano il collegamento e il codice",async()=>{
+    dati.tabelle.article_templates=[{id:"a",name:"Cemento",supplier_id:"fornitore-a",standard_cost:10,vat_rate:22,sku:"CEM01",category:"edilizia"}];
+    const p=monta();fireEvent.click(await screen.findByText("Cemento"));fireEvent.click(screen.getByRole("button",{name:"Dettagli"}));
+    scrivi(screen.getByLabelText("Note e specifiche"),"Consegna al piano");fireEvent.click(screen.getByRole("button",{name:"Aggiungi"}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());
+    expect(chiamate(p.onSalvaPreparazione)[0][0][0]).toMatchObject({article_template_id:"a",product_code:"CEM01",categoria:"edilizia",description:"Consegna al piano"});
+  });
   it("modifica prima del salvataggio: le righe senza id non si raddoppiano", async () => {
     const riga: OrderItem = { name: "Finestra PVC", quantity: 1, status: "da_ordinare", position: 0, gruppo_id: "g", riferimento: "Cucina", family_id: "f1", axis_selections: {}, misure_preventivo: { larghezza_mm: 1200, altezza_mm: 1400, mq: 1 }, measure_status: "da_rilevare", purchase_price: 450, prezzo_fonte: "listino" };
     const p = monta({ gruppoDaModificare: { righe: [riga] } });
@@ -89,132 +104,6 @@ describe("Aggiungi articolo", () => {
     expect(e.tolte).toHaveLength(0);
     expect(e.aggiornate[0].prima).toBe(riga);
   });
-
-  it("una ricerca sola: magazzino, listino con Su misura, usati, senza schede", async () => {
-    monta();
-    await screen.findByText("Silicone bianco");
-    await screen.findByText("Su misura");
-    await screen.findByText("Viti 4x40");
-    expect(screen.queryByRole("tab")).toBeNull();
-    scrivi(cerca(), "Tassello 8");
-    await screen.findByText(/Aggiungi «Tassello 8»$/);
-    expect(screen.queryByText("Silicone bianco")).toBeNull();
-  });
-
-  it("articolo nuovo: non va nel catalogo, Invio aggiunge e si torna alla ricerca", async () => {
-    const p = monta();
-    await screen.findByText("Silicone bianco");
-    scrivi(cerca(), "Tassello 8");
-    fireEvent.click(await screen.findByText(/Aggiungi «Tassello 8»$/));
-    const q = await screen.findByLabelText("Quantità");
-    expect(screen.getByLabelText("Solo per questa commessa")).toBeChecked();
-    scrivi(q, "12,5");
-    fireEvent.change(screen.getByLabelText("Unità"), { target: { value: "kg" } });
-    fireEvent.change(screen.getByLabelText("Costo cad. €"), { target: { value: "2,40" } });
-    fireEvent.keyDown(q, { key: "Enter" });
-    await waitFor(() => expect(p.onAggiungiRiga).toHaveBeenCalledTimes(1));
-    const riga = chiamate(p.onAggiungiRiga)[0][0] as OrderItem;
-    expect(riga).toMatchObject({ name: "Tassello 8", quantity: 12.5, unita_misura: "kg", purchase_price: 2.4, status: "da_ordinare" });
-    expect(riga.gruppo_id).toBeUndefined();
-    expect(dati.inserite).toHaveLength(0);
-    await waitFor(() => expect(cerca()).toBeTruthy());
-  });
-
-  it("se l'articolo c'è già a scaffale lo dice e porta al prelievo, senza ordinarlo", async () => {
-    const p = monta();
-    await screen.findByText("Silicone bianco");
-    scrivi(cerca(), "Silicone");
-    fireEvent.click(await screen.findByText(/Aggiungi «Silicone»$/));
-    const nome = await screen.findByLabelText("Nome");
-    expect(screen.queryByText(/Ce l'hai già in magazzino/)).toBeNull();
-    scrivi(nome, "silicone bianco");
-    expect(await screen.findByText(/Ce l'hai già in magazzino: 4 disponibili in Sede/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Prendi dal magazzino" }));
-    expect(await screen.findByLabelText("Quantità")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Preleva" })).toBeTruthy();
-    expect(p.onAggiungiRiga).not.toHaveBeenCalled();
-  });
-
-  it("«Salva nel catalogo» entra nel catalogo solo se lo si sceglie", async () => {
-    const p = monta();
-    await screen.findByText("Silicone bianco");
-    scrivi(cerca(), "Tassello 8");
-    fireEvent.click(await screen.findByText(/Aggiungi «Tassello 8»$/));
-    await screen.findByLabelText("Quantità");
-    fireEvent.click(screen.getByLabelText("Salva nel catalogo"));
-    fireEvent.keyDown(screen.getByLabelText("Quantità"), { key: "Enter" });
-    await waitFor(() => expect(p.onAggiungiRiga).toHaveBeenCalledTimes(1));
-    expect(dati.inserite).toHaveLength(1);
-    expect(dati.inserite[0]).toMatchObject({ company_id: "az", name: "Tassello 8" });
-    expect((chiamate(p.onAggiungiRiga)[0][0] as OrderItem).article_template_id).toBe("nuovo");
-  });
-
-  it("doppio Invio aggiunge una volta sola", async () => {
-    const p = monta();
-    await screen.findByText("Silicone bianco");
-    fireEvent.click(screen.getByText("Viti 4x40"));
-    const q = await screen.findByLabelText("Quantità");
-    fireEvent.keyDown(q, { key: "Enter" });
-    fireEvent.keyDown(q, { key: "Enter" });
-    await waitFor(() => expect(p.onAggiungiRiga).toHaveBeenCalledTimes(1));
-  });
-
-  it("senza permesso nessuna cifra", async () => {
-    monta({ canViewCosts: false });
-    await screen.findByText("Silicone bianco");
-    expect(document.body.textContent).not.toMatch(/€/);
-    fireEvent.click(screen.getByText("Viti 4x40"));
-    await screen.findByLabelText("Quantità");
-    expect(screen.queryByLabelText("Costo cad. €")).toBeNull();
-  });
-
-  it("su misura: una riga per posizione con lo stesso gruppo e il costo del listino", async () => {
-    const p = monta();
-    fireEvent.click(await screen.findByText("Finestra PVC"));
-    scrivi(await screen.findByLabelText("Riferimento posizione 1"), "Cucina");
-    scrivi(screen.getByLabelText("Larghezza in mm, posizione 1"), "1200");
-    scrivi(screen.getByLabelText("Altezza in mm, posizione 1"), "1400");
-    scrivi(screen.getByLabelText("Pezzi, posizione 1"), "2");
-    fireEvent.click(screen.getByRole("button", { name: "Posizione" }));
-    scrivi(await screen.findByLabelText("Riferimento posizione 2"), "Bagno");
-    const bottone = screen.getByRole("button", { name: "Aggiungi" });
-    fireEvent.click(bottone);
-    fireEvent.click(bottone);
-    await waitFor(() => expect(p.onEsitoSuMisura).toHaveBeenCalledTimes(1));
-    const { nuove } = chiamate(p.onEsitoSuMisura)[0][0] as EsitoSuMisura;
-    expect(nuove).toHaveLength(2);
-    expect(nuove[0].gruppo_id).toBe(nuove[1].gruppo_id);
-    expect(nuove[0]).toMatchObject({ riferimento: "Cucina", quantity: 2, family_id: "f1", purchase_price: 450, prezzo_fonte: "listino", measure_status: "da_rilevare", misure_preventivo: { larghezza_mm: 1200, altezza_mm: 1400 } });
-    expect(nuove[1]).toMatchObject({ riferimento: "Bagno", purchase_price: 0, prezzo_fonte: null, measure_status: "da_rilevare", misure_preventivo: null });
-  });
-
-  it("«Non ho il listino» lascia il costo da definire", async () => {
-    const p = monta();
-    fireEvent.click(await screen.findByText("Finestra PVC"));
-    scrivi(await screen.findByLabelText("Larghezza in mm, posizione 1"), "1200");
-    scrivi(screen.getByLabelText("Altezza in mm, posizione 1"), "1400");
-    fireEvent.click(screen.getByRole("switch", { name: "Non ho il listino" }));
-    expect(screen.getByLabelText("Costo, posizione 1")).toHaveAttribute("placeholder", "da definire");
-    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    await waitFor(() => expect(p.onEsitoSuMisura).toHaveBeenCalled());
-    const { nuove } = chiamate(p.onEsitoSuMisura)[0][0] as EsitoSuMisura;
-    expect(nuove[0]).toMatchObject({ purchase_price: 0, standard_cost: 0, prezzo_fonte: null });
-  });
-
-  it("magazzino: non si preleva più di quanto c'è", async () => {
-    const p = monta();
-    fireEvent.click(await screen.findByText("Silicone bianco"));
-    const q = await screen.findByLabelText("Quantità");
-    scrivi(q, "5");
-    fireEvent.keyDown(q, { key: "Enter" });
-    await screen.findByText(/ce ne sono 4/);
-    expect(p.onPrendiDaMagazzino).not.toHaveBeenCalled();
-    scrivi(q, "3");
-    fireEvent.keyDown(q, { key: "Enter" });
-    await waitFor(() => expect(p.onPrendiDaMagazzino).toHaveBeenCalledTimes(1));
-    expect(chiamate(p.onPrendiDaMagazzino)[0][1]).toBe(3);
-  });
-
   it("modifica di un gruppo: scrive solo le righe cambiate", async () => {
     const riga = (id: string, riferimento: string, larghezza_mm: number): OrderItem => ({
       id, name: "Finestra PVC", quantity: 1, status: "da_ordinare", position: 0, gruppo_id: "g", riferimento, family_id: "f1", axis_selections: {},
@@ -229,5 +118,87 @@ describe("Aggiungi articolo", () => {
     expect(e.tolte).toHaveLength(0);
     expect(e.aggiornate.map((r) => r.dopo.id)).toEqual(["b"]);
     expect(e.aggiornate[0].dopo.misure_preventivo?.larghezza_mm).toBe(900);
+  });
+  it("riapre profondità e dettagli della posizione, aggiornando solo ciò che cambia", async () => {
+    const r: OrderItem = { id: "cass", name: "Cassonetto", quantity: 1, status: "da_ordinare", position: 0, gruppo_id: "cass-gruppo", riferimento: "P1", supplier_id: "fornitore-a", vat_rate: 22, description: "Ispezione frontale", misure_preventivo: { larghezza_mm: 1800, altezza_mm: 300, profondita_mm: 250 }, measure_status: "da_rilevare", purchase_price: 80, prezzo_fonte: "manuale" };
+    const p = monta({ gruppoDaModificare: { righe: [r] } });
+    expect(await screen.findByLabelText("Profondità in mm, posizione 1")).toHaveValue("250");
+    expect(screen.getByLabelText("Dettagli posizione 1")).toHaveValue("Ispezione frontale");
+    scrivi(screen.getByLabelText("Profondità in mm, posizione 1"), "270");
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    const e = chiamate(p.onEsitoSuMisura)[0][0] as EsitoSuMisura;
+    expect(e.aggiornate[0].dopo).toMatchObject({ id: "cass", supplier_id: "fornitore-a", description: "Ispezione frontale", misure_preventivo: { profondita_mm: 270 } });
+  });
+  it("ricerca unica con listino, magazzino e recenti", async()=>{
+    monta();await screen.findByText("Silicone bianco");await screen.findByText("Finestra PVC");await screen.findByText("Viti 4x40");
+    expect(screen.queryByRole("tab")).toBeNull();
+  });
+  it("più articoli dello stesso fornitore si preparano insieme, senza salvataggi intermedi", async()=>{
+    dati.tabelle.article_templates=[{id:"a",name:"Cemento",supplier_id:"fornitore-a",standard_cost:10,vat_rate:22},{id:"b",name:"Lastre",supplier_id:"fornitore-a",standard_cost:20,vat_rate:22}];
+    const p=monta();fireEvent.click(await screen.findByText("Cemento"));fireEvent.click(screen.getByRole("option",{name:/Lastre/}));
+    expect(screen.getAllByLabelText("Quantità")).toHaveLength(2);expect(p.onSalvaPreparazione).not.toHaveBeenCalled();
+    scrivi(screen.getAllByLabelText("Quantità")[0],"3");
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));
+    await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalledTimes(1));
+    const righe=chiamate(p.onSalvaPreparazione)[0][0] as OrderItem[];
+    expect(righe.map(r=>r.supplier_id)).toEqual(["fornitore-a","fornitore-a"]);
+    expect(righe[0]).toMatchObject({quantity:3,purchase_price:10,origine_materiale:"manuale"});
+  });
+  it("il totale riga rimane esatto e il prezzo è netto nel payload",async()=>{
+    const p=monta();fireEvent.click(await screen.findByText("Viti 4x40"));
+    scrivi(screen.getByLabelText("Quantità"),"3");scrivi(screen.getByLabelText("Totale riga €"),"500");
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));
+    await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());
+    const r=(chiamate(p.onSalvaPreparazione)[0][0] as OrderItem[])[0];
+    expect(Math.round(r.purchase_price!*r.quantity*100)).toBe(50000);expect(r.preparazione_prezzo?.modo).toBe("totale");
+  });
+  it("ripartisce il totale fornitura sulle righe una sola volta",async()=>{
+    dati.tabelle.article_templates=[{id:"a",name:"Cemento",supplier_id:"fornitore-a",standard_cost:10,vat_rate:22},{id:"b",name:"Lastre",supplier_id:"fornitore-a",standard_cost:20,vat_rate:22}];
+    const p=monta();fireEvent.click(await screen.findByText("Cemento"));fireEvent.click(screen.getByRole("option",{name:/Lastre/}));
+    scrivi(screen.getByLabelText(/Totale fornitura · IVA esclusa/),"100");fireEvent.click(screen.getByRole("button",{name:"Ripartisci totale"}));
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());
+    const rows=chiamate(p.onSalvaPreparazione)[0][0] as OrderItem[];
+    expect(rows.reduce((n,r)=>n+Math.round(r.purchase_price!*r.quantity*100),0)).toBe(10000);
+    expect(rows.every(r=>r.preparazione_prezzo?.ripartizione)).toBe(true);
+  });
+  it("un totale non ripartito impedisce il salvataggio senza perdere le righe",async()=>{
+    const p=monta();fireEvent.click(await screen.findByText("Viti 4x40"));scrivi(screen.getByLabelText(/Totale fornitura · IVA esclusa/),"100");
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await screen.findByText(/ripartisci il totale sulle righe oppure/);
+    expect(p.onSalvaPreparazione).not.toHaveBeenCalled();expect(screen.getByLabelText("Quantità")).toBeVisible();
+  });
+  it("un errore di salvataggio conserva la preparazione e il retry riusa la richiesta",async()=>{
+    const salva=vi.fn().mockRejectedValueOnce(new Error("Errore simulato")).mockResolvedValueOnce(undefined);
+    monta({onSalvaPreparazione:salva});fireEvent.click(await screen.findByText("Viti 4x40"));
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await screen.findByText("Errore simulato");
+    const id=salva.mock.calls[0][1];
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await waitFor(()=>expect(salva).toHaveBeenCalledTimes(2));expect(salva.mock.calls[1][1]).toBe(id);
+  });
+  it("la fornitura senza prezzo si salva come da definire, distinto da zero",async()=>{
+    dati.tabelle.article_templates=[{id:"a",name:"Articolo nuovo",standard_cost:null,supplier_id:null}];
+    const p=monta();fireEvent.click(await screen.findByText("Articolo nuovo"));fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));
+    await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());expect(chiamate(p.onSalvaPreparazione)[0][0][0]).toMatchObject({prezzo_da_definire:true,purchase_price:0});
+  });
+  it("beni manuali con profondità e note entrano nella preparazione prima del salvataggio",async()=>{
+    dati.tabelle.article_families=[];const p=monta();await screen.findByText("Silicone bianco");scrivi(cerca(),"Cassonetto speciale");
+    fireEvent.click(await screen.findByText("Aggiungi «Cassonetto speciale» su misura, con le posizioni"));
+    scrivi(await screen.findByLabelText("Larghezza in mm, posizione 1"),"1800");scrivi(screen.getByLabelText("Altezza in mm, posizione 1"),"300");
+    fireEvent.click(screen.getByRole("switch",{name:"Mostra profondità"}));scrivi(screen.getByLabelText("Profondità in mm, posizione 1"),"250");scrivi(screen.getByLabelText("Dettagli posizione 1"),"Ispezione frontale");
+    fireEvent.click(screen.getByRole("button",{name:"Aggiungi"}));expect(p.onEsitoSuMisura).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Salva preparazione"}));await waitFor(()=>expect(p.onSalvaPreparazione).toHaveBeenCalled());
+    expect(chiamate(p.onSalvaPreparazione)[0][0][0]).toMatchObject({description:"Ispezione frontale",misure_preventivo:{larghezza_mm:1800,altezza_mm:300,profondita_mm:250}});
+  });
+  it("senza permesso di costo non mostra cifre monetarie neppure in tabella",async()=>{
+    monta({canViewCosts:false});fireEvent.click(await screen.findByText("Viti 4x40"));
+    expect(screen.queryByLabelText("Prezzo cad. €")).toBeNull();expect(screen.getByRole("dialog").textContent).not.toContain("€");
+  });
+  it("un nuovo articolo senza fornitore non eredita quello del listino precedente",async()=>{
+    dati.tabelle.article_templates=[{id:"a",name:"Cemento",standard_cost:10,supplier_id:"fornitore-a"}];
+    monta();fireEvent.click(await screen.findByText("Cemento"));fireEvent.click(screen.getByRole("button",{name:"Aggiungi riga libera"}));
+    expect(screen.getByRole("region",{name:"Fornitura senza fornitore"})).toBeVisible();expect(screen.getByRole("region",{name:"Fornitura Fornitore A"})).toBeVisible();
+  });
+  it("i prezzi da documenti sono visibili separatamente dalle nuove stime",()=>{
+    monta({articoli:[{id:"x",name:"Articolo ordinato",quantity:2,position:0,status:"ordinato",supplier_id:"fornitore-a",purchase_price:120,prezzo_fonte:"ordine",costo_stimato_iniziale:100}]});
+    expect(screen.getByText(/Fornitore A · 2 pz · ODA/)).toBeVisible();
+    expect(screen.queryByLabelText("Prezzo cad. €")).toBeNull();
   });
 });

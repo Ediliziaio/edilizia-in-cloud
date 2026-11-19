@@ -1,3 +1,4 @@
+import { salvaPreparazioneForniture } from "@/lib/orders/salvaPreparazioneForniture";
 import { incassiConFatture } from "@/lib/orders/incassiConFatture";
 import { applicaQuoteAlleRate, type QuotaFatturaRata } from "@/lib/orders/quoteFatturaRate";
 import "@/components/orders/income-workspace.css";
@@ -1178,7 +1179,12 @@ function OrderDetailInner() {
   const displayItems: (OrderItem & { id: string })[] = materialItems.map(item => ({
     id: item.id, name: item.name, description: item.description || undefined,
     quantity: item.quantity, status: item.status as OrderItem['status'], position: item.position,
-    supplier_id: item.supplier_id || undefined, purchase_price: item.purchase_price || undefined,
+    supplier_id: item.supplier_id || undefined, purchase_price: item.purchase_price ?? undefined,
+    prezzo_fonte: item.prezzo_fonte ?? null,
+    prezzo_da_definire: (item as unknown as {prezzo_da_definire?: boolean}).prezzo_da_definire,
+    ddt_riga_origine_id: (item as unknown as {ddt_riga_origine_id?: string | null}).ddt_riga_origine_id,
+    costo_stimato_iniziale: (item as unknown as {costo_stimato_iniziale?: number | null}).costo_stimato_iniziale,
+    preparazione_prezzo: (item as unknown as OrderItem).preparazione_prezzo,
     vat_rate: item.vat_rate ?? undefined, stock_item_id: item.stock_item_id || undefined,
     unit_price: item.unit_price || undefined, discount_percent: item.discount_percent || undefined,
     standard_cost: item.standard_cost || undefined,
@@ -1936,6 +1942,15 @@ function OrderDetailInner() {
                     onItemsChange: (newItems) => {
                       const nuove = newItems.filter((ni) => !ni.id);
                       if (nuove.length > 0) addItemMutation.mutate(nuove);
+                    },
+                    onSalvaForniture: async (righe, richiesta) => {
+                      await salvaPreparazioneForniture(id!, righe, richiesta);
+                      await Promise.all([
+                        queryClient.invalidateQueries({ queryKey: ["order-items", id] }),
+                        queryClient.invalidateQueries({ queryKey: ["materiali-per-fase", id] }),
+                        queryClient.invalidateQueries({ queryKey: ["material-procurement"] }),
+                      ]);
+                      toast.success("Preparazione salvata");
                     },
                     onItemUpdate: handleItemUpdate,
                     onAttachmentsRefresh: handleAttachmentsRefresh,
