@@ -20,6 +20,7 @@ import { quoteWriteVersion } from "@/lib/preventivi/quoteWriteVersion";
 import { esitoUpdateConGuardia, isConflittoModifica } from "@/lib/concorrenza";
 import { assertSavedQuoteAmounts } from "@/lib/preventivi/quoteSaveValidation";
 import { descrizioneCommerciale, prezziVenditaCompleti } from "@/lib/preventivi/configurazioneSemplice";
+import { descrizioneConMisure, righeConMisureIncomplete, salvaMisurePreventivo } from "@/lib/preventivi/misurePreventivo";
 import type { ArticleTemplateData } from "@/components/orders/ArticleCombobox";
 
 const BUILDER = "src/pages/azienda/marketing/QuoteBuilder.tsx";
@@ -275,7 +276,7 @@ describe("Salvataggio: riga di sconto in negativo, margine vuoto se mancano cost
       latestDraftSerializedRef: { current: '{"notes":"bozza"}' }, lastCloudSavedSnapshotRef: { current: '{"notes":"bozza"}' },
       createdQuoteRef: { current: null as string | null }, quoteDraftInputHash,
       setPartialQuoteId: () => {}, setPendingEditNavId: () => {}, newQuoteCompletedRef: { current: false },
-      searchParams: new URLSearchParams(), items, selectedMaterials: [], bonusLines: [], totaliPro,
+      searchParams: new URLSearchParams(), items, selectedMaterials: [], bonusLines: [], totaliPro, descrizioneConMisure, righeConMisureIncomplete, salvaMisurePreventivo,
       subtotal, discountAmt, vatAmount, total, financingProposal: null, validityDays: 30, discountPercent: 0,
       templateValues: {}, contractFields: [], prezziVenditaCompleti, tipoCliente: "privato",
       normalizzaRigaSconto, clearQuoteDraft: () => {}, assertSavedQuoteAmounts, quoteWriteVersion, esitoUpdateConGuardia,
