@@ -12,7 +12,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({
 }) }));
 vi.mock("@/lib/ai/use-ai-model-selector", () => ({ useAIModelSelector: () => ({ showSelector: false }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: async (fn: string) => ({ data: fn === "get_internal_chat_profiles" ? [
+  rpc: async (fn: string): Promise<{ data: unknown[]; error: Error | null }> => ({ data: fn === "get_internal_chat_profiles" ? [
     { id: "me", first_name: "Mario", last_name: "Staff", email: "me@example.test" },
     { id: "other", first_name: "Giulia", last_name: "Collega", email: "other@example.test" },
   ].filter(p => !state.ownProfileMissing || p.id !== "me") : [], error: null }),
