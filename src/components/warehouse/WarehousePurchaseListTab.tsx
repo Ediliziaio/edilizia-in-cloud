@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useScopedStorage } from "@/hooks/warehouse/useScopedStorage";
+import { useCallback, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -223,28 +224,13 @@ export default function WarehousePurchaseListTab({
   const [sourceFilter, setSourceFilter] = useState<"all" | PurchaseRow["source"]>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | PurchaseStatus>("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | PaymentState>("all");
-  const [dismissedRowIds, setDismissedRowIds] = useState<Set<string>>(new Set());
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
 
   const dismissedStorageKey = `warehouse-purchase-dismissed:${companyId}`;
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(dismissedStorageKey);
-      const parsed = stored ? JSON.parse(stored) : [];
-      setDismissedRowIds(new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []));
-    } catch {
-      setDismissedRowIds(new Set());
-    }
-  }, [dismissedStorageKey]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(dismissedStorageKey, JSON.stringify(Array.from(dismissedRowIds)));
-    } catch {
-      // localStorage can be unavailable or full in some browser modes.
-    }
-  }, [dismissedRowIds, dismissedStorageKey]);
+  const [dismissedRowIds, setDismissedRowIds] = useScopedStorage<Set<string>>(dismissedStorageKey,new Set(),raw=>{
+    const parsed:unknown=JSON.parse(raw);return new Set(Array.isArray(parsed)?parsed.filter((id):id is string=>typeof id==='string'):[]);
+  },value=>JSON.stringify([...value]));
 
   const supplierNameById = useMemo(
     () => new Map(suppliers.map((supplier) => [supplier.id, supplier.name])),
@@ -501,13 +487,13 @@ export default function WarehousePurchaseListTab({
     };
   }, [rows]);
 
-  useEffect(() => {
-    setSelectedRowIds((current) => {
-      const visibleIds = new Set(filteredRows.map((row) => row.id));
-      const next = new Set(Array.from(current).filter((id) => visibleIds.has(id)));
-      return next.size === current.size ? current : next;
-    });
-  }, [filteredRows]);
+  const visibleSelectionKey = filteredRows.map(row=>row.id).join("|");
+  const [selectionKey,setSelectionKey] = useState(visibleSelectionKey);
+  if(selectionKey!==visibleSelectionKey){
+    setSelectionKey(visibleSelectionKey);
+    const visibleIds=new Set(filteredRows.map(row=>row.id));
+    setSelectedRowIds(current=>new Set([...current].filter(id=>visibleIds.has(id))));
+  }
 
   const selectedRows = useMemo(
     () => filteredRows.filter((row) => selectedRowIds.has(row.id)),

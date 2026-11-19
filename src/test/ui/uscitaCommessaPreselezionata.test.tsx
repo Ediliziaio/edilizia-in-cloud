@@ -4,8 +4,16 @@ import { afterEach, expect, it, vi } from "vitest";
 import type { BatchScanEntry } from "@/components/warehouse/BatchBarcodeScanner";
 const mocks=vi.hoisted(()=>({register:vi.fn().mockResolvedValue({uscita_id:"uscita",numero:"U-1",created_movements:1,updated_units:1,errors:[]})}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({effectiveCompany:{id:"company"}})}));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditWarehouse:true,isLoading:false})}));
 vi.mock("@/hooks/use-mobile",()=>({useIsMobile:()=>false}));
 vi.mock("@/hooks/warehouse/useWarehouseUscita",()=>({useRegisterUscita:()=>({mutateAsync:mocks.register,isPending:false})}));
+vi.mock("@/hooks/warehouse/useMovementAvailability", async (original) => ({
+  ...await original<typeof import("@/hooks/warehouse/useMovementAvailability")>(),
+  useMovementAvailability: () => {
+    const data = new Map([["stock", { name: "Modello serializzato", available: 4, unit: "pz" }]]);
+    return { data, isLoading: false, isFetching: false, isError: false, refetch: async () => ({ data, isError: false }) };
+  },
+}));
 vi.mock("@/components/warehouse/OrderSelectCombobox",()=>({OrderSelectCombobox:({value}:{value:string})=><output aria-label="Commessa selezionata">{value}</output>}));
 vi.mock("@/components/warehouse/CreaDdtDaUscitaDialog",()=>({CreaDdtDaUscitaDialog:(): null => null}));
 vi.mock("@/components/warehouse/ManualArticleAdder",()=>({ManualArticleAdder:({onEntriesChange}:{onEntriesChange:(entries:BatchScanEntry[])=>void})=><>
@@ -24,8 +32,10 @@ it("mantiene il destinatario completo e richiede la matricola prima della RPC tr
  expect(screen.getByLabelText("Commessa selezionata")).toHaveTextContent("order");
  expect(mocks.register).not.toHaveBeenCalled();
  fireEvent.click(screen.getByRole("button",{name:"Articolo senza matricola"}));
- expect(screen.getByRole("button",{name:/Registra uscita/})).toBeDisabled();
+ expect(screen.getByRole("button",{name:/Controlla prelievo/})).toBeDisabled();
  fireEvent.click(screen.getByRole("button",{name:"Articolo con matricola"}));
- const save=screen.getByRole("button",{name:/Registra uscita/});expect(save).toBeEnabled();fireEvent.click(save);
+ const verifica=screen.getByRole("button",{name:/Controlla prelievo/});await waitFor(()=>expect(verifica).toBeEnabled());fireEvent.click(verifica);
+ expect(mocks.register).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole("button",{name:"Conferma prelievo"}));
  await waitFor(()=>expect(mocks.register).toHaveBeenCalledWith(expect.objectContaining({warehouseId:"warehouse",destinatario:{tipo:"cantiere",order_id:"order",cliente_snapshot:{ragione_sociale:"Cliente demo",indirizzo_via:"Via Cantiere 1",indirizzo_nazione:"IT",tipo_cliente:"B2B"}},scans:[{stock_item_id:"stock",quantity:1,serial_numbers:["DEMO-003"],raw_code:"M1"}]})));
 });

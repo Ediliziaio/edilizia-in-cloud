@@ -1,3 +1,4 @@
+import type {PianoSalAperto} from "@/lib/orders/pianoSalAperto";
 import { FinancingCostModeField } from "./FinancingCostModeField";
 import { costoTrattenuto, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { useState, useEffect, type ReactNode } from "react";
@@ -15,6 +16,8 @@ import { calculateInstallmentCollections, type VarianteDatata } from "@/lib/comm
 // testo digitato: chi scriveva "1.500" vedeva "1.500" e si portava a casa
 // 1,50 € nel totale, nel PDF e in fattura senza un solo segnale.
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
+import { QuoteIvaMista } from "./QuoteIvaMista";
+import { calcolaIvaContratto, calcolaQuoteIva, cambiaModalitaQuote, quoteIvaVuote, IVA_MISTA, type QuoteIvaMista as QuoteIvaDraft } from "@/lib/orders/ivaMista";
 import { RegistraIncassoPrimaNota, useIncassiRegistrati } from "./RegistraIncassoPrimaNota";
 import { RiconciliaRateBancaDialog } from "./RiconciliaRateBancaDialog";
 import type { RataDaIncassare } from "@/lib/rateBankMatch";
@@ -334,6 +337,9 @@ interface FinancialSummaryProps {
   daContratto?: boolean;
   totalAmount: string;
   vatRate: string;
+  vatSplit?: QuoteIvaDraft;
+  salPayment?: PianoSalAperto | null;
+  onVatSplitChange?: (value: QuoteIvaDraft) => void;
   paymentType: PaymentType;
   installments: Installment[];
   onInstallmentsChange: (installments: Installment[]) => void;
@@ -371,7 +377,7 @@ interface FinancialSummaryProps {
 }
 
 export function FinancialSummary({
-  totalAmount, vatRate, paymentType,
+  totalAmount, vatRate, vatSplit, salPayment, onVatSplitChange, paymentType,
   installments, onInstallmentsChange,
   numInstallments, onNumInstallmentsChange,
   onTotalAmountChange, onVatRateChange, onPaymentTypeChange,
@@ -380,17 +386,21 @@ export function FinancialSummary({
   financingCost, onFinancingCostChange, financingCostMode, onFinancingCostModeChange,
   bonusMultipliEnabled = false, bonusLines = [], onBonusLinesChange,
   datiCausale, dateCommessa, statiCommessa, nuova, daContratto = false, notaIva, azioniTestata,}: FinancialSummaryProps) {
-  const [inputMode, setInputMode] = useState<AmountInputMode>('net');
+  const mista = vatRate === IVA_MISTA;
+  const [inputModeState, setInputMode] = useState<AmountInputMode>(vatSplit?.mode ?? 'net');
+  const inputMode = mista ? vatSplit?.mode ?? inputModeState : inputModeState;
   const [rawTotalInput, setRawTotalInput] = useState(totalAmount);
   const [rawFinancingCostInput, setRawFinancingCostInput] = useState(financingCost || "");
   const [rawAmountInputs, setRawAmountInputs] = useState<Record<number, string>>({});
 
   const ivaConfermata = vatRate.trim() !== "";
-  const vat = ivaConfermata ? parseDecimalIT(vatRate) : 0;
+  const splitDraft = vatSplit ?? quoteIvaVuote(inputMode);
+  const fiscal = calcolaIvaContratto(totalAmount, vatRate, vatSplit);
+  const vat = mista ? fiscal.effectiveRate : ivaConfermata ? parseDecimalIT(vatRate) : 0;
   const total = parseDecimalIT(totalAmount) || 0;
-  const vatAmount = total * (vat / 100);
-  const totalWithVat = total + vatAmount;
-  const avvisoRateContratto = nuova && daContratto && ivaConfermata ? contractInstallmentWarning(conSaldoFinale(installments, balance, i=>!!i.amount_from_contract),totalWithVat) : null;
+  const vatAmount = fiscal.vat;
+  const totalWithVat = fiscal.gross;
+  const avvisoRateContratto = nuova && daContratto && !salPayment && ivaConfermata ? contractInstallmentWarning(conSaldoFinale(installments, balance, i=>!!i.amount_from_contract),totalWithVat) : null;
   useEffect(() => { if (!ivaConfermata) setInputMode('net'); }, [ivaConfermata]);
 
   // Sync raw total input
@@ -437,6 +447,7 @@ export function FinancialSummary({
 
   // Input mode handlers
   const handleInputModeChange = (mode: AmountInputMode) => {
+    if (mista) onVatSplitChange?.(cambiaModalitaQuote(splitDraft, mode));
     setInputMode(mode);
     if (mode === 'gross') {
       setRawTotalInput(totalWithVat > 0 ? totalWithVat.toFixed(2) : "");
@@ -448,7 +459,7 @@ export function FinancialSummary({
   const handleTotalBlur = () => {
     if (inputMode === 'gross') {
       const grossAmount = parseDecimalIT(rawTotalInput) || 0;
-      const netAmount = grossAmount / (1 + vat / 100);
+      const netAmount = mista ? grossAmount - fiscal.vat - fiscal.rounding : grossAmount / (1 + vat / 100);
       onTotalAmountChange(formatDecimalIT(netAmount > 0 ? netAmount : null));
       setRawTotalInput(formatDecimalIT(grossAmount > 0 ? grossAmount : null));
     } else {
@@ -463,7 +474,12 @@ export function FinancialSummary({
   };
 
   const handleVatRateChange = (newRate: string) => {
-    if (!newRate.trim() || newRate === vatRate || ![0, 4, 5, 10, 22].includes(Number(newRate))) return;
+    if (!newRate.trim() || newRate === vatRate || (newRate !== IVA_MISTA && ![0, 4, 5, 10, 22].includes(Number(newRate)))) return;
+    if (newRate === IVA_MISTA) {
+      onVatSplitChange?.(quoteIvaVuote(inputMode));
+      onVatRateChange(newRate);
+      return;
+    }
     onVatRateChange(newRate);
     if (inputMode === 'gross' && rawTotalInput) {
       const newVat = newRate.trim() !== "" && Number.isFinite(Number(newRate)) ? Number(newRate) : 22;
@@ -723,10 +739,23 @@ export function FinancialSummary({
               <SelectItem value="5">5%</SelectItem>
               <SelectItem value="10">10%</SelectItem>
               <SelectItem value="22">22%</SelectItem>
+              {onVatSplitChange && <SelectItem value={IVA_MISTA}>IVA mista · 10% e 22%</SelectItem>}
             </SelectContent>
           </Select>
           {notaIva && <p className="text-xs text-muted-foreground">{notaIva}</p>}
         </div>
+
+        {mista && onVatSplitChange && <QuoteIvaMista value={splitDraft} readOnly={readOnly} error={fiscal.error} onChange={(draft) => {
+          onVatSplitChange(draft);
+          if (inputMode === "gross" && rawTotalInput.trim()) {
+            const next = calcolaQuoteIva(draft);
+            onTotalAmountChange(formatDecimalIT(Math.max(0, parseDecimalIT(rawTotalInput) - next.vat - next.rounding)));
+          }
+        }} onUseTotal={() => {
+          const next = calcolaQuoteIva(splitDraft);
+          onTotalAmountChange(formatDecimalIT(next.net));
+          setRawTotalInput(formatDecimalIT(inputMode === "gross" ? next.gross : next.net));
+        }} />}
 
         {/* Building Bonus Toggle */}
         <div className="flex items-center justify-between">
@@ -763,9 +792,10 @@ export function FinancialSummary({
             <span>{daContratto && !totalAmount.trim() ? "Da confermare" : formatCurrency(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>{ivaConfermata ? `IVA (${vat}%)` : "IVA da confermare"}</span>
+            <span>{mista ? "IVA mista (10% e 22%)" : ivaConfermata ? `IVA (${vat}%)` : "IVA da confermare"}</span>
             <span>{ivaConfermata ? formatCurrency(vatAmount) : "—"}</span>
           </div>
+          {mista && fiscal.rounding !== 0 && <div className="flex justify-between text-sm"><span>Arrotondamento</span><span>{formatCurrency(fiscal.rounding)}</span></div>}
           <div className="flex justify-between font-medium border-t pt-2">
             <span>Totale con IVA</span>
             <span>{ivaConfermata ? formatCurrency(totalWithVat) : "Da definire dopo conferma IVA"}</span>
@@ -808,7 +838,7 @@ export function FinancialSummary({
           <>
             {avvisoRateContratto && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{avvisoRateContratto}</p>}
             {/* Number of installments selector */}
-            {!readOnly && (
+            {!readOnly && !salPayment && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Label className="mr-auto">Rate · {installments.length}</Label>
@@ -858,7 +888,7 @@ export function FinancialSummary({
               .map(inst => renderInstallmentInput(inst))}
 
             {/* Balance */}
-            {installments.length > 0 ? renderBalance("Saldo da Pagare") : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare. Nessuna rata o scadenza generata dal contratto.</p>}
+            {salPayment ? <div role="status" className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/40 p-3"><p className="text-sm font-semibold">{salPayment.mode==="advance_sal"?"Acconto + SAL effettivi":"Solo SAL effettivi"}</p><div className="flex justify-between gap-3 text-sm"><span>Da maturare con i lavori</span><strong className="tabular-nums">{formatCurrency(Math.max(0,totalWithVat-installments.reduce((sum,r)=>sum+r.amount,0)))}</strong></div><p className="text-xs text-muted-foreground">È il residuo del contratto, non una rata già esigibile. Numero, importi e date dei SAL si definiscono durante i lavori. Dalla quota certificata prepari la fattura e la scadenza.</p></div> : installments.length > 0 ? renderBalance("Saldo da Pagare") : <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Pagamenti da confermare. Nessuna rata o scadenza generata dal contratto.</p>}
           </>
         ) : (
           <>
@@ -962,6 +992,8 @@ interface FinancialSummaryReadOnlyProps {
   onManageInvoice?: (installment: Installment, amount: number) => void;
   totalAmount: number;
   vatRate?: number;
+  vatSplit?: QuoteIvaDraft | null;
+  salPayment?: PianoSalAperto | null;
   paymentType: PaymentType;
   installments: Installment[];
   hasBuildingBonus?: boolean;
@@ -985,6 +1017,8 @@ interface FinancialSummaryReadOnlyProps {
 export function FinancialSummaryReadOnly({
   totalAmount,
   vatRate = 22,
+  vatSplit,
+  salPayment,
   paymentType,
   installments,
   hasBuildingBonus,
@@ -1006,8 +1040,9 @@ export function FinancialSummaryReadOnly({
   // Una query per tutta la card: quali rate hanno già la loro registrazione.
   const { data: incassiRegistrati = {} } = useIncassiRegistrati(orderId, !!conPrimaNota);
   const [riconciliaOpen, setRiconciliaOpen] = useState(false);
-  const vatAmount = totalAmount * (vatRate / 100);
-  const totalWithVat = totalAmount + vatAmount;
+  const splitSummary = vatSplit ? calcolaQuoteIva(vatSplit) : null;
+  const totalWithVat = Math.round(totalAmount * (1 + vatRate / 100) * 100) / 100;
+  const vatAmount = totalWithVat - totalAmount - (splitSummary?.rounding ?? 0);
   const financingCostValue = paymentType === "financing" ? (financingCost || 0) : 0;
 
   // Piani a 3+ rate: il tipo rata conosce solo deposit/balance/financing, quindi
@@ -1197,6 +1232,7 @@ export function FinancialSummaryReadOnly({
           )}
   </>;
   const notePiano = <div className="space-y-3">
+        {salPayment && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-sm">{salPayment.mode==="advance_sal"?"Acconto + SAL":"Solo SAL"}: i pagamenti maturano dai lavori certificati. Il residuo del contratto non è una scadenza da incassare oggi.</p>}
         {paymentType === 'financing' && financingCostValue > 0 && (
           <p className="flex justify-between text-sm">
             <span className="text-muted-foreground">Costo della finanziaria{financingCostMode === "trattenuto" ? " (trattenuto)" : financingCostMode === "separato" ? " (uscita separata)" : " (modalità da verificare)"}</span>
@@ -1206,10 +1242,11 @@ export function FinancialSummaryReadOnly({
 
         {/* Il contratto, in fondo e in piccolo: è il riferimento, non la prima cosa da leggere. */}
         <p className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
-          <span>Contratto: imponibile <span className="tabular-nums text-foreground">{formatCurrency(totalAmount)}</span> + IVA {vatRate}% <span className="tabular-nums">{formatCurrency(vatAmount)}</span></span>
+          <span>Contratto: imponibile <span className="tabular-nums text-foreground">{formatCurrency(totalAmount)}</span> + {vatSplit ? "IVA mista 10% e 22%" : `IVA ${vatRate}%`} <span className="tabular-nums">{formatCurrency(vatAmount)}</span></span>
           <span>Totale <strong className="tabular-nums text-foreground">{formatCurrency(totalWithVat)}</strong> IVA inclusa</span>
         </p>
 
+        {vatSplit && <QuoteIvaMista value={vatSplit} readOnly onChange={() => {}} />}
         {hasBuildingBonus && (() => {
           // Base della banca: lordo scorporato al 22% convenzionale, non con
           // l'aliquota del documento (circolare AdE 40/E/2010).

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ import { VAT_RATES } from "@/lib/vatUtils";
 import type { StockItem } from "@/types/warehouse";
 import { format } from "date-fns";
 
+import { unitaConsumoConfrontabile } from "@/lib/distinta/consumiMateriali";
 import { COST_CATEGORIES } from "@/types/warehouse";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
@@ -41,6 +42,7 @@ interface StockItemDialogProps {
     description?: string;
     quantity: number;
     unit_cost: number;
+    unita_misura?: string;
     vat_rate: number;
     supplier_id?: string;
     section_id?: string;
@@ -58,6 +60,7 @@ interface StockItemDialogProps {
   }) => void;
   editingItem?: StockItem | null;
   isPending?: boolean;
+  canViewCosts?: boolean;
   /** Pre-compila il barcode (es. quando si crea articolo da una scansione no-match). */
   prefillBarcode?: string;
   /** Pre-compila il fornitore (utile dal flow scan). */
@@ -68,12 +71,16 @@ interface StockItemDialogProps {
   prefillSerials?: string[];
 }
 
-export function StockItemDialog({
+export function StockItemDialog(props: StockItemDialogProps) {
+  return props.open ? <StockItemDialogSession key={props.editingItem?.id ?? "new"} {...props} /> : null;
+}
+function StockItemDialogSession({
   open,
   onOpenChange,
   onSave,
   editingItem,
   isPending,
+  canViewCosts = true,
   prefillBarcode,
   prefillSupplierId,
   prefillSerials,
@@ -81,6 +88,7 @@ export function StockItemDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("0");
+  const [unit, setUnit] = useState("pz");
   const [unitCost, setUnitCost] = useState("0");
   const [vatRate, setVatRate] = useState<number>(22);
   const [supplierId, setSupplierId] = useState<string | undefined>();
@@ -99,11 +107,14 @@ export function StockItemDialog({
 
   const { sections } = useWarehouseSections();
 
-  useEffect(() => {
+  const [initialized, setInitialized] = useState(false);
+  if (!initialized) {
+    setInitialized(true);
     if (editingItem) {
       setName(editingItem.name);
       setDescription(editingItem.description || "");
       setQuantity(editingItem.quantity.toString());
+      setUnit(editingItem.unita_misura || "");
       setUnitCost(editingItem.unit_cost.toString());
       setVatRate(editingItem.vat_rate ?? 22);
       setSupplierId(editingItem.supplier_id || undefined);
@@ -112,7 +123,7 @@ export function StockItemDialog({
       setRegisterCost(false);
       setBarcode(editingItem.barcode ?? "");
       setInternalCode(editingItem.internal_code ?? "");
-      setTrackingMode(editingItem.tracking_mode ?? "fungible");
+      setTrackingMode(editingItem.requires_warranty ? "serialized" : editingItem.tracking_mode ?? "fungible");
       setRequiresWarranty(!!editingItem.requires_warranty);
       setDefaultWarrantyMonths(
         editingItem.default_warranty_months != null
@@ -127,6 +138,7 @@ export function StockItemDialog({
       const hasMultiSerials = (prefillSerials?.length ?? 0) >= 2;
       setQuantity(hasMultiSerials ? String(prefillSerials!.length) : "0");
       setUnitCost("0");
+      setUnit("pz");
       setVatRate(22);
       setSupplierId(prefillSupplierId);
       setSectionId(undefined);
@@ -140,36 +152,33 @@ export function StockItemDialog({
       setRequiresWarranty(false);
       setDefaultWarrantyMonths("");
     }
-  }, [editingItem, open, prefillBarcode, prefillSupplierId, prefillSerials]);
+  }
 
-  // Coerenza: garanzia obbligatoria → forza serialized (un singolo pezzo
-  // deve poter essere tracciato per associare la garanzia al seriale).
-  useEffect(() => {
-    if (requiresWarranty && trackingMode === "fungible") {
-      setTrackingMode("serialized");
-    }
-  }, [requiresWarranty, trackingMode]);
-
+  const invalidCost = canViewCosts && (!unitCost.trim() || !Number.isFinite(Number(unitCost)) || Number(unitCost) < 0);
+  const invalidWarranty = !!defaultWarrantyMonths.trim() && (!Number.isSafeInteger(Number(defaultWarrantyMonths)) || Number(defaultWarrantyMonths) <= 0);
+  const invalidQuantity = !quantity.trim() || !Number.isFinite(Number(quantity)) || Number(quantity) < 0 || ((trackingMode === "serialized" || (!!unit.trim() && unitaConsumoConfrontabile(unit) === "pz")) && !Number.isInteger(Number(quantity)));
+  const invalidMinimum = !minStockLevel.trim() || !Number.isFinite(Number(minStockLevel)) || Number(minStockLevel) < 0;
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (isPending || !name.trim() || invalidQuantity || invalidMinimum || invalidCost || invalidWarranty) return;
     const warrantyMonthsNum = defaultWarrantyMonths.trim()
-      ? parseInt(defaultWarrantyMonths, 10)
+      ? Number(defaultWarrantyMonths)
       : null;
     onSave({
       name: name.trim(),
       description: description.trim() || undefined,
-      quantity: parseInt(quantity) || 0,
-      unit_cost: parseFloat(unitCost) || 0,
+      quantity: Number(quantity),
+      unit_cost: Number(unitCost),
+      ...(!editingItem ? { unita_misura: trackingMode === "serialized" ? "pz" : unit.trim() || "pz" } : {}),
       vat_rate: vatRate,
       supplier_id: supplierId,
       section_id: sectionId,
-      min_stock_level: parseInt(minStockLevel) || 0,
+      min_stock_level: Number(minStockLevel),
       barcode: barcode.trim() || null,
       internal_code: internalCode.trim() || null,
       tracking_mode: trackingMode,
       requires_warranty: requiresWarranty,
       default_warranty_months: Number.isFinite(warrantyMonthsNum as number) ? warrantyMonthsNum : null,
-      ...(registerCost && !editingItem
+      ...(canViewCosts && registerCost && !editingItem
         ? { registerCost: true, costPaidDate, costCategory }
         : {}),
     });
@@ -234,22 +243,29 @@ export function StockItemDialog({
             />
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="stock-unit-measure">Unità di misura</Label>
+            <Input id="stock-unit-measure" value={trackingMode === "serialized" ? "pz" : unit} disabled={!!editingItem || trackingMode === "serialized"} onChange={e => setUnit(e.target.value)} placeholder="pz, m, mq, kg…" />
+            {editingItem && <p className="text-xs text-muted-foreground">L’unità della scheda si conserva per mantenere coerenti i movimenti.</p>}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>{editingItem ? "Giacenza" : "Giacenza iniziale"}</Label>
               <Input
                 type="number"
+                step="any"
                 min="0"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
               />
+              {trackingMode === "serialized" && !Number.isInteger(Number(quantity)) && <p role="alert" className="text-xs text-destructive">Per gli articoli con seriali serve una quantità intera.</p>}
               {editingItem && Number(quantity) !== Number(editingItem.quantity) && (
                 <p className="text-[11px] text-amber-700">
                   Da {editingItem.quantity} a {Number(quantity) || 0}: diventa una rettifica nei movimenti.
                 </p>
               )}
             </div>
-            <div className="space-y-2">
+            {canViewCosts && <div className="space-y-2">
               <Label>Costo Unitario (€)</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
@@ -262,7 +278,7 @@ export function StockItemDialog({
                   className="pl-8"
                 />
               </div>
-            </div>
+            </div>}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -288,6 +304,7 @@ export function StockItemDialog({
               <Label>Soglia Minima</Label>
               <Input
                 type="number"
+                step="any"
                 min="0"
                 value={minStockLevel}
                 onChange={(e) => setMinStockLevel(e.target.value)}
@@ -374,13 +391,13 @@ export function StockItemDialog({
                   <Label className="text-xs">Modalità tracking</Label>
                   <Select
                     value={trackingMode}
-                    onValueChange={(v) => setTrackingMode(v as "fungible" | "serialized")}
+                    onValueChange={(v) => setTrackingMode(requiresWarranty ? "serialized" : v as "fungible" | "serialized")}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="fungible">
+                      <SelectItem value="fungible" disabled={requiresWarranty}>
                         <span className="font-medium">Fungibile</span>{" "}
                         <span className="text-muted-foreground">— articoli identici (viti, tubi)</span>
                       </SelectItem>
@@ -396,7 +413,7 @@ export function StockItemDialog({
                   <Checkbox
                     id="requires-warranty"
                     checked={requiresWarranty}
-                    onCheckedChange={(checked) => setRequiresWarranty(checked === true)}
+                    onCheckedChange={(checked) => {setRequiresWarranty(checked === true);if(checked===true)setTrackingMode("serialized");}}
                   />
                   <div className="flex-1">
                     <Label htmlFor="requires-warranty" className="text-sm font-medium cursor-pointer">
@@ -425,7 +442,7 @@ export function StockItemDialog({
           </Accordion>
 
           {/* Cost registration toggle - only for new items */}
-          {isCreating && (
+          {canViewCosts && isCreating && (
             <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -482,7 +499,7 @@ export function StockItemDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Annulla
           </Button>
-          <Button onClick={handleSave} disabled={!name.trim() || isPending}>
+          <Button onClick={handleSave} disabled={!name.trim() || isPending || invalidQuantity || invalidMinimum || invalidCost || invalidWarranty}>
             {isPending ? "Salvataggio..." : editingItem ? "Salva" : "Aggiungi"}
           </Button>
         </DialogFooter>

@@ -27,13 +27,13 @@ export function useWarehouseData() {
   const companyId = effectiveCompany?.id;
 
   // View and filter states
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>("stock");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [orderFilter, setOrderFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
-  const [warehouseFilter, setWarehouseFilter] = useState<string | null>(null);
+  const [warehouseChoice, setWarehouseFilter] = useState<{companyId: string | undefined; id: string | null}>({companyId, id:null});
   const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
@@ -43,11 +43,8 @@ export function useWarehouseData() {
   // un magazzino visibile (es. magazziniere assegnato a un solo warehouse).
   // Non sovrascrive MAI una selezione già effettuata dall'utente.
   const { warehouses: visibleWarehouses } = useWarehouses(true);
-  useEffect(() => {
-    if (warehouseFilter === null && visibleWarehouses.length === 1) {
-      setWarehouseFilter(visibleWarehouses[0].id);
-    }
-  }, [visibleWarehouses, warehouseFilter]);
+  const warehouseFilter = (warehouseChoice.companyId === companyId ? warehouseChoice.id : null)
+    ?? (visibleWarehouses.length === 1 ? visibleWarehouses[0].id : null);
 
   // Reset page when filters change
   const setSearchQueryWithReset = useCallback((v: string) => { setSearchQuery(v); setPage(0); }, []);
@@ -55,7 +52,7 @@ export function useWarehouseData() {
   const setOrderFilterWithReset = useCallback((v: string) => { setOrderFilter(v); setPage(0); }, []);
   const setSupplierFilterWithReset = useCallback((v: string) => { setSupplierFilter(v); setPage(0); }, []);
   const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setPage(0); }, []);
-  const setWarehouseFilterWithReset = useCallback((v: string | null) => { setWarehouseFilter(v); setPage(0); }, []);
+  const setWarehouseFilterWithReset = useCallback((v: string | null) => { setWarehouseFilter({companyId,id:v}); setPage(0); }, [companyId]);
   const setQuickFilterWithReset = useCallback((v: QuickFilter) => { setQuickFilter(v); setPage(0); }, []);
   const setLottoFilterWithReset = useCallback((v: string) => { setLottoFilter(v); setPage(0); }, []);
 
@@ -113,7 +110,7 @@ export function useWarehouseData() {
   });
 
   // Fetch stock items for matching
-  const { data: stockItems = [] } = useQuery({
+  const { data: stockItems = [], isLoading: isStockLoading, isError: isStockError, refetch: refetchStock } = useQuery({
     queryKey: queryKeys.warehouse.stockNames(companyId),
     queryFn: async () => {
       if (!companyId) return [];
@@ -199,6 +196,9 @@ export function useWarehouseData() {
           section_id,
           destination_warehouse_id,
           fulfillment_status,
+          stock_item_id,
+          unita_misura,
+          warehouse_reserved_quantity,
           order:orders!inner(
             id,
             order_code,
@@ -348,6 +348,9 @@ export function useWarehouseData() {
           section_id,
           destination_warehouse_id,
           fulfillment_status,
+          stock_item_id,
+          unita_misura,
+          warehouse_reserved_quantity,
           order:orders!inner(
             id,
             order_code,
@@ -697,6 +700,9 @@ export function useWarehouseData() {
     purchaseItems,
     suppliers,
     stockItems,
+    isStockLoading,
+    isStockError,
+    refetchStock,
     uniqueOrders,
     urgentItemsCount,
     overdueItemsCount,

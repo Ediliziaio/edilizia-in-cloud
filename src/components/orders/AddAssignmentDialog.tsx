@@ -27,6 +27,8 @@ import { OfficeSelect } from "./OfficeSelect";
 const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 
 interface AddAssignmentDialogProps {
+  incorporato?: boolean;
+  onOccupato?: (si: boolean) => void;
   orderId: string;
   /** null = manodopera senza fase: il caso semplice (lavoro breve, subappalto
       a corpo). In produzione e' l'88% della manodopera reale (138 assegnazioni
@@ -73,6 +75,8 @@ interface TariffaManodopera {
 
 export function AddAssignmentDialog({
   orderId,
+  incorporato,
+  onOccupato,
   phaseId,
   employees,
   externalTeams: _externalTeams,
@@ -112,6 +116,7 @@ export function AddAssignmentDialog({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  useEffect(() => { onOccupato?.(submitting); return () => onOccupato?.(false); }, [submitting, onOccupato]);
   const [dal, setDal] = useState(oggiRoma);
   const [al, setAl] = useState("");
   const [capo, setCapo] = useState(false);
@@ -372,26 +377,12 @@ export function AddAssignmentDialog({
     }
   };
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (submittingRef.current) return;
-        setOpen(o);
-        if (!o) reset();
-      }}
-    >
-      {!controllato && <DialogTrigger asChild>
-        <Button aria-label={triggerAriaLabel} variant={triggerVariant} size="sm" className={triggerClassName} disabled={!puoSquadra && !puoPersona}>
-          <Plus className="mr-1 h-4 w-4" />
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>}
-      <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl">
-        <DialogHeader className="shrink-0">
+  const contenuto = (
+    <>
+        {!incorporato && <DialogHeader className="shrink-0">
           <DialogTitle className="pr-6">Assegna chi lavora</DialogTitle>
           <DialogDescription>Scegli chi e dove. I dettagli facoltativi restano in fondo.</DialogDescription>
-        </DialogHeader>
+        </DialogHeader>}
 
         <div data-testid="assignment-dialog-scroll" role="region" aria-label="Dati assegnazione" className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
         <fieldset disabled={submitting || contextChanged} className="min-w-0 space-y-4">
@@ -715,7 +706,25 @@ export function AddAssignmentDialog({
             <span className="sm:hidden">Assegna</span><span className="hidden sm:inline">Conferma assegnazione</span>
           </Button>
         </DialogFooter>
-      </DialogContent>
+    </>
+  );
+  if (incorporato) return <div className="space-y-4">{contenuto}</div>;
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (submittingRef.current) return;
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
+      {!controllato && <DialogTrigger asChild>
+        <Button aria-label={triggerAriaLabel} variant={triggerVariant} size="sm" className={triggerClassName} disabled={!puoSquadra && !puoPersona}>
+          <Plus className="mr-1 h-4 w-4" />
+          {triggerLabel}
+        </Button>
+      </DialogTrigger>}
+      <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl">{contenuto}</DialogContent>
     </Dialog>
   );
 }

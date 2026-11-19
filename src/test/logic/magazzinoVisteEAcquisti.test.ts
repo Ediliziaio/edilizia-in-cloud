@@ -29,8 +29,8 @@ describe("Viste del magazzino in quattro gruppi", () => {
 
   it("sul telefono: lista, da comprare e inventario; il resto ripiega sulla lista", () => {
     expect(gruppiVisibili(true).map((g) => [g.key, g.viste.map((v) => v.key)])).toEqual([
-      ["preparare", ["list", "purchase_list"]],
       ["giacenze", ["stock"]],
+      ["preparare", ["list", "purchase_list"]],
     ]);
     expect(vistaEffettiva("movements", true)).toBe("list");
     expect(vistaEffettiva("purchase_list", true)).toBe("purchase_list");

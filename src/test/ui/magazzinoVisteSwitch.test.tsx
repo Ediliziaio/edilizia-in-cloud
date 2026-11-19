@@ -7,7 +7,7 @@ describe("Scelta della vista del magazzino", () => {
   it("quattro gruppi, e sotto le viste del gruppo scelto", () => {
     const onVista = vi.fn();
     render(<MagazzinoVisteSwitch gruppi={gruppiVisibili(false)} gruppoAttivo="giacenze" vista="stock" onGruppo={vi.fn()} onVista={onVista} />);
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Da preparare", "Giacenze", "Arrivi e uscite", "Movimenti"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Giacenze", "Da preparare", "Arrivi e uscite", "Movimenti"]);
     expect(screen.getByRole("button", { name: "Inventario" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Valore" }));
     expect(onVista).toHaveBeenCalledWith("valuation");

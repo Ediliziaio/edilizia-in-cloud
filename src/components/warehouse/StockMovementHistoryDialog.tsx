@@ -1,3 +1,4 @@
+import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 /**
  * Storico di un articolo di magazzino: i movimenti, e — per chi può vedere i costi —
  * com'è andato il prezzo d'acquisto nel tempo.
@@ -10,6 +11,10 @@
  * Se la funzione non c'è ancora (migrazione non applicata) o l'utente non può vedere i
  * costi, la sezione semplicemente non compare: niente errori a schermo.
  */
+import { usePermissions } from "@/hooks/usePermissions";
+import { Button } from "@/components/ui/button";
+import { StockItemOverview } from "./StockItemOverview";
+import type { InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -50,21 +55,31 @@ interface StockMovementHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: StockItem | null;
+  supplierName?: string;
+  sectionName?: string;
+  inArrivo?: InArrivoArticolo;
+  arriviUnavailable?: boolean;
 }
 
 export function StockMovementHistoryDialog({
   open,
   onOpenChange,
   item,
+  supplierName,
+  sectionName,
+  inArrivo,
+  arriviUnavailable,
 }: StockMovementHistoryDialogProps) {
-  const { data: movements = [], isLoading } = useQuery({
+  const permissions = usePermissions();
+  const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
+  const { data: movements = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["stock-movements", item?.id],
     queryFn: async () => {
       if (!item) return [];
-      const { data, error } = await supabase
+      const { data: raw, error } = await supabase
         .from("warehouse_movements")
         .select(`
-          id, movement_type, quantity, notes, created_at, performed_by,
+          id, movement_type, quantity, notes, created_at, performed_by, rientro_commessa,
           order_item_id
         `)
         .eq("stock_item_id", item.id)
@@ -72,6 +87,7 @@ export function StockMovementHistoryDialog({
 
       if (error) throw error;
 
+      const data = (raw ?? []) as unknown as Array<{id:string;movement_type:string;quantity:number;notes:string|null;created_at:string;performed_by:string|null;order_item_id:string|null;rientro_commessa:boolean}>;
       // Fetch linked order info for movements with order_item_id
       const orderItemIds = data
         .filter((m) => m.order_item_id)
@@ -79,11 +95,12 @@ export function StockMovementHistoryDialog({
 
       const orderMap: Record<string, string> = {};
       if (orderItemIds.length > 0) {
-        const { data: orderItems } = await supabase
+        const { data: orderItems, error: orderError } = await supabase
           .from("order_items")
           .select("id, order_id, order:orders(order_code)")
           .in("id", orderItemIds);
 
+        if (orderError) throw orderError;
         if (orderItems) {
           for (const oi of orderItems) {
             const orderCode = (oi as any).order?.order_code;
@@ -103,7 +120,7 @@ export function StockMovementHistoryDialog({
   // Andamento del prezzo d'acquisto. Fallimento silenzioso: la sezione non compare.
   const { data: andamento = [] } = useQuery({
     queryKey: ["stock-andamento-prezzo", item?.id],
-    enabled: !!item && open,
+    enabled: !!item && open && canViewCosts,
     queryFn: async (): Promise<RigaAndamento[]> => {
       if (!item) return [];
       try {
@@ -132,15 +149,17 @@ export function StockMovementHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Storico Movimenti: {item?.name}</DialogTitle>
+          <DialogTitle>Dettaglio articolo · {item?.name}</DialogTitle>
           <DialogDescription>
-            Tutti i movimenti di carico e scarico per questo articolo
+            Giacenze, impegni, ordini in arrivo e storico di carico e scarico.
           </DialogDescription>
         </DialogHeader>
 
-        {andamento.length > 0 && (
+        {item && <StockItemOverview item={item} supplierName={supplierName} sectionName={sectionName} inArrivo={inArrivo} arriviUnavailable={arriviUnavailable} canViewCosts={canViewCosts} />}
+
+        {canViewCosts && andamento.length > 0 && (
           <section className="space-y-2 rounded-md border p-3" aria-label="Andamento del prezzo d'acquisto">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-sm font-medium">Andamento del prezzo d&apos;acquisto</h3>
@@ -192,6 +211,8 @@ export function StockMovementHistoryDialog({
 
         {isLoading ? (
           <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
+        ) : isError ? (
+          <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Impossibile caricare i movimenti. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova movimenti</Button></div>
         ) : movements.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             Nessun movimento registrato per questo articolo.
@@ -222,14 +243,14 @@ export function StockMovementHistoryDialog({
                           : ""
                       }
                     >
-                      {m.movement_type === "carico" ? "Carico" : "Scarico"}
+                      {m.rientro_commessa ? "Reso da cantiere" : m.movement_type === "carico" ? "Carico" : "Scarico"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center font-medium">
-                    {m.movement_type === "carico" ? "+" : "−"}{m.quantity}
+                    {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                    {m.notes || "—"}
+                    {m.rientro_commessa && /^Rientro dal cantiere · uscita [0-9a-f-]{36}$/.test(m.notes ?? "") ? "Reso da cantiere collegato all’uscita originale" : m.notes || "—"}
                   </TableCell>
                   <TableCell className="text-sm">
                     {m.orderCode || "—"}

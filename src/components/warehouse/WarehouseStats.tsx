@@ -8,7 +8,7 @@
  */
 
 import { Package, ShoppingCart, Truck, AlertOctagon } from "lucide-react";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { formatCurrency } from "@/lib/formatters";
 import type { OrderItemStatus } from "@/types/warehouse";
 import type { MagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
@@ -32,6 +32,8 @@ interface WarehouseStatsProps {
   /** Click su una KPI card → applica filtro (o lo rimuove se già attivo). */
   onCardClick: (next: WarehouseStatsFilter) => void;
   visibleCards?: WarehouseOrderMetricKey[];
+  isLoading?: boolean;
+  canViewCosts?: boolean;
 }
 
 /** Determina se un certo filtro è attualmente attivo (per highlight visivo). */
@@ -47,7 +49,7 @@ const commesse = (n: number) => `${n} ${n === 1 ? "commessa" : "commesse"}`;
 const da = (c?: { n: number; commesse: number; valore?: number }) =>
   c ? { count: c.n, orders: c.commesse, value: Number(c.valore ?? 0) } : vuoto;
 
-export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, visibleCards }: WarehouseStatsProps) {
+export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, visibleCards, isLoading = false, canViewCosts = true }: WarehouseStatsProps) {
   const stats = {
     overdue: da(riepilogo?.in_ritardo),
     inMagazzino: da(riepilogo?.in_magazzino),
@@ -71,6 +73,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
       {/* In Ritardo */}
       {visible.has("overdue") && (
         <ClickableCard
+          isLoading={isLoading || !riepilogo}
           active={isFilterActive(activeFilter, { kind: "quick", value: "overdue" })}
           onClick={() => handleClick({ kind: "quick", value: "overdue" })}
           accent={stats.overdue.count > 0 ? "destructive" : "muted"}
@@ -85,6 +88,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
       {/* In Magazzino */}
       {visible.has("in_magazzino") && (
         <ClickableCard
+          isLoading={isLoading || !riepilogo}
           active={isFilterActive(activeFilter, { kind: "status", value: "in_magazzino" })}
           onClick={() => handleClick({ kind: "status", value: "in_magazzino" })}
           accent="emerald"
@@ -93,8 +97,8 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           value={stats.inMagazzino.count}
           primaryHint={
             stats.inMagazzino.count > 0
-              ? `${commesse(stats.inMagazzino.orders)} · ${formatCurrency(stats.inMagazzino.value)}`
-              : "nulla in stock"
+              ? `${commesse(stats.inMagazzino.orders)}${canViewCosts ? ` · ${formatCurrency(stats.inMagazzino.value)}` : ""}`
+              : "nessuna riga pronta"
           }
           secondaryHint={null}
         />
@@ -103,6 +107,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
       {/* In Transito */}
       {visible.has("ordinato") && (
         <ClickableCard
+          isLoading={isLoading || !riepilogo}
           active={isFilterActive(activeFilter, { kind: "status", value: "ordinato" })}
           onClick={() => handleClick({ kind: "status", value: "ordinato" })}
           accent="blue"
@@ -111,7 +116,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           value={stats.ordinati.count}
           primaryHint={
             stats.ordinati.count > 0
-              ? `${commesse(stats.ordinati.orders)} · ${formatCurrency(stats.ordinati.value)}`
+              ? `${commesse(stats.ordinati.orders)}${canViewCosts ? ` · ${formatCurrency(stats.ordinati.value)}` : ""}`
               : "nessun arrivo"
           }
           secondaryHint={null}
@@ -121,6 +126,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
       {/* Da Ordinare */}
       {visible.has("da_ordinare") && (
         <ClickableCard
+          isLoading={isLoading || !riepilogo}
           active={isFilterActive(activeFilter, { kind: "status", value: "da_ordinare" })}
           onClick={() => handleClick({ kind: "status", value: "da_ordinare" })}
           accent="amber"
@@ -129,7 +135,7 @@ export default function WarehouseStats({ riepilogo, activeFilter, onCardClick, v
           value={stats.daOrdinare.count}
           primaryHint={
             stats.daOrdinare.count > 0
-              ? `${commesse(stats.daOrdinare.orders)} · ${formatCurrency(stats.daOrdinare.value)}`
+              ? `${commesse(stats.daOrdinare.orders)}${canViewCosts ? ` · ${formatCurrency(stats.daOrdinare.value)}` : ""}`
               : "lista vuota"
           }
           secondaryHint={null}
@@ -149,6 +155,7 @@ const accentTone = {
 
 function ClickableCard({
   active,
+  isLoading,
   onClick,
   accent,
   title,
@@ -158,6 +165,7 @@ function ClickableCard({
   secondaryHint,
 }: {
   active: boolean;
+  isLoading: boolean;
   onClick: () => void;
   accent: keyof typeof accentTone;
   title: string;
@@ -170,11 +178,12 @@ function ClickableCard({
 }) {
   const hint = secondaryHint ? `${primaryHint} · ${secondaryHint}` : primaryHint;
   return (
-    <OperationalKpiCard
+    <OperationalSummaryMetric
       icon={Icon}
       label={title}
       value={value}
-      hint={hint}
+      hint={isLoading ? undefined : hint}
+      isLoading={isLoading}
       tone={accentTone[accent]}
       onClick={onClick}
       active={active}

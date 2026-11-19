@@ -35,7 +35,11 @@ export function bindQueryCacheIdentity(userId:string|null) {
   cacheIdentity=userId;identityGeneration++;
 }
 export async function removeIdentityQueryCache(userId:string|null) {
-  await Promise.all([del(LEGACY_KEY),...(userId?[del(`${KEY}:${userId}`)]:[])]);
+  // Anche lo scarto di una cache scaduta/versionata viene atteso dal provider:
+  // se IndexedDB resta bloccato, nessuna pagina può iniziare le sue query.
+  // La cache è facoltativa; identità/generazione continuano a impedire ripristini
+  // di altri utenti anche quando la cancellazione non si conclude subito.
+  await withTimeout(Promise.all([del(LEGACY_KEY),...(userId?[del(`${KEY}:${userId}`)]:[])]),3000);
 }
 
 let persistErrorLogged = false;

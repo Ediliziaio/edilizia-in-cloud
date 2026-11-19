@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useScopedStorage } from "@/hooks/warehouse/useScopedStorage";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Building2,
@@ -129,21 +130,16 @@ export function WarehouseSectionsManager({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<WarehouseSection | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [selectedZoneChoice, setSelectedZoneId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(PRESET_COLORS[4]);
-  const [layouts, setLayouts] = useState<ZoneLayouts>({});
-  const [planMeta, setPlanMeta] = useState<PlanMeta>(DEFAULT_PLAN_META);
-  const [planImage, setPlanImage] = useState<string | null>(null);
   const [drawMode, setDrawMode] = useState(false);
   const [freehandMode, setFreehandMode] = useState(false);
   const [draftRect, setDraftRect] = useState<DraftRect | null>(null);
-  const [strokes, setStrokes] = useState<PlanStroke[]>([]);
   const [activeStroke, setActiveStroke] = useState<PlanStroke | null>(null);
   const [pendingLayout, setPendingLayout] = useState<ZoneLayout | null>(null);
-  const [pendingZoneName, setPendingZoneName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const storageScope = warehouseId || "company";
@@ -160,94 +156,16 @@ export function WarehouseSectionsManager({
     ? `warehouse-zone-plan-strokes:${effectiveCompany.id}:${storageScope}`
     : null;
 
-  useEffect(() => {
-    if (!storageKey) return;
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      setLayouts(stored ? JSON.parse(stored) as ZoneLayouts : {});
-    } catch {
-      setLayouts({});
-    }
-  }, [storageKey]);
-
-  useEffect(() => {
-    if (!storageKey) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(layouts));
-  }, [layouts, storageKey]);
-
-  useEffect(() => {
-    if (!metaStorageKey) return;
-    try {
-      const stored = window.localStorage.getItem(metaStorageKey);
-      if (!stored) {
-        setPlanMeta(DEFAULT_PLAN_META);
-        return;
-      }
-      const parsed = JSON.parse(stored) as Partial<PlanMeta>;
-      setPlanMeta({
-        name: parsed.name?.trim() || DEFAULT_PLAN_META.name,
-        widthM: clamp(Number(parsed.widthM) || DEFAULT_PLAN_META.widthM, 1, 500),
-        lengthM: clamp(Number(parsed.lengthM) || DEFAULT_PLAN_META.lengthM, 1, 500),
-      });
-    } catch {
-      setPlanMeta(DEFAULT_PLAN_META);
-    }
-  }, [metaStorageKey]);
-
-  useEffect(() => {
-    if (!metaStorageKey) return;
-    window.localStorage.setItem(metaStorageKey, JSON.stringify(planMeta));
-  }, [metaStorageKey, planMeta]);
-
-  useEffect(() => {
-    if (!imageStorageKey) return;
-    try {
-      setPlanImage(window.localStorage.getItem(imageStorageKey));
-    } catch {
-      setPlanImage(null);
-    }
-  }, [imageStorageKey]);
-
-  useEffect(() => {
-    if (!imageStorageKey) return;
-    if (planImage) {
-      window.localStorage.setItem(imageStorageKey, planImage);
-    } else {
-      window.localStorage.removeItem(imageStorageKey);
-    }
-  }, [imageStorageKey, planImage]);
-
-  useEffect(() => {
-    if (!strokesStorageKey) return;
-    try {
-      const stored = window.localStorage.getItem(strokesStorageKey);
-      const parsed = stored ? JSON.parse(stored) : [];
-      setStrokes(Array.isArray(parsed) ? parsed.filter((stroke) => Array.isArray(stroke?.points)) as PlanStroke[] : []);
-    } catch {
-      setStrokes([]);
-    }
-  }, [strokesStorageKey]);
-
-  useEffect(() => {
-    if (!strokesStorageKey) return;
-    window.localStorage.setItem(strokesStorageKey, JSON.stringify(strokes));
-  }, [strokes, strokesStorageKey]);
-
-  useEffect(() => {
-    if (drawMode || freehandMode) return;
-    if (selectedZoneId && sections.some((section) => section.id === selectedZoneId)) return;
-    setSelectedZoneId(sections[0]?.id ?? null);
-  }, [drawMode, freehandMode, sections, selectedZoneId]);
-
-  useEffect(() => {
-    if (!pendingZoneName || !pendingLayout) return;
-    const created = sections.find((section) => section.name.trim() === pendingZoneName);
-    if (!created) return;
-    updateZoneLayout(created.id, pendingLayout);
-    setSelectedZoneId(created.id);
-    setPendingZoneName(null);
-    setPendingLayout(null);
-  }, [pendingLayout, pendingZoneName, sections]);
+  const [layouts, setLayouts] = useScopedStorage<ZoneLayouts>(storageKey, {});
+  const [planMeta, setPlanMeta] = useScopedStorage<PlanMeta>(metaStorageKey, DEFAULT_PLAN_META, raw => {
+    const parsed = JSON.parse(raw) as Partial<PlanMeta>;
+    return {name:parsed.name?.trim()||DEFAULT_PLAN_META.name,widthM:clamp(Number(parsed.widthM)||DEFAULT_PLAN_META.widthM,1,500),lengthM:clamp(Number(parsed.lengthM)||DEFAULT_PLAN_META.lengthM,1,500)};
+  });
+  const [planImage, setPlanImage] = useScopedStorage<string|null>(imageStorageKey, null, raw=>raw, value=>value??"");
+  const [strokes, setStrokes] = useScopedStorage<PlanStroke[]>(strokesStorageKey, [], raw=>{
+    const parsed:unknown=JSON.parse(raw);return Array.isArray(parsed)?parsed.filter(stroke=>Array.isArray(stroke?.points)) as PlanStroke[]:[];
+  });
+  const selectedZoneId = drawMode||freehandMode ? selectedZoneChoice : sections.some(s=>s.id===selectedZoneChoice)?selectedZoneChoice:sections[0]?.id??null;
 
   const normalizedLayouts = useMemo(() => {
     const next: ZoneLayouts = {};
@@ -322,8 +240,10 @@ export function WarehouseSectionsManager({
     if (editing) {
       updateSection({ id: editing.id, name: name.trim(), description: description.trim(), color });
     } else {
-      if (pendingLayout) setPendingZoneName(name.trim());
-      createSection({ name: name.trim(), description: description.trim(), color });
+      const layout = pendingLayout;
+      createSection({ name: name.trim(), description: description.trim(), color }, {onSuccess: created => {
+        if(layout){updateZoneLayout(created.id,layout);setSelectedZoneId(created.id);setPendingLayout(null);}
+      }});
     }
     setDialogOpen(false);
   };

@@ -28,14 +28,6 @@ export function useBatchScannerEntries({
   const [entries, setEntries] = useState<BatchScanEntry[]>(initialEntries ?? []);
   const lastScanRef = useRef<{ code: string; ts: number } | null>(null);
 
-  // Mantiene il comportamento storico: idrata solo al mount.
-  useEffect(() => {
-    if (initialEntries && initialEntries.length > 0) {
-      setEntries(initialEntries);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     onEntriesChange?.(entries);
   }, [entries, onEntriesChange]);
@@ -73,7 +65,7 @@ export function useBatchScannerEntries({
           const next = [...prev];
           next[existingIdx] = {
             ...next[existingIdx],
-            quantity: next[existingIdx].quantity + 1,
+            quantity: next[existingIdx].quantity + entry.quantity,
             scannedAt: entry.scannedAt,
           };
           return next;
@@ -111,7 +103,7 @@ export function useBatchScannerEntries({
     setEntries((prev) =>
       prev.map((entry) =>
         entry.clientUuid === uuid && entry.trackingMode === "fungible"
-          ? { ...entry, quantity: Math.max(1, entry.quantity + delta) }
+          ? { ...entry, quantity: entry.quantity + delta > 0 ? entry.quantity + delta : entry.quantity }
           : entry,
       ),
     );

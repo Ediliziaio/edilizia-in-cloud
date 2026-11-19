@@ -1,4 +1,6 @@
 import { salvaPreparazioneForniture } from "@/lib/orders/salvaPreparazioneForniture";
+import { pianoSalDaOrdine } from "@/lib/orders/pianoSalAperto";
+import { ivaMistaDaOrdine } from "@/lib/orders/ivaMista";
 import { incassiConFatture } from "@/lib/orders/incassiConFatture";
 import { applicaQuoteAlleRate, type QuotaFatturaRata } from "@/lib/orders/quoteFatturaRate";
 import "@/components/orders/income-workspace.css";
@@ -2162,6 +2164,8 @@ function OrderDetailInner() {
                 <div id="section-pagamenti" className="scroll-mt-24">
                   <span id="section-fatturazione" className="block scroll-mt-24" />
                   <OrdineEconomico
+                    salPayment={pianoSalDaOrdine(order)}
+                    vatSplit={ivaMistaDaOrdine(order)}
                     orderId={id!}
                     totaliIncassi={{incassato: collectedGross, daIncassare: saldoResiduoGross}}
                     fatture={{documents: fattureCollegate, loading: fattureCommessaQuery.isPending, error: fattureCommessaQuery.isError, onRetry: () => { void fattureCommessaQuery.refetch(); }, onDownload: handleDownloadFiscalDocument, actions: azioniFattureCliente}}
@@ -2538,6 +2542,7 @@ function OrderDetailInner() {
         <AffidaContrattoDaCommessa orderId={id} companyId={effectiveCompany.id} onChiudi={() => setAffidaDitteOpen(false)} />
       )}
       <CreaFatturaDialog
+        vatSplit={ivaMistaDaOrdine(order)}
         open={creaFatturaOpen}
         onApriBozza={setFatturaInEditor}
         indirizzoLavori={order.work_address || order.indirizzo_lavori}

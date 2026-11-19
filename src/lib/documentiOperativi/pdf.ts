@@ -19,6 +19,7 @@ import {
   euro,
   importoIt,
   numeroIt,
+  quantitaDocumento,
   oreIt,
   dataIt,
   documentoIncompleto,
@@ -225,7 +226,7 @@ export function creaPdfOperativo(
     d.destinazioneTipo === "ritiro" &&
     (d.tipo === "materiali" || d.tipo === "richiesta")
       ? "RITIRO PRESSO"
-      : standard.destinazione;
+      : d.riguardaLavori ? "CANTIERE" : standard.destinazione;
   const destination =
     d.tipo === "economia"
       ? [
@@ -253,6 +254,7 @@ export function creaPdfOperativo(
             d.tipo === "richiesta" && d.commessa
               ? `Commessa ${d.commessa}`
               : null,
+            d.riguardaLavori && d.periodo ? `Periodo previsto ${d.periodo}` : null,
           ];
   const passoValore = passo(stileRiquadro.valoreCorpo, 1.3);
   const altoEtichetta = mm(stileRiquadro.etichettaCorpo) + 1.8;
@@ -280,7 +282,9 @@ export function creaPdfOperativo(
     d.tipo === "richiesta"
       ? [
           ["Rispondere entro", dataIt(d.scadenzaOfferta) || "Da indicare"],
-          ["Materiale in cantiere entro", dataIt(d.consegna) || "Da indicare"],
+          d.riguardaLavori
+            ? ["Inizio lavori previsto", dataIt(d.inizioLavori) || "Da concordare"]
+            : ["Materiale in cantiere entro", dataIt(d.consegna) || "Da indicare"],
           ["Referente", d.referenteConsegna || d.referente || "Da indicare"],
         ]
       : [
@@ -331,7 +335,7 @@ export function creaPdfOperativo(
     );
   if (d.tipo === "richiesta")
     paragraph(
-      `Vi chiediamo la vostra migliore offerta per la fornitura qui sotto. Compilate le colonne vuote e rimandateci questo foglio, oppure inviateci la vostra offerta con il riferimento ${d.numero}.`,
+      `Vi chiediamo la vostra migliore offerta per ${d.riguardaLavori ? "le lavorazioni del computo" : "la fornitura qui sotto"}. Compilate le colonne vuote e rimandateci questo foglio, oppure inviateci la vostra offerta con il riferimento ${d.numero}.`,
     );
   if (d.tipo === "economia") {
     // I numeri chiave del periodo: quattro riquadri; il totale ha il valore nell'accento.
@@ -449,7 +453,7 @@ export function creaPdfOperativo(
         title: "Q.TÀ",
         width: 14,
         align: "right",
-        value: (r) => numeroIt(r.quantita),
+        value: (r) => quantitaDocumento(d, r.quantita),
       },
       {
         title: "PREZZO",
@@ -533,7 +537,7 @@ export function creaPdfOperativo(
     });
     y += altoIntestazione;
   };
-  /** Raggruppamento dentro la tabella (lavori in economia): riga su fondo tenue, grassetto. */
+  /** Raggruppamento dentro la tabella delle lavorazioni: riga su fondo tenue, grassetto. */
   const rigaGruppo = (t: string) => {
     font(stileTabella.corpo, true);
     const testo = lines(t, width - 2 * padX);
@@ -548,7 +552,7 @@ export function creaPdfOperativo(
     currentGroup = "";
   /** Riga del totale: grassetto, filetto inchiostro sopra. */
   const groupFooter = () => {
-    if (currentGroup) {
+    if (currentGroup && d.tipo === "economia") {
       ensure(rigaMin);
       filetto(INCHIOSTRO, stileTabella.filettoTotale, left, y, left + width, y);
       font(stileTabella.corpo, true);
@@ -560,7 +564,7 @@ export function creaPdfOperativo(
   };
   tableHeader();
   d.righe.forEach((row, index) => {
-    if (d.tipo === "economia" && (index === 0 || row.gruppo !== currentGroup)) {
+    if ((d.tipo === "economia" || (d.riguardaLavori && row.gruppo)) && (index === 0 || row.gruppo !== currentGroup)) {
       groupFooter();
       currentGroup = row.gruppo || "Lavori in economia";
       groupTotal = 0;
@@ -594,6 +598,7 @@ export function creaPdfOperativo(
       if (riga + passoRiga + padY > bottom) {
         nuovaPagina();
         tableHeader();
+        if (d.riguardaLavori && currentGroup) rigaGruppo(`${currentGroup} (segue)`);
         segmentStart = y;
         riga = y + padY;
       }
@@ -650,7 +655,7 @@ export function creaPdfOperativo(
   });
   if (d.tipo === "richiesta") {
     font(pagina.nota, false, TENUE);
-    const ls = lines("Se per questa fornitura ne proponete una diversa, indicatela qui:", payWidth);
+    const ls = lines(d.riguardaLavori ? "Se proponete condizioni diverse per questi lavori, indicatelo qui:" : "Se per questa fornitura ne proponete una diversa, indicatela qui:", payWidth);
     ls.forEach((riga, n) => pdf.text(riga, payX, py + 1 + passo(pagina.nota) * (n + 0.72)));
     py += 1 + ls.length * passo(pagina.nota) + 9;
     filetto(TENUE, 0.5, payX, py, payX + payWidth, py);
@@ -722,9 +727,9 @@ export function creaPdfOperativo(
       sy,
     );
     [
-      "Tempi di consegna",
+      d.riguardaLavori ? "Tempi di esecuzione" : "Tempi di consegna",
       "Validità dell'offerta",
-      "Trasporto e scarico inclusi?",
+      d.riguardaLavori ? "Materiali inclusi?" : "Trasporto e scarico inclusi?",
     ].forEach((t) => {
       font(corpo);
       pdf.text(t, x, oy + 4);

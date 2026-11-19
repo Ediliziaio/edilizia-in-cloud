@@ -37,8 +37,8 @@ export function useInstallation() {
 
       if (fetchError || !orderItem) throw new Error('Order item not found');
 
-      let photo_before_url: string | null = null;
-      let photo_after_url: string | null = null;
+      let photo_before_url: string;
+      let photo_after_url: string;
 
       // Upload before photo (MANDATORY)
       try {

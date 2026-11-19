@@ -1,0 +1,16 @@
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { beforeEach, expect, it, vi } from 'vitest';
+const state=vi.hoisted(()=>({company:'c1',costs:true,view:true,wrong:false,rpc:vi.fn()}));
+vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({effectiveCompany:{id:state.company},user:{id:'u'}})}));
+vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({isLoading:false,canViewCosts:state.costs,canViewWarehouse:state.view})}));
+vi.mock('@/integrations/supabase/client',()=>({supabase:{rpc:state.rpc}}));
+import { useValorizzazione, useLottiInScadenza } from '@/hooks/warehouse/useWarehouseValorizzazione';
+const wrapper=()=>{const c=new QueryClient({defaultOptions:{queries:{retry:false}}});return ({children}:{children:React.ReactNode})=><QueryClientProvider client={c}>{children}</QueryClientProvider>};
+beforeEach(()=>{state.company='c1';state.costs=true;state.view=true;state.wrong=false;state.rpc.mockReset().mockImplementation((_name,args)=>Promise.resolve({data:{meta:{company_id:state.wrong?'wrong':args.p_company_id},kpi:{valore_totale:1},articoli:[],lotti:[]},error:null}));});
+it('invia esplicitamente l’azienda aperta',async()=>{const {result}=renderHook(()=>useValorizzazione(),{wrapper:wrapper()});await waitFor(()=>expect(result.current.isSuccess).toBe(true));expect(state.rpc).toHaveBeenCalledWith('wh_get_valorizzazione',expect.objectContaining({p_company_id:'c1'}));});
+it('al cambio azienda non ripresenta il valore in cache della precedente',async()=>{const {result,rerender}=renderHook(()=>useValorizzazione(),{wrapper:wrapper()});await waitFor(()=>expect(result.current.data?.meta.company_id).toBe('c1'));state.company='c2';rerender();expect(result.current.data).toBeUndefined();await waitFor(()=>expect(result.current.data?.meta.company_id).toBe('c2'));});
+it('rifiuta una risposta di un’azienda diversa',async()=>{state.wrong=true;const {result}=renderHook(()=>useValorizzazione(),{wrapper:wrapper()});await waitFor(()=>expect(result.current.isError).toBe(true));expect(result.current.data).toBeUndefined();});
+it('senza permesso costi non interroga la valorizzazione',()=>{state.costs=false;renderHook(()=>useValorizzazione(),{wrapper:wrapper()});expect(state.rpc).not.toHaveBeenCalled();});
+it('le scadenze seguono l’azienda scelta anche senza prezzi visibili',async()=>{state.costs=false;const {result}=renderHook(()=>useLottiInScadenza(7),{wrapper:wrapper()});await waitFor(()=>expect(result.current.isSuccess).toBe(true));expect(state.rpc).toHaveBeenCalledWith('wh_get_lotti_in_scadenza',{p_company_id:'c1',p_days_ahead:7});});
+it('senza accesso magazzino non interroga le scadenze',()=>{state.view=false;renderHook(()=>useLottiInScadenza(),{wrapper:wrapper()});expect(state.rpc).not.toHaveBeenCalled();});

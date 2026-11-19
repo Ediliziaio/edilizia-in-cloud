@@ -48,7 +48,9 @@ const arrotonda = (n: number) => Math.round(n * 10000) / 10000;
 
 /** Le unità di confezione che il campo scrive al plurale: «sacchi» è «sacco». */
 const SINGOLARE: Record<string, string> = { sacchi: "sacco", confezioni: "confezione", rotoli: "rotolo", secchi: "secchio", bancali: "bancale", "m²": "mq", "m³": "mc" };
-const unita = (u: string | null | undefined) => { const n = normalizzaUnita(u); return normalizzaUnita(SINGOLARE[n] ?? n); };
+export const unitaConsumoConfrontabile = (u: string | null | undefined) => { const n = normalizzaUnita(u); return normalizzaUnita(SINGOLARE[n] ?? n); };
+
+const unita = unitaConsumoConfrontabile;
 
 /** «a corpo» non si misura: con quella unità non c'è una quantità da confrontare. */
 const misurabile = (u: string) => u !== "a corpo";

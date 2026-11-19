@@ -4,7 +4,7 @@
  */
 import {
   ETICHETTA_PROFILO, oneriPercento, parametriDelProfilo, profiloCostoDipendente, type ParametriCostoAzienda,
-} from "@/lib/costoPersonale";
+} from "../costoPersonale";
 
 export interface LaborEmployee {
   id: string; user_id: string | null; first_name?: string | null; last_name?: string | null;

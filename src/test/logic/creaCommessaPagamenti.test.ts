@@ -20,7 +20,7 @@ describe("il modello di pagamento nel modulo di nuova commessa", () => {
 
   it("le rate da modello seguono il totale e l'IVA, e la percentuale non parte per il server", () => {
     // Cambio del totale, cambio dell'IVA, e l'aliquota che il modulo propone da solo.
-    expect(SORGENTE.match(/ricalcolaRatePercentuali\(/g)).toHaveLength(3);
+    expect(SORGENTE.match(/ricalcolaRatePercentuali\(/g)).toHaveLength(4);
     const payload = SORGENTE.slice(SORGENTE.indexOf("const installmentsPayload"), SORGENTE.indexOf("const createOrderAtomic"));
     expect(payload).not.toContain("percent");
   });

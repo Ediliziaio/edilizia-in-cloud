@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { formattaQuantitaMovimento as fmt } from "@/lib/magazzino/quantitaMovimento";
+import type { fabbisognoMateriale } from "@/lib/magazzino/riepiloghiMagazzino";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +32,7 @@ interface WarehouseSection {
 }
 
 interface WarehouseItemRowProps {
+  preparation?: ReturnType<typeof fabbisognoMateriale> | null;
   item: WarehouseItem;
   isSelected: boolean;
   onToggleSelection: (itemId: string) => void;
@@ -90,6 +93,7 @@ function ItemNotePopover({
 
 const WarehouseItemRow = React.memo(function WarehouseItemRow({
   item,
+  preparation,
   isSelected,
   onToggleSelection,
   onStatusChange,
@@ -127,7 +131,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
           />
         )}
         <Badge variant="secondary" className="font-mono text-xs shrink-0">
-          {item.quantity || 1}x
+          {fmt(Number(item.quantity ?? 0))} {item.unita_misura ?? ""}
         </Badge>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -139,15 +143,18 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
                 <TooltipTrigger asChild>
                   <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 text-xs shrink-0 gap-1">
                     <PackageCheck className="h-3 w-3" />
-                    {stockMatch.quantity} in stock
+                    {fmt(stockMatch.quantity)} in giacenza
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Disponibile in giacenza: {stockMatch.name} ({stockMatch.quantity} pz)
+                  Giacenza fisica dell’articolo associato: {stockMatch.name} ({fmt(stockMatch.quantity)} {item.unita_misura ?? ""}). Include le quantità impegnate per altre commesse.
                 </TooltipContent>
               </Tooltip>
             )}
           </div>
+          {preparation ? <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4" aria-label={`Quantità commessa ${item.name}`}>
+            {[["Previsti", preparation.previsti],["Prenotati",preparation.impegnato],["Fuori deposito",preparation.fuori],["Da coprire",preparation.daCoprire]].map(([label, quantity]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="font-semibold tabular-nums">{fmt(Number(quantity))} {item.unita_misura ?? ""}</dd></div>)}
+          </dl> : <p className="mt-1 text-xs text-muted-foreground">{item.stock_item_id ? "Quantità da verificare" : "Associa un articolo per verificare prenotazioni e prelievi"}</p>}
           {(supplierName || (isSupplierGroup && item.order.order_code)) && (
             <p className="text-xs text-muted-foreground truncate">
               {isSupplierGroup

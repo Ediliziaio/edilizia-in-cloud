@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OrderWorkPhases } from "@/components/orders/OrderWorkPhases";
 import { assignment, phase } from "../fixtures/workPlanning";
 import type { WorkPhase, PhaseAssignment, PhaseMaterial } from "@/hooks/useOrderWorkPhases";
+import type { PianoPrevisto } from "@/lib/orders/previsionaleSalvato";
 import type { SquadraInCommessa } from "@/hooks/useOperai";
 import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
 setupRadixMenus();
@@ -14,18 +15,26 @@ const state = vi.hoisted(() => ({
   phases: [] as WorkPhase[], unassigned: [] as PhaseAssignment[], loading: false, error: false,
   mobile: false,
   crews: [] as SquadraInCommessa[],
+  piani: null as PianoPrevisto[] | null,
   materials: new Map<string, PhaseMaterial[]>(),
   add: vi.fn(), update: vi.fn(), remove: vi.fn(), addPhase: vi.fn(), applyTemplate: vi.fn(), updatePhase: vi.fn(), refetch: vi.fn(), segnaSottofase: vi.fn(), aggiungiSottofase: vi.fn(), sottofasiPerFase: new Map<string, unknown[]>(),
 }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => state.permissions }));
-vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: true, data: {amount: 26}, isLoading: false, isError: false})}));
+vi.mock("@/hooks/useAssignmentHourlyCost", () => ({useAssignmentHourlyCost: () => ({allowed: true, data: {amount: 26}, isLoading: false, isError: false}), useDipendentiDeiProfili: () => ({}), useCostiOrariPrevisione: () => ({ allowed: true, data: new Map([["e1", 26]]), isPending: false })}));
 vi.mock('@/hooks/useAssignmentCompanies',()=>({useAssignmentCompanies:()=>({data:[{id:'s1',label:'Edil Alfa',kind:'esterna'}],isError:false,isLoading:false,isFetching:false,refetch:vi.fn()})}));
 vi.mock("@/hooks/use-mobile", () => ({useIsMobile: () => state.mobile}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "company" } }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@/components/orders/DistintaCommessa", () => ({
-  DistintaCommessa: ({ fasi, onApriScheda }: { fasi: Array<{ id: string; name: string }>; onApriScheda: (id: string) => void }) => (
-    <>{fasi.map((f) => <button key={f.id} type="button" aria-label={`Scheda di ${f.name}`} onClick={() => onApriScheda(f.id)} />)}</>
+  DistintaCommessa: ({ fasi, onApriScheda, renderOrganizza, soloOrganizza }: {
+    fasi: Array<{ id: string; name: string }>;
+    onApriScheda: (id: string) => void;
+    renderOrganizza: (scheda: (id: string) => React.ReactNode) => React.ReactNode;
+    soloOrganizza?: boolean;
+  }) => (
+    <>{!soloOrganizza && fasi.map((f) => <button key={f.id} type="button" aria-label={`Scheda di ${f.name}`} onClick={() => onApriScheda(f.id)} />)}
+      {renderOrganizza(() => null)}
+    </>
   ),
 }));
 vi.mock("@/hooks/useChiSottofasi", () => ({ useChiSottofasi: () => ({ dati: { disponibile: false, perSottofase: new Map() }, aggiungi: { mutate: vi.fn() }, togli: { mutate: vi.fn() } }) }));
@@ -33,7 +42,13 @@ vi.mock("@/hooks/useCostiDirettiFasi", () => ({
   useCostiDirettiFasi: () => ({ data: undefined as unknown }),
   useAssegnaFaseCosti: () => ({ mutate: vi.fn(), isPending: false }),
 }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: [] as unknown[] }) }));
+vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}), useQuery: () => ({ data: [] as unknown[] }) }));
+vi.mock("@/hooks/usePrevisionaleCantiereLocale", () => ({
+  usePrevisionaleCantiereLocale: () => ({
+    disponibile: state.piani !== null, archivio: { versione: 1, piani: state.piani ?? [] }, carica: false, errore: null,
+  }),
+}));
+vi.mock("@/hooks/useAssegnaAlleFasi", () => ({ useAssegnaAlleFasi: () => ({ mutateAsync: vi.fn() }) }));
 vi.mock("@/hooks/useProfiloLavori", async () => {
   const { PHASE_TEMPLATES } = await import("@/hooks/useOrderWorkPhases");
   return { useProfiloLavori: () => ({ profilo: { tipi: [] as string[], origine: "nessuno" }, modelliStandard: PHASE_TEMPLATES }) };
@@ -99,7 +114,7 @@ const setteFasi = () => [
 beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.clearAllMocks(); state.phases = [phase(), phase({ id: "p2", name: "Collaudo", status: "completata", assignments: [] })];
-  state.unassigned = []; state.crews = []; state.materials = new Map(); state.loading = false; state.error = false; state.mobile = false; state.sottofasiPerFase = new Map();
+  state.piani = null; state.unassigned = []; state.crews = []; state.materials = new Map(); state.loading = false; state.error = false; state.mobile = false; state.sottofasiPerFase = new Map();
   Object.assign(state.permissions, { canEditOrders: true, canViewCosts: true, canManagePayments: true, canViewEmployees: true, canViewPersone: true });
   state.update.mockResolvedValue(undefined); state.remove.mockResolvedValue(undefined);
 });
@@ -138,15 +153,11 @@ describe("Lavorazioni e squadra", () => {
     state.mobile = true;
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("button", {name: "Assegna squadra"})).not.toBeInTheDocument();
-    // Da telefono si assegna dentro la fase: in testata resta solo «Aggiungi fasi».
-    const fase = screen.getByRole("button", {name: /^Opere murarie/});
-    if (fase.getAttribute("aria-expanded") === "false") fireEvent.click(fase);
-    fireEvent.click((await screen.findAllByRole("button", {name: "Stato, date, squadra e note"}))[0]);
-    fireEvent.click((await screen.findAllByRole("button", {name: /^Assegna/}))[0]);
-    expect(await screen.findByRole("dialog", {name: "Assegna chi lavora"})).toBeInTheDocument();
-    expect(screen.getByRole("button", {name: "Persona"})).toBeInTheDocument();
-    expect(screen.getByRole("button", {name: "Squadra interna"})).toBeInTheDocument();
-    expect(screen.getByRole("button", {name: "Ditta"})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Assegna", exact: true}));
+    const dialogo = await screen.findByRole("dialog", {name: "Organizza il lavoro"});
+    expect(within(dialogo).getByRole("heading", {name: "Operai"})).toBeInTheDocument();
+    expect(within(dialogo).getByRole("heading", {name: "Squadre interne"})).toBeInTheDocument();
+    expect(within(dialogo).getByRole("heading", {name: "Periodo previsto"})).toBeInTheDocument();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(state.add).not.toHaveBeenCalled();
   });
@@ -214,17 +225,43 @@ describe("Lavorazioni e squadra", () => {
     expect(screen.queryByRole("button", {name: "Opere murarie"})).not.toBeInTheDocument();
     expect(screen.getByRole("button", {name: "Mostra 1 fase completata"})).toHaveAttribute("aria-expanded", "false");
   });
-  it("dal computer c'è solo la tabella: nessuna scelta, e la scheda si apre nel popup della fase", () => {
-    state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []})];
+  it("dal computer la fase e la navigazione usano il popup comune", () => {
+    state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []}), phase({id: "p2", name: "Collaudo", assignments: []})];
     render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("group", { name: "Come vedere le fasi" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Scheda di Opere murarie" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Opere murarie");
-    expect(screen.getByRole("button", { name: "Fase dopo" })).toBeInTheDocument();
-    // Le schede mostrano una parte sola della fase.
-    expect(screen.getByRole("tab", { name: "Sottofasi e date" })).toHaveAttribute("aria-selected", "true");
-    fireEvent.click(screen.getByRole("tab", { name: "Note" }));
-    expect(screen.getByRole("tab", { name: "Note" })).toHaveAttribute("aria-selected", "true");
+    const dialogo = screen.getByRole("dialog", { name: "Organizza il lavoro" });
+    expect(within(dialogo).getByRole("heading", { name: "Opere murarie" })).toBeInTheDocument();
+    expect(within(dialogo).getByRole("button", { name: "Riepilogo" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Note" }));
+    expect(within(dialogo).getByRole("button", { name: "Note" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Fase dopo" }));
+    expect(within(dialogo).getByRole("heading", { name: "Collaudo" })).toBeInTheDocument();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+  it("riaprendo la fase dal portale mostra squadra, periodo e quota della voce già inclusa", () => {
+    state.phases = [phase({ id: "p1", name: "Opere murarie", importo_venduto: 2000, assignments: [] })];
+    state.sottofasiPerFase = new Map([["p1", [{id: "s1", phase_id: "p1", name: "Posa demo", position: 0, fatta: false}]]]);
+    const piano: PianoPrevisto = {
+      ambito: { tipo: "fase", id: "p1", faseId: "p1" },
+      persone: [], squadre: [{ id: "sq1", nome: "Squadra demo", componenti: ["e1"] }],
+      operai: [{ id: "e1", nome: "Mario Rossi", tariffa: 26 }],
+      dal: "2026-11-23", al: "2026-11-24", giorni: ["2026-11-23", "2026-11-24"],
+      oreGiorno: 8, microOreGiorno: 8e6, sabato: false,
+    };
+    state.piani = [piano, { ...piano, ambito: { tipo: "sottofase", id: "s1", faseId: "p1" }, oreGiorno: 4, microOreGiorno: 4e6 }];
+    const apri = () => render(<OrderWorkPhases orderId="order" view="lavorazioni" />);
+    let vista = apri();
+    fireEvent.click(screen.getByRole("button", { name: "Scheda di Opere murarie" }));
+    vista.unmount();
+    vista = apri();
+    fireEvent.click(screen.getByRole("button", { name: "Scheda di Opere murarie" }));
+    const dialogo = screen.getByRole("dialog", { name: "Organizza il lavoro" });
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Previsionale" }));
+    expect(within(dialogo).getByLabelText("Totale manodopera pianificata della fase")).toHaveTextContent(/16 h · 416,00/);
+    expect(within(dialogo).getByText("Posa demo · Squadra demo")).toBeInTheDocument();
+    expect(within(dialogo).getByText(/23\/11\/2026 – 24\/11\/2026 · 2 gg · 4 h/)).toBeInTheDocument();
+    expect(within(dialogo).getByText("8 h comprese nelle previsioni delle voci.")).toBeInTheDocument();
   });
   it("gli avvisi aprono e portano alla sezione giusta senza scrivere dati", () => {
     state.phases = [phase({status: "da_iniziare", start_date: null, assignments: []})];
@@ -257,6 +294,7 @@ describe("Lavorazioni e squadra", () => {
   it("il nuovo selettore esterno non offre le squadre di dipendenti", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn(); draw();
     fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     fireEvent.click(screen.getByRole("button", { name: "Ditta" }));
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Scegli chi" }), { key: "ArrowDown" });
     expect(screen.getByRole("option", { name: "Edil Alfa" })).toBeInTheDocument();
@@ -278,6 +316,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("non inserisce un consuntivo nella nuova assegnazione", () => {
     draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     expect(screen.queryByText("Consuntivo iniziale (facoltativo)")).not.toBeInTheDocument();
     expect(screen.getByText(/Assegnare non registra una spesa/)).toBeInTheDocument();
   });
@@ -340,6 +379,7 @@ describe("Lavorazioni e squadra", () => {
   });
   it("apre l'assegnazione sul lavoro, non sui costi, e distingue gli esterni", () => {
     draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("combobox", { name: "Fase" })).toHaveTextContent("Tutta la commessa");
     fireEvent.click(within(dialog).getByRole("button", { name: "Ditta" }));
@@ -361,6 +401,7 @@ describe("Lavorazioni e squadra", () => {
   it("crea l'assegnazione sulla fase scelta mantenendo il contratto dei dati", async () => {
     state.phases = [phase({ assignments: [] })]; draw();
     fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     chooseEmployee();
     await scegliNelMenu("Fase", "Opere murarie");
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
@@ -369,12 +410,14 @@ describe("Lavorazioni e squadra", () => {
   });
   it("non crea una seconda riga della stessa persona sulla stessa fase", async () => {
     draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     chooseEmployee(); await scegliNelMenu("Fase", "Opere murarie");
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();
   });
   it("rifiuta un budget negativo senza inviare dati", () => {
     draw(); fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dettagli avanzati di assegnazione" }));
     chooseEmployee(); fireEvent.click(screen.getByText("Prevedi le ore (facoltativo)")); fireEvent.change(screen.getByLabelText("Ore previste"), { target: { value: "-10" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma assegnazione" }));
     expect(state.add).not.toHaveBeenCalled();

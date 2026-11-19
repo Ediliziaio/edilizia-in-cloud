@@ -38,6 +38,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Camera,
+  Pause,
+  Play,
   Flashlight,
   FlashlightOff,
   Keyboard,
@@ -98,6 +100,8 @@ export interface BatchScanEntry {
   /** Prezzo d'acquisto per unità (entrata merce): precompilato dal listino,
    *  modificabile col prezzo del DDT. Salvato come unit_cost/purchase_price. */
   purchasePrice?: number;
+  /** Unità visualizzata nei riepiloghi, senza aggregare unità differenti. */
+  unitOfMeasure?: string | null;
   /** Timestamp client per ordinamento UI. */
   scannedAt: number;
   /**
@@ -190,7 +194,11 @@ interface BatchBarcodeScannerProps {
 // Componente principale
 // ────────────────────────────────────────────────────────────
 
-export function BatchBarcodeScanner({
+export function BatchBarcodeScanner(props: BatchBarcodeScannerProps) {
+  return props.open ? <BatchBarcodeScannerSession {...props} /> : null;
+}
+
+function BatchBarcodeScannerSession({
   open,
   onOpenChange,
   mode,
@@ -212,10 +220,13 @@ export function BatchBarcodeScanner({
   onLookupCreateNew,
   confirmEachScan = false,
 }: BatchBarcodeScannerProps) {
-  const [lookupResult, setLookupResult] = useState<BatchScanEntry | null>(null);
+  const lookupResultRef = useRef<BatchScanEntry | null>(null);
+  const [lookupResult, setLookupResultState] = useState<BatchScanEntry | null>(null);
+  const setLookupResult = useCallback((value: BatchScanEntry | null) => { lookupResultRef.current = value; setLookupResultState(value); }, []);
   // confirmEachScan: oda_item_id della scansione in attesa di conferma.
-  const pendingOdaRef = useRef<string | null>(null);
+  const [pendingOda, setPendingOda] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
   // v8.6.108 — GLS-style flash overlay: lampeggio verde/rosso 300ms su scan
@@ -236,6 +247,13 @@ export function BatchBarcodeScanner({
   // vengono accodate (non scartate) e drenate quando il lookup finisce. Gli
   // articoli restano risolti UNO alla volta (nessuna race), ma niente scan persi.
   const scanQueueRef = useRef<Array<{ code: string; scanFormat?: string }>>([]);
+  const scanSessionRef = useRef(0);
+  const scanActiveRef = useRef(false);
+  useEffect(() => { scanActiveRef.current = open && !userPaused && !isConfirming; }, [open, userPaused, isConfirming]);
+  useEffect(() => {
+    lookupInFlightRef.current = false;
+    return () => { scanSessionRef.current += 1; scanQueueRef.current = []; };
+  }, [open]);
   const handleScanRef = useRef<(code: string, scanFormat?: string, fromQueue?: boolean) => void>(
     () => {},
   );
@@ -250,10 +268,22 @@ export function BatchBarcodeScanner({
     removeEntry,
     promoteNoMatch,
     trackDuplicate,
-    totalScans,
     noMatchCount,
   } = useBatchScannerEntries({ initialEntries, onEntriesChange });
-  const scannerPaused = (mode === "lookup" || confirmEachScan) && !!lookupResult;
+  const scannerPaused = userPaused || isConfirming || ((mode === "lookup" || confirmEachScan) && !!lookupResult);
+  const latestEntry = entries.reduce<BatchScanEntry | null>((last, entry) => !last || entry.scannedAt >= last.scannedAt ? entry : last, null);
+  const pendingMaxQuantity = useMemo(() => {
+    if (!lookupResult?.stockItemId) return Infinity;
+    if (mode === "oda_receive" && pendingOda) {
+      const max = allowedOdaItems?.find(row => row.odaItemId === pendingOda)?.qtyPending ?? Infinity;
+      return Math.max(0, max - entries.filter(entry => entry.odaItemId === pendingOda).reduce((sum, entry) => sum + entry.quantity, 0));
+    }
+    if (mode === "carico" && allowedOrderItems) {
+      const max = allowedOrderItems.find(row => row.stockItemId === lookupResult.stockItemId)?.qtyRequired ?? Infinity;
+      return Math.max(0, max - entries.filter(entry => entry.stockItemId === lookupResult.stockItemId).reduce((sum, entry) => sum + entry.quantity, 0));
+    }
+    return Infinity;
+  }, [allowedOdaItems, allowedOrderItems, entries, lookupResult, mode, pendingOda]);
   const invalidSerializedCount = useMemo(
     () =>
       entries.filter(
@@ -271,15 +301,6 @@ export function BatchBarcodeScanner({
     return off;
   }, []);
 
-  // Reset lookup single-shot quando il foglio viene chiuso.
-  useEffect(() => {
-    if (!open) {
-      setLookupResult(null);
-      setManualMode(false);
-      setManualCode("");
-    }
-  }, [open]);
-
   // Auto-focus input manuale quando attivato.
   useEffect(() => {
     if (manualMode && open) {
@@ -291,6 +312,7 @@ export function BatchBarcodeScanner({
   // v8.6.121 — Drena la prossima scansione accodata (FIFO). Chiamata sia nel
   // finally del lookup sia sul ramo multi-seriale (che esce prima del try).
   const drainQueue = useCallback(() => {
+    if (!scanActiveRef.current || lookupResultRef.current || lookupInFlightRef.current) return;
     const queued = scanQueueRef.current.shift();
     if (queued) void handleScanRef.current(queued.code, queued.scanFormat, true);
   }, []);
@@ -299,13 +321,14 @@ export function BatchBarcodeScanner({
   const handleScan = useCallback(
     async (rawCode: string, scanFormat?: string, fromQueue = false) => {
       const code = rawCode.trim();
-      if (!code) return;
-      if ((mode === "lookup" || confirmEachScan) && lookupResult) return;
+      if (!code || !open || userPaused || isConfirming) return;
+      if ((mode === "lookup" || confirmEachScan) && lookupResultRef.current) return;
+      const scanSession = scanSessionRef.current;
 
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
       // Saltato per le scansioni drenate dalla coda (già passate dal throttle).
       const now = Date.now();
-      if (!fromQueue && trackDuplicate(code, now)) return;
+      if (!fromQueue && scanFormat !== "MANUAL" && trackDuplicate(code, now)) return;
 
       // Se un lookup è già in corso: ACCODA invece di scartare (no scan persi).
       // La coda viene drenata uno-alla-volta → i lookup restano serializzati.
@@ -362,6 +385,7 @@ export function BatchBarcodeScanner({
           supplierUsesGs1,
         });
 
+        if (scanSessionRef.current !== scanSession) return;
         const action = result.action;
 
         if (action.kind === "offer_create_new") {
@@ -449,6 +473,7 @@ export function BatchBarcodeScanner({
           odaItemId: null,
           scannedAt: now,
           ambiguous: resolvedAmbiguous || undefined,
+          unitOfMeasure: entries.find(entry => entry.stockItemId === resolvedItemId)?.unitOfMeasure ?? (resolvedTracking === "serialized" ? "pz" : null),
         };
 
         if (mode === "lookup") {
@@ -511,7 +536,7 @@ export function BatchBarcodeScanner({
         // confirmEachScan: non aggiungere subito — metti in pausa e chiedi conferma
         // (l'articolo è stato trovato; il popup mostra nome+codice).
         if (confirmEachScan) {
-          pendingOdaRef.current = odaItemId;
+          setPendingOda(odaItemId);
           setLookupResult(nextEntry);
           await successFeedback(); triggerFlash("green");
           return;
@@ -521,17 +546,22 @@ export function BatchBarcodeScanner({
 
         await successFeedback(); triggerFlash("green");
       } catch (err) {
+        if (scanSessionRef.current !== scanSession) return;
         await errorFeedback(); triggerFlash("red");
         toast.error("Errore lookup", {
           description: (err as Error)?.message ?? "Riprova",
         });
       } finally {
-        lookupInFlightRef.current = false;
-        // v8.6.121 — processa la prossima scansione accodata (se presente).
-        drainQueue();
+        if (scanSessionRef.current === scanSession) {
+          lookupInFlightRef.current = false;
+          drainQueue();
+        }
       }
     },
     [
+      open,
+      userPaused,
+      isConfirming,
       allowedOdaItems,
       allowedOrderItems,
       appendEntry,
@@ -539,13 +569,13 @@ export function BatchBarcodeScanner({
       drainQueue,
       entries,
       lookup,
-      lookupResult,
       mergeResolvedEntry,
       mode,
       supplierId,
       supplierUsesGs1,
       trackDuplicate,
       triggerFlash,
+      setLookupResult,
     ],
   );
 
@@ -554,10 +584,13 @@ export function BatchBarcodeScanner({
   useEffect(() => {
     handleScanRef.current = handleScan;
   }, [handleScan]);
+  useEffect(() => { if (open && !scannerPaused) drainQueue(); }, [drainQueue, open, scannerPaused]);
 
   const {
     videoRef,
     cameraError,
+    isStarting,
+    cameraReady,
     torchOn,
     torchSupported,
     toggleTorch,
@@ -567,13 +600,8 @@ export function BatchBarcodeScanner({
     manualMode,
     paused: scannerPaused,
     onScan: handleScan,
+    onCameraError: () => setManualMode(true),
   });
-
-  useEffect(() => {
-    if (open && cameraError && !manualMode) {
-      setManualMode(true);
-    }
-  }, [cameraError, manualMode, open]);
 
   const { canConfirm, handleConfirm } = useBatchScannerSubmit({
     mode,
@@ -587,9 +615,8 @@ export function BatchBarcodeScanner({
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
     const c = manualCode.trim();
-    if (!c) return;
-    setManualCode("");
-    void handleScan(c);
+    if (!c || lookupInFlightRef.current || lookupResult || isConfirming) return;
+    void handleScan(c, "MANUAL");
   }
 
   // ID dell'entry attualmente in corso di creazione (per disabilitare il
@@ -664,28 +691,24 @@ export function BatchBarcodeScanner({
     }
   }, [entries, onRequestCreateItem, promoteNoMatch, triggerFlash]);
 
-  // v8.6.121 — A coda vuota la camera prende quasi tutto lo schermo (prima era
-  // 50/50 con un grande placeholder vuoto sotto, vedi screenshot device). Con
-  // righe in coda resta prominente ma lascia spazio alla revisione. Lookup: 50/50.
-  const cameraSizeClass =
-    mode === "lookup" ? "flex-1" : entries.length === 0 ? "flex-[4]" : "flex-[2]";
+  const cameraSizeClass = manualMode ? "shrink-0" : scannerPaused ? "h-28 sm:h-40 shrink-0 [@media(max-height:600px)]:!h-24" : "h-[clamp(120px,31dvh,300px)] sm:h-64 shrink-0 [@media(max-height:600px)]:!h-24";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {/* v8.6.118 — Sheet full-screen su mobile (h-[100svh]) per dare massimo
           spazio alla camera. Su desktop resta 90svh come prima. */}
-      <SheetContent side="bottom" className="h-[100svh] sm:h-[90svh] flex flex-col p-0">
+      <SheetContent side="bottom" className="h-[100dvh] max-h-[100dvh] sm:h-[90dvh] sm:max-h-[90dvh] flex flex-col gap-0 overflow-hidden p-0 [&>div[aria-hidden=true]]:hidden [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:top-1 [&>button]:right-1 [&>button]:text-white">
         {/* Header compatto: padding ridotto su mobile per piu spazio camera */}
-        <SheetHeader className="px-3 py-2 sm:px-4 sm:py-3 border-b shrink-0">
+        <SheetHeader className="bg-[#193b64] text-white pl-4 pr-14 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 border-b shrink-0 text-left">
           <div className="flex items-center justify-between gap-2">
-            <SheetTitle className="text-sm sm:text-base flex items-center gap-2 min-w-0">
-              <ScanLine className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+            <SheetTitle className="text-white text-sm sm:text-base flex items-center gap-2 min-w-0">
+              <ScanLine className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400 shrink-0" />
               <span className="truncate">
                 {mode === "lookup"
                   ? "Cerca articolo"
                   : mode === "oda_receive"
                     ? "Ricezione da ODA"
-                    : "Carico rapido QR"}
+                    : allowedOrderItems ? "Prelievo per commessa" : "Carico con scanner"}
               </span>
             </SheetTitle>
             <div className="flex items-center gap-1.5">
@@ -696,25 +719,24 @@ export function BatchBarcodeScanner({
                 </Badge>
               )}
               {mode !== "lookup" && (
-                <Badge variant="outline" className="font-mono text-xs">
-                  {entries.length}·{totalScans}pz
+                <Badge variant="outline" className="border-white/30 text-white text-xs">
+                  {entries.length} {entries.length === 1 ? "riga" : "righe"}
                 </Badge>
               )}
             </div>
           </div>
-          {contextLabel && (
-            <SheetDescription className="text-xs truncate">{contextLabel}</SheetDescription>
-          )}
+          <SheetDescription className="text-xs text-blue-100 break-words">{contextLabel || "Inquadra il codice e controlla l’articolo prima di continuare."}</SheetDescription>
         </SheetHeader>
 
         {/* v8.6.119 — Camera area FULL-VIEWPORT su mobile (flex-1) per
             massimizzare lo spazio scanner. Su desktop torna ad aspect-video. */}
-        <div className={`${cameraSizeClass} sm:flex-1 sm:shrink-0 relative bg-black overflow-hidden`}>
+        <div className={`${cameraSizeClass} relative bg-slate-950 overflow-hidden`}>
           {!manualMode ? (
             <div className="relative h-full">
               <video
                 ref={videoRef}
-                className="w-full h-full sm:h-auto sm:aspect-video object-cover cursor-pointer"
+                className="w-full h-full object-cover cursor-pointer"
+                aria-label="Anteprima fotocamera scanner"
                 playsInline
                 muted
                 autoPlay
@@ -730,34 +752,16 @@ export function BatchBarcodeScanner({
                     : "opacity-0"
                 }`}
               />
-              {/* v8.6.119 — Counter GROSSO + ultimo articolo scansionato.
-                  Mostra al magazziniere cosa ha appena scansionato senza
-                  guardare la lista in basso. */}
-              {mode !== "lookup" && totalScans > 0 && (
-                <div className="absolute top-3 left-3 right-auto max-w-[58%] sm:max-w-none bg-emerald-600/95 text-white rounded-xl px-4 py-2.5 sm:px-3 sm:py-1.5 shadow-xl pointer-events-none backdrop-blur-sm">
-                  <div className="flex items-center gap-3 sm:block">
-                    <div>
-                      <div className="text-3xl sm:text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
-                      <div className="text-[10px] sm:text-[9px] uppercase tracking-wider opacity-90 leading-tight mt-0.5">scansionati</div>
-                    </div>
-                    {/* v8.6.119 — Ultimo articolo (solo mobile) */}
-                    {(() => {
-                      const lastEntry = entries[entries.length - 1];
-                      if (!lastEntry || !lastEntry.itemName) return null;
-                      return (
-                        <div className="sm:hidden flex-1 min-w-0 border-l border-white/30 pl-3">
-                          <div className="text-[10px] uppercase tracking-wider opacity-80">Ultimo</div>
-                          <div className="text-sm font-medium truncate">{lastEntry.itemName}</div>
-                        </div>
-                      );
-                    })()}
-                  </div>
+              {(isStarting || scannerPaused || (!cameraReady && !cameraError)) && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-slate-950/90 text-white px-4 text-center" role="status">
+                  {isStarting ? <Loader2 className="h-7 w-7 animate-spin" /> : <ScanLine className="h-7 w-7 text-amber-400" />}
+                  <p className="text-sm font-medium">{isStarting ? "Avvio fotocamera…" : lookupResult ? "Codice letto: verifica i dettagli sotto" : userPaused ? "Scansione in pausa" : "Preparazione fotocamera…"}</p>
                 </div>
               )}
               {/* v8.6.119 — Reticolo grande con SCAN LINE animata (laser effect)
                   + corner brackets pi&ugrave; pro */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="relative w-[88%] max-w-md h-48 sm:h-32 sm:w-3/4 sm:max-w-xs">
+                <div className="relative w-[88%] max-w-md h-[55%] max-h-48 sm:h-32 sm:w-3/4 sm:max-w-xs">
                   {/* Dim background outside the reticule */}
                   <div className="absolute inset-0 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] sm:shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
                   {/* Corner brackets (4 corners) — solo mobile */}
@@ -769,7 +773,7 @@ export function BatchBarcodeScanner({
                   <div className="absolute inset-0 border-2 border-white/70 rounded-xl hidden sm:block" />
                   {/* SCAN LINE animata (effetto laser) */}
                   <div className="absolute inset-x-2 top-2 bottom-2 overflow-hidden rounded-lg">
-                    <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_2px_rgba(52,211,153,0.8)] animate-scan" />
+                    <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_2px_rgba(52,211,153,0.8)] motion-safe:animate-scan" />
                   </div>
                 </div>
               </div>
@@ -777,47 +781,10 @@ export function BatchBarcodeScanner({
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white text-xs bg-black/60 px-3 py-1.5 rounded-full pointer-events-none font-medium">
                 Tocca per mettere a fuoco
               </div>
-              {/* v8.6.120 — Controlli con ETICHETTA: il magazziniere capisce a
-                  colpo d'occhio cosa fanno (prima erano sole icone bianche).
-                  Stack verticale stretto in alto a destra → non collide col
-                  contatore verde in alto a sinistra. */}
-              <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
-                {torchSupported && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={toggleTorch}
-                    aria-label={torchOn ? "Spegni torcia" : "Accendi torcia"}
-                    aria-pressed={torchOn}
-                    className={`h-11 sm:h-9 gap-2 px-3 shadow-lg ${
-                      torchOn
-                        ? "bg-amber-400 hover:bg-amber-400 text-amber-950"
-                        : "bg-white/95 hover:bg-white text-slate-700"
-                    }`}
-                  >
-                    {torchOn ? (
-                      <FlashlightOff className="h-5 w-5 sm:h-4 sm:w-4" />
-                    ) : (
-                      <Flashlight className="h-5 w-5 sm:h-4 sm:w-4" />
-                    )}
-                    <span className="text-sm font-medium">{torchOn ? "Luce accesa" : "Luce"}</span>
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setManualMode(true)}
-                  aria-label="Inserimento manuale"
-                  className="h-11 sm:h-9 gap-2 px-3 bg-white/95 hover:bg-white text-slate-700 shadow-lg"
-                >
-                  <Keyboard className="h-5 w-5 sm:h-4 sm:w-4" />
-                  <span className="text-sm font-medium">Digita codice</span>
-                </Button>
-              </div>
               {lookup.isPending && (
                 <div className="absolute bottom-14 sm:bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white text-sm sm:text-xs px-3 py-1.5 sm:px-2 sm:py-1 rounded-full flex items-center gap-2">
                   <Loader2 className="h-4 w-4 sm:h-3 sm:w-3 animate-spin" />
-                  Risolvo...
+                  Cerco l’articolo…
                 </div>
               )}
               {cameraError && (
@@ -835,12 +802,13 @@ export function BatchBarcodeScanner({
             <form
               onSubmit={handleManualSubmit}
               className="bg-card p-4 border-b space-y-3"
+              aria-label="Inserimento codice scanner"
             >
               {cameraError && (
                 <Alert className="border-amber-200 bg-amber-50 text-amber-900">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    Fotocamera non disponibile su questo dispositivo. Inserisci o incolla il codice qui sotto.
+                    {cameraError} Puoi riprovare la fotocamera o inserire il codice.
                   </AlertDescription>
                 </Alert>
               )}
@@ -856,13 +824,16 @@ export function BatchBarcodeScanner({
                     onChange={(e) => setManualCode(e.target.value)}
                     placeholder="Digita o incolla..."
                     autoComplete="off"
-                    className="font-mono"
+                    className="h-12 text-base font-mono"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    enterKeyHint="search"
                   />
                 </div>
                 <Button
                   type="submit"
-                  disabled={!manualCode.trim() || lookup.isPending}
-                  className="shrink-0 gap-1.5"
+                  disabled={!manualCode.trim() || lookup.isPending || scannerPaused}
+                  className="shrink-0 h-12 gap-1.5"
                   aria-label="Cerca codice manuale"
                 >
                   <ScanLine className="h-4 w-4" />
@@ -872,14 +843,26 @@ export function BatchBarcodeScanner({
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setManualMode(false)}
-                  aria-label="Torna alla camera"
+                  onClick={() => {setUserPaused(false);setManualMode(false);}}
+                  className="h-12 w-12 shrink-0"
+                  aria-label={cameraError ? "Riprova fotocamera" : "Torna alla camera"}
                 >
                   <Camera className="h-4 w-4" />
                 </Button>
               </div>
             </form>
           )}
+        </div>
+
+        {!manualMode && (
+          <div className="grid grid-cols-3 gap-2 border-b bg-card px-3 py-2 shrink-0" aria-label="Comandi scanner">
+            <Button type="button" variant="outline" onClick={() => {setUserPaused(false);setManualMode(true);}} className="h-12 gap-1.5 px-2 text-xs" aria-label="Inserimento manuale"><Keyboard className="h-4 w-4 shrink-0" />Digita codice</Button>
+            <Button type="button" variant="outline" onClick={toggleTorch} disabled={!torchSupported || scannerPaused || isStarting} aria-pressed={torchOn} aria-label={torchOn ? "Spegni torcia" : "Accendi torcia"} className="h-12 gap-1.5 px-2 text-xs">{torchOn ? <FlashlightOff className="h-4 w-4 shrink-0" /> : <Flashlight className="h-4 w-4 shrink-0" />}Luce{!torchSupported && <span className="sr-only"> non disponibile</span>}</Button>
+            <Button type="button" variant={userPaused ? "default" : "outline"} onClick={() => setUserPaused(value => !value)} disabled={!!lookupResult || isConfirming} aria-pressed={userPaused} className="h-12 gap-1.5 px-2 text-xs">{userPaused ? <Play className="h-4 w-4 shrink-0" /> : <Pause className="h-4 w-4 shrink-0" />}{userPaused ? "Riprendi" : "Pausa"}</Button>
+          </div>
+        )}
+        <div className="shrink-0 border-b bg-slate-50 px-4 py-2 text-xs" role="status" aria-live="polite">
+          {lookup.isPending ? "Ricerca articolo in corso…" : lookupResult ? "Controlla il codice e conferma l’articolo." : latestEntry ? <>Ultimo aggiunto: <strong>{latestEntry.itemName || latestEntry.rawCode}</strong></> : "Inquadra un codice alla volta, a circa 15–25 cm."}
         </div>
 
         {/* Progress bar ordine — visibile solo se allowedOrderItems fornito.
@@ -921,17 +904,19 @@ export function BatchBarcodeScanner({
         )}
 
         {/* Risultato lookup single-shot / Entries list batch */}
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0" role="region" aria-label="Articoli scansionati">
           <div className="p-4 space-y-2">
             {confirmEachScan && lookupResult ? (
               <ConfirmAddPanel
                 result={lookupResult}
                 canCreate={!!onRequestCreateItem}
+                maxQuantity={pendingMaxQuantity}
                 onConfirmAdd={(qty) => {
+                  if (!Number.isFinite(qty) || qty <= 0 || qty > pendingMaxQuantity) { toast.error("La quantità supera il residuo da registrare."); return; }
                   if (lookupResult.stockItemId) {
-                    mergeResolvedEntry({ ...lookupResult, quantity: qty }, pendingOdaRef.current);
+                    mergeResolvedEntry({ ...lookupResult, quantity: qty }, pendingOda);
                   }
-                  pendingOdaRef.current = null;
+                  setPendingOda(null);
                   setLookupResult(null);
                 }}
                 onCreate={async () => {
@@ -943,12 +928,12 @@ export function BatchBarcodeScanner({
                       stockItemId: created.stockItemId,
                       itemName: created.itemName,
                       trackingMode: created.trackingMode,
-                    }, pendingOdaRef.current);
+                    }, pendingOda);
                   }
-                  pendingOdaRef.current = null;
+                  setPendingOda(null);
                   setLookupResult(null);
                 }}
-                onCancel={() => { pendingOdaRef.current = null; setLookupResult(null); }}
+                onCancel={() => { setPendingOda(null); setLookupResult(null); }}
               />
             ) : mode === "lookup" && lookupResult ? (
               <LookupResultPanel
@@ -1003,7 +988,7 @@ export function BatchBarcodeScanner({
                       size="sm"
                       onClick={handleCreateUnicoFromAllNoMatch}
                       disabled={creatingForUuid !== null}
-                      className="mt-2 h-8 gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                      className="mt-2 min-h-11 h-auto py-2 whitespace-normal gap-2 bg-amber-600 hover:bg-amber-700 text-white"
                     >
                       {creatingForUuid !== null ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1023,7 +1008,7 @@ export function BatchBarcodeScanner({
                 let canIncrement = true;
                 if (mode === "oda_receive" && entry.odaItemId && allowedOdaItems) {
                   const max = allowedOdaItems.find((item) => item.odaItemId === entry.odaItemId)?.qtyPending ?? Infinity;
-                  canIncrement = entry.quantity < max;
+                  canIncrement = entry.quantity + 1 <= max;
                 } else if (mode === "carico" && allowedOrderItems) {
                   const allowed = allowedOrderItems.find((a) => a.stockItemId === entry.stockItemId);
                   if (allowed) {
@@ -1033,7 +1018,7 @@ export function BatchBarcodeScanner({
                     const totalForItem = entries
                       .filter((e) => e.stockItemId === entry.stockItemId)
                       .reduce((sum, e) => sum + e.quantity, 0);
-                    canIncrement = totalForItem < allowed.qtyRequired;
+                    canIncrement = totalForItem + 1 <= allowed.qtyRequired;
                   }
                 }
                 return (
@@ -1064,14 +1049,10 @@ export function BatchBarcodeScanner({
         {mode !== "lookup" && (
           <div className="border-t p-3 space-y-2 shrink-0 bg-card">
             {entries.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 [@media(max-height:600px)]:hidden">
                 <div className="rounded-md border bg-muted/30 px-2 py-1.5 text-center">
                   <p className="text-sm font-bold leading-tight">{entries.length}</p>
                   <p className="text-[10px] text-muted-foreground">righe</p>
-                </div>
-                <div className="rounded-md border bg-muted/30 px-2 py-1.5 text-center">
-                  <p className="text-sm font-bold leading-tight">{totalScans}</p>
-                  <p className="text-[10px] text-muted-foreground">pezzi</p>
                 </div>
                 <div
                   className={`rounded-md border px-2 py-1.5 text-center ${
@@ -1114,7 +1095,7 @@ export function BatchBarcodeScanner({
                 type="button"
                 variant="outline"
                 onClick={onBack ?? (() => onOpenChange(false))}
-                className="flex-1 h-14 sm:h-10 text-base sm:text-sm font-medium"
+                className="min-w-0 flex-1 h-14 sm:h-11 text-sm font-medium whitespace-normal leading-tight"
               >
                 {onBack ? (
                   <ArrowLeft className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
@@ -1125,9 +1106,9 @@ export function BatchBarcodeScanner({
               </Button>
               <Button
                 type="button"
-                onClick={handleConfirm}
-                disabled={!canConfirm}
-                className="flex-[2] h-14 sm:h-10 text-base sm:text-sm font-semibold shadow-lg"
+                onClick={() => { if (!lookupResultRef.current && !lookupInFlightRef.current && !scanQueueRef.current.length && creatingForUuid === null) handleConfirm(); }}
+                disabled={!canConfirm || !!lookupResult || lookup.isPending || creatingForUuid !== null}
+                className="min-w-0 flex-[2] h-14 sm:h-11 text-sm font-semibold whitespace-normal leading-tight shadow-lg"
               >
                 {isConfirming ? (
                   <>
@@ -1158,18 +1139,22 @@ function ConfirmAddPanel({
   result,
   canCreate,
   onConfirmAdd,
+  maxQuantity,
   onCreate,
   onCancel,
 }: {
   result: BatchScanEntry;
   canCreate: boolean;
   onConfirmAdd: (qty: number) => void;
+  maxQuantity: number;
   onCreate: () => void | Promise<void>;
   onCancel: () => void;
 }) {
   const matched = !!result.stockItemId;
   const serialized = result.trackingMode === "serialized";
-  const [qty, setQty] = useState(1);
+  const [quantityText, setQuantityText] = useState(String(Math.min(1, maxQuantity)));
+  const qty = Number(quantityText.trim().replace(",", "."));
+  const quantityValid = Number.isFinite(qty) && qty > 0 && qty <= maxQuantity && (result.unitOfMeasure !== "pz" || Number.isInteger(qty));
   const [creating, setCreating] = useState(false);
 
   return (
@@ -1198,28 +1183,30 @@ function ConfirmAddPanel({
       </div>
 
       {matched && !serialized && (
-        <div className="flex items-center gap-2">
-          <Label className="text-xs shrink-0">Quantità</Label>
-          <Button type="button" size="icon" variant="outline" className="h-9 w-9" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</Button>
-          <Input type="number" inputMode="numeric" min={1} value={qty}
-            onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-            className="h-9 w-20 text-center font-semibold tabular-nums" />
-          <Button type="button" size="icon" variant="outline" className="h-9 w-9" onClick={() => setQty((q) => q + 1)}>+</Button>
+        <div className="space-y-2">
+          <Label htmlFor="scanner-confirm-quantity" className="text-sm">Quantità{result.unitOfMeasure ? ` (${result.unitOfMeasure})` : ""}</Label>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="icon" variant="outline" className="h-12 w-12 shrink-0" aria-label="Riduci quantità da aggiungere" disabled={!quantityValid || qty <= 1} onClick={() => setQuantityText(String(Math.max(0, qty - 1)))}>−</Button>
+            <Input id="scanner-confirm-quantity" type="text" inputMode="decimal" value={quantityText} onChange={event => setQuantityText(event.target.value)} aria-invalid={!quantityValid} aria-describedby={!quantityValid ? "scanner-quantity-error" : undefined} className="h-12 min-w-0 flex-1 text-base text-center font-semibold tabular-nums" />
+            <Button type="button" size="icon" variant="outline" className="h-12 w-12 shrink-0" aria-label="Aumenta quantità da aggiungere" disabled={!quantityValid || qty + 1 > maxQuantity} onClick={() => setQuantityText(String(qty + 1))}>+</Button>
+          </div>
+          {Number.isFinite(maxQuantity) && <p className="text-xs text-muted-foreground">Residuo disponibile: {maxQuantity.toLocaleString("it-IT")}</p>}
+          {!quantityValid && <p id="scanner-quantity-error" role="alert" className="text-xs text-destructive">Inserisci una quantità positiva entro il residuo{result.unitOfMeasure === "pz" ? ", senza decimali" : ""}.</p>}
         </div>
       )}
 
       <div className="flex gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel} className="flex-1">
+        <Button type="button" variant="ghost" onClick={onCancel} className="min-h-12 flex-1">
           <X className="h-4 w-4 mr-1" /> Annulla
         </Button>
         {matched ? (
-          <Button type="button" onClick={() => onConfirmAdd(serialized ? Math.max(1, result.serialNumbers.length || 1) : qty)} className="flex-[2]">
+          <Button type="button" disabled={!serialized && !quantityValid} onClick={() => onConfirmAdd(serialized ? Math.max(1, result.serialNumbers.length || 1) : qty)} className="min-h-12 min-w-0 flex-[2] whitespace-normal leading-tight">
             <Check className="h-4 w-4 mr-1" /> Conferma e aggiungi
           </Button>
         ) : (
           <Button type="button" disabled={!canCreate || creating}
             onClick={async () => { setCreating(true); try { await onCreate(); } finally { setCreating(false); } }}
-            className="flex-[2]">
+            className="min-h-12 min-w-0 flex-[2] whitespace-normal leading-tight">
             {creating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <PackagePlus className="h-4 w-4 mr-1" />} Crea articolo
           </Button>
         )}
@@ -1282,22 +1269,22 @@ function LookupResultPanel({
       <div className="grid grid-cols-1 gap-2">
         {matched ? (
           <>
-            <Button onClick={onFilterInTable} className="w-full justify-start">
+            <Button onClick={onFilterInTable} className="min-h-12 w-full justify-start whitespace-normal text-left">
               <Filter className="h-4 w-4 mr-2" />
               Filtra in tabella
             </Button>
-            <Button onClick={onEditItem} variant="outline" className="w-full justify-start">
+            <Button onClick={onEditItem} variant="outline" className="min-h-12 w-full justify-start whitespace-normal text-left">
               <Edit className="h-4 w-4 mr-2" />
               Modifica articolo
             </Button>
           </>
         ) : (
-          <Button onClick={onCreateNew} className="w-full justify-start">
+          <Button onClick={onCreateNew} className="min-h-12 w-full justify-start whitespace-normal text-left">
             <Plus className="h-4 w-4 mr-2" />
             Crea nuovo articolo con questo codice
           </Button>
         )}
-        <Button onClick={onScanAgain} variant="ghost" className="w-full justify-start">
+        <Button onClick={onScanAgain} variant="ghost" className="min-h-12 w-full justify-start whitespace-normal text-left">
           <ScanLine className="h-4 w-4 mr-2" />
           Scansiona di nuovo
         </Button>
@@ -1366,7 +1353,7 @@ function EntryRow({
                   onPriceChange?.(Number.isFinite(n) && n >= 0 ? n : undefined);
                 }}
                 placeholder="—"
-                className="h-8 w-24 pl-5 text-sm tabular-nums"
+                className="h-11 w-24 pl-5 text-base tabular-nums"
                 aria-label={`Prezzo d'acquisto per ${entry.itemName ?? entry.rawCode}`}
               />
             </div>
@@ -1404,7 +1391,7 @@ function EntryRow({
             size="sm"
             onClick={onCreateFromNoMatch}
             disabled={creating}
-            className="h-8 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+            className="h-11 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
           >
             {creating ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1422,19 +1409,19 @@ function EntryRow({
               size="icon"
               onClick={onDecrement}
               disabled={entry.quantity <= 1}
-              className="h-8 w-8"
+              className="h-11 w-11"
               aria-label="Decrementa"
             >
               <Minus className="h-3.5 w-3.5" />
             </Button>
-            <span className="w-8 text-center text-sm font-medium">{entry.quantity}</span>
+            <span className="min-w-8 text-center text-sm font-medium tabular-nums">{entry.quantity.toLocaleString("it-IT")} {entry.unitOfMeasure || ""}</span>
             <Button
               type="button"
               variant="outline"
               size="icon"
               onClick={onIncrement}
               disabled={!canIncrement}
-              className="h-8 w-8"
+              className="h-11 w-11"
               aria-label="Incrementa"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -1456,7 +1443,7 @@ function EntryRow({
           variant="ghost"
           size="icon"
           onClick={onRemove}
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          className="h-11 w-11 text-muted-foreground hover:text-destructive"
           aria-label="Rimuovi"
         >
           <Trash2 className="h-3.5 w-3.5" />

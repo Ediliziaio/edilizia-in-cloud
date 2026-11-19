@@ -96,37 +96,27 @@ export function AnagraficaSelectCombobox({ companyId, value, onChange, disabled,
   });
 
   // Riga selezionata (per il trigger) — lookup separato se non è nella lista corrente
-  const [selected, setSelected] = useState<AnagraficaOption | null>(null);
-  useEffect(() => {
-    if (!value) {
-      setSelected(null);
-      return;
-    }
-    const found = rows.find((r) => r.id === value);
-    if (found) setSelected(found);
-  }, [value, rows]);
-
+  const fromList = rows.find(row => row.id === value) ?? null;
   const { data: standalone } = useQuery<AnagraficaOption | null>({
-    queryKey: ["uscita-anagrafica-lookup", value],
-    enabled: !!value && !selected,
+    queryKey: ["uscita-anagrafica-lookup", companyId, value],
+    enabled: !!companyId && !!value && !fromList,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       if (!value) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("anagrafiche_native")
         .select(SELECT_COLS)
         .eq("id", value)
+        .eq("company_id", companyId!)
         .maybeSingle();
+      if (error) throw error;
       return (data ?? null) as AnagraficaOption | null;
     },
   });
-  useEffect(() => {
-    if (standalone && !selected) setSelected(standalone);
-  }, [standalone, selected]);
+  const selected = fromList ?? (standalone?.id === value ? standalone : null);
 
   const handleSelect = useCallback(
     (a: AnagraficaOption) => {
-      setSelected(a);
       onChange(a.id, a);
       setOpen(false);
     },

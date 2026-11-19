@@ -19,7 +19,7 @@ describe("fasi di partenza nel modulo di nuova commessa", () => {
     expect(SORGENTE).toContain("salvaFasiDiPartenza(result.id, fasiConDate");
     expect(SORGENTE).toContain("createdOrderIdRef.current = result.id");
     expect(SORGENTE).toContain("createOrderMutation.isPending || createdOrderIdRef.current");
-    expect(SORGENTE).toContain("saveDraft({ ...datiBozza, commessaCreataId: result.id })");
+    expect(SORGENTE).toContain("saveDraft({ ...datiBozza, commessaCreataId: result.id");
     expect(SORGENTE).toContain('toast.error("Fasi non aggiunte"');
     expect(SORGENTE.slice(rpc, SORGENTE.indexOf("return result;", rpc))).not.toContain("throw");
   });

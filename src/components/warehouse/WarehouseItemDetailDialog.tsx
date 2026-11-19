@@ -1,3 +1,4 @@
+import { openWarehouseDocument } from "@/lib/magazzino/allegatiMagazzino";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/formatters";
@@ -503,11 +504,8 @@ export default function WarehouseItemDetailDialog({
                             </Button>
                           )}
                           {fileUrl && (
-                            <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
-                              <a href={fileUrl} target="_blank" rel="noreferrer">
-                                <FileText className="h-3 w-3 mr-1" />
-                                Allegato
-                              </a>
+                            <Button variant="ghost" size="sm" onClick={() => void openWarehouseDocument(fileUrl)} className="h-7 px-2 text-xs">
+                              <FileText className="h-3 w-3 mr-1" />Allegato
                             </Button>
                           )}
                         </div>

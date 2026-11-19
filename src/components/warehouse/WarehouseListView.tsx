@@ -1,3 +1,6 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { usePreparationBalances } from "@/hooks/warehouse/usePreparationBalances";
+import { fabbisognoMateriale } from "@/lib/magazzino/riepiloghiMagazzino";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
@@ -57,6 +60,8 @@ function WarehouseListView({
   onSectionChange,
   readOnly = false,
 }: WarehouseListViewProps) {
+  const { effectiveCompany } = useAuth();
+  const balances = usePreparationBalances(effectiveCompany?.id, orderGroups.map(g => g.orderId));
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -106,19 +111,6 @@ function WarehouseListView({
     setSelectedItems(new Set());
   }, [selectedItems, onBatchStatusChange]);
 
-  const stockMap = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; quantity: number }>();
-    stockItems.forEach(s => map.set(s.name.toLowerCase(), s));
-    return map;
-  }, [stockItems]);
-
-  const findStockMatch = useCallback((itemName: string) => {
-    const nameLower = itemName.toLowerCase();
-    return stockMap.get(nameLower) || 
-      Array.from(stockMap.values()).find(s => nameLower.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(nameLower)) || 
-      null;
-  }, [stockMap]);
-
   const handleSelectItem = useCallback((item: WarehouseItem) => {
     setSelectedItemId(item.id);
   }, []);
@@ -151,6 +143,8 @@ function WarehouseListView({
 
   return (
     <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">Le fasi operative sono separate dalle quantità. “Da coprire” è il residuo senza prenotazione: verifica il libero nel deposito e gli ordini in arrivo prima di acquistare.</p>
+      {balances.isError && <p role="alert" className="text-sm text-amber-800">Quantità di commessa non verificabili. <Button variant="outline" size="sm" onClick={() => void balances.refetch()}>Riprova quantità</Button></p>}
       {/* Batch actions bar */}
       {!readOnly && selectedItems.size > 0 && (
         <div className="flex items-center justify-between p-3 bg-primary/5 border rounded-lg">
@@ -194,7 +188,7 @@ function WarehouseListView({
             const totalActiveItems = Math.max(group.items.length - indicators.installed, 0);
             const readyLabel =
               indicators.toOrder > 0
-                ? "Materiali da ordinare"
+                ? "Materiali da preparare"
                 : indicators.ordered > 0
                   ? "Merce in arrivo"
                   : indicators.ready >= totalActiveItems
@@ -291,7 +285,7 @@ function WarehouseListView({
                         )}
                         {indicators.toOrder > 0 && (
                           <Badge variant="outline" className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs max-sm:hidden">
-                            {indicators.toOrder} da ordinare
+                            {indicators.toOrder} in fase da ordinare
                           </Badge>
                         )}
                         <Badge variant="secondary" className="text-xs max-sm:px-1.5 max-sm:text-[11px]">
@@ -316,7 +310,8 @@ function WarehouseListView({
                           onUpdateNotes={onUpdateNotes}
                           onSelectItem={handleSelectItem}
                           supplierName={getSupplierName(item.supplier_id)}
-                          stockMatch={item.status === "da_ordinare" ? findStockMatch(item.name) : null}
+                          stockMatch={item.stock_item_id ? stockItems.find(s => s.id === item.stock_item_id) ?? null : null}
+                          preparation={balances.data && !balances.isFetching && item.stock_item_id && !balances.data.get(item.order.id)?.some(r => (r.orderItemId ?? r.id) === item.id && r.verified === false) ? fabbisognoMateriale(Number(item.quantity ?? 0), item.fulfillment_status === "received" ? Number(item.warehouse_reserved_quantity ?? item.quantity ?? 0) : 0, balances.data.get(item.order.id)?.filter(r => (r.orderItemId ?? r.id) === item.id).reduce((s,r) => s+r.usciti,0) ?? 0, balances.data.get(item.order.id)?.filter(r => (r.orderItemId ?? r.id) === item.id).reduce((s,r) => s+r.rientrati,0) ?? 0) : null}
                           isUpdating={isUpdating}
                           isSupplierGroup={isSupplierGroup}
                           sections={sections}
@@ -380,7 +375,7 @@ function WarehouseListView({
         onUpdateNotes={onUpdateNotes}
         getSupplierName={getSupplierName}
         isUpdating={isUpdating}
-        stockMatch={selectedItem && selectedItem.status === "da_ordinare" ? findStockMatch(selectedItem.name) : null}
+        stockMatch={selectedItem?.stock_item_id ? stockItems.find(s => s.id === selectedItem.stock_item_id) ?? null : null}
         readOnly={readOnly}
       />
     </div>

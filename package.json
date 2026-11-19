@@ -7,7 +7,7 @@
     "centralino:local": "node --env-file-if-exists=.env.fish.local scripts/fish-centralino-local.mjs",
     "test:fish": "vitest run src/test/logic/fishVoiceHeaders.test.ts src/test/logic/fishActionConsent.test.ts src/test/logic/fishItalianSpeech.test.ts src/test/logic/fishDemoHandoff.test.ts src/test/ui/fishHandoffSimulation.test.tsx src/test/logic/fishCaseMemory.test.ts src/test/ui/fishCaseMemory.test.tsx src/test/logic/fishAudio.test.ts src/test/logic/fishCentralino.test.ts src/test/logic/fishSimulation.test.ts src/test/logic/centralinoCalls.test.ts src/test/logic/fishCalendarTools.test.ts src/test/logic/fishConnectionRequests.test.ts src/test/logic/fishAgentProxy.test.ts src/test/logic/fishCustomerTools.test.ts src/test/ui/fishAgentPanel.test.tsx src/test/ui/fishAgentWorkspace.test.tsx src/test/ui/centralinoCallHistory.test.tsx src/test/ui/fishOnboarding.test.tsx src/test/ui/fishCreation.test.tsx src/test/ui/fishCrmTrial.test.tsx src/test/ui/fishLiveTranscript.test.tsx src/test/ui/ticketAIConversation.test.tsx src/test/logic/fishTranscript.test.ts && node --test scripts/fish-centralino/lead-optout-db.test.mjs scripts/fish-centralino/local-server.test.mjs scripts/fish-centralino/db-integration.test.mjs scripts/fish-centralino/crm-trial-db.test.mjs scripts/fish-centralino/routing-db.test.mjs",
     "dev": "vite",
-    "build": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
+    "build": "npm run security:warehouse && npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build && npm run playwright:ensure && NODE_OPTIONS=--max-old-space-size=8192 node scripts/prerender.mjs",
     "build:fast": "npm run build:images && npm run build:preventivi && NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "build:preventivi": "node scripts/preventivi-render/build.mjs && node scripts/bgn-render/build.mjs",
     "build:dev": "npm run build:images && npm run build:preventivi && vite build --mode development",
@@ -52,6 +52,7 @@
     "test:global-webhooks": "vitest run --maxWorkers=2 src/test/logic/globalWebhookDelivery.test.ts src/test/logic/globalWebhookQueueSql.test.ts src/test/logic/globalWebhookAuth.test.ts src/test/ui/settingsWebhookPersistence.test.tsx src/test/ui/settingsWebhooksSafety.test.tsx",
     "test:migration-recovery": "vitest run --maxWorkers=2 src/test/logic/recoveredDependencyCompletion.test.ts src/test/logic/recoveredMigrationSecurity.test.ts src/test/logic/adminViewMigrationOrder.test.ts src/test/logic/migrazioneChatIntelDipendenze.test.ts src/test/logic/recoveredPolicyFingerprint.test.ts src/test/logic/policyAccorpateOrdineSql.test.ts",
     "dev:fv-tetto-test": "vite --config vite.fv-tetto-test.config.ts",
+    "security:warehouse": "node scripts/security/warehouse-release-check.mjs",
     "build:images": "node scripts/generate-blog-cover-variants.mjs"
   },
   "dependencies": {
@@ -233,6 +234,18 @@
     "@radix-ui/react-portal": "1.1.11",
     "@radix-ui/react-popper": "1.3.0",
     "@radix-ui/react-collection": "1.1.9",
-    "react-remove-scroll": "2.7.2"
+    "react-remove-scroll": "2.7.2",
+    "@opentelemetry/core": "2.8.0",
+    "glob@^11": "14.0.6",
+    "minimatch@^10": "11.0.9",
+    "minimatch@^9": "11.0.9",
+    "uuid@^7": "11.1.1",
+    "esbuild@^0.27.0 || ^0.28.0": "0.28.2",
+    "glob@^13": "14.0.6",
+    "uuid@^8": "11.1.1"
+  },
+  "patchedDependencies": {
+    "picomatch@4.0.4": "patches/picomatch@4.0.4.patch",
+    "picomatch@2.3.2": "patches/picomatch@2.3.2.patch"
   }
 }

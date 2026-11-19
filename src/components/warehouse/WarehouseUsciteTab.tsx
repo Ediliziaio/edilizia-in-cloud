@@ -8,6 +8,7 @@
  * il secondo passo non lo ricordava nessuno.
  */
 import { useMemo, useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpFromLine, FileText, User, HardHat, PencilLine, ExternalLink, Truck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,9 +29,11 @@ const STATO_BADGE: Record<UscitaRow["stato"], { label: string; variant: "default
 
 const TIPO_ICON = { cliente: User, cantiere: HardHat, libero: PencilLine } as const;
 
-export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: string | null }) {
+export function WarehouseUsciteTab({ warehouseFilter, readOnly = false }: { warehouseFilter: string | null; readOnly?: boolean }) {
   const navigate = useNavigate();
-  const { data: uscite = [], isLoading } = useWarehouseUscite(warehouseFilter);
+  const permissions = usePermissions();
+  const canWrite = !readOnly && !permissions.isLoading && permissions.canEditWarehouse;
+  const { data: uscite = [], isLoading, isError, refetch } = useWarehouseUscite(warehouseFilter);
   const [search, setSearch] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("tutte");
   const [perDdt, setPerDdt] = useState<UscitaPerDdt | null>(null);
@@ -59,9 +62,9 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
           <Input className="max-w-xs" placeholder="Cerca per numero o destinatario…" value={search} onChange={(e) => setSearch(e.target.value)} />
           <div role="group" aria-label="Filtra le uscite" className="flex gap-1">
             {([
-              ["tutte", `Tutte · ${uscite.length}`],
-              ["senza_ddt", `Senza DDT · ${senzaDdt}`],
-              ["con_ddt", `Con DDT · ${uscite.length - senzaDdt}`],
+              ["tutte", `Tutte · ${isLoading || isError ? "—" : uscite.length}`],
+              ["senza_ddt", `Senza DDT · ${isLoading || isError ? "—" : senzaDdt}`],
+              ["con_ddt", `Con DDT · ${isLoading || isError ? "—" : uscite.length - senzaDdt}`],
             ] as const).map(([valore, etichetta]) => (
               <Button
                 key={valore}
@@ -76,7 +79,7 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
             ))}
           </div>
         </div>
-        {senzaDdt > 0 && (
+        {!isLoading && !isError && senzaDdt > 0 && (
           <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             {senzaDdt === 1
               ? "1 uscita è partita senza DDT."
@@ -88,7 +91,7 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
       <CardContent className="p-0">
         <div className="divide-y">
           {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">Caricamento…</div>}
-          {!isLoading && filtered.length === 0 && (
+          {!isLoading && !isError && filtered.length === 0 && (
             <div className="py-12 text-center text-sm text-muted-foreground">
               {uscite.length === 0 ? (
                 <>Nessuna uscita registrata. Usa <strong>"Uscita merce"</strong> per registrarne una.</>
@@ -97,7 +100,8 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
               )}
             </div>
           )}
-          {filtered.map((u) => {
+          {isError && <div role="alert" className="p-4 text-sm">Impossibile caricare le uscite. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova uscite</Button></div>}
+          {!isError && filtered.map((u) => {
             const Icon = TIPO_ICON[u.destinatario_tipo] ?? PencilLine;
             const badge = STATO_BADGE[u.stato];
             const nRighe = Array.isArray(u.righe) ? u.righe.length : 0;
@@ -121,7 +125,7 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
                     {u.note ? ` · ${u.note}` : ""}
                   </div>
                 </div>
-                {u.stato === "registrata" ? (
+                {u.stato === "registrata" && canWrite ? (
                   <Button size="sm" onClick={() => setPerDdt(uscitaPerDdt(u))}>
                     <FileText className="h-4 w-4 mr-2" />
                     Crea DDT
@@ -136,7 +140,7 @@ export function WarehouseUsciteTab({ warehouseFilter }: { warehouseFilter: strin
           })}
         </div>
       </CardContent>
-      <CreaDdtDaUscitaDialog uscita={perDdt} onOpenChange={(open) => !open && setPerDdt(null)} />
+      <CreaDdtDaUscitaDialog uscita={canWrite ? perDdt : null} onOpenChange={(open) => !open && setPerDdt(null)} />
     </Card>
   );
 }

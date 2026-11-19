@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useMemo, useCallback, memo, lazy, Suspense } from "react";
+import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
+import { useEffect, useRef, useState, useMemo, useCallback, memo, lazy, Suspense, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent, type DragEndEvent } from "@dnd-kit/core";
 import { useDraggable } from "@dnd-kit/core";
@@ -7,9 +8,11 @@ import { Link } from "react-router-dom";
 import { queryKeys } from "@/lib/queryKeys";
 import { readAllOrderRows } from "@/lib/orders/listScope";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck, MapPin, Barcode, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, MoreVertical, MapPin, Barcode, Trash2, Loader2, Columns3, Upload, Download } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +20,9 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +34,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { exportToCSV } from "@/lib/csvExport";
 import { formatCurrency } from "@/lib/formatters";
 import { logger } from "@/utils/logger";
 import { StockItemDialog } from "./StockItemDialog";
@@ -40,11 +46,15 @@ import { StockUnitsDrilldownSheet } from "./StockUnitsDrilldownSheet";
 
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useScopedStorage } from "@/hooks/warehouse/useScopedStorage";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import InventoryAuditDialog from "./InventoryAuditDialog";
+import { filtraInventario, INVENTORY_FILTER_LABELS, type InventoryFilter } from "@/lib/magazzino/filtriInventario";
 import { isSottoScorta, type StockItem } from "@/types/warehouse";
 import { useMagazzinoInArrivo, type InArrivoArticolo } from "@/hooks/useMagazzinoRiepilogo";
-import { valutaEliminazione } from "@/lib/magazzino/eliminazioneArticolo";
+import { conteggioVerificato, valutaEliminazione } from "@/lib/magazzino/eliminazioneArticolo";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -66,23 +76,56 @@ const UscitaMerceSheet = lazy(() =>
   import("./UscitaMerceSheet").then((m) => ({ default: m.UscitaMerceSheet })),
 );
 
+const ArticoliCSVImportDialog = lazy(() => import("./ArticoliCSVImportDialog").then((m) => ({ default: m.ArticoliCSVImportDialog })));
+const ReserveStockDialog = lazy(() => import("./ReserveStockDialog").then((m) => ({ default: m.ReserveStockDialog })));
+const EMPTY_STOCK: StockItem[] = [];
+const OPTIONAL_COLUMNS = [
+  { key: "code", label: "Codice" },
+  { key: "zone", label: "Zona" },
+  { key: "unit_cost", label: "Costo unitario", costs: true },
+  { key: "total_value", label: "Valore totale", costs: true },
+  { key: "supplier", label: "Fornitore" },
+  { key: "threshold", label: "Scorta minima" },
+] as const;
+type OptionalColumn = typeof OPTIONAL_COLUMNS[number]["key"];
+const DEFAULT_COLUMNS: OptionalColumn[] = [];
+const decodeColumns = (raw: string): OptionalColumn[] => {
+  const parsed: unknown = JSON.parse(raw);
+  return Array.isArray(parsed) ? parsed.filter((key): key is OptionalColumn => OPTIONAL_COLUMNS.some((c) => c.key === key)) : [];
+};
+
 interface WarehouseStockTabProps {
   warehouseFilter?: string | null;
+  warehouseSelect?: ReactNode;
+  primaryActions?: ReactNode;
+  additionalMenuItems?: ReactNode;
+  onReorder?: () => void;
+  onRegisterArrival?: (item?: StockItem) => void;
   actionRequest?: {
     type: "receive" | "ship";
+    item?: StockItem;
     nonce: number;
   } | null;
   readOnly?: boolean;
+  showMovementActions?: boolean;
+  onActionHandled?: () => void;
+  metricFilter?: InventoryFilter;
+  onMetricFilterChange?: (filter: InventoryFilter) => void;
 }
 
-export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null, readOnly = false }: WarehouseStockTabProps) {
-  const { effectiveCompany } = useAuth();
+export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null, readOnly: readOnlyProp = false, showMovementActions = true, onActionHandled, metricFilter = "all", onMetricFilterChange, warehouseSelect, primaryActions, additionalMenuItems, onReorder, onRegisterArrival }: WarehouseStockTabProps) {
+  const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
+  const readOnly = readOnlyProp || permissions.isLoading || !permissions.canEditWarehouse;
+  const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
+  const assertWritable = () => { if (readOnly) throw new Error("Il magazzino è in sola lettura."); };
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
-  const { defaultWarehouse } = useWarehouses(true);
+  const { defaultWarehouse, warehouses: knownWarehouses = [] } = useWarehouses(true);
   const resolveWarehouseId = (item?: StockItem | null) =>
     item?.warehouse_id ?? warehouseFilter ?? defaultWarehouse?.id ?? null;
 
+  const [tableContainer, setTableContainer] = useState<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
   const [lottoFilter, setLottoFilter] = useState<string>("all");
@@ -116,17 +159,33 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [prefillBarcodeForDialog, setPrefillBarcodeForDialog] = useState<string | undefined>();
   // Carico rapido + ODA Reverse (MP2 P1a) + Uscita merce 2 fasi (MP3 P1b)
   const [caricoOpen, setCaricoOpen] = useState(false);
+  const [caricoItem, setCaricoItem] = useState<StockItem | undefined>();
+  const [reservation, setReservation] = useState<{ item?: StockItem } | null>(null);
   const [odaReceiveOpen, setOdaReceiveOpen] = useState(false);
   const [uscitaOpen, setUscitaOpen] = useState(false);
+  const [uscitaItem, setUscitaItem] = useState<StockItem | undefined>();
   const [zonesDialogOpen, setZonesDialogOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const toolsTriggerRef = useRef<HTMLButtonElement>(null);
+  const [optionalColumns, setOptionalColumns] = useScopedStorage<OptionalColumn[]>(
+    companyId ? `warehouse-columns:v1:${companyId}:${user?.id ?? "current"}` : null,
+    DEFAULT_COLUMNS,
+    decodeColumns,
+  );
+  const activeFilterCount = Number(metricFilter !== "all") + Number(sectionFilter !== "all") + Number(lottoFilter !== "all");
 
   const requestKey = actionRequest ? `${actionRequest.type}:${actionRequest.nonce}` : null;
   const [handledRequestKey, setHandledRequestKey] = useState<string | null>(null);
   if (requestKey !== handledRequestKey) {
     setHandledRequestKey(requestKey);
-    if (!readOnly && actionRequest?.type === "receive") setCaricoOpen(true);
+    if (!readOnly && actionRequest?.type === "receive") { setCaricoItem(actionRequest.item); setCaricoOpen(true); }
     if (!readOnly && actionRequest?.type === "ship") setUscitaOpen(true);
   }
+
+  useEffect(() => {
+    if (requestKey && requestKey === handledRequestKey) onActionHandled?.();
+  }, [requestKey, handledRequestKey, onActionHandled]);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -134,7 +193,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   );
 
   // Fetch stock items
-  const { data: stockItems = [], isLoading } = useQuery({
+  const { data: stockItems = EMPTY_STOCK, isLoading, isError, refetch } = useQuery({
     queryKey: [...queryKeys.warehouse.stock(companyId), warehouseFilter],
     queryFn: async () => {
       if (!companyId) return [];
@@ -156,7 +215,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   });
 
   // per ogni articolo, quanto è negli ordini fornitore aperti
-  const { data: inArrivo } = useMagazzinoInArrivo();
+  const { data: inArrivo, isError: arriviError, isLoading: arriviLoading, refetch: refetchArrivi } = useMagazzinoInArrivo();
 
   // ── Eliminazione articolo ──────────────────────────────────────────────
   // Non esisteva: un articolo censito per sbaglio restava in elenco per sempre.
@@ -167,8 +226,11 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     { eliminabile: boolean; motivo: string } | null
   >(null);
   const [verificaInCorso, setVerificaInCorso] = useState(false);
+  const verificaRichiesta = useRef(0);
 
   const chiediEliminazione = useCallback(async (item: StockItem) => {
+    if (readOnly) return;
+    const richiesta = ++verificaRichiesta.current;
     setDaEliminare(item);
     setVerificaEliminazione(null);
     setVerificaInCorso(true);
@@ -179,17 +241,19 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         supabase.from("stock_lotti").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
         supabase.from("warehouse_transfer_items").select("id", { count: "exact", head: true }).eq("stock_item_id", item.id),
       ]);
+      if (richiesta !== verificaRichiesta.current) return;
       setVerificaEliminazione(
         valutaEliminazione({
           quantity: Number(item.quantity ?? 0),
           quantity_reserved: Number(item.quantity_reserved ?? 0),
-          movimenti: mov.count ?? 0,
-          seriali: unita.count ?? 0,
-          lotti: lotti.count ?? 0,
-          trasferimenti: trasf.count ?? 0,
+          movimenti: conteggioVerificato(mov),
+          seriali: conteggioVerificato(unita),
+          lotti: conteggioVerificato(lotti),
+          trasferimenti: conteggioVerificato(trasf),
         }),
       );
     } catch (err) {
+      if (richiesta !== verificaRichiesta.current) return;
       logger.error("Verifica eliminazione articolo fallita:", err);
       // Non si indovina: se il controllo non è andato a buon fine non si
       // elimina, perché non sappiamo cosa ci sia attaccato.
@@ -198,17 +262,23 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         motivo: "Non sono riuscito a controllare cosa è collegato a questo articolo. Riprova.",
       });
     } finally {
-      setVerificaInCorso(false);
+      if (richiesta === verificaRichiesta.current) setVerificaInCorso(false);
     }
-  }, []);
+  }, [readOnly]);
 
   const eliminaArticolo = useMutation({
     mutationFn: async (item: StockItem) => {
+      assertWritable();
+      if (daEliminare?.id !== item.id || !verificaEliminazione?.eliminabile || verificaInCorso) throw new Error("Verifica l’articolo prima di eliminarlo.");
       const { error } = await supabase
         .from("warehouse_stock")
         .delete()
         .eq("id", item.id)
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId!)
+        .eq("quantity", item.quantity)
+        .eq("quantity_reserved", item.quantity_reserved ?? 0)
+        .select("id")
+        .single();
       if (error) throw error;
     },
     onSuccess: () => {
@@ -294,6 +364,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const hasLotti = lotti.length > 0;
 
   const { sections } = useWarehouseSections();
+  const hasVisibleOptionalColumns = OPTIONAL_COLUMNS.some((c) => optionalColumns.includes(c.key) && (!("costs" in c) || canViewCosts) && (c.key !== "zone" || sections.length > 0));
   // O(1) lookup map sezioni (stesso motivo di supplierNameById). Restituisce
   // l'intero oggetto sezione come prima (consumato per name + color).
   const sectionById = useMemo(
@@ -334,6 +405,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       description?: string;
       quantity: number;
       unit_cost: number;
+      unita_misura?: string;
       vat_rate: number;
       supplier_id?: string;
       section_id?: string;
@@ -349,6 +421,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       costPaidDate?: string;
       costCategory?: string;
     }) => {
+      assertWritable();
       // Campi QR sono opzionali nello payload UPDATE: se undefined → non li tocca.
       // Se sono ESPLICITAMENTE presenti (anche null) → vanno scritti.
       const qrUpdate: Record<string, unknown> = {};
@@ -393,8 +466,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             name: data.name,
             description: data.description || null,
             warehouse_id: resolveWarehouseId(currentItem),
-            unit_cost: data.unit_cost,
-            vat_rate: data.vat_rate,
+            ...(canViewCosts ? { unit_cost: data.unit_cost, vat_rate: data.vat_rate } : {}),
             supplier_id: data.supplier_id || null,
             section_id: data.section_id || null,
             min_stock_level: data.min_stock_level,
@@ -416,6 +488,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           name: data.name,
           description: data.description || null,
           quantity: 0,
+          unita_misura: data.unita_misura || "pz",
           unit_cost: data.unit_cost,
           vat_rate: data.vat_rate,
           supplier_id: data.supplier_id || null,
@@ -440,7 +513,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           }
         }
 
-        if (data.registerCost) {
+        if (canViewCosts && data.registerCost) {
           await insertCostRecord(data.name, data.unit_cost, data.quantity, data.vat_rate, data.supplier_id, data.costPaidDate, data.costCategory);
         }
       }
@@ -474,6 +547,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       costCategory?: string;
       orderId?: string | null;
     }) => {
+      assertWritable();
       // Prima qui si leggeva la giacenza dalla cache di React Query, si faceva
       // la sottrazione in JavaScript e si riscriveva il valore assoluto. Due
       // magazzinieri che scaricavano insieme leggevano lo stesso numero di
@@ -498,7 +572,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       const currentItem = stockItems.find((i) => i.id === stockItemId);
       if (!currentItem) throw new Error("Articolo non trovato");
 
-      if (registerCost && type === "carico") {
+      if (canViewCosts && registerCost && type === "carico") {
         // Guardia anti doppio costo (2026-08-06). Se questa merce sta arrivando
         // da un ordine d'acquisto, il costo lo genera gia' l'OdA quando passa a
         // "ricevuto": registrarlo anche qui conterebbe due volte la stessa
@@ -540,12 +614,15 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   // Batch move mutation
   const batchMoveMutation = useMutation({
     mutationFn: async ({ ids, sectionId }: { ids: string[]; sectionId: string | null }) => {
-      const { error } = await supabase
+      assertWritable();
+      const { data, error } = await supabase
         .from("warehouse_stock")
         .update({ section_id: sectionId })
         .in("id", ids)
-        .eq("company_id", companyId!);
+        .eq("company_id", companyId!)
+        .select("id");
       if (error) throw error;
+      if ((data?.length ?? 0) !== ids.length) throw new Error(`Aggiornati ${data?.length ?? 0} di ${ids.length} articoli. Verifica i permessi e aggiorna l’elenco.`);
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
@@ -554,13 +631,14 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
       setBatchTargetSection("");
       toast.success("Articoli spostati", { description: `${count} articol${count === 1 ? "o" : "i"} aggiornat${count === 1 ? "o" : "i"}.` });
     },
-    onError: () => {
-      toast.error("Errore", { description: "Impossibile spostare gli articoli." });
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      toast.error("Spostamento non completato", { description: error.message });
     },
   });
 
   const filtered = useMemo(() => {
-    let items = stockItems;
+    let items = filtraInventario(stockItems, metricFilter, inArrivo);
     if (sectionFilter !== "all") {
       if (sectionFilter === "none") {
         items = items.filter((i) => !i.section_id);
@@ -581,12 +659,17 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         (item.internal_code && item.internal_code.toLowerCase().includes(q)) ||
         (item.barcode && item.barcode.toLowerCase().includes(q))
     );
-  }, [stockItems, searchQuery, sectionFilter, lottoFilter, lottoStockItemId]);
+  }, [stockItems, searchQuery, sectionFilter, lottoFilter, lottoStockItemId, metricFilter, inArrivo]);
 
   // Pagination for stock items
   const STOCK_PAGE_SIZE = 50;
   const [stockPage, setStockPage] = useState(0);
   const stockTotalPages = Math.max(1, Math.ceil(filtered.length / STOCK_PAGE_SIZE));
+  const [previousMetricFilter, setPreviousMetricFilter] = useState(metricFilter);
+  if (previousMetricFilter !== metricFilter) {
+    setPreviousMetricFilter(metricFilter);
+    setStockPage(0);
+  }
   const paginatedItems = useMemo(
     () => filtered.slice(stockPage * STOCK_PAGE_SIZE, (stockPage + 1) * STOCK_PAGE_SIZE),
     [filtered, stockPage]
@@ -596,6 +679,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const setSearchQueryWithReset = useCallback((q: string) => { setSearchQuery(q); setStockPage(0); }, []);
   const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setStockPage(0); }, []);
   const setLottoFilterWithReset = useCallback((v: string) => { setLottoFilter(v); setStockPage(0); }, []);
+
+  const clearInventoryFilters = () => {
+    setSearchQueryWithReset(""); setSectionFilterWithReset("all"); setLottoFilterWithReset("all"); onMetricFilterChange?.("all");
+  };
 
   const lowStockItems = useMemo(
     () => stockItems.filter(isSottoScorta),
@@ -612,24 +699,49 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     });
   }, [readOnly]);
 
-  const allSelected = useMemo(
-    () => filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id)),
-    [filtered, selectedIds]
-  );
+  // Il cambio di perimetro annulla la selezione prima che le righe siano utilizzabili.
+  const selectionScope = useMemo(() => ({ companyId, warehouseFilter, searchQuery, sectionFilter, lottoFilter, stockPage, stockItems, readOnly, metricFilter }), [companyId, warehouseFilter, searchQuery, sectionFilter, lottoFilter, stockPage, stockItems, readOnly, metricFilter]);
+  const [previousSelectionScope, setPreviousSelectionScope] = useState(selectionScope);
+  if (previousSelectionScope !== selectionScope) {
+    setPreviousSelectionScope(selectionScope);
+    setSelectedIds(new Set());
+    setBatchTargetSection("");
+  }
+
+  const visibleSelectedIds = paginatedItems.filter((item) => selectedIds.has(item.id)).map((item) => item.id);
+  const allSelected = paginatedItems.length > 0 && paginatedItems.every((item) => selectedIds.has(item.id));
 
   const toggleSelectAll = useCallback(() => {
     if (readOnly) return;
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filtered.map((i) => i.id)));
+      setSelectedIds(new Set(paginatedItems.map((i) => i.id)));
     }
-  }, [filtered, allSelected, readOnly]);
+  }, [paginatedItems, allSelected, readOnly]);
+
+  const exportRows = (onlySelected: boolean) => {
+    if (isLoading || isError) return;
+    const rows = onlySelected ? paginatedItems.filter((item) => selectedIds.has(item.id)) : filtered;
+    exportToCSV(rows.map((item) => ({
+      articolo: item.name, magazzino: knownWarehouses.find(w => w.id === item.warehouse_id)?.name ?? "", codice: item.internal_code ?? "", giacenza: String(item.quantity),
+      impegnato: String(item.quantity_reserved ?? 0), disponibile: String(item.quantity_available ?? item.quantity),
+      unita: item.unita_misura ?? "", zona: getSectionName(item.section_id)?.name ?? "",
+      fornitore: getSupplierName(item.supplier_id), soglia: String(item.min_stock_level),
+      ...(canViewCosts ? { costo: item.prezzo_da_definire ? "Da definire" : String(item.unit_cost) } : {}),
+    })), [
+      { key: "articolo", label: "Articolo" }, { key: "magazzino", label: "Magazzino" }, { key: "codice", label: "Codice" },
+      { key: "giacenza", label: "Giacenza" }, { key: "impegnato", label: "Impegnato" },
+      { key: "disponibile", label: "Disponibile" }, { key: "unita", label: "Unità" },
+      { key: "zona", label: "Zona" }, { key: "fornitore", label: "Fornitore" }, { key: "soglia", label: "Scorta minima" },
+      ...(canViewCosts ? [{ key: "costo", label: "Costo unitario" }] : []),
+    ], "magazzino_elenco.csv");
+  };
 
   const handleBatchMove = () => {
-    if (readOnly || !batchTargetSection || selectedIds.size === 0) return;
+    if (readOnly || !batchTargetSection || visibleSelectedIds.length === 0) return;
     batchMoveMutation.mutate({
-      ids: Array.from(selectedIds),
+      ids: visibleSelectedIds,
       sectionId: batchTargetSection === "__none__" ? null : batchTargetSection,
     });
   };
@@ -658,58 +770,19 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
     // Determine which IDs to move: if the dragged item is part of selection, move all selected
     const idsToMove = selectedIds.has(itemId) && selectedIds.size > 1
-      ? Array.from(selectedIds)
+      ? visibleSelectedIds
       : [itemId];
 
     const resolvedSectionId = sectionId === "__none__" ? null : sectionId;
 
     batchMoveMutation.mutate({ ids: idsToMove, sectionId: resolvedSectionId });
-  }, [readOnly, selectedIds, batchMoveMutation]);
+  }, [readOnly, selectedIds, visibleSelectedIds, batchMoveMutation]);
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="space-y-4">
-        {/* Low stock alert */}
-        {/* telefono no: l'avviso con «Riordina» sta già in testata alla pagina */}
-        {lowStockItems.length > 0 && (
-          <Card className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 max-sm:hidden">
-            <CardContent className="py-3 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              {/* i primi tre, non l'elenco intero in una riga: con trenta articoli era un paragrafo */}
-              <span className="text-sm font-medium">
-                {lowStockItems.length} {lowStockItems.length === 1 ? "articolo sotto scorta" : "articoli sotto scorta"}:{" "}
-                {lowStockItems.slice(0, 3).map((i) => `${i.name} (${i.quantity_available ?? i.quantity}/${i.min_stock_level})`).join(", ")}
-                {lowStockItems.length > 3 && ` e altri ${lowStockItems.length - 3}`}
-              </span>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Compact zones entry point — da scrivania: da telefono le zone non si disegnano */}
-        <Card className="max-sm:hidden">
-          <CardContent className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                <p className="text-sm font-semibold">Zone e planimetria</p>
-                <Badge variant="secondary" className="h-5">{sections.length} zone</Badge>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {readOnly
-                  ? "Consulta piantina, aree operative e posizioni senza modificare l'inventario."
-                  : "Gestisci piantina, aree operative e posizioni senza occupare la vista inventario."}
-              </p>
-            </div>
-            {!readOnly && (
-              <Button type="button" variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => setZonesDialogOpen(true)}>
-                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-                Apri zone
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        <Dialog open={zonesDialogOpen} onOpenChange={setZonesDialogOpen}>
+        {arriviError && <Alert><AlertTriangle className="h-4 w-4" /><AlertTitle>Arrivi non disponibili</AlertTitle><AlertDescription>Le giacenze sono separate dagli ordini in arrivo, che non è stato possibile verificare. <Button variant="outline" size="sm" onClick={() => void refetchArrivi()}>Riprova arrivi</Button></AlertDescription></Alert>}
+        <Dialog open={!readOnly && zonesDialogOpen} onOpenChange={setZonesDialogOpen}>
           <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto p-0">
             <DialogHeader className="border-b px-6 py-4">
               <DialogTitle>Zone e planimetria magazzino</DialogTitle>
@@ -735,168 +808,75 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </DialogContent>
         </Dialog>
 
-        {/* Header with search, filter and add — responsive mobile-first */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 sm:flex-wrap">
-          <div className="relative flex-1 sm:max-w-sm w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Cerca per nome o codice..."
-              value={searchQuery}
-              onChange={(e) => setSearchQueryWithReset(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          {sections.length > 0 && (
-            <Select value={sectionFilter} onValueChange={setSectionFilterWithReset}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="Filtra zona" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutte le zone</SelectItem>
-                <SelectItem value="none">Senza zona</SelectItem>
-                {sections.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                      {s.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {hasLotti && (
-            <Select value={lottoFilter} onValueChange={setLottoFilterWithReset}>
-              <SelectTrigger className="w-full sm:w-[230px]">
-                <Package className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="Filtra lotto" />
-              </SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                <SelectItem value="all">Tutti i lotti</SelectItem>
-                {lotti.map((l) => (
-                  <SelectItem key={l.id} value={l.id}>
-                    <span className="font-mono text-xs">{l.codice_lotto}</span>
-                    {l.articolo && (
-                      <span className="text-muted-foreground"> · {l.articolo.slice(0, 26)}</span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {hasSerialized && (
-            <Button
-              variant="outline"
-              onClick={() => setSerialsView({ mode: "all" })}
-              aria-label="Vedi tutti i seriali in magazzino"
-              className="w-full gap-2 sm:w-auto"
-            >
-              <Barcode className="h-4 w-4" />
-              <span>Seriali{serialCount > 0 ? ` (${serialCount})` : ""}</span>
-            </Button>
-          )}
-          <div className="w-full sm:w-auto">
-            {/* Telefono: Arrivo e Uscita stanno già in testata. Qui erano una
-                seconda volta, più «Ricevi da ODA» e un menu per un'azione sola. */}
-            {!readOnly && <div className="flex gap-2 sm:hidden">
-              <Button
-                onClick={() => setQuickScanOpen(true)}
-                aria-label="Cerca articolo via scansione QR/barcode"
-                className="h-11 flex-1 text-sm font-semibold"
-              >
-                <ScanLine className="h-5 w-5 mr-2" />
-                Cerca articolo
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-11 w-11 shrink-0"
-                onClick={() => { setEditingItem(null); setDialogOpen(true); }}
-                aria-label="Aggiungi articolo"
-                title="Aggiungi articolo"
-              >
-                <Plus className="h-5 w-5" />
-              </Button>
-            </div>}
-
-            {!readOnly && <div className="hidden sm:flex items-center gap-2 flex-wrap">
-              {/* Quick scan — bottone principale, sempre rapido */}
-              <Button
-                variant="outline"
-                onClick={() => setQuickScanOpen(true)}
-                aria-label="Cerca articolo via scansione QR/barcode"
-                className="flex-1 sm:flex-initial"
-              >
-                <ScanLine className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Cerca articolo</span>
-              </Button>
-
-              {/* Operazioni di CARICO raggruppate */}
+        <div className="rounded-xl border bg-white p-3 shadow-sm" aria-label="Strumenti giacenze" role="region">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
+            <div className="relative col-span-2 min-w-0 flex-1 sm:min-w-[180px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input aria-label="Cerca articoli per nome o codice" placeholder="Cerca per nome o codice..." value={searchQuery} onChange={(e) => setSearchQueryWithReset(e.target.value)} className="h-10 pl-9 max-sm:h-11" />
+            </div>
+            {warehouseSelect && <div className="min-w-0 sm:w-auto">{warehouseSelect}</div>}
+            <Button variant="outline" className="h-10 gap-1.5 max-sm:h-11" onClick={() => setFiltersOpen(true)} aria-label={`Filtri giacenze${activeFilterCount ? ` (${activeFilterCount} ${activeFilterCount === 1 ? "attivo" : "attivi"})` : ""}`}><Filter className="h-4 w-4" />Filtri{activeFilterCount > 0 && <Badge variant="secondary" className="px-1.5">{activeFilterCount}</Badge>}</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" className="hidden h-10 gap-1.5 md:inline-flex"><Columns3 className="h-4 w-4" />Colonne</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Colonne aggiuntive</DropdownMenuLabel>
+                {OPTIONAL_COLUMNS.filter((c) => (!("costs" in c) || canViewCosts) && (c.key !== "zone" || sections.length > 0)).map((c) => <DropdownMenuCheckboxItem key={c.key} checked={optionalColumns.includes(c.key)} onSelect={(e) => e.preventDefault()} onCheckedChange={(checked) => setOptionalColumns((current) => checked ? [...current.filter((key) => key !== c.key), c.key] : current.filter((key) => key !== c.key))}>{c.label}</DropdownMenuCheckboxItem>)}
+                <DropdownMenuSeparator /><DropdownMenuItem onClick={() => setOptionalColumns([])}>Ripristina colonne essenziali</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="col-span-2 grid grid-cols-2 gap-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center">
+              {primaryActions}
+              {!readOnly && permissions.canEditOrders && <Button variant="outline" className="h-10 gap-1.5 max-sm:h-11" onClick={() => setReservation({})}>Prenota</Button>}
+              {!primaryActions && !readOnly && showMovementActions && <>
+                <Button className="h-10" onClick={() => { if (onRegisterArrival) onRegisterArrival(); else { setCaricoItem(undefined); setCaricoOpen(true); } }}>Carica</Button>
+                <Button className="h-10" variant="outline" onClick={() => setUscitaOpen(true)}>Preleva</Button>
+              </>}
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" aria-label="Registra arrivo merce" className="flex-1 sm:flex-initial">
-                    <ArrowDownCircle className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Registra arrivo</span>
-                    <ChevronDown className="h-3.5 w-3.5 ml-1 sm:ml-1.5 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel className="text-[11px] uppercase text-muted-foreground">
-                    Registra arrivo merce
-                  </DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => setCaricoOpen(true)}>
-                    <ArrowDownCircle className="h-4 w-4 mr-2" />
-                    <div className="flex flex-col items-start">
-                      <span>Senza ordine fornitore</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        Scansione libera batch
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}>
-                    <Package className="h-4 w-4 mr-2" />
-                    <div className="flex flex-col items-start">
-                      <span>Da ordine fornitore (ODA)</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        Vincolato a ODA pending
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
+                <DropdownMenuTrigger asChild><Button ref={toolsTriggerRef} variant="outline" className="h-10 gap-1.5 max-sm:h-11" aria-label="Altre azioni del magazzino"><MoreVertical className="h-4 w-4" />Altro</Button></DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-[75vh] w-64 overflow-y-auto">
+                  <DropdownMenuLabel>Articoli e inventario</DropdownMenuLabel>
+                  {!readOnly && <DropdownMenuItem onClick={() => { setEditingItem(null); setDialogOpen(true); }}><Plus className="mr-2 h-4 w-4" />Aggiungi articolo</DropdownMenuItem>}
+                  <DropdownMenuItem onClick={() => setQuickScanOpen(true)}><ScanLine className="mr-2 h-4 w-4" />Cerca con QR / barcode</DropdownMenuItem>
+                  {hasSerialized && <DropdownMenuItem onClick={() => setSerialsView({ mode: "all" })}><Barcode className="mr-2 h-4 w-4" />Seriali azienda{serialCount > 0 ? ` (${serialCount})` : ""}</DropdownMenuItem>}
+                  {!readOnly && <DropdownMenuItem onClick={() => setZonesDialogOpen(true)}><MapPin className="mr-2 h-4 w-4" />Zone e planimetria</DropdownMenuItem>}
+                  {!readOnly && <DropdownMenuItem onClick={() => setImportOpen(true)}><Upload className="mr-2 h-4 w-4" />Importa CSV/XLSX</DropdownMenuItem>}
+                  <DropdownMenuItem onClick={() => exportRows(false)} disabled={isLoading || isError || filtered.length === 0}><Download className="mr-2 h-4 w-4" />Esporta elenco filtrato</DropdownMenuItem>
+                  {!readOnly && showMovementActions && <DropdownMenuItem onClick={() => setOdaReceiveOpen(true)}><Package className="mr-2 h-4 w-4" />Ricevi da ordine fornitore</DropdownMenuItem>}
+                  {additionalMenuItems && <><DropdownMenuSeparator />{additionalMenuItems}</>}
                 </DropdownMenuContent>
               </DropdownMenu>
-
-              {/* Operazioni di SCARICO */}
-              <Button
-                variant="outline"
-                onClick={() => setUscitaOpen(true)}
-                aria-label="Registra uscita merce (cliente, cantiere o destinazione libera)"
-                className="flex-1 sm:flex-initial"
-              >
-                <Truck className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Uscita merce</span>
-              </Button>
-
-              {/* Aggiunta manuale articolo */}
-              <Button
-                onClick={() => { setEditingItem(null); setDialogOpen(true); }}
-                aria-label="Aggiungi articolo"
-                className="flex-1 sm:flex-initial"
-              >
-                <Plus className="h-4 w-4 sm:mr-2" />
-                <span>Aggiungi articolo</span>
-              </Button>
-            </div>}
+            </div>
           </div>
         </div>
 
+        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <SheetContent className="flex flex-col overflow-y-auto">
+            <SheetHeader><SheetTitle>Filtra le giacenze</SheetTitle><SheetDescription>Restringi l’elenco per disponibilità, zona o lotto.</SheetDescription></SheetHeader>
+            <div className="flex-1 space-y-5 py-5">
+              {onMetricFilterChange && <div className="space-y-2"><Label htmlFor="stock-availability-filter">Disponibilità</Label><Select value={metricFilter} onValueChange={(v) => { onMetricFilterChange(v as InventoryFilter); setStockPage(0); }}><SelectTrigger id="stock-availability-filter"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tutti gli articoli</SelectItem>{Object.entries(INVENTORY_FILTER_LABELS).filter(([key]) => key !== "all" && (canViewCosts || !["inventory_value", "missing_cost"].includes(key))).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></div>}
+              {sections.length > 0 && <div className="space-y-2"><Label htmlFor="stock-zone-filter">Zona</Label><Select value={sectionFilter} onValueChange={setSectionFilterWithReset}><SelectTrigger id="stock-zone-filter"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tutte le zone</SelectItem><SelectItem value="none">Senza zona</SelectItem>{sections.map((zone) => <SelectItem key={zone.id} value={zone.id}>{zone.name}</SelectItem>)}</SelectContent></Select></div>}
+              {hasLotti && <div className="space-y-2"><Label htmlFor="stock-lot-filter">Lotto</Label><Select value={lottoFilter} onValueChange={setLottoFilterWithReset}><SelectTrigger id="stock-lot-filter"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tutti i lotti</SelectItem>{lotti.map((lot) => <SelectItem key={lot.id} value={lot.id}>{lot.codice_lotto}{lot.articolo ? ` · ${lot.articolo.slice(0, 26)}` : ""}</SelectItem>)}</SelectContent></Select></div>}
+              {!onMetricFilterChange && sections.length === 0 && !hasLotti && <p className="text-sm text-muted-foreground">Usa la ricerca per trovare un articolo per nome o codice.</p>}
+            </div>
+            <SheetFooter className="gap-2"><Button variant="outline" onClick={clearInventoryFilters}>Azzera filtri</Button><Button onClick={() => setFiltersOpen(false)}>Mostra risultati</Button></SheetFooter>
+          </SheetContent>
+        </Sheet>
+        {importOpen && <Suspense fallback={<p role="status">Apertura importazione…</p>}><ArticoliCSVImportDialog warehouseId={warehouseFilter} open={importOpen} onOpenChange={setImportOpen} onCloseAutoFocus={(event) => { event.preventDefault(); toolsTriggerRef.current?.focus(); }} hideTrigger /></Suspense>}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <p className="text-sm text-muted-foreground" aria-live="polite">{isLoading ? "Caricamento articoli…" : isError ? "Elenco non disponibile" : `${filtered.length} ${filtered.length === 1 ? "articolo" : "articoli"}${searchQuery || activeFilterCount ? " trovati" : " in elenco"}`}</p>
+          {onReorder && !readOnly && metricFilter === "low_stock" && lowStockItems.length > 0 && <Button size="sm" variant="outline" onClick={onReorder}>Riordina sotto scorta</Button>}
+        </div>
+
+        {metricFilter !== "all" && <div className="flex items-center gap-2 text-sm"><Badge variant="secondary">{INVENTORY_FILTER_LABELS[metricFilter]}</Badge><Button size="sm" variant="ghost" onClick={() => { onMetricFilterChange?.("all"); setStockPage(0); }}>Mostra tutti gli articoli</Button></div>}
+
         {/* Batch action bar */}
-        {!readOnly && selectedIds.size > 0 && (
+        {!readOnly && !isError && visibleSelectedIds.length > 0 && (
           <Card className="border-primary/30 bg-primary/5">
             <CardContent className="py-3 flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium">
-                {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
+                {visibleSelectedIds.length} selezionat{visibleSelectedIds.length === 1 ? "o" : "i"} in questa pagina
               </span>
+              <Button variant="outline" size="sm" onClick={() => exportRows(true)}>Esporta selezionati</Button>
               {sections.length > 0 && (
                 <>
                   <Select value={batchTargetSection} onValueChange={setBatchTargetSection}>
@@ -938,12 +918,15 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         )}
 
         {/* Table */}
-        {isLoading ? (
+        {isLoading || (metricFilter === "incoming_7d" && arriviLoading) ? (
           <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
-        ) : filtered.length === 0 ? (
+        ) : isError ? (
+          <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Impossibile caricare le giacenze</AlertTitle><AlertDescription>I dati non sono disponibili. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova giacenze</Button></AlertDescription></Alert>
+        ) : metricFilter === "incoming_7d" && arriviError ? null : filtered.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
-              {searchQuery ? "Nessun articolo trovato." : "Nessun articolo in giacenza. Clicca 'Aggiungi Articolo' per iniziare."}
+              {searchQuery || sectionFilter !== "all" || lottoFilter !== "all" || metricFilter !== "all" ? "Nessun articolo corrisponde ai filtri." : "Nessun articolo in questo magazzino."}
+              {(searchQuery || sectionFilter !== "all" || lottoFilter !== "all" || metricFilter !== "all") && <Button variant="ghost" className="ml-2" onClick={() => { setSearchQueryWithReset(""); setSectionFilterWithReset("all"); setLottoFilterWithReset("all"); onMetricFilterChange?.("all"); }}>Rimuovi filtri</Button>}
             </CardContent>
           </Card>
         ) : (
@@ -951,25 +934,30 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             {/* Desktop / tablet: Tabella completa */}
             <Card className="hidden md:block">
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
+                <BarraScorrimentoOrizzontale contenitore={tableContainer} className="mx-4 mt-3" />
+                <Table wrapperRef={setTableContainer} className={hasVisibleOptionalColumns ? "min-w-[1100px]" : "min-w-[860px]"} wrapperClassName="max-h-[65vh]">
+                  <TableHeader className="sticky top-0 z-10 bg-slate-50">
                     <TableRow>
-                      <TableHead className="w-8" />
                       <TableHead className="w-10">
                         <Checkbox
-                          checked={allSelected}
+                          checked={allSelected ? true : visibleSelectedIds.length > 0 ? "indeterminate" : false}
                           onCheckedChange={toggleSelectAll}
-                          aria-label="Seleziona tutti"
+                          aria-label="Seleziona tutti gli articoli di questa pagina"
+                          disabled={readOnly}
                         />
                       </TableHead>
                       <TableHead>Articolo</TableHead>
-                      <TableHead>Codice</TableHead>
-                      {sections.length > 0 && <TableHead>Zona</TableHead>}
-                      <TableHead className="text-center">Qtà</TableHead>
-                      <TableHead className="text-right">Costo Unit.</TableHead>
-                      <TableHead className="text-right">Valore Totale</TableHead>
-                      <TableHead>Fornitore</TableHead>
-                      <TableHead className="text-center">Soglia</TableHead>
+                      <TableHead>Magazzino</TableHead>
+                      {optionalColumns.includes("code") && <TableHead>Codice</TableHead>}
+                      {sections.length > 0 && optionalColumns.includes("zone") && <TableHead>Zona</TableHead>}
+                      <TableHead className="text-center">Giacenza</TableHead>
+                      <TableHead className="text-center">Impegnato</TableHead>
+                      <TableHead className="text-center">Disponibile</TableHead>
+                      <TableHead>Stato</TableHead>
+                      {canViewCosts && optionalColumns.includes("unit_cost") && <TableHead className="text-right">Costo unitario</TableHead>}
+                      {canViewCosts && optionalColumns.includes("total_value") && <TableHead className="text-right">Valore totale</TableHead>}
+                      {optionalColumns.includes("supplier") && <TableHead>Fornitore</TableHead>}
+                      {optionalColumns.includes("threshold") && <TableHead className="text-center">Scorta minima</TableHead>}
                       <TableHead className="text-right">Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -978,22 +966,26 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                       <DraggableStockRow
                         key={item.id}
                         item={item}
+                        warehouseName={knownWarehouses.find(w => w.id === item.warehouse_id)?.name ?? "Non indicato"}
                         isLow={isSottoScorta(item)}
-                        inArrivo={inArrivo?.get(item.id)}
+                        inArrivo={arriviError || arriviLoading ? undefined : inArrivo?.get(item.id)}
                         section={getSectionName(item.section_id)}
                         isSelected={selectedIds.has(item.id)}
                         hasSections={sections.length > 0}
+                        optionalColumns={optionalColumns}
                         supplierName={getSupplierName(item.supplier_id)}
                         onToggleSelect={() => toggleSelect(item.id)}
                         onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
                         onDelete={() => chiediEliminazione(item)}
-                        onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
-                        onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
+                        onCarico={() => { if (onRegisterArrival) onRegisterArrival(item); else { setCaricoItem(item); setCaricoOpen(true); } }}
+                        onScarico={() => { setUscitaItem(item); setUscitaOpen(true); }}
                         onHistory={() => setHistoryItem(item)}
                         onTask={() => setTaskItem(item)}
                         onAudit={() => setAuditItem(item)}
                         onSerials={() => setSerialsView({ mode: "item", item })}
+                        onReserve={permissions.canEditOrders && !readOnly ? () => setReservation({ item }) : undefined}
                         readOnly={readOnly}
+                        canViewCosts={canViewCosts}
                       />
                     ))}
                   </TableBody>
@@ -1008,20 +1000,22 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                   key={item.id}
                   item={item}
                   isLow={isSottoScorta(item)}
-                        inArrivo={inArrivo?.get(item.id)}
+                        inArrivo={arriviError || arriviLoading ? undefined : inArrivo?.get(item.id)}
                   section={getSectionName(item.section_id)}
                   isSelected={selectedIds.has(item.id)}
                   supplierName={getSupplierName(item.supplier_id)}
                   onToggleSelect={() => toggleSelect(item.id)}
                   onEdit={() => { setEditingItem(item); setDialogOpen(true); }}
                   onDelete={() => chiediEliminazione(item)}
-                  onCarico={() => setMovementDialog({ open: true, type: "carico", item })}
-                  onScarico={() => setMovementDialog({ open: true, type: "scarico", item })}
+                  onCarico={() => { if (onRegisterArrival) onRegisterArrival(item); else { setCaricoItem(item); setCaricoOpen(true); } }}
+                  onScarico={() => { setUscitaItem(item); setUscitaOpen(true); }}
                   onHistory={() => setHistoryItem(item)}
                   onTask={() => setTaskItem(item)}
                   onAudit={() => setAuditItem(item)}
                   onSerials={() => setSerialsView({ mode: "item", item })}
+                        onReserve={permissions.canEditOrders && !readOnly ? () => setReservation({ item }) : undefined}
                   readOnly={readOnly}
+                        canViewCosts={canViewCosts}
                 />
               ))}
             </div>
@@ -1074,7 +1068,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
         {/* Dialogs */}
         <StockItemDialog
-          open={dialogOpen}
+          open={!readOnly && dialogOpen}
           onOpenChange={(v) => {
             setDialogOpen(v);
             if (!v) {
@@ -1083,16 +1077,19 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             }
           }}
           editingItem={editingItem}
+          canViewCosts={canViewCosts}
           isPending={saveMutation.isPending}
           prefillBarcode={prefillBarcodeForDialog}
           onSave={(data) => saveMutation.mutate({ ...data, id: editingItem?.id })}
         />
         <StockMovementDialog
-          open={movementDialog.open}
+          open={!readOnly && movementDialog.open}
           onOpenChange={(v) => { if (!v) setMovementDialog({ open: false, type: "carico", item: null }); }}
           type={movementDialog.type}
+          serialized={movementDialog.item?.tracking_mode === "serialized"}
+          canViewCosts={canViewCosts}
           itemName={movementDialog.item?.name || ""}
-          maxQuantity={movementDialog.type === "scarico" ? movementDialog.item?.quantity : undefined}
+          maxQuantity={movementDialog.type === "scarico" ? movementDialog.item?.quantity_available ?? movementDialog.item?.quantity : undefined}
           isPending={movementMutation.isPending}
           onSave={(data) => {
             if (!movementDialog.item) return;
@@ -1103,14 +1100,18 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           open={!!historyItem}
           onOpenChange={(v) => { if (!v) setHistoryItem(null); }}
           item={historyItem}
+          supplierName={historyItem ? getSupplierName(historyItem.supplier_id) : undefined}
+          sectionName={historyItem ? getSectionName(historyItem.section_id)?.name : undefined}
+          inArrivo={historyItem && !arriviError ? inArrivo?.get(historyItem.id) : undefined}
+          arriviUnavailable={arriviError || arriviLoading}
         />
 
         {/* Eliminazione articolo: si controlla PRIMA cosa c'è attaccato, e se
             non si può si dice il motivo — invece di far arrivare l'errore del
             vincolo, o peggio di cancellare i seriali per cascata. */}
         <AlertDialog
-          open={!!daEliminare}
-          onOpenChange={(v) => { if (!v) { setDaEliminare(null); setVerificaEliminazione(null); } }}
+          open={!readOnly && !!daEliminare}
+          onOpenChange={(v) => { if (!v) { verificaRichiesta.current++; setDaEliminare(null); setVerificaEliminazione(null); } }}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -1164,9 +1165,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           </DialogContent>
         </Dialog>
         <InventoryAuditDialog
-          open={!!auditItem}
+          open={!readOnly && !!auditItem}
           onOpenChange={(v) => { if (!v) setAuditItem(null); }}
           stockItem={auditItem}
+          warehouseName={knownWarehouses.find(w => w.id === auditItem?.warehouse_id)?.name}
           companyId={companyId!}
         />
 
@@ -1223,24 +1225,25 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           )}
         </Suspense>
 
+        {reservation && !readOnly && <Suspense fallback={<p role="status">Apertura prenotazione…</p>}><ReserveStockDialog items={stockItems} warehouseNames={Object.fromEntries(knownWarehouses.map((w) => [w.id, w.name]))} initialItem={reservation.item} onClose={() => setReservation(null)} /></Suspense>}
         {/* Carico rapido (MP2 P1a) */}
         <Suspense fallback={null}>
-          {caricoOpen && (
-            <CaricoRapidoSheet open={caricoOpen} onOpenChange={setCaricoOpen} />
+          {!readOnly && caricoOpen && (
+            <CaricoRapidoSheet initialStockItem={caricoItem} initialWarehouseId={caricoItem?.warehouse_id ?? warehouseFilter} open={caricoOpen} onOpenChange={setCaricoOpen} />
           )}
         </Suspense>
 
         {/* Ricezione da ODA (MP2 P1a) */}
         <Suspense fallback={null}>
-          {odaReceiveOpen && (
+          {!readOnly && odaReceiveOpen && (
             <OdaReceiveSheet open={odaReceiveOpen} onOpenChange={setOdaReceiveOpen} />
           )}
         </Suspense>
 
         {/* Uscita merce a 2 fasi: registra l'uscita → poi DDT separato (MP3 P1b) */}
         <Suspense fallback={null}>
-          {uscitaOpen && (
-            <UscitaMerceSheet open={uscitaOpen} onOpenChange={setUscitaOpen} />
+          {!readOnly && uscitaOpen && (
+            <UscitaMerceSheet initialStockItem={uscitaItem} initialWarehouseId={uscitaItem?.warehouse_id ?? warehouseFilter} open={uscitaOpen} onOpenChange={(open) => { setUscitaOpen(open); if (!open) setUscitaItem(undefined); }} />
           )}
         </Suspense>
       </div>
@@ -1257,10 +1260,13 @@ interface DraggableStockRowProps {
   section: { name: string; color: string } | null;
   isSelected: boolean;
   hasSections: boolean;
+  optionalColumns: OptionalColumn[];
   supplierName: string;
+  warehouseName?: string;
   onToggleSelect: () => void;
   onEdit: () => void;
   onCarico: () => void;
+  onReserve?: () => void;
   onScarico: () => void;
   onHistory: () => void;
   onTask: () => void;
@@ -1268,6 +1274,7 @@ interface DraggableStockRowProps {
   onSerials: () => void;
   onDelete: () => void;
   readOnly?: boolean;
+  canViewCosts?: boolean;
 }
 
 /** «+12 in arrivo» con il link all'ordine fornitore: chi riordina vede che è già ordinato. */
@@ -1288,9 +1295,10 @@ function InArrivoNota({ inArrivo }: { inArrivo?: InArrivoArticolo }) {
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
-  item, isLow, inArrivo, section, isSelected, hasSections, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete,
+  item, isLow, inArrivo, section, isSelected, hasSections, optionalColumns, supplierName, warehouseName,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete, onReserve,
   readOnly = false,
+  canViewCosts = false,
 }: DraggableStockRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `stock-${item.id}`,
@@ -1303,9 +1311,6 @@ const DraggableStockRow = memo(function DraggableStockRow({
       ref={setNodeRef}
       className={`${isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""} ${isDragging ? "opacity-40" : ""}`}
     >
-      <TableCell className="w-8 cursor-grab active:cursor-grabbing" {...(!readOnly ? listeners : {})} {...(!readOnly ? attributes : {})}>
-        {!readOnly && <GripVertical className="h-4 w-4 text-muted-foreground" />}
-      </TableCell>
       <TableCell>
         {!readOnly && (
           <Checkbox
@@ -1316,21 +1321,24 @@ const DraggableStockRow = memo(function DraggableStockRow({
         )}
       </TableCell>
       <TableCell>
-        <div>
-          <span className="font-medium">{item.name}</span>
-          {item.description && (
-            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{item.description}</p>
-          )}
+        <div className="flex items-start gap-2">
+          {!readOnly && hasSections && <button type="button" className="mt-0.5 cursor-grab text-muted-foreground active:cursor-grabbing" aria-label={`Trascina ${item.name}`} {...listeners} {...attributes}><GripVertical className="h-4 w-4" /></button>}
+          <div className="min-w-0">
+          <button type="button" className="text-left font-medium text-primary hover:underline" onClick={onHistory} aria-label={`Dettaglio ${item.name}`}>{item.name}</button>
+          <p className="mt-0.5 text-xs text-muted-foreground">{!optionalColumns.includes("code") && item.internal_code ? `${item.internal_code} · ` : ""}{item.unita_misura || "Unità non indicata"}{item.tracking_mode === "serialized" ? " · Con matricola" : ""}</p>
+          {item.description && <p className="max-w-[220px] truncate text-xs text-muted-foreground" title={item.description}>{item.description}</p>}
+          </div>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="text-sm text-muted-foreground">{warehouseName ?? "Non indicato"}</TableCell>
+      {optionalColumns.includes("code") && <TableCell>
         {item.internal_code ? (
           <span className="font-mono text-xs text-muted-foreground">{item.internal_code}</span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
-      </TableCell>
-      {hasSections && (
+      </TableCell>}
+      {hasSections && optionalColumns.includes("zone") && (
         <TableCell>
           {section ? (
             <Badge variant="outline" className="text-xs gap-1">
@@ -1344,54 +1352,42 @@ const DraggableStockRow = memo(function DraggableStockRow({
       )}
       <TableCell className="text-center">
         <div className="flex items-center justify-center gap-1.5">
-          <Badge variant={isLow ? "destructive" : "secondary"}>
-            {item.quantity}
-          </Badge>
+          <span className="tabular-nums">{formattaQuantitaMovimento(Number(item.quantity))}</span>
           {item.tracking_mode === "serialized" && (
             <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
           )}
         </div>
         <InArrivoNota inArrivo={inArrivo} />
       </TableCell>
-      <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-amber-700">Da definire</span> : formatCurrency(item.unit_cost)}</TableCell>
-      <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-muted-foreground">Da valorizzare</span> : formatCurrency(item.unit_cost * item.quantity)}</TableCell>
-      <TableCell>{supplierName}</TableCell>
-      <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
+      <TableCell className="text-center tabular-nums">{formattaQuantitaMovimento(Number(item.quantity_reserved ?? 0))}</TableCell>
+      <TableCell className="text-center font-semibold tabular-nums">{formattaQuantitaMovimento(Number(item.quantity_available ?? item.quantity))}</TableCell>
+      <TableCell><Badge variant={isLow ? "outline" : "secondary"}>{isLow ? "Sotto scorta" : Number(item.quantity_available ?? item.quantity) > 0 ? "Disponibile" : "Non disponibile"}</Badge></TableCell>
+      {canViewCosts && optionalColumns.includes("unit_cost") && <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-amber-700">Da definire</span> : formatCurrency(item.unit_cost)}</TableCell>}
+      {canViewCosts && optionalColumns.includes("total_value") && <TableCell className="text-right">{item.prezzo_da_definire ? <span className="text-xs text-muted-foreground">Da valorizzare</span> : formatCurrency(item.unit_cost * item.quantity)}</TableCell>}
+      {optionalColumns.includes("supplier") && <TableCell>{supplierName}</TableCell>}
+      {optionalColumns.includes("threshold") && <TableCell className="text-center">{formattaQuantitaMovimento(item.min_stock_level ?? 0)}</TableCell>}
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
-          {item.tracking_mode === "serialized" && (
-            <Button variant="ghost" size="icon" title="Vedi seriali" onClick={onSerials}>
-              <Barcode className="h-4 w-4 text-orange-600" />
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
-            <History className="h-4 w-4 text-muted-foreground" />
-          </Button>
-          {/* contare scrive la giacenza: in sola lettura no */}
-          {!readOnly && (
-            <Button variant="ghost" size="icon" title="Inventario" onClick={onAudit}>
-              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-            </Button>
-          )}
-          {!readOnly && (
-            <>
-              <Button variant="ghost" size="icon" title="Task" onClick={onTask}>
-                <CheckSquare className="h-4 w-4 text-primary" />
-              </Button>
-              <Button variant="ghost" size="icon" title="Carico" onClick={onCarico}>
-                <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
-              </Button>
-              <Button variant="ghost" size="icon" title="Scarico" onClick={onScarico} disabled={item.quantity === 0}>
-                <ArrowDownCircle className="h-4 w-4 text-red-500" />
-              </Button>
-              <Button variant="ghost" size="icon" title="Modifica" onClick={onEdit}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" title="Elimina" onClick={onDelete}>
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={onHistory} aria-label={`Apri dettaglio ${item.name}`}>Apri dettaglio</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="shrink-0" aria-label={`Azioni ${item.name}`}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="max-w-52 truncate">{item.name}</DropdownMenuLabel>
+              <DropdownMenuItem onClick={onHistory}><History className="mr-2 h-4 w-4" />Dettaglio e storico</DropdownMenuItem>
+              {item.tracking_mode === "serialized" && <DropdownMenuItem onClick={onSerials}><Barcode className="mr-2 h-4 w-4" />Vedi seriali</DropdownMenuItem>}
+              {!readOnly && <>
+                <DropdownMenuSeparator />
+                {onReserve && <DropdownMenuItem onClick={onReserve}><Package className="mr-2 h-4 w-4" />Prenota per commessa</DropdownMenuItem>}
+                <DropdownMenuItem onClick={onCarico}><ArrowUpCircle className="mr-2 h-4 w-4" />Carica articolo</DropdownMenuItem>
+                <DropdownMenuItem onClick={onScarico} disabled={Number(item.quantity) <= 0}><ArrowDownCircle className="mr-2 h-4 w-4" />Preleva articolo</DropdownMenuItem>
+                <DropdownMenuItem onClick={onAudit}><ClipboardCheck className="mr-2 h-4 w-4" />Conta / rettifica inventario</DropdownMenuItem>
+                <DropdownMenuItem onClick={onTask}><CheckSquare className="mr-2 h-4 w-4" />Crea attività</DropdownMenuItem>
+                <DropdownMenuItem onClick={onEdit}><Pencil className="mr-2 h-4 w-4" />Modifica articolo</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" />Elimina articolo</DropdownMenuItem>
+              </>}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </TableCell>
   </TableRow>
@@ -1414,6 +1410,7 @@ interface StockItemMobileCardProps {
   onToggleSelect: () => void;
   onEdit: () => void;
   onCarico: () => void;
+  onReserve?: () => void;
   onScarico: () => void;
   onHistory: () => void;
   onTask: () => void;
@@ -1421,12 +1418,14 @@ interface StockItemMobileCardProps {
   onSerials: () => void;
   onDelete: () => void;
   readOnly?: boolean;
+  canViewCosts?: boolean;
 }
 
 const StockItemMobileCard = memo(function StockItemMobileCard({
   item, isLow, inArrivo, section, isSelected, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials, onDelete, onReserve,
   readOnly = false,
+  canViewCosts = false,
 }: StockItemMobileCardProps) {
   return (
     <Card
@@ -1443,7 +1442,7 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
             />
           )}
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm leading-tight truncate">{item.name}</p>
+            <button type="button" className="text-left font-medium text-sm leading-tight text-primary hover:underline" onClick={onHistory} aria-label={`Dettaglio ${item.name}`}>{item.name}</button>
             {item.internal_code && (
               <p className="text-[10px] font-mono text-muted-foreground truncate mt-0.5">
                 {item.internal_code}
@@ -1456,7 +1455,7 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
             )}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <Badge variant={isLow ? "destructive" : "secondary"} className="text-[10px]">
-                {item.quantity} pz
+                {formattaQuantitaMovimento(Number(item.quantity))} {item.unita_misura || "unità"}
               </Badge>
               <InArrivoNota inArrivo={inArrivo} />
               {item.tracking_mode === "serialized" && (
@@ -1484,11 +1483,12 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
             <DropdownMenuContent align="end" className="w-48">
               {!readOnly && (
                 <>
-                  <DropdownMenuItem onClick={onCarico}>
+                  {onReserve && <DropdownMenuItem onClick={onReserve}><Package className="mr-2 h-4 w-4" />Prenota per commessa</DropdownMenuItem>}
+                <DropdownMenuItem onClick={onCarico}>
                     <ArrowUpCircle className="h-4 w-4 mr-2 text-emerald-600" />
                     Carico
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onScarico} disabled={item.quantity === 0}>
+                  <DropdownMenuItem onClick={onScarico} disabled={Number(item.quantity) <= 0}>
                     <ArrowDownCircle className="h-4 w-4 mr-2 text-red-500" />
                     Scarico
                   </DropdownMenuItem>
@@ -1532,14 +1532,15 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
           </DropdownMenu>
         </div>
 
+        <p className="text-xs text-muted-foreground">Impegnato {formattaQuantitaMovimento(Number(item.quantity_reserved ?? 0))} · Disponibile {formattaQuantitaMovimento(Number(item.quantity_available ?? item.quantity))} · {item.unita_misura || "Unità non indicata"}</p>
         <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t pt-2">
           <span className="truncate flex-1">{supplierName}</span>
-          <div className="flex items-center gap-3 shrink-0">
+          {canViewCosts && <div className="flex items-center gap-3 shrink-0">
             <span>{item.prezzo_da_definire ? "Prezzo da definire" : `${formatCurrency(item.unit_cost)}/${item.unita_misura || "u"}`}</span>
             <span className="font-medium text-foreground">
               {item.prezzo_da_definire ? "Da valorizzare" : formatCurrency(item.unit_cost * item.quantity)}
             </span>
-          </div>
+          </div>}
         </div>
       </CardContent>
     </Card>

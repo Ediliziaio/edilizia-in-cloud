@@ -5,7 +5,11 @@ import { quoteConversionSchema, conversionCompanyId as company, conversionQuoteI
 
 // La definizione in vigore della RPC, con la ricerca della famiglia e la variabile `c` del ciclo sul computo.
 // quoteConversionAtomic.test.ts carica ancora quella del 15/10: per questo il guasto del 30/10 non l'ha visto nessuno.
-const migration = readFileSync('supabase/migrations/20281107090000_crea_commessa_preventivo_alias_famiglia.sql', 'utf8');
+const source = readFileSync('supabase/migrations/20281107090000_crea_commessa_preventivo_alias_famiglia.sql', 'utf8');
+// La migrazione canonica comprende anche recuperi di altri moduli. Questa fixture
+// prova soltanto la RPC di conversione e non deve eseguire quegli interventi estranei.
+const migration = source.match(/create or replace function public\.crea_commessa_preventivo_atomic\([\s\S]*?\$function\$[\s\S]*?\$function\$;/i)?.[0];
+if (!migration) throw new Error('Definizione canonica crea_commessa_preventivo_atomic non trovata');
 const madre = '30000000-0000-0000-0000-000000000002';
 let db: PGlite;
 

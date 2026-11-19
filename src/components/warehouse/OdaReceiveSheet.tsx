@@ -15,7 +15,7 @@
  * (usata dalla pagina ODA detail con bottone "Ricevi via scansione").
  */
 
-import { lazy, Suspense, useEffect, useMemo, useState, useCallback } from "react";
+import { lazy, Suspense, useMemo, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sheet, SheetHeader, SheetTitle, SheetDescription,  } from "@/components/ui/sheet";
 import { SheetContentOperativo as SheetContent } from "@/components/orders/generali/design/ContestoOperativo";
@@ -70,15 +70,20 @@ interface OdaReceiveSheetProps {
 
 type Step = "first-scan" | "oda-suggestion" | "batch-scan" | "warehouse-pick";
 
-export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveSheetProps) {
-  const { effectiveCompany: _ } = useAuth();
+export function OdaReceiveSheet(props: OdaReceiveSheetProps) {
+  const { effectiveCompany, user } = useAuth();
+  return props.open ? <OdaReceiveSheetSession key={`${effectiveCompany?.id}:${user?.id}:${props.lockedOdaId ?? "new"}`} {...props} /> : null;
+}
+function OdaReceiveSheetSession({ open, onOpenChange, lockedOdaId }: OdaReceiveSheetProps) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   const { warehouses = [] } = useWarehouses(true);
 
   const [step, setStep] = useState<Step>(lockedOdaId ? "warehouse-pick" : "first-scan");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [firstItemName, setFirstItemName] = useState<string | null>(null);
   const [selectedOdaId, setSelectedOdaId] = useState<string | undefined>(lockedOdaId);
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [warehouseChoice, setWarehouseId] = useState<string | undefined>();
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
 
   const lookup = useBarcodeLookup();
@@ -87,29 +92,30 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
 
   // Recupera dettaglio ODA per validare e mostrare contesto.
   const { data: odaDetail } = useQuery({
-    queryKey: queryKeys.purchaseOrders.detail(selectedOdaId ?? null),
+    queryKey: [...queryKeys.purchaseOrders.detail(selectedOdaId ?? null), companyId],
     queryFn: async () => {
-      if (!selectedOdaId) return null;
+      if (!selectedOdaId || !companyId) return null;
       const { data, error } = await supabase
         .from("purchase_orders")
         .select("id, oda_number, supplier_id, status, expected_delivery_date, suppliers:supplier_id(name)")
         .eq("id", selectedOdaId)
+        .eq("company_id", companyId)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!selectedOdaId,
+    enabled: !!selectedOdaId && !!companyId,
   });
 
   // Recupera righe ODA pending per validare scansioni.
   const { data: odaItems = [] } = useQuery({
-    queryKey: queryKeys.purchaseOrders.items(selectedOdaId ?? null),
+    queryKey: [...queryKeys.purchaseOrders.items(selectedOdaId ?? null), companyId],
     queryFn: async () => {
-      if (!selectedOdaId) return [];
+      if (!selectedOdaId || !companyId) return [];
       const { data, error } = await supabase
         .from("purchase_order_items")
         .select("id, description, quantity, quantity_received, stock_item_id")
-        .eq("purchase_order_id", selectedOdaId);
+        .eq("purchase_order_id", selectedOdaId).eq("company_id", companyId);
       if (error) throw error;
       return (data ?? []) as Array<{
         id: string;
@@ -119,7 +125,7 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
         stock_item_id: string | null;
       }>;
     },
-    enabled: !!selectedOdaId,
+    enabled: !!selectedOdaId && !!companyId,
   });
 
   const allowedOdaItems = useMemo(
@@ -134,27 +140,7 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
     [odaItems],
   );
 
-  // Default warehouse
-  useEffect(() => {
-    if (!warehouseId && warehouses.length > 0) {
-      const def = warehouses.find((w: any) => w.is_default) ?? warehouses[0];
-      setWarehouseId(def.id);
-    }
-  }, [warehouses, warehouseId]);
-
-  // Reset on close
-  useEffect(() => {
-    if (!open) {
-      setStep(lockedOdaId ? "warehouse-pick" : "first-scan");
-      setFirstItemName(null);
-      setSelectedOdaId(lockedOdaId);
-      setEntries([]);
-      lookup.reset();
-      matcher.reset();
-      receive.reset();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, lockedOdaId]);
+  const warehouseId = warehouseChoice || warehouses.find(w => w.is_default)?.id || warehouses[0]?.id;
 
   const handleFirstScan = useCallback(
     async (rawCode: string) => {
@@ -206,12 +192,12 @@ export function OdaReceiveSheet({ open, onOpenChange, lockedOdaId }: OdaReceiveS
   async function handleConfirm() {
     if (!selectedOdaId || !warehouseId) return;
     try {
-      await receive.mutateAsync({
+      const result = await receive.mutateAsync({
         odaId: selectedOdaId,
         warehouseId,
         entries,
       });
-      onOpenChange(false);
+      if (!result.errors.length) onOpenChange(false);
     } catch {
       /* errore già toastato */
     }

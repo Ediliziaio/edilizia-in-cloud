@@ -1,3 +1,5 @@
+import { useMovementBalances } from "@/hooks/warehouse/useMovementBalances";
+import { materialiPrenotatiDaPrelevare, rigaMovimentoIniziale } from "@/lib/magazzino/righeMovimento";
 /**
  * UscitaMerceSheet — USCITA MERCE a 2 FASI (doppio controllo). FASE 1.
  *
@@ -15,7 +17,7 @@
  * cantiere): qui il destinatario è generalizzato e la creazione DDT è separata.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -49,6 +51,10 @@ import {
   PencilLine,
   PackageCheck,
 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { warehouseCapabilities } from "@/lib/magazzino/protocolloMovimenti";
+import { movementAvailabilityError, useMovementAvailability } from "@/hooks/warehouse/useMovementAvailability";
+import { MovementReviewDialog } from "./MovementReviewDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRegisterUscita, type UscitaScan, type UscitaDestinatario, type VettoreJson } from "@/hooks/warehouse/useWarehouseUscita";
@@ -67,7 +73,9 @@ const BatchBarcodeScanner = lazy(() =>
 );
 
 interface UscitaMerceSheetProps {
+  initialStockItem?: import("@/types/warehouse").StockItem;
   initialOrder?: OrderOption;
+  initialWarehouseId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -78,7 +86,7 @@ interface WarehouseRow {
   is_default: boolean;
 }
 
-type Step = "context" | "scan";
+type Step = "context" | "scan" | "review";
 type DestTipo = "cliente" | "cantiere" | "libero";
 type VettoreTipo = "mittente" | "subappaltatore" | "terzo";
 
@@ -125,10 +133,16 @@ function StepHead({ n, label }: { n: number; label: string }) {
   );
 }
 
-export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMerceSheetProps) {
+export function UscitaMerceSheet({ open, onOpenChange, initialOrder, initialWarehouseId, initialStockItem }: UscitaMerceSheetProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const register = useRegisterUscita();
+  const permissions = usePermissions();
+  const canWrite = !permissions.isLoading && permissions.canEditWarehouse;
+  const commitInFlight = useRef(false);
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   // Lo scanner usa la fotocamera: ha senso solo su mobile/tablet, non su desktop.
   const isMobile = useIsMobile();
 
@@ -151,19 +165,41 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
   const [liberoPiva, setLiberoPiva] = useState("");
 
   // ── Magazzino + articoli ──────────────────────────────────────
-  const [warehouseId, setWarehouseId] = useState<string | undefined>(initialOrder?.default_warehouse_id ?? undefined);
-  const [entries, setEntries] = useState<BatchScanEntry[]>([]);
+  const [warehouseChoice, setWarehouseId] = useState<string | undefined>(initialWarehouseId ?? initialOrder?.default_warehouse_id ?? undefined);
+  const [entries, setEntries] = useState<BatchScanEntry[]>(() => initialStockItem ? [rigaMovimentoIniziale(initialStockItem, false)] : []);
+  const balances = useMovementBalances(companyId, entries.flatMap((entry) => entry.stockItemId ? [entry.stockItemId] : []), step === "review");
   const [note, setNote] = useState("");
   // Sezione "Trasportatore e note" collassata di default (mobile pulito)
   const [detailsOpen, setDetailsOpen] = useState(false);
 
   // ── Trasportatore ─────────────────────────────────────────────
-  const [vettoreTipo, setVettoreTipo] = useState<VettoreTipo>("mittente");
-  const [vettoreSubId, setVettoreSubId] = useState<string | undefined>();
+  const [vettoreChoice, setVettoreTipo] = useState<VettoreTipo>("mittente");
+  const [vettoreSubChoice, setVettoreSubId] = useState<string | undefined>();
   const [vettoreTerzoNome, setVettoreTerzoNome] = useState("");
   const [vettoreTerzoPiva, setVettoreTerzoPiva] = useState("");
   const [vettoreTerzoIndirizzo, setVettoreTerzoIndirizzo] = useState("");
   const [vettoreManuallyChanged, setVettoreManuallyChanged] = useState(false);
+
+  // Auto-fill trasportatore dal contratto subappalto della commessa
+  const { data: orderContract } = useQuery<{ subappaltatore_id: string } | null>({
+    queryKey: ["uscita-order-contract", companyId, orderId],
+    enabled: destTipo === "cantiere" && !!orderId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contratti_subappalto")
+        .select("subappaltatore_id")
+        .eq("order_id", orderId!).eq("company_id",companyId!)
+        .in("stato", ["attivo", "bozza"])
+        .limit(1)
+        .maybeSingle();
+      if(error)throw error;
+      return data;
+    },
+  });
+  const automaticSubcontractor = destTipo === "cantiere" && !vettoreManuallyChanged ? orderContract?.subappaltatore_id : undefined;
+  const vettoreTipo = automaticSubcontractor ? "subappaltatore" : vettoreChoice;
+  const vettoreSubId = automaticSubcontractor ?? vettoreSubChoice;
 
   // ── Subappaltatori (registro condiviso) ───────────────────────
   const { data: subappaltatori = [] } = useQuery<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null; indirizzo: string | null }[]>({
@@ -185,7 +221,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
   });
 
   // ── Warehouses attivi della company ───────────────────────────
-  const { data: warehouses = [], isLoading: warehousesLoading } = useQuery<WarehouseRow[]>({
+  const { data: warehouses = [], isLoading: warehousesLoading, isError: warehousesError, refetch: refetchWarehouses } = useQuery<WarehouseRow[]>({
     queryKey: ["uscita-warehouses", companyId],
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -202,34 +238,25 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
     },
   });
 
-  // Pre-selezione magazzino default
-  useEffect(() => {
-    if (warehouseId || warehouses.length === 0) return;
-    const def = warehouses.find((w) => w.is_default) ?? warehouses[0];
-    setWarehouseId(def.id);
-  }, [warehouses, warehouseId]);
-
-  // Magazzino default dell'ordine (cantiere)
-  useEffect(() => {
-    if (destTipo !== "cantiere" || !selectedOrder?.default_warehouse_id || entries.length > 0) return;
-    setWarehouseId(selectedOrder.default_warehouse_id);
-  }, [destTipo, selectedOrder, entries.length]);
+  const warehouseId = warehouseChoice || warehouses.find(w=>w.is_default)?.id || warehouses[0]?.id;
 
   // ── Auto-fill articoli dall'ordine (solo cantiere) ────────────
-  const { data: orderItemsPrefill = [] } = useQuery({
-    queryKey: ["uscita-order-items-prefill", orderId, warehouseId],
+  const { data: orderItemsPrefill = [], isError: prefillError } = useQuery({
+    queryKey: ["uscita-order-items-prefill", companyId, orderId, warehouseId],
     enabled: destTipo === "cantiere" && !!orderId && !!warehouseId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const protocol = await warehouseCapabilities(companyId!);
+      const { data: raw, error } = await supabase
         .from("order_items")
-        .select("id, stock_item_id, name, product_code, quantity, fulfillment_status")
-        .eq("order_id", orderId!);
+        .select(protocol.version >= 2 ? "id,stock_item_id,name,product_code,quantity,fulfillment_status,status,warehouse_reserved_quantity,order:orders!inner(company_id)" : "id,stock_item_id,name,product_code,quantity,fulfillment_status,status,order:orders!inner(company_id)")
+        .eq("order_id", orderId!).eq("order.company_id", companyId!);
+      const data = raw as unknown as { id: string; stock_item_id: string | null; name: string; product_code: string | null; quantity: number; fulfillment_status: string | null; status: string | null; warehouse_reserved_quantity?: number | null }[] | null;
       if (error) throw error;
       const stockItemIds = (data ?? []).map((r) => r.stock_item_id).filter((v): v is string => !!v);
       const { data: stockData, error: stockError } = await supabase
         .from("warehouse_stock")
-        .select("id, name, quantity, tracking_mode")
+        .select("id, name, quantity, quantity_available, quantity_reserved, unita_misura, tracking_mode")
         .in("id", stockItemIds)
         .eq("warehouse_id", warehouseId!);
       if (stockError) throw stockError;
@@ -246,66 +273,40 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
             quantity: r.quantity ?? 0,
             tracking_mode: stock.tracking_mode as "fungible" | "serialized",
             product_code: r.product_code ?? "",
-            available_in_warehouse: stock.quantity || 0,
+            available_in_warehouse: Math.min(Number(stock.quantity), Number(stock.quantity_available ?? 0) + (r.fulfillment_status === "received" ? Math.min(Number(r.warehouse_reserved_quantity ?? r.quantity), Number(stock.quantity_reserved ?? 0)) : 0)),
+            unit: stock.unita_misura,
+            reserved_for_order: r.fulfillment_status === "received" ? Number(r.warehouse_reserved_quantity ?? r.quantity) : 0,
+            physical: Number(stock.quantity),
+            free: Number(stock.quantity_available ?? 0),
+            total_reserved: Number(stock.quantity_reserved ?? 0),
           };
         });
     },
   });
 
-  const [orderPrefillApplied, setOrderPrefillApplied] = useState<string | null>(null);
-  const prefillCount = orderItemsPrefill.length;
-  useEffect(() => {
-    if (destTipo !== "cantiere" || !orderId || !warehouseId) return;
-    if (orderPrefillApplied === orderId) return;
-    if (prefillCount === 0) return;
-    if (entries.length > 0) {
-      setOrderPrefillApplied(orderId);
-      return;
-    }
-    const prefillEntries: BatchScanEntry[] = orderItemsPrefill.map((it): BatchScanEntry => ({
-      clientUuid: crypto.randomUUID(),
-      scannedAt: Date.now(),
-      stockItemId: it.stock_item_id,
-      itemName: it.name,
-      quantity: Math.max(0, Math.min(it.quantity, it.available_in_warehouse)),
-      serialNumbers: [],
-      rawCode: it.product_code,
-      trackingMode: it.tracking_mode,
-    }));
-    setEntries(prefillEntries);
-    setOrderPrefillApplied(orderId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destTipo, orderId, warehouseId, prefillCount, entries.length, orderPrefillApplied]);
+  const ownReservations = useMemo(() => {
+    const own = new Map<string, number>();
+    for (const item of orderItemsPrefill) own.set(item.stock_item_id, (own.get(item.stock_item_id) ?? 0) + item.reserved_for_order);
+    return own;
+  }, [orderItemsPrefill]);
 
-  // Auto-fill trasportatore dal contratto subappalto della commessa
-  const { data: orderContract } = useQuery<{ subappaltatore_id: string } | null>({
-    queryKey: ["uscita-order-contract", orderId],
-    enabled: destTipo === "cantiere" && !!orderId,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("contratti_subappalto")
-        .select("subappaltatore_id")
-        .eq("order_id", orderId!)
-        .in("stato", ["attivo", "bozza"])
-        .limit(1)
-        .maybeSingle();
-      return data;
-    },
-  });
-  useEffect(() => {
-    if (destTipo !== "cantiere" || !orderId || vettoreManuallyChanged) return;
-    if (!orderContract?.subappaltatore_id) return;
-    setVettoreTipo("subappaltatore");
-    setVettoreSubId(orderContract.subappaltatore_id);
-  }, [destTipo, orderId, orderContract?.subappaltatore_id, vettoreManuallyChanged]);
+  const availableForOrder = useMemo(() => {
+    const own = new Map<string, number>();
+    for (const item of orderItemsPrefill) own.set(item.stock_item_id, (own.get(item.stock_item_id) ?? 0) + item.reserved_for_order);
+    return new Map(orderItemsPrefill.map((item) => [item.stock_item_id, Math.min(item.physical, item.free + Math.min(item.total_reserved, own.get(item.stock_item_id) ?? 0))]));
+  }, [orderItemsPrefill]);
+
+  const proposedEntries = useMemo(() => materialiPrenotatiDaPrelevare(orderItemsPrefill), [orderItemsPrefill]);
+
+  const handleApplyOrderPrefill = () => {
+    if (entries.length > 0) return;
+    setEntries(proposedEntries);
+  };
 
   const handleOrderChange = useCallback((id: string, order: OrderOption) => {
-    setOrderId(id);
-    setSelectedOrder(order);
-    setOrderPrefillApplied(null);
-    setVettoreManuallyChanged(false);
-  }, []);
+    setOrderId(id);setSelectedOrder(order);setVettoreManuallyChanged(false);
+    if(entries.length===0&&order.default_warehouse_id)setWarehouseId(order.default_warehouse_id);
+  }, [entries.length]);
 
   const handleAnagraficaChange = useCallback((id: string, a: AnagraficaOption) => {
     setAnagraficaId(id);
@@ -335,7 +336,10 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
         : liberoRagione.trim().length > 0;
 
   const erroreRighe = validaRigheUscita(entries);
-  const canRegister = !!warehouseId && destinatarioValid && !erroreRighe;
+  const canRegister = canWrite && !outcomeUnknown && !warehousesError && warehouses.some((warehouse) => warehouse.id === warehouseId) && destinatarioValid && !erroreRighe;
+  const availability = useMovementAvailability(companyId, warehouseId, entries, destTipo === "cantiere" ? orderId : undefined, step === "review");
+  const availabilityProblem = step !== "review" ? null : availability.isLoading || availability.isFetching ? "Verifica della disponibilità in corso…" : availability.isError ? "Disponibilità non verificabile. Torna alle righe e riprova; i dati inseriti sono conservati." : movementAvailabilityError(entries, availability.data);
+  const requestReview = () => { setSubmitError(null); setStep("review"); };
 
   function buildDestinatario(): UscitaDestinatario {
     if (destTipo === "cliente" && selectedAnagrafica) {
@@ -401,8 +405,8 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
     return { tipo: "mittente" };
   }
 
-  async function handleRegister() {
-    if (!warehouseId || !destinatarioValid || register.isPending) return;
+  async function handleRegister(replay = false) {
+    if (!warehouseId || (!canRegister && !(replay && register.canReplay && canWrite)) || register.isPending || commitInFlight.current) return;
     if (erroreRighe) {
       toast.error(erroreRighe);
       return;
@@ -412,8 +416,19 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
       toast.error("Nessun articolo valido da scaricare");
       return;
     }
+    commitInFlight.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
+    let requestSent = false;
     try {
+      if (!replay) {
+      const fresh = await availability.refetch();
+      if (fresh.isError) throw new Error("Impossibile verificare il disponibile. Le righe sono conservate.");
+      const shortage = movementAvailabilityError(entries, fresh.data);
+      if (shortage) throw new Error(shortage);
+      }
       const destinatario = buildDestinatario();
+      requestSent = true;
       const res = await register.mutateAsync({
         warehouseId,
         destinatario,
@@ -422,7 +437,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
         note: note.trim() || null,
       });
       const errCount = Array.isArray(res.errors) ? res.errors.length : 0;
-      toast.success(`Uscita ${res.numero} registrata`, {
+      (errCount ? toast.warning : toast.success)(`Uscita ${res.numero} registrata`, {
         description: `${res.created_movements} articoli scaricati${res.updated_units ? ` · ${res.updated_units} seriali` : ""}${errCount ? ` · ${errCount} avvisi` : ""}.`,
       });
       setRegistrata({
@@ -430,11 +445,14 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
         numero: res.numero,
         destinatario_tipo: destinatario.tipo,
         destinatario: destinatario.cliente_snapshot?.ragione_sociale || "il destinatario",
-        righe: scans.length,
+        righe: res.created_movements,
       });
     } catch (e) {
-      toast.error("Errore registrazione uscita", { description: (e as Error).message });
-    }
+      if (replay && (e as { code?: string }).code) setOutcomeUnknown(false);
+      if (requestSent && /fetch|network|connessione|timeout|timed out|esito uscita non disponibile/i.test((e as Error).message)) setOutcomeUnknown(true);
+      setSubmitError((e as Error).message);
+      toast.error("Prelievo non confermato", { description: (e as Error).message });
+    } finally { commitInFlight.current = false; setSubmitting(false); }
   }
 
   // Uscita registrata: resta solo la domanda sul DDT. Chiusa la finestra (DDT
@@ -450,6 +468,8 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
       />
     );
   }
+
+  if (step === "review") return <MovementReviewDialog open={open} operation="prelievo" balances={balances.data} balancesLoading={balances.isFetching} balancesUnavailable={balances.isError} ownReservations={ownReservations} warehouse={warehouseObj?.name ?? "Magazzino"} counterpart={destTipo === "cantiere" ? selectedOrder?.order_code : destTipo === "cliente" && selectedAnagrafica ? anagraficaDisplayName(selectedAnagrafica) : liberoRagione} entries={entries} onBack={() => setStep("context")} onConfirm={() => void handleRegister()} onOpenChange={onOpenChange} pending={submitting || register.isPending} onRecover={outcomeUnknown && register.canReplay ? () => void handleRegister(true) : undefined} blocked={outcomeUnknown ? "Esito da verificare: la richiesta potrebbe essere già stata elaborata. Usa la verifica esito se disponibile oppure controlla la scheda Uscite prima di registrare di nuovo." : !canWrite ? "Non hai il permesso di registrare movimenti." : erroreRighe || availabilityProblem} error={submitError} />;
 
   // ── Step 'scan' ───────────────────────────────────────────────
   if (step === "scan") {
@@ -479,8 +499,8 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
           allowedOrderItems={destTipo === "cantiere" && allowedOrderItems.length > 0 ? allowedOrderItems : undefined}
           initialEntries={entries}
           onEntriesChange={setEntries}
-          onConfirm={handleRegister}
-          confirmLabel="Registra uscita"
+          onConfirm={requestReview}
+          confirmLabel="Controlla prelievo"
           isConfirming={register.isPending}
         />
       </Suspense>
@@ -522,6 +542,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 space-y-3">
+          {warehousesError && <Alert variant="destructive"><AlertDescription>Magazzini non disponibili. <Button variant="link" onClick={() => void refetchWarehouses()}>Riprova magazzini</Button></AlertDescription></Alert>}
           {/* 1 · Destinatario */}
           <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-3">
             <StepHead n={1} label="A chi esce la merce" />
@@ -566,9 +587,9 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
                   onChange={handleOrderChange}
                   placeholder="Cerca per codice, cliente o indirizzo cantiere…"
                 />
-                {orderId && orderItemsPrefill.length > 0 && (
+                {orderId && entries.length === 0 && proposedEntries.length > 0 && (
                   <p className="text-[11px] text-emerald-600">
-                    ✓ {orderItemsPrefill.length} articoli pre-caricati dalla commessa — controlla quantità.
+                    {proposedEntries.length} {proposedEntries.length === 1 ? "articolo prenotato disponibile" : "articoli prenotati disponibili"}. Aggiungili con il pulsante qui sotto.
                   </p>
                 )}
               </div>
@@ -648,7 +669,12 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
                 </span>
               )}
             </div>
+            {destTipo === "cantiere" && entries.length === 0 && proposedEntries.length > 0 && <Button variant="outline" size="sm" onClick={handleApplyOrderPrefill}>Proponi materiali prenotati</Button>}
+            {prefillError && <p role="alert" className="text-xs text-destructive">Non è stato possibile leggere i materiali della commessa. Puoi cercare gli articoli manualmente.</p>}
             <ManualArticleAdder
+              key={`${companyId}:${warehouseId}`}
+              mode="scarico"
+              availabilityOverrides={availableForOrder}
               companyId={companyId}
               warehouseId={warehouseId}
               entries={entries}
@@ -759,6 +785,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
             )}
           </section>
 
+          {outcomeUnknown && <Alert variant="destructive"><AlertDescription>Esito da verificare: controlla la scheda Uscite prima di registrare nuovamente il prelievo.</AlertDescription></Alert>}
           <Alert>
             <PackageCheck className="h-4 w-4" />
             <AlertDescription className="text-xs">
@@ -779,7 +806,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
               Annulla
             </Button>
             <Button
-              onClick={handleRegister}
+              onClick={requestReview}
               disabled={!canRegister || register.isPending}
               className="flex-[2] h-11 gap-2"
             >
@@ -790,7 +817,7 @@ export function UscitaMerceSheet({ open, onOpenChange, initialOrder }: UscitaMer
                 </>
               ) : (
                 <>
-                  Registra uscita{entries.length ? ` (${entries.length})` : ""}
+                  Controlla prelievo{entries.length ? ` (${entries.length})` : ""}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}

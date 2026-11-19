@@ -40,14 +40,15 @@ export function useWarehouseSections() {
     mutationFn: async (data: { name: string; description?: string; color: string }) => {
       if (!companyId) throw new Error("No company");
       const maxPos = sections.length > 0 ? Math.max(...sections.map(s => s.position)) + 1 : 0;
-      const { error } = await supabase.from("warehouse_sections").insert({
+      const { data: created, error } = await supabase.from("warehouse_sections").insert({
         company_id: companyId,
         name: data.name,
         description: data.description || null,
         color: data.color,
         position: maxPos,
-      });
+      }).select("id").single();
       if (error) throw error;
+      return created;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.sectionsAll });

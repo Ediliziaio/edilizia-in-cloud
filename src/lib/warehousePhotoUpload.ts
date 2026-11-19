@@ -1,3 +1,4 @@
+import { validateWarehouseFile, MAX_WAREHOUSE_PHOTOS } from "@/lib/magazzino/allegatiMagazzino";
 import { supabase } from "@/integrations/supabase/client";
 
 type WarehousePhotoContext = "arrival_product" | "loaded_goods";
@@ -52,19 +53,19 @@ export async function uploadWarehousePhotos({
 
   if (files.length === 0) return result;
 
+  if (files.length > MAX_WAREHOUSE_PHOTOS) throw new Error("Carica al massimo 10 foto alla volta.");
+  if (orderId) await verifyOrderScope(companyId, [orderId]);
   const geo = await getOptionalGeoPosition();
   const folder = orderId ?? "magazzino";
 
   for (const [index, file] of files.entries()) {
-    if (!file.type.startsWith("image/")) {
-      result.skipped.push(file.name);
-      continue;
-    }
+    let mime: string;
+    try { mime = await validateWarehouseFile(file, true); } catch { result.failed.push(file.name); continue; }
 
     const path = `${companyId}/${folder}/${context}/${Date.now()}-${index}-${sanitizeFileName(file.name)}`;
     const { error: uploadError } = await supabase.storage
       .from("foto-cantiere")
-      .upload(path, file, { contentType: file.type });
+      .upload(path, file, { contentType: mime, upsert: false });
 
     if (uploadError) {
       result.failed.push(file.name);
@@ -102,22 +103,26 @@ export async function uploadWarehouseDDTToOrders({
   userId,
   supplierName,
   insertedAt,
+  companyId,
 }: {
   file: File;
   orderIds: string[];
   userId: string;
   supplierName?: string | null;
   insertedAt: string;
+  companyId: string;
 }) {
   const uploaded: string[] = [];
   const failed: string[] = [];
+  const mime = await validateWarehouseFile(file);
+  await verifyOrderScope(companyId, orderIds);
   const safeName = sanitizeFileName(file.name);
 
   for (const orderId of orderIds) {
     const filePath = `orders/${orderId}/ddt-arrivo-${Date.now()}-${safeName}`;
     const { error: uploadError } = await supabase.storage
       .from("order-attachments")
-      .upload(filePath, file, { contentType: file.type });
+      .upload(filePath, file, { contentType: mime, upsert: false });
 
     if (uploadError) {
       failed.push(orderId);
@@ -129,7 +134,7 @@ export async function uploadWarehouseDDTToOrders({
       order_id: orderId,
       file_name: `${label} - ${file.name}`,
       file_url: filePath,
-      file_type: file.type || "application/octet-stream",
+      file_type: mime,
       file_size: file.size,
       uploaded_by: userId,
       visible_to_customer: false,
@@ -145,4 +150,12 @@ export async function uploadWarehouseDDTToOrders({
   }
 
   return { uploaded, failed };
+}
+
+async function verifyOrderScope(companyId: string, ids: string[]) {
+  if (!companyId || !ids.length) throw new Error("Seleziona una commessa accessibile per allegare il documento.");
+  const unique=[...new Set(ids)];
+  const {data,error}=await supabase.from("orders").select("id").eq("company_id",companyId).in("id",unique).is("deleted_at",null);
+  if(error)throw error;
+  if(data?.length!==unique.length)throw new Error("Una commessa non appartiene all’azienda selezionata o non è accessibile.");
 }

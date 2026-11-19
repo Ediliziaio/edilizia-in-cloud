@@ -5,6 +5,7 @@ import { z } from "zod";
 // un importo che il salvataggio avrebbe letto benissimo come 0,50.
 // Validazione e persistenza devono leggere la stringa allo stesso modo.
 import { parseDecimalIT } from "./parseDecimalIT";
+import { calcolaIvaContratto, IVA_MISTA } from "./orders/ivaMista";
 
 const baseOrderSchema = z.object({
   customer_id: z.string().min(1, "Seleziona un cliente"),
@@ -12,6 +13,8 @@ const baseOrderSchema = z.object({
   description: z.string().min(3, "La descrizione deve avere almeno 3 caratteri").max(1000),
   internal_notes: z.string().max(20000).optional().default(""),
   status_id: z.string().optional().default(""),
+  pipeline_id:z.string().default("principale"),
+  pipeline_stage_id:z.string().default(""),
   salesperson_id: z.string().optional().default(""),
   salesperson_data: z.object({
     commission_type: z.string(),
@@ -33,6 +36,8 @@ const baseOrderSchema = z.object({
   payment_type: z.enum(["standard", "financing"]).default("standard"),
   total_amount: z.string().default(""),
   vat_rate: z.string().default("22"),
+  payment_terms: z.object({version:z.literal(1),mode:z.enum(["advance_sal","sal"])}).optional(),
+  vat_split: z.object({ mode: z.enum(["net", "gross"]), amount10: z.string(), amount22: z.string() }).optional(),
   financing_cost: z.string().optional().default(""),
   has_building_bonus: z.boolean().default(false),
 });
@@ -45,6 +50,8 @@ const baseOrderSchema = z.object({
 const contieneCifre = (v: string | undefined | null) => /\d/.test(v ?? "");
 
 export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
+  if(data.pipeline_id!=="principale"&&!data.pipeline_stage_id)ctx.addIssue({code:z.ZodIssueCode.custom,message:"Seleziona lo stato iniziale della pipeline.",path:["pipeline_stage_id"]});
+  if(data.payment_terms && data.payment_type!=="standard")ctx.addIssue({code:z.ZodIssueCode.custom,message:"Il piano a SAL richiede un pagamento standard.",path:["payment_terms"]});
   const total = parseDecimalIT(data.total_amount);
   if (!data.total_amount || !contieneCifre(data.total_amount)) {
     ctx.addIssue({
@@ -61,7 +68,10 @@ export const orderSchema = baseOrderSchema.superRefine((data, ctx) => {
   }
 
   const vat = parseDecimalIT(data.vat_rate);
-  if (!data.vat_rate || !contieneCifre(data.vat_rate) || vat < 0 || vat > 100) {
+  if (data.vat_rate === IVA_MISTA) {
+    const error = calcolaIvaContratto(data.total_amount, data.vat_rate, data.vat_split).error;
+    if (error) ctx.addIssue({code: z.ZodIssueCode.custom, message: error, path: ["vat_split"]});
+  } else if (!data.vat_rate || !contieneCifre(data.vat_rate) || vat < 0 || vat > 100) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "L'IVA deve essere un valore tra 0 e 100",
@@ -100,6 +110,8 @@ export const orderDefaultValues: OrderFormValues = {
   description: "",
   internal_notes: "",
   status_id: "",
+  pipeline_id:"principale",
+  pipeline_stage_id:"",
   salesperson_id: "",
   salesperson_data: null,
   assigned_to: "",

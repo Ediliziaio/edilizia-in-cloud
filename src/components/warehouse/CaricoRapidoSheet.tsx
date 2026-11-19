@@ -60,7 +60,11 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMovementBalances } from "@/hooks/warehouse/useMovementBalances";
+import type { StockItem } from "@/types/warehouse";
+import { rigaMovimentoIniziale } from "@/lib/magazzino/righeMovimento";
 import { useBatchCarico } from "@/hooks/warehouse/useBatchCarico";
+import { validateWarehouseFile, WAREHOUSE_DOCUMENT_ACCEPT, WAREHOUSE_PHOTO_ACCEPT, MAX_WAREHOUSE_PHOTOS } from "@/lib/magazzino/allegatiMagazzino";
 import { uploadWarehouseDDTToOrders, uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import { deriveLottoFromSerials } from "@/lib/barcode/multiSerialParser";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
@@ -68,15 +72,20 @@ import type { BatchScanEntry } from "./BatchBarcodeScanner";
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
 );
+import { usePermissions } from "@/hooks/usePermissions";
+import { validaRigheUscita } from "@/lib/magazzino/validaRigheUscita";
+import { MovementReviewDialog } from "./MovementReviewDialog";
 import { ManualArticleAdder } from "./ManualArticleAdder";
 
 interface CaricoRapidoSheetProps {
   open: boolean;
+  initialWarehouseId?: string | null;
+  initialStockItem?: StockItem;
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "context" | "scan";
-type ReceiveMode = "scan" | "ddt";
+type Step = "context" | "scan" | "review";
+type ReceiveMode = "manual" | "scan" | "ddt";
 
 interface SupplierOption {
   id: string;
@@ -100,16 +109,19 @@ export function CaricoRapidoSheet(props: CaricoRapidoSheetProps) {
   ) : null;
 }
 
-function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
+function CaricoRapidoSession({ open, onOpenChange, initialWarehouseId, initialStockItem }: CaricoRapidoSheetProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+  const canWrite = !permissions.isLoading && permissions.canEditWarehouse;
+  const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
   const queryClient = useQueryClient();
   // BUG FIX (mobile UX): useWarehouses(true) faceva INNER JOIN con
   // warehouse_assignments -> utenti senza assignment vedevano dropdown vuoto e
   // non potevano registrare arrivo merce. Stesso pattern di ScaricoCantiereSheet:
   // query diretta su warehouses attivi della company, niente filtro per ruolo.
   // I permessi RBAC sui CRUD restano gestiti dalle RLS lato DB.
-  const { data: warehouses = [], isLoading: warehousesLoading } = useQuery({
+  const { data: warehouses = [], isLoading: warehousesLoading, isError: warehousesError, refetch: refetchWarehouses } = useQuery({
     queryKey: ["carico-rapido-warehouses", companyId],
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -179,12 +191,12 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
   // (richiesta utente: es. azienda ceramica compra lotto SENZA ordine cliente).
   // Default CHIUSA su mobile per ridurre clutter (l'utente la apre solo se serve).
   const [ddtSectionOpen, setDdtSectionOpen] = useState(false);
-  const [receiveMode, setReceiveMode] = useState<ReceiveMode>("scan");
+  const [receiveMode, setReceiveMode] = useState<ReceiveMode>("manual");
   // Scansione "una alla volta": ogni scan apre un popup di conferma (trovato→associa,
   // non trovato→crea) prima di aggiungere. Default ON (richiesta utente).
   const [confirmEachScan, setConfirmEachScan] = useState(true);
   const [supplierId, setSupplierId] = useState<string | undefined>();
-  const [selectedWarehouseId, setWarehouseId] = useState<string | undefined>();
+  const [selectedWarehouseId, setWarehouseId] = useState<string | undefined>(initialWarehouseId ?? undefined);
   const warehouseId = selectedWarehouseId
     ?? (warehouses.find((w) => w.is_default) ?? warehouses[0])?.id;
   const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
@@ -194,6 +206,11 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
   const [ddtAiLoading, setDdtAiLoading] = useState(false);
   const [ddtAiDone, setDdtAiDone] = useState(false);
   const [notes, setNotes] = useState("");
+  const [registerCost, setRegisterCost] = useState(false);
+  const [costDate, setCostDate] = useState(() => new Date().toLocaleDateString("en-CA"));
+  const [costPaid, setCostPaid] = useState(true);
+  const [costCategory, setCostCategory] = useState("Magazzino");
+  const [costVat, setCostVat] = useState("22");
   // Lotto opzionale: se l'utente compila il codice, dopo il carico tutti i
   // stock_units (serializzati) appena creati verranno raggruppati sotto questo
   // lotto. Caso d'uso fotovoltaico/impiantistica: 1 bancale = 1 lotto.
@@ -227,9 +244,15 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
   const [pasteSectionOpen, setPasteSectionOpen] = useState(false);
   // B1 — "Aggiungi a mano dal listino": entrata merce senza scansione
   // (es. arriva un bancale di articoli già a catalogo → li scegli + quantità + prezzo).
-  const [manualSectionOpen, setManualSectionOpen] = useState(false);
+  const [manualSectionOpen, setManualSectionOpen] = useState(true);
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
-  const [entries, setEntries] = useState<BatchScanEntry[]>([]);
+  const [entries, setEntries] = useState<BatchScanEntry[]>(() => initialStockItem ? [rigaMovimentoIniziale(initialStockItem, canViewCosts)] : []);
+  const costAmount = entries.reduce((sum, entry) => sum + Math.round((entry.purchasePrice ?? 0) * entry.quantity * 100) / 100, 0);
+  const costProblem = registerCost && (!canViewCosts ? "Non hai il permesso di registrare costi." : !/^\d{4}-\d{2}-\d{2}$/.test(costDate) ? "Indica la data del costo." : entries.some(e => e.purchasePrice == null || !Number.isFinite(e.purchasePrice) || e.purchasePrice < 0) ? "Indica il prezzo d’acquisto di ogni articolo per registrare il costo." : costAmount <= 0 && entries.length > 0 ? "Il costo deve avere un imponibile maggiore di zero." : null);
+  const balances = useMovementBalances(companyId, entries.flatMap((entry) => entry.stockItemId ? [entry.stockItemId] : []), step === "review");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [partialResult, setPartialResult] = useState<import("@/hooks/warehouse/useBatchCarico").BatchCaricoResult | null>(null);
+  const commitInFlight = useRef(false);
   const [insertedAt] = useState(() => new Date());
   const insertedBy = user?.email ?? "utente corrente";
 
@@ -261,8 +284,8 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
   }, [supplierObj]);
 
   // Il fornitore è facoltativo (11/11/2026): basta sapere in quale magazzino entra la merce.
-  const canProceedToScan = !!warehouseId;
-  const canContinueReceipt = canProceedToScan && (receiveMode === "scan" || !!ddtFile);
+  const canProceedToScan = canWrite && !warehousesError && warehouses.some((warehouse) => warehouse.id === warehouseId);
+  const canContinueReceipt = canProceedToScan && (receiveMode !== "ddt" || !!ddtFile);
   const continueLabel = receiveMode === "ddt" ? "Carica DDT e registra prodotti" : "Inizia scansione";
   const selectedRelatedOrders = useMemo(
     () => relatedOrders.filter((order) => relatedOrderIds.includes(order.id)),
@@ -289,9 +312,9 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
     return parts.filter(Boolean).join(" · ");
   }, [ddtFile, selectedRelatedOrders.length, supplierObj, warehouseObj]);
   const progressItems = [
-    { label: "Fornitore", done: !!supplierId },
-    { label: "DDT", done: receiveMode === "scan" || !!ddtFile },
-    { label: "Ordini", done: relatedOrderIds.length > 0 },
+    { label: "Fornitore facoltativo", done: true },
+    { label: "DDT facoltativo", done: receiveMode !== "ddt" || !!ddtFile },
+    { label: "Righe", done: entries.length > 0 },
     { label: "Magazzino", done: !!warehouseId },
   ];
   const toggleRelatedOrder = (orderId: string) => {
@@ -548,6 +571,11 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
 
   async function handleConfirm() {
     if (!warehouseId) return;
+    if (!canWrite || commitInFlight.current || batchCarico.isPending) return;
+    const invalid = validaRigheUscita(entries) || (entries.some((e) => e.purchasePrice != null && (!Number.isFinite(e.purchasePrice) || e.purchasePrice < 0)) ? "Verifica i prezzi d’acquisto." : null);
+    if (invalid || costProblem) { setSubmitError(invalid || costProblem); return; }
+    commitInFlight.current = true;
+    setSubmitError(null);
 
     // v8.6.121 — Note costruite SENZA esito upload: foto e DDT si caricano DOPO
     // il commit dello stock, in background, così la conferma non resta appesa
@@ -560,7 +588,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             .join(", ")}`
         : "";
     const ddtNote = ddtFile
-      ? `DDT arrivo caricato: ${ddtFile.name} alle ${insertedAt.toLocaleString("it-IT")} da ${insertedBy}`
+      ? `${relatedOrderIds.length ? "DDT selezionato per il collegamento alle commesse" : "DDT usato per preparare il carico; file non archiviato (nessuna commessa collegata)"}: ${ddtFile.name} alle ${insertedAt.toLocaleString("it-IT")} da ${insertedBy}`
       : "";
     const photoNote =
       productPhotos.length > 0
@@ -586,7 +614,13 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
         entries,
         notes: mergedNotes || undefined,
         sectionId: sectionId ?? null,
+        companyCost: registerCost && canViewCosts ? { date: costDate, category: costCategory, vat_rate: Number(costVat), is_paid: costPaid } : undefined,
       });
+
+      if (result.errors.length > 0) {
+        setPartialResult(result);
+        return;
+      }
 
       // ── Auto-create lotto se l'utente ha compilato lottoCode ────────────
       // I seriali appena creati (status='available', purchase_date=today)
@@ -698,6 +732,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             }
             if (ddtToUpload && linkedOrderIds.length > 0) {
               const ddtUpload = await uploadWarehouseDDTToOrders({
+                companyId: companyIdForUpload,
                 file: ddtToUpload,
                 orderIds: linkedOrderIds,
                 userId: userIdForUpload,
@@ -717,10 +752,14 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
           }
         })();
       }
-    } catch {
-      // error toast già emesso dal hook
-    }
+    } catch (error) {
+      setSubmitError((error as Error).message || "Carico non confermato. Verifica il registro movimenti prima di riprovare se la connessione si è interrotta.");
+    } finally { commitInFlight.current = false; }
   }
+
+  if (partialResult) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Esito del carico</DialogTitle><DialogDescription>{partialResult.created_movements} movimenti registrati · {partialResult.errors.length} segnalazioni. Il carico non va ripetuto per intero.</DialogDescription></DialogHeader><ul className="max-h-[45vh] space-y-2 overflow-auto">{partialResult.errors.map((e, i) => <li key={i} className="rounded-lg border p-3 text-sm">{entries.find((entry) => entry.stockItemId === e.stock_item_id)?.itemName || e.serial_number || "Articolo"}: {e.error}</li>)}</ul><p className="text-sm text-muted-foreground">Verifica i movimenti già registrati e correggi soltanto gli articoli mancanti.</p><DialogFooter><Button onClick={() => onOpenChange(false)}>Chiudi esito</Button></DialogFooter></DialogContent></Dialog>;
+
+  if (step === "review") return <MovementReviewDialog open={open} operation="carico" balances={balances.data} balancesLoading={balances.isFetching} balancesUnavailable={balances.isError} warehouse={warehouseObj?.name ?? "Magazzino"} counterpart={supplierObj?.name} entries={entries} onBack={() => setStep("context")} onConfirm={() => void handleConfirm()} onOpenChange={onOpenChange} pending={batchCarico.isPending} additionalSummary={registerCost && canViewCosts ? <div className="rounded-xl border bg-blue-50 p-3 text-sm"><p className="font-semibold">Costo aziendale da registrare</p><p>Imponibile {costAmount.toLocaleString("it-IT", {style:"currency",currency:"EUR"})} · IVA {costVat}% · {costCategory}</p><p>{costPaid ? "Pagato il" : "Scadenza"} {new Date(`${costDate}T12:00:00`).toLocaleDateString("it-IT")}</p><p className="mt-1 text-xs text-muted-foreground">Carico e costo vengono salvati insieme una sola volta.</p></div> : undefined} blocked={!canProceedToScan ? "Verifica il magazzino e i permessi." : costProblem || validaRigheUscita(entries)} error={submitError} />;
 
   // Step "scan" è gestito dal BatchBarcodeScanner sheet, non dal nostro Sheet
   // (il BatchBarcodeScanner usa il proprio Sheet bottom h-90svh).
@@ -744,8 +783,8 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             supplierUsesGs1={supplierUsesGs1}
             initialEntries={entries}
             onEntriesChange={setEntries}
-            onConfirm={handleConfirm}
-            confirmLabel="Conferma carico"
+            onConfirm={() => setStep("review")}
+            confirmLabel="Controlla carico"
             isConfirming={batchCarico.isPending}
             onRequestCreateItem={handleRequestCreateItem}
             confirmEachScan={confirmEachScan}
@@ -759,6 +798,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
           onOpenChange={handleCloseCreateDialog}
           onSave={handleSaveNewItem}
           isPending={createPending}
+          canViewCosts={canViewCosts}
           prefillBarcode={createPrefillBarcode}
           prefillSupplierId={supplierId}
           prefillSerials={createPrefillSerials}
@@ -776,7 +816,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             Registra arrivo merce
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Scegli se partire dalla scansione o dal DDT: il flusso resta collegato a fornitore, magazzino, ordini e foto di arrivo.
+            Scegli gli articoli, controlla le quantità e conferma. Puoi usare elenco, scanner o documento di arrivo.
           </DialogDescription>
         </DialogHeader>
 
@@ -807,7 +847,8 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Come registri l&apos;arrivo?
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <Button type="button" variant={receiveMode === "manual" ? "default" : "outline"} className="h-12" onClick={() => { setReceiveMode("manual"); setManualSectionOpen(true); }}>Da elenco</Button>
               <Button
                 type="button"
                 variant={receiveMode === "scan" ? "default" : "outline"}
@@ -820,7 +861,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
               <Button
                 type="button"
                 variant={receiveMode === "ddt" ? "default" : "outline"}
-                onClick={() => setReceiveMode("ddt")}
+                onClick={() => { setReceiveMode("ddt"); setDdtSectionOpen(true); }}
                 className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
               >
                 <FileText className="h-5 w-5 sm:h-4 sm:w-4" />
@@ -888,6 +929,88 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             )}
           </div>
 
+          {warehousesError && <Alert variant="destructive"><AlertDescription>Magazzini non disponibili. <Button variant="link" onClick={() => void refetchWarehouses()}>Riprova magazzini</Button></AlertDescription></Alert>}
+          {entries.length > 0 && <p className="text-xs text-muted-foreground">Il magazzino resta fissato alle righe inserite. Rimuovi le righe prima di cambiarlo.</p>}
+
+          {/* Magazzino */}
+          <div className="space-y-2">
+            <Label htmlFor="cr-warehouse">Magazzino destinazione *</Label>
+            {warehousesLoading ? (
+              <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                Caricamento...
+              </div>
+            ) : (
+              <Select
+                value={warehouseId}
+                onValueChange={(v) => {
+                  setWarehouseId(v);
+                  setSectionId(undefined); // sezioni dipendono dal magazzino
+                }}
+              >
+                <SelectTrigger id="cr-warehouse" className="h-11 sm:h-10">
+                  <SelectValue placeholder="Scegli un magazzino..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      <div className="flex items-center gap-2">
+                        {w.name}
+                        {w.is_default && (
+                          <span className="text-[9px] uppercase bg-muted px-1.5 py-0.5 rounded">
+                            default
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {/* B1 — Aggiungi a mano dal listino (senza scansione) */}
+          <div className="rounded-lg border bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setManualSectionOpen((v) => !v)}
+              className="w-full flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors rounded-lg"
+              aria-expanded={manualSectionOpen}
+            >
+              <PackagePlus className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-medium">Aggiungi a mano dal listino</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Niente codice a barre? Scegli l'articolo dal listino/giacenza, quantità e prezzo d'acquisto.
+                </p>
+              </div>
+              {manualSectionOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+            {manualSectionOpen && (
+              <div className="px-3 pb-3 border-t border-muted-foreground/10 pt-3">
+                {!canProceedToScan ? (
+                  <p className="text-[11px] text-amber-600">
+                    Scegli prima il magazzino qui sopra.
+                  </p>
+                ) : (
+                  <ManualArticleAdder
+                    key={`${companyId}:${warehouseId}`}
+                    mode="carico"
+                    companyId={companyId}
+                    warehouseId={warehouseId}
+                    entries={entries}
+                    onEntriesChange={setEntries}
+                    showPurchasePrice={canViewCosts}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
           {/* v8.6.111 — Sezione DDT/ordini collassabile. Default chiusa: la
               maggioranza dei carichi sono "lotto magazzino" senza ordine
               cliente specifico (es. azienda ceramica). Mostra contatore se
@@ -926,16 +1049,18 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             {ddtSectionOpen && (
             <div className="px-3 pb-3 space-y-3 border-t border-muted-foreground/10 pt-3">
             <div className="rounded-md border bg-background p-2">
+              <p className="mb-2 text-xs text-muted-foreground">Foto o PDF fino a 10 MB. SVG non ammessi.</p>
+              <p role="note" className="mb-2 text-xs text-muted-foreground">Il file DDT viene archiviato nelle commesse collegate. Senza una commessa puoi usarlo per preparare il carico, ma il file non viene conservato: mantieni l’originale.</p>
               <Input
                 id="cr-ddt-file"
                 type="file"
-                accept="image/*,.pdf"
+                accept={WAREHOUSE_DOCUMENT_ACCEPT}
                 capture="environment"
                 className="sr-only"
-                onChange={(event) => {
-                  setDdtFile(event.target.files?.[0] ?? null);
-                  setDdtAiDone(false);
-                  event.currentTarget.value = "";
+                onChange={async (event) => {
+                  const file=event.target.files?.[0];event.currentTarget.value="";
+                  if(!file)return;
+                  try {await validateWarehouseFile(file);setDdtFile(file);setDdtAiDone(false);} catch(error){toast.error(error instanceof Error?error.message:"File non valido.");}
                 }}
               />
               {ddtFile ? (
@@ -1097,43 +1222,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             )}
           </div>
 
-          {/* Magazzino */}
-          <div className="space-y-2">
-            <Label htmlFor="cr-warehouse">Magazzino destinazione *</Label>
-            {warehousesLoading ? (
-              <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento...
-              </div>
-            ) : (
-              <Select
-                value={warehouseId}
-                onValueChange={(v) => {
-                  setWarehouseId(v);
-                  setSectionId(undefined); // sezioni dipendono dal magazzino
-                }}
-              >
-                <SelectTrigger id="cr-warehouse" className="h-11 sm:h-10">
-                  <SelectValue placeholder="Scegli un magazzino..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      <div className="flex items-center gap-2">
-                        {w.name}
-                        {w.is_default && (
-                          <span className="text-[9px] uppercase bg-muted px-1.5 py-0.5 rounded">
-                            default
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
+          <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-medium">Lotti, ubicazione e seriali (facoltativi)</summary><div className="mt-3 space-y-4">
           {/* B3 — Sezione di stoccaggio + scadenza lotto (entrata merce) */}
           {sections.length > 0 && (
             <div className="space-y-2">
@@ -1244,45 +1333,7 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             )}
           </div>
 
-          {/* B1 — Aggiungi a mano dal listino (senza scansione) */}
-          <div className="rounded-lg border bg-muted/20">
-            <button
-              type="button"
-              onClick={() => setManualSectionOpen((v) => !v)}
-              className="w-full flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors rounded-lg"
-              aria-expanded={manualSectionOpen}
-            >
-              <PackagePlus className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium">Aggiungi a mano dal listino</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Niente codice a barre? Scegli l'articolo dal listino/giacenza, quantità e prezzo d'acquisto.
-                </p>
-              </div>
-              {manualSectionOpen ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
-            </button>
-            {manualSectionOpen && (
-              <div className="px-3 pb-3 border-t border-muted-foreground/10 pt-3">
-                {!canProceedToScan ? (
-                  <p className="text-[11px] text-amber-600">
-                    Scegli prima il magazzino qui sopra.
-                  </p>
-                ) : (
-                  <ManualArticleAdder
-                    companyId={companyId}
-                    warehouseId={warehouseId}
-                    entries={entries}
-                    onEntriesChange={setEntries}
-                    showPurchasePrice
-                  />
-                )}
-              </div>
-            )}
-          </div>
+          </div></details>
 
           {/* Note opzionali */}
           <div className="space-y-2">
@@ -1304,22 +1355,21 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
               <div>
                 <p className="text-sm font-medium">Foto prodotti ricevuti</p>
                 <p className="text-xs text-muted-foreground">
-                  Scatta foto a bancali, colli, prodotti danneggiati o etichette prima della scansione.
+                  Foto fino a 10 MB ciascuna, massimo 10 foto. SVG non ammessi.
                 </p>
               </div>
             </div>
             <Input
               id="cr-product-photos"
               type="file"
-              accept="image/*"
+              accept={WAREHOUSE_PHOTO_ACCEPT}
               capture="environment"
               multiple
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? []);
-                if (files.length > 0) {
-                  setProductPhotos((current) => [...current, ...files]);
-                }
-                event.currentTarget.value = "";
+              onChange={async (event) => {
+                const files=Array.from(event.target.files??[]);event.currentTarget.value="";
+                const valid:File[]=[];
+                for(const file of files){try{await validateWarehouseFile(file,true);valid.push(file);}catch(error){toast.error(`${file.name}: ${error instanceof Error?error.message:"File non valido."}`);}}
+                setProductPhotos(current=>{if(current.length+valid.length>MAX_WAREHOUSE_PHOTOS){toast.error("Carica al massimo 10 foto alla volta.");return current;}return [...current,...valid];});
               }}
             />
             {productPhotos.length > 0 && (
@@ -1352,9 +1402,20 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
               </AlertDescription>
             </Alert>
           )}
-        </div>
 
-        <DialogFooter className="shrink-0 flex-row gap-2 border-t bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
+        {entries.length > 0 && validaRigheUscita(entries) && <p role="alert" className="border-t px-4 py-2 text-xs text-destructive">{validaRigheUscita(entries)}</p>}
+        {canViewCosts && <section className="rounded-xl border bg-muted/20 p-3 space-y-3" aria-label="Costo aziendale del carico">
+        <div className="flex items-center gap-2"><Checkbox id="carico-register-cost" checked={registerCost} onCheckedChange={v => setRegisterCost(v === true)} /><Label htmlFor="carico-register-cost">Registra costo acquisto nei Costi Aziendali</Label></div>
+        <p className="text-xs text-muted-foreground">Facoltativo per il carico libero. Attivalo solo se questo acquisto non è già registrato da un ordine, una fattura o un altro costo.</p>
+        {registerCost && <><div className="grid gap-3 sm:grid-cols-2">
+          <div><Label htmlFor="carico-cost-date">{costPaid ? "Data pagamento" : "Data scadenza"}</Label><Input id="carico-cost-date" type="date" value={costDate} onChange={e => setCostDate(e.target.value)} /></div>
+          <div><Label htmlFor="carico-cost-category">Categoria costo</Label><Select value={costCategory} onValueChange={setCostCategory}><SelectTrigger id="carico-cost-category"><SelectValue /></SelectTrigger><SelectContent>{["Magazzino","Materiali","Attrezzature","Consumabili","Altro"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+          <div><Label htmlFor="carico-cost-vat">IVA del costo</Label><Select value={costVat} onValueChange={setCostVat}><SelectTrigger id="carico-cost-vat"><SelectValue /></SelectTrigger><SelectContent>{["0","4","5","10","22"].map(v => <SelectItem key={v} value={v}>{v}%</SelectItem>)}</SelectContent></Select></div>
+          <div className="flex items-center gap-2"><Checkbox id="carico-cost-paid" checked={costPaid} onCheckedChange={v => setCostPaid(v === true)} /><Label htmlFor="carico-cost-paid">Acquisto già pagato</Label></div>
+        </div><p className="text-sm font-medium">Imponibile: {costAmount.toLocaleString("it-IT", {style:"currency",currency:"EUR"})}</p>{costProblem && <p role="alert" className="text-sm text-destructive">{costProblem}</p>}</>}
+      </section>}
+        </div>
+      <DialogFooter className="shrink-0 flex-row gap-2 border-t bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -1364,11 +1425,11 @@ function CaricoRapidoSession({ open, onOpenChange }: CaricoRapidoSheetProps) {
             Annulla
           </Button>
           <Button
-            onClick={() => setStep("scan")}
-            disabled={!canContinueReceipt}
-            className="h-12 flex-[2] text-[15px] font-semibold sm:h-10 sm:text-sm"
+            onClick={() => setStep(entries.length > 0 ? "review" : "scan")}
+            disabled={!canContinueReceipt || (receiveMode === "manual" && entries.length === 0) || (entries.length > 0 && !!validaRigheUscita(entries))}
+            className="h-12 min-w-0 flex-[2] whitespace-normal text-[15px] leading-tight font-semibold sm:h-10 sm:text-sm"
           >
-            {continueLabel}
+            {entries.length > 0 ? "Controlla carico" : receiveMode === "manual" ? "Aggiungi articoli" : continueLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </DialogFooter>

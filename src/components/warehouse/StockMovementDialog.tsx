@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,9 +40,14 @@ interface StockMovementDialogProps {
   itemName: string;
   maxQuantity?: number;
   isPending?: boolean;
+  canViewCosts?: boolean;
+  serialized?: boolean;
 }
 
-export function StockMovementDialog({
+export function StockMovementDialog(props: StockMovementDialogProps) {
+  return props.open ? <StockMovementDialogSession key={`${props.type}:${props.itemName}`} {...props} /> : null;
+}
+function StockMovementDialogSession({
   open,
   onOpenChange,
   onSave,
@@ -50,6 +55,8 @@ export function StockMovementDialog({
   itemName,
   maxQuantity,
   isPending,
+  canViewCosts = true,
+  serialized = false,
 }: StockMovementDialogProps) {
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
@@ -58,28 +65,15 @@ export function StockMovementDialog({
   const [costCategory, setCostCategory] = useState("Magazzino");
   const [orderId, setOrderId] = useState<string | null>(null);
 
-  // Si riparte puliti a ogni apertura, non dopo il salvataggio: il dialog resta
-  // montato, e la commessa scelta per un articolo (anche annullando) restava
-  // per il successivo; se lo scarico falliva, invece, si perdeva quanto scritto.
-  useEffect(() => {
-    if (!open) return;
-    setQuantity("1");
-    setNotes("");
-    setRegisterCost(false);
-    setCostPaidDate(format(new Date(), "yyyy-MM-dd"));
-    setCostCategory("Magazzino");
-    setOrderId(null);
-  }, [open, itemName, type]);
-
   const handleSave = () => {
-    const qty = parseInt(quantity) || 0;
-    if (qty <= 0) return;
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty <= 0 || (serialized && !Number.isInteger(qty))) return;
     if (type === "scarico" && maxQuantity !== undefined && qty > maxQuantity) return;
     onSave({
       quantity: qty,
       notes: notes.trim() || undefined,
       ...(type === "scarico" ? { orderId } : {}),
-      ...(registerCost && type === "carico"
+      ...(canViewCosts && registerCost && type === "carico"
         ? { registerCost: true, costPaidDate, costCategory }
         : {}),
     });
@@ -104,7 +98,8 @@ export function StockMovementDialog({
             <Label>Quantità *</Label>
             <Input
               type="number"
-              min="1"
+              min="0"
+              step={serialized ? "1" : "any"}
               max={type === "scarico" ? maxQuantity : undefined}
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
@@ -129,7 +124,7 @@ export function StockMovementDialog({
           </div>
 
           {/* Cost registration - only for carico */}
-          {type === "carico" && (
+          {canViewCosts && type === "carico" && (
             <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -176,7 +171,7 @@ export function StockMovementDialog({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!parseInt(quantity) || isPending}
+            disabled={!Number.isFinite(Number(quantity)) || Number(quantity) <= 0 || (serialized && !Number.isInteger(Number(quantity))) || isPending || (type === "scarico" && maxQuantity !== undefined && Number(quantity) > maxQuantity)}
             variant={type === "scarico" ? "destructive" : "default"}
           >
             {isPending ? "..." : type === "carico" ? "Carica" : "Scarica"}

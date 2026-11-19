@@ -1,3 +1,4 @@
+import { ripartisciLordoIva, type QuoteIvaMista } from "@/lib/orders/ivaMista";
 import "./crea-fattura-dialog.css";
 import { ritenutaAncoraDaFatturare } from "@/lib/orders/ritenutaDaFatturare";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -157,9 +158,10 @@ interface CreaFatturaDialogProps {
   orderId: string;
   orderCode: string | null;
   orderDescription: string;
-  /** Il valore concordato del contratto, IVA inclusa (come le rate). */
+  /** Il valore concordato del contratto al netto dell’IVA. */
   totalAmount: number;
   vatRate: number;
+  vatSplit?: QuoteIvaMista | null;
   customerId: string | null;
   customerName: string;
   installments: Installment[];
@@ -312,6 +314,7 @@ export function CreaFatturaDialog({
   orderDescription,
   totalAmount,
   vatRate,
+  vatSplit,
   customerId,
   customerName,
   installments,
@@ -692,6 +695,13 @@ export function CreaFatturaDialog({
     [orderItems, excludedItemIds, defaultVat, quota],
   );
 
+  const quoteRata = useMemo(() => vatSplit && lordoImporto > 0 ? ripartisciLordoIva(vatSplit, lordoImporto) : null, [vatSplit, lordoImporto]);
+  const arrotondamentoProposto = mode === "importo" && quoteRata && quoteRata.rows.filter(row => row.net > 0).every(row => {
+    const id = `importo-rata-${row.rate}`;
+    const t = testiRighe[id];
+    return !scelta(id).esclusa && (!t || (t.prezzo === undefined && t.quantita === undefined && t.aliquota === undefined));
+  }) ? quoteRata.rounding : 0;
+
   const righeBase = useMemo(() => {
     const daFasi = () => {
       const righe: RigaDocumento[] = [];
@@ -712,7 +722,7 @@ export function CreaFatturaDialog({
       return righe;
     };
     const base = mode === "importo"
-      ? (lordoImporto > 0 ? [buildRigaImporto(importo.descrizione, lordoImporto, aliquotaImporto)] : [])
+      ? (quoteRata ? quoteRata.rows.filter(row => row.net > 0).map(row => ({...buildRigaImporto(`${importo.descrizione} · quota IVA ${row.rate}%`, row.gross, row.rate), id:`importo-rata-${row.rate}`, prezzo_unitario:row.net})) : lordoImporto > 0 ? [buildRigaImporto(importo.descrizione, lordoImporto, aliquotaImporto)] : [])
       : mode === "sal"
         ? (salAttivo && statoSal(salAttivo).stato === "da_fatturare" ? righeSal(salAttivo, salList, defaultVat) : [])
         : mode === "fasi"
@@ -734,7 +744,7 @@ export function CreaFatturaDialog({
         };
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat, fasiVendute, voci, scelteRighe, salAttivo, salList, fatturato, testiRighe]);
+  }, [mode, quoteRata, lordoImporto, importo.descrizione, aliquotaImporto, includedItemRighe, freeLines, defaultVat, fasiVendute, voci, scelteRighe, salAttivo, salList, fatturato, testiRighe]);
 
   // ── Tipo di fattura e clausole ──────────────────────────────
   const condizioniAzienda = useCondizioniDocumento("fattura");
@@ -796,15 +806,17 @@ export function CreaFatturaDialog({
     setNuovaClausola("");
   };
 
+  const arrotondamentoMisto = clausoleAttive.some(id => ["reverse_charge", "trattenuta"].includes(clausola(id)?.effetto ?? "")) ? 0 : arrotondamentoProposto;
   const composta = useMemo(
     () => componiFattura(righeBase, clausoleAttive, {
+      arrotondamento: arrotondamentoMisto,
       formaGiuridica: aziendaFiscale?.forma_giuridica,
       percentuali: Object.fromEntries(
         Object.entries(percentuali).filter(([, v]) => v.trim() !== "").map(([k, v]) => [k, parseImporto(v)]),
       ),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [righeBase, clausoleAttive.join("|"), aziendaFiscale?.forma_giuridica, JSON.stringify(percentuali)],
+    [righeBase, arrotondamentoMisto, clausoleAttive.join("|"), aziendaFiscale?.forma_giuridica, JSON.stringify(percentuali)],
   );
   const previewRighe = composta.righe;
   const righeFattura = previewRighe.filter((r) => !r.id.startsWith("trattenuta-"));
@@ -826,6 +838,7 @@ export function CreaFatturaDialog({
   }]);
   const togliRiga = (id: string) => {
     if (freeLines.some((f) => f.id === id)) { setFreeLines((prev) => prev.filter((f) => f.id !== id)); return; }
+    if (id.startsWith("importo-rata-")) { cambiaScelta(id, {esclusa:true}); return; }
     if (id === "importo-rata") { setImporto((s) => ({ ...s, lordo: "" })); return; }
     if (orderItems.some((i) => i.id === id)) { toggleItem(id); return; }
     const voce = /^fase:[^:]+:voce:(.+)$/.exec(id);
@@ -998,6 +1011,7 @@ export function CreaFatturaDialog({
     subtotale: totali.subtotale,
     imponibile_totale: totali.imponibile_totale,
     iva_totale: totali.iva_totale,
+    arrotondamento: arrotondamentoMisto,
     totale_documento: totali.totale_documento,
     totale_da_pagare: totali.totale_da_pagare,
     ...composta.effetti,
@@ -1051,6 +1065,11 @@ export function CreaFatturaDialog({
               ? "Scrivi quanto fatturare di almeno una fase o aggiungi una riga."
               : "Includi almeno un articolo o aggiungi una riga descrittiva.",
       });
+      return;
+    }
+
+    if (vatSplit && previewRighe.some(r => !r.natura_iva && ![10,22].includes(Number(r.aliquota_iva)))) {
+      toast.error("Verifica la ripartizione IVA", {description:"Questo contratto ha IVA mista: indica il 10% o il 22% su ciascuna riga, oppure scegli esplicitamente il regime fiscale applicabile."});
       return;
     }
 
@@ -1432,6 +1451,7 @@ export function CreaFatturaDialog({
               )}
 
               {fonteMostrata && <>
+                  {vatSplit && <p role="status" className="rounded-md bg-blue-50 p-2 text-xs text-blue-900">IVA mista: proponiamo due righe al 10% e al 22% in proporzione al contratto. Verifica le quote nelle righe della fattura prima di salvare; per SAL, fasi e articoli conferma l’aliquota di ogni riga.</p>}
               {/* Una riga a corpo: l'importo della rata, che si cambia in € o in %. */}
               {mode === "importo" && (
                 <div className="rounded-lg border p-3 space-y-2.5">
@@ -1441,17 +1461,18 @@ export function CreaFatturaDialog({
                       <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => {
                         setRataManualeId(null);
                         setImporto({ descrizione: `${DESCRIZIONE_SVINCOLO} trattenuta sui SAL${orderCode ? ` — commessa ${orderCode}` : ""}`, lordo: scriviImporto(ritenutaDaSvincolare * (1 + defaultVat / 100)), aliquota: String(defaultVat) });
-                        dimenticaPrezzi((id) => id === "importo-rata");
+                        dimenticaPrezzi((id) => id.startsWith("importo-rata"));
                       }}>Fattura lo svincolo</Button>
                     </div>
                   )}
+
                   <div className="grid grid-cols-3 gap-2 items-end">
                     <div className="space-y-1">
                       <Label htmlFor="fatt-imp-lordo" className="text-[11px] text-muted-foreground">Importo IVA inclusa</Label>
                       <Input
                         id="fatt-imp-lordo"
                         value={importo.lordo}
-                        onChange={(e) => { setImporto((s) => ({ ...s, lordo: e.target.value })); dimenticaPrezzi((id) => id === "importo-rata"); }}
+                        onChange={(e) => { setImporto((s) => ({ ...s, lordo: e.target.value })); dimenticaPrezzi((id) => id.startsWith("importo-rata")); }}
                         inputMode="decimal"
                         className="h-8 text-xs text-right tabular-nums"
                       />
@@ -1465,7 +1486,7 @@ export function CreaFatturaDialog({
                           setPercScritta(e.target.value);
                           const p = parseImporto(e.target.value);
                           setImporto((s) => ({ ...s, lordo: scriviImporto((contratto * p) / 100) }));
-                          dimenticaPrezzi((id) => id === "importo-rata");
+                          dimenticaPrezzi((id) => id.startsWith("importo-rata"));
                         }}
                         onBlur={() => setPercScritta(null)}
                         disabled={contratto <= 0}
@@ -1477,7 +1498,8 @@ export function CreaFatturaDialog({
                       <Label htmlFor="fatt-imp-iva" className="text-[11px] text-muted-foreground">IVA %</Label>
                       <Input
                         id="fatt-imp-iva"
-                        value={importo.aliquota}
+                        disabled={!!vatSplit}
+                        value={vatSplit ? "10% / 22%" : importo.aliquota}
                         onChange={(e) => setImporto((s) => ({ ...s, aliquota: e.target.value }))}
                         inputMode="decimal"
                         className="h-8 text-xs text-right tabular-nums"

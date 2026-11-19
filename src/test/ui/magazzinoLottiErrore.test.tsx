@@ -1,0 +1,12 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, expect, it, vi } from 'vitest';
+const state=vi.hoisted(()=>({retry:vi.fn()}));
+vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({effectiveCompany:{id:'c'},user:{id:'u'}})}));
+vi.mock('@tanstack/react-query',()=>({useQuery:()=>({data: [] as never[],isLoading:false,isError:true,refetch:state.retry}),useMutation:()=>({isPending:false}),useQueryClient:()=>({invalidateQueries:vi.fn()})}));
+vi.mock('@/hooks/warehouse/useStockUnits',()=>({useStockUnitsList:()=>({data: [] as never[],isLoading:false,isError:true,refetch:state.retry})}));
+vi.mock('@/components/warehouse/WarrantyExportDialog',()=>({WarrantyExportDialog:(): null => null}));
+import WarehouseLottiTab from '@/components/warehouse/WarehouseLottiTab';
+import { StockUnitsDrilldownSheet } from '@/components/warehouse/StockUnitsDrilldownSheet';
+beforeEach(()=>vi.clearAllMocks());
+it('un errore dei lotti non diventa una lista vuota',()=>{render(<WarehouseLottiTab/>);expect(screen.getByRole('alert')).toHaveTextContent('Impossibile verificare i lotti');fireEvent.click(screen.getByRole('button',{name:'Riprova lotti'}));expect(state.retry).toHaveBeenCalledOnce();});
+it('un errore delle matricole non diventa nessun seriale',()=>{render(<StockUnitsDrilldownSheet open onOpenChange={vi.fn()}/>);expect(screen.getByRole('alert')).toHaveTextContent('Impossibile verificare le matricole');expect(screen.queryByText('Nessun seriale corrisponde ai filtri.')).toBeNull();fireEvent.click(screen.getByRole('button',{name:'Riprova matricole'}));expect(state.retry).toHaveBeenCalledOnce();});

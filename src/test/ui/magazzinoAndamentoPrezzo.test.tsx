@@ -16,6 +16,8 @@ const stato = vi.hoisted(() => ({
   errore: null as unknown,
 }));
 
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isLoading: false, canViewCosts: true }) }));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (nome: string) => {
@@ -133,14 +135,14 @@ describe("andamento del prezzo d'acquisto", () => {
     stato.andamento = null;
     stato.errore = { message: 'function public.magazzino_andamento_prezzo does not exist' };
     mostra();
-    await waitFor(() => expect(screen.getByText(/Storico Movimenti/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Nessun movimento registrato/)).toBeInTheDocument());
     expect(screen.queryByLabelText("Andamento del prezzo d'acquisto")).toBeNull();
   });
 
   it("nessun carico valorizzato: niente sezione", async () => {
     stato.andamento = [];
     mostra();
-    await waitFor(() => expect(screen.getByText(/Storico Movimenti/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Nessun movimento registrato/)).toBeInTheDocument());
     expect(screen.queryByLabelText("Andamento del prezzo d'acquisto")).toBeNull();
   });
 });

@@ -5,13 +5,18 @@
  * Invalida warehouse + scan_events queries on success.
  */
 
+import { useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { warehouseRequestStorage, WarehouseRequestSlot, warehouseRequestScope, warehouseCapabilities, warehouseRpc } from "@/lib/magazzino/protocolloMovimenti";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import type { BatchScanEntry } from "@/components/warehouse/BatchBarcodeScanner";
 
+export interface CompanyCostInput { date: string; category: string; vat_rate: number; is_paid: boolean; }
+
 export interface BatchCaricoInput {
+  companyCost?: CompanyCostInput;
   warehouseId: string;
   supplierId: string | null;
   entries: BatchScanEntry[];
@@ -22,6 +27,8 @@ export interface BatchCaricoInput {
 }
 
 export interface BatchCaricoResult {
+  company_cost_id?: string | null;
+  company_cost_amount?: number | null;
   created_movements: number;
   created_units: number;
   updated_items: number;
@@ -47,6 +54,8 @@ function entriesToScansPayload(entries: BatchScanEntry[], sectionId?: string | n
 
 export function useBatchCarico() {
   const qc = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
+  const slots = useRef(new Map<string, WarehouseRequestSlot>());
 
   return useMutation({
     mutationFn: async (input: BatchCaricoInput): Promise<BatchCaricoResult> => {
@@ -54,28 +63,41 @@ export function useBatchCarico() {
       if (payload.length === 0) {
         throw new Error("Nessuna entry valida da caricare");
       }
-      const { data, error } = await supabase.rpc("batch_carico_from_scans", {
-        p_warehouse_id: input.warehouseId,
-        p_supplier_id: input.supplierId,
-        p_scans: payload,
-        p_ddt_ricezione_id: input.ddtRicezioneId ?? null,
-        p_notes: input.notes ?? null,
-      });
-      if (error) throw error;
+      if (!effectiveCompany?.id) throw new Error("Seleziona un’azienda.");
+      const protocol = await warehouseCapabilities(effectiveCompany.id);
+      if (input.companyCost) {
+        if (!protocol.atomic_company_cost) throw new Error("Il servizio non supporta ancora carico e costo insieme. Nessuna registrazione eseguita.");
+        Object.assign(payload[0], { company_cost: input.companyCost });
+      }
+      const args = { p_warehouse_id: input.warehouseId, p_supplier_id: input.supplierId,
+        p_scans: payload, p_ddt_ricezione_id: input.ddtRicezioneId ?? null, p_notes: input.notes ?? null };
+      const scope = warehouseRequestScope(effectiveCompany.id, user?.id, "carico");
+      if (!slots.current.has(scope)) slots.current.set(scope, new WarehouseRequestSlot(scope, warehouseRequestStorage()));
+      const slot = slots.current.get(scope)!;
+      const v2 = protocol.version >= 2 && protocol.idempotent_carichi;
+      let data: unknown;
+      try {
+        const response = await warehouseRpc(v2 ? "warehouse_register_carico_v2" : "batch_carico_from_scans", v2 ? { ...args, p_request_id: slot.request(args) } : args);
+        if (response.error) throw response.error;
+        data = response.data;
+        const result = (Array.isArray(data) ? data[0] : data) as BatchCaricoResult | null;
+        if (!result || !Array.isArray(result.errors) || !Number.isInteger(result.created_movements)) throw new Error("Esito del carico non disponibile: controlla i movimenti.");
+        if (input.companyCost && (!result.company_cost_id || !/^[0-9a-f-]{36}$/i.test(result.company_cost_id) || typeof result.company_cost_amount !== "number" || result.company_cost_amount <= 0)) throw new Error("Esito del costo non disponibile: verifica la richiesta prima di ripetere il carico.");
+        if (v2) slot.succeeded();
+      } catch (error) { if (v2) slot.failed(error); throw error; }
       // L'RPC ritorna TABLE → array di 1 riga
       const row = (Array.isArray(data) ? data[0] : data) as BatchCaricoResult | undefined;
-      return (
-        row ?? {
-          created_movements: 0,
-          created_units: 0,
-          updated_items: 0,
-          errors: [],
-        }
-      );
+      if (!row || !Number.isInteger(row.created_movements) || row.created_movements < 0 || !Array.isArray(row.errors)) {
+        throw new Error("Esito del carico non disponibile. Controlla i movimenti prima di ripetere la registrazione.");
+      }
+      return row;
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       qc.invalidateQueries({ queryKey: queryKeys.warehouse.unitsAll });
+      qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      qc.invalidateQueries({ queryKey: ["wh", "valorizzazione"] });
+      if (res.company_cost_id) { void qc.invalidateQueries({ queryKey: ["company-costs"] }); }
       const errCount = res.errors?.length ?? 0;
       if (errCount > 0) {
         toast.warning(
@@ -83,8 +105,8 @@ export function useBatchCarico() {
           { description: "Controlla i dettagli nel pannello errori." },
         );
       } else {
-        toast.success(`Caricati ${res.created_movements} articoli`, {
-          description: `${res.created_units} seriali registrati`,
+        toast.success(res.company_cost_id ? "Carico e costo aziendale registrati" : `Caricati ${res.created_movements} articoli`, {
+          description: res.company_cost_id ? `Imponibile ${Number(res.company_cost_amount).toLocaleString("it-IT", {style:"currency",currency:"EUR"})}. Nessun costo duplicato per questa richiesta.` : `${res.created_units} seriali registrati`,
         });
       }
     },

@@ -9,6 +9,7 @@
  * nello SP riclassificato era sempre 0.
  */
 
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   useValorizzazione, type ValorizzazioneMethod,
 } from "@/hooks/warehouse/useWarehouseValorizzazione";
+import { riepilogoValore } from "@/lib/magazzino/riepiloghiMagazzino";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { Calculator, Package, TrendingUp, AlertCircle } from "lucide-react";
@@ -36,7 +38,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
     return (
       <Card className="rounded-2xl border-destructive/30 bg-destructive/5">
         <CardContent className="p-4 text-sm text-destructive">
-          Errore caricamento valorizzazione: {String(q.error)}
+          Impossibile verificare la valorizzazione. <Button variant="outline" size="sm" onClick={()=>void q.refetch()}>Riprova valorizzazione</Button>
         </CardContent>
       </Card>
     );
@@ -44,6 +46,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
   if (!q.data) return null;
 
   const { kpi, articoli } = q.data;
+  const summary = riepilogoValore(articoli);
 
   return (
     <div className="space-y-4">
@@ -76,6 +79,8 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
         </ToggleGroup>
       </div>
 
+      {articoli.some(a=>a.copertura_lotti_incompleta)&&<p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">Valore stimato per gli articoli con lotti incompleti: la quota senza lotto usa il costo medio registrato in magazzino.</p>}
+      {articoli.some(a=>a.prezzo_da_definire)&&<p role="status" className="rounded-lg border border-amber-200 p-3 text-sm">Valore parziale: alcuni articoli hanno prezzi ancora da confermare.</p>}
       {/* KPI grid */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="rounded-2xl border-0 bg-blue-50">
@@ -96,34 +101,31 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               Articoli a stock
             </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">{kpi.n_articoli}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">{summary.articoli}</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {kpi.n_articoli_con_lotti} con tracciamento lotti
+              {summary.conLotti} con tracciamento lotti
             </p>
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-0 bg-violet-50">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Quantità totale
+              Quantità per unità
             </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">
-              {kpi.qty_totale.toLocaleString("it-IT")}
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">unità</p>
+            <div className="mt-1 space-y-1 text-lg font-bold tabular-nums">{summary.quantita.map(([unit, quantity]) => <p key={unit}>{quantity.toLocaleString("it-IT", {maximumFractionDigits:6})} {unit}</p>)}</div>
+            {summary.unitaDaVerificare > 0 && <p className="text-xs text-amber-800">{summary.unitaDaVerificare} articoli con unità da verificare</p>}
+            {summary.quantita.length === 0 && !summary.unitaDaVerificare && <p className="mt-1">—</p>}
           </CardContent>
         </Card>
         <Card className="rounded-2xl border-0 bg-amber-50">
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Costo medio articolo
+              Valore senza lotti
             </p>
             <p className="mt-1 text-2xl font-bold tabular-nums">
-              {kpi.qty_totale > 0
-                ? formatCurrency(kpi.valore_totale / kpi.qty_totale)
-                : "—"}
+              {formatCurrency(summary.valoreSenzaLotti)}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">€ / unità</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">calcolato dal costo anagrafico</p>
           </CardContent>
         </Card>
       </div>
@@ -168,7 +170,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                       Codice
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Qty
+                      Quantità
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
                       Costo unit.
@@ -194,7 +196,7 @@ export function WarehouseValorizzazionePanel({ warehouseId = null }: Props) {
                         {a.internal_code ?? "—"}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {a.quantity.toLocaleString("it-IT")}
+                        {a.quantity.toLocaleString("it-IT")} {a.unita_misura ?? ""}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {formatCurrency(a.unit_cost)}

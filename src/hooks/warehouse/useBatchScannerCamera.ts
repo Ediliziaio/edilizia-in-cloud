@@ -40,6 +40,7 @@ interface UseBatchScannerCameraOptions {
   manualMode: boolean;
   paused?: boolean;
   onScan: (rawCode: string, scanFormat?: string) => void;
+  onCameraError?: () => void;
 }
 
 // ─── Tipi BarcodeDetector (non ancora in TS lib standard) ───────────────────
@@ -82,18 +83,9 @@ function waitForMetadata(video: HTMLVideoElement): Promise<void> {
   });
 }
 
-/** Tenta `video.play()` con catch silenzioso (alcuni browser rifiutano se gia in play). */
+/** Un errore di riproduzione deve attivare il recupero, non lasciare un video nero. */
 async function playVideoSafe(video: HTMLVideoElement): Promise<void> {
-  try {
-    await video.play();
-  } catch (e) {
-    // AbortError o NotAllowedError: ricaderemo sul decode comunque, il
-    // problema vero (no user gesture) viene loggato dal chiamante.
-    const name = (e as Error)?.name;
-    if (name && name !== "AbortError") {
-      console.warn("[scanner] video.play() failed:", name, (e as Error).message);
-    }
-  }
+  await video.play();
 }
 
 export function useBatchScannerCamera({
@@ -101,12 +93,14 @@ export function useBatchScannerCamera({
   manualMode,
   paused = false,
   onScan,
+  onCameraError,
 }: UseBatchScannerCameraOptions) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const torchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onScanRef = useRef(onScan);
+  const onCameraErrorRef = useRef(onCameraError);
   const cameraRunRef = useRef(0);
   // Per BarcodeDetector loop: cancellation flag oltre al runId
   const detectorLoopRef = useRef<{ stop: () => void } | null>(null);
@@ -114,10 +108,20 @@ export function useBatchScannerCamera({
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState !== "hidden");
+
+  useEffect(() => {
+    const update = () => setPageVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
 
   useEffect(() => {
     onScanRef.current = onScan;
-  }, [onScan]);
+    onCameraErrorRef.current = onCameraError;
+  }, [onScan,onCameraError]);
 
   const stopCamera = useCallback(() => {
     cameraRunRef.current += 1;
@@ -137,20 +141,73 @@ export function useBatchScannerCamera({
     readerRef.current = null;
     stopStream(streamRef.current);
     streamRef.current = null;
-    setTorchOn(false);
-    setTorchSupported(false);
+    if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
+
+  /**
+   * Decode loop con ZXing legacy (path fallback per Safari iOS).
+   */
+  const startZxingDecodeLoop = useCallback(
+    (video: HTMLVideoElement, runId: number) => {
+      const stream = streamRef.current;
+      if (!stream) return;
+      void import("@zxing/library").then(({ BrowserMultiFormatReader }) => {
+        if (cameraRunRef.current !== runId) return;
+        const reader = new BrowserMultiFormatReader();
+        readerRef.current = reader;
+        try {
+          void Promise.resolve(reader.decodeFromStream(stream, video, (result, err) => {
+            if (cameraRunRef.current !== runId) return;
+            if (result) {
+              onScanRef.current(
+                result.getText(),
+                result.getBarcodeFormat?.()?.toString(),
+              );
+              return;
+            }
+            // err puo essere NotFoundException ad ogni frame senza codice: ignora.
+            // Logghiamo solo errori "veri" (raro).
+            if (err && err.name && err.name !== "NotFoundException" && err.name !== "ChecksumException" && err.name !== "FormatException") {
+              console.warn("[scanner] ZXing decode error:", err.name, err.message);
+            }
+          })).catch(() => {
+            if (cameraRunRef.current !== runId) return;
+            stopCamera();
+            setCameraReady(false);
+            setCameraError("Lettura del codice non disponibile. Riprova la fotocamera o digita il codice.");
+            onCameraErrorRef.current?.();
+          });
+        } catch (e) {
+          stopCamera();
+          console.error("[scanner] ZXing decodeFromStream failed:", e);
+          setCameraError("Decoder barcode non disponibile su questo browser. Usa input manuale.");onCameraErrorRef.current?.();
+        }
+      }).catch((e) => {
+        if (cameraRunRef.current !== runId) return;
+        stopCamera();
+        console.error("[scanner] ZXing library load failed:", e);
+        setCameraError("Decoder barcode non disponibile su questo browser. Usa input manuale.");onCameraErrorRef.current?.();
+      });
+    },
+    [stopCamera],
+  );
 
   /**
    * Decode loop con BarcodeDetector nativo (path veloce). Loop manuale
    * via requestAnimationFrame per non bloccare il main thread.
    */
   const startNativeDecodeLoop = useCallback(
-    (video: HTMLVideoElement, runId: number) => {
+    async (video: HTMLVideoElement, runId: number) => {
       if (!NativeBarcodeDetector) return false;
       let detector: BarcodeDetectorLike;
       try {
-        detector = new NativeBarcodeDetector({ formats: NATIVE_FORMATS });
+        const supported = NativeBarcodeDetector.getSupportedFormats
+          ? await NativeBarcodeDetector.getSupportedFormats()
+          : NATIVE_FORMATS;
+        if (cameraRunRef.current !== runId) return false;
+        const formats = NATIVE_FORMATS.filter(format => supported.includes(format));
+        if (!formats.length) return false;
+        detector = new NativeBarcodeDetector({ formats });
       } catch (e) {
         console.warn("[scanner] BarcodeDetector init failed, fallback ZXing:", e);
         return false;
@@ -197,68 +254,33 @@ export function useBatchScannerCamera({
       };
       return true;
     },
-    // startZxingDecodeLoop e' stable (useCallback con deps []); evitiamo
-    // di metterlo come dep per non rischiare loop re-creation reciproci.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [startZxingDecodeLoop],
   );
 
-  /**
-   * Decode loop con ZXing legacy (path fallback per Safari iOS).
-   */
-  const startZxingDecodeLoop = useCallback(
-    (video: HTMLVideoElement, runId: number) => {
-      const stream = streamRef.current;
-      if (!stream) return;
-      void import("@zxing/library").then(({ BrowserMultiFormatReader }) => {
-        if (cameraRunRef.current !== runId) return;
-        const reader = new BrowserMultiFormatReader();
-        readerRef.current = reader;
-        try {
-          reader.decodeFromStream(stream, video, (result, err) => {
-            if (cameraRunRef.current !== runId) return;
-            if (result) {
-              onScanRef.current(
-                result.getText(),
-                result.getBarcodeFormat?.()?.toString(),
-              );
-              return;
-            }
-            // err puo essere NotFoundException ad ogni frame senza codice: ignora.
-            // Logghiamo solo errori "veri" (raro).
-            if (err && err.name && err.name !== "NotFoundException" && err.name !== "ChecksumException" && err.name !== "FormatException") {
-              console.warn("[scanner] ZXing decode error:", err.name, err.message);
-            }
-          });
-        } catch (e) {
-          console.error("[scanner] ZXing decodeFromStream failed:", e);
-          setCameraError("Decoder barcode non disponibile su questo browser. Usa input manuale.");
-        }
-      }).catch((e) => {
-        console.error("[scanner] ZXing library load failed:", e);
-        setCameraError("Decoder barcode non disponibile su questo browser. Usa input manuale.");
-      });
-    },
-    [],
-  );
-
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(() => {
     const runId = cameraRunRef.current + 1;
     cameraRunRef.current = runId;
-    setCameraError(null);
-    try {
-      const stream = await openScannerStream();
+    const opening = openScannerStream();
+    return Promise.resolve().then(() => {
+      if (cameraRunRef.current === runId) {
+        setIsStarting(true);
+        setCameraReady(false);
+        setCameraError(null);
+      }
+      return opening;
+    }).then(async (stream) => {
       if (cameraRunRef.current !== runId) {
         stopStream(stream);
         return;
       }
       streamRef.current = stream;
+      setCameraError(null);
+      setTorchOn(false);setTorchSupported(false);
 
       const video = videoRef.current;
       if (!video) {
         stopStream(stream);
-        console.warn("[scanner] videoRef.current null after stream open — DOM non pronto");
-        return;
+        throw new Error("Anteprima fotocamera non disponibile. Riprova o digita il codice.");
       }
 
       // Setta srcObject + force play. ZXing internamente lo fa con il legacy
@@ -271,6 +293,10 @@ export function useBatchScannerCamera({
         return;
       }
       await playVideoSafe(video);
+      if (cameraRunRef.current !== runId) {
+        stopStream(stream);
+        return;
+      }
 
       // Torch polling (resta uguale)
       let attempts = 0;
@@ -296,12 +322,16 @@ export function useBatchScannerCamera({
       }, 200);
 
       // Engine selection: nativo se possibile, altrimenti ZXing
-      const usedNative = startNativeDecodeLoop(video, runId);
+      const usedNative = await startNativeDecodeLoop(video, runId);
+      if (cameraRunRef.current !== runId) return;
       if (!usedNative) {
         startZxingDecodeLoop(video, runId);
       }
-    } catch (e) {
+      setCameraReady(true);
+      setIsStarting(false);
+    }).catch((e: unknown) => {
       if (cameraRunRef.current !== runId) return;
+      stopCamera();
       const err = e as Error;
       const name = err?.name ?? "";
       let userMessage = err?.message || "Errore avvio fotocamera";
@@ -320,21 +350,25 @@ export function useBatchScannerCamera({
         userMessage = "Fotocamera bloccata: connessione non sicura (serve HTTPS).";
       }
       console.error("[scanner] startCamera failed:", name, err?.message);
-      setCameraError(userMessage);
-    }
-  }, [startNativeDecodeLoop, startZxingDecodeLoop]);
+      setIsStarting(false);
+      setCameraReady(false);
+      setCameraError(userMessage);onCameraErrorRef.current?.();
+    });
+  }, [startNativeDecodeLoop, startZxingDecodeLoop, stopCamera]);
 
   useEffect(() => {
-    if (!open || manualMode || paused) {
+    if (!open || manualMode || paused || !pageVisible) {
       stopCamera();
       return;
     }
     void startCamera();
     return stopCamera;
-  }, [manualMode, open, paused, startCamera, stopCamera]);
+  }, [manualMode, open, pageVisible, paused, startCamera, stopCamera]);
 
   const toggleTorch = useCallback(async () => {
+    const runId = cameraRunRef.current;
     const ok = await applyTorch(streamRef.current, !torchOn);
+    if (cameraRunRef.current !== runId) return;
     if (ok) {
       setTorchOn((v) => !v);
       void impactFeedback();
@@ -348,11 +382,14 @@ export function useBatchScannerCamera({
     if (streamRef.current) void pulseFocus(streamRef.current);
   }, []);
 
+  const cameraEnabled = open && !manualMode && !paused && pageVisible;
   return {
     videoRef,
     cameraError,
-    torchOn,
-    torchSupported,
+    isStarting: cameraEnabled && isStarting,
+    cameraReady: cameraEnabled && cameraReady,
+    torchOn: cameraEnabled && torchOn,
+    torchSupported: cameraEnabled && torchSupported,
     toggleTorch,
     handleTapFocus,
     stopCamera,

@@ -1,3 +1,5 @@
+import {AvvisoAttesaCommesse} from "@/components/orders/AvvisoAttesaCommesse";
+import {withAbortableClientTimeout,withClientTimeout} from "@/lib/query-timeout";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
@@ -273,16 +275,16 @@ function OrdersListInner() {
   // Gli stati definiscono anche il perimetro anno corrente + commesse aperte.
   const { data: statuses = [], isLoading: isLoadingStatuses, isError: isStatusesError, refetch: retryStatuses } = useQuery({
     queryKey: ["order-statuses", effectiveCompany?.id],
-    queryFn: async () => {
+    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       if (!effectiveCompany?.id) return [];
       const { data, error } = await supabase
         .from("order_statuses")
         .select("id, name, color, position, is_support_phase")
         .eq("company_id", effectiveCompany.id)
-        .order("position");
+        .order("position").abortSignal(readSignal);
       if (error) throw error;
       return data;
-    },
+    }, "Stati commesse", 20_000, signal),
     enabled: !!effectiveCompany?.id,
     staleTime: 10 * 60 * 1000,
   });
@@ -302,7 +304,7 @@ function OrdersListInner() {
   // ma possono essere letti per anno quando serve.
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
     queryKey: ["orders-global-stats", "annual-management-v4-vat", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
-    queryFn: async () => {
+    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       const EMPTY = { annualVat: netOrderTotals([]), annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[], unitaInVenditaIds: [] as string[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
@@ -316,16 +318,19 @@ function OrdersListInner() {
           .gte("created_at", new Date(selectedYear, 0, 1).toISOString())
           .lte("created_at", new Date(selectedYear, 11, 31, 23, 59, 59, 999).toISOString());
       }
-      query = query.order("id");
+      query = query.order("id").abortSignal(readSignal);
       const allRows = await leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from, to) => query.range(from, to)) as unknown as OrderWithDetails[]);
+      readSignal.throwIfAborted();
       const tickets = orderPerms.canViewTickets ? await readAllOrderRows((from,to) => supabase.from("tickets")
         .select("id, order_id, status").eq("company_id",effectiveCompany.id).not("order_id","is",null)
-        .not("status","in",`(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from,to)) : [];
+        .not("status","in",`(${TICKET_STATI_CHIUSI.join(",")})`).order("id").range(from,to).abortSignal(readSignal)) : [];
+      readSignal.throwIfAborted();
       const ticketIds = new Set(tickets.flatMap(ticket => ticket.order_id ? [ticket.order_id] : []));
       const rows = isYearCorrente ? currentManagementScope(allRows,currentYear,lastStatusId,supportStatusId,ticketIds) : allRows;
       // Le commesse generali restano nella lista ma non si contano: sono contenitori, i lavori sono le commesse dentro.
       const generaliIds = generaliConfigurate ? await leggiIdGenerali(effectiveCompany.id) : [];
       // Caparre, acconti e saldi delle unità in vendita contano come incassato anche nei riquadri in alto.
+      readSignal.throwIfAborted();
       const { incassi: incassiUnita, permute: permuteUnita, statoVendita } = generaliConfigurate ? await leggiMovimentiUnita(effectiveCompany.id) : { incassi: undefined, permute: undefined, statoVendita: undefined };
       const generali = new Set(generaliIds);
       // Nemmeno le unità ancora in vendita: sono appartamenti da vendere, non lavori né crediti
@@ -358,7 +363,7 @@ function OrdersListInner() {
       const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
       const unitaInVenditaIds = [...(statoVendita?.entries() ?? [])].filter(([, v]) => unitaInVendita(v)).map(([id]) => id);
       return { annualVat, annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds, unitaInVenditaIds };
-    },
+    }, "Riepilogo commesse", 20_000, signal),
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
@@ -374,17 +379,17 @@ function OrdersListInner() {
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
-    queryFn: async () => {
+    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       const rows: OrderMarginRow[] = [];
       for (let from = 0; from < scopeOrderIds.length; from += 100) {
         const {data, error} = await supabase.from("v_ordine_marginalita")
           .select("id, preventivo_totale, consuntivo, margine, margine_perc")
-          .eq("company_id", effectiveCompany!.id).in("id", scopeOrderIds.slice(from, from + 100));
+          .eq("company_id", effectiveCompany!.id).in("id", scopeOrderIds.slice(from, from + 100)).abortSignal(readSignal);
         if (error) throw error;
         rows.push(...(data ?? []));
       }
       return rows;
-    },
+    }, "Margini commesse", 20_000, signal),
     staleTime: 2 * 60 * 1000,
   });
   const marginGroups = useMemo(() => orderMarginGroups(isYearCorrente ? listScopeIds : scopeOrderIds, scopeMargins ?? []), [scopeOrderIds, listScopeIds, isYearCorrente, scopeMargins]);
@@ -422,7 +427,7 @@ function OrdersListInner() {
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: ["orders", effectiveCompany?.id, page, pageSize, soloPrimoLivello, debouncedSearch, statusFilter, paymentFilter, generaliFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir, sidebarFilters, focusIds, paymentIds, listScopeIds, globalStats?.supportOrderIds],
-    queryFn: () => fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),
+    queryFn: () => withClientTimeout(fetchOrderRows((page - 1) * pageSize, page * pageSize - 1),"Elenco commesse",20_000),
     enabled: !!effectiveCompany?.id && focusReady && !isLoadingStatuses && !isStatusesError,
     placeholderData: (previousData, previousQuery) => previousQuery?.queryKey[1] === effectiveCompany?.id ? previousData : undefined,
     staleTime: 5 * 60 * 1000,
@@ -506,7 +511,7 @@ function OrdersListInner() {
   const {data: previousChartOrders = [], isPending: comparisonPending, isError: comparisonError, refetch: retryComparison} = useQuery({
     queryKey: ["orders-monthly-sales-chart", "comparison-v1", effectiveCompany?.id, comparisonPeriod?.previousFrom.toISOString(), comparisonPeriod?.previousTo.toISOString()],
     enabled: !!effectiveCompany?.id && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts && comparisonEnabled,
-    queryFn: async () => {
+    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       if (!effectiveCompany?.id || !comparisonPeriod) return [];
       const query = supabase.from("orders").select(`
         id, created_at, total_amount, vat_rate, payment_type, financing_cost,
@@ -517,14 +522,14 @@ function OrdersListInner() {
       `).eq("company_id", effectiveCompany.id).is("deleted_at", null)
         .gte("created_at", comparisonPeriod.previousFrom.toISOString())
         .lt("created_at", comparisonPeriod.previousTo.toISOString());
-      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to)));
-    },
+      return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to).abortSignal(readSignal)));
+    }, "Andamento commesse", 20_000, signal),
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: monthlyOrders = [], isLoading: isLoadingMonthlyOrders, isError: isMonthlyOrdersError } = useQuery({
     queryKey: ["orders-monthly-sales-chart", "annual-v3", effectiveCompany?.id, yearFilter, currentYear],
-    queryFn: async () => {
+    queryFn: ({signal}) => withAbortableClientTimeout(async(readSignal) => {
       if (!effectiveCompany?.id) return [];
       const from = new Date();
       let to: Date | null = null;
@@ -552,10 +557,10 @@ function OrdersListInner() {
         `)
         .eq("company_id", effectiveCompany.id)
         .gte("created_at", from.toISOString());
-      query = query.is("deleted_at", null);
+      query = query.is("deleted_at", null).abortSignal(readSignal);
       if (to) query = query.lte("created_at", to.toISOString());
       return leggiModalitaCommesse(effectiveCompany.id, await readAllOrderRows((from,to) => query.order("created_at", {ascending:true}).order("id").range(from,to)));
-    },
+    }, "Andamento commesse", 20_000, signal),
     // Si scarica solo col grafico aperto (23/10/2026): prima leggeva tutte le
     // commesse dell'anno con rate e varianti anche a grafico chiuso. Su mobile
     // il grafico non c'è.
@@ -1817,6 +1822,7 @@ function OrdersListInner() {
           {barraBacheca ? null : filtriCommesse}
 
 
+          {(isOrdersLoading || isEconomicStatsLoading) && <AvvisoAttesaCommesse key={effectiveCompany?.id} onRetry={()=>window.location.reload()}/>}
           {/* Content */}
           {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
             <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {void retryScopeMargins(); void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</Button></div>

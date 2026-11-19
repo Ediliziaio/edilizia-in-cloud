@@ -1,3 +1,12 @@
+import { PrevisioniRegistrate } from "./PrevisioniRegistrate";
+import { usePrevisionaleCantiereLocale } from "@/hooks/usePrevisionaleCantiereLocale";
+import { chiavePrevisto, destinazionePrevisto, riepilogaPrevisioni, type DestinazionePrevisto } from "@/lib/orders/previsionaleSalvato";
+import { OrganizzaLavoroDialog, type AperturaLavoro, type SezioneLavoro } from "./OrganizzaLavoroDialog";
+import { PianificaAssegnazione, type PassaggioPiano, type PianoAssegnazione } from "./PianificaAssegnazione";
+import { SubappaltoLavorazioni } from "./SubappaltoLavorazioni";
+import { INTERA_COMMESSA, type AmbitoLavoro } from "@/lib/orders/previsionaleLavoro";
+import { righeDistinta } from "@/lib/orders/distintaLavorazioni";
+import { useAssegnaAlleFasi } from "@/hooks/useAssegnaAlleFasi";
 import { useChiSottofasi } from "@/hooks/useChiSottofasi";
 import { chiusureProssime } from "../../../shared/silvio-commessa/chatFasi";
 import { applicaProposte, caricaAllegatoFasi, chiediSilvioFasi, contestoFasiPerSilvio } from "@/lib/orders/silvioFasi";
@@ -6,7 +15,8 @@ import { formatCurrency } from "@/lib/formatters";
 import { useAssegnaFaseCosti, useCostiDirettiFasi } from "@/hooks/useCostiDirettiFasi";
 import { CostiSenzaFaseDialog } from "@/components/orders/CostiSenzaFase";
 import { ripartisciCostiDiretti } from "@/lib/orders/costiDirettiFasi";
-import { MezziFaseCantiere } from "@/components/mezzi/PianoMezziCantiere";
+import { MezziPrevistiSintesi } from "@/components/mezzi/MezziPrevistiSintesi";
+import { MezziFaseCantiere, PianoMezziCantiere } from "@/components/mezzi/PianoMezziCantiere";
 import { PianoDalPreventivo } from "@/components/orders/PianoDalPreventivo";
 import { NewPhaseMaterial } from "./NewPhaseMaterial";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -78,7 +88,6 @@ import {
   type PhaseStatus,
   type ExecutorOption,
   type AssignmentSource,
-  type AddAssignmentPayload,
   erroreDivisione,
 } from "@/hooks/useOrderWorkPhases";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
@@ -95,7 +104,7 @@ import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { AppCantiere } from "@/components/orders/AppCantiere";
 import { CantiereLogistica } from "@/components/orders/CantiereLogistica";
 import { useMezziLavoro, type MezzoDellaPersona } from "@/hooks/useCantiereLogistica";
-import { AZIONE_PIENA, AZIONE_TENUE } from "@/lib/manodopera/colori";
+import { AZIONE_TENUE } from "@/lib/manodopera/colori";
 import { CreatePurchaseOrderButton } from "@/components/orders/CreatePurchaseOrderButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,7 +141,7 @@ import { InternalTeamShifts, internalTeamShiftsEnabled } from "./InternalTeamShi
 import { AddAssignmentDialog } from "./AddAssignmentDialog";
 import { SquadreCommessa, SquadreFase } from "@/components/manodopera/SquadreCommessa";
 import { NoteCantiere } from "@/components/manodopera/NoteCantiere";
-import { useNoteCantiere, useSquadreCommessa, type NotaCantiere, type SquadraInCommessa } from "@/hooks/useOperai";
+import { useNoteCantiere, useSquadraSuCommessa, useSquadre, useSquadreCommessa, type NotaCantiere, type SquadraInCommessa } from "@/hooks/useOperai";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -185,13 +194,37 @@ interface OrderWorkPhasesProps {
 export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContratto, organizationContent, onApriCronoprogramma, lavoriExtra }: OrderWorkPhasesProps) {
   const showWork = true;
   const showTeam = showWork;
-  const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders } = usePermissions();
+  const { canEditOrders, canViewCosts, canEditOperai, canViewOrderAmounts, canViewMargins, canEditSettingsOrders, canViewSubappaltatoriAmministrazione, canViewEmployees, canViewMezzi, isAdmin, solaLettura } = usePermissions();
   const { role, user, effectiveCompany } = useAuth();
   const puoModelli = role === "company_admin" || role === "super_admin" || !!canEditSettingsOrders;
   // Squadre: le mette sulla commessa chi modifica le commesse o gli operai.
-  const puoSquadre = canEditOrders || canEditOperai;
+  const puoSquadre = !solaLettura && (canEditOrders || canEditOperai);
   const [aggiungiSquadra, setAggiungiSquadra] = useState(false);
-  const [assegnaPersona, setAssegnaPersona] = useState(false);
+  const [organizza, setOrganizza] = useState<AperturaLavoro | null>(() => {
+    if (!import.meta.env.DEV) return null;
+    const parametri = new URLSearchParams(window.location.search);
+    const subappalto = parametri.get("subappalto");
+    if (subappalto) return { attiva: subappalto, ids: [subappalto], sezione: "subappalto" };
+    const fase = parametri.get("previsionale");
+    return fase ? { attiva: fase, ids: [fase], sezione: "previsionale" } : null;
+  });
+  const [occupato, setOccupato] = useState(false);
+  const [aziendaPopup, setAziendaPopup] = useState(effectiveCompany?.id);
+  const [avanzate, setAvanzate] = useState(false);
+  const apriOrganizza = (ids: string[], assegna: boolean) => {
+    const attiva = ids[0] ?? INTERA_COMMESSA;
+    setAziendaPopup(effectiveCompany?.id);
+    setOccupato(false);
+    setAvanzate(false);
+    setOrganizza({ attiva, ids: ids.length ? ids : [attiva], sezione: assegna ? "chi" : "sottofasi" });
+  };
+  const chiudiOrganizza = () => { setOrganizza(null); setAvanzate(false); };
+  const setAssegnaPersona = () => apriOrganizza([], true);
+  const setFaseAperta = (id: string | null) => id ? apriOrganizza([id], false) : chiudiOrganizza();
+  const assegnaSquadre = useAssegnaAlleFasi(orderId);
+  const squadraSuCommessa = useSquadraSuCommessa();
+  const squadreDisponibili = useSquadre(!!organizza && puoSquadre);
+  const previsionale = usePrevisionaleCantiereLocale(orderId, canViewCosts && canViewEmployees);
   // Silvio delle fasi apre «Ditte e contratti», «Assegna» o il cronoprogramma (31/10/2026).
   const [ditteAperto, setDitteAperto] = useState(false);
   const [organizzazioneOrdine, setOrganizzazioneOrdine] = useState<string | null>(null);
@@ -275,10 +308,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     () => (costiDiretti?.costi ? ripartisciCostiDiretti({ costi: costiDiretti.costi, fasi: phases, ditte: costiDiretti.ditte, contratti: costiDiretti.contratti }) : []),
     [costiDiretti, phases],
   );
-  const [faseAperta, setFaseAperta] = useState<string | null>(null);
-  const [sottofaseDaAprire, setSottofaseDaAprire] = useState<string | null>(null);
   const chiSottofasi = useChiSottofasi(orderId);
-  const [sezioneFase, setSezioneFase] = useState<SezioneFase>("sottofasi");
   const [responsabiliAperti, setResponsabiliAperti] = useState(false);
   const [costiAperti, setCostiAperti] = useState(false);
   const assegnaFaseCosti = useAssegnaFaseCosti();
@@ -286,6 +316,29 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
     const senza = new Set(quoteCosti.filter((q) => q.phase_id === null).map((q) => q.costoId));
     return (costiDiretti?.costi ?? []).filter((c) => senza.has(c.id) && !c.ripartito).map((c) => ({ id: c.id, importo: c.importo, nome: c.nome ?? "Costo", data: c.data ?? null, fornitore: c.fornitore ?? null }));
   }, [costiDiretti, quoteCosti]);
+  const albero = useMemo<AmbitoLavoro[]>(() => [
+    { id: INTERA_COMMESSA, nome: "Intera commessa", faseId: null },
+    ...phases.map((p) => ({ id: p.id, nome: p.name, faseId: p.id, dal: p.start_date, al: p.end_date })),
+    ...righeDistinta(phases, sottofasiDi, vociPreviste ?? []).map((r) => ({
+      id: r.key, nome: r.descrizione, faseId: r.faseId, sottofaseId: r.sottofaseId, voceId: r.voceId, dal: r.inizio, al: r.fine,
+    })),
+  ], [phases, sottofasiDi, vociPreviste]);
+
+  const previsioneSalvata = useMemo(() => {
+    const destinazioni = albero.flatMap((ambito) => {
+      const d = destinazionePrevisto(ambito);
+      return d ? [[chiavePrevisto(d), { nome: ambito.nome, faseId: d.faseId }] as const] : [];
+    });
+    const destinazioniValide = new Map(destinazioni);
+    const piani = previsionale.archivio.piani.filter((p) => destinazioniValide.get(chiavePrevisto(p.ambito))?.faseId === p.ambito.faseId);
+    return {
+      ...riepilogaPrevisioni(piani),
+      piani,
+      nomi: new Map(destinazioni.map(([chiave, dati]) => [chiave, dati.nome])),
+      coperte: new Set(piani.map((p) => chiavePrevisto(p.ambito))),
+    };
+  }, [albero, previsionale.archivio.piani]);
+
   const economia = useMemo(
     () => economiaFasi({
       fasi: phases,
@@ -296,8 +349,10 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
       posaPerFase,
       vociPreviste,
       costiDiretti: quoteCosti,
+      pianiManodopera: previsioneSalvata.fasi,
+      ambitiPianificati: previsioneSalvata.coperte,
     }),
-    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste, quoteCosti],
+    [phases, materials, allAssignments, costiMateriali, posaPerFase, vociPreviste, quoteCosti, previsioneSalvata],
   );
 
   // Avanzamento fisico medio della commessa, per l'alert di scostamento SAL: lo
@@ -349,7 +404,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
   };
   const azioneSilvio = (a: AzioneSilvio) => {
     if (a === "ditte") setDitteAperto(true);
-    else if (a === "assegna") setAssegnaPersona(true);
+    else if (a === "assegna") setAssegnaPersona();
     else onApriCronoprogramma?.();
   };
   const calendario = useCalendarioCantiere();
@@ -499,20 +554,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
               />
             )}
             {showTeam && (canEditOrders || puoSquadre) && <>
-              {/* Da telefono si assegna dentro la fase: qui solo «Aggiungi fasi». */}
-              {!telefono && <Button size="sm" variant="outline" className="min-h-9 font-semibold" onClick={() => setAssegnaPersona(true)}><UsersRound className="mr-1 h-4 w-4" />Assegna</Button>}
-              <AddAssignmentDialog orderId={orderId}
-              aperto={assegnaPersona} onAperto={setAssegnaPersona}
-              phaseId={null}
-              employees={employees}
-              externalTeams={externalTeams}
-              phases={phaseOptions}
-              existingAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
-              triggerLabel="Assegna"
-              triggerVariant="outline"
-              triggerClassName={view ? "border border-slate-200 bg-white text-slate-700 shadow-none hover:bg-slate-50" : AZIONE_PIENA.persona}
-              onAdd={(payload, opts) => addAssignment.mutate(payload, opts)}
-            /></>}
+              <Button size="sm" variant="outline" className="min-h-9 font-semibold" onClick={setAssegnaPersona}><UsersRound className="mr-1 h-4 w-4" />Assegna</Button>
+            </>}
             {!telefono && lavoriExtra}
             {canEditOrders && <>
             <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
@@ -607,7 +650,6 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 oggi={oggi}
                 unassignedMaterials={unassignedMaterials}
                 allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
-                allAssignments={[...unassigned, ...phases.flatMap(p => p.assignments)]}
                 orderId={orderId}
                 orderCode={orderCode}
                 onAssignMaterial={(itemId, phaseId) => setMaterialPhase.mutate({ itemId, phaseId })}
@@ -625,7 +667,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                   [ids[i], ids[j]] = [ids[j], ids[i]];
                   riordinaFasi.mutate(ids);
                 }}
-                onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
+                onApriAssegnazione={() => apriOrganizza([phase.id], true)}
                 onUpdateAssignment={(id, source, patch) =>
                   saveAssignment(id, source, patch)
                 }
@@ -653,7 +695,10 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                   vediVenduto: canViewOrderAmounts,
                   vociSenzaSottofase: vociSottofasi.senzaSottofase.get(phase.id) ?? 0,
                   // Dal popup della fase, un clic sulla sottofase apre il suo popup.
-                  onApri: apertaSubito ? (id: string) => { setFaseAperta(null); setSottofaseDaAprire(id); } : undefined,
+                  onApri: apertaSubito ? (id: string) => {
+                    const voce = albero.find((r) => r.sottofaseId === id);
+                    if (voce) apriOrganizza([voce.id], false);
+                  } : undefined,
                   onSottofasiDalleVoci: () => sottofasiDalleVoci.mutate(phase.id),
                   onRisorse: (id, n) => risorseSottofase.mutate({ id, risorse: n }),
                   fasiDopo: phases.filter((p) => p.position > phase.position).map((p) => ({ id: p.id, name: p.name, start_date: p.start_date, end_date: p.end_date })),
@@ -667,7 +712,280 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
                 }}
               />
   );
-  const faseInPopup = phases.find((p) => p.id === faseAperta) ?? null;
+  const assegnatoSu = (id: string, tipo: "persona" | "squadra", ambito: AmbitoLavoro) => {
+    if (ambito.sottofaseId) {
+      return chiSottofasi.dati.perSottofase.get(ambito.sottofaseId)?.some((r) => tipo === "persona" ? r.employee_id === id : r.external_team_id === id);
+    }
+    const squadreQui = squadre.filter((s) => s.phase_id === ambito.faseId);
+    if (tipo === "squadra") return squadreQui.some((s) => s.squadra_id === id);
+    return allAssignments.some((r) => r.employee_id === id && r.phase_id === ambito.faseId)
+      || squadreQui.some((s) => s.attiva && !s.finita && s.componenti.some((p) => p.id === id));
+  };
+
+  const passaggiPiano = ({ ambiti, persone, squadre: selezionate, periodo, ore, personeConTariffa }: PianoAssegnazione): PassaggioPiano[] => {
+    const passaggi: PassaggioPiano[] = [];
+    const fasiSquadre: string[] = [];
+    const faseOCommessa = ambiti.filter((a) => !a.sottofaseId && !a.voceId);
+    if (faseOCommessa.length && selezionate.length && !squadreQuery.isSuccess) throw new Error("Attendi il caricamento delle squadre già assegnate.");
+    const dateVoci: Array<{ id: string; data_inizio: string; data_fine: string; giorni: null }> = [];
+    ambiti.forEach((ambito, indice) => {
+      const fase = ambito.faseId;
+      const sottofase = ambito.sottofaseId;
+      if (periodo && (ambito.dal !== periodo.dal || ambito.al !== periodo.al)) {
+        if (sottofase && canEditOrders) dateVoci.push({ id: sottofase, data_inizio: periodo.dal, data_fine: periodo.al, giorni: null });
+        else if (fase && canEditOrders) passaggi.push({ nome: `date di ${ambito.nome}`,
+          esegui: () => updatePhase.mutateAsync({ id: fase, start_date: periodo.dal, end_date: periodo.al }) });
+      }
+      if (sottofase) {
+        const attuali = chiSottofasi.dati.perSottofase.get(sottofase) ?? [];
+        for (const persona of persone.filter((id) => !attuali.some((r) => r.employee_id === id))) {
+          passaggi.push({ nome: `operaio su ${ambito.nome}`, esegui: () => chiSottofasi.aggiungi.mutateAsync({ sottofaseIds: [sottofase], persona }) });
+        }
+        for (const ditta of selezionate.filter((id) => !attuali.some((r) => r.external_team_id === id))) {
+          passaggi.push({ nome: `squadra su ${ambito.nome}`, esegui: () => chiSottofasi.aggiungi.mutateAsync({ sottofaseIds: [sottofase], ditta }) });
+        }
+        return;
+      }
+      for (const persona of persone) {
+        if (assegnatoSu(persona, "persona", ambito)) continue;
+        passaggi.push({ nome: `${employees.find((p) => p.id === persona)?.label ?? "Operaio"} su ${ambito.nome}`, esegui: () => addAssignment.mutateAsync({
+          phase_id: fase, executor_type: "interno", employee_id: persona, external_team_id: null,
+          planned_hours: personeConTariffa.has(persona) ? ore[indice] : null, cost_preventivo: 0, cost_consuntivo: 0, hours: null, is_paid: false, paid_date: null, notes: null,
+        }) });
+      }
+      if (fase) { fasiSquadre.push(fase); return; }
+      for (const squadraId of selezionate) {
+        if (squadre.some((s) => s.squadra_id === squadraId && s.phase_id === null)) continue;
+        passaggi.push({ nome: "periodo della squadra sulla commessa", esegui: () => squadraSuCommessa.mutateAsync({
+          orderId, squadraId, dal: periodo?.dal ?? null, al: periodo?.al ?? null, capocantiere: false,
+        }) });
+      }
+    });
+    if (dateVoci.length) passaggi.unshift({ nome: "periodi delle sottofasi", esegui: () => pianificaSottofasi.mutateAsync(dateVoci) });
+    if (fasiSquadre.length && selezionate.length && fasiSquadre.some((fase) => selezionate.some((id) => !squadre.some((s) => s.squadra_id === id && s.phase_id === fase)))) {
+      passaggi.push({ nome: "squadre sulle fasi selezionate", esegui: () => assegnaSquadre.mutateAsync({ fasi: fasiSquadre, squadre: selezionate, persone: [], ditte: [] }) });
+    }
+    return passaggi;
+  };
+
+  const renderOrganizza = (renderVoce?: (id: string, onChiudi: () => void) => ReactNode) => {
+    if (!organizza || aziendaPopup !== effectiveCompany?.id) return null;
+    const bersagli = albero.filter((a) => organizza.ids.includes(a.id));
+    const attiva = albero.find((a) => a.id === organizza.attiva);
+    if ((organizza.sezione === "previsionale" || organizza.sezione === "subappalto") && !attiva) return null;
+    const fase = phases.find((p) => p.id === attiva?.faseId);
+    const voce = !!attiva && attiva.id !== INTERA_COMMESSA && attiva.id !== fase?.id;
+    const puoModificare = canEditOrders && !solaLettura;
+    const puoSubappaltare = puoModificare && canViewCosts && canViewSubappaltatoriAmministrazione && !!effectiveCompany?.id;
+    const sezioni: Array<[SezioneLavoro, string]> = [
+      ["sottofasi", "Riepilogo"], ["chi", "Chi lavora"],
+      ...(fase && !voce ? SCHEDE_FASE.filter(([id]) => id !== "sottofasi" && id !== "chi" && (id !== "economia" || canViewCosts || canViewOrderAmounts || canViewMargins)) : []),
+      ...(voce && fase && (canViewMezzi || isAdmin) ? [["mezzi", "Mezzi"] as const] : []),
+      ...(previsionale.disponibile && fase ? [["previsionale", "Previsionale"] as const] : []),
+      ...(puoSubappaltare ? [["subappalto", "Subappalto"] as const] : []),
+    ].map(([id, nome]) => [id, nome] as [SezioneLavoro, string]);
+    const sezione = sezioni.some(([id]) => id === organizza.sezione) ? organizza.sezione : "sottofasi";
+    const destinazione = attiva ? destinazionePrevisto(attiva) : null;
+    const chiave = destinazione ? chiavePrevisto(destinazione) : null;
+    const pianiVisibili = previsioneSalvata.piani.filter((p) => voce
+      ? chiavePrevisto(p.ambito) === chiave
+      : p.ambito.faseId === fase?.id);
+    const pianiPerSelezione = bersagli.map((ambito) => {
+      const destinazione = destinazionePrevisto(ambito);
+      return { id: ambito.id, piano: destinazione ? previsioneSalvata.piani.find((p) => chiavePrevisto(p.ambito) === chiavePrevisto(destinazione)) : undefined };
+    });
+    const primoPiano = pianiPerSelezione[0]?.piano;
+    const stessaSquadra = (p: NonNullable<typeof primoPiano>) => JSON.stringify([...p.persone, ...p.squadre.map((s) => s.id)].sort());
+    const pianiCompatibili = !!primoPiano && pianiPerSelezione.every(({ piano }) => piano
+      && piano.dal === primoPiano.dal && piano.al === primoPiano.al && piano.sabato === primoPiano.sabato
+      && stessaSquadra(piano) === stessaSquadra(primoPiano));
+    const quoteSalvate = pianiCompatibili && pianiPerSelezione.reduce((t, v) => t + (v.piano?.microOreGiorno ?? 0), 0) <= 24_000_000
+      ? Object.fromEntries(pianiPerSelezione.map(({ id, piano }) => [id, piano!.microOreGiorno]))
+      : undefined;
+    const pianoSalvato = quoteSalvate ? primoPiano : undefined;
+    const totale = voce ? (chiave ? previsioneSalvata.ambiti.get(chiave) : undefined)
+      : fase ? previsioneSalvata.fasi.get(fase.id) : undefined;
+    const previsioniVisibili = <PrevisioniRegistrate piani={pianiVisibili} nomi={previsioneSalvata.nomi} somme={previsioneSalvata.ambiti}
+      totale={totale} voce={voce} occupato={occupato}
+      onTogli={sezione === "previsionale" && puoModificare && !previsionale.errore ? async (k, op) => {
+        setOccupato(true);
+        try { await previsionale.togli(k, op); }
+        finally { setOccupato(false); }
+      } : undefined} />;
+    const risorseFase = fase ? mezziPerFase.get(fase.id) ?? [] : [];
+    const mezziSulCantiere = mezziLavoro?.sul_cantiere ?? [];
+    const montaggi = mezziLavoro?.montati ?? [];
+    const vaiA = (sezione: SezioneLavoro) => setOrganizza({ ...organizza, sezione });
+    const collegamenti = fase && (
+      <section className="space-y-2 rounded-lg border bg-slate-50/70 p-3" aria-label="Collegamenti della lavorazione">
+        <h4 className="text-sm font-semibold">Risorse collegate</h4>
+        {(canViewMezzi || isAdmin) && <div className="space-y-1.5">
+          <MezziPrevistiSintesi orderId={orderId} faseId={fase.id} oggi={oggi} />
+          {risorseFase.map((m) => <div key={m.id} className="flex gap-2 text-sm">
+            <Truck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div><p className="font-medium">{m.nome}{m.targa ? ` · ${m.targa}` : ""}</p>
+              <p className="text-xs text-muted-foreground">{m.persona}{m.a_bordo.length ? ` · ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · risulta su ${m.altrove}` : ""}</p></div>
+          </div>)}
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => vaiA("mezzi")}>
+            <Truck className="h-3.5 w-3.5" />Mezzi e attrezzature
+          </Button>
+        </div>}
+        <div className="flex flex-wrap gap-1.5">
+          {!voce && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => vaiA("materiali")}>
+            Materiali · {materialsByPhase.get(fase.id)?.length ?? 0}
+          </Button>}
+          {!voce && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => vaiA("note")}>
+            Note · {notePerFase.get(fase.id)?.length ?? 0}
+          </Button>}
+          {onApriCronoprogramma && <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => { chiudiOrganizza(); onApriCronoprogramma(); }}>Cronoprogramma</Button>}
+        </div>
+      </section>
+    );
+    const riepilogoSubappalto = puoSubappaltare && sezione === "sottofasi" && attiva &&
+      <SubappaltoLavorazioni orderId={orderId} companyId={effectiveCompany!.id} ambiti={[attiva]} albero={albero} apri={() => vaiA("subappalto")} />;
+    const advanced = avanzate && (puoModificare || puoSquadre) && !voce;
+    return (
+      <OrganizzaLavoroDialog key={`${effectiveCompany?.id}:${orderId}`} apertura={{ ...organizza, sezione }} albero={albero}
+        sezioni={sezioni} occupato={occupato} onChiudi={chiudiOrganizza}
+        onCambio={(a) => { if (a.attiva !== organizza.attiva || a.sezione !== sezione || a.ids !== organizza.ids) setAvanzate(false); setOrganizza(a); }}>
+        {sezione === "subappalto" && puoSubappaltare && (
+          <SubappaltoLavorazioni key={organizza.ids.join("|")} orderId={orderId} companyId={effectiveCompany!.id}
+            ambiti={bersagli} albero={albero} onOccupato={setOccupato} />
+        )}
+        {sezione === "previsionale" && fase && <div className="space-y-4">
+          {previsioneSalvata.fasi.has(fase.id) && <div className="rounded-lg border bg-background px-4 py-3 text-sm" aria-label="Costo previsto della fase">
+            Costo previsto fase <strong className="ml-2 tabular-nums">{formatCurrency(economia.perFase.get(fase.id)?.costoPrevisto ?? 0)}</strong>
+          </div>}
+          {previsioniVisibili}
+          {previsionale.carica && <p role="status" className="text-sm text-muted-foreground">Caricamento previsionale…</p>}
+          {previsionale.errore && <p role="alert" className="text-sm text-destructive">{previsionale.errore.message} <Button size="sm" variant="outline" onClick={() => void previsionale.riprova()}>Riprova</Button></p>}
+          {puoModificare && !previsionale.carica && !previsionale.errore && <>
+            <p className="text-xs text-muted-foreground">{bersagli.length > 1
+              ? "Il salvataggio aggiorna una previsione per ciascuna lavorazione selezionata."
+              : "Seleziona più lavorazioni nell’elenco per ripartire le ore."}</p>
+            <PianificaAssegnazione key={organizza.ids.join("|")} ambiti={bersagli}
+              persone={employees} squadre={squadreDisponibili.data ?? []} calendario={calendario}
+              puoPersone puoSquadre={puoSquadre} puoDate puoVoci onOccupato={setOccupato}
+              previsionale={{ salvato: pianoSalvato, quoteSalvate, disponibilita: previsionale.disponibilita, chiaveDisponibilita: previsionale.chiaveDisponibilita, salva: async (dati, operazione) => {
+                const ambiti = dati.ambiti.map(destinazionePrevisto).filter((a): a is DestinazionePrevisto => a !== null);
+                if (ambiti.length !== dati.ambiti.length) throw new Error("Seleziona una fase o una voce.");
+                await previsionale.salva({ ...dati, ambiti, sabato: calendario.sabato }, operazione);
+                setOccupato(false);
+              } }} />
+          </>}
+        </div>}
+        {sezione === "chi" && <div className="space-y-4">
+          {previsioniVisibili}
+          {previsionale.disponibile && fase && <Button type="button" size="sm" variant="outline" onClick={() => setOrganizza({ ...organizza, sezione: "previsionale" })}>Apri previsionale</Button>}
+          {voce && renderVoce && <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm font-semibold">Dettagli della voce e assegnazioni attuali</summary>
+            <div className="mt-3">{renderVoce(organizza.attiva, chiudiOrganizza)}</div>
+          </details>}
+          {fase && !voce && schedaDi(fase, true, "chi")}
+          {(puoModificare || puoSquadre) && (!advanced
+            ? <PianificaAssegnazione key={organizza.attiva} ambiti={bersagli} persone={employees} squadre={squadreDisponibili.data ?? []}
+              calendario={calendario} puoPersone={puoModificare} puoSquadre={puoSquadre && (!voce || puoModificare)} puoDate={puoModificare}
+              puoVoci={puoModificare && chiSottofasi.dati.disponibile}
+              doveAssegnato={(id, tipo, ambiti) => ambiti.filter((a) => assegnatoSu(id, tipo, a)).length} onPassaggi={passaggiPiano} onOccupato={setOccupato} />
+            : <AddAssignmentDialog key={organizza.attiva} orderId={orderId} phaseId={fase?.id ?? null} incorporato aperto={true}
+              employees={employees} externalTeams={externalTeams} phases={phaseOptions} existingAssignments={[...unassigned, ...phases.flatMap((p) => p.assignments)]}
+              onOccupato={setOccupato} onAperto={() => setAvanzate(false)} onAdd={(payload, opts) => addAssignment.mutate(payload, opts)} />)}
+          {!advanced && !voce && !occupato && (puoModificare || puoSquadre) && bersagli.length === 1 && <Button variant="ghost" size="sm" onClick={() => setAvanzate(true)}>Dettagli avanzati di assegnazione</Button>}
+        </div>}
+        {sezione === "mezzi" && fase && <div className="space-y-3">
+          {voce && <p className="text-sm text-muted-foreground">Risorse della fase {fase.name}, condivise con le sue voci.</p>}
+          {(canViewMezzi || isAdmin) && <PianoMezziCantiere orderId={orderId} faseId={fase.id} />}
+          {risorseFase.length > 0 && <section className="rounded-lg border p-3" aria-label="Mezzi delle persone">
+            <h4 className="mb-2 text-sm font-semibold">In carico alle persone della fase</h4>
+            <ul className="space-y-1 text-sm">{risorseFase.map((m) => <li key={m.id}>{m.nome} · {m.persona}{m.a_bordo.length ? ` · ${m.a_bordo.join(", ")}` : ""}{m.altrove ? ` · risulta su ${m.altrove}` : ""}</li>)}</ul>
+          </section>}
+          {(canViewMezzi || isAdmin) && (mezziSulCantiere.length > 0 || montaggi.length > 0) && <section className="rounded-lg border p-3" aria-label="Mezzi condivisi sulla commessa">
+            <h4 className="mb-2 text-sm font-semibold">Presenti sul cantiere</h4>
+            <ul className="space-y-1 text-sm">
+              {mezziSulCantiere.map((m) => <li key={m.id}>{m.nome}{m.targa ? ` · ${m.targa}` : ""}</li>)}
+              {montaggi.map((m) => <li key={m.id}>{m.nome} · {m.quantita} {m.unita}</li>)}
+            </ul>
+          </section>}
+        </div>}
+        {sezione !== "chi" && sezione !== "subappalto" && sezione !== "previsionale" && sezione !== "mezzi" && (
+          voce ? <div className="space-y-3">{riepilogoSubappalto}{renderVoce?.(organizza.attiva, chiudiOrganizza)}{collegamenti}{previsioniVisibili}</div>
+            : fase ? <div className="space-y-3">
+              {(sezione === "sottofasi" || sezione === "economia") && <NumeriFase economia={economia.perFase.get(fase.id)} vedeVenduto={canViewOrderAmounts}
+                vedeCosti={canViewCosts} vedeMargini={canViewMargins}
+                oreSenzaCosto={fase.assignments.filter((a) => a.source === "employee" && (a.hours ?? 0) > 0 && !(a.cost_consuntivo > 0)).reduce((t, a) => t + (a.hours ?? 0), 0)} />}
+              {sezione === "sottofasi" ? <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_15rem]">
+                {schedaDi(fase, true, sezione)}
+                {collegamenti}
+              </div> : schedaDi(fase, true, sezione)}
+              {riepilogoSubappalto}
+              {sezione === "sottofasi" && previsioniVisibili}
+            </div>
+            : <div className="space-y-2 text-sm">
+              {riepilogoSubappalto}
+              {squadreGenerali.length > 0 && <p>Squadre della commessa · {squadreGenerali.map((s) => s.nome).join(", ")}</p>}
+              {unassigned.length > 0 && <p>{unassigned.length} assegnazioni generali</p>}
+              <Button size="sm" variant="outline" onClick={() => { chiudiOrganizza(); setResponsabiliAperti(true); setOrganizzazioneOrdine(orderId); organizationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>Gestisci assegnazioni generali</Button>
+            </div>
+        )}
+      </OrganizzaLavoroDialog>
+    );
+  };
+
+  const distinta = (
+    <DistintaCommessa
+      orderId={orderId}
+      soloOrganizza={modoFasi !== "tabella"}
+      fasi={phases}
+      sottofasiDi={sottofasiDi}
+      voci={vociPreviste ?? []}
+      economiaDi={economia.perFase}
+      consuntivoSenzaFase={economia.senzaFase.costoConsuntivo}
+      chiDi={chiLavoraDi}
+      persone={employees.map((e) => ({ id: e.id, nome: e.label }))}
+      ditte={externalTeams.filter((t) => t.kind !== "interna").map((t) => ({ id: t.id, nome: t.label }))}
+      puoSquadre={puoSquadre}
+      vedeVenduto={canViewOrderAmounts}
+      vedeCosti={canViewCosts}
+      vedeMargini={canViewMargins}
+      puoModificare={canEditOrders}
+      oggi={oggi}
+      onSegna={(id, fatta) => segnaSottofase.mutate({ id, fatta })}
+      onSegnaTutte={(ids, fatta) => segnaSottofasi.mutate({ ids, fatta })}
+      onAvanza={(id, a) => avanzaSottofase.mutate({ id, ...a })}
+      onPianifica={(id, piano) => pianificaSottofase.mutate({ id, ...piano })}
+      onPianificaTutte={(passi) => pianificaSottofasi.mutate(passi)}
+      onDateFase={(id, date) => updatePhase.mutate({ id, ...date })}
+      onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
+      onAggiungi={(phaseId, nome) => aggiungiSottofase.mutate({ phaseId, nome })}
+      onAggiungiTante={(phaseId, nomi) => aggiungiSottofasi.mutate({ phaseId, nomi })}
+      onAvanzaTante={(passi) => avanzaSottofasi.mutate(passi)}
+      onSalvaVoce={(riga, dati) => salvaVoce.mutate({ riga, dati }, {
+        onSuccess: () => {
+          // Il venduto della fase segue le voci, finché nessuno l'ha scritto diverso: lo leggono SAL e fatture.
+          if (dati.importo === undefined || !canEditOrders || !canViewOrderAmounts) return;
+          const delleVoci = (vociPreviste ?? []).filter((v) => v.phase_id === riga.faseId);
+          const prima = delleVoci.reduce((t, v) => t + (Number(v.importo) || 0), 0);
+          const dopo = prima - (Number(riga.venduto) || 0) + (Number(dati.importo) || 0);
+          const fase = phases.find((p) => p.id === riga.faseId);
+          const scritto = fase?.importo_venduto == null ? null : Number(fase.importo_venduto);
+          if (scritto === null || Math.abs(scritto - prima) < 0.01) updatePhase.mutate({ id: riga.faseId, importo_venduto: dopo > 0 ? Math.round(dopo * 100) / 100 : null });
+        },
+      })}
+      onRisorse={(id, n) => risorseSottofase.mutate({ id, risorse: n })}
+      onParallelo={(id, insieme) => paralleloSottofase.mutate({ id, in_parallelo: insieme })}
+      onRinomina={(id, nome) => rinominaSottofase.mutate({ id, nome })}
+      onElimina={(id) => eliminaSottofase.mutate(id)}
+      onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
+      lavorativo={calendario.lavorativo}
+      onApriScheda={setFaseAperta}
+      onOrganizza={apriOrganizza}
+      renderOrganizza={renderOrganizza}
+      chiSottofasi={chiSottofasi.dati}
+      onAggiungiChi={(ids, chi) => chiSottofasi.aggiungi.mutate({ sottofaseIds: ids, ...chi })}
+      onTogliChi={(id) => chiSottofasi.togli.mutate(id)}
+      onCostiSenzaFase={canEditOrders && costiDaSistemare.length > 0 ? () => setCostiAperti(true) : undefined}
+    />
+  );
 
   return (
     // Da telefono niente riquadro attorno: le fasi sono già righe-riquadro
@@ -798,7 +1116,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
             puoFasi={canEditOrders}
             puoSquadre={puoSquadre}
             onFasi={() => setNewPhaseOpen(true)}
-            onSquadra={() => setAssegnaPersona(true)}
+            onSquadra={() => setAssegnaPersona()}
           />
         )}
 
@@ -825,80 +1143,7 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           <>
             {modoFasi === "tabella" && phases.length > 0 ? (
               <>
-              <DistintaCommessa
-                orderId={orderId}
-                fasi={phases}
-                sottofasiDi={sottofasiDi}
-                voci={vociPreviste ?? []}
-                economiaDi={economia.perFase}
-                consuntivoSenzaFase={economia.senzaFase.costoConsuntivo}
-                chiDi={chiLavoraDi}
-                persone={employees.map((e) => ({ id: e.id, nome: e.label }))}
-                ditte={externalTeams.filter((t) => t.kind !== "interna").map((t) => ({ id: t.id, nome: t.label }))}
-                puoSquadre={puoSquadre}
-                vedeVenduto={canViewOrderAmounts}
-                vedeCosti={canViewCosts}
-                vedeMargini={canViewMargins}
-                puoModificare={canEditOrders}
-                oggi={oggi}
-                onSegna={(id, fatta) => segnaSottofase.mutate({ id, fatta })}
-                onSegnaTutte={(ids, fatta) => segnaSottofasi.mutate({ ids, fatta })}
-                onAvanza={(id, a) => avanzaSottofase.mutate({ id, ...a })}
-                onPianifica={(id, piano) => pianificaSottofase.mutate({ id, ...piano })}
-                onPianificaTutte={(passi) => pianificaSottofasi.mutate(passi)}
-                onDateFase={(id, date) => updatePhase.mutate({ id, ...date })}
-                onDalleVoci={(faseId) => sottofasiDalleVoci.mutate(faseId)}
-                onAggiungi={(phaseId, nome) => aggiungiSottofase.mutate({ phaseId, nome })}
-                onAggiungiTante={(phaseId, nomi) => aggiungiSottofasi.mutate({ phaseId, nomi })}
-                onAvanzaTante={(passi) => avanzaSottofasi.mutate(passi)}
-                onSalvaVoce={(riga, dati) => salvaVoce.mutate({ riga, dati }, {
-                  onSuccess: () => {
-                    // Il venduto della fase segue le voci, finché nessuno l'ha scritto diverso: lo leggono SAL e fatture.
-                    if (dati.importo === undefined || !canEditOrders || !canViewOrderAmounts) return;
-                    const delleVoci = (vociPreviste ?? []).filter((v) => v.phase_id === riga.faseId);
-                    const prima = delleVoci.reduce((t, v) => t + (Number(v.importo) || 0), 0);
-                    const dopo = prima - (Number(riga.venduto) || 0) + (Number(dati.importo) || 0);
-                    const fase = phases.find((p) => p.id === riga.faseId);
-                    const scritto = fase?.importo_venduto == null ? null : Number(fase.importo_venduto);
-                    if (scritto === null || Math.abs(scritto - prima) < 0.01) updatePhase.mutate({ id: riga.faseId, importo_venduto: dopo > 0 ? Math.round(dopo * 100) / 100 : null });
-                  },
-                })}
-                onRisorse={(id, n) => risorseSottofase.mutate({ id, risorse: n })}
-                onParallelo={(id, insieme) => paralleloSottofase.mutate({ id, in_parallelo: insieme })}
-                onRinomina={(id, nome) => rinominaSottofase.mutate({ id, nome })}
-                onElimina={(id) => eliminaSottofase.mutate(id)}
-                onRiordina={(ids) => riordinaSottofasi.mutate(ids)}
-                lavorativo={calendario.lavorativo}
-                onApriScheda={setFaseAperta}
-                chiSottofasi={chiSottofasi.dati}
-                onAggiungiChi={(ids, chi) => chiSottofasi.aggiungi.mutate({ sottofaseIds: ids, ...chi })}
-                onTogliChi={(id) => chiSottofasi.togli.mutate(id)}
-                apriSottofase={sottofaseDaAprire}
-                onSottofaseAperta={() => setSottofaseDaAprire(null)}
-                onCostiSenzaFase={canEditOrders && costiDaSistemare.length > 0 ? () => setCostiAperti(true) : undefined}
-              />
-              <Dialog open={!!faseInPopup} onOpenChange={(a) => { if (!a) setFaseAperta(null); }}>
-                <DialogContent className="max-h-[92vh] gap-2 overflow-y-auto sm:max-w-5xl">
-                  <DialogHeader className="sr-only">
-                    <DialogTitle className="sr-only">{faseInPopup?.name}</DialogTitle>
-                    <DialogDescription className="sr-only">Venduto, chi la fa, materiali, mezzi, note e sottofasi di questa fase.</DialogDescription>
-                  </DialogHeader>
-                  {faseInPopup && (
-                    <BarraFase
-                      economia={economia.perFase.get(faseInPopup.id)}
-                      vedeVenduto={canViewOrderAmounts}
-                      vedeCosti={canViewCosts}
-                      vedeMargini={canViewMargins}
-                      sezione={sezioneFase}
-                      onSezione={setSezioneFase}
-                      oreSenzaCosto={faseInPopup.assignments.filter((a) => a.source === "employee" && (a.hours ?? 0) > 0 && !(a.cost_consuntivo > 0)).reduce((t, a) => t + (a.hours ?? 0), 0)}
-                      posizione={{ numero: phases.findIndex((p) => p.id === faseInPopup.id) + 1, totale: phases.length }}
-                      onVicina={(verso) => setFaseAperta(phases[phases.findIndex((p) => p.id === faseInPopup.id) + verso]?.id ?? faseInPopup.id)}
-                    />
-                  )}
-                  {faseInPopup && schedaDi(faseInPopup, true, sezioneFase)}
-                </DialogContent>
-              </Dialog>
+              {distinta}
               <CostiSenzaFaseDialog
                 aperto={costiAperti}
                 onChiudi={() => setCostiAperti(false)}
@@ -962,6 +1207,8 @@ export function OrderWorkPhases({ orderId, orderCode, view, modo, importoContrat
           </>
         )}
         </>}
+
+        {!phases.length || isLoading || isError ? renderOrganizza() : modoFasi !== "tabella" ? distinta : null}
 
         {/* Le ditte in subappalto (DURC e contratto), solo se ce ne sono. */}
         {showTeam && <>
@@ -1046,7 +1293,6 @@ interface PhaseCardProps {
   materials: PhaseMaterial[];
   unassignedMaterials: PhaseMaterial[];
   allPhases: { id: string; name: string }[];
-  allAssignments: PhaseAssignment[];
   orderId: string;
   orderCode?: string | null;
   onAssignMaterial: (itemId: string, phaseId: string | null) => void;
@@ -1064,10 +1310,7 @@ interface PhaseCardProps {
     importo_venduto?: number | null;
   }) => void;
   onDeletePhase: () => void;
-  onAddAssignment: (
-    payload: AddAssignmentPayload,
-    opts?: { onSuccess?: () => void; onError?: () => void }
-  ) => void;
+  onApriAssegnazione: () => void;
   onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => Promise<unknown>;
   /** Nel popup della fase: la scheda scelta in alto; senza, tutto. */
   sezione?: SezioneFase;
@@ -1112,17 +1355,13 @@ export type SezioneFase = "sottofasi" | "economia" | "chi" | "mezzi" | "note" | 
 const SCHEDE_FASE: Array<[SezioneFase, string]> = [["sottofasi", "Sottofasi e date"], ["economia", "Economia"], ["chi", "Chi la fa"], ["mezzi", "Mezzi"], ["materiali", "Materiali"], ["note", "Note"]];
 
 /** In cima al popup della fase: i numeri della fase, le schede e la fase prima e dopo. */
-function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onSezione, posizione, onVicina, oreSenzaCosto = 0 }: {
+function NumeriFase({ economia, vedeVenduto, vedeCosti, vedeMargini, oreSenzaCosto = 0 }: {
   economia?: EconomiaFase;
   /** Ore registrate da persone senza costo orario: valgono 0 € e lo «Speso finora» è più basso del vero. */
   oreSenzaCosto?: number;
   vedeVenduto: boolean;
   vedeCosti: boolean;
   vedeMargini: boolean;
-  sezione: SezioneFase;
-  onSezione: (s: SezioneFase) => void;
-  posizione: { numero: number; totale: number };
-  onVicina: (verso: -1 | 1) => void;
 }) {
   const sforato = !!economia && economia.costoPrevisto > 0 && economia.costoConsuntivo > economia.costoPrevisto;
   const numeri: Array<{ etichetta: string; valore: string; nota?: string; rosso?: boolean }> = [];
@@ -1146,25 +1385,12 @@ function BarraFase({ economia, vedeVenduto, vedeCosti, vedeMargini, sezione, onS
             ))}
           </dl>
         )}
-        <span className="ml-auto flex shrink-0 items-center gap-1 pt-1 text-xs tabular-nums text-muted-foreground">
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Fase prima" onClick={() => onVicina(-1)}><ChevronRight className="h-4 w-4 rotate-180" /></Button>
-          Fase {posizione.numero} di {posizione.totale}
-          <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Fase dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
-        </span>
       </div>
       {vedeCosti && oreSenzaCosto > 0 && (
         <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">
           {oreSenzaCosto.toLocaleString("it-IT")} ore di persone senza costo orario: nello «Speso finora» valgono 0 €. Il costo orario si mette nella scheda della persona.
         </p>
       )}
-      <div role="tablist" aria-label="Parti della fase" className="flex flex-wrap gap-1 border-b">
-        {SCHEDE_FASE.map(([chiave, testo]) => (
-          <button key={chiave} type="button" role="tab" aria-selected={sezione === chiave} onClick={() => onSezione(chiave)}
-            className={cn("-mb-px border-b-2 px-3 py-1.5 text-sm", sezione === chiave ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-            {testo}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -1184,14 +1410,13 @@ function PhaseCard({
   materials,
   unassignedMaterials,
   allPhases,
-  allAssignments,
   orderId,
   orderCode,
   onAssignMaterial,
   onSplitMaterial,
   onUpdatePhase,
   onDeletePhase,
-  onAddAssignment,
+  onApriAssegnazione,
   onUpdateAssignment,
   onDeleteAssignment,
   squadreFase,
@@ -1210,7 +1435,7 @@ function PhaseCard({
   const [eliminaAperto, setEliminaAperto] = useState(false);
   const [editingName, setEditingName] = useState(false);
   // Da telefono la fase aperta mostra le sottofasi; date, squadra e note a richiesta.
-  const [dettagli, setDettagli] = useState(false);
+  const [dettagli, setDettagli] = useState(apertaSubito);
   const [nameDraft, setNameDraft] = useState(phase.name);
   const [progressOpen, setProgressOpen] = useState(false);
   const [progressDraft, setProgressDraft] = useState("");
@@ -1358,15 +1583,31 @@ function PhaseCard({
     <Card
       className={cn(
         // Accento colorato a sinistra: stato della fase visibile anche da chiusa
-        "border-muted border-l-2 shadow-none",
-        phase.status === "completata"
+        apertaSubito ? "overflow-hidden border-slate-200 shadow-none" : "border-muted border-l-2 shadow-none",
+        !apertaSubito && (phase.status === "completata"
           ? "border-l-emerald-400"
           : phase.status === "in_corso"
             ? "border-l-amber-400"
-            : "border-l-slate-200",
+            : "border-l-slate-200"),
       )}
     >
-      {isMobile && (
+      {apertaSubito && sezione === "sottofasi" && (
+        <div className="flex flex-wrap items-center gap-2 border-b bg-slate-50 px-3 py-2">
+          <span className="text-sm font-semibold">Avanzamento</span>
+          <div className="h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-slate-200">
+            <div className={cn("h-full rounded-full", actualPct === 100 ? "bg-emerald-500" : "bg-blue-600")} style={{ width: `${actualPct}%` }} />
+          </div>
+          {canEditOrders && !derivata
+            ? <Button type="button" variant="ghost" size="sm" className="h-8 font-semibold tabular-nums"
+                aria-label={`Avanzamento ${phase.name}: ${actualPct}%`} onClick={() => { setProgressDraft(String(actualPct)); setProgressOpen(true); }}>{actualPct}%</Button>
+            : <span className="text-xs font-semibold tabular-nums">{actualPct}%</span>}
+          {canEditOrders ? <>
+            {editingName ? campoNome("h-8 min-w-36 max-w-56") : tendinaStato("h-8 w-[9.5rem]")}
+            {menuFase("h-8 w-8 text-muted-foreground")}
+          </> : <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>}
+        </div>
+      )}
+      {!apertaSubito && isMobile && (
         // Telefono (06/10/2026): la fase è una riga — pallino, nome, date e chi
         // la fa; a destra avanzamento e ritardo. Stato e menu solo da aperta.
         <div>
@@ -1411,7 +1652,7 @@ function PhaseCard({
           )}
         </div>
       )}
-      {!isMobile && <CardHeader className={cn("gap-2 p-3", open ? "sm:p-4" : "sm:px-3 sm:py-2.5")}>
+      {!apertaSubito && !isMobile && <CardHeader className={cn("gap-2 p-3", open ? "sm:p-4" : "sm:px-3 sm:py-2.5")}>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           {/* Zona cliccabile: apre/chiude la fase (accordion fatto a mano:
               i controlli interattivi restano fuori, a destra) */}
@@ -1556,8 +1797,8 @@ function PhaseCard({
         </div>
       </CardHeader>}
 
-      {/* Da telefono la conferma serve fuori dalla testata del computer */}
-      {isMobile && (
+      {/* La scheda nel popup ha una testata compatta, come quella mobile. */}
+      {(isMobile || apertaSubito) && (
         <AlertDialog open={eliminaAperto} onOpenChange={setEliminaAperto}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -1591,8 +1832,8 @@ function PhaseCard({
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <CardContent id={`phase-body-${phase.id}`} className={cn("px-3 sm:px-4", isMobile ? "space-y-3 pb-3 pt-2" : "space-y-4 pb-4 pt-0")}>
-              {phase.notes && !compatta && <details className="text-sm text-muted-foreground">
+            <CardContent id={`phase-body-${phase.id}`} className={cn("px-3", apertaSubito ? "space-y-3 py-3" : isMobile ? "space-y-3 pb-3 pt-2" : "space-y-4 pb-4 pt-0 sm:px-4")}>
+              {phase.notes && !compatta && (!apertaSubito || sezione === "sottofasi") && <details className="text-sm text-muted-foreground">
                 <summary className="cursor-pointer">Descrizione</summary>
                 <p className="mt-2 whitespace-pre-wrap leading-relaxed">{phase.notes}</p>
               </details>}
@@ -1600,7 +1841,7 @@ function PhaseCard({
               {/* ── Quando ── */}
               {!compatta && <div ref={datesRef} tabIndex={-1} aria-label={`Date di ${phase.name}`} className="flex flex-wrap items-center gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
                 <span className="w-24 shrink-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground max-sm:hidden">
-                  Quando
+                  Date fase
                 </span>
                 <label className="flex items-center gap-1 text-xs text-muted-foreground max-sm:min-w-0 max-sm:flex-1">
                   <span className="max-sm:hidden">dal</span>
@@ -1654,7 +1895,7 @@ function PhaseCard({
                 {...azioniSottofasi}
               />
 
-              </>}{vedi("economia") && !isMobile && <>
+              </>}{vedi("economia") && (!isMobile || apertaSubito) && <>
               {/* ── Economia: venduto, costo previsto, consuntivo, margine ── */}
               {economia && (
                 <EconomiaFaseRiga
@@ -1678,17 +1919,12 @@ function PhaseCard({
                   {squadreGenerali.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-slate-50 px-2.5 py-2 text-xs"><span>Squadra della commessa: <strong>{squadreGenerali.map(s => s.nome).join(", ")}</strong> · nel periodo assegnato</span><Button variant="ghost" size="sm" className="h-7 px-2 text-xs" aria-label={`Vedi squadra generale per ${phase.name}`} onClick={onManageGeneral}>Vedi assegnazione generale</Button></div>}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <SquadreFase orderId={orderId} fase={{ id: phase.id, name: phase.name }} modificabile={puoSquadre} mostraAggiungi={false} />
-                    {(canEditOrders || puoSquadre) && <AddAssignmentDialog orderId={orderId}
-                      phaseId={phase.id}
-                      employees={employees}
-                      externalTeams={externalTeams}
-                      phases={allPhases}
-                      existingAssignments={allAssignments}
-                      triggerLabel="Assegna"
-                      triggerAriaLabel={`Assegna a ${phase.name}`}
-                      triggerClassName={cn("tap-compact h-8 rounded-full px-3", AZIONE_TENUE.persona)}
-                      onAdd={onAddAssignment}
-                    />}
+                    {(canEditOrders || puoSquadre) && sezione !== "chi" && (
+                      <Button variant="outline" size="sm" className={cn("tap-compact h-8 rounded-full px-3", AZIONE_TENUE.persona)}
+                        aria-label={`Assegna a ${phase.name}`} onClick={onApriAssegnazione}>
+                        <Plus className="mr-1 h-4 w-4" /> Assegna
+                      </Button>
+                    )}
                   </div>
                   {phase.assignments.length > 0 && (
                     <ElencoAssegnazioni>
@@ -1710,7 +1946,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              </>}{vedi("mezzi") && !isMobile && <>
+              </>}{vedi("mezzi") && (!isMobile || apertaSubito) && <>
               {/* ── Mezzi e attrezzi di chi fa la fase ── */}
               {(mezziFase.length > 0 || canEditOrders || canViewMezzi) && (
                 <div className="flex flex-wrap items-start gap-2">
@@ -1740,7 +1976,7 @@ function PhaseCard({
                 </div>
               </div>
 
-              </>}{vedi("materiali") && !compatta && (!isMobile || planningIssues.some((i) => i.section === "materials")) && <>
+              </>}{vedi("materiali") && !compatta && (!isMobile || apertaSubito || planningIssues.some((i) => i.section === "materials")) && <>
               {/* ── Materiali della fase (order_items.phase_id) ── */}
               {(canEditOrders || materials.length > 0 || unassignedMaterials.length > 0) && (
                 <div ref={materialsRef} tabIndex={-1} aria-label={`Materiali di ${phase.name}`} className="flex flex-wrap items-start gap-2 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
@@ -1872,7 +2108,7 @@ function PhaseCard({
                 </div>
               )}
               </>}
-              {isMobile && canEditOrders && <button type="button" aria-expanded={dettagli} onClick={() => setDettagli((d) => !d)} className="tap-compact min-h-9 text-xs font-medium text-primary">{dettagli ? "Nascondi i dettagli" : "Stato, date, squadra e note"}</button>}
+              {!apertaSubito && isMobile && canEditOrders && <button type="button" aria-expanded={dettagli} onClick={() => setDettagli((d) => !d)} className="tap-compact min-h-9 text-xs font-medium text-primary">{dettagli ? "Nascondi i dettagli" : "Stato, date, squadra e note"}</button>}
             </CardContent>
           </motion.div>
         )}

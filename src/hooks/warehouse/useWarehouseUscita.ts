@@ -11,6 +11,10 @@
  * I tipi delle nuove tabelle/RPC non sono ancora in types.ts → cast mirati.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { warehouseCapabilities, warehouseRpc, warehouseRequestScope, warehouseRequestStorage, WarehouseRequestSlot } from "@/lib/magazzino/protocolloMovimenti";
+import { queryKeys } from "@/lib/queryKeys";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { ClienteSnapshot } from "@/types/fatturazione";
@@ -77,8 +81,11 @@ export function valoreUscita(righe: UscitaRow["righe"] | null | undefined): numb
 
 /** Fase 1 — registra l'uscita (nessun DDT). */
 export function useRegisterUscita() {
+  const { effectiveCompany, user } = useAuth();
+  const slots = useRef(new Map<string, WarehouseRequestSlot>());
+  const [recoverableScope, setRecoverableScope] = useState<string | null>(null);
   const qc = useQueryClient();
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async (args: {
       warehouseId: string;
       destinatario: UscitaDestinatario;
@@ -86,18 +93,32 @@ export function useRegisterUscita() {
       vettore?: VettoreJson | null;
       note?: string | null;
     }) => {
-      const { data, error } = await sb.rpc("register_warehouse_uscita", {
-        p_warehouse_id: args.warehouseId,
-        p_destinatario: args.destinatario,
-        p_scans: args.scans,
-        p_vettore: args.vettore ?? null,
-        p_note: args.note ?? null,
-      });
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
+      if (!effectiveCompany?.id) throw new Error("Seleziona un’azienda.");
+      const protocol = await warehouseCapabilities(effectiveCompany.id);
+      const payload = {
+        p_warehouse_id: args.warehouseId, p_destinatario: args.destinatario, p_scans: args.scans,
+        p_vettore: args.vettore ?? null, p_note: args.note ?? null,
+      };
+      const scope = warehouseRequestScope(effectiveCompany.id, user?.id, "uscita");
+      if (!slots.current.has(scope)) slots.current.set(scope, new WarehouseRequestSlot(scope, warehouseRequestStorage()));
+      const slot = slots.current.get(scope)!;
+      const version2 = protocol.version >= 2 && protocol.idempotent_uscite;
+      let row;
+      try {
+        const { data, error } = await warehouseRpc(version2 ? "warehouse_register_uscita_v2" : "register_warehouse_uscita",
+          version2 ? { ...payload, p_request_id: slot.request(payload) } : payload);
+        if (error) throw error;
+        row = Array.isArray(data) ? data[0] : data;
+        if (!row?.uscita_id || !row?.numero) throw new Error("Esito uscita non disponibile. Controlla il registro prima di riprovare.");
+        if (version2) { slot.succeeded(); setRecoverableScope(null); }
+      } catch (error) {
+        if (version2) { slot.failed(error); setRecoverableScope(slot.hasPending() ? scope : null); }
+        throw error;
+      }
       return row as { uscita_id: string; numero: string; created_movements: number; updated_units: number; errors: unknown[] };
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.warehouse.all });
       qc.invalidateQueries({ queryKey: ["warehouse-uscite"] });
       qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
       qc.invalidateQueries({ queryKey: ["warehouse-movements"] });
@@ -105,6 +126,8 @@ export function useRegisterUscita() {
       qc.invalidateQueries({ queryKey: ["warehouse-uscite-order"] });
     },
   });
+  const scope = warehouseRequestScope(effectiveCompany?.id, user?.id, "uscita");
+  return { ...mutation, canReplay: recoverableScope === scope };
 }
 
 /** Fase 2 — dall'uscita genera il DDT bozza. */
@@ -118,10 +141,15 @@ export function useCreateDdtFromUscita() {
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
+      if (!row || typeof row.documento_id !== "string" || typeof row.numero_ddt !== "string"
+        || !row.documento_id.trim() || !row.numero_ddt.trim()) {
+        throw new Error("Esito DDT non verificato. Controlla l’uscita prima di riprovare: la stessa uscita riapre il documento già creato.");
+      }
       return row as { documento_id: string; numero_ddt: string };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["warehouse-uscite"] });
+      qc.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
     },
   });
 }

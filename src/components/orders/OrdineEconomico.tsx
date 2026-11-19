@@ -1,3 +1,5 @@
+import type {PianoSalAperto} from "@/lib/orders/pianoSalAperto";
+import type { QuoteIvaMista } from "@/lib/orders/ivaMista";
 import { FattureIncassiElenco, type FattureIncassiDati } from "./FattureIncassiElenco";
 import { Button } from "@/components/ui/button";
 import { lazy, Suspense, useState } from "react";
@@ -17,6 +19,8 @@ interface OrdineEconomicoProps {
   orderId: string;
   totalAmount: number;
   vatRate: number;
+  salPayment?: PianoSalAperto|null;
+  vatSplit?: QuoteIvaMista | null;
   paymentType: PaymentType;
   installments: Installment[];
   hasBuildingBonus: boolean;
@@ -48,6 +52,8 @@ export function OrdineEconomico({
   totaliIncassi,
   totalAmount,
   vatRate,
+  vatSplit,
+  salPayment,
   paymentType,
   installments,
   hasBuildingBonus,
@@ -69,6 +75,7 @@ export function OrdineEconomico({
     <div className="space-y-4 max-sm:space-y-3">
       {/* Come si paga: il piano da un modello, e il saldo salvato che non torna col totale. */}
       <PianoPagamentiAzioni
+        salPayment={salPayment}
         orderId={orderId}
         totalAmount={totalAmount}
         vatRate={vatRate}
@@ -79,6 +86,8 @@ export function OrdineEconomico({
         puoModificare={permissions.canEditOrders}
       />
       <FinancialSummaryReadOnly
+        vatSplit={vatSplit}
+        salPayment={salPayment}
         totalAmount={totalAmount}
         totaliIncassi={totaliIncassi}
         elencoUnificato={fatture ? piano => <FattureIncassiElenco {...fatture} actions={<>{fatture.actions}{permissions.canViewBilling && !permissions.solaLettura && <Button variant="outline" size="sm" onClick={()=>setQuoteTarget({})}>Ripartisci fattura su più rate</Button>}</>} piano={piano} /> : undefined}

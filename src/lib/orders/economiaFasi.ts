@@ -1,3 +1,5 @@
+import type { TotalePrevistoSalvato } from "./previsionaleSalvato";
+
 /**
  * Economia delle lavorazioni di una commessa (06/10/2026).
  *
@@ -38,6 +40,8 @@ export interface RigaContrattoFase {
 }
 
 export interface AssegnazioneFase {
+  employee_id?: string | null;
+  planned_hours?: number | null;
   phase_id: string | null;
   /** employee = persona interna (order_employees), team = ditta (order_external_teams). */
   source: "employee" | "team";
@@ -49,6 +53,8 @@ export interface AssegnazioneFase {
 
 /** Voce prevista della lavorazione (order_work_phase_voci): unitari senza IVA. */
 export interface VocePrevistaFase {
+  id?: string;
+  subphase_id?: string | null;
   phase_id: string;
   quantita: number;
   costo_manodopera: number;
@@ -150,6 +156,7 @@ interface Somme {
   haDitta: boolean;
   voci: { n: number; lavoro: number; materiali: number; senzaCosto: number };
   incompleto?: boolean;
+  pianoParziale?: boolean;
 }
 
 const vuote = (importo: number | null = null): Somme => ({
@@ -287,6 +294,8 @@ export function economiaFasi(input: {
   posaPerFase?: ReadonlyMap<string, ReadonlyMap<string | null, number>>;
   /** Voci del preventivo da cui sono nate le fasi: il previsto dove le assegnazioni non ne hanno. */
   vociPreviste?: ReadonlyArray<VocePrevistaFase>;
+  pianiManodopera?: ReadonlyMap<string, TotalePrevistoSalvato & { orePerPersona: ReadonlyMap<string, number> }>;
+  ambitiPianificati?: ReadonlySet<string>;
   /** Fatture e spese della commessa già ripartite sulle fasi (costiDirettiFasi); senza, restano fuori dal conto. */
   costiDiretti?: ReadonlyArray<{ phase_id: string | null; voce: "ditte" | "altri"; importo: number }>;
 }): EconomiaFasi {
@@ -346,9 +355,21 @@ export function economiaFasi(input: {
     // Le ditte sono scritte con l'IVA della fattura (come in v_ordine_marginalita): senza IVA contro il venduto.
     // In reverse charge (IVA 0, il subappalto edile) l'importo è già l'imponibile.
     const iva = a.source === "team" ? 1 + (a.vat_rate == null || !Number.isFinite(Number(a.vat_rate)) ? 0 : Number(a.vat_rate)) / 100 : 1;
-    s.previsto[voce] += numero(a.cost_preventivo) / iva;
+    const orePianificate = a.source === "employee" && a.phase_id && a.employee_id
+      ? input.pianiManodopera?.get(a.phase_id)?.orePerPersona.get(a.employee_id) : undefined;
+    const oreStoriche = numero(a.planned_hours);
+    // Il piano di dettaglio assorbe le ore della stessa persona. Di una
+    // vecchia stima senza ore non esiste una parte residua stimabile.
+    const quotaResidua = orePianificate === undefined ? 1
+      : oreStoriche > 0 ? Math.max(0, oreStoriche - orePianificate) / oreStoriche : 0;
+    s.previsto[voce] += numero(a.cost_preventivo) / iva * quotaResidua;
     s.consuntivo[voce] += numero(a.cost_consuntivo) / iva;
     if (a.source === "team") s.haDitta = true;
+  }
+  for (const [fase, piano] of input.pianiManodopera ?? []) {
+    const s = somme.get(fase);
+    if (!s) continue;
+    s.pianoParziale = piano.incompleto;
   }
   for (const c of input.costiDiretti ?? []) di(c.phase_id).consuntivo[c.voce] += numero(c.importo);
   for (const v of input.vociPreviste ?? []) {
@@ -356,18 +377,26 @@ export function economiaFasi(input: {
     if (!s) continue;
     const q = Math.max(0, numero(v.quantita));
     s.voci.n += 1;
-    s.voci.lavoro += q * Math.max(0, numero(v.costo_manodopera));
+    const coperta = input.ambitiPianificati?.has(`fase:${v.phase_id}`)
+      || (v.subphase_id && input.ambitiPianificati?.has(`sottofase:${v.subphase_id}`))
+      || (v.id && input.ambitiPianificati?.has(`voce:${v.id}`));
+    if (!coperta) s.voci.lavoro += q * Math.max(0, numero(v.costo_manodopera));
     s.voci.materiali += q * Math.max(0, numero(v.costo_materiali));
-    if (!(numero(v.costo_manodopera) > 0) && !(numero(v.costo_materiali) > 0)) s.voci.senzaCosto += 1;
+    if (!coperta && !(numero(v.costo_manodopera) > 0) && !(numero(v.costo_materiali) > 0)) s.voci.senzaCosto += 1;
   }
-  for (const s of [...somme.values(), fuori]) {
+  for (const [fase, s] of [...somme, ["", fuori] as const]) {
     // Il lavoro non scritto nelle assegnazioni e voci senza costo: il previsto è parziale.
-    s.incompleto = s.voci.senzaCosto > 0 && !(s.previsto.manodopera + s.previsto.ditte > 0);
+    s.incompleto = !!s.pianoParziale || (s.voci.senzaCosto > 0 && !(s.previsto.manodopera + s.previsto.ditte > 0));
     if (s.previsto.manodopera + s.previsto.ditte > 0) s.fonte.lavoro = "assegnazioni";
     else if (s.voci.lavoro > 0) {
       // Senza IVA, come sul preventivo: non si divide come i costi scritti sulle ditte.
       s.previsto[s.haDitta ? "ditte" : "manodopera"] += s.voci.lavoro;
       s.fonte.lavoro = "preventivo";
+    }
+    const piano = input.pianiManodopera?.get(fase);
+    if (piano && piano.ore > 0) {
+      s.previsto.manodopera += piano.costo;
+      s.fonte.lavoro = unisci(s.fonte.lavoro, "assegnazioni");
     }
     if (s.previsto.materiali > 0) s.fonte.materiali = "righe";
     else if (s.voci.materiali > 0) {

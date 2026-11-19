@@ -71,7 +71,7 @@ export function PostReceiptDDTPrompt({
   capturedPhoto,
 }: PostReceiptDDTPromptProps) {
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [selectedDdtId, setSelectedDdtId] = useState<string>("");
+  const [chosenDdtId, setSelectedDdtId] = useState<string>("");
   const [isAttaching, setIsAttaching] = useState(false);
 
   // ── Resolve purchase_order_id from order_item_id ─────────────────────
@@ -113,12 +113,7 @@ export function PostReceiptDDTPrompt({
   const hasExisting = existingDdts.length > 0;
   const { uploadAttachments } = useDDTAttachments();
 
-  // Auto-select se c'è un solo DDT
-  useEffect(() => {
-    if (hasExisting && existingDdts.length === 1 && !selectedDdtId) {
-      setSelectedDdtId(existingDdts[0].id);
-    }
-  }, [hasExisting, existingDdts, selectedDdtId]);
+  const selectedDdtId = chosenDdtId || (existingDdts.length === 1 ? existingDdts[0].id : "");
 
   // Reset on close (con cleanup: senza il return clearTimeout, se il componente
   // smonta nei 200ms tra dialog close e timeout fire, setState scatta su

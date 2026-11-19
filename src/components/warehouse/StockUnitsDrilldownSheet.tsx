@@ -10,7 +10,7 @@
  *
  * Layout snello: tabella scorribile con colonne essenziali + badge status.
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   Sheet,
   SheetContent,
@@ -59,6 +59,7 @@ const STATUS_LABELS: Record<StockUnitStatus | "all", string> = {
   returned: "Reso",
   defective: "Difettoso",
   scrapped: "Smaltito",
+  inventory_missing: "Non trovata all’inventario",
 };
 
 const STATUS_BADGE: Record<StockUnitStatus, string> = {
@@ -69,9 +70,13 @@ const STATUS_BADGE: Record<StockUnitStatus, string> = {
   returned: "bg-slate-50 text-slate-700 border-slate-200",
   defective: "bg-rose-50 text-rose-700 border-rose-200",
   scrapped: "bg-zinc-50 text-zinc-700 border-zinc-200",
+  inventory_missing: "bg-amber-50 text-amber-800 border-amber-200",
 };
 
-export function StockUnitsDrilldownSheet({
+export function StockUnitsDrilldownSheet(props: StockUnitsDrilldownSheetProps) {
+  return props.open ? <StockUnitsDrilldownSheetSession key={`${props.stockItemId ?? "all"}:${props.lottoId ?? "all"}`} {...props} /> : null;
+}
+function StockUnitsDrilldownSheetSession({
   open,
   onOpenChange,
   stockItemId,
@@ -81,14 +86,8 @@ export function StockUnitsDrilldownSheet({
 }: StockUnitsDrilldownSheetProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StockUnitStatus | "all">("all");
-  const [lottoFilter, setLottoFilter] = useState<string>("all");
+  const [lottoFilter, setLottoFilter] = useState<string>(lottoId ?? "all");
   const [exportOpen, setExportOpen] = useState(false);
-
-  // Aprendo il drill-down da un lotto specifico, pre-filtra su quel lotto
-  // (l'utente può comunque allargare a "Tutti i lotti" dal dropdown).
-  useEffect(() => {
-    if (open) setLottoFilter(lottoId ?? "all");
-  }, [open, lottoId]);
 
   const filters = useMemo(
     () => ({
@@ -104,7 +103,7 @@ export function StockUnitsDrilldownSheet({
     [stockItemId, lottoFilter, statusFilter, search, open],
   );
 
-  const { data: units = [], isLoading } = useStockUnitsList(filters);
+  const { data: units = [], isLoading, isError, refetch } = useStockUnitsList(filters);
 
   // Aggregato status per badge counter veloce.
   const statusCounts = useMemo(() => {
@@ -212,6 +211,8 @@ export function StockUnitsDrilldownSheet({
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Caricamento seriali...
             </div>
+          ) : isError ? (
+            <div role="alert" className="p-4 text-sm text-destructive">Impossibile verificare le matricole. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova matricole</Button></div>
           ) : units.length === 0 ? (
             <div className="text-center py-12 text-sm text-muted-foreground">
               <Filter className="h-8 w-8 mx-auto mb-2 opacity-30" />

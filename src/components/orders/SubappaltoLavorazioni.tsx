@@ -1,0 +1,263 @@
+import { lazy, Suspense, useCallback, useState } from "react";
+import { FileText, Handshake, Mail, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRegistroSubappaltoLocale } from "@/hooks/useRegistroSubappaltoLocale";
+import { useDatiAffidaContratto } from "@/hooks/useDatiAffidaContratto";
+import { useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
+import { supabase } from "@/integrations/supabase/client";
+import { INTERA_COMMESSA, vociDelSubappalto, type AmbitoLavoro } from "@/lib/orders/previsionaleLavoro";
+import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
+import { formatCurrency } from "@/lib/formatters";
+import { situazioneSubappalto, type RichiestaDaLavorazioni } from "@/lib/subappaltatori/richiesteDaLavorazioni";
+import type { RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
+import type { ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+import { AffidaContrattoDaCommessa, type ComputoDaLavorazioni } from "./AffidaContrattoDialog";
+import { useAffidamentiCommessa } from "./AffidaVociDialog";
+import { ComputoSubappaltoAnteprima } from "./ComputoSubappaltoAnteprima";
+
+const EmailComposeDialog = lazy(() => import("@/pages/azienda/email/components/EmailComposeDialog")
+  .then((modulo) => ({ default: modulo.EmailComposeDialog })));
+const misura = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(new Date());
+const dataIt = (data: string) => data.slice(0, 10).split("-").reverse().join("/");
+const colori: Record<string, string> = {
+  "Da quotare": "border-amber-200 bg-amber-50 text-amber-900",
+  "In attesa di offerta": "border-blue-200 bg-blue-50 text-blue-900",
+  "Offerta ricevuta": "border-teal-200 bg-teal-50 text-teal-900",
+  "A contratto": "border-emerald-200 bg-emerald-50 text-emerald-900",
+};
+
+function RegistraOfferta({ richiesta, onSalva, onAnnulla, salvaInCorso }: {
+  richiesta: RichiestaDaLavorazioni;
+  onSalva: (offerta: NonNullable<RichiestaDaLavorazioni["offerta"]>) => void;
+  salvaInCorso: boolean;
+  onAnnulla: () => void;
+}) {
+  const [data, setData] = useState(richiesta.offerta?.data ?? oggi());
+  const [riferimento, setRiferimento] = useState(richiesta.offerta?.riferimento ?? "");
+  const [prezzi, setPrezzi] = useState<Record<string, string>>(() => Object.fromEntries(
+    Object.entries(richiesta.offerta?.prezzi ?? {}).map(([id, prezzo]) => [id, String(prezzo).replace(".", ",")]),
+  ));
+  const righePrezzo = richiesta.righe.filter((r) => prezzi[r.id]?.trim()).map((r) => [r.id, parseAssignmentAmount(prezzi[r.id], 2)] as const);
+  const valida = !!data && data <= oggi() && righePrezzo.length > 0 && righePrezzo.every(([, prezzo]) => prezzo != null && prezzo > 0);
+  return <div className="space-y-3 rounded-lg border bg-slate-50 p-3">
+    <div className="grid gap-2 sm:grid-cols-[11rem_1fr]">
+      <label className="space-y-1 text-sm">Ricevuta il<Input type="date" value={data} max={oggi()} onChange={(e) => setData(e.target.value)} /></label>
+      <label className="space-y-1 text-sm">Riferimento dell’offerta<Input value={riferimento} maxLength={250} onChange={(e) => setRiferimento(e.target.value)} placeholder="Numero o riferimento della ditta" /></label>
+    </div>
+    <p className="text-xs text-muted-foreground">Inserisci il prezzo unitario IVA esclusa delle voci quotate. Lascia vuote le altre.</p>
+    <div className="divide-y rounded-md border bg-white">
+      {richiesta.righe.map((r) => <label key={r.id} className="flex flex-wrap items-center justify-between gap-2 p-2.5 text-sm">
+        <span>{r.descrizione} <span className="text-muted-foreground">· {misura.format(r.quantita)} {r.unita}</span></span>
+        <Input className="w-28" aria-label={`Prezzo offerto per ${r.descrizione}`} inputMode="decimal" value={prezzi[r.id] ?? ""}
+          onChange={(e) => setPrezzi((p) => ({ ...p, [r.id]: e.target.value }))} placeholder="€ / unità" />
+      </label>)}
+    </div>
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button size="sm" variant="outline" onClick={onAnnulla}>Annulla</Button>
+      <Button size="sm" disabled={!valida || salvaInCorso} onClick={() => onSalva({
+        data, riferimento: riferimento.trim(), prezzi: Object.fromEntries(righePrezzo) as Record<string, number>,
+      })}>Salva offerta</Button>
+    </div>
+  </div>;
+}
+
+export function SubappaltoLavorazioni({ orderId, companyId, ambiti, albero, onOccupato, apri }: {
+  orderId: string; companyId: string; ambiti: AmbitoLavoro[]; albero: readonly AmbitoLavoro[];
+  onOccupato?: (si: boolean) => void;
+  apri?: () => void;
+}) {
+  const { user, effectiveCompany: azienda } = useAuth();
+  const { registro, aggiorna, disponibile, carica, errore, riprova, salvaInCorso } = useRegistroSubappaltoLocale(companyId, orderId, user?.id);
+  const misurate = useVociPrevisteFasi(orderId, true);
+  const affidamenti = useAffidamentiCommessa(orderId);
+  const datiContratti = useDatiAffidaContratto(orderId, companyId);
+  const [editor, setEditor] = useState<ComputoDaLavorazioni>();
+  const [salvataggio, setSalvataggio] = useState(false);
+  const segnalaSalvataggio = useCallback((si: boolean) => { setSalvataggio(si); onOccupato?.(si); }, [onOccupato]);
+  const [anteprima, setAnteprima] = useState<string>();
+  const [offerta, setOfferta] = useState<RichiestaDaLavorazioni>();
+  const [email, setEmail] = useState<{ richiesta: RichiestaDaLavorazioni; context: ComposeContext }>();
+  const [caricaEmail, setCaricaEmail] = useState(false);
+
+  const misure = new Map(misurate.data?.map((v) => [v.id, v]));
+  const idsMisurati = new Set(vociDelSubappalto(ambiti, albero));
+  const intera = ambiti.some((a) => a.id === INTERA_COMMESSA);
+  const espansi = albero.filter((a) => ambiti.some((b) =>
+    a.id === b.id || (a.faseId && (intera || a.faseId === b.id))));
+  const inclusi = espansi.filter((a) => a.voceId ? idsMisurati.has(a.voceId)
+    : a.sottofaseId || (a.faseId && !albero.some((b) => a.faseId === b.faseId && b.id !== a.id)));
+  const contratti = datiContratti.data?.contratti as Array<{ id: string; stato: string; firmato_il: string | null; elenco_lavori: unknown }> | undefined;
+  const bozze = new Set((contratti ?? []).filter((c) => c.stato === "bozza" && !c.firmato_il).map((c) => c.id));
+  const lavoriAContratto = (contratti ?? []).filter((c) => c.stato !== "risolto").flatMap((c) =>
+    Array.isArray(c.elenco_lavori) ? (c.elenco_lavori as RigaElencoLavori[]).map((r) => ({ ...r, bozza: c.stato === "bozza" && !c.firmato_il })) : []);
+  const righe = inclusi.map((ambito) => {
+    const misuraVoce = ambito.voceId ? misure.get(ambito.voceId) : undefined;
+    const unita = misuraVoce?.unita ?? (ambito.voceId ? "" : "a corpo");
+    const quantita = misuraVoce?.quantita ?? (ambito.voceId ? 0 : 1);
+    const collegati = lavoriAContratto.filter((r) => ambito.voceId
+      ? r.voce_id === ambito.voceId && !r.affidamento_id
+      : !r.voce_id && r.unita === "a corpo" && (ambito.sottofaseId ? r.sottofase_id === ambito.sottofaseId : r.fase_id === ambito.faseId && !r.sottofase_id));
+    const situazione = situazioneSubappalto(ambito.id, quantita, registro, affidamenti.data ?? [], {
+      bozze,
+      aCorpo: collegati.filter((r) => !r.bozza).reduce((tot, r) => tot + Number(r.quantita), 0),
+      aCorpoInBozza: collegati.filter((r) => r.bozza).reduce((tot, r) => tot + Number(r.quantita), 0),
+    });
+    const importi = [
+      situazione.contrattata > 0 && `${misura.format(situazione.contrattata)} ${unita} a contratto`,
+      situazione.inContrattoBozza > 0 && `${misura.format(situazione.inContrattoBozza)} ${unita} in bozza di contratto`,
+      situazione.inAffidamentoBozza > 0 && `${misura.format(situazione.inAffidamentoBozza)} ${unita} assegnati in bozza`,
+      situazione.residua > 0 && (unita === "a corpo" ? "A corpo" : `${misura.format(situazione.residua)} ${unita} ${situazione.interna ? "interni" : "da affidare"}`),
+    ].filter(Boolean).join(" · ");
+    return { ambito, ...situazione, dettaglio: importi };
+  });
+  const chiavi = new Set(righe.map((r) => r.ambito.id));
+  const fasiSelezionate = new Set(ambiti.filter((a) => a.id === a.faseId).map((a) => a.id));
+  const richieste = registro.richieste.filter((r) => r.righe.some((v) =>
+    intera || chiavi.has(v.ambito) || (v.faseId && fasiSelezionate.has(v.faseId))));
+  const quotabili = righe.filter((r) => !r.interna && r.residua > 0);
+  const prepara = (soloRichiesta: boolean, scelte = quotabili) => setEditor({
+    soloRichiesta,
+    ambiti: scelte.length === 1 ? [scelte[0].ambito] : ambiti,
+    voci: scelte.flatMap(({ ambito }) => ambito.voceId ? [ambito.voceId] : []),
+    aCorpo: scelte.flatMap(({ ambito }) => ambito.voceId ? [] : [ambito]),
+  });
+  const usaComputo = (r: RichiestaDaLavorazioni, daOfferta: boolean) => setEditor({
+    ambiti: albero.filter((a) => r.righe.some((v) => v.ambito === a.id)),
+    voci: r.righe.filter((v) => v.ambito.startsWith("v:") && (!daOfferta || r.offerta?.prezzi[v.id] != null)).map((v) => v.ambito.slice(2)),
+    ...(daOfferta ? { offerta: r } : { richiesta: r }),
+  });
+  const computoOrigine = editor?.offerta ?? editor?.richiesta;
+  const apriEmail = async (richiesta: RichiestaDaLavorazioni) => {
+    if (caricaEmail || !azienda || azienda.id !== companyId) return;
+    setCaricaEmail(true);
+    try {
+      const [{ data, error }, { fileComputoRichiesta, documentoRichiestaSubappalto }, { corpoDocumento }] = await Promise.all([
+        supabase.from("subappaltatori").select("email").eq("company_id", companyId).eq("id", richiesta.dittaId).single(),
+        import("@/lib/subappaltatori/richiestaOffertaPdf"),
+        import("@/lib/documentiOperativi/modello"),
+      ]);
+      if (error) throw error;
+      const documento = documentoRichiestaSubappalto(richiesta);
+      const allegato = await fileComputoRichiesta(richiesta, azienda);
+      setEmail({ richiesta, context: {
+        mode: "new", initialTo: data?.email ? [data.email] : [],
+        initialSubject: ["Richiesta d’offerta " + documento.numero, richiesta.commessa].filter(Boolean).join(" · "),
+        initialBodyHtml: corpoDocumento(documento, azienda, true),
+        documentoDaAllegare: allegato,
+      } });
+    } catch { toast.error("Non riesco a preparare l’email. Riprova."); }
+    finally { setCaricaEmail(false); }
+  };
+
+  if (editor) return <div className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-sm font-semibold">{editor.soloRichiesta ? "Prepara richiesta d’offerta" : "Prepara contratto di subappalto"}</h3>
+      <Button variant="ghost" size="sm" disabled={salvataggio} onClick={() => setEditor(undefined)}>Torna al riepilogo subappalto</Button>
+    </div>
+    <AffidaContrattoDaCommessa key={computoOrigine ? `${editor.offerta ? "offerta" : "richiesta"}:${computoOrigine.id}` : "nuovo"} orderId={orderId} companyId={companyId} incorporato partenza={editor}
+      onOccupato={segnalaSalvataggio}
+      offerte={richieste.filter((r) => r.offerta && !r.offerta.contrattoId && !r.contrattoId)} onCaricaOfferta={(r) => usaComputo(r, true)}
+      dittaFissa={computoOrigine ? { id: computoOrigine.dittaId, nome: computoOrigine.ditta } : undefined}
+      suRichiesta={disponibile ? async (r) => {
+        await aggiorna({ tipo: "crea", richiesta: r });
+        setEditor(undefined);
+        setAnteprima(r.id);
+        toast.success("Richiesta salvata in bozza.");
+      } : undefined}
+      onChiudi={() => setEditor(undefined)}
+      onContrattoSalvato={computoOrigine ? (contrattoId) => {
+        void aggiorna({ tipo: "contratto", id: computoOrigine.id, contrattoId, daOfferta: !!editor.offerta })
+          .catch(() => toast.warning("Contratto salvato. Aggiornamento del computo da riprovare."));
+      } : undefined} />
+  </div>;
+  if (misurate.isError || affidamenti.isError || datiContratti.isError || errore) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
+    <span>{errore?.message ?? "Non riesco a leggere lo stato del subappalto."}</span>
+    <Button size="sm" variant="outline" onClick={() => { void misurate.refetch(); void affidamenti.refetch(); void datiContratti.refetch(); void riprova(); }}>Riprova</Button>
+  </div>;
+  if (!misurate.data || !affidamenti.data || !datiContratti.data || carica) return <p role="status" className="text-sm text-muted-foreground">Carico il subappalto…</p>;
+
+  return <section className="space-y-3" aria-label="Riepilogo subappalto">
+    <header className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-slate-50 p-3">
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-semibold"><Handshake className="h-4 w-4 text-primary" />Subappalto</h3>
+        <p className="mt-1 text-sm text-slate-600">{righe.length === 0 ? "Nessuna lavorazione nella selezione"
+          : quotabili.length === 0 ? "Nessuna lavorazione da quotare"
+          : `${quotabili.length} ${quotabili.length === 1 ? "lavorazione con quantità da affidare" : "lavorazioni con quantità da affidare"}`}</p>
+      </div>
+      {apri ? <Button size="sm" variant="outline" onClick={apri}>Gestisci subappalto</Button>
+        : <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={!ambiti.length} onClick={() => prepara(false)}>{quotabili.length ? "Prepara contratto" : "Gestisci computo"}</Button>
+          {quotabili.length > 0 && <Button size="sm" onClick={() => prepara(true)}><Plus className="mr-1 h-4 w-4" />Prepara richiesta</Button>}
+        </div>}
+    </header>
+    {righe.length > 0 && <ul className="divide-y overflow-hidden rounded-lg border bg-background">{(apri ? righe.slice(0, 4) : righe).map((r) =>
+      <li key={r.ambito.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+        <div className="min-w-0">
+          <span className="font-medium">{r.ambito.nome}</span>
+          <span className="ml-2 text-xs text-muted-foreground">
+            {r.dettaglio}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={colori[r.stato]}>{r.stato}</Badge>
+          {!apri && disponibile && r.residua > 0 && <Button size="sm" variant="ghost" className="h-7" disabled={salvaInCorso} onClick={() => {
+            void aggiorna({ tipo: "interno", interno: !r.interna, ambito: r.ambito.id }).catch((e: Error) => toast.error(e.message));
+          }}>{r.interna ? "Rimetti da quotare" : "Lavoro interno"}</Button>}
+          {!apri && !r.interna && r.residua > 0 && <Button size="sm" variant="outline" className="h-7" onClick={() => prepara(true, [r])}>Quota voce</Button>}
+        </div>
+      </li>)}
+      {apri && righe.length > 4 && <li className="px-3 py-2 text-xs text-muted-foreground">Altre {righe.length - 4} lavorazioni in Subappalto</li>}
+    </ul>}
+    {!apri && disponibile && <div className="space-y-2">
+      <h4 className="text-sm font-semibold">Richieste e offerte</h4>
+      {!richieste.length && <p className="text-sm text-muted-foreground">Nessuna richiesta per queste lavorazioni.</p>}
+      {richieste.map((r) => <article key={r.id} className="space-y-3 rounded-lg border bg-background p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">{r.ditta}</p>
+            <p className="text-xs text-muted-foreground">{r.righe.length} {r.righe.length === 1 ? "voce" : "voci"} · {dataIt(r.creataIl)}
+              {r.offerta && ` · Offerta del ${dataIt(r.offerta.data)}${r.offerta.riferimento ? ` · ${r.offerta.riferimento}` : ""}`}</p>
+          </div>
+          <Badge variant="outline">{r.offerta?.contrattoId ? "Offerta usata nel contratto" : r.contrattoId ? "Computo usato nel contratto" : r.offerta ? "Offerta ricevuta" : r.inviataIl ? "Richiesta inviata" : "Richiesta in bozza"}</Badge>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setAnteprima(anteprima === r.id ? undefined : r.id)} aria-expanded={anteprima === r.id}>
+            <FileText className="mr-1 h-3.5 w-3.5" />{anteprima === r.id ? "Chiudi computo" : "Vedi computo"}
+          </Button>
+          {!r.inviataIl && !r.offerta && !r.contrattoId && <Button size="sm" disabled={caricaEmail || !!email} onClick={() => void apriEmail(r)}><Mail className="mr-1 h-3.5 w-3.5" />Invia email</Button>}
+          {!r.offerta?.contrattoId && !r.contrattoId && <Button size="sm" variant="outline" onClick={() => setOfferta(offerta?.id === r.id ? undefined : r)}>{r.offerta ? "Modifica offerta" : "Registra offerta"}</Button>}
+          {r.offerta && !r.offerta.contrattoId && !r.contrattoId && <Button size="sm" onClick={() => usaComputo(r, true)}>Usa offerta nel contratto</Button>}
+          {!r.offerta && !r.contrattoId && <Button size="sm" variant="outline" onClick={() => usaComputo(r, false)}>Prepara contratto da richiesta</Button>}
+        </div>
+        {anteprima === r.id && <>
+          <ComputoSubappaltoAnteprima dati={r} richiesta={r} />
+          {azienda && <Button size="sm" variant="outline" onClick={() => void import("@/lib/subappaltatori/richiestaOffertaPdf")
+            .then((m) => m.scaricaComputoRichiesta(r, azienda)).catch(() => toast.error("Non riesco a scaricare il PDF."))}>Scarica PDF</Button>}
+        </>}
+        {r.offerta && <p className="text-xs text-muted-foreground">{Object.keys(r.offerta.prezzi).length} {
+          Object.keys(r.offerta.prezzi).length === 1 ? "voce quotata" : "voci quotate"
+        } · {
+          formatCurrency(r.righe.reduce((tot, v) => tot + Math.round(v.quantita * (r.offerta?.prezzi[v.id] ?? 0) * 100) / 100, 0))
+        } IVA esclusa</p>}
+        {offerta?.id === r.id && <RegistraOfferta key={r.id} richiesta={offerta} salvaInCorso={salvaInCorso} onAnnulla={() => setOfferta(undefined)} onSalva={(d) => {
+          void aggiorna({ tipo: "offerta", id: r.id, offerta: d, precedente: offerta.offerta ?? null })
+            .then(() => { setOfferta(undefined); toast.success("Offerta registrata."); })
+            .catch((e: Error) => toast.error(e.message));
+        }} />}
+      </article>)}
+    </div>}
+    {email && <Suspense fallback={<p role="status">Apro l’email…</p>}>
+      <EmailComposeDialog open context={email.context} companyIdOverride={companyId} onOpenChange={(open) => !open && setEmail(undefined)}
+        documentSummary={{ title: "Computo per la ditta", mode: "pdf", rows: email.richiesta.righe.length }}
+        onSent={() => {
+          void aggiorna({ tipo: "invia", id: email.richiesta.id })
+            .catch(() => toast.warning("Email inviata. Non riesco ad aggiornare lo stato della richiesta."));
+        }} />
+    </Suspense>}
+  </section>;
+}

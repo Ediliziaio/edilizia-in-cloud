@@ -4,6 +4,9 @@ import { Package, ShoppingCart, Truck, CheckCircle2 } from "lucide-react";
 export type OrderItemStatus = "da_ordinare" | "ordinato" | "in_arrivo" | "in_magazzino" | "in_cantiere" | "prenotato" | "installato";
 
 export interface WarehouseItem {
+  stock_item_id?: string | null;
+  unita_misura?: string | null;
+  warehouse_reserved_quantity?: number | null;
   id: string;
   name: string;
   description: string | null;

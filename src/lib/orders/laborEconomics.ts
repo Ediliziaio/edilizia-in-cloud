@@ -1,6 +1,6 @@
-import { laborHourlyCost, laborLineCost, reviewHourlyCost, type LaborEmployee } from "@/lib/campo/laborCostReview";
-import type { ParametriCostoAzienda } from "@/lib/costoPersonale";
-import { calculateNetFromGross } from "@/lib/vatUtils";
+import { laborHourlyCost, laborLineCost, reviewHourlyCost, type LaborEmployee } from "../campo/laborCostReview";
+import type { ParametriCostoAzienda } from "../costoPersonale";
+import { calculateNetFromGross } from "../vatUtils";
 
 type Amount = number | string | null | undefined;
 export interface LaborLedgerRow {

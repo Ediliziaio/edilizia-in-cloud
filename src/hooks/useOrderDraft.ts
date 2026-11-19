@@ -16,6 +16,9 @@ export interface OrderDraftData {
   description: string;
   internalNotes: string;
   statusId: string;
+  pipelineId?:string;
+  pipelineStageId?:string;
+  pipelineDaCompletare?:boolean;
   salespersonId: string;
   salespersonData: { commission_type: string; commission_value: number; compensation_mode?: string | null } | null;
   assignedTo: string;
@@ -43,6 +46,8 @@ export interface OrderDraftData {
   paymentType: PaymentType;
   totalAmount: string;
   vatRate: string;
+  salPayment?: import("@/lib/orders/pianoSalAperto").PianoSalAperto;
+  vatSplit?: import("@/lib/orders/ivaMista").QuoteIvaMista;
   financingCost: string;
   financingCostMode?: "trattenuto" | "separato" | null;
   // Installments (new dynamic system)
@@ -72,7 +77,7 @@ export const DRAFT_VERSION = 2;
  */
 export function bozzaHaContenuto(d: Partial<OrderDraftData>): boolean {
   return !!(
-    d.commessaCreataId || d.contractExtract || d.contractSource ||
+    (d.pipelineId && d.pipelineId!=="principale") || d.commessaCreataId || d.contractExtract || d.contractSource ||
     (d.customerId && d.customerId !== d.prefilledCustomerId) || d.description?.trim() || d.internalNotes?.trim() ||
     (d.cantiereAddress?.trim() && d.cantiereAddressManuale !== false) ||
     (d.totalAmount?.trim() && parseFloat(d.totalAmount.replace(",", ".")) !== 0) ||

@@ -1,0 +1,38 @@
+import {useState} from "react";
+import {cleanup,fireEvent,render,screen} from "@testing-library/react";
+import {afterEach,describe,expect,it} from "vitest";
+import {StatoPipelineIniziale} from "@/components/orders/StatoPipelineIniziale";
+import type {PipelineLocale} from "@/lib/orders/pipelineLocali";
+import type {SceltaPipelineCreazione} from "@/lib/orders/pipelineCreazione";
+const principali=[{id:"principale-firmato",name:"Contratto firmato",color:"#123456"},{id:"principale-finito",name:"Lavori conclusi",color:"#123456"}];
+const pipeline:PipelineLocale[]=[{id:"serramenti",nome:"Serramenti",fasi:[{id:"s-rilievo",name:"Rilievo definitivo",color:"#123456"},{id:"s-posa",name:"Posa programmata",color:"#123456"}]},{id:"tetti",nome:"Tetti",fasi:[{id:"t-ponteggio",name:"Ponteggio da preparare",color:"#123456"}]}];
+afterEach(cleanup);
+function Prova({initial={pipelineId:"principale",faseId:"principale-firmato"},items=pipeline}:{initial?:SceltaPipelineCreazione;items?:PipelineLocale[]}){const[value,setValue]=useState(initial);return <><StatoPipelineIniziale pipeline={items} statiPrincipali={principali} value={value} onChange={setValue}/><output aria-label="Scelta salvata">{JSON.stringify(value)}</output></>;}
+function scegli(label:string,option:string){fireEvent.keyDown(screen.getByRole("combobox",{name:label}),{key:"ArrowDown"});fireEvent.click(screen.getByRole("option",{name:option}));}
+describe("tipologia e stato iniziale della nuova commessa",()=>{
+ it("selezionata una pipeline, mostra soltanto i suoi stati",()=>{
+  render(<Prova/>);scegli("Tipologia / pipeline","Serramenti");
+  expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"faseId":"s-rilievo"');
+  fireEvent.keyDown(screen.getByRole("combobox",{name:"Stato iniziale"}),{key:"ArrowDown"});
+  expect(screen.getByRole("option",{name:"Posa programmata"})).toBeInTheDocument();expect(screen.queryByRole("option",{name:"Contratto firmato"})).toBeNull();
+  fireEvent.click(screen.getByRole("option",{name:"Posa programmata"}));
+  expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"faseId":"s-posa"');
+ });
+ it("cambiando tipologia non mantiene uno stato appartenente alla precedente",()=>{
+  render(<Prova initial={{pipelineId:"serramenti",faseId:"s-posa"}}/>);scegli("Tipologia / pipeline","Tetti");
+  expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"faseId":"t-ponteggio"');
+ });
+ it("riapre la scelta della bozza senza sostituirla con lo stato principale",()=>{
+  render(<Prova initial={{pipelineId:"serramenti",faseId:"s-posa"}}/>);
+  expect(screen.getByRole("combobox",{name:"Tipologia / pipeline"})).toHaveTextContent("Serramenti");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Posa programmata");
+ });
+ it("la sola pipeline principale conserva il modulo semplice",()=>{
+  render(<Prova items={[]}/>);expect(screen.queryByRole("combobox",{name:"Tipologia / pipeline"})).toBeNull();expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Contratto firmato");
+ });
+ it("una pipeline eliminata non torna silenziosamente a Principale",()=>{
+  render(<Prova initial={{pipelineId:"sparita",faseId:"s-rilievo"}}/>);expect(screen.getByRole("alert")).toHaveTextContent("non è più disponibile");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toBeDisabled();expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"pipelineId":"sparita"');
+ });
+ it("uno stato eliminato richiede una nuova scelta nella stessa pipeline",()=>{
+  render(<Prova initial={{pipelineId:"serramenti",faseId:"s-eliminato"}}/>);expect(screen.getByRole("alert")).toHaveTextContent("stato precedente");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Seleziona stato");
+ });
+});

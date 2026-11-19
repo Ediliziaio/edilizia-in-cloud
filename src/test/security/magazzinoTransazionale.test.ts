@@ -127,7 +127,8 @@ const URL_BASE = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ""
 const CHIAVE = process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
 const EMAIL = process.env.EIC_TEST_EMAIL ?? "";
 const PASSWORD = process.env.EIC_TEST_PASSWORD ?? "";
-const ATTIVA = URL_BASE.startsWith("https://") && CHIAVE.length > 40 && Boolean(EMAIL && PASSWORD);
+// Le credenziali da sole non autorizzano un test che scrive sul servizio remoto.
+const ATTIVA = process.env.EIC_ALLOW_REMOTE_WAREHOUSE_TESTS === "1" && URL_BASE.startsWith("https://") && CHIAVE.length > 40 && Boolean(EMAIL && PASSWORD);
 
 describe.runIf(ATTIVA)("0.4 · due scarichi simultanei sulla stessa riga", () => {
   it("uno passa, l'altro è respinto, e il libro torna con la giacenza", async () => {

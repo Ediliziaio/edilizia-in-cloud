@@ -1,3 +1,4 @@
+import type {QuoteIvaMista} from "@/lib/orders/ivaMista";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -34,10 +35,10 @@ vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ 
 vi.mock("@/hooks/useBonusFiscaliFlags", () => ({ useBonusFiscaliFlags: () => ({ bonusMultipli: false }) }));
 vi.mock("@/components/fatturazione/PreviewFattura", () => ({ PreviewFattura: (): null => null }));
 
-const apri = (installments: Installment[] = [], customerId: string | null = null, client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), onApriBozza?: (id: string) => void) => render(
+const apri = (installments: Installment[] = [], customerId: string | null = null, client = new QueryClient({ defaultOptions: { queries: { retry: false } } }), onApriBozza?: (id: string) => void, vatSplit?:QuoteIvaMista, totalAmount=30000) => render(
   <QueryClientProvider client={client}>
     <MemoryRouter>
-      <CreaFatturaDialog open onOpenChange={vi.fn()} orderId="o1" orderCode="ORD-1" orderDescription="Lavori" totalAmount={30000} vatRate={10} customerId={customerId} customerName="Mario" installments={installments} onApriBozza={onApriBozza} />
+      <CreaFatturaDialog open onOpenChange={vi.fn()} orderId="o1" orderCode="ORD-1" orderDescription="Lavori" totalAmount={totalAmount} vatRate={vatSplit ? 13.6 : 10} vatSplit={vatSplit} customerId={customerId} customerName="Mario" installments={installments} onApriBozza={onApriBozza} />
     </MemoryRouter>
   </QueryClientProvider>,
 );
@@ -333,4 +334,32 @@ it('una garanzia già compresa nella fattura completa non propone un’altra fat
  await screen.findByLabelText('Importo IVA inclusa');
  expect(screen.queryByRole('button',{name:'Fattura lo svincolo'})).toBeNull();
  expect(mocks.crea).not.toHaveBeenCalled();
+});
+
+
+describe("fattura da contratto con IVA mista",()=>{
+  const split:QuoteIvaMista={mode:"net",amount10:"7000",amount22:"3000"};
+  it("crea due righe con le aliquote effettive e il totale della rata",async()=>{
+    apri([{id:"r1",position:0,type:"deposit",label:"Acconto",amount:5680,is_paid:false}],null,undefined,undefined,split,10000);
+    await screen.findByRole("button",{name:"Un importo",pressed:true});
+    await waitFor(()=>expect(screen.getAllByLabelText("Aliquota IVA")).toHaveLength(2));
+    creaFattura();
+    expect(righeCreate()).toEqual([expect.objectContaining({aliquota_iva:"10",prezzo_unitario:3500}),expect.objectContaining({aliquota_iva:"22",prezzo_unitario:1500})]);
+    expect(mocks.crea.mock.calls[0][0]).toMatchObject({iva_totale:680,totale_documento:5680});
+  });
+  it("blocca l’aliquota media su una fase finché l’utente non conferma le aliquote delle righe",async()=>{
+    apri([],null,undefined,undefined,split,10000);
+    await screen.findByRole("button",{name:"Fasi",pressed:true});
+    creaFattura();
+    expect(mocks.crea).not.toHaveBeenCalled();
+    for(const input of screen.getAllByLabelText("Aliquota IVA")) fireEvent.change(input,{target:{value:"10"}});
+    creaFattura();expect(mocks.crea).toHaveBeenCalledOnce();
+  });
+  it("eliminare una quota mantiene l’altra riga",async()=>{
+    apri([{id:"r1",position:0,type:"deposit",label:"Acconto",amount:5680,is_paid:false}],null,undefined,undefined,split,10000);
+    await waitFor(()=>expect(screen.getAllByLabelText("Aliquota IVA")).toHaveLength(2));
+    fireEvent.click(screen.getAllByRole("button",{name:/Togli la riga:/})[0]);
+    expect(screen.getAllByLabelText("Aliquota IVA")).toHaveLength(1);
+    creaFattura();expect(righeCreate()).toEqual([expect.objectContaining({aliquota_iva:"22"})]);
+  });
 });

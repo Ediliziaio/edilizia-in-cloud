@@ -9,6 +9,7 @@
 //      (wizard NewDDTDialog) o allegare la foto a un DDT esistente sull'ODA
 // ============================================================================
 
+import { validateWarehouseFile } from "@/lib/magazzino/allegatiMagazzino";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -110,19 +111,15 @@ export function ReceiveGoodsModal({
     () => warehouseIdProp ?? defaultWarehouse?.id ?? warehouses[0]?.id ?? "",
     [warehouseIdProp, defaultWarehouse?.id, warehouses],
   );
-  const [selectedWarehouseId, setSelectedWarehouseId] =
+  const [warehouseChoice, setSelectedWarehouseId] =
     useState<string>(initialWarehouseId);
 
-  useEffect(() => {
-    if (!selectedWarehouseId && initialWarehouseId) {
-      setSelectedWarehouseId(initialWarehouseId);
-    }
-  }, [initialWarehouseId, selectedWarehouseId]);
+  const selectedWarehouseId = warehouseChoice || initialWarehouseId;
 
   // Reset al chiudere
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setQuantityReceived("");
         setDdtNumber("");
         setQualityStatus("ok");
@@ -132,19 +129,21 @@ export function ReceiveGoodsModal({
         setShowDDTPrompt(false);
         setLastSubmittedPhoto(null);
       }, 200);
+      return () => clearTimeout(timer);
     }
   }, [open]);
 
   // ── Submit ────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCreating) return;
 
     if (!quantityReceived) {
       toast.error("Inserire la quantità ricevuta");
       return;
     }
-    const qty = parseFloat(quantityReceived.replace(",", "."));
-    if (isNaN(qty) || qty <= 0) {
+    const qty = Number(quantityReceived.trim().replace(",", "."));
+    if (!Number.isFinite(qty) || qty <= 0) {
       toast.error("Quantità non valida — deve essere maggiore di zero");
       return;
     }
@@ -315,11 +314,11 @@ export function ReceiveGoodsModal({
                   compact
                   defaultKind="ddt"
                   multiple={false}
-                  maxSizeMB={15}
+                  maxSizeMB={10}
                   isUploading={isCreating}
-                  onFilesSelected={(items) => {
-                    const first = items[0];
-                    if (first) setDdtFile(first.file);
+                  onFilesSelected={async (items) => {
+                    const first=items[0];if(!first)return;
+                    try {await validateWarehouseFile(first.file);setDdtFile(first.file);} catch(error){toast.error(error instanceof Error?error.message:"File non valido.");}
                   }}
                 />
               )}

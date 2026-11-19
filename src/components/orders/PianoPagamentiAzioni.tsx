@@ -1,3 +1,5 @@
+import type {PianoSalAperto} from "@/lib/orders/pianoSalAperto";
+import {Link} from "react-router-dom";
 import { type ModalitaCostoFinanziaria, costoDaSottrarreAlSaldo } from "@/lib/finanziamenti/costoFinanziaria";
 // src/components/orders/PianoPagamentiAzioni.tsx
 import { useState } from "react";
@@ -18,6 +20,7 @@ import {
 
 interface Props {
   orderId: string;
+  salPayment?:PianoSalAperto|null;
   /** Imponibile della commessa. */
   totalAmount: number;
   vatRate: number;
@@ -35,7 +38,7 @@ const arrotonda = (n: number): number => Math.round(n * 100) / 100;
  * Sopra il piano rate di una commessa: «Come si paga questa commessa?» (se non ha rate), «Cambia il piano»
  * (finché non ha incassi, fatture o SAL legati), e l'avviso del saldo salvato che non torna con il totale.
  */
-export function PianoPagamentiAzioni({ orderId, totalAmount, vatRate, paymentType, financingCost = 0, financingCostMode, installments, puoModificare }: Props) {
+export function PianoPagamentiAzioni({ orderId, salPayment, totalAmount, vatRate, paymentType, financingCost = 0, financingCostMode, installments, puoModificare }: Props) {
   const confirm = useConfirm();
   const { offerti } = useModelliPagamento();
   const { rateConSal } = useSalLegatiARate(orderId);
@@ -68,10 +71,11 @@ export function PianoPagamentiAzioni({ orderId, totalAmount, vatRate, paymentTyp
   };
 
   const senzaRate = installments.length === 0;
-  const puoScegliere = standard && offerti.length > 0 && cambio.ok;
+  const puoScegliere = !salPayment && standard && offerti.length > 0 && cambio.ok;
 
   return (
     <div className="space-y-2">
+      {salPayment && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3 text-sm"><span>{salPayment.mode==="advance_sal"?"Acconto + SAL effettivi":"Solo SAL effettivi"} · nessuna rata futura predefinita</span>{cambio.ok && <Button asChild variant="outline" size="sm"><Link to={`/azienda/ordini/${orderId}/modifica`}>Modifica modalità</Link></Button>}</div>}
       {senzaRate && puoScegliere && (
         <Card className="border-dashed">
           <CardContent className="flex flex-wrap items-center gap-3 p-3">
@@ -93,7 +97,7 @@ export function PianoPagamentiAzioni({ orderId, totalAmount, vatRate, paymentTyp
         </div>
       )}
 
-      {saldo && (
+      {!salPayment && saldo && (
         <div role="status" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
           <p className="font-medium text-amber-900">Il saldo salvato non torna con il totale</p>
           <p className="text-xs text-amber-800">

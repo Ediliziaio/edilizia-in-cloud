@@ -209,6 +209,7 @@ interface Props {
   riga: RigaDistinta | null;
   /** Dove sta nell'elenco visibile: serve a passare alla voce vicina. */
   posizione: { numero: number; totale: number };
+  incorporata?: boolean;
   orderId?: string;
   aliquota: number;
   chiLaFa: string[];
@@ -374,7 +375,7 @@ function Contenuto({ riga: r, orderId, aliquota, chiLaFa, consuntivoFase, vedeVe
   );
 }
 
-export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Props) {
+export function SchedaVoce({ riga, posizione, onChiudi, onVicina, incorporata, ...resto }: Props) {
   const [nome, setNome] = useState<string | null>(null);
   // Le frecce passano alla voce vicina, se non si sta scrivendo in un campo.
   const frecce = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -382,9 +383,8 @@ export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Pr
     if (e.key === "ArrowLeft" && posizione.numero > 1) onVicina(-1);
     if (e.key === "ArrowRight" && posizione.numero < posizione.totale) onVicina(1);
   };
-  return (
-    <Dialog open={!!riga} onOpenChange={(a) => { if (!a) onChiudi(); }}>
-      <DialogContent className="max-h-[92vh] gap-3 overflow-y-auto sm:max-w-4xl" onKeyDown={frecce}>
+  const contenuto = (
+    <>
         {riga && (
           <>
             <DialogHeader className="space-y-1">
@@ -403,9 +403,11 @@ export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Pr
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
+                  {!incorporata && <>
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero <= 1} aria-label="Voce prima" onClick={() => onVicina(-1)}><ChevronLeft className="h-4 w-4" /></Button>
                   {posizione.numero} di {posizione.totale}
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={posizione.numero >= posizione.totale} aria-label="Voce dopo" onClick={() => onVicina(1)}><ChevronRight className="h-4 w-4" /></Button>
+                  </>}
                 </span>
               </div>
               {nome !== null ? (
@@ -416,14 +418,19 @@ export function SchedaVoce({ riga, posizione, onChiudi, onVicina, ...resto }: Pr
                   <Button type="button" size="sm" className="h-8 text-xs" disabled={!nome.trim()} onClick={() => { resto.onRinomina(riga.sottofaseId!, nome.trim()); setNome(null); }}>Salva</Button>
                 </div>
               ) : (
-                <DialogTitle className="line-clamp-3 text-base font-semibold leading-snug" title={riga.descrizione}>{riga.descrizione}</DialogTitle>
+                incorporata ? null : <DialogTitle className="line-clamp-3 text-base font-semibold leading-snug" title={riga.descrizione}>{riga.descrizione}</DialogTitle>
               )}
-              <DialogDescription className="sr-only">Stato, date, importi e rapportini di questa voce.</DialogDescription>
+              {!incorporata && <DialogDescription className="sr-only">Stato, date, importi e rapportini di questa voce.</DialogDescription>}
             </DialogHeader>
             <Contenuto key={`${riga.key}|${riga.inizio}|${riga.fine}|${riga.giorni}`} riga={riga} {...resto} />
           </>
         )}
-      </DialogContent>
+    </>
+  );
+  if (incorporata) return <div className="space-y-3" onKeyDown={frecce}>{contenuto}</div>;
+  return (
+    <Dialog open={!!riga} onOpenChange={(a) => { if (!a) onChiudi(); }}>
+      <DialogContent className="max-h-[92vh] gap-3 overflow-y-auto sm:max-w-4xl" onKeyDown={frecce}>{contenuto}</DialogContent>
     </Dialog>
   );
 }

@@ -5,12 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WarehouseUsciteTab } from "@/components/warehouse/WarehouseUsciteTab";
 import type { UscitaRow } from "@/hooks/warehouse/useWarehouseUscita";
 
-const stato = vi.hoisted(() => ({ chiamate: [] as Array<{ uscitaId: string; ddtExtra: unknown }>, navigazioni: [] as string[] }));
+const stato = vi.hoisted(() => ({ writable: true, error: false, chiamate: [] as Array<{ uscitaId: string; ddtExtra: unknown }>, navigazioni: [] as string[] }));
 
 vi.mock("react-router-dom", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-router-dom")>()),
   useNavigate: () => (to: string) => stato.navigazioni.push(to),
 }));
+vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ canEditWarehouse: stato.writable, isLoading: false }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/contexts/BillingModeContext", () => ({ useBillingMode: () => ({ isNative: true }) }));
 vi.mock("@/hooks/useShipmentDDTPDF", () => ({ useShipmentDDTPDF: () => ({ generate: vi.fn() }) }));
@@ -31,7 +32,7 @@ const USCITE: UscitaRow[] = [
 
 vi.mock("@/hooks/warehouse/useWarehouseUscita", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/warehouse/useWarehouseUscita")>()),
-  useWarehouseUscite: () => ({ data: USCITE, isLoading: false }),
+  useWarehouseUscite: () => ({ data: USCITE, isLoading: false, isError: stato.error }),
   useCreateDdtFromUscita: () => ({
     isPending: false,
     mutateAsync: async (args: { uscitaId: string; ddtExtra: unknown }) => {
@@ -53,6 +54,8 @@ function disegna() {
 }
 
 beforeEach(() => {
+  stato.writable = true;
+  stato.error = false;
   stato.chiamate.length = 0;
   stato.navigazioni.length = 0;
 });
@@ -97,5 +100,21 @@ describe("Uscite di magazzino e DDT", () => {
     fireEvent.click(within(riga).getByRole("button", { name: /Crea DDT/ }));
     const finestra = await screen.findByRole("dialog");
     expect(within(finestra).getByText("Vendita")).toBeTruthy();
+  });
+});
+
+
+describe("Uscite P0: permessi ed errori", () => {
+  it("lascia aprire i documenti esistenti ma non crearne senza permesso", () => {
+    stato.writable = false;
+    disegna();
+    expect(screen.queryByRole("button", { name: "Crea DDT" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Apri DDT" })).toBeTruthy();
+  });
+  it("non mostra assenza di uscite se il caricamento è fallito", () => {
+    stato.error = true;
+    disegna();
+    expect(screen.getByRole("alert").textContent).toContain("Impossibile caricare le uscite");
+    expect(screen.queryByText("U-2026-0004")).toBeNull();
   });
 });

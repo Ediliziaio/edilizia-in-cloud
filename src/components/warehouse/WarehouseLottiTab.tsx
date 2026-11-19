@@ -144,7 +144,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   const fotoTargetIdRef = useRef<string | null>(null);
 
   // ── Lista lotti ─────────────────────────────────────────────────────────
-  const { data: lotti = [], isLoading } = useQuery({
+  const { data: lotti = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["warehouse-lotti-list-full", companyId],
     enabled: !!companyId,
     queryFn: async (): Promise<Lotto[]> => {
@@ -228,7 +228,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   // ── Mutations ────────────────────────────────────────────────────────────
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stock_lotti").delete().eq("id", id);
+      if(readOnly||!companyId)throw new Error("Non puoi modificare i lotti.");
+      const { error } = await supabase.from("stock_lotti").delete().eq("id", id).eq("company_id",companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -246,13 +247,13 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   // Aggiunge/cambia la foto a un lotto ESISTENTE (dalla tabella).
   const setFotoMutation = useMutation({
     mutationFn: async ({ lottoId, file }: { lottoId: string; file: File }) => {
-      if (!companyId) throw new Error("Azienda non identificata");
+      if (readOnly||!companyId) throw new Error("Modifica del lotto non autorizzata");
       if (!file.type.startsWith("image/")) throw new Error("Seleziona un'immagine");
       const url = await uploadLottoFoto(companyId, lottoId, file);
       const { error } = await supabase
         .from("stock_lotti")
         .update({ foto_url: url } as never)
-        .eq("id", lottoId);
+        .eq("id", lottoId).eq("company_id",companyId);
       if (error) throw error;
       return url;
     },
@@ -330,7 +331,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       if (fotoFile && createdId && companyId) {
         try {
           const url = await uploadLottoFoto(companyId, createdId, fotoFile);
-          await supabase.from("stock_lotti").update({ foto_url: url } as never).eq("id", createdId);
+          const {error: photoError}=await supabase.from("stock_lotti").update({ foto_url: url } as never).eq("id", createdId).eq("company_id",companyId);
+          if(photoError)throw photoError;
         } catch {
           toast.error("Lotto creato, ma foto non caricata");
         }
@@ -362,6 +364,8 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       </div>
     );
   }
+
+  if (isError) return <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Impossibile verificare i lotti. <Button variant="outline" size="sm" onClick={()=>void refetch()}>Riprova lotti</Button></div>;
 
   const today = new Date();
   const expiredLotti = lotti.filter(

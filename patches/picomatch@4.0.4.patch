@@ -1,0 +1,19 @@
+diff --git a/lib/parse.js b/lib/parse.js
+index 57d994a87896b384ecf2f5260f7ffa5814628162..236bbe39b48de14961b3eb0555858c79226107c6 100644
+--- a/lib/parse.js
++++ b/lib/parse.js
+@@ -281,6 +281,14 @@ const repeatedExtglobRecursion = pattern => {
+ };
+ 
+ const analyzeRepeatedExtglob = (body, options) => {
++  // EIC security hardening: a wildcard inside a repeated single branch can
++  // generate nested unbounded quantifiers (CVE-2026-112366). Treat these
++  // patterns literally, as the parser already does for risky alternatives.
++  const single = splitTopLevel(body).map(branch => branch.trim());
++  if (single.length === 1 && !normalizeSimpleBranch(single[0]) &&
++      !getStarExtglobSequenceOutput(single[0])) {
++    return { risky: true };
++  }
+   if (options.maxExtglobRecursion === false) {
+     return { risky: false };
+   }

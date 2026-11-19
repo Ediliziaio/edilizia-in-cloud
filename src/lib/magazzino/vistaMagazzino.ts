@@ -27,6 +27,15 @@ export interface Gruppo {
 
 export const GRUPPI_MAGAZZINO: Gruppo[] = [
   {
+    key: "giacenze",
+    label: "Giacenze",
+    viste: [
+      { key: "stock", label: "Inventario" },
+      { key: "lotti", label: "Lotti" },
+      { key: "valuation", label: "Valore" },
+    ],
+  },
+  {
     key: "preparare",
     label: "Da preparare",
     viste: [
@@ -34,15 +43,6 @@ export const GRUPPI_MAGAZZINO: Gruppo[] = [
       { key: "kanban", label: "Pipeline" },
       { key: "calendar", label: "Calendario" },
       { key: "purchase_list", label: "Da comprare" },
-    ],
-  },
-  {
-    key: "giacenze",
-    label: "Giacenze",
-    viste: [
-      { key: "stock", label: "Inventario" },
-      { key: "lotti", label: "Lotti" },
-      { key: "valuation", label: "Valore" },
     ],
   },
   {

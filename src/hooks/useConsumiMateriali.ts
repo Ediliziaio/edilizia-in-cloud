@@ -1,5 +1,8 @@
+import { useRef } from "react";
+import { warehouseRequestStorage, WarehouseRequestSlot, warehouseRequestScope, warehouseRpc } from "@/lib/magazzino/protocolloMovimenti";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { queryKeys } from "@/lib/queryKeys";
 import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,28 +51,51 @@ export function useConsumiMateriali(orderId: string | null | undefined) {
 
 /**
  * Fa rientrare in magazzino quello che il cantiere non ha posato: la commessa
- * paga solo il posato (v_ordine_marginalita toglie il rientrato dagli
- * acquisti). Il database rifiuta i decimali, chi supera quanto è ancora fuori
- * e le righe il cui costo sta nelle fatture.
+ * paga il materiale rimasto in cantiere. Il protocollo 2 attribuisce ogni reso
+ * all’uscita originale, con decimali e matricole; il servizio precedente mantiene
+ * il proprio flusso per le righe non ancora migrate.
  */
 export function useRientroMateriale(orderId: string) {
+  const { effectiveCompany, user } = useAuth();
+  const slots = useRef(new Map<string, WarehouseRequestSlot>());
   const qc = useQueryClient();
   return useMutation({
     // giaRientrati: quanti ne vedeva rientrati chi decide. Se nel frattempo è cambiato il database si ferma:
     // lo stesso avanzo non rientra due volte da due schede o da due colleghi.
-    mutationFn: async (p: { riga: string; quantita: number; magazzino: string | null; giaRientrati: number }) => {
-      const { data, error } = await db.rpc("materiale_rientro_magazzino", { p_riga: p.riga, p_quantita: p.quantita, p_magazzino: p.magazzino, p_gia_rientrati: p.giaRientrati });
-      if (error) throw error;
+    mutationFn: async (p: { riga: string; quantita: number; magazzino: string | null; giaRientrati: number;
+      protocolVersion?: 2; stockItemId?: string; orderItemId?: string | null; serialNumbers?: string[] }) => {
+      let data: unknown;
+      if (p.protocolVersion === 2) {
+        if (!effectiveCompany?.id || !p.stockItemId) throw new Error("Origine del materiale non verificata.");
+        const scope = warehouseRequestScope(effectiveCompany.id, user?.id, "reso");
+        if (!slots.current.has(scope)) slots.current.set(scope, new WarehouseRequestSlot(scope, warehouseRequestStorage()));
+        const slot = slots.current.get(scope)!;
+        const payload = { p_order_id: orderId, p_stock_item_id: p.stockItemId, p_order_item_id: p.orderItemId ?? null,
+          p_quantity: p.quantita, p_serial_numbers: p.serialNumbers ?? [], p_expected_returned: p.giaRientrati };
+        try {
+          const result = await warehouseRpc("warehouse_return_material_v2", { ...payload, p_request_id: slot.request(payload) });
+          if (result.error) throw result.error;
+          data = result.data;
+          if (!(data as { quantita?: number })?.quantita) throw new Error("Esito reso non disponibile: verifica i movimenti prima di riprovare.");
+          slot.succeeded();
+        } catch (error) { slot.failed(error); throw error; }
+      } else {
+        const result = await db.rpc("materiale_rientro_magazzino", { p_riga: p.riga, p_quantita: p.quantita, p_magazzino: p.magazzino, p_gia_rientrati: p.giaRientrati });
+        if (result.error) throw result.error;
+        data = result.data;
+      }
       return data as { quantita: number; rientrati: number; warehouse_id: string };
     },
     onSuccess: (r) => {
-      toast.success(`${r.quantita} rientrati in magazzino: la commessa paga solo il posato.`);
+      toast.success(`${Number(r.quantita).toLocaleString("it-IT")} ${r.quantita === 1 ? "rientrato" : "rientrati"} in magazzino. Il reso è collegato al prelievo di origine.`);
       for (const k of [chiaveConsumi(orderId), ["materiali-per-fase", orderId], ["order-items", orderId], ["costi-materiali-fasi"],
         ["marginalita-cantieri"], ["marginalita-widget"], ["order-material-usage"], ["warehouses"], ["warehouse-stock"],
         // Il conto economico della commessa legge v_ordine_marginalita da qui (useOrderEconomicsBase).
         ["order-economics-canonical", orderId]]) {
         void qc.invalidateQueries({ queryKey: k });
       }
+      qc.invalidateQueries({ queryKey: queryKeys.warehouse.all });
+      qc.invalidateQueries({ queryKey: ["magazzino-live"] });
       refreshMaterialQueries(qc);
     },
     onError: (e: Error) => toast.error(e.message || "Rientro non registrato"),

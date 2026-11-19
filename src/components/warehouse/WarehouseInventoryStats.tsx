@@ -14,7 +14,7 @@
  */
 
 import { AlertTriangle, Euro, Package, Truck, type LucideIcon } from "lucide-react";
-import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { formatCurrency } from "@/lib/formatters";
 import type { MagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
 
@@ -27,6 +27,8 @@ export type WarehouseInventoryMetricKey =
 
 interface Props {
   riepilogo?: MagazzinoRiepilogo;
+  isLoading?: boolean;
+  canViewCosts?: boolean;
   visibleCards?: WarehouseInventoryMetricKey[];
   /** Se fornito, le card diventano cliccabili e invocano questo handler. */
   onCardClick?: (key: WarehouseInventoryMetricKey) => void;
@@ -36,7 +38,7 @@ interface Props {
 
 const articoli = (n: number) => `${n} ${n === 1 ? "articolo" : "articoli"}`;
 
-export default function WarehouseInventoryStats({ riepilogo, visibleCards, onCardClick, activeKey }: Props) {
+export default function WarehouseInventoryStats({ riepilogo, visibleCards, onCardClick, activeKey, isLoading = false, canViewCosts = true }: Props) {
   const a = riepilogo?.articoli;
   const arrivo = riepilogo?.in_arrivo;
   const conGiacenza = a?.con_giacenza ?? 0;
@@ -93,11 +95,12 @@ export default function WarehouseInventoryStats({ riepilogo, visibleCards, onCar
   );
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {cards.filter((card) => visible.has(card.key)).map(({ key, ...card }) => (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+      {cards.filter((card) => visible.has(card.key) && (canViewCosts || !["inventory_value", "missing_cost"].includes(card.key))).map(({ key, ...card }) => (
         <KpiCard
           key={key}
           {...card}
+          isLoading={isLoading || !riepilogo}
           onClick={onCardClick ? () => onCardClick(key) : undefined}
           active={activeKey === key}
         />
@@ -122,6 +125,7 @@ function KpiCard({
   accent,
   onClick,
   active,
+  isLoading,
 }: {
   label: string;
   value: string;
@@ -130,13 +134,15 @@ function KpiCard({
   accent: keyof typeof accentMap;
   onClick?: () => void;
   active?: boolean;
+  isLoading: boolean;
 }) {
   return (
-    <OperationalKpiCard
+    <OperationalSummaryMetric
       icon={Icon}
       label={label}
       value={value}
-      hint={hint}
+      hint={isLoading ? undefined : hint}
+      isLoading={isLoading}
       tone={accentMap[accent]}
       onClick={onClick}
       active={active}

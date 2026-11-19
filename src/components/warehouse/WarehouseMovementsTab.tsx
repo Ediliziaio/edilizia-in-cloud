@@ -1,3 +1,5 @@
+import { usePermissions } from "@/hooks/usePermissions";
+import { formattaQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 /**
  * WarehouseMovementsTab — registro globale dei movimenti di magazzino.
  *
@@ -41,6 +43,7 @@ interface RawMovement {
   id: string;
   stock_item_id: string;
   movement_type: string;
+  rientro_commessa: boolean;
   quantity: number;
   notes: string | null;
   created_at: string;
@@ -53,6 +56,7 @@ interface RawMovement {
 
 interface MovementRow extends RawMovement {
   itemName: string;
+  unit: string | null;
   orderCode: string | null;
   performerName: string | null;
 }
@@ -65,6 +69,8 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 };
 
 export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Props) {
+  const permissions = usePermissions();
+  const canViewCosts = !permissions.isLoading && permissions.canViewCosts;
   const [period, setPeriod] = useState<PeriodKey>("30");
   const [typeFilter, setTypeFilter] = useState<"all" | "carico" | "scarico">("all");
   const [query, setQuery] = useState("");
@@ -77,7 +83,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
   }, [period]);
 
   const { data: rows = [], isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["warehouse-movements-registry", companyId, warehouseFilter, sinceISO],
+    queryKey: ["warehouse-movements-registry", companyId, warehouseFilter, sinceISO, canViewCosts],
     enabled: !!companyId,
     staleTime: 1000 * 60 * 2,
     queryFn: async (): Promise<MovementRow[]> => {
@@ -87,7 +93,7 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
       const movements = await readAllOrderRows<RawMovement>((da, a) => {
         let q = supabase
           .from("warehouse_movements")
-          .select("id, stock_item_id, movement_type, quantity, notes, created_at, performed_by, order_id, lot_number, unit_cost, warehouse_id")
+          .select(`id, stock_item_id, movement_type, quantity, notes, created_at, performed_by, order_id, lot_number, warehouse_id, rientro_commessa${canViewCosts ? ",unit_cost" : ""}`)
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
           .order("id");
@@ -112,12 +118,13 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
         return { data: out };
       };
       const [stockRes, orderRes, userRes] = await Promise.all([
-        aBlocchi<{ id: string; name: string }>("warehouse_stock", "id, name", stockIds as string[]),
+        aBlocchi<{ id: string; name: string; unita_misura: string | null }>("warehouse_stock", "id, name, unita_misura", stockIds as string[]),
         aBlocchi<{ id: string; order_code: string | null }>("orders", "id, order_code", orderIds),
         aBlocchi<{ id: string; first_name: string | null; last_name: string | null }>("profiles", "id, first_name, last_name", userIds),
       ]);
 
       const nameById = new Map((stockRes.data ?? []).map((s: { id: string; name: string }) => [s.id, s.name]));
+      const unitById = new Map(stockRes.data.map((s) => [s.id, s.unita_misura]));
       const orderById = new Map((orderRes.data ?? []).map((o: { id: string; order_code: string | null }) => [o.id, o.order_code]));
       const userById = new Map(
         (userRes.data ?? []).map((u: { id: string; first_name: string | null; last_name: string | null }) =>
@@ -127,6 +134,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
 
       return movements.map((m) => ({
         ...m,
+        unit: unitById.get(m.stock_item_id) ?? null,
+        notes: m.rientro_commessa && /^Rientro dal cantiere · uscita [0-9a-f-]{36}$/.test(m.notes ?? "") ? "Reso da cantiere collegato all’uscita originale" : m.notes,
         itemName: nameById.get(m.stock_item_id) ?? "Articolo eliminato",
         orderCode: m.order_id ? orderById.get(m.order_id) ?? m.order_id.slice(0, 8) : null,
         performerName: m.performed_by ? userById.get(m.performed_by) ?? null : null,
@@ -152,8 +161,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
     let carichi = 0, scarichi = 0, valore = 0;
     for (const r of filtered) {
       const qty = Number(r.quantity) || 0;
-      if (r.movement_type === "carico") carichi += qty;
-      else scarichi += qty;
+      if (r.movement_type === "carico") carichi += 1;
+      else scarichi += 1;
       valore += qty * Number(r.unit_cost ?? 0);
     }
     return { count: filtered.length, carichi, scarichi, valore };
@@ -165,8 +174,8 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
       { key: "tipo", label: "Tipo" },
       { key: "articolo", label: "Articolo" },
       { key: "quantita", label: "Quantità" },
-      { key: "costo_unitario", label: "Costo unitario" },
-      { key: "valore", label: "Valore" },
+      { key: "unita", label: "Unità" },
+      ...(canViewCosts ? [{ key: "costo_unitario", label: "Costo unitario" }, { key: "valore", label: "Valore" }] : []),
       { key: "lotto", label: "Lotto" },
       { key: "commessa", label: "Commessa" },
       { key: "operatore", label: "Operatore" },
@@ -174,11 +183,11 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
     ];
     const data = filtered.map((r) => ({
       data: format(new Date(r.created_at), "dd/MM/yyyy HH:mm", { locale: it }),
-      tipo: r.movement_type === "carico" ? "Carico" : "Scarico",
+      tipo: r.rientro_commessa ? "Reso da cantiere" : r.movement_type === "carico" ? "Carico" : "Scarico",
       articolo: r.itemName,
       quantita: `${r.movement_type === "carico" ? "+" : "-"}${r.quantity}`,
-      costo_unitario: r.unit_cost != null ? String(r.unit_cost) : "",
-      valore: r.unit_cost != null ? String(Number(r.quantity) * Number(r.unit_cost)) : "",
+      unita: r.unit ?? "",
+      ...(canViewCosts ? { costo_unitario: r.unit_cost != null ? String(r.unit_cost) : "", valore: r.unit_cost != null ? String(Number(r.quantity) * Number(r.unit_cost)) : "" } : {}),
       lotto: r.lot_number ?? "",
       commessa: r.orderCode ?? "",
       operatore: r.performerName ?? "",
@@ -235,9 +244,9 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
       {/* Riepilogo */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard label="Movimenti" value={String(summary.count)} icon={History} tone="slate" />
-        <SummaryCard label="Carichi (pz)" value={`+${summary.carichi}`} icon={ArrowDownToLine} tone="emerald" />
-        <SummaryCard label="Scarichi (pz)" value={`-${summary.scarichi}`} icon={ArrowUpFromLine} tone="red" />
-        <SummaryCard label="Valore movimentato" value={formatCurrency(summary.valore)} icon={Download} tone="blue" />
+        <SummaryCard label="Carichi e resi · movimenti" value={String(summary.carichi)} icon={ArrowDownToLine} tone="emerald" />
+        <SummaryCard label="Scarichi · movimenti" value={String(summary.scarichi)} icon={ArrowUpFromLine} tone="red" />
+        {canViewCosts && <SummaryCard label="Valore movimentato" value={formatCurrency(summary.valore)} icon={Download} tone="blue" />}
       </div>
 
       {isError ? (
@@ -301,12 +310,12 @@ export default function WarehouseMovementsTab({ companyId, warehouseFilter }: Pr
                           {m.movement_type === "carico"
                             ? <ArrowDownToLine className="h-3 w-3" />
                             : <ArrowUpFromLine className="h-3 w-3" />}
-                          {m.movement_type === "carico" ? "Carico" : "Scarico"}
+                          {m.rientro_commessa ? "Reso da cantiere" : m.movement_type === "carico" ? "Carico" : "Scarico"}
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-[180px] truncate text-sm font-medium">{m.itemName}</TableCell>
                       <TableCell className={`text-center font-semibold tabular-nums ${m.movement_type === "carico" ? "text-emerald-600" : "text-red-600"}`}>
-                        {m.movement_type === "carico" ? "+" : "−"}{m.quantity}
+                        {m.movement_type === "carico" ? "+" : "−"}{formattaQuantitaMovimento(Number(m.quantity))} {m.unit ?? "unità non indicata"}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{m.lot_number || "—"}</TableCell>
                       <TableCell className="hidden lg:table-cell text-sm">

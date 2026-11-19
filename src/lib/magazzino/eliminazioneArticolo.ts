@@ -39,6 +39,9 @@ export interface EsitoEliminazione {
 }
 
 export function valutaEliminazione(stato: StatoArticolo): EsitoEliminazione {
+  if (Object.values(stato).some((n) => !Number.isFinite(n) || n < 0)) {
+    return { eliminabile: false, motivo: "Quantità o collegamenti non verificabili: aggiorna i dati prima di eliminare l'articolo." };
+  }
   if (stato.quantity > 0) {
     return {
       eliminabile: false,
@@ -76,4 +79,12 @@ export function valutaEliminazione(stato: StatoArticolo): EsitoEliminazione {
     };
   }
   return { eliminabile: true, motivo: "" };
+}
+
+/** Un conteggio fallito o assente non dimostra l'assenza di collegamenti. */
+export function conteggioVerificato(risposta: { count: number | null; error: unknown }): number {
+  if (risposta.error || risposta.count == null || !Number.isSafeInteger(risposta.count) || risposta.count < 0) {
+    throw new Error("Impossibile verificare i collegamenti dell'articolo. Riprova.");
+  }
+  return risposta.count;
 }

@@ -40,6 +40,7 @@ export interface RigaDocumentoOperativo {
 }
 export interface DocumentoOperativo {
   prezziDaConfermare?: boolean;
+  riguardaLavori?: boolean;
   fornitoreId?: string;
   referenteEmail?: string | null;
   referenteTelefono?: string | null;
@@ -115,6 +116,8 @@ export const dataIt = (v?: string | null) =>
   v && /^\d{4}-\d{2}-\d{2}/.test(v)
     ? v.slice(0, 10).split("-").reverse().join("/")
     : testo(v);
+export const quantitaDocumento = (d: DocumentoOperativo, n: number) =>
+  n.toLocaleString("it-IT", { maximumFractionDigits: d.riguardaLavori ? 3 : 2 });
 export const numeroIt = (v: number) =>
   v.toLocaleString("it-IT", { maximumFractionDigits: 2 });
 /** Le ore di un viaggio: «—» se non ci sono, non «0» (10/11/2026). */
@@ -414,7 +417,7 @@ export function celleRiga(
     String(i + 1),
     [r.descrizione, r.nota].filter(Boolean).join("\n"),
     r.unita,
-    numeroIt(r.quantita),
+    quantitaDocumento(d, r.quantita),
     richiesta ? "" : r.prezzo == null ? "Da definire" : euro(r.prezzo),
     richiesta ? "" : numeroIt(r.sconto ?? 0),
     richiesta

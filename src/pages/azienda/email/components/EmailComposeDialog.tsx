@@ -44,6 +44,8 @@ export interface ComposeAttachment {
 export interface ComposeContext {
   procurement?: import("@/lib/acquisti/storico").ProcurementContext;
   initialAttachments?: ComposeAttachment[];
+  /** Generato in anteprima, caricato soltanto quando l’utente conferma l’invio. */
+  documentoDaAllegare?: File;
   mode: ComposeMode;
   /** Email originale (per reply/forward) */
   source?: {
@@ -110,6 +112,7 @@ function buildQuoteText(src: ComposeContext["source"]): string {
 
 export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId, onSent, documentSummary }: EmailComposeDialogProps) {
   const formId = useId();
+  const documentoCaricato = useRef<{ file: File; allegato: ComposeAttachment } | null>(null);
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
@@ -357,7 +360,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   // oauth_connection_id=null → bozza "orfana" non inviabile da Bozze.
   const debounceTimerRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open || context.documentoDaAllegare) return;
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     if (!to && !subject && !bodyText && !bodyHtml && attachments.length === 0) return; // niente da salvare
     // Non salvare bozze senza account mittente: lascerebbe orphan row in
@@ -372,7 +375,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [to, cc, bcc, subject, bodyText, bodyHtml, accountId, attachments, open]);
+  }, [to, cc, bcc, subject, bodyText, bodyHtml, accountId, attachments, open, context.documentoDaAllegare]);
 
   // Send
   // Guard sincrono anti-doppio-invio: due click rapidissimi arrivano PRIMA che
@@ -394,6 +397,23 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       if (!subject.trim()) throw new Error("Aggiungi un oggetto");
       if (attachments.some((a) => a.uploading)) throw new Error("Attendi il caricamento degli allegati");
 
+      const allegatiDaInviare = attachments.filter((a) => !a.uploading);
+      const documento = context.documentoDaAllegare;
+      if (documento) {
+        if (documentoCaricato.current?.file !== documento) {
+          const nome = documento.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const percorso = `${userId}/${outboxId || "tmp"}/${crypto.randomUUID()}-${nome}`;
+          const { error } = await supabase.storage.from("email-attachments")
+            .upload(percorso, documento, { contentType: documento.type, upsert: false });
+          if (error) throw new Error("Caricamento del computo fallito. Riprova.", { cause: error });
+          documentoCaricato.current = {
+            file: documento,
+            allegato: { name: documento.name, size: documento.size, mime: documento.type, storage_path: percorso },
+          };
+        }
+        allegatiDaInviare.push(documentoCaricato.current.allegato);
+      }
+
       const payload = {
         ...(context.procurement ? {procurement_context:serializeProcurement(context.procurement)} : {}),
         user_id: userId,
@@ -407,7 +427,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         subject: subject.trim(),
         body_text: bodyText || (bodyHtml ? htmlToPlainText(bodyHtml) : ""),
         body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
-        attachments: attachments.filter((a) => !a.uploading).map((a) => ({
+        attachments: allegatiDaInviare.map((a) => ({
           filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
           ...(a.bucket ? { bucket: a.bucket } : {}),
         })),
@@ -661,6 +681,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             />
           </div>
 
+          {context.documentoDaAllegare && <p className="text-xs text-muted-foreground">Allegato · {context.documentoDaAllegare.name}</p>}
           {attachments.length > 0 && (
             <div className="space-y-1.5">
               <Label className="text-xs">Allegati ({attachments.length})</Label>

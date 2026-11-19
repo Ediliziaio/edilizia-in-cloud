@@ -51,9 +51,9 @@ const unitaBreve = (u: string) => (u === "a_corpo" ? "a corpo" : u);
 /** «38,00», «14,5550»: due decimali almeno, senza punto delle migliaia (la casella si riscrive). */
 const prezzoInCasella = (n: number) => Number(n).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 4, useGrouping: false });
 
-export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId: string; anagraficaId: string; nomeDitta: string }) {
+export function ListinoDitta({ companyId, anagraficaId, nomeDitta, consultazione = false }: { companyId: string; anagraficaId: string; nomeDitta: string; consultazione?: boolean }) {
   const { canViewCosts, canEditSettingsPricing, solaLettura } = usePermissions();
-  const puoScrivere = canViewCosts && canEditSettingsPricing && !solaLettura;
+  const puoScrivere = !consultazione && canViewCosts && canEditSettingsPricing && !solaLettura;
   const qc = useQueryClient();
   const oggi = oggiInItalia();
 
@@ -90,7 +90,7 @@ export function ListinoDitta({ companyId, anagraficaId, nomeDitta }: { companyId
   const [modifiche, setModifiche] = useState<Record<string, string>>({});
   const [validoDal, setValidoDal] = useState(oggi);
   const [cerca, setCerca] = useState("");
-  const [soloConPrezzo, setSoloConPrezzo] = useState(false);
+  const [soloConPrezzo, setSoloConPrezzo] = useState(consultazione);
   const [storiaAperta, setStoriaAperta] = useState(false);
   const [voceNuova, setVoceNuova] = useState(false);
   const [caricaFile, setCaricaFile] = useState(false);

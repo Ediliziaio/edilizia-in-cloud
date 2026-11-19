@@ -1,429 +1,91 @@
-import { useState } from "react";
-import { ArrowRight, Plus, Trash2, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { useWarehouses } from "@/hooks/useWarehouses";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+import { useRef, useState } from 'react';
+import { ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useWarehouses } from '@/hooks/useWarehouses';
+import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { supabase } from '@/integrations/supabase/client';
+import { warehouseRpc, movementOutcomeUnknown } from '@/lib/magazzino/protocolloMovimenti';
+import { useWarehouseOperation, useWarehouseProtocol } from '@/hooks/warehouse/useWarehouseOperations';
+import { leggiQuantitaMovimento, formattaQuantitaMovimento as fmt } from '@/lib/magazzino/quantitaMovimento';
+import { unitaConsumoConfrontabile } from '@/lib/distinta/consumiMateriali';
+import { toast } from 'sonner';
 
-interface TransferItem {
-  stock_item_id: string;
-  stock_item_name: string;
-  quantity: number;
-  available: number;
+interface Row {key:string;stockId:string;quantity:string;serials:string[]}
+interface Stock {id:string;name:string;quantity:number;quantity_available:number;unita_misura:string|null;tracking_mode:string}
+interface TransferHistory {id:string;status:string;transfer_date:string;from_warehouse:{name:string};to_warehouse:{name:string}}
+export function WarehouseTransferPanel(props:{open:boolean;onOpenChange:(value:boolean)=>void}) {
+ const {effectiveCompany}=useAuth();
+ return props.open ? <TransferSession key={effectiveCompany?.id} {...props}/> : null;
 }
-
-interface TransferStockItem {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity: number;
-  warehouse_id: string | null;
-  unit_cost: number | null;
-  vat_rate: number | null;
-  supplier_id: string | null;
-  section_id: string | null;
-  min_stock_level: number | null;
-  barcode?: string | null;
-  internal_code?: string | null;
-  tracking_mode?: "fungible" | "serialized" | null;
-  requires_warranty?: boolean | null;
-  default_warranty_months?: number | null;
-}
-
-interface WarehouseTransferPanelProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  bozza: "bg-muted text-muted-foreground",
-  confermato: "bg-blue-100 text-blue-800",
-  in_transito: "bg-amber-100 text-amber-800",
-  ricevuto: "bg-green-100 text-green-800",
-  annullato: "bg-destructive/10 text-destructive",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  bozza: "Bozza",
-  confermato: "Confermato",
-  in_transito: "In transito",
-  ricevuto: "Ricevuto",
-  annullato: "Annullato",
-};
-
-export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransferPanelProps) {
-  const { effectiveCompany } = useAuth();
-  const queryClient = useQueryClient();
-  const companyId = effectiveCompany?.id;
-  const { warehouses } = useWarehouses();
-
-  const [fromWarehouseId, setFromWarehouseId] = useState<string>("");
-  const [toWarehouseId, setToWarehouseId] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [transferDate, setTransferDate] = useState(new Date().toLocaleDateString("en-CA"));
-  const [items, setItems] = useState<TransferItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  // Stock items del magazzino di partenza
-  const { data: stockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock-for-transfer", fromWarehouseId],
-    queryFn: async () => {
-      if (!fromWarehouseId) return [];
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select(`
-          id, name, description, quantity, warehouse_id,
-          unit_cost, vat_rate, supplier_id, section_id, min_stock_level,
-          barcode, internal_code, tracking_mode, requires_warranty, default_warranty_months
-        `)
-        .eq("company_id", companyId!)
-        .eq("warehouse_id", fromWarehouseId)
-        .gt("quantity", 0)
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as TransferStockItem[];
-    },
-    enabled: !!fromWarehouseId && !!companyId,
-    staleTime: 60000,
-  });
-
-  // Storico trasferimenti
-  const { data: transfers = [] } = useQuery({
-    queryKey: ["warehouse-transfers", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_transfers")
-        .select("*, from_warehouse:warehouses!warehouse_transfers_from_warehouse_id_fkey(name), to_warehouse:warehouses!warehouse_transfers_to_warehouse_id_fkey(name)")
-        .eq("company_id", companyId!)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!companyId && showHistory,
-    staleTime: 60000,
-  });
-
-  const addItem = () => {
-    setItems((prev) => [
-      ...prev,
-      { stock_item_id: "", stock_item_name: "", quantity: 1, available: 0 },
-    ]);
-  };
-
-  const removeItem = (idx: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const updateItem = (idx: number, field: keyof TransferItem, value: any) => {
-    setItems((prev) =>
-      prev.map((item, i) => {
-        if (i !== idx) return item;
-        if (field === "stock_item_id") {
-          const found = stockItems.find((s) => s.id === value);
-          return {
-            ...item,
-            stock_item_id: value,
-            stock_item_name: found?.name ?? "",
-            available: found?.quantity ?? 0,
-            quantity: 1,
-          };
-        }
-        return { ...item, [field]: value };
-      })
-    );
-  };
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      // Trasferimento ATOMICO lato DB: header + righe + scarico sorgente +
-      // carico destinazione + movimenti in un'unica transazione (RPC
-      // create_warehouse_transfer_atomic). Sostituisce i round-trip separati
-      // che, in caso di errore intermedio, lasciavano la giacenza corrotta.
-      // Lock FOR UPDATE + math relativa + errore su giacenza insufficiente
-      // sono gestiti dentro la funzione Postgres.
-      // Cast `as any`: la RPC non è ancora nei types generati (migration non applicata).
-      const { data, error } = await (supabase as any).rpc("create_warehouse_transfer_atomic", {
-        p_company_id: companyId,
-        p_from_warehouse_id: fromWarehouseId,
-        p_to_warehouse_id: toWarehouseId,
-        p_transfer_date: transferDate,
-        p_notes: notes || null,
-        p_items: items.map((item) => ({
-          stock_item_id: item.stock_item_id,
-          quantity: item.quantity,
-        })),
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Trasferimento creato");
-      // Invalidate mirate: prima ["warehouse"] era prefix broad che colpiva
-      // 20+ queries (kanban/list/stats/calendar) → refetch storm.
-      // Ora solo lo stock + i 2 set transfer-specifici.
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-movements"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-transfers"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse-stock-for-transfer"] });
-      resetForm();
-    },
-    onError: (e: any) => toast.error("Errore: " + e.message),
-  });
-
-  const resetForm = () => {
-    setFromWarehouseId("");
-    setToWarehouseId("");
-    setNotes("");
-    setTransferDate(new Date().toLocaleDateString("en-CA"));
-    setItems([]);
-    setShowConfirm(false);
-  };
-
-  const canSubmit =
-    fromWarehouseId &&
-    toWarehouseId &&
-    fromWarehouseId !== toWarehouseId &&
-    items.length > 0 &&
-    items.every((i) => i.stock_item_id && i.quantity > 0 && i.quantity <= i.available);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ArrowRight className="h-5 w-5" />
-            Trasferimento Merce tra Magazzini
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          {/* From / To */}
-          <div className="grid grid-cols-2 gap-4 items-end">
-            <div className="space-y-2">
-              <Label>Da magazzino *</Label>
-              <Select value={fromWarehouseId} onValueChange={(v) => { setFromWarehouseId(v); setItems([]); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((w) => (
-                    <SelectItem key={w.id} value={w.id} disabled={w.id === toWarehouseId}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>A magazzino *</Label>
-              <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((w) => (
-                    <SelectItem key={w.id} value={w.id} disabled={w.id === fromWarehouseId}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Date & Notes */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Data trasferimento</Label>
-              <Input
-                type="date"
-                value={transferDate}
-                onChange={(e) => setTransferDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Note</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={1}
-                placeholder="Note opzionali…"
-              />
-            </div>
-          </div>
-
-          {/* Items */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Articoli da trasferire</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addItem}
-                disabled={!fromWarehouseId}
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Aggiungi
-              </Button>
-            </div>
-
-            {items.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center border rounded-md">
-                {fromWarehouseId
-                  ? "Clicca «Aggiungi» per selezionare gli articoli"
-                  : "Seleziona prima il magazzino di partenza"}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {items.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Select
-                      value={item.stock_item_id}
-                      onValueChange={(v) => updateItem(idx, "stock_item_id", v)}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Articolo…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stockItems.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name} (disp. {s.quantity})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={item.available || undefined}
-                      value={item.quantity}
-                      onChange={(e) => updateItem(idx, "quantity", parseInt(e.target.value) || 1)}
-                      className="w-24"
-                      placeholder="Qtà"
-                    />
-                    {item.stock_item_id && item.quantity > item.available && (
-                      <span className="text-xs text-destructive">Max {item.available}</span>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeItem(idx)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* History toggle */}
-          <div className="border-t pt-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground"
-              onClick={() => setShowHistory((v) => !v)}
-            >
-              {showHistory ? "Nascondi storico" : "Mostra storico trasferimenti"}
-            </Button>
-            {showHistory && (
-              <div className="mt-2 space-y-1 max-h-48 overflow-y-auto text-sm">
-                {transfers.length === 0 ? (
-                  <p className="text-muted-foreground py-2 text-center">Nessun trasferimento</p>
-                ) : (
-                  transfers.map((t: any) => (
-                    <div key={t.id} className="flex items-center justify-between py-1 border-b">
-                      <span className="text-muted-foreground">
-                        {t.from_warehouse?.name} → {t.to_warehouse?.name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{t.transfer_date}</span>
-                        <Badge className={STATUS_COLORS[t.status] + " text-xs"}>
-                          {STATUS_LABELS[t.status]}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Confirmation banner */}
-        {showConfirm && (
-          <div className="border rounded-lg p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-300 space-y-2">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-              Confermi il trasferimento di {items.length} articol{items.length === 1 ? "o" : "i"} da{" "}
-              <strong>{warehouses.find(w => w.id === fromWarehouseId)?.name}</strong> a{" "}
-              <strong>{warehouses.find(w => w.id === toWarehouseId)?.name}</strong>?
-            </p>
-            <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
-              {items.map((item, idx) => (
-                <li key={idx}>- {item.stock_item_name}: {item.quantity} pz</li>
-              ))}
-            </ul>
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Questa operazione modificherà le giacenze di entrambi i magazzini.
-            </p>
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => { setShowConfirm(false); onOpenChange(false); }}>
-            Annulla
-          </Button>
-          {showConfirm ? (
-            <Button
-              onClick={() => {
-                // Guard anti doppio-click: il `disabled` arriva solo al re-render
-                // successivo, due click rapidi registrerebbero due trasferimenti.
-                if (createMutation.isPending) return;
-                createMutation.mutate();
-                setShowConfirm(false);
-              }}
-              disabled={createMutation.isPending}
-              variant="default"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              {createMutation.isPending ? "Creazione…" : "Conferma Trasferimento"}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => setShowConfirm(true)}
-              disabled={!canSubmit}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Crea Trasferimento
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+function TransferSession({onOpenChange}:{onOpenChange:(value:boolean)=>void}) {
+ const {effectiveCompany}=useAuth();const companyId=effectiveCompany?.id;const permissions=usePermissions();
+ const canWrite=!permissions.isLoading&&permissions.canEditWarehouse;const {warehouses}=useWarehouses();
+ const protocol=useWarehouseProtocol(companyId);const v3=!!protocol.data?.atomic_transfers;
+ const [from,setFrom]=useState('');const [to,setTo]=useState('');const [date,setDate]=useState(new Date().toLocaleDateString('en-CA'));
+ const [notes,setNotes]=useState('');const [rows,setRows]=useState<Row[]>([]);const [review,setReview]=useState(false);const [historyOpen,setHistoryOpen]=useState(false);
+ const [error,setError]=useState<string|null>(null);const [uncertain,setUncertain]=useState(false);const flight=useRef(false);
+ const save=useWarehouseOperation('transfer');const attemptedPayload=useRef<Record<string,unknown>|null>(null);
+ const stock=useQuery({queryKey:['warehouse-stock-for-transfer',companyId,from],enabled:!!companyId&&!!from,retry:false,staleTime:0,queryFn:async()=>{
+  const r=await supabase.from('warehouse_stock').select('id,name,quantity,quantity_available,unita_misura,tracking_mode').eq('company_id',companyId!).eq('warehouse_id',from).gt('quantity',0).order('name');if(r.error)throw r.error;return r.data as Stock[];
+ }});
+ const units=useQuery({queryKey:['warehouse','transfer-units',companyId,from],enabled:v3&&!!from&&rows.some(r=>(stock.data??[]).find(s=>s.id===r.stockId)?.tracking_mode==='serialized'),retry:false,queryFn:async()=>{
+  const r=await supabase.from('stock_units').select('id,stock_item_id,serial_number,status').eq('company_id',companyId!).eq('warehouse_id',from).eq('status','available').order('serial_number');if(r.error)throw r.error;return r.data??[];
+ }});
+ const history=useQuery({queryKey:['warehouse-transfers',companyId,protocol.data?.version],enabled:historyOpen&&!!companyId&&!!protocol.data,retry:false,queryFn:async():Promise<TransferHistory[]>=>{
+  if(v3){const r=await warehouseRpc('warehouse_transfer_list_v3',{p_company_id:companyId});if(r.error)throw r.error;return r.data as TransferHistory[];}
+  const r=await supabase.from('warehouse_transfers').select('*,from_warehouse:warehouses!warehouse_transfers_from_warehouse_id_fkey(name),to_warehouse:warehouses!warehouse_transfers_to_warehouse_id_fkey(name)').eq('company_id',companyId!).order('created_at',{ascending:false}).limit(100);if(r.error)throw r.error;return r.data as unknown as TransferHistory[];
+ }});
+ const problem=()=>{
+  if(!canWrite)return 'Non hai il permesso di modificare il magazzino.';
+  if(!protocol.data)return 'Verifica le funzioni disponibili prima di continuare.';
+  if(!from||!to||from===to)return 'Scegli due magazzini diversi.';
+  if(!rows.length)return 'Aggiungi almeno un articolo.';
+  const seen=new Set<string>();
+  for(const row of rows){const item=stock.data?.find(s=>s.id===row.stockId);const q=leggiQuantitaMovimento(row.quantity);
+   if(!item)return 'Scegli un articolo per ogni riga.';if(seen.has(item.id))return 'Un articolo può comparire una sola volta.';seen.add(item.id);
+   if(q===null)return 'Inserisci quantità positive valide.';
+   if(q>Number(item.quantity_available))return `${item.name}: disponibili ${fmt(Number(item.quantity_available))} ${item.unita_misura??''}.`;
+   if((!v3||item.tracking_mode==='serialized'||unitaConsumoConfrontabile(item.unita_misura)==='pz')&&!Number.isInteger(q))return `${item.name}: il servizio richiede unità intere.`;
+   if(item.tracking_mode==='serialized'&&(!v3||row.serials.length!==q))return v3?'Seleziona un seriale per ogni pezzo.':'Per trasferire matricole serve il servizio aggiornato.';
+  }return null;
+ };
+ const validation=problem();
+ function patch(key:string,values:Partial<Row>){setRows(old=>old.map(r=>r.key===key?{...r,...values}:r));setError(null);}
+ async function confirm(){if(flight.current||save.isPending||(!uncertain&&validation))return;flight.current=true;setError(null);
+  try {const payload=uncertain&&attemptedPayload.current?attemptedPayload.current:{p_company_id:companyId,p_from_warehouse_id:from,p_to_warehouse_id:to,p_transfer_date:date,p_notes:notes.trim()||null,
+   p_items:rows.map(row=>({stock_item_id:row.stockId,quantity:leggiQuantitaMovimento(row.quantity),...(v3?{serial_numbers:row.serials}:{})}))};
+   attemptedPayload.current=payload;await save.mutateAsync({rpc:v3?'warehouse_transfer_v3':'create_warehouse_transfer_atomic',payload,legacy:!v3});
+   toast.success('Trasferimento registrato: entrambi i magazzini sono aggiornati.');onOpenChange(false);
+  }catch(e){setError((e as Error).message);setUncertain(v3&&movementOutcomeUnknown(e));}finally{flight.current=false;}
+ }
+ return <Dialog open onOpenChange={value=>{if(!save.isPending)onOpenChange(value);}}><DialogContent className="max-h-[90svh] max-w-3xl overflow-y-auto">
+  <DialogHeader><DialogTitle className="flex items-center gap-2"><ArrowRight className="h-5 w-5"/>{review?'Conferma trasferimento':'Trasferisci tra magazzini'}</DialogTitle><DialogDescription>Il trasferimento diretto scarica la partenza e carica la destinazione insieme. Gli impegni delle commesse restano protetti.</DialogDescription></DialogHeader>
+  {review?<>
+   <div className="grid gap-3 rounded-xl bg-eic-navy-deep p-4 text-white sm:grid-cols-3"><div><p className="text-xs text-blue-100">Partenza</p><p className="mt-1 font-semibold">{warehouses.find(w=>w.id===from)?.name}</p></div><div><p className="text-xs text-blue-100">Destinazione</p><p className="mt-1 font-semibold">{warehouses.find(w=>w.id===to)?.name}</p></div><div><p className="text-xs text-blue-100">Data</p><p className="mt-1 font-semibold">{new Date(date+'T12:00:00').toLocaleDateString('it-IT')}</p></div></div>
+   <ul className="divide-y rounded-xl border">{rows.map(row=><li key={row.key} className="p-3"><div className="flex justify-between gap-3"><strong>{stock.data?.find(s=>s.id===row.stockId)?.name}</strong><span>{row.quantity.replace('.',',')} {stock.data?.find(s=>s.id===row.stockId)?.unita_misura}</span></div>{row.serials.length>0&&<p className="mt-1 font-mono text-xs">{row.serials.join(' · ')}</p>}</li>)}</ul>
+   <p className="text-sm text-muted-foreground">Quantità, costo registrato e garanzia delle matricole rimangono tracciati. Nessun ordine o documento di trasporto viene creato.</p>
+  </>:<>
+   <div className="grid gap-3 sm:grid-cols-2"><div><Label>Da magazzino</Label><Select value={from} onValueChange={v=>{setFrom(v);setRows([]);}}><SelectTrigger aria-label="Da magazzino"><SelectValue placeholder="Scegli la partenza"/></SelectTrigger><SelectContent>{warehouses.map(w=><SelectItem key={w.id} value={w.id} disabled={w.id===to}>{w.name}</SelectItem>)}</SelectContent></Select></div><div><Label>A magazzino</Label><Select value={to} onValueChange={setTo}><SelectTrigger aria-label="A magazzino"><SelectValue placeholder="Scegli la destinazione"/></SelectTrigger><SelectContent>{warehouses.map(w=><SelectItem key={w.id} value={w.id} disabled={w.id===from}>{w.name}</SelectItem>)}</SelectContent></Select></div></div>
+   <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-sm">Data trasferimento<Input aria-label="Data trasferimento" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label><label className="space-y-1 text-sm">Note<Textarea value={notes} aria-label="Note trasferimento" onChange={e=>setNotes(e.target.value)} rows={1}/></label></div>
+   {stock.isError&&<p role="alert" className="text-sm text-destructive">Disponibilità non verificata. <Button variant="outline" size="sm" onClick={()=>void stock.refetch()}>Riprova articoli</Button></p>}
+   <div className="space-y-3">{rows.map((row,index)=>{const item=stock.data?.find(s=>s.id===row.stockId);return <div key={row.key} className="space-y-2 rounded-xl border p-3"><div className="flex items-center gap-2"><Select value={row.stockId} onValueChange={v=>patch(row.key,{stockId:v,quantity:'1',serials:[]})}><SelectTrigger aria-label={`Articolo ${index+1}`} className="flex-1"><SelectValue placeholder="Scegli articolo"/></SelectTrigger><SelectContent>{(stock.data??[]).map(s=><SelectItem key={s.id} value={s.id}>{s.name} · disponibili {fmt(Number(s.quantity_available))} {s.unita_misura}</SelectItem>)}</SelectContent></Select><Input aria-label={`Quantità riga ${index+1}`} inputMode="decimal" value={row.quantity} onChange={e=>patch(row.key,{quantity:e.target.value})} className="w-24"/><Button variant="ghost" size="icon" aria-label={`Rimuovi riga ${index+1}`} onClick={()=>setRows(old=>old.filter(r=>r.key!==row.key))}><Trash2 className="h-4 w-4"/></Button></div>
+    {item&&<p className="text-xs text-muted-foreground">Disponibili {fmt(Number(item.quantity_available))} {item.unita_misura}. Gli articoli prenotati non vengono trasferiti.</p>}
+    {item?.tracking_mode==='serialized'&&v3&&<fieldset><legend className="text-sm font-medium">Matricole da trasferire</legend>{units.isError?<p role="alert" className="text-sm text-destructive">Impossibile verificare i seriali.</p>:units.isLoading?<p role="status">Controllo matricole…</p>:(units.data??[]).filter(u=>u.stock_item_id===item.id).map(u=><label key={u.id} className="mr-4 inline-flex items-center gap-2 py-2 text-sm"><input type="checkbox" checked={row.serials.includes(u.serial_number)} onChange={e=>patch(row.key,{serials:e.target.checked?[...row.serials,u.serial_number]:row.serials.filter(s=>s!==u.serial_number)})}/>{u.serial_number}</label>)}</fieldset>}
+   </div>;})}</div>
+   <Button variant="outline" disabled={!from||!canWrite} onClick={()=>setRows(old=>[...old,{key:crypto.randomUUID(),stockId:'',quantity:'1',serials:[]}])}><Plus className="mr-2 h-4 w-4"/>Aggiungi articolo</Button>
+   <Button variant="ghost" size="sm" onClick={()=>setHistoryOpen(v=>!v)}>{historyOpen?'Nascondi storico':'Mostra storico trasferimenti'}</Button>
+   {historyOpen&&(history.isError?<p role="alert">Impossibile caricare lo storico. <Button variant="outline" onClick={()=>void history.refetch()}>Riprova storico</Button></p>:history.isLoading?<p role="status">Caricamento storico…</p>:<ul className="max-h-40 divide-y overflow-auto rounded-xl border">{(history.data??[]).length===0?<li className="p-3 text-sm text-muted-foreground">Nessun trasferimento registrato.</li>:(history.data??[]).map(t=><li key={t.id} className="flex justify-between gap-3 p-3 text-sm"><span>{t.from_warehouse?.name} → {t.to_warehouse?.name}</span><span>{t.status==='ricevuto'?'Completato':t.status} · {new Date(t.transfer_date+'T12:00:00').toLocaleDateString('it-IT')}</span></li>)}</ul>)}
+  </>}
+  {validation&&rows.length>0&&!review&&<p className="text-sm text-destructive">{validation}</p>}
+  {protocol.isError&&<p role="alert" className="text-sm text-destructive">Impossibile verificare il servizio. <Button variant="outline" onClick={()=>void protocol.refetch()}>Riprova servizio</Button></p>}
+  {error&&<p role="alert" className="rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{error}{uncertain&&' Puoi verificare l’esito ripetendo gli stessi dati, senza creare un nuovo trasferimento.'}</p>}
+  <DialogFooter><Button variant="outline" disabled={save.isPending||uncertain} onClick={review?()=>setReview(false):()=>onOpenChange(false)}>{review?'Modifica trasferimento':'Annulla'}</Button>{review?<Button disabled={save.isPending||(!uncertain&&!!validation)} onClick={()=>void confirm()}>{save.isPending?'Registrazione…':uncertain?'Verifica esito trasferimento':'Conferma trasferimento'}</Button>:<Button disabled={!!validation||stock.isLoading} onClick={()=>{setError(null);setReview(true);}}>Controlla trasferimento</Button>}</DialogFooter>
+ </DialogContent></Dialog>;
 }

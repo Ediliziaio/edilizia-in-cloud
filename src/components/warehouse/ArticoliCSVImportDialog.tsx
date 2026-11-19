@@ -21,6 +21,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { numeroImportazioneMagazzino } from "@/lib/magazzino/numeriImportazione";
+import { unitaConsumoConfrontabile } from "@/lib/distinta/consumiMateriali";
+import { useWarehouseOperation, useWarehouseProtocol } from "@/hooks/warehouse/useWarehouseOperations";
+import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import {
   Upload, FileSpreadsheet, CheckCircle2, AlertCircle, XCircle, Loader2,
@@ -28,19 +32,26 @@ import {
 
 interface Props {
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+  onCloseAutoFocus?: (event: Event) => void;
   warehouseId?: string | null;
   onComplete?: () => void;
 }
 
 // Schema target: columns di warehouse_stock che importiamo
 type FieldKey = "name" | "internal_code" | "barcode" | "quantity"
-              | "unit_cost" | "min_stock_level" | "reorder_quantity" | "description";
+              | "unita_misura" | "unit_cost" | "min_stock_level" | "reorder_quantity" | "description";
 
+const MAX_IMPORT_ROWS = 500;
+const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 const FIELDS: { key: FieldKey; label: string; required: boolean; type: "text" | "number" }[] = [
   { key: "name",             label: "Nome articolo *",  required: true,  type: "text" },
   { key: "internal_code",    label: "Codice interno",   required: false, type: "text" },
   { key: "barcode",          label: "Barcode/EAN",      required: false, type: "text" },
   { key: "quantity",         label: "Quantità iniziale",required: false, type: "number" },
+  { key: "unita_misura",     label: "Unità di misura", required: false, type: "text" },
   { key: "unit_cost",        label: "Costo unitario €", required: false, type: "number" },
   { key: "min_stock_level",  label: "Soglia minima",    required: false, type: "number" },
   { key: "reorder_quantity", label: "Qty di riordino",  required: false, type: "number" },
@@ -53,6 +64,7 @@ const HEADER_HINTS: Record<FieldKey, RegExp> = {
   internal_code:    /(codice|cod\.?|sku|item.?code)/i,
   barcode:          /(barcode|ean|gtin)/i,
   quantity:         /^(quantit|qty|giacenza|stock)/i,
+  unita_misura:     /^(unità|unita|unit|u\.?m\.?)/i,
   unit_cost:        /(costo|prezzo.?(unit|acquisto)|cost)/i,
   min_stock_level:  /(scorta.?min|min.?stock|soglia)/i,
   reorder_quantity: /(riordino|reorder|qty.?ord)/i,
@@ -66,9 +78,14 @@ interface ParsedRow {
   data: Partial<Record<FieldKey, string | number | null>>;
 }
 
-export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplete }: Props) {
+export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplete, open: controlledOpen, onOpenChange, hideTrigger = false, onCloseAutoFocus }: Props) {
   const { effectiveCompany } = useAuth();
-  const [open, setOpen] = useState(false);
+  const protocol = useWarehouseProtocol(effectiveCompany?.id);
+  const atomic = useWarehouseOperation("import");
+  const permissions = usePermissions();
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (value: boolean) => { setInternalOpen(value); onOpenChange?.(value); };
   const [step, setStep] = useState<"upload" | "preview" | "result">("upload");
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -119,9 +136,8 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
 
         if (field.type === "number") {
           // Supporta "1.234,56" (formato italiano) e "1234.56"
-          const norm = value.replace(/\./g, "").replace(",", ".");
-          const n = Number(norm);
-          if (Number.isNaN(n)) {
+          const n = numeroImportazioneMagazzino(value);
+          if (n === null) {
             errors.push(`${field.label}: "${value}" non e' un numero`);
             continue;
           }
@@ -131,6 +147,8 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
         }
       }
 
+      const unit = String(data.unita_misura || "pz");
+      if (unitaConsumoConfrontabile(unit) === "pz" && !Number.isInteger(Number(data.quantity ?? 0))) errors.push("Per quantità frazionarie indica l’unità di misura (es. m, mq o kg).");
       return { raw, valid: errors.length === 0, errors, data };
     });
   }
@@ -138,6 +156,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
   async function handleFile(file: File) {
     setLoading(true);
     try {
+      if (file.size > MAX_IMPORT_BYTES) throw new Error("Il file supera 10 MB.");
       let hdrs: string[] = [];
       let dataRows: string[][] = [];
 
@@ -150,7 +169,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
         const sep = lines[0].includes(";") ? ";" : ",";
         hdrs = parseCsvLine(lines[0], sep);
         dataRows = lines.slice(1).map((l) => parseCsvLine(l, sep));
-      } else if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) {
+      } else if (lower.endsWith(".xlsx")) {
         // ExcelJS lazy import
         const ExcelJS = (await import("exceljs")).default;
         const wb = new ExcelJS.Workbook();
@@ -175,6 +194,8 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
 
       if (dataRows.length === 0) throw new Error("Nessuna riga di dati nel file");
 
+      if (dataRows.length > MAX_IMPORT_ROWS) throw new Error("Importa al massimo 500 righe per file.");
+      if (new Set(hdrs).size !== hdrs.length || hdrs.some(h => !h.trim())) throw new Error("Ogni colonna deve avere un’intestazione diversa e non vuota.");
       setHeaders(hdrs);
       const m = autoDetectMapping(hdrs);
       setMapping(m);
@@ -204,6 +225,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
 
   const importMutation = useMutation({
     mutationFn: async () => {
+      if (permissions.isLoading || !permissions.canEditWarehouse) throw new Error("Non hai il permesso di modificare il magazzino.");
       const validRows = rows.filter((r) => r.valid);
       // L'azienda è quella della schermata, come il magazzino scelto: chiederla al
       // server (get_my_company_id) metteva gli articoli sull'azienda aperta da
@@ -218,20 +240,29 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
         internal_code: (r.data.internal_code as string) || null,
         barcode: (r.data.barcode as string) || null,
         quantity: Number(r.data.quantity ?? 0),
+        unita_misura: String(r.data.unita_misura || "pz"),
         unit_cost: Number(r.data.unit_cost ?? 0),
+        prezzo_da_definire: !mapping.unit_cost || !String(r.raw[mapping.unit_cost] ?? "").trim(),
         min_stock_level: Number(r.data.min_stock_level ?? 0),
         reorder_quantity: Number(r.data.reorder_quantity ?? 0),
         description: (r.data.description as string) || null,
       }));
 
-      // Batch insert (Supabase: insert array)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("warehouse_stock")
-        .insert(payload)
-        .select("id");
+      if (!validRows.length) throw new Error("Non ci sono righe valide da importare.");
+      if (protocol.data?.atomic_import) {
+        if (!warehouseId) throw new Error("Seleziona un magazzino prima di importare le quantità iniziali.");
+        const result = await atomic.mutateAsync({ rpc: "warehouse_import_stock_v3", payload: { p_company_id: companyId, p_warehouse_id: warehouseId, p_items: payload } }) as { inserted: number };
+        if (!Number.isSafeInteger(result?.inserted) || result.inserted !== payload.length) throw new Error("Esito dell’importazione non verificato: controlla gli articoli prima di riprovare.");
+        return result.inserted;
+      }
+      if (!protocol.data) throw new Error("Impossibile verificare il servizio: riprova prima di importare.");
+      // Il servizio precedente può creare solo anagrafiche a zero: una giacenza
+      // iniziale deve avere un movimento di carico nella stessa transazione.
+      if (payload.some(row => row.quantity > 0)) throw new Error("Per importare giacenze iniziali serve il servizio aggiornato. Puoi importare le anagrafiche con quantità zero.");
+      const { data, error } = await supabase.from("warehouse_stock").insert(payload).select("id");
       if (error) throw error;
-      return data?.length ?? 0;
+      if (data?.length !== payload.length) throw new Error("Esito dell’importazione non verificato: controlla l’elenco.");
+      return data.length;
     },
     onSuccess: (inserted) => {
       setResult({ inserted, errors: [] });
@@ -260,15 +291,15 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
         if (!v && result?.inserted) onComplete?.();
       }}
     >
-      <DialogTrigger asChild>
+      {!hideTrigger && <DialogTrigger asChild>
         {trigger ?? (
           <Button variant="outline" size="sm">
             <Upload className="mr-2 h-4 w-4" />
             Importa CSV/XLSX
           </Button>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      </DialogTrigger>}
+      <DialogContent className="max-w-3xl" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>Importa articoli da file</DialogTitle>
           <DialogDescription>
@@ -303,7 +334,8 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
                 <input
                   ref={inputRef}
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  aria-label="File articoli CSV o XLSX"
+                  accept=".csv,.xlsx"
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -311,7 +343,7 @@ export function ArticoliCSVImportDialog({ trigger, warehouseId = null, onComplet
                   }}
                 />
                 <p className="mt-3 text-[11px] text-muted-foreground">
-                  Esempio header CSV: <code>Codice;Articolo;Quantità;Costo;Scorta Min</code>
+                  Massimo 10 MB e 500 righe. Esempio header CSV: <code>Codice;Articolo;Quantità;Unità;Costo;Scorta Min</code>
                 </p>
               </>
             )}

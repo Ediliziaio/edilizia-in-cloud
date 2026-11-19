@@ -19,7 +19,8 @@ export type StockUnitStatus =
   | "installed"
   | "returned"
   | "defective"
-  | "scrapped";
+  | "scrapped"
+  | "inventory_missing";
 
 export interface StockUnit {
   id: string;

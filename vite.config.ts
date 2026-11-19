@@ -1,3 +1,4 @@
+import { localWarehousePlugin } from "./dev/magazzino-local/plugin.mts";
 import { pipelineCommesseDev } from "./dev/pipeline-commesse/plugin.mts";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
@@ -36,6 +37,7 @@ export default defineConfig(({ command, mode }) => ({
     __APP_MODE__: JSON.stringify(process.env.VITE_APP_MODE || "full"),
   },
   plugins: [
+    localWarehousePlugin(),
     react(),
     pipelineCommesseDev(),
     localPlanOcrPlugin(),

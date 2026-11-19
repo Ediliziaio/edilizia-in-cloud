@@ -1,3 +1,8 @@
+import {ScegliPianoPagamento} from "@/components/orders/ScegliPianoPagamento";
+import {pianoSalDaOrdine, verificaPianoSal, type PianoSalAperto} from "@/lib/orders/pianoSalAperto";
+import {verificaSupportoPianoSal} from "@/lib/orders/pianoSalServizio";
+import {calcolaIvaContratto, ivaMistaDaOrdine, IVA_MISTA, serializzaIvaMista, type QuoteIvaMista} from "@/lib/orders/ivaMista";
+import {verificaSupportoIvaMista} from "@/lib/orders/ivaMistaServizio";
 import { emailDaMostrare, nomeCliente } from "@/lib/orders/nuovaCommessaProposte";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
 import { verificaSupportoModalitaFinanziaria } from "@/lib/finanziamenti/verificaSupportoModalita";
@@ -87,6 +92,8 @@ interface OrderData {
   expected_date: string | null;
   internal_notes: string | null;
   vat_rate: number;
+  vat_breakdown?: unknown;
+  payment_terms?: unknown;
   workflow_kind?: "commessa" | "contratto" | "intervento";
   warehouse_arrival_date: string | null;
   work_start_date: string | null;
@@ -177,6 +184,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
   const [paymentType, setPaymentType] = useState<PaymentType>('standard');
   const [totalAmount, setTotalAmount] = useState("");
   const [vatRate, setVatRate] = useState("22");
+  const [salPayment,setSalPayment]=useState<PianoSalAperto>();
+  const [scegliPagamento,setScegliPagamento]=useState(false);
+  const [vatSplit, setVatSplit] = useState<QuoteIvaMista>();
   const [financingCostMode, setFinancingCostMode] = useState<ModalitaCostoFinanziaria | null>(null);
   const [financingCost, setFinancingCost] = useState("");
   const [hasBuildingBonus, setHasBuildingBonus] = useState(false);
@@ -236,9 +246,10 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
 
   // Calculate balance
   const total = parseDecimalIT(totalAmount);
-  const vat = parseDecimalIT(vatRate);
+  const fiscal = calcolaIvaContratto(totalAmount, vatRate, vatSplit);
+  const vat = fiscal.effectiveRate;
   const fCostForBalance = paymentType === "financing" ? (parseDecimalIT(financingCost)) : 0;
-  const totalWithVat = (total + variazioniApprovate) * (1 + vat / 100);
+  const totalWithVat = fiscal.gross + variazioniApprovate * (1 + vat / 100);
   // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
   // e si tolgono dal residuo (stessa regola della vista in sola lettura).
   const balance = importoSaldoFinale(installments, totalWithVat, fCostForBalance, financingCostMode);
@@ -427,6 +438,8 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       setPaymentType(draft.paymentType || "standard");
       setTotalAmount(draft.totalAmount || "");
       setVatRate(draft.vatRate ?? (order.workflow_kind === "contratto" ? "" : "22"));
+      setVatSplit(draft.vatSplit);
+      setSalPayment(draft.salPayment);
       setFinancingCost(draft.financingCost || "");
       setFinancingCostMode(modalitaCostoFinanziaria(draft.financingCostMode === undefined ? order.financing_cost_mode : draft.financingCostMode));
       setHasBuildingBonus(draft.hasBuildingBonus || false);
@@ -461,7 +474,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     setTotalAmount(formatDecimalIT(order.total_amount));
     setPaymentType((order.payment_type as PaymentType) || 'standard');
     setInternalNotes(order.internal_notes || "");
-    setVatRate(order.vat_rate == null ? (order.workflow_kind === "contratto" ? "" : "22") : String(order.vat_rate));
+    setVatRate(ivaMistaDaOrdine(order) ? IVA_MISTA : order.vat_rate == null ? (order.workflow_kind === "contratto" ? "" : "22") : String(order.vat_rate));
+    setVatSplit(ivaMistaDaOrdine(order) ?? undefined);
+    setSalPayment(pianoSalDaOrdine(order)??undefined);
     if (order.expected_date) setExpectedDate(new Date(order.expected_date));
     if (order.warehouse_arrival_date) setWarehouseArrivalDate(new Date(order.warehouse_arrival_date));
     if (order.work_start_date) setWorkStartDate(new Date(order.work_start_date));
@@ -566,7 +581,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
       warehouseArrivalDate: dateToIso(warehouseArrivalDate),
       workStartDate: dateToIso(workStartDate),
       workEndDate: dateToIso(workEndDate),
-      paymentType, totalAmount, vatRate,
+      paymentType, totalAmount, vatRate, vatSplit, salPayment,
       financingCost,
       financingCostMode,
       destinationWarehouseId,
@@ -588,7 +603,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     saveDraft(bozza);
   }, [customerId, orderCode, description, internalNotes, salespersonId, salespersonData,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
-      paymentType, totalAmount, vatRate,
+      paymentType, totalAmount, vatRate, vatSplit, salPayment,
       installments, financingCost, financingCostMode, destinationWarehouseId,
       hasBuildingBonus, bonusLines,
       orderItems, dataLoaded, saveDraft, dateToIso, order?.customer_id]);
@@ -640,7 +655,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
     mutationFn: async (args?: { customerId?: string }) => {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       if (order?.workflow_kind === "intervento") throw new Error("Gli importi si gestiscono sul contratto di origine.");
-      if (puoImporti && order?.workflow_kind === "contratto" && (!vatRate.trim() || !installments.length)) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
+      if (puoImporti && order?.workflow_kind === "contratto" && (!vatRate.trim() || (!salPayment && !installments.length))) throw new Error("Conferma IVA e piano dei pagamenti prima di salvare i dati economici del contratto.");
       // Solo il saldo finale prende il residuo: i SAL intermedi restano col loro importo.
       if (puoImporti && paymentType === "financing" && parseDecimalIT(financingCost) > 0 && !financingCostMode &&
           (order?.payment_type !== paymentType || Number(order?.financing_cost ?? 0) !== parseDecimalIT(financingCost))) {
@@ -651,6 +666,12 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         verificaCostoSuPiano(parseDecimalIT(financingCost), financingCostMode, installments);
         await verificaSupportoModalitaFinanziaria();
       }
+      if (puoImporti && (salPayment || pianoSalDaOrdine(order))) {
+        if(salPayment){const issue=verificaPianoSal(salPayment,installments,totalWithVat);if(issue)throw new Error(issue);}
+        await verificaSupportoPianoSal();
+      }
+      if (puoImporti && fiscal.error) throw new Error(fiscal.error);
+      if (puoImporti && (vatRate === IVA_MISTA || ivaMistaDaOrdine(order))) await verificaSupportoIvaMista();
       const installmentsForSave = conSaldoFinale(installments, balance);
 
       // Un solo giro sul database invece di una ventina di scritture in fila.
@@ -675,6 +696,8 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
         expected_date: expectedDate ? format(expectedDate, "yyyy-MM-dd") : null,
         internal_notes: internalNotes || null,
         vat_rate: vat,
+        ...((salPayment || pianoSalDaOrdine(order)) ? {payment_terms:salPayment ? {...salPayment}:null} : {}),
+        ...((vatRate === IVA_MISTA || ivaMistaDaOrdine(order)) ? {vat_breakdown: vatRate === IVA_MISTA && vatSplit ? serializzaIvaMista(vatSplit) as unknown as Json : null} : {}),
         warehouse_arrival_date: warehouseArrivalDate ? format(warehouseArrivalDate, "yyyy-MM-dd") : null,
         work_start_date: workStartDate ? format(workStartDate, "yyyy-MM-dd") : null,
         work_end_date: workEndDate ? format(workEndDate, "yyyy-MM-dd") : null,
@@ -704,7 +727,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
 
       // Senza «Venduto e importi» la testata economica resta com'è sul database.
       if (!puoImporti) {
-        for (const k of ["total_amount", "vat_rate", "payment_type", "tetto_importo", "financing_cost", "financing_cost_mode"]) delete campi[k];
+        for (const k of ["total_amount", "vat_rate", "vat_breakdown", "payment_terms", "payment_type", "tetto_importo", "financing_cost", "financing_cost_mode"]) delete campi[k];
       }
       if (!canViewCosts) {
         delete campi.financing_cost;
@@ -1207,7 +1230,14 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
               </p>
             </QuoteCard>
           ) : (
+          <div className="space-y-3">
+          {scegliPagamento && <ScegliPianoPagamento aperto={scegliPagamento} totaleLordo={totalWithVat} sostituisce={installments.length>0} onChiudi={()=>setScegliPagamento(false)} onScegli={async(rate,piano)=>{
+            const {data:links,error}=await supabase.from("sal_records").select("id").eq("order_id",id!).eq("company_id",effectiveCompany!.id).not("installment_id","is",null).limit(1);
+            if(error||links?.length){toast.error("Piano non sostituito",{description:error?"Non riesco a verificare i SAL collegati. Riprova.":"Ci sono SAL già collegati alle rate: conserva i pagamenti registrati e modifica le singole quote."});return;}
+            setSalPayment(piano??undefined);setPaymentType("standard");setInstallments(rate);setNumInstallments(rate.length);
+          }}/>}
           <FinancialSummary
+            azioniTestata={<Button type="button" variant="outline" size="sm" disabled={erroreDocumentiCollegati || documentiCollegati.length>0 || dbInstallments.some(r=>r.is_paid||!!r.documento_fiscale_id)} onClick={()=>setScegliPagamento(true)}>Cambia come si paga</Button>}
             hasLinkedInvoices={documentiCollegati.length > 0 || dbInstallments.some(rata => !!rata.documento_fiscale_id)}
             invoiceLinksError={erroreDocumentiCollegati}
             daContratto={order.workflow_kind === "contratto"}
@@ -1220,6 +1250,9 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
             statiCommessa={statiCommessa}
             totalAmount={totalAmount}
             vatRate={vatRate}
+            salPayment={salPayment}
+            vatSplit={vatSplit}
+            onVatSplitChange={setVatSplit}
             paymentType={paymentType}
             installments={installments}
             // Aggiungere o togliere una rata non passa da handleNumInstallmentsChange, che rifà il piano da capo.
@@ -1228,7 +1261,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
             onNumInstallmentsChange={handleNumInstallmentsChange}
             onTotalAmountChange={setTotalAmount}
             onVatRateChange={setVatRate}
-            onPaymentTypeChange={handlePaymentTypeChange}
+            onPaymentTypeChange={type=>{if(type!=="standard")setSalPayment(undefined);handlePaymentTypeChange(type);}}
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
             onHasBuildingBonusChange={setHasBuildingBonus}
@@ -1244,6 +1277,7 @@ function EditOrderInner({ onRestoreOriginal }: { onRestoreOriginal: () => void }
             financingCost={financingCost}
             onFinancingCostChange={setFinancingCost}
           />
+          </div>
           )}
           {puoImporti && variazioniApprovate !== 0 && (
             <p className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">

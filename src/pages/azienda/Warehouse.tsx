@@ -1,4 +1,6 @@
-import { useState, useCallback, useEffect, useMemo, useRef, lazy, Suspense } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useScopedStorage } from "@/hooks/warehouse/useScopedStorage";
+import { useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -30,11 +32,10 @@ import {
   ArrowLeftRight,
   ArrowDownToLine,
   ArrowUpFromLine,
-  Star,
   Trash2,
   ShoppingCart,
-  TrendingDown,
   MoreHorizontal,
+  Undo2,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
@@ -84,6 +85,8 @@ import {
 } from "@/components/ui/sheet";
 import { SlidersHorizontal } from "lucide-react";
 
+import type { InventoryFilter } from "@/lib/magazzino/filtriInventario";
+import { OperationalSummary } from "@/components/shared/OperationalSummary";
 import WarehouseStats, { type WarehouseOrderMetricKey } from "@/components/warehouse/WarehouseStats";
 import { useMagazzinoRiepilogo } from "@/hooks/useMagazzinoRiepilogo";
 import WarehouseInventoryStats, { type WarehouseInventoryMetricKey } from "@/components/warehouse/WarehouseInventoryStats";
@@ -102,15 +105,15 @@ import WarehouseMovementsTab from "@/components/warehouse/WarehouseMovementsTab"
 import { LowStockReorderDialog } from "@/components/warehouse/LowStockReorderDialog";
 import { LottiScadenzaAlert } from "@/components/warehouse/LottiScadenzaAlert";
 import { MagazzinoVisteSwitch } from "@/components/warehouse/MagazzinoVisteSwitch";
-import { ArticoliCSVImportDialog } from "@/components/warehouse/ArticoliCSVImportDialog";
 
 import { STATUS_CONFIG } from "@/types/warehouse";
 import { usePermissions } from "@/hooks/usePermissions";
-import type { WarehouseItem } from "@/types/warehouse";
+import type { WarehouseItem, StockItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useLowStockAlerts } from "@/hooks/useMagazzinoLive";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import { WarehousePendingOperations } from "@/components/warehouse/WarehousePendingOperations";
 import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
 import type { ViewMode, GroupBy } from "@/hooks/useWarehouseData";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -128,6 +131,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { downloadFile, exportToCSV as exportCsvFile, type CsvColumn } from "@/lib/csvExport";
 
 // Aperto solo quando l'arrivo è legato a un ordine: fuori dal bundle del magazzino.
+const ResoCantiereDialog = lazy(() => import("@/components/warehouse/ResoCantiereDialog").then((module) => ({ default: module.ResoCantiereDialog })));
 const OdaArrivoMerceSheet = lazy(() =>
   import("@/components/warehouse/OdaArrivoMerceSheet").then((m) => ({ default: m.OdaArrivoMerceSheet })),
 );
@@ -150,6 +154,7 @@ const WAREHOUSE_TYPE_LABEL: Record<string, string> = {
 
 type StockActionRequest = {
   type: "receive" | "ship";
+  item?: StockItem;
   nonce: number;
 } | null;
 
@@ -208,13 +213,26 @@ const INVENTORY_METRIC_LABELS: Record<WarehouseInventoryMetricKey, string> = {
   missing_cost: "Senza costo",
 };
 
+const LocalWarehouseShell = import.meta.env.DEV ? lazy(() => import("../../../dev/magazzino-local/LocalWarehouseShell")) : null;
 export default function Warehouse() {
+  const { effectiveCompany, user } = useAuth();
+  const scope = `${effectiveCompany?.id ?? "none"}:${user?.id ?? "none"}`;
+  const local = import.meta.env.DEV && typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+    && (new URLSearchParams(window.location.search).get("warehouseLocal") === "1" || sessionStorage.getItem("eic-magazzino-local-preview") === "1");
+  if (local && LocalWarehouseShell) return <Suspense fallback={<p className="p-6">Collegamento al Magazzino locale…</p>}><LocalWarehouseShell><WarehousePage key={scope} /></LocalWarehouseShell></Suspense>;
+  return <WarehousePage key={scope} />;
+}
+
+function WarehousePage() {
   const navigate = useNavigate();
   // «Gestisci magazzini» (creare, zone, magazzinieri assegnati) è
   // dell'amministratore, come la pagina: agli altri portava ad «Accesso riservato».
-  const { isAdmin: gestisceMagazzini } = usePermissions();
+  const permissions = usePermissions();
+  const gestisceMagazzini = permissions.isAdmin;
+  const canViewCosts = permissions.canViewCosts && !permissions.isLoading;
   const [searchParams] = useSearchParams();
-  const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
+  const isReadOnly = searchParams.get("commercialistaMode") === "1" || permissions.isLoading || !permissions.canEditWarehouse;
+  const workflowReadOnly = isReadOnly || !permissions.canEditOrders;
   const {
     items,
     filteredItems,
@@ -222,6 +240,9 @@ export default function Warehouse() {
     purchaseItems,
     suppliers,
     stockItems,
+    isStockLoading,
+    isStockError,
+    refetchStock,
     uniqueOrders,
     urgentItemsCount,
     activeItemsCount,
@@ -265,7 +286,7 @@ export default function Warehouse() {
     effectiveCompany,
   } = useWarehouseData();
   // i riquadri si contano nel database su tutti i dati, non sulla pagina mostrata
-  const { data: riepilogo } = useMagazzinoRiepilogo(warehouseFilter ?? null);
+  const { data: riepilogo, isLoading: riepilogoLoading, isError: riepilogoError, isFetching: riepilogoFetching, refetch: refetchRiepilogo } = useMagazzinoRiepilogo(warehouseFilter ?? null);
   // Mobile: lista, da comprare e inventario. Pipeline, calendario, lotti,
   // valore, arrivi e uscite, movimenti sono da scrivania.
   const isMobile = useIsMobile();
@@ -273,7 +294,7 @@ export default function Warehouse() {
   // vistaEffettiva(), scritta qui perché il React Compiler non perda la
   // memoizzazione del resto del componente.
   const vistaScelta: ViewMode = viewModeScelto === "scadenze" ? "stock" : viewModeScelto;
-  const viewMode: ViewMode = isMobile && !VISTE_MOBILE.includes(vistaScelta) ? "list" : vistaScelta;
+  const viewMode: ViewMode = vistaScelta === "valuation" && !canViewCosts ? "stock" : isMobile && !VISTE_MOBILE.includes(vistaScelta) ? "list" : vistaScelta;
   // Tornando a un gruppo si ritrova la sotto-vista lasciata.
   const ultimePerGruppo = useRef<Partial<Record<GruppoMagazzino, ViewMode>>>({});
 
@@ -296,37 +317,28 @@ export default function Warehouse() {
   );
   const [reorderOpen, setReorderOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [serialsSheetOpen, setSerialsSheetOpen] = useState(false);
+  const [stockMetricFilter, setStockMetricFilter] = useState<InventoryFilter>("all");
   const [stockActionRequest, setStockActionRequest] = useState<StockActionRequest>(null);
   // «Registra arrivo merce» passa sempre dalla domanda «di quale ordine è?»:
   // il carico libero resta, ma come seconda scelta dichiarata.
+  const clearStockAction = useCallback(() => setStockActionRequest(null), []);
   const [arrivoChooserOpen, setArrivoChooserOpen] = useState(false);
+  const [arrivalItem, setArrivalItem] = useState<StockItem | undefined>();
   const [arrivoOdaId, setArrivoOdaId] = useState<string | null>(null);
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
-  const [metricPreferences, setMetricPreferences] = useState<MetricPreferences>(DEFAULT_METRIC_PREFERENCES);
-  const [metricPreferencesLoaded, setMetricPreferencesLoaded] = useState(false);
+  const [prelievoSettingsOpen, setPrelievoSettingsOpen] = useState(false);
   const [selectedMaterialMetricId, setSelectedMaterialMetricId] = useState<string>("");
-
   const metricStorageKey = effectiveCompany?.id
     ? `warehouse-metric-preferences:${effectiveCompany.id}`
     : null;
 
-  useEffect(() => {
-    setMetricPreferencesLoaded(false);
-    if (!metricStorageKey) return;
-
-    try {
-      const stored = window.localStorage.getItem(metricStorageKey);
-      if (!stored) {
-        setMetricPreferences(DEFAULT_METRIC_PREFERENCES);
-        setMetricPreferencesLoaded(true);
-        return;
-      }
-
-      const parsed = JSON.parse(stored) as Partial<MetricPreferences>;
-      setMetricPreferences({
+  const [metricPreferences, setMetricPreferences] = useScopedStorage<MetricPreferences>(metricStorageKey, DEFAULT_METRIC_PREFERENCES, (raw) => {
+      const parsed = JSON.parse(raw) as Partial<MetricPreferences>;
+      return {
         order: parsed.order?.filter((key): key is WarehouseOrderMetricKey =>
           DEFAULT_ORDER_METRICS.includes(key as WarehouseOrderMetricKey),
         ) ?? DEFAULT_ORDER_METRICS,
@@ -338,28 +350,18 @@ export default function Warehouse() {
           return scelti && scelti.length > 0 ? scelti : DEFAULT_INVENTORY_METRICS;
         })(),
         materialCards: Array.isArray(parsed.materialCards) ? parsed.materialCards : [],
-      });
-      setMetricPreferencesLoaded(true);
-    } catch {
-      setMetricPreferences(DEFAULT_METRIC_PREFERENCES);
-      setMetricPreferencesLoaded(true);
-    }
-  }, [metricStorageKey]);
-
-  useEffect(() => {
-    if (!metricStorageKey || !metricPreferencesLoaded) return;
-    window.localStorage.setItem(metricStorageKey, JSON.stringify(metricPreferences));
-  }, [metricPreferences, metricPreferencesLoaded, metricStorageKey]);
+      };
+  });
 
   const materialMetricCards = useMemo(
     () =>
       metricPreferences.materialCards
         .map((card) => {
-          const item = stockItems.find((stockItem) => stockItem.id === card.stockItemId);
+          const item = stockItems.find((stockItem) => stockItem.id === card.stockItemId && (!warehouseFilter || stockItem.warehouse_id === warehouseFilter));
           return item ? { ...card, item } : null;
         })
         .filter((card): card is MaterialMetricCard & { item: NonNullable<typeof stockItems[number]> } => Boolean(card)),
-    [metricPreferences.materialCards, stockItems],
+    [metricPreferences.materialCards, stockItems, warehouseFilter],
   );
 
   // Multi-selection state for order items DnD
@@ -375,6 +377,16 @@ export default function Warehouse() {
     });
   }, []);
 
+  // Le query a freddo restituiscono array vuoti con identità diversa: il
+  // perimetro dipende dalle righe visibili, non dall’identità dell’array.
+  const selectionScope = JSON.stringify([effectiveCompany?.id, warehouseFilter, page, viewMode, workflowReadOnly, filteredItems.map((item) => item.id)]);
+  const [previousSelectionScope, setPreviousSelectionScope] = useState(selectionScope);
+  if (previousSelectionScope !== selectionScope) {
+    setPreviousSelectionScope(selectionScope);
+    setSelectedItemIds(new Set());
+    setDraggingItem(null);
+  }
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -388,7 +400,7 @@ export default function Warehouse() {
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggingItem(null);
-    if (isCommercialistaMode) return;
+    if (workflowReadOnly) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -414,7 +426,7 @@ export default function Warehouse() {
         handleStatusChange(itemId, newStatus as OrderItemStatus);
       }
     }
-  }, [isCommercialistaMode, selectedItemIds, handleBatchSectionChange, filteredItems, handleStatusChange]);
+  }, [workflowReadOnly, selectedItemIds, handleBatchSectionChange, filteredItems, handleStatusChange]);
 
   // M9 — wrapper single-item per il dropdown sezione mobile
   const handleSingleSectionChange = useCallback((itemId: string, sectionId: string | null) => {
@@ -436,7 +448,7 @@ export default function Warehouse() {
   }
 
   const gruppoAttivo = gruppoDi(viewMode);
-  const gruppi = gruppiVisibili(isMobile);
+  const gruppi = gruppiVisibili(isMobile).map((g) => ({ ...g, viste: g.viste.filter((v) => canViewCosts || v.key !== "valuation") }));
 
   const isWorkflowView = viewMode === "list" || viewMode === "kanban" || viewMode === "calendar";
   const isOrderView = isWorkflowView;
@@ -476,11 +488,12 @@ export default function Warehouse() {
     ? warehouses.find((warehouse) => warehouse.id === warehouseFilter) ?? null
     : null;
 
-  const apriArrivoMerce = () => setArrivoChooserOpen(true);
+  const apriArrivoMerce = (item?: StockItem) => { if (!isReadOnly) { setArrivalItem(item); setArrivoChooserOpen(true); } };
 
-  const openStockAction = (type: "receive" | "ship") => {
+  const openStockAction = (type: "receive" | "ship", item?: StockItem) => {
+    if (isReadOnly) return;
     setViewMode("stock");
-    setStockActionRequest({ type, nonce: Date.now() });
+    setStockActionRequest({ type, item, nonce: Date.now() });
   };
 
   const handleViewModeChange = (value: string) => {
@@ -488,6 +501,7 @@ export default function Warehouse() {
     setViewMode(nextViewMode);
     ultimePerGruppo.current = { ...ultimePerGruppo.current, [gruppoDi(nextViewMode)]: nextViewMode };
     if (nextViewMode === "stock") {
+      setStockMetricFilter("all");
       setStockActionRequest(null);
     }
   };
@@ -496,15 +510,10 @@ export default function Warehouse() {
     handleViewModeChange(vistaDelGruppo(value as GruppoMagazzino, ultimePerGruppo.current, isMobile));
   };
 
-  // KPI inventario cliccabili: le metriche di scorta aprono il riordino,
-  // le altre portano alla vista Inventario (lista articoli a stock).
+  // Ogni numero apre l'elenco corrispondente; il riordino resta un'azione esplicita.
   const handleInventoryCardClick = (key: WarehouseInventoryMetricKey) => {
-    if (key === "low_stock") {
-      if (isCommercialistaMode) setViewMode("stock");
-      else setReorderOpen(true);
-    } else {
-      setViewMode("stock");
-    }
+    setStockMetricFilter(viewMode === "stock" && stockMetricFilter === key ? "all" : key);
+    setViewMode("stock");
   };
 
   const toggleOrderMetric = (key: WarehouseOrderMetricKey) => {
@@ -570,7 +579,7 @@ export default function Warehouse() {
     { key: "cliente", label: "Cliente" },
     { key: "magazzino_arrivo", label: "Magazzino arrivo" },
     { key: "zona", label: "Zona" },
-    { key: "costo", label: "Costo" },
+    ...(canViewCosts ? [{ key: "costo", label: "Costo" }] : []),
     { key: "data_lavori", label: "Data lavori" },
     { key: "note", label: "Note" },
   ];
@@ -583,7 +592,7 @@ export default function Warehouse() {
     cliente: formatItemCustomer(item),
     magazzino_arrivo: item.destination_warehouse_id ? warehouseNameById.get(item.destination_warehouse_id) ?? "" : "",
     zona: item.section_id ? sectionNameById.get(item.section_id) ?? "" : "",
-    costo: item.purchase_price != null ? String(item.purchase_price) : "",
+    costo: canViewCosts && item.purchase_price != null ? String(item.purchase_price) : "",
     data_lavori: item.order.expected_date ?? item.order.work_start_date ?? "",
     note: item.notes ?? "",
   });
@@ -599,9 +608,7 @@ export default function Warehouse() {
       [
         { key: "articolo", label: "Articolo" },
         { key: "quantita", label: "Quantità" },
-        { key: "costo_unitario", label: "Costo unitario" },
-        { key: "iva", label: "IVA" },
-        { key: "valore", label: "Valore" },
+        ...(canViewCosts ? [{ key: "costo_unitario", label: "Costo unitario" }, { key: "iva", label: "IVA" }, { key: "valore", label: "Valore" }] : []),
         { key: "fornitore", label: "Fornitore" },
         { key: "magazzino", label: "Magazzino" },
         { key: "zona", label: "Zona" },
@@ -613,9 +620,9 @@ export default function Warehouse() {
       stockItems.filter((item) => !warehouseFilter || item.warehouse_id === warehouseFilter).map((item) => ({
         articolo: item.name,
         quantita: String(item.quantity ?? 0),
-        costo_unitario: String(item.unit_cost ?? 0),
+        costo_unitario: canViewCosts ? String(item.unit_cost ?? 0) : "",
         iva: item.vat_rate != null ? `${item.vat_rate}%` : "",
-        valore: String((item.quantity ?? 0) * (item.unit_cost ?? 0)),
+        valore: canViewCosts ? String((item.quantity ?? 0) * (item.unit_cost ?? 0)) : "",
         fornitore: getSupplierName(item.supplier_id) ?? "",
         magazzino: item.warehouse_id ? warehouseNameById.get(item.warehouse_id) ?? "" : "",
         zona: item.section_id ? sectionNameById.get(item.section_id) ?? "" : "",
@@ -682,7 +689,7 @@ export default function Warehouse() {
       },
       commesse: filteredItems.map(mapOrderItemForExport),
       lista_acquisti: purchaseItems.map(mapOrderItemForExport),
-      inventario: stockItems,
+      inventario: stockItems.filter((item) => !warehouseFilter || item.warehouse_id === warehouseFilter).map((item) => canViewCosts ? item : { ...item, unit_cost: undefined, vat_rate: undefined }),
       magazzini: warehouses,
       zone: sections,
       documenti_manifest: {
@@ -692,61 +699,18 @@ export default function Warehouse() {
     });
   };
 
-  return (
-    <div className="space-y-3 sm:space-y-4 print:space-y-4">
-      {/* Header */}
-      {/* Mobile: senza riquadro né icona; il magazzino si sceglie accanto al
-          titolo, le azioni stanno su una riga (arrivo, uscita, trasferisci).
-          Gestione magazzini ed esportazioni restano al desktop. */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-start xl:justify-between print:hidden max-sm:gap-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-none max-sm:p-0 max-sm:shadow-none">
-        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-          <div className="hidden sm:flex h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <WarehouseIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
-              Magazzino
-            </h1>
-            {/* Mobile: il magazzino si sceglie da una riga piccola sotto il
-                titolo, e solo se ce n'è più di uno (in alto a destra si
-                sovrapponeva alla testata). */}
-            {warehouses.length > 1 && (
+  const warehouseSelect = (
               <Select
                 value={warehouseFilter ?? "__all__"}
                 onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
                 disabled={warehousesLoading}
               >
-                <SelectTrigger
-                  className="tap-compact mt-0.5 h-auto w-auto gap-1 border-0 bg-transparent p-0 text-xs text-slate-500 shadow-none focus:ring-0 sm:hidden"
-                  aria-label="Scegli magazzino"
-                >
-                  <span className="truncate">{activeWarehouse?.name ?? "Tutti i magazzini"}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Tutti i magazzini</SelectItem>
-                  {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.id}>{warehouse.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </div>
-
-        <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
-          <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end">
-            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto max-sm:hidden">
-              <Select
-                value={warehouseFilter ?? "__all__"}
-                onValueChange={(value) => setWarehouseFilter(value === "__all__" ? null : value)}
-                disabled={warehousesLoading}
-              >
-                <SelectTrigger aria-label="Filtra per magazzino" className="h-9 w-full sm:w-[300px] xl:w-[320px]">
+                <SelectTrigger aria-label="Filtra per magazzino" className="h-10 w-full min-w-0 max-sm:h-11 sm:w-[210px]">
                   <SelectValue placeholder="Scegli magazzino" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">
-                    Tutti i magazzini · vista consolidata
+                    Tutti i magazzini
                   </SelectItem>
                   {warehouses.map((warehouse) => (
                     <SelectItem key={warehouse.id} value={warehouse.id}>
@@ -758,63 +722,18 @@ export default function Warehouse() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 max-sm:flex-nowrap">
-              {/* Arrivo e uscita merce stanno qui: erano una scheda a parte con
-                  titolo e spiegazione, cento pixel prima della tabella. */}
-              {isCommercialistaMode ? (
-                <Badge variant="outline" className="h-9 border-blue-200 bg-blue-50 px-3 text-blue-700">
-                  Sola lettura
-                </Badge>
-              ) : (
-                <>
-                  <Button
-                    size="sm"
-                    onClick={apriArrivoMerce}
-                    className="tap-compact gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm hover:from-orange-600 hover:to-amber-600 max-sm:h-9 max-sm:flex-1"
-                  >
-                    <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Registra arrivo merce</span>
-                    <span className="sm:hidden">Arrivo</span>
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => openStockAction("ship")} className="tap-compact gap-2 max-sm:h-9 max-sm:flex-1">
-                    <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Uscita merce</span>
-                    <span className="sm:hidden">Uscita</span>
-                  </Button>
-                </>
-              )}
-              {activeWarehouse?.is_default && (
-                <Badge variant="outline" className="h-9 gap-1 bg-amber-50 px-3 text-amber-700 border-amber-200 max-sm:hidden">
-                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" aria-hidden="true" />
-                  Predefinito
-                </Badge>
-              )}
-              {!isCommercialistaMode && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)} className="tap-compact max-sm:h-9 max-sm:w-9 max-sm:shrink-0 max-sm:p-0 sm:hidden" aria-label="Trasferisci tra magazzini">
-                    <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
-                    <span className="hidden sm:inline">Trasferisci</span>
-                  </Button>
-                </>
-              )}
-              {/* Da tablet un menu solo per il resto: prima erano quattro bottoni
-                  (Trasferisci, Gestisci magazzini, Esporta) e «Personalizza card»
-                  su una riga a sé sopra i numeri. */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="Altre azioni del magazzino"
-                    className="h-9 w-9 max-sm:hidden"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60">
-                  {!isCommercialistaMode && (
+  );
+  const warehouseActions = (
+    <>
+      {isReadOnly ? <Badge variant="outline" className="h-10 px-3">Sola lettura</Badge> : <>
+        <Button className="h-10 max-sm:h-11 gap-1.5 bg-orange-600 text-white hover:bg-orange-700" onClick={() => apriArrivoMerce()} aria-label="Carica merce"><ArrowDownToLine className="h-4 w-4" aria-hidden="true" />Carica</Button>
+        <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => openStockAction("ship")} aria-label="Preleva merce"><ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />Preleva</Button>
+        {permissions.canEditOrders && <Button className="h-10 max-sm:h-11 gap-1.5" variant="outline" onClick={() => setReturnOpen(true)} aria-label="Reso da cantiere"><Undo2 className="h-4 w-4" aria-hidden="true" />Reso</Button>}
+      </>}
+    </>
+  );
+  const warehouseMenuItems = <>
+                  {!isReadOnly && (
                     <>
                       <DropdownMenuItem onClick={() => setTransferOpen(true)}>
                         <ArrowLeftRight className="h-4 w-4 mr-2" />
@@ -828,6 +747,12 @@ export default function Warehouse() {
                       )}
                     </>
                   )}
+                  {!isReadOnly && <>
+                    <DropdownMenuItem onClick={() => setReorderOpen(true)} disabled={lowStockAlerts.length === 0}>
+                      <ShoppingCart className="mr-2 h-4 w-4" />Riordina sotto scorta{lowStockAlerts.length > 0 ? ` (${lowStockAlerts.length})` : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPrelievoSettingsOpen(true)}><Settings2 className="mr-2 h-4 w-4" />Impostazioni prelievi dal cantiere</DropdownMenuItem>
+                  </>}
                   <DropdownMenuItem onClick={() => setMetricsDialogOpen(true)}>
                     <Settings2 className="h-4 w-4 mr-2" />
                     Personalizza i riquadri
@@ -847,9 +772,9 @@ export default function Warehouse() {
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     Lista acquisti CSV
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={exportInventoryCsv}>
+                  <DropdownMenuItem onClick={exportInventoryCsv} disabled={isStockLoading || isStockError}>
                     <Package className="h-4 w-4 mr-2" />
-                    Inventario CSV
+                    Inventario del magazzino CSV
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportWarehousesCsv}>
                     <WarehouseIcon className="h-4 w-4 mr-2" />
@@ -860,7 +785,7 @@ export default function Warehouse() {
                     <FileText className="h-4 w-4 mr-2" />
                     Documenti e DDT JSON
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={exportCompletePackage}>
+                  <DropdownMenuItem onClick={exportCompletePackage} disabled={isStockLoading || isStockError}>
                     <Download className="h-4 w-4 mr-2" />
                     Pacchetto completo JSON
                   </DropdownMenuItem>
@@ -871,10 +796,15 @@ export default function Warehouse() {
                   </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+                </>;
+
+  return (
+    <div className="space-y-3 sm:space-y-4 print:space-y-4">
+      <WarehousePendingOperations />
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Magazzino</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Giacenze, materiali per le commesse e movimenti.</p>
         </div>
       </div>
 
@@ -901,13 +831,14 @@ export default function Warehouse() {
         </Alert>
       )}
 
+      {isStockError && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Inventario non disponibile</AlertTitle><AlertDescription>Articoli ed esportazione dell’inventario non sono aggiornati. <Button variant="outline" size="sm" onClick={() => void refetchStock()}>Riprova inventario</Button></AlertDescription></Alert>}
+
       {/* Banner avvisi RIMOSSI completamente — riducono il rumore visivo
           e duplicano informazioni già presenti nelle KPI cliccabili sotto. */}
 
       {/* Prelievi dal cantiere: impostazione (libero/conferma) + coda da confermare. */}
       <div className="space-y-3 print:hidden">
-        <div className="max-md:hidden"><ImpostazionePrelievoCampo /></div>
-        <PrelieviCampoCard />
+        {!isReadOnly && <PrelieviCampoCard />}
         <AcquistiCampoCard />
         <div className="max-md:hidden"><RigheDaAbbinareCard /></div>
       </div>
@@ -915,23 +846,20 @@ export default function Warehouse() {
       <div className="space-y-3 print:hidden">
         {/* «Personalizza i riquadri» sta nel menu ⋯ della testata: qui era una
             riga intera sopra i numeri per un bottone. */}
-        <div className="space-y-3">
-          <WarehouseStats
-            riepilogo={riepilogo?.righe}
-            activeFilter={activeStatsFilter}
-            onCardClick={handleStatsCardClick}
-            visibleCards={metricPreferences.order}
-          />
-          {/* KPI valorizzazione inventario: dato da scrivania → su mobile
-              occupa solo spazio, nascosto sotto md. Restano le card operative. */}
-          <div className="hidden md:block">
-            <WarehouseInventoryStats
-              riepilogo={riepilogo}
-              visibleCards={metricPreferences.inventory}
-              onCardClick={handleInventoryCardClick}
-            />
-          </div>
-          {materialMetricCards.length > 0 && (
+        <OperationalSummary
+          label="Riepilogo magazzino"
+          title={activeWarehouse?.name ?? "Tutti i magazzini"}
+          icon={WarehouseIcon}
+          error={riepilogoError}
+          note={<>{riepilogoFetching ? "Aggiornamento del riepilogo…" : "Totali del magazzino selezionato, indipendenti dai filtri dell’elenco."}{riepilogoError && <Button variant="ghost" size="sm" className="ml-2 text-white hover:bg-white/10 hover:text-white" onClick={() => void refetchRiepilogo()}>Riprova riepilogo</Button>}</>}
+        >
+        <div className="col-span-2 space-y-3 sm:col-span-4">
+          {gruppoAttivo === "preparare" ? (
+            <WarehouseStats riepilogo={riepilogo?.righe} activeFilter={activeStatsFilter} onCardClick={handleStatsCardClick} isLoading={riepilogoLoading} canViewCosts={canViewCosts} visibleCards={metricPreferences.order} />
+          ) : (
+            <WarehouseInventoryStats riepilogo={riepilogo} visibleCards={metricPreferences.inventory} onCardClick={handleInventoryCardClick} activeKey={viewMode === "stock" && stockMetricFilter !== "all" ? stockMetricFilter : null} isLoading={riepilogoLoading} canViewCosts={canViewCosts} />
+          )}
+          {!isStockLoading && !isStockError && materialMetricCards.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {materialMetricCards.map((card) => {
                 const quantity = Number(card.item.quantity ?? 0);
@@ -955,7 +883,7 @@ export default function Warehouse() {
                         {quantity}
                       </p>
                       <p className="text-[11px] text-muted-foreground mt-1">
-                        {unitCost > 0 ? `${formatCurrency(quantity * unitCost)} valore` : "giacenza disponibile"}
+                        {canViewCosts && unitCost > 0 ? `${formatCurrency(quantity * unitCost)} valore` : "giacenza fisica"}
                       </p>
                     </CardContent>
                   </Card>
@@ -964,7 +892,12 @@ export default function Warehouse() {
             </div>
           )}
         </div>
+        </OperationalSummary>
       </div>
+
+      <Dialog open={prelievoSettingsOpen} onOpenChange={setPrelievoSettingsOpen}>
+        <DialogContent><DialogHeader><DialogTitle>Prelievi dal cantiere</DialogTitle><DialogDescription>Scegli se le richieste di materiale devono essere approvate dall’ufficio.</DialogDescription></DialogHeader>{!isReadOnly && <ImpostazionePrelievoCampo />}</DialogContent>
+      </Dialog>
 
       <Dialog open={metricsDialogOpen} onOpenChange={setMetricsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -1082,7 +1015,7 @@ export default function Warehouse() {
 
           <DialogFooter className="gap-2 sm:justify-between">
             <Button type="button" variant="ghost" onClick={resetMetricPreferences}>
-              Ripristina 8 card base
+              Ripristina riquadri predefiniti
             </Button>
             <Button type="button" onClick={() => setMetricsDialogOpen(false)}>
               Fine
@@ -1093,31 +1026,6 @@ export default function Warehouse() {
 
       {/* Banner alert lotti scadenza (compatto, dismissible) */}
       <LottiScadenzaAlert compact />
-
-      {/* Banner sottoscorta azionabile → apre il riordino raggruppato per
-          fornitore. Una riga sola: prima erano titolo, spiegazione e bottone
-          su tre righe. */}
-      {!isCommercialistaMode && lowStockAlerts.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 print:hidden max-sm:flex-nowrap max-sm:py-1.5">
-          <p className="flex items-center gap-2 text-sm text-amber-900 max-sm:text-[13px]">
-            <TrendingDown className="h-4 w-4 shrink-0 text-amber-600" />
-            <span>
-              <span className="font-medium">
-                {lowStockAlerts.length} material{lowStockAlerts.length === 1 ? "e" : "i"} sotto scorta
-              </span>
-              <span className="hidden text-amber-800 sm:inline"> · genera gli ordini per ripristinare le giacenze minime</span>
-            </span>
-          </p>
-          <Button
-            size="sm"
-            className="tap-compact h-8 w-fit gap-1.5 bg-amber-600 text-white hover:bg-amber-700 max-sm:h-7 max-sm:px-2.5 max-sm:text-xs"
-            onClick={() => setReorderOpen(true)}
-          >
-            <ShoppingCart className="h-3.5 w-3.5" />
-            Riordina
-          </Button>
-        </div>
-      )}
 
       <Card className="print:hidden max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none">
         {/* Riquadro dei filtri più stretto: erano 24px sopra e 16 tra le righe,
@@ -1148,6 +1056,13 @@ export default function Warehouse() {
                 </Select>
               )}
             </div>
+
+            {viewMode !== "stock" && <div className="flex flex-wrap items-center gap-2">
+              {warehouseSelect}
+              <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{warehouseActions}
+                <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" className="h-10 max-sm:h-11 gap-1.5" aria-label="Altre azioni del magazzino"><MoreHorizontal className="h-4 w-4" />Altro</Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-64">{warehouseMenuItems}</DropdownMenuContent></DropdownMenu>
+              </div>
+            </div>}
 
             {/* Quick filters — solo workflow commesse (sono filtri commessa-related:
                 Da Lavorare, Urgenti, In Ritardo, Questa/Prox. sett. di lavori). Su
@@ -1420,30 +1335,36 @@ export default function Warehouse() {
           stockItems={stockItems}
           suppliers={suppliers}
           warehouseFilter={warehouseFilter}
-          onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
-          onRegisterArrival={isCommercialistaMode ? readonlyWarehouseAction : apriArrivoMerce}
-          readOnly={isCommercialistaMode}
+          onStatusChange={workflowReadOnly ? readonlyWarehouseAction : handleStatusChange}
+          onRegisterArrival={isReadOnly ? readonlyWarehouseAction : apriArrivoMerce}
+          readOnly={isReadOnly}
         />
       ) : viewMode === "ddt" ? (
-        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={isCommercialistaMode ? undefined : apriArrivoMerce} />
+        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={isReadOnly ? undefined : apriArrivoMerce} />
       ) : viewMode === "uscite" ? (
-        <WarehouseUsciteTab warehouseFilter={warehouseFilter} />
+        <WarehouseUsciteTab warehouseFilter={warehouseFilter} readOnly={isReadOnly} />
       ) : viewMode === "lotti" ? (
-        <WarehouseLottiTab readOnly={isCommercialistaMode} />
+        <WarehouseLottiTab readOnly={isReadOnly} />
       ) : viewMode === "valuation" ? (
         <WarehouseValorizzazionePanel warehouseId={warehouseFilter ?? null} />
       ) : viewMode === "movements" ? (
         <WarehouseMovementsTab companyId={effectiveCompany.id} warehouseFilter={warehouseFilter} />
       ) : viewMode === "stock" ? (
         <div className="space-y-3">
-          {/* telefono no: niente importazioni da file */}
-          <div className="flex justify-end max-sm:hidden">
-            {!isCommercialistaMode && <ArticoliCSVImportDialog warehouseId={warehouseFilter ?? null} />}
-          </div>
           <WarehouseStockTab
+            key={`${effectiveCompany.id}:${warehouseFilter ?? "all"}`}
             warehouseFilter={warehouseFilter}
+            warehouseSelect={warehouseSelect}
+            primaryActions={warehouseActions}
+            additionalMenuItems={warehouseMenuItems}
+            onReorder={isReadOnly ? undefined : () => setReorderOpen(true)}
             actionRequest={stockActionRequest}
-            readOnly={isCommercialistaMode}
+            onActionHandled={clearStockAction}
+            onRegisterArrival={apriArrivoMerce}
+            showMovementActions={false}
+            metricFilter={stockMetricFilter}
+            onMetricFilterChange={setStockMetricFilter}
+            readOnly={isReadOnly}
           />
         </div>
       ) : isLoading ? (
@@ -1455,7 +1376,7 @@ export default function Warehouse() {
           <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
           <span className="text-sm">Caricamento articoli…</span>
         </div>
-      ) : filteredItems.length === 0 ? (
+      ) : isError ? null : filteredItems.length === 0 ? (
         <Card>
           <CardContent className="py-14 flex flex-col items-center justify-center gap-3 text-center">
             <Package className="h-12 w-12 text-muted-foreground/40" aria-hidden="true" />
@@ -1469,7 +1390,7 @@ export default function Warehouse() {
                   : "Aggiungi articoli dal catalogo per iniziare a gestire il magazzino."}
               </p>
             </div>
-            {!hasActiveFilters && !isCommercialistaMode && (
+            {!hasActiveFilters && !isReadOnly && (
               <a
                 href="/azienda/impostazioni/catalogo"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
@@ -1487,7 +1408,7 @@ export default function Warehouse() {
           onDragEnd={handleDragEnd}
         >
           {/* Selection bar */}
-          {!isCommercialistaMode && selectedItemIds.size > 0 && (
+          {!workflowReadOnly && selectedItemIds.size > 0 && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="py-3 flex items-center gap-3">
                 <span className="text-sm font-medium">
@@ -1512,30 +1433,30 @@ export default function Warehouse() {
           {viewMode === "list" && (
             <WarehouseListView
               orderGroups={filteredGroups}
-              onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
-              onMarkAllInstalled={isCommercialistaMode ? readonlyWarehouseAction : handleMarkAllInstalled}
-              onBatchStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleBatchStatusChange}
+              onStatusChange={workflowReadOnly ? readonlyWarehouseAction : handleStatusChange}
+              onMarkAllInstalled={workflowReadOnly ? readonlyWarehouseAction : handleMarkAllInstalled}
+              onBatchStatusChange={workflowReadOnly ? readonlyWarehouseAction : handleBatchStatusChange}
               getSupplierName={getSupplierName}
               isUpdating={isUpdating}
               stockItems={stockItems}
-              onUpdateNotes={isCommercialistaMode ? readonlyWarehouseAction : handleUpdateNotes}
+              onUpdateNotes={workflowReadOnly ? readonlyWarehouseAction : handleUpdateNotes}
               groupBy={groupBy}
               sections={sections}
-              onSectionChange={isCommercialistaMode ? readonlyWarehouseAction : handleSingleSectionChange}
-              readOnly={isCommercialistaMode}
+              onSectionChange={workflowReadOnly ? readonlyWarehouseAction : handleSingleSectionChange}
+              readOnly={workflowReadOnly}
             />
           )}
 
           {viewMode === "kanban" && (
             <WarehouseKanbanView
               items={filteredItems}
-              onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
-              onUpdateNotes={isCommercialistaMode ? readonlyWarehouseAction : handleUpdateNotes}
+              onStatusChange={workflowReadOnly ? readonlyWarehouseAction : handleStatusChange}
+              onUpdateNotes={workflowReadOnly ? readonlyWarehouseAction : handleUpdateNotes}
               getSupplierName={getSupplierName}
               isUpdating={isUpdating}
               selectedIds={selectedItemIds}
-              onToggleSelection={isCommercialistaMode ? readonlyWarehouseAction : toggleItemSelection}
-              readOnly={isCommercialistaMode}
+              onToggleSelection={workflowReadOnly ? readonlyWarehouseAction : toggleItemSelection}
+              readOnly={workflowReadOnly}
             />
           )}
 
@@ -1596,8 +1517,10 @@ export default function Warehouse() {
         onScan={(result) => setSearchQuery(result)}
       />
 
+      {!isReadOnly && returnOpen && <Suspense fallback={null}><ResoCantiereDialog key={effectiveCompany.id} onOpenChange={setReturnOpen} warehouseId={warehouseFilter} /></Suspense>}
+
       <WarehouseTransferPanel
-        open={transferOpen}
+        open={!isReadOnly && transferOpen}
         onOpenChange={setTransferOpen}
       />
 
@@ -1608,24 +1531,24 @@ export default function Warehouse() {
       />
 
       {/* Arrivo merce: prima l'ordine, poi il gesto. */}
-      {!isCommercialistaMode && (
+      {!isReadOnly && (
         <ArrivoMerceEntryDialog
           open={arrivoChooserOpen}
           onOpenChange={setArrivoChooserOpen}
           companyId={effectiveCompany.id}
           onSelectOda={setArrivoOdaId}
-          onCaricoLibero={() => openStockAction("receive")}
+          onCaricoLibero={() => openStockAction("receive", arrivalItem)}
         />
       )}
 
-      {arrivoOdaId && (
+      {!isReadOnly && arrivoOdaId && (
         <Suspense fallback={null}>
           <OdaArrivoMerceSheet
             open={!!arrivoOdaId}
             onOpenChange={(v) => !v && setArrivoOdaId(null)}
             odaId={arrivoOdaId}
             companyId={effectiveCompany.id}
-            warehouseId={warehouseFilter ?? null}
+            warehouseId={arrivalItem?.warehouse_id ?? warehouseFilter ?? null}
           />
         </Suspense>
       )}
@@ -1635,7 +1558,7 @@ export default function Warehouse() {
         open={reorderOpen}
         onOpenChange={setReorderOpen}
         companyId={effectiveCompany.id}
-        readOnly={isCommercialistaMode}
+        readOnly={isReadOnly}
         warehouseId={warehouseFilter ?? null}
         articoliVisibili={articoliDelMagazzino}
       />

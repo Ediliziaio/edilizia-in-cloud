@@ -215,6 +215,9 @@ interface Props {
   lavorativo?: GiornoLavorativo;
   /** Materiali, mezzi, costi e note restano nella scheda della fase. */
   onApriScheda: (faseId: string) => void;
+  onOrganizza?: (ids: string[], assegna: boolean) => void;
+  soloOrganizza?: boolean;
+  renderOrganizza?: (scheda: (id: string, onChiudi: () => void) => ReactNode) => ReactNode;
 }
 
 type Elemento =
@@ -225,7 +228,7 @@ type Elemento =
 
 export function DistintaLavorazioni({
   orderId, fasi, sottofasiDi, voci, economiaDi, consuntivoSenzaFase = 0, onCostiSenzaFase, apriSottofase, onSottofaseAperta, chiSottofasi, onAggiungiChi, onTogliChi, iva, chiDi, squadre, persone, ditte, puoSquadre, vedeVenduto, vedeCosti, vedeMargini, puoModificare, oggi,
-  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda,
+  onAssegna, assegnaInCorso, onSegna, onSegnaTutte, onAvanza, onPianifica, onPianificaTutte, onDateFase, onDalleVoci, onAggiungi, onAggiungiTante, onAvanzaTante, onSalvaVoce, onRisorse, onParallelo, onRinomina, onElimina, onRiordina, lavorativo, onApriScheda, onOrganizza, renderOrganizza, soloOrganizza,
 }: Props) {
   // Si parte dalla prima fase ancora da finire: con decine di voci, una fase alla volta.
   const [faseId, setFaseId] = useState<string | null>(() => {
@@ -253,6 +256,8 @@ export function DistintaLavorazioni({
   const [daEliminare, setDaEliminare] = useState<RigaDistinta | null>(null);
   const [divisione, setDivisione] = useState<string | null>(null);
   const [assegnaA, setAssegnaA] = useState<string[] | null>(null);
+  const apriVoce = (id: string) => onOrganizza ? onOrganizza([id], false) : setAperta(id);
+  const apriAssegnazione = (ids: string[]) => onOrganizza ? onOrganizza(ids, true) : setAssegnaA(ids);
   const [bloccoInizio, setBloccoInizio] = useState("");
   const [bloccoFine, setBloccoFine] = useState("");
   const [bloccoGiorni, setBloccoGiorni] = useState("");
@@ -331,9 +336,9 @@ export function DistintaLavorazioni({
     const riga = tutte.find((x) => x.sottofaseId === apriSottofase);
     // Se la riga non è ancora arrivata la richiesta resta, e si apre appena c'è.
     if (!riga) return;
-    setAperta(riga.key);
+    if (onOrganizza) onOrganizza([riga.key], false); else setAperta(riga.key);
     onSottofaseAperta?.();
-  }, [apriSottofase, tutte, onSottofaseAperta]);
+  }, [apriSottofase, tutte, onSottofaseAperta, onOrganizza]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const virtuale = elementi.length > 80;
@@ -467,7 +472,7 @@ export function DistintaLavorazioni({
           </div>
           <div className="flex flex-wrap items-center gap-x-2">
             {puoModificare || puoSquadre ? (
-              <button type="button" onClick={() => setAssegnaA([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
+              <button type="button" onClick={() => apriAssegnazione([f.id])} title={nomi.join(", ") || "Assegna chi la fa"} aria-label={`Chi fa ${f.name}`}
                 className={cn("tap-compact min-w-0 max-w-full truncate rounded text-left text-[11px] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", nomi.length === 0 && !finita ? "font-medium text-amber-700" : "text-muted-foreground")}>
                 {nomi.length ? `${nomi[0]}${nomi.length > 1 ? ` +${nomi.length - 1}` : ""}` : finita ? "Nessuno" : "+ Assegna chi la fa"}
               </button>
@@ -529,7 +534,7 @@ export function DistintaLavorazioni({
               className="h-6 min-w-0 flex-1 px-1 text-xs"
             />
           ) : (
-            <button type="button" onClick={() => setAperta(r.key)} title={r.descrizione}
+            <button type="button" onClick={() => apriVoce(r.key)} title={r.descrizione}
               className={cn("tap-compact min-w-0 flex-1 rounded text-left text-xs leading-snug hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring line-clamp-2", r.fatta && "text-muted-foreground")}>
               {r.descrizione}
               {r.codice && <span className="ml-1 font-mono text-[10px] text-muted-foreground">{r.codice}</span>}
@@ -591,8 +596,41 @@ export function DistintaLavorazioni({
     );
   };
 
+  const schedaVoce = (riga: RigaDistinta | null, chiudi: () => void, incorporata = false) => {
+    const elenco = incorporata ? tutte : righeInElenco;
+    const idx = elenco.findIndex((v) => v.key === riga?.key);
+    return (
+      <SchedaVoce
+        riga={riga}
+        incorporata={incorporata}
+        posizione={{ numero: (idx >= 0 ? idx : ultimoIndice.current) + 1, totale: elenco.length }}
+        orderId={orderId}
+        aliquota={aliquota}
+        chiLaFa={riga ? nomiChi(riga.faseId) : []}
+        consuntivoFase={riga ? economiaDi?.get(riga.faseId)?.costoConsuntivo ?? null : null}
+        vedeVenduto={vedeVenduto} vedeCosti={vedeCosti} vedeMargini={vedeMargini} puoModificare={puoModificare}
+        onChiudi={chiudi}
+        onVicina={(verso) => { const v = elenco[idx >= 0 ? idx + verso : verso > 0 ? ultimoIndice.current : ultimoIndice.current - 1]; if (v) apriVoce(v.key); }}
+        onSalvaVoce={onSalvaVoce} onRisorse={onRisorse} onParallelo={onParallelo}
+        chiSottofase={riga ? chiDellaSottofase(riga.sottofaseId) : []}
+        chiDisponibile={!!chiSottofasi?.disponibile && !!onAggiungiChi}
+        opzioniChi={{ persone, squadre, ditte }}
+        onAggiungiChi={(valore) => riga?.sottofaseId && scegliChi(valore, [riga.sottofaseId])}
+        onTogliChi={onTogliChi}
+        oggi={oggi}
+        onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
+        onSposta={sposta}
+        onElimina={(x) => { chiudi(); setDaEliminare(x); }}
+        onAssegna={(id) => { if (!incorporata) chiudi(); apriAssegnazione([id]); }}
+        onCreaSottofasi={(id) => { if (Number(fasi.find((f) => f.id === id)?.percentuale) > 0) { chiudi(); setDivisione(id); } else onDalleVoci(id); }}
+        onApriScheda={onApriScheda}
+      />
+    );
+  };
+
   return (
-    <section aria-label="Lavorazioni della commessa" className="space-y-2">
+    <section aria-label="Lavorazioni della commessa" className={soloOrganizza ? undefined : "space-y-2"}>
+      {!soloOrganizza && <>
       {/* I numeri restano in vista mentre si scorre la pagina. */}
       <div className="sticky top-0 z-20 bg-background max-md:static">
       <dl className="flex min-w-0 flex-wrap items-start gap-x-6 gap-y-1.5 rounded-lg border px-3 py-1.5">
@@ -619,7 +657,7 @@ export function DistintaLavorazioni({
         <Select value={faseId ?? "tutte"} onValueChange={(v) => { setFaseId(v === "tutte" ? null : v); azzeraScelte(); }}>
           <SelectTrigger aria-label="Scegli la fase" className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="tutte">Tutte le fasi ({tutte.length})</SelectItem>
+            <SelectItem value="tutte">Tutte le fasi ({fasi.length})</SelectItem>
             {fasi.map((f) => <SelectItem key={f.id} value={f.id}>{f.name} ({Number(f.percentuale) || 0}%)</SelectItem>)}
           </SelectContent>
         </Select>
@@ -627,7 +665,7 @@ export function DistintaLavorazioni({
       <nav aria-label="Fasi" className="hidden max-h-[78vh] space-y-0.5 self-start overflow-y-auto rounded-lg border p-1 lg:block">
         <button type="button" aria-current={faseId === null ? "true" : undefined} onClick={() => { setFaseId(null); azzeraScelte(); }}
           className={cn("w-full rounded-md px-2 py-1 text-left text-xs font-medium hover:bg-muted", faseId === null && "bg-muted")}>
-          Tutte le fasi <span className="font-normal text-muted-foreground">{tutte.length}</span>
+          Tutte le fasi <span className="font-normal text-muted-foreground">{fasi.length} · {tutte.length} voci</span>
         </button>
         {fasi.map((f) => {
           const pct = Number(f.percentuale) || 0;
@@ -702,7 +740,7 @@ export function DistintaLavorazioni({
       {inSelezione && (
         <div role="group" aria-label="Azioni sulle righe scelte" className="sticky bottom-3 z-20 mx-auto flex w-fit max-w-full flex-wrap items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 text-xs text-background shadow-lg">
           <span className="font-medium">{[scelteFasi.size ? `${scelteFasi.size} ${scelteFasi.size === 1 ? "fase" : "fasi"}` : null, scelteRighe.size ? `${scelteRighe.size} ${scelteRighe.size === 1 ? "voce" : "voci"}` : null].filter(Boolean).join(", ")}</span>
-          {scelteFasi.size > 0 && <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 text-xs" onClick={() => setAssegnaA([...scelteFasi])}><Users className="h-3 w-3" aria-hidden="true" />Assegna</Button>}
+          {(scelteFasi.size > 0 || (onOrganizza && scelteRighe.size > 0)) && <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 text-xs" onClick={() => apriAssegnazione([...scelteFasi, ...(onOrganizza ? scelteRighe : [])])}><Users className="h-3 w-3" aria-hidden="true" />Assegna</Button>}
           {scelteRighe.size > 0 && <>
             {conSottofase.length < righeScelte.length && <span className="text-amber-300">{righeScelte.length - conSottofase.length} senza sottofase</span>}
             <Button type="button" size="sm" variant="secondary" className="h-6 text-xs" disabled={conSottofase.length === 0} onClick={() => segnaBlocco(true)}>Segna fatte</Button>
@@ -748,31 +786,10 @@ export function DistintaLavorazioni({
         </div>
       )}
 
-      <SchedaVoce
-        riga={rigaAperta}
-        posizione={{ numero: (indiceAperta >= 0 ? indiceAperta : ultimoIndice.current) + 1, totale: righeInElenco.length }}
-        orderId={orderId}
-        aliquota={aliquota}
-        chiLaFa={rigaAperta ? nomiChi(rigaAperta.faseId) : []}
-        consuntivoFase={rigaAperta ? economiaDi?.get(rigaAperta.faseId)?.costoConsuntivo ?? null : null}
-        vedeVenduto={vedeVenduto} vedeCosti={vedeCosti} vedeMargini={vedeMargini} puoModificare={puoModificare}
-        onChiudi={() => setAperta(null)}
-        onVicina={(verso) => { const v = righeInElenco[indiceAperta >= 0 ? indiceAperta + verso : verso > 0 ? ultimoIndice.current : ultimoIndice.current - 1]; if (v) setAperta(v.key); }}
-        onSalvaVoce={onSalvaVoce} onRisorse={onRisorse} onParallelo={onParallelo}
-        chiSottofase={rigaAperta ? chiDellaSottofase(rigaAperta.sottofaseId) : []}
-        chiDisponibile={!!chiSottofasi?.disponibile && !!onAggiungiChi}
-        opzioniChi={{ persone, squadre, ditte }}
-        onAggiungiChi={(valore) => rigaAperta?.sottofaseId && scegliChi(valore, [rigaAperta.sottofaseId])}
-        onTogliChi={onTogliChi}
-        oggi={oggi}
-        onSegna={onSegna} onAvanza={onAvanza} onPianifica={onPianifica} onRinomina={onRinomina}
-        onSposta={sposta}
-        onElimina={(x) => { setAperta(null); setDaEliminare(x); }}
-        onAssegna={(id) => { setAperta(null); setAssegnaA([id]); }}
-        onCreaSottofasi={(id) => { setAperta(null); if (Number(fasi.find((f) => f.id === id)?.percentuale) > 0) setDivisione(id); else onDalleVoci(id); }}
-        onApriScheda={onApriScheda}
-      />
-
+      </>}
+      {renderOrganizza
+        ? renderOrganizza((id, chiudi) => schedaVoce(tutte.find((r) => r.key === id) ?? null, chiudi, true))
+        : schedaVoce(rigaAperta, () => setAperta(null))}
       <DialogAssegna
         fasi={assegnaA ? fasi.filter((f) => assegnaA.includes(f.id)).map((f) => f.name) : null}
         squadre={squadre} persone={persone} ditte={ditte}

@@ -1,301 +1,67 @@
-/**
- * LowStockReorderDialog — chiude il cerchio "sotto-scorta → riordino → ODA".
- *
- * Legge gli alert di sottoscorta (RPC get_low_stock_alerts), risolve fornitore /
- * costo / IVA dei rispettivi articoli da warehouse_stock, li raggruppa per
- * fornitore e permette di generare in un click un Ordine d'Acquisto (ODA) con le
- * quantità mancanti. L'insert ODA è minimale: oda_number, totali e stato sono
- * calcolati dai trigger DB (stesso pattern di CreatePurchaseOrderButton).
- */
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useLowStockAlerts, magazzinoKeys } from "@/hooks/useMagazzinoLive";
-import { queryKeys } from "@/lib/queryKeys";
-import { toast } from "sonner";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { TrendingDown, Package, Loader2, ShoppingCart, AlertCircle, Building2 } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
-
-interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  companyId: string;
-  readOnly?: boolean;
-  /**
-   * destinazione forzata dell'ordine; senza, il database usa il magazzino
-   * degli articoli (se è uno solo): l'elenco copre tutti i magazzini
-   */
-  warehouseId?: string | null;
-  /** solo questi articoli (quelli del magazzino scelto); senza, tutti */
-  articoliVisibili?: Set<string> | null;
+import { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Building2, ShoppingCart, CheckCircle2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { supabase } from '@/integrations/supabase/client';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useWarehouseOperation, useWarehouseProtocol, type ReorderCandidate } from '@/hooks/warehouse/useWarehouseOperations';
+import { warehouseRpc, movementOutcomeUnknown } from '@/lib/magazzino/protocolloMovimenti';
+import { leggiQuantitaNonNegativa, formattaQuantitaMovimento as fmt } from '@/lib/magazzino/quantitaMovimento';
+import { unitaConsumoConfrontabile } from '@/lib/distinta/consumiMateriali';
+import { formatCurrency } from '@/lib/formatters';
+import { useWarehouses } from '@/hooks/useWarehouses';
+interface Props {open:boolean;onOpenChange:(value:boolean)=>void;companyId:string;readOnly?:boolean;warehouseId?:string|null;articoliVisibili?:Set<string>|null}
+interface Review {supplierId:string;name:string;warehouseId:string|null;rows:(ReorderCandidate&{quantity:number})[]}
+interface Receipt {purchase_order_id:string|null;oda_number:string|null;righe:number;gia_in_ordine:{nome:string;oda_number:string}[]}
+export function LowStockReorderDialog(props:Props){return props.open?<ReorderSession key={`${props.companyId}:${props.warehouseId??'all'}`} {...props}/>:null;}
+function ReorderSession({onOpenChange,companyId,readOnly=false,warehouseId=null,articoliVisibili=null}:Props){
+ const permissions=usePermissions();const canWrite=!readOnly&&!permissions.isLoading&&permissions.canEditWarehouse&&permissions.canManagePurchasing;
+ const showCosts=!permissions.isLoading&&permissions.canViewCosts;const {warehouses}=useWarehouses();
+ const protocol=useWarehouseProtocol(companyId);const v3=!!protocol.data?.reorder;const save=useWarehouseOperation('reorder');const flight=useRef(false);
+ const [quantities,setQuantities]=useState<Record<string,string>>({});const [review,setReview]=useState<Review|null>(null);const [receipt,setReceipt]=useState<Receipt|null>(null);
+ const [error,setError]=useState<string|null>(null);const [uncertain,setUncertain]=useState(false);
+ const candidates=useQuery({queryKey:['warehouse','reorder-preview',companyId,warehouseId,protocol.data?.version,showCosts],enabled:!!protocol.data,retry:false,staleTime:0,queryFn:async():Promise<ReorderCandidate[]>=>{
+  if(v3){const r=await warehouseRpc('warehouse_reorder_preview_v3',{p_company_id:companyId,p_warehouse_id:warehouseId});if(r.error)throw r.error;return r.data as ReorderCandidate[];}
+  const r=await warehouseRpc('get_low_stock_alerts',{p_company_id:companyId});if(r.error)throw r.error;
+  const alerts=r.data as {stock_item_id:string;name:string;quantity_available:number;min_stock_level:number;deficit:number;supplier_name:string|null}[];
+  if(!alerts.length)return [];
+  const meta=await supabase.from('warehouse_stock').select(`id,supplier_id,warehouse_id,unita_misura,tracking_mode${showCosts?',unit_cost':''}`).eq('company_id',companyId).in('id',alerts.map(a=>a.stock_item_id));if(meta.error)throw meta.error;
+  const map=new Map((meta.data as unknown as {id:string;supplier_id:string|null;warehouse_id:string|null;unita_misura:string|null;tracking_mode:string;unit_cost?:number}[]).map(s=>[s.id,s]));
+  return alerts.map(a=>{const s=map.get(a.stock_item_id);return {stockItemId:a.stock_item_id,name:a.name,warehouseId:s?.warehouse_id??null,unit:s?.unita_misura??null,tracking:s?.tracking_mode??'fungible',available:Number(a.quantity_available),reserved:0,minLevel:Number(a.min_stock_level),incoming:0,deficit:Number(a.deficit),suggested:Math.ceil(Number(a.deficit)),supplierId:s?.supplier_id??null,supplierName:a.supplier_name,unitCost:s?.unit_cost??null};});
+ }});
+ const rows=(candidates.data??[]).filter(r=>(!warehouseId||r.warehouseId===warehouseId)&&(!articoliVisibili||articoliVisibili.has(r.stockItemId)));
+ const groups=new Map<string,{supplierId:string|null;name:string;warehouseId:string|null;rows:ReorderCandidate[]}>();
+ for(const row of rows){const key=`${row.supplierId}:${row.warehouseId}`;if(!groups.has(key))groups.set(key,{supplierId:row.supplierId,name:row.supplierName||'Senza fornitore',warehouseId:row.warehouseId,rows:[]});groups.get(key)!.rows.push(row);}
+ const value=(row:ReorderCandidate)=>quantities[row.stockItemId]??String(row.suggested);
+ const amount=(row:ReorderCandidate)=>leggiQuantitaNonNegativa(value(row));
+ const valid=(row:ReorderCandidate)=>{const q=amount(row);return q!==null&&((v3&&row.tracking!=='serialized'&&unitaConsumoConfrontabile(row.unit)!=='pz')||Number.isInteger(q));};
+ function prepare(group:NonNullable<ReturnType<typeof groups.get>>){
+  if(!group.supplierId||!canWrite||group.rows.some(r=>!valid(r)))return;
+  const proposed=group.rows.filter(r=>r.deficit>0&&(amount(r)??0)>0).map(r=>({...r,quantity:amount(r)!}));
+  if(!proposed.length)return;setError(null);setReview({supplierId:group.supplierId,name:group.name,warehouseId:group.warehouseId,rows:proposed});
+ }
+ async function confirm(){if(!review||flight.current||save.isPending||!canWrite)return;flight.current=true;setError(null);
+  try {const result=await save.mutateAsync({rpc:v3?'warehouse_reorder_v3':'magazzino_riordina',legacy:!v3,payload:{p_company_id:companyId,p_supplier_id:review.supplierId,...(v3?{p_lines:review.rows.map(r=>({stock_item_id:r.stockItemId,quantity:r.quantity,...(r.updatedAt?{expected_updated_at:r.updatedAt}:{})}))}:{p_righe:review.rows.map(r=>({stock_item_id:r.stockItemId,quantity:r.quantity}))}),p_warehouse_id:review.warehouseId}});
+   setReceipt(result as Receipt);setUncertain(false);setQuantities({});void candidates.refetch();
+  }catch(e){setError((e as Error).message);setUncertain(v3&&movementOutcomeUnknown(e));}finally{flight.current=false;}
+ }
+ const total=review&&review.rows.every(r=>r.unitCost!==null&&!r.pricePending)?review.rows.reduce((sum,r)=>sum+r.quantity*(r.unitCost??0),0):null;
+ return <Dialog open onOpenChange={v=>{if(!save.isPending)onOpenChange(v);}}><DialogContent className="max-h-[90svh] max-w-3xl overflow-y-auto">
+  <DialogHeader><DialogTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5"/>{receipt?'Riordino registrato':review?'Conferma riordino':'Riordina sotto scorta'}</DialogTitle><DialogDescription>Quantità disponibili, soglia e arrivi già ordinati restano distinti. La conferma crea solo una bozza ODA, senza inviarla al fornitore.</DialogDescription></DialogHeader>
+  {receipt?<div className="space-y-3 rounded-xl border p-4"><p className="flex items-center gap-2 font-semibold text-emerald-700"><CheckCircle2 className="h-5 w-5"/>{receipt.oda_number?`Bozza ${receipt.oda_number}`:'Nessun nuovo ordine necessario'}</p><p className="text-sm">{receipt.righe} righe create. La giacenza non cambia fino alla ricezione della merce.</p>{receipt.gia_in_ordine.length>0&&<ul className="space-y-1 text-sm">{receipt.gia_in_ordine.map((r,i)=><li key={i}>{r.nome}: già nell’ordine {r.oda_number}.</li>)}</ul>}{receipt.purchase_order_id&&<Button asChild variant="outline"><a href={`/azienda/ordini-acquisto/${receipt.purchase_order_id}`}>Apri bozza ODA</a></Button>}</div>:review?<>
+   <dl className="grid gap-3 rounded-xl bg-eic-navy-deep p-4 text-white sm:grid-cols-3"><div><dt className="text-xs text-blue-100">Fornitore</dt><dd className="mt-1 font-semibold">{review.name}</dd></div><div><dt className="text-xs text-blue-100">Destinazione</dt><dd className="mt-1 font-semibold">{warehouses.find(w=>w.id===review.warehouseId)?.name??'Da verificare'}</dd></div><div><dt className="text-xs text-blue-100">Stato ordine</dt><dd className="mt-1 font-semibold">Bozza · nessun invio</dd></div></dl>
+   <ul className="divide-y rounded-xl border">{review.rows.map(r=><li key={r.stockItemId} className="flex justify-between gap-3 p-3"><div><strong>{r.name}</strong><p className="text-xs text-muted-foreground">Disponibili {fmt(r.available)} · In bozze / ordini {fmt(r.incoming)} · Minimo {fmt(r.minLevel)}</p></div><strong>{fmt(r.quantity)} {r.unit}</strong></li>)}</ul>
+   {showCosts&&<p className="text-right text-sm">Imponibile indicativo: <strong>{total===null?'Prezzi da verificare':formatCurrency(total)}</strong></p>}
+   <p className="text-sm text-muted-foreground">Verifica eventuali confezioni e minimi del fornitore. Un altro riordino già aperto per lo stesso articolo viene segnalato dal servizio e non duplicato.</p>
+  </>:protocol.isError||candidates.isError?<p role="alert" className="text-sm text-destructive">Impossibile verificare il fabbisogno. <Button variant="outline" onClick={()=>{void protocol.refetch();void candidates.refetch();}}>Riprova riordino</Button></p>:!candidates.data?<p role="status">Verifica giacenze e ordini aperti…</p>:rows.length===0?<p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Nessun articolo sotto la soglia nel magazzino selezionato.</p>:<div className="space-y-4">{[...groups].map(([key,group])=>{
+   const canPrepare=canWrite&&!!group.supplierId&&group.rows.every(valid)&&group.rows.some(r=>r.deficit>0&&(amount(r)??0)>0);
+   return <section key={key} className="overflow-hidden rounded-xl border"><div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/30 p-3"><div><h3 className="flex items-center gap-2 text-sm font-semibold"><Building2 className="h-4 w-4"/>{group.name}</h3><p className="mt-1 text-xs text-muted-foreground">{warehouses.find(w=>w.id===group.warehouseId)?.name??'Magazzino da verificare'}</p></div><Button size="sm" disabled={!canPrepare} onClick={()=>prepare(group)}>Controlla riordino</Button></div>
+   <ul className="divide-y">{group.rows.map(row=><li key={row.stockItemId} className="space-y-2 p-3"><div className="flex items-center justify-between gap-3"><div><strong className="text-sm">{row.name}</strong><p className="text-xs text-muted-foreground">Disponibili {fmt(row.available)} {row.unit} · Minimo {fmt(row.minLevel)} · In bozze / ordini {fmt(row.incoming)}</p></div><label className="flex items-center gap-2 text-xs">Ordina<Input aria-label={`Quantità da ordinare ${row.name}`} inputMode="decimal" className="w-24" value={value(row)} onChange={e=>setQuantities(old=>({...old,[row.stockItemId]:e.target.value}))} disabled={!canWrite||!group.supplierId||row.deficit<=0}/>{row.unit}</label></div>{row.deficit<=0?<p className="text-xs text-emerald-700">Fabbisogno coperto dagli ordini aperti.</p>:<p className="text-xs text-muted-foreground">Da coprire: {fmt(row.deficit)} {row.unit}.</p>}{!valid(row)&&<p role="alert" className="text-xs text-destructive">Inserisci una quantità valida{!v3||row.tracking==='serialized'||unitaConsumoConfrontabile(row.unit)==='pz'?' in unità intere':''}. Nessun valore viene troncato.</p>}{!group.supplierId&&<p className="text-xs text-amber-700">Assegna prima un fornitore alla scheda dell’articolo.</p>}</li>)}</ul></section>;
+  })}</div>}
+  {!canWrite&&<p role="alert" className="text-sm text-destructive">Per riordinare servono i permessi di modifica del magazzino e gestione acquisti.</p>}
+  {error&&<p role="alert" className="rounded-xl border border-destructive/30 p-3 text-sm text-destructive">{error} Le quantità sono conservate.</p>}
+  <DialogFooter><Button variant="outline" disabled={save.isPending||uncertain} onClick={receipt?()=>{setReceipt(null);setReview(null);}:review?()=>setReview(null):()=>onOpenChange(false)}>{receipt?'Torna al riordino':review?'Modifica riordino':'Chiudi'}</Button>{review&&!receipt&&<Button disabled={save.isPending||!canWrite} onClick={()=>void confirm()}>{save.isPending?'Creazione…':uncertain?'Verifica esito riordino':'Crea ODA in bozza'}</Button>}</DialogFooter>
+ </DialogContent></Dialog>;
 }
-
-interface StockMeta {
-  supplier_id: string | null;
-  unit_cost: number | null;
-  vat_rate: number | null;
-}
-
-interface ReorderRow {
-  stockItemId: string;
-  name: string;
-  deficit: number;
-  available: number;
-  minLevel: number;
-  unitCost: number;
-  vatRate: number;
-  qty: number; // quantità da ordinare (editabile)
-}
-
-interface SupplierGroup {
-  supplierId: string | null;
-  supplierName: string;
-  rows: ReorderRow[];
-}
-
-export function LowStockReorderDialog({ open, onOpenChange, companyId, readOnly = false, warehouseId = null, articoliVisibili = null }: Props) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { data: tuttiGliAvvisi = [], isLoading: alertsLoading } = useLowStockAlerts(companyId);
-  // con un magazzino scelto, gli stessi articoli che conta il riquadro «sotto scorta»
-  const alerts = useMemo(
-    () => (articoliVisibili ? tuttiGliAvvisi.filter((a) => articoliVisibili.has(a.stock_item_id)) : tuttiGliAvvisi),
-    [tuttiGliAvvisi, articoliVisibili],
-  );
-
-  const alertIds = useMemo(() => alerts.map((a) => a.stock_item_id), [alerts]);
-
-  // Risolve fornitore/costo/IVA degli articoli sottoscorta (authoritative da DB).
-  const { data: stockMeta = {}, isLoading: metaLoading } = useQuery({
-    queryKey: ["low-stock-reorder-meta", companyId, alertIds],
-    enabled: open && alertIds.length > 0,
-    staleTime: 1000 * 60,
-    queryFn: async (): Promise<Record<string, StockMeta>> => {
-      const { data, error } = await supabase
-        .from("warehouse_stock")
-        .select("id, supplier_id, unit_cost, vat_rate")
-        .in("id", alertIds);
-      if (error) throw error;
-      const map: Record<string, StockMeta> = {};
-      for (const r of data ?? []) {
-        map[(r as { id: string }).id] = {
-          supplier_id: (r as { supplier_id: string | null }).supplier_id ?? null,
-          unit_cost: (r as { unit_cost: number | null }).unit_cost ?? null,
-          vat_rate: (r as { vat_rate: number | null }).vat_rate ?? null,
-        };
-      }
-      return map;
-    },
-  });
-
-  // Quantità editabili per riga (default = deficit arrotondato per eccesso, min 1).
-  const [qtyOverrides, setQtyOverrides] = useState<Record<string, number>>({});
-  const [creatingSupplier, setCreatingSupplier] = useState<string | null>(null);
-
-  // Reset override quando si riapre la dialog.
-  useEffect(() => {
-    if (open) setQtyOverrides({});
-  }, [open]);
-
-  const groups = useMemo<SupplierGroup[]>(() => {
-    const bySupplier = new Map<string, SupplierGroup>();
-    for (const a of alerts) {
-      const meta = stockMeta[a.stock_item_id];
-      const supplierId = meta?.supplier_id ?? null;
-      const key = supplierId ?? "__none__";
-      const suggested = Math.max(1, Math.ceil(Number(a.deficit) || 0));
-      const row: ReorderRow = {
-        stockItemId: a.stock_item_id,
-        name: a.name,
-        deficit: Number(a.deficit) || 0,
-        available: Number(a.quantity_available) || 0,
-        minLevel: Number(a.min_stock_level) || 0,
-        unitCost: Number(meta?.unit_cost ?? 0),
-        vatRate: Number(meta?.vat_rate ?? 22),
-        qty: qtyOverrides[a.stock_item_id] ?? suggested,
-      };
-      if (!bySupplier.has(key)) {
-        bySupplier.set(key, {
-          supplierId,
-          supplierName: supplierId ? (a.supplier_name || "Fornitore") : "Senza fornitore",
-          rows: [],
-        });
-      }
-      bySupplier.get(key)!.rows.push(row);
-    }
-    // Gruppi con fornitore prima, "senza fornitore" in fondo.
-    return Array.from(bySupplier.values()).sort((x, y) => {
-      if (!x.supplierId) return 1;
-      if (!y.supplierId) return -1;
-      return x.supplierName.localeCompare(y.supplierName);
-    });
-  }, [alerts, stockMeta, qtyOverrides]);
-
-  const setQty = (stockItemId: string, value: string) => {
-    const n = Math.max(0, Math.floor(Number(value.replace(",", ".")) || 0));
-    setQtyOverrides((prev) => ({ ...prev, [stockItemId]: n }));
-  };
-
-  const groupTotal = (g: SupplierGroup) =>
-    g.rows.reduce((s, r) => s + r.qty * r.unitCost, 0);
-
-  const handleGenerate = async (group: SupplierGroup) => {
-    if (readOnly || !group.supplierId || !companyId) return;
-    const rows = group.rows.filter((r) => r.qty > 0);
-    if (rows.length === 0) {
-      toast.error("Nessuna quantità da ordinare per questo fornitore");
-      return;
-    }
-    setCreatingSupplier(group.supplierId);
-    try {
-      // Una sola operazione nel database (magazzino_riordina): testata e righe
-      // insieme, con l'articolo agganciato alla riga. Prima erano due scritture
-      // dal browser — se la seconda falliva restava un ordine vuoto — e due
-      // clic facevano due ordini. Gli articoli già in un ordine aperto non si
-      // riordinano: la funzione dice in quale ordine sono.
-      const { data, error } = await supabase.rpc("magazzino_riordina" as never, {
-        p_company_id: companyId,
-        p_supplier_id: group.supplierId,
-        p_righe: rows.map((r) => ({ stock_item_id: r.stockItemId, quantity: r.qty })),
-        p_warehouse_id: warehouseId ?? null,
-      } as never);
-      if (error) throw error;
-      const esito = data as unknown as {
-        purchase_order_id: string | null;
-        oda_number: string | null;
-        righe: number;
-        gia_in_ordine: Array<{ nome: string; oda_number: string }>;
-      };
-
-      queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
-
-      const gia = esito.gia_in_ordine ?? [];
-      const giaTesto = gia.length > 0
-        ? `Già in ordine: ${gia.slice(0, 3).map((g) => `${g.nome} (${g.oda_number})`).join(", ")}${gia.length > 3 ? ` e altri ${gia.length - 3}` : ""}`
-        : undefined;
-      if (!esito.purchase_order_id) {
-        toast.info("Nessun ordine nuovo", { description: giaTesto ?? "Non c'era niente da ordinare." });
-        return;
-      }
-      toast.success(`Ordine ${esito.oda_number} creato per ${group.supplierName}`, { description: giaTesto });
-      onOpenChange(false);
-      navigate(`/azienda/ordini-acquisto/${esito.purchase_order_id}`);
-    } catch (e) {
-      toast.error("Errore nella creazione dell'ODA", {
-        description: e instanceof Error ? e.message : String(e),
-      });
-    } finally {
-      setCreatingSupplier(null);
-    }
-  };
-
-  const isLoading = alertsLoading || (alertIds.length > 0 && metaLoading);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <TrendingDown className="h-5 w-5 text-amber-600" />
-            Riordino sottoscorta
-          </DialogTitle>
-          <DialogDescription>
-            Articoli sotto la soglia minima, raggruppati per fornitore. Genera un ordine
-            d'acquisto con le quantità mancanti in un click.
-          </DialogDescription>
-        </DialogHeader>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" /> Verifica giacenze…
-          </div>
-        ) : alerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center text-muted-foreground">
-            <Package className="h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-foreground">Tutte le giacenze sopra il minimo</p>
-            <p className="text-xs">Non c'è nulla da riordinare al momento.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {groups.map((group) => {
-              const canOrder = !readOnly && !!group.supplierId;
-              const busy = creatingSupplier === group.supplierId && !!group.supplierId;
-              return (
-                <div key={group.supplierId ?? "__none__"} className="rounded-lg border bg-card">
-                  <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate text-sm font-semibold">{group.supplierName}</span>
-                      <Badge variant="secondary" className="shrink-0 text-[10px]">
-                        {group.rows.length} articol{group.rows.length === 1 ? "o" : "i"}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="hidden text-xs text-muted-foreground sm:inline">
-                        ≈ {formatCurrency(groupTotal(group))}
-                      </span>
-                      {canOrder ? (
-                        <Button size="sm" className="h-8 gap-1.5" onClick={() => handleGenerate(group)} disabled={busy}>
-                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShoppingCart className="h-3.5 w-3.5" />}
-                          Genera ODA
-                        </Button>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-700">
-                          <AlertCircle className="h-3.5 w-3.5" /> Assegna un fornitore
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <ul className="divide-y">
-                    {group.rows.map((r) => (
-                      <li key={r.stockItemId} className="flex items-center gap-3 px-3 py-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{r.name}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            Giacenza {r.available} / min {r.minLevel} · mancano {Math.ceil(r.deficit)}
-                            {r.unitCost > 0 ? ` · ${formatCurrency(r.unitCost)}/pz` : " · costo mancante"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <label className="text-[11px] text-muted-foreground" htmlFor={`qty-${r.stockItemId}`}>
-                            Ordina
-                          </label>
-                          <Input
-                            id={`qty-${r.stockItemId}`}
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            value={r.qty}
-                            onChange={(e) => setQty(r.stockItemId, e.target.value)}
-                            disabled={!canOrder}
-                            className="h-8 w-20 text-sm"
-                          />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-            {readOnly && (
-              <p className="text-center text-xs text-muted-foreground">
-                Vista consulente: il riordino non è disponibile in sola lettura.
-              </p>
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export default LowStockReorderDialog;

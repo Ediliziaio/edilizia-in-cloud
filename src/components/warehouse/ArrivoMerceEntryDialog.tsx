@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, PackageSearch, Search, ArrowDownToLine, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
+import { readAllOrderRows } from "@/lib/orders/listScope";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DialogContentOperativo as DialogContent } from "@/components/orders/generali/design/ContestoOperativo";
@@ -52,14 +53,15 @@ export function ArrivoMerceEntryDialog({
   onSelectOda: (odaId: string) => void;
   onCaricoLibero: () => void;
 }) {
+  const [includeDrafts, setIncludeDrafts] = useState(false);
   const [ricerca, setRicerca] = useState("");
 
-  const { data: ordini = [], isLoading } = useQuery({
+  const { data: ordini = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["arrivo-merce-ordini-aperti", companyId],
     enabled: open && !!companyId,
     staleTime: 30_000,
     queryFn: async (): Promise<OdaAperto[]> => {
-      const { data, error } = await supabase
+      const data = await readAllOrderRows<Record<string, unknown>>((from, to) => supabase
         .from("purchase_orders")
         .select(
           "id, oda_number, status, expected_delivery_date, ticket_id, " +
@@ -69,8 +71,8 @@ export function ArrivoMerceEntryDialog({
         .eq("company_id", companyId)
         .in("status", STATI_APERTI)
         .order("expected_delivery_date", { ascending: true, nullsFirst: false })
-        .limit(60);
-      if (error) throw error;
+        .order("id")
+        .range(from, to) as unknown as PromiseLike<{ data: Record<string, unknown>[] | null; error: unknown }>);
 
       const righe = (data ?? []) as unknown as Array<{
         id: string;
@@ -85,11 +87,12 @@ export function ArrivoMerceEntryDialog({
 
       // Quante righe mancano davvero: è l'unica informazione che aiuta a
       // scegliere l'ordine giusto quando ce ne sono diversi dello stesso fornitore.
-      const { data: items, error: itemsErr } = await supabase
-        .from("purchase_order_items")
-        .select("purchase_order_id, quantity, quantity_received")
-        .in("purchase_order_id", righe.map((r) => r.id));
-      if (itemsErr) throw itemsErr;
+      const items: Array<{ purchase_order_id: string; quantity: number | null; quantity_received: number | null }> = [];
+      for (let start = 0; start < righe.length; start += 50) {
+        const batch = await readAllOrderRows<{ purchase_order_id: string; quantity: number | null; quantity_received: number | null }>((from, to) => supabase.from("purchase_order_items")
+          .select("id,purchase_order_id,quantity,quantity_received").in("purchase_order_id", righe.slice(start, start + 50).map((r) => r.id)).order("id").range(from, to));
+        items.push(...batch);
+      }
 
       const conteggio = new Map<string, { mancanti: number; totali: number }>();
       for (const it of (items ?? []) as Array<{
@@ -122,11 +125,10 @@ export function ArrivoMerceEntryDialog({
 
   const filtrati = useMemo(() => {
     const q = ricerca.trim().toLowerCase();
-    if (!q) return ordini;
-    return ordini.filter((o) =>
-      [o.oda_number, o.fornitore, o.commessa].some((v) => (v ?? "").toLowerCase().includes(q)),
+    return ordini.filter((o) => (includeDrafts || o.status !== "bozza") && (!q ||
+      [o.oda_number, o.fornitore, o.commessa].some((v) => (v ?? "").toLowerCase().includes(q))),
     );
-  }, [ordini, ricerca]);
+  }, [ordini, ricerca, includeDrafts]);
 
   const scegli = (odaId: string) => {
     onOpenChange(false);
@@ -162,19 +164,18 @@ export function ArrivoMerceEntryDialog({
           </div>
         )}
 
+        {ordini.some((order) => order.status === "bozza") && <Button variant="ghost" size="sm" aria-pressed={includeDrafts} onClick={() => setIncludeDrafts((current) => !current)}>{includeDrafts ? "Nascondi bozze" : `Mostra anche le bozze (${ordini.filter((order) => order.status === "bozza").length})`}</Button>}
         {isLoading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : filtrati.length === 0 ? (
+        ) : isError ? <div role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm">Non è stato possibile caricare gli ordini. <Button variant="outline" size="sm" onClick={() => void refetch()}>Riprova ordini</Button></div> : filtrati.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <PackageSearch className="h-10 w-10 text-muted-foreground/40" />
             <p className="text-sm font-medium">
               {ordini.length === 0 ? "Nessun ordine a fornitore aperto" : "Nessun ordine trovato"}
             </p>
-            <p className="text-xs text-muted-foreground">
-              Se la merce è arrivata senza un ordine, registrala come carico libero.
-            </p>
+            <p className="text-xs text-muted-foreground">Se la merce è arrivata senza un ordine, registrala come carico libero.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -192,7 +193,7 @@ export function ArrivoMerceEntryDialog({
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {o.expected_delivery_date
-                      ? `Attesa ${format(new Date(o.expected_delivery_date), "d MMM", { locale: it })}`
+                      ? `Attesa ${format(new Date(o.expected_delivery_date), "d MMM yyyy", { locale: it })}`
                       : "Senza data attesa"}
                     {o.commessa && <> · Commessa {o.commessa}</>}
                     {o.ticketId && <> · Assistenza</>}

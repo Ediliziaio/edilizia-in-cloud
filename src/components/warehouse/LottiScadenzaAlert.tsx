@@ -8,6 +8,7 @@
  * → lotti scaduti rimanevano in giacenza senza mai essere visti.
  */
 
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ interface Props {
 }
 
 export function LottiScadenzaAlert({ compact = false }: Props) {
+  const permissions=usePermissions();const canViewCosts=!permissions.isLoading&&permissions.canViewCosts;
   const [days, setDays] = useState<number>(30);
   const [dismissed, setDismissed] = useState(false);
   const q = useLottiInScadenza(days);
@@ -46,7 +48,8 @@ export function LottiScadenzaAlert({ compact = false }: Props) {
   if (q.isLoading) {
     return compact ? null : <Skeleton className="h-32 w-full rounded-2xl" />;
   }
-  if (q.isError || !q.data) return null;
+  if (q.isError) return <div role="alert" className="rounded-lg border border-amber-200 p-3 text-sm">Scadenze dei lotti non verificate. <Button size="sm" variant="outline" onClick={() => void q.refetch()}>Riprova scadenze</Button></div>;
+  if (!q.data) return null;
 
   const { kpi, lotti } = q.data;
   const haCriticita = kpi.scaduti > 0 || kpi.urgenti > 0;
@@ -69,7 +72,7 @@ export function LottiScadenzaAlert({ compact = false }: Props) {
               )}
             </p>
             <p className="text-xs text-amber-800">
-              Valore a rischio: <strong>{formatCurrency(kpi.valore_a_rischio)}</strong>
+              Valore a rischio: <strong>{canViewCosts&&kpi.valore_a_rischio!=null?formatCurrency(kpi.valore_a_rischio):"Non disponibile"}</strong>
             </p>
           </div>
           <Button
@@ -141,7 +144,7 @@ export function LottiScadenzaAlert({ compact = false }: Props) {
           <CardContent className="p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Valore a rischio</p>
             <p className="mt-1 text-2xl font-bold tabular-nums">
-              {formatCurrency(kpi.valore_a_rischio)}
+              {canViewCosts&&kpi.valore_a_rischio!=null?formatCurrency(kpi.valore_a_rischio):"Non disponibile"}
             </p>
           </CardContent>
         </Card>
@@ -207,7 +210,7 @@ export function LottiScadenzaAlert({ compact = false }: Props) {
                         {l.quantity.toLocaleString("it-IT")}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {l.unit_cost != null ? formatCurrency(l.valore) : "—"}
+                        {canViewCosts&&l.unit_cost != null ? formatCurrency(l.valore) : "—"}
                       </td>
                       <td className="px-3 py-2 text-center">
                         <Badge variant="outline" className={cn("text-[10px]", SEV_COLORS[l.severita])}>

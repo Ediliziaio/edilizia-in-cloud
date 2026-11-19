@@ -15,10 +15,12 @@ const PdfPanel = lazy(() =>
 );
 export function DocumentoAnteprimaDialog({
   documento,
+  descrizione,
   file,
   onClose,
 }: {
   documento?: DocumentoOperativo;
+  descrizione?: string;
   file?: { path: string; bucket: string; name: string };
   onClose: () => void;
 }) {
@@ -40,7 +42,7 @@ export function DocumentoAnteprimaDialog({
           </DialogTitle>
           <DialogDescription>
             {snapshot
-              ? `${snapshot.destinatario.nome} · Dati salvati al momento dell’apertura.`
+              ? `${snapshot.destinatario.nome} · ${descrizione ?? "Dati salvati al momento dell’apertura."}`
               : "Allegato originale conservato nell’email."}
           </DialogDescription>
         </DialogHeader>

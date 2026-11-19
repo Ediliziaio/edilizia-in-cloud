@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { costiVociCollegati } from "@/lib/marginalita/costiVociCollegati";
 import type { RigaAcquisto, MovimentoMagazzino } from "@/lib/orders/economiaFasi";
 
@@ -14,18 +15,22 @@ async function pagine<T>(fetch: (from: number, to: number) => PromiseLike<{data:
 }
 
 export function useCostiVociCollegati(orderId: string | undefined, open: boolean) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
   return useQuery({
-    queryKey: ["costi-voci-collegati", orderId],
-    enabled: !!orderId && open,
+    queryKey: ["costi-voci-collegati", companyId, orderId],
+    enabled: !!companyId && !!orderId && open,
     staleTime: 120_000,
     queryFn: async () => {
       const [acquisti, movimenti] = await Promise.all([
         pagine<RigaAcquisto>((from, to) => supabase.from("purchase_order_items")
-          .select("order_item_id,quantity,line_total,purchase_orders!inner(status,order_id)")
+          .select("order_item_id,quantity,line_total,purchase_orders!inner(status,order_id,company_id)")
+          .eq("purchase_orders.company_id", companyId!)
           .eq("purchase_orders.order_id", orderId!).in("purchase_orders.status", ["inviato", "confermato", "parziale", "ricevuto"])
           .not("order_item_id", "is", null).order("id").range(from, to)),
         pagine<MovimentoMagazzino>((from, to) => supabase.from("warehouse_movements")
           .select("order_item_id,movement_type,quantity,unit_cost,rientro_commessa,notes")
+          .eq("company_id", companyId!)
           .eq("order_id", orderId!).in("movement_type", ["carico", "scarico"])
           .order("id").range(from, to)),
       ]);

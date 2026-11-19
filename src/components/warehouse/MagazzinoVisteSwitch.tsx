@@ -23,7 +23,7 @@ export function MagazzinoVisteSwitch({
 }) {
   const sottoViste = gruppi.find((g) => g.key === gruppoAttivo)?.viste ?? [];
   return (
-    <div className="min-w-0 space-y-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
       <Tabs value={gruppoAttivo} onValueChange={(v) => onGruppo(v as GruppoMagazzino)} className="min-w-0">
         <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 rounded-xl p-1 max-sm:grid max-sm:grid-cols-2 sm:w-fit">
           {gruppi.map((g) => (

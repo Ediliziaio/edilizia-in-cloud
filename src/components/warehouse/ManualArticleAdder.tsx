@@ -11,7 +11,7 @@
  *   - Input quantità + pulsante "Aggiungi"
  *   - Lista entries con possibilità di rimuovere/modificare quantità
  */
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, X, Loader2, PackageCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { erroreQuantitaMovimento, leggiQuantitaMovimento } from "@/lib/magazzino/quantitaMovimento";
 import { supabase } from "@/integrations/supabase/client";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
 
@@ -35,6 +37,8 @@ interface StockItem {
   name: string;
   internal_code: string | null;
   quantity: number;
+  quantity_available?: number;
+  unita_misura?: string | null;
   tracking_mode: "fungible" | "serialized";
   /** Costo standard a magazzino (per precompilare il prezzo d'acquisto in entrata). */
   unit_cost?: number;
@@ -58,9 +62,14 @@ interface Props {
   /** Entrata merce: mostra il campo prezzo d'acquisto (precompilato dal listino)
    *  e lo salva su entry.purchasePrice. Default false (uscita: nessun prezzo). */
   showPurchasePrice?: boolean;
+  mode?: "carico" | "scarico";
+  availabilityOverrides?: ReadonlyMap<string, number>;
 }
 
-export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesChange, showPurchasePrice = false }: Props) {
+export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesChange, showPurchasePrice = false, mode = "scarico", availabilityOverrides }: Props) {
+  const incoming = mode === "carico";
+  const availableFor = useCallback((item: StockItem) => availabilityOverrides?.get(item.id) ?? Number(item.quantity_available ?? item.quantity), [availabilityOverrides]);
+  const [adding, setAdding] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -80,8 +89,8 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
   // L'utente puo selezionare articoli sia gia a magazzino, sia presenti nel
   // listino prodotti ma mai ricevuti. Al pick di un listino item, lo
   // stock_item viene creato al volo con i dati pre-popolati.
-  const { data: items = [], isLoading } = useQuery<StockItem[]>({
-    queryKey: ["manual-adder-stock-listino", companyId, warehouseId, debouncedSearch],
+  const { data: items = [], isLoading, isError, refetch } = useQuery<StockItem[]>({
+    queryKey: ["manual-adder-stock-listino", companyId, warehouseId, debouncedSearch, mode],
     enabled: !!companyId && !!warehouseId && pickerOpen,
     staleTime: 30_000,
     queryFn: async () => {
@@ -90,7 +99,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       // ── Query 1: warehouse_stock (articoli a magazzino) ─────────────────
       let wsQ = supabase
         .from("warehouse_stock")
-        .select("id, name, internal_code, quantity, tracking_mode, unit_cost")
+        .select("id, name, internal_code, quantity, quantity_available, unita_misura, tracking_mode, unit_cost")
         .eq("company_id", companyId!)
         .eq("warehouse_id", warehouseId!);
       if (filter) {
@@ -111,7 +120,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       }
       afQ = afQ.order("nome", { ascending: true }).limit(50);
 
-      const [wsRes, afRes] = await Promise.all([wsQ, afQ]);
+      const [wsRes, afRes] = await Promise.all([wsQ, incoming ? afQ : Promise.resolve({ data: [], error: null })]);
       if (wsRes.error) throw wsRes.error;
 
       const warehouseItems: StockItem[] = (wsRes.data ?? []).map((r) => ({
@@ -119,6 +128,8 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         name: r.name,
         internal_code: r.internal_code,
         quantity: r.quantity,
+        quantity_available: r.quantity_available,
+        unita_misura: r.unita_misura,
         tracking_mode: r.tracking_mode as "fungible" | "serialized",
         unit_cost: (r as { unit_cost?: number }).unit_cost ?? undefined,
         source: "warehouse" as const,
@@ -168,14 +179,17 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
 
   const handleAddEntry = useCallback(async () => {
     if (!pendingItem) return;
-    const qty = parseFloat(pendingQty) || 0;
-    if (qty <= 0) return;
+    if (adding) return;
+    const qty = leggiQuantitaMovimento(pendingQty);
+    const existingQuantity = entries.filter((e) => e.stockItemId === pendingItem.id).reduce((sum, e) => sum + e.quantity, 0);
+    const error = erroreQuantitaMovimento(qty, pendingItem.tracking_mode === "serialized", incoming ? undefined : Math.max(0, availableFor(pendingItem) - existingQuantity));
+    if (error || qty == null) { toast.error(error || "Quantità non valida"); return; }
 
     // v8.6.112 — Se l'item viene dal listino (no warehouse_stock yet),
     // crea lo stock_item al volo con i dati del listino.
     let realStockItemId = pendingItem.id;
-    let realQuantityAvailable = pendingItem.quantity;
-    if (pendingItem.source === "listino" && pendingItem.family_id && companyId && warehouseId) {
+    if (incoming && pendingItem.source === "listino" && pendingItem.family_id && companyId && warehouseId) {
+      setAdding(true);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: inserted, error } = await (supabase as any)
@@ -197,14 +211,13 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
           .single();
         if (error) throw error;
         realStockItemId = inserted.id;
-        realQuantityAvailable = qty; // appena creato, accetta qualsiasi qty
       } catch (err) {
-        console.error("[ManualArticleAdder] listino->warehouse create failed:", err);
-        return; // skip silenzioso
-      }
+        toast.error("Articolo non aggiunto", { description: (err as Error).message });
+        return;
+      } finally { setAdding(false); }
     }
 
-    const safeQty = pendingItem.source === "listino" ? qty : Math.min(qty, realQuantityAvailable);
+    const safeQty = qty;
     const parsedPrice = showPurchasePrice && pendingPrice.trim()
       ? (Number.isFinite(parseFloat(pendingPrice.replace(",", "."))) ? parseFloat(pendingPrice.replace(",", ".")) : undefined)
       : undefined;
@@ -232,6 +245,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
           rawCode: pendingItem.internal_code ?? "",
           trackingMode: pendingItem.tracking_mode,
           purchasePrice: parsedPrice,
+          unitOfMeasure: pendingItem.unita_misura,
           scannedAt: Date.now(),
         },
       ]);
@@ -241,7 +255,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     setPendingQty("1");
     setPendingPrice("");
     setSearch("");
-  }, [pendingItem, pendingQty, pendingPrice, showPurchasePrice, entries, onEntriesChange, companyId, warehouseId]);
+  }, [pendingItem, pendingQty, pendingPrice, showPurchasePrice, entries, onEntriesChange, companyId, warehouseId, incoming, adding, availableFor]);
 
   const handleRemoveEntry = useCallback(
     (entryId: string) => {
@@ -290,15 +304,14 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     [entries, onEntriesChange],
   );
 
-  const totalArticoli = useMemo(
-    () => entries.reduce((sum, e) => sum + (e.quantity || 0), 0),
-    [entries],
-  );
+  const priceInvalid = showPurchasePrice && !!pendingPrice.trim() && (!Number.isFinite(Number(pendingPrice.replace(",", "."))) || Number(pendingPrice.replace(",", ".")) < 0);
+  const quantityError = pendingItem ? erroreQuantitaMovimento(leggiQuantitaMovimento(pendingQty), pendingItem.tracking_mode === "serialized", incoming ? undefined : Math.max(0, availableFor(pendingItem) - entries.filter((e) => e.stockItemId === pendingItem.id).reduce((sum, e) => sum + e.quantity, 0))) : null;
+
 
   if (!warehouseId) {
     return (
       <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-center text-xs text-muted-foreground">
-        Seleziona prima un magazzino sorgente per aggiungere articoli a mano.
+        Seleziona prima il magazzino per aggiungere gli articoli.
       </div>
     );
   }
@@ -324,7 +337,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                     <>
                       <Plus className="h-3.5 w-3.5 mr-2 opacity-50 shrink-0" />
                       <span className="text-muted-foreground truncate">
-                        Seleziona articolo dal magazzino…
+                        Cerca articolo per nome o codice…
                       </span>
                     </>
                   )}
@@ -382,7 +395,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                   ) : (
                     <CommandGroup>
                       {items.map((item) => {
-                        const noStock = item.quantity <= 0;
+                        const noStock = availableFor(item) <= 0;
                         return (
                           <CommandItem
                             key={item.id}
@@ -412,16 +425,16 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                                   <PackageCheck className="h-2.5 w-2.5 text-blue-600" />
                                   <span className="text-blue-700 dark:text-blue-300">
                                     Da listino · l'articolo verrà creato a magazzino
-                                    {item.suggested_unit_cost ? ` · ${item.suggested_unit_cost.toFixed(2)}€` : ""}
+                                    {showPurchasePrice && item.suggested_unit_cost != null ? ` · ${item.suggested_unit_cost.toFixed(2)}€` : ""}
                                   </span>
                                 </>
                               ) : (
                                 <>
                                   <PackageCheck className={`h-2.5 w-2.5 ${noStock ? "text-destructive" : "text-emerald-600"}`} />
                                   <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
-                                    Giacenza:{" "}
-                                    <span className="font-semibold tabular-nums">{item.quantity}</span>{" "}
-                                    pz
+                                    {incoming ? "Giacenza attuale:" : "Disponibile:"}{" "}
+                                    <span className="font-semibold tabular-nums">{incoming ? item.quantity : availableFor(item)}</span>{" "}
+                                    {item.unita_misura || "unità"}
                                   </span>
                                   {noStock && (
                                     <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>
@@ -450,19 +463,21 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             <Label className="text-xs">Qtà</Label>
             <Input
               type="number"
-              min="1"
+              min="0"
+              step={pendingItem?.tracking_mode === "serialized" ? "1" : "any"}
+              aria-label="Quantità da aggiungere"
               value={pendingQty}
               onChange={(e) => setPendingQty(e.target.value)}
               disabled={!pendingItem}
               className="h-11 text-right tabular-nums md:h-9"
-              max={pendingItem?.quantity ?? undefined}
+              max={incoming || !pendingItem ? undefined : availableFor(pendingItem)}
             />
           </div>
 
           <Button
             type="button"
             onClick={handleAddEntry}
-            disabled={!pendingItem || !pendingQty || parseFloat(pendingQty) <= 0}
+            disabled={!pendingItem || !!quantityError || priceInvalid || adding}
             className="h-11 shrink-0 flex-1 md:flex-none md:h-9"
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -471,6 +486,9 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         </div>
       </div>
 
+      {priceInvalid && <p role="alert" className="text-xs text-destructive">Inserisci un prezzo valido maggiore o uguale a zero.</p>}
+      {quantityError && <p role="alert" className="text-xs text-destructive">{quantityError}</p>}
+      {isError && <p role="alert" className="text-sm text-destructive">Articoli non disponibili. <Button variant="link" onClick={() => void refetch()}>Riprova articoli</Button></p>}
       {showPurchasePrice && pendingItem && (
         <div className="flex items-center gap-2">
           <Label className="text-xs shrink-0">Prezzo acquisto €</Label>
@@ -493,10 +511,10 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Articoli da scaricare ({entries.length})
+              {incoming ? "Articoli da caricare" : "Articoli da prelevare"} ({entries.length})
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              Totale unità: <strong>{totalArticoli}</strong>
+              Quantità separate per articolo
             </span>
           </div>
           <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
@@ -517,9 +535,11 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                     </span>
                     <Input
                       type="number"
-                      min="1"
+                      min="0"
+                      step={isSerialized ? "1" : "any"}
+                      aria-label={`Quantità ${entry.itemName || "articolo"}`}
                       value={entry.quantity}
-                      onChange={(e) => handleUpdateQty(entry.clientUuid, parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleUpdateQty(entry.clientUuid, leggiQuantitaMovimento(e.target.value) ?? 0)}
                       disabled={qtyLocked}
                       title={qtyLocked ? "Quantità = numero di seriali inseriti" : undefined}
                       className="h-7 w-16 text-right tabular-nums text-xs disabled:opacity-70"
@@ -536,6 +556,13 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                     </Button>
                   </div>
 
+                  {showPurchasePrice && <div className="flex flex-wrap items-center gap-2">
+                    <Label htmlFor={`prezzo-riga-${entry.clientUuid}`} className="text-xs">Prezzo unitario d’acquisto €</Label>
+                    <Input id={`prezzo-riga-${entry.clientUuid}`} aria-label={`Prezzo unitario ${entry.itemName || "articolo"}`} type="number" min="0" step="any" className="h-9 w-28 text-right" value={entry.purchasePrice ?? ""} onChange={event => {
+                      const value=event.target.value.trim();
+                      onEntriesChange(entries.map(row => row.clientUuid === entry.clientUuid ? {...row,purchasePrice:value === "" ? undefined : Number(value)} : row));
+                    }} />
+                  </div>}
                   {/* Articoli serializzati: inserimento manuale dei codici univoci
                       (in alternativa allo scanner). 1 seriale = 1 pezzo. */}
                   {isSerialized && (

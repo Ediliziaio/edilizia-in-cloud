@@ -1,3 +1,10 @@
+import {StatoPipelineIniziale} from "@/components/orders/StatoPipelineIniziale";
+import {usePipelineLocali,richiestaPipelineLocale,type PipelineLocale} from "@/lib/orders/pipelineLocali";
+import {PIPELINE_PRINCIPALE,verificaPipelineCreazione,assegnaPipelineNuovaCommessa,statoDiPartenza} from "@/lib/orders/pipelineCreazione";
+import {verificaPianoSal} from "@/lib/orders/pianoSalAperto";
+import {verificaSupportoPianoSal} from "@/lib/orders/pianoSalServizio";
+import {calcolaIvaContratto, IVA_MISTA, serializzaIvaMista} from "@/lib/orders/ivaMista";
+import {verificaSupportoIvaMista} from "@/lib/orders/ivaMistaServizio";
 import { righeDelPreventivo } from "@/lib/orders/preventiviDelCliente";
 import { COLONNE_RIGHE_LAVORO, righeDaLavoroPrecedente, totaleDelleRighe } from "@/lib/orders/righeDaLavoroPrecedente";
 import { verificaCostoSuPiano, modalitaCostoFinanziaria, costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
@@ -42,13 +49,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   QuotePageHeader,
   QuoteCard,
@@ -130,6 +130,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // ── Prefill da preventivo (?quote_id): additivo, attivo solo se presente ──
   const [searchParams] = useSearchParams();
   const customerIdDaUrl = searchParams.get("customer_id");
+  const pipelineDaPercorso=searchParams.get("pipeline")||PIPELINE_PRINCIPALE;
   const invoiceId = searchParams.get("invoice_id");
   const invoiceSource = useQuery({
     queryKey: ["commessa-da-emessa",effectiveCompany?.id,invoiceId], enabled: !!invoiceId && !!effectiveCompany?.id, retry: false,
@@ -172,7 +173,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // ── react-hook-form ──────────────────────────────────────────
   const form = useForm<z.input<typeof orderSchema>, unknown, OrderFormValues>({
     resolver: zodResolver(orderSchema),
-    defaultValues: orderDefaultValues,
+    defaultValues: {...orderDefaultValues,pipeline_id:pipelineDaPercorso},
   });
 
   const { control, watch, setValue, getValues, reset, handleSubmit: rhfHandleSubmit, formState: { errors } } = form;
@@ -183,11 +184,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     payment_type: _paymentTypeRaw,
     total_amount: totalAmount,
     vat_rate: vatRate,
+    vat_split: vatSplit,
+    payment_terms: salPayment,
     financing_cost: financingCost,
     has_building_bonus: hasBuildingBonus,
     salesperson_id: salespersonId,
     salesperson_data: salespersonData,
     status_id: statusId,
+    pipeline_id: pipelineId,
+    pipeline_stage_id: pipelineStageId,
     expected_date: expectedDate,
     warehouse_arrival_date: warehouseArrivalDate,
     work_start_date: workStartDate,
@@ -242,12 +247,17 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     }
   }, [onlyAssigned, user?.id, setValue]);
 
+  const pipelineCommessa=usePipelineLocali(effectiveCompany?.id??"");
+  const [pipelineDaCompletare,setPipelineDaCompletare]=useState(false);
+  const [assegnazioneInCorso,setAssegnazioneInCorso]=useState(false);
+
   // Calculate balance (deduct financing_cost for financing payment type)
   const total = parseDecimalIT(totalAmount);
   // Lo zero è un'aliquota valida, non l'assenza di un valore.
-  const vat = vatRate?.trim() ? parseDecimalIT(vatRate) : 0;
+  const fiscal = calcolaIvaContratto(totalAmount ?? "", vatRate ?? "", vatSplit);
+  const vat = fiscal.effectiveRate;
   const fCostForBalance = paymentType === 'financing' ? (parseDecimalIT(financingCost || "")) : 0;
-  const totalWithVat = total * (1 + vat / 100);
+  const totalWithVat = fiscal.gross;
   // Il saldo finale è l'ultima rata «balance»: i SAL intermedi tengono il loro importo
   // e si tolgono dal residuo (stessa regola della vista in sola lettura).
   const nonBalanceSum = sommaRateNonSaldo(installments);
@@ -268,7 +278,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     { label: "importo", done: total > 0 && !overAllocatedPayments },
     { label: "stato iniziale", done: !!statusId },
     { label: "righe da correggere", done: invalidOrderItems.length === 0 },
-    ...(contrattoImportato ? [{ label: "IVA", done: !!vatRate?.trim() }, { label: "pagamenti", done: !contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) }] : []),
+    ...(contrattoImportato ? [{ label: "IVA", done: !!vatRate?.trim() }, { label: "pagamenti", done: !!salPayment || !contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) }] : []),
   ];
 
   // Payment type change handler
@@ -346,8 +356,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   // Load draft on mount
   useEffect(() => {
     createdOrderIdRef.current = null;
+    setPipelineDaCompletare(false);
     setCreatedOrderId(null);
-    reset({ ...orderDefaultValues, assigned_to: onlyAssigned ? user?.id ?? "" : "" });
+    reset({ ...orderDefaultValues,pipeline_id:pipelineDaPercorso, assigned_to: onlyAssigned ? user?.id ?? "" : "" });
     setFinancingCostMode(null);
     setInstallments(rateDiPartenza(modelloIniziale));
     setNumInstallments(modelloIniziale?.righe.length ?? 2);
@@ -378,6 +389,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       description: draft.description || "",
       internal_notes: draft.internalNotes || "",
       status_id: draft.statusId || "",
+      pipeline_id:draft.pipelineId??PIPELINE_PRINCIPALE,
+      pipeline_stage_id:draft.pipelineStageId??"",
       salesperson_id: draft.salespersonId || "",
       salesperson_data: draft.salespersonData || null,
       assigned_to: draft.assignedTo || "",
@@ -390,6 +403,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       payment_type: draft.paymentType || "standard",
       total_amount: draft.totalAmount || "",
       vat_rate: draft.vatRate ?? "22",
+      vat_split: draft.vatSplit,
+      payment_terms: draft.salPayment,
       financing_cost: draft.financingCost || "",
       has_building_bonus: draft.hasBuildingBonus || false,
     });
@@ -423,6 +438,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
     if (typeof draft.commessaCreataId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(draft.commessaCreataId)) {
       createdOrderIdRef.current = draft.commessaCreataId;
       setCreatedOrderId(draft.commessaCreataId);
+      setPipelineDaCompletare(draft.pipelineDaCompletare===true);
     }
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -741,6 +757,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         description: description || "",
         internalNotes: internalNotes || "",
         statusId: statusId || "",
+        pipelineId:pipelineId||PIPELINE_PRINCIPALE,
+        pipelineStageId:pipelineStageId||"",
+        pipelineDaCompletare,
         salespersonId: salespersonId || "",
         salespersonData: (salespersonData as { commission_type: string; commission_value: number; compensation_mode?: string | null } | null) || null,
         assignedTo: assignedTo || "",
@@ -761,16 +780,18 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         paymentType: paymentType,
         totalAmount: totalAmount || "",
         vatRate: vatRate ?? "22",
+        vatSplit,
+        salPayment,
         financingCost: financingCost || "",
         financingCostMode,
         hasBuildingBonus: hasBuildingBonus || false,
         bonusLines,
         orderItems,
         installments,
-      }), [customerId, customerIdDaUrl, orderCode, description, internalNotes, statusId, salespersonId, salespersonData,
+      }), [customerId, customerIdDaUrl, orderCode, description, internalNotes, statusId, pipelineId, pipelineStageId, pipelineDaCompletare, salespersonId, salespersonData,
       assignedTo, destinationWarehouseId, sedeId,
       expectedDate, warehouseArrivalDate, workStartDate, workEndDate,
-      paymentType, totalAmount, vatRate,
+      paymentType, totalAmount, vatRate, vatSplit, salPayment,
       installments, financingCost, financingCostMode,
       hasBuildingBonus, bonusLines,
       orderItems, dateToIso, cantiereAddress, cantiereAddressData,
@@ -1098,6 +1119,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
 
       if (contrattoImportato && !workflowProfilo.data) throw new Error("Attendi il caricamento della configurazione aziendale prima di salvare.");
       const values = getValues();
+      const sceltaPipeline={pipelineId:values.pipeline_id,faseId:values.pipeline_id===PIPELINE_PRINCIPALE?values.status_id:values.pipeline_stage_id};
+      if(sceltaPipeline.pipelineId!==PIPELINE_PRINCIPALE){
+        const attuale=await richiestaPipelineLocale<{pipeline:PipelineLocale[]}>(effectiveCompany.id);
+        const errore=verificaPipelineCreazione(sceltaPipeline,attuale.pipeline,statuses);
+        if(errore)throw new Error(errore);
+      } else if(values.status_id && !statuses.some(s=>s.id===values.status_id))throw new Error("Lo stato iniziale non è più disponibile. Scegli uno stato dall’elenco.");
       if (options?.contractDraft) {
         if (!pianoContratto || pianoContratto.organizzazione !== "interventi_su_ordine" || values.description.trim().length < 3) throw new Error("Importa e verifica il contratto prima di salvarlo in bozza.");
         contractDraftIdRef.current ??= crypto.randomUUID();
@@ -1113,7 +1140,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           if(check.error || !check.data) throw error;
         }
         createdOrderIdRef.current=draftId; setCreatedOrderId(draftId);
-        saveDraft({...datiBozza,commessaCreataId:draftId});
+        setPipelineDaCompletare(values.pipeline_id!==PIPELINE_PRINCIPALE);
+        saveDraft({...datiBozza,commessaCreataId:draftId,pipelineDaCompletare:values.pipeline_id!==PIPELINE_PRINCIPALE});
         try { await saveContractOfficeTasks(effectiveCompany.id,draftId,user!.id,pianoContratto.ufficio,officeAssignments); }
         catch { toast.warning("Bozza salvata: verifica gli adempimenti d’ufficio nel dettaglio prima di proseguire."); }
         return {id:draftId,success:true};
@@ -1126,9 +1154,17 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       }
       const totalVal = parseDecimalIT(values.total_amount);
       if (!values.vat_rate.trim()) throw new Error("Conferma l’IVA prima di salvare.");
-      if (contrattoImportato && !installments.length) throw new Error("Conferma il piano dei pagamenti prima di salvare.");
-      if (contrattoImportato && !values.status_id) throw new Error("Conferma lo stato iniziale della commessa: la lettura del documento non prova che sia firmato.");
-      const vatValue = parseDecimalIT(values.vat_rate);
+      if (contrattoImportato && !salPayment && !installments.length) throw new Error("Conferma il piano dei pagamenti prima di salvare.");
+      if (contrattoImportato && values.pipeline_id===PIPELINE_PRINCIPALE && !values.status_id) throw new Error("Conferma lo stato iniziale della commessa: la lettura del documento non prova che sia firmato.");
+      const fiscalForSave = calcolaIvaContratto(values.total_amount, values.vat_rate, values.vat_split);
+      if (fiscalForSave.error) throw new Error(fiscalForSave.error);
+      if (values.vat_rate === IVA_MISTA) await verificaSupportoIvaMista();
+      if (values.payment_terms) {
+        const issue=verificaPianoSal(values.payment_terms,installments,fiscalForSave.gross);
+        if(issue)throw new Error(issue);
+        await verificaSupportoPianoSal();
+      }
+      const vatValue = fiscalForSave.effectiveRate;
       const fCost = parseDecimalIT(values.financing_cost || "");
       if (values.payment_type === "financing" && fCost > 0 && !financingCostMode) {
         throw new Error("Scegli se il costo della finanziaria è trattenuto o pagato separatamente.");
@@ -1142,7 +1178,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       // Solo il saldo finale prende il residuo (se il contratto non ne dichiara già l'importo):
       // i SAL intermedi restano col loro importo.
       const installmentsForSave = conSaldoFinale(senzaRateVuote(installments), balance, i => !!i.amount_from_contract);
-      const rateContrattoIncomplete = contrattoImportato ? contractInstallmentWarning(installmentsForSave, totalWithVat) : null;
+      const rateContrattoIncomplete = contrattoImportato && !salPayment ? contractInstallmentWarning(installmentsForSave, totalWithVat) : null;
       if (rateContrattoIncomplete) throw new Error(rateContrattoIncomplete);
       const legacy = installmentsToLegacyColumns(installmentsForSave);
 
@@ -1159,6 +1195,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         internal_notes: values.internal_notes || null,
         current_status_id: values.status_id,
         vat_rate: vatValue,
+        ...(values.payment_terms ? {payment_terms:values.payment_terms} : {}),
+        ...(values.vat_rate === IVA_MISTA && values.vat_split ? {vat_breakdown: serializzaIvaMista(values.vat_split)} : {}),
         warehouse_arrival_date: toDateStr(values.warehouse_arrival_date),
         work_start_date: toDateStr(values.work_start_date),
         work_end_date: toDateStr(values.work_end_date),
@@ -1274,7 +1312,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       createdOrderIdRef.current = result.id;
       setCreatedOrderId(result.id);
       if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
-      saveDraft({ ...datiBozza, commessaCreataId: result.id });
+      setPipelineDaCompletare(values.pipeline_id!==PIPELINE_PRINCIPALE);
+      saveDraft({ ...datiBozza, commessaCreataId: result.id,pipelineDaCompletare:values.pipeline_id!==PIPELINE_PRINCIPALE });
 
       // Collega il preventivo di origine alla commessa (se creata da un preventivo via
       // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato", il blocca prezzo la
@@ -1472,7 +1511,16 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
           toast.error("Commessa creata, dati appalto da completare", { description: `Non creare un'altra commessa: inseriscili dalla Panoramica. ${e instanceof Error ? e.message : ""}`, duration: 15000 });
         }
       }
-      if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) clearDraft();
+      let pipelineNonAssegnata=false;
+      const sceltaPipeline={pipelineId:getValues("pipeline_id"),faseId:getValues("pipeline_stage_id")};
+      if(sceltaPipeline.pipelineId!==PIPELINE_PRINCIPALE){
+        try {await assegnaPipelineNuovaCommessa(sceltaPipeline,order.id,pipelineCommessa.assegnaFase);setPipelineDaCompletare(false);}
+        catch(error){pipelineNonAssegnata=true;setPipelineDaCompletare(true);saveDraft({...datiBozza,commessaCreataId:order.id,pipelineDaCompletare:true});toast.error("Commessa creata, assegnazione alla pipeline da completare",{description:"La commessa esiste già: usa Riprova assegnazione, senza crearne un’altra. "+(error instanceof Error?error.message:""),duration:15000});}
+      }
+      if (!pipelineNonAssegnata) {
+        if("fasiDaVerificare" in order && order.fasiDaVerificare)saveDraft({...datiBozza,commessaCreataId:order.id,pipelineDaCompletare:false});
+        else clearDraft();
+      }
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["margin"] });
       queryClient.invalidateQueries({ queryKey: ["break-even"] });
@@ -1561,6 +1609,8 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         if (!("fasiDaVerificare" in order && order.fasiDaVerificare)) toast.success("Commessa creata", { description: "La commessa è stata creata con successo." });
       }
 
+      if(pipelineNonAssegnata)return;
+
       // Auto-navigate to the new order detail
       if (computoDaCollegare) {
         // Il computo si aggancia alla commessa appena nata e si apre l'anteprima dei materiali.
@@ -1602,15 +1652,15 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       toast.error("Dati appalto da correggere", { description: "Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo." });
       return;
     }
-    if (contrattoImportato && !installments.length) {
+    if (contrattoImportato && !salPayment && !installments.length) {
       toast.error("Pagamenti da confermare", { description: "Il contratto non dichiara un piano di rate. Definiscilo esplicitamente prima di salvare." });
       return;
     }
-    if (contrattoImportato && !values.status_id) {
+    if (contrattoImportato && values.pipeline_id===PIPELINE_PRINCIPALE && !values.status_id) {
       toast.error("Conferma lo stato iniziale",{description:"La lettura del documento non prova che sia firmato. Scegli lo stato corretto prima di salvare."});
       return;
     }
-    const rateContrattoIncomplete = contrattoImportato ? contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) : null;
+    const rateContrattoIncomplete = contrattoImportato && !salPayment ? contractInstallmentWarning(conSaldoFinale(installments, balance, i => !!i.amount_from_contract), totalWithVat) : null;
     if (rateContrattoIncomplete) {
       toast.error("Pagamenti da verificare", {description:rateContrattoIncomplete});
       return;
@@ -1777,6 +1827,19 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
         <CheckCircle2 className="h-4 w-4 text-blue-700" />
         <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-blue-900">Questa commessa è già stata creata. Aprila per verificare o completare i dettagli.</span>
+          {pipelineDaCompletare && <Button type="button" size="sm" disabled={assegnazioneInCorso} onClick={async()=>{
+            if(assegnazioneInCorso||!createdOrderId)return;
+            setAssegnazioneInCorso(true);
+            try {
+              const scelta={pipelineId:getValues("pipeline_id"),faseId:getValues("pipeline_stage_id")};
+              await assegnaPipelineNuovaCommessa(scelta,createdOrderId,pipelineCommessa.assegnaFase);
+              setPipelineDaCompletare(false);
+              // Conserva il recupero della commessa e delle eventuali altre operazioni già in bozza.
+              saveDraft({...datiBozza,commessaCreataId:createdOrderId,pipelineDaCompletare:false});
+              toast.success("Pipeline assegnata alla commessa esistente");
+            }catch(error){toast.error("Assegnazione non completata",{description:error instanceof Error?error.message:"Riprova o verifica la pipeline dalla bacheca."});}
+            finally{setAssegnazioneInCorso(false);}
+          }}>{assegnazioneInCorso?"Assegnazione…":"Riprova assegnazione pipeline"}</Button>}
           <Button type="button" variant="outline" size="sm" className="h-9 bg-white text-xs" onClick={() => navigate(`/azienda/ordini/${createdOrderId}?tab=cantiere&vista_cantiere=lavorazioni`)}>Apri commessa</Button>
         </AlertDescription>
       </Alert>}
@@ -1927,29 +1990,22 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
                 )}
               />
 
-              {/* Status */}
-              <Controller
-                control={control}
-                name="status_id"
-                render={({ field }) => (
-                  <div className="space-y-2">
-                    <Label>Stato Iniziale</Label>
-                    <Select value={field.value || "__none__"} onValueChange={(value) => field.onChange(value === "__none__" ? "" : value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleziona stato" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__" disabled>Seleziona stato</SelectItem>
-                        {statuses.map((status) => (
-                          <SelectItem key={status.id} value={status.id}>
-                            {status.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+              {/* La fase locale non viene mai usata come FK dello stato principale. */}
+              <StatoPipelineIniziale
+                pipeline={pipelineCommessa.pipeline}
+                statiPrincipali={statuses}
+                value={{pipelineId:pipelineId||PIPELINE_PRINCIPALE,faseId:pipelineId===PIPELINE_PRINCIPALE?statusId||"":pipelineStageId||""}}
+                disabled={createOrderMutation.isPending||!!createdOrderId}
+                caricamento={pipelineCommessa.caricamento}
+                errore={pipelineCommessa.errore}
+                onRiprova={()=>void pipelineCommessa.riprova()}
+                onChange={scelta=>{
+                  setValue("pipeline_id",scelta.pipelineId,{shouldDirty:true,shouldValidate:true});
+                  if(scelta.pipelineId===PIPELINE_PRINCIPALE){setValue("status_id",scelta.faseId,{shouldDirty:true,shouldValidate:true});setValue("pipeline_stage_id","",{shouldValidate:true});}
+                  else {setValue("pipeline_stage_id",scelta.faseId,{shouldDirty:true,shouldValidate:true});if(!statuses.some(s=>s.id===getValues("status_id")))setValue("status_id",statoDiPartenza(statuses));}
+                }}
               />
+              {(errors.pipeline_stage_id||errors.status_id)&&<p role="alert" className="text-sm text-destructive">{errors.pipeline_stage_id?.message||errors.status_id?.message}</p>}
 
               {/* Internal Notes */}
               <Controller
@@ -2030,7 +2086,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             totaleLordo={parseDecimalIT(totalAmount || "") * (1 + vat / 100)}
             sostituisce={installments.length > 0}
             onChiudi={() => setScegliPiano(false)}
-            onScegli={(rate) => { setInstallments(rate); setNumInstallments(rate.length); }}
+            onScegli={(rate,piano) => { setValue("payment_terms",piano??undefined,{shouldDirty:true});setValue("payment_type","standard");setInstallments(rate);setNumInstallments(rate.length); }}
           />
 
           <FinancialSummary
@@ -2052,6 +2108,12 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             statiCommessa={statuses}
             totalAmount={totalAmount || ""}
             vatRate={vatRate ?? ""}
+            salPayment={salPayment}
+            vatSplit={vatSplit}
+            onVatSplitChange={value => {
+              setValue("vat_split", value, {shouldDirty:true});
+              setInstallments(prev => ricalcolaRatePercentuali(prev, calcolaIvaContratto(getValues("total_amount"), IVA_MISTA, value).gross));
+            }}
             paymentType={paymentType}
             installments={installments}
             // Aggiungere o togliere una rata non passa da handleNumInstallmentsChange, che rifà il piano da capo.
@@ -2061,7 +2123,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             // Le rate che vengono da un modello seguono il totale e l'IVA.
             onTotalAmountChange={(val) => {
               setValue("total_amount", val);
-              setInstallments((prev) => ricalcolaRatePercentuali(prev, parseDecimalIT(val) * (1 + vat / 100)));
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, calcolaIvaContratto(val, getValues("vat_rate"), getValues("vat_split")).gross));
             }}
             notaIva={ivaDaAbitudine && aliquotaProposta && vatRate === String(aliquotaProposta.aliquota)
               ? `Usata in ${aliquotaProposta.commesse} delle ultime ${aliquotaProposta.totale} commesse.`
@@ -2069,9 +2131,9 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
             onVatRateChange={(val) => {
               ivaToccataRef.current = true;
               setValue("vat_rate", val);
-              setInstallments((prev) => ricalcolaRatePercentuali(prev, total * (1 + (val.trim() ? parseDecimalIT(val) : 0) / 100)));
+              setInstallments((prev) => ricalcolaRatePercentuali(prev, calcolaIvaContratto(getValues("total_amount"), val, getValues("vat_split")).gross));
             }}
-            onPaymentTypeChange={handlePaymentTypeChange}
+            onPaymentTypeChange={type=>{if(type!=="standard")setValue("payment_terms",undefined);handlePaymentTypeChange(type);}}
             balance={balance}
             hasBuildingBonus={hasBuildingBonus}
             onHasBuildingBonusChange={(val) => setValue("has_building_bonus", val)}
@@ -2206,9 +2268,10 @@ function CreateOrderConPartenza() {
 }
 
 export default function CreateOrder() {
+  const {effectiveCompany}=useAuth();
   return (
     <ErrorBoundary title="Errore nella creazione commessa">
-      <CreateOrderConPartenza />
+      <CreateOrderConPartenza key={effectiveCompany?.id} />
     </ErrorBoundary>
   );
 }

@@ -2,6 +2,8 @@
  * Hook React Query — Valorizzazione magazzino + alert lotti scadenza.
  */
 
+import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,9 +16,12 @@ export interface ArticoloValorizzato {
   name: string;
   internal_code: string | null;
   quantity: number;
+  unita_misura?: string | null;
   unit_cost: number;
   valore: number;
   ha_lotti: boolean;
+  copertura_lotti_incompleta?: boolean;
+  prezzo_da_definire?: boolean;
   warehouse_id: string | null;
 }
 
@@ -40,15 +45,18 @@ export function useValorizzazione(
   method: ValorizzazioneMethod = "media",
   warehouseId: string | null = null,
 ) {
+  const {effectiveCompany,user}=useAuth(); const permissions=usePermissions();const companyId=effectiveCompany?.id;
   return useQuery({
-    queryKey: ["wh", "valorizzazione", method, warehouseId] as const,
+    enabled:!!companyId&&!permissions.isLoading&&permissions.canViewCosts,
+    queryKey: ["wh", "valorizzazione", companyId, user?.id, permissions.canViewCosts, method, warehouseId] as const,
     queryFn: async (): Promise<ValorizzazioneResult> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.rpc as any)(
         "wh_get_valorizzazione",
-        { p_method: method, p_warehouse_id: warehouseId },
+        { p_company_id: companyId, p_method: method, p_warehouse_id: warehouseId },
       );
       if (error) throw error;
+      if (!data || data.meta?.company_id !== companyId) throw new Error("Valorizzazione non verificata per l’azienda selezionata.");
       return data as unknown as ValorizzazioneResult;
     },
     staleTime: 60_000,
@@ -92,15 +100,18 @@ export interface LottiScadenzaResult {
 }
 
 export function useLottiInScadenza(daysAhead = 30) {
+  const {effectiveCompany,user}=useAuth();const permissions=usePermissions();const companyId=effectiveCompany?.id;
   return useQuery({
-    queryKey: ["wh", "lotti-scadenza", daysAhead] as const,
+    enabled:!!companyId&&!permissions.isLoading&&permissions.canViewWarehouse,
+    queryKey: ["wh", "lotti-scadenza", companyId, user?.id, permissions.canViewCosts, daysAhead] as const,
     queryFn: async (): Promise<LottiScadenzaResult> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.rpc as any)(
         "wh_get_lotti_in_scadenza",
-        { p_days_ahead: daysAhead },
+        { p_company_id: companyId, p_days_ahead: daysAhead },
       );
       if (error) throw error;
+      if (!data || data.meta?.company_id !== companyId) throw new Error("Scadenze non verificate per l’azienda selezionata.");
       return data as unknown as LottiScadenzaResult;
     },
     staleTime: 5 * 60_000,
