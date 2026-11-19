@@ -1740,6 +1740,7 @@ function OrderDetailInner() {
           orderId={id!}
           totalAmount={agreedAmount}
           vatRate={order.vat_rate ?? 22}
+          totalePattuitoConIvaMista={inputIncassi.totalePattuitoLordo}
           items={economicsItems}
           itemsLoading={orderItemsPending}
           itemsError={orderItemsError}

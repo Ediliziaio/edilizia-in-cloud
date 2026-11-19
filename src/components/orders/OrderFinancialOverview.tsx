@@ -17,6 +17,7 @@ interface Props {
   orderId: string;
   totalAmount: number;
   vatRate: number;
+  totalePattuitoConIvaMista?: number;
   items: EconItem[];
   itemsLoading?: boolean;
   itemsError?: boolean;
@@ -85,7 +86,10 @@ export function OrderFinancialOverview(props: Props) {
     costiReali: actual.costs,
     margineReale: actual.margin,
   });
-  const { grossAmount } = calculateGrossFromNet(totalAmount, vatRate);
+  const grossAmount = props.totalePattuitoConIvaMista ?? calculateGrossFromNet(totalAmount, vatRate).grossAmount;
+  const etichettaIva = props.totalePattuitoConIvaMista == null
+    ? `IVA ${vatRate.toLocaleString("it-IT", { maximumFractionDigits: 2 })}%`
+    : "IVA mista 10% e 22%";
   const payments = paymentOverview(props.cashTotalGross, props.collectedGross, props.installments);
   const paymentReady = !props.installmentsLoading && !props.installmentsError;
 
@@ -147,7 +151,7 @@ export function OrderFinancialOverview(props: Props) {
         <div role="row" className="contents">
           <Etichetta titolo="Previsto" sotto="dal contratto" />
           {canViewAmounts && (
-            <Cella label="Contratto" value={formatCurrency(grossAmount)} hint={`Imponibile ${formatCurrency(totalAmount)} · IVA ${vatRate}%${Math.abs(actual.approvedVariations) > 0.005 ? ` · varianti ${actual.approvedVariations > 0 ? "+" : "−"}${formatCurrency(Math.abs(actual.approvedVariations))}` : ""}`} onClick={props.onOpenPayments} />
+            <Cella label="Contratto" value={formatCurrency(grossAmount)} hint={`Imponibile ${formatCurrency(totalAmount)} · ${etichettaIva}${Math.abs(actual.approvedVariations) > 0.005 ? ` · varianti ${actual.approvedVariations > 0 ? "+" : "−"}${formatCurrency(Math.abs(actual.approvedVariations))}` : ""}`} onClick={props.onOpenPayments} />
           )}
           {canViewMargins && <>
             <Cella label="Costo previsto" value={previstoReady && numeri.previsto ? formatCurrency(numeri.previsto.costo) : "—"} hint={previstoHint} onClick={props.onOpenEconomics} />

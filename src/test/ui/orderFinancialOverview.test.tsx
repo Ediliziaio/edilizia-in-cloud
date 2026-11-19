@@ -45,6 +45,12 @@ function mount(extra: Partial<ComponentProps<typeof OrderFinancialOverview>> = {
 const cella = (nome: string) => screen.getByRole("cell", { name: `Apri dettagli: ${{ 'Costi sostenuti': 'Costi registrati', 'Margine reale': 'Margine su costi registrati' }[nome] ?? nome}` });
 
 describe("La commessa in numeri: previsto e reale", () => {
+  it("mostra il lordo dalle quote e le due aliquote nel riepilogo del contratto", () => {
+    mount({ totalAmount: 495432.79, vatRate: 14.7336, totalePattuitoConIvaMista: 568428 });
+    expect(cella("Contratto")).toHaveTextContent("568.428,00");
+    expect(cella("Contratto")).toHaveTextContent("IVA mista 10% e 22%");
+  });
+
   it("previsto: contratto IVA inclusa, costo e margine previsti dalle lavorazioni", () => {
     mount();
     expect(cella("Contratto")).toHaveTextContent("1.220,00");
