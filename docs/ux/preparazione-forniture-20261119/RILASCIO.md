@@ -14,7 +14,7 @@ L'accesso anonimo alla RPC e l'accesso diretto degli utenti al registro di idemp
 
 Il percorso ODA conserva i prezzi da confermare. La conferma del prezzo aggiorna la fonte anche a importo invariato o zero esplicito, conservando la stima. Anteprima e colonne generate ODA applicano gli stessi arrotondamenti per riga. Se prezzo o quantità superano la precisione del documento corrente, il percorso si ferma anziché perdere centesimi o quantità.
 
-Il rilascio riallinea inoltre cinque file di migrazione già presenti nel registro del database (`20290420100000`–`20290420104000`), senza riapplicarli in produzione. Sono il ripristino dello storico richiesto dal controllo Supabase Preview. Per i due file locali che differivano dal registro è stato usato lo SQL effettivamente registrato; gli altri tre coincidono byte per byte.
+Il rilascio riallinea inoltre cinque file di migrazione già presenti nel registro del database (`20290420100000`–`20290420104000`), senza riapplicarli in produzione. Sono il ripristino dello storico richiesto dal controllo Supabase Preview. I due file sui conflitti usano PT409, coerente con la correzione già applicata dalla migrazione 20290420104000: il gateway non deve ritentare un conflitto applicativo. Gli altri tre coincidono byte per byte con il registro.
 
 ## Prova nel gestionale reale
 

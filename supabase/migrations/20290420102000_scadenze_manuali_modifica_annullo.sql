@@ -12,7 +12,7 @@ begin
   if not found or s.company_id is distinct from public.get_effective_company_id() then
     raise exception 'Scadenza non trovata o non visibile.' using errcode='42501';
   end if;
-  if s.updated_at is distinct from p_versione then raise exception 'Questa scadenza è cambiata. Ricarica l''elenco prima di riprovare.' using errcode='40001'; end if;
+  if s.updated_at is distinct from p_versione then raise exception 'Questa scadenza è cambiata. Ricarica l''elenco prima di riprovare.' using errcode='PT409'; end if;
   if s.status<>'da_pagare' or coalesce(s.paid_amount,0)<>0 or s.prima_nota_entry_id is not null then
     raise exception 'La scadenza ha un pagamento o non è più aperta. Usa il percorso del pagamento.' using errcode='22023';
   end if;
@@ -43,7 +43,7 @@ begin
   if not found or s.company_id is distinct from public.get_effective_company_id() then
     raise exception 'Scadenza non trovata o non visibile.' using errcode='42501';
   end if;
-  if s.updated_at is distinct from p_versione then raise exception 'Questa scadenza è cambiata. Ricarica l''elenco prima di riprovare.' using errcode='40001'; end if;
+  if s.updated_at is distinct from p_versione then raise exception 'Questa scadenza è cambiata. Ricarica l''elenco prima di riprovare.' using errcode='PT409'; end if;
   if s.status<>'da_pagare' or coalesce(s.paid_amount,0)<>0 or s.prima_nota_entry_id is not null then
     raise exception 'La scadenza ha un pagamento o non è più aperta. Usa il percorso del pagamento.' using errcode='22023';
   end if;
