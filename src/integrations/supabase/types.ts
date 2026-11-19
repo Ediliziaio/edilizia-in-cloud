@@ -10086,8 +10086,8 @@ export type Database = {
           colore_primario: string | null
           company_id: string
           condizioni_pagamento_default: string | null
-          conservazione_ade_aderito_il: string | null
           conti_fatturazione: Json
+          conservazione_ade_aderito_il: string | null
           created_at: string | null
           durc_expiry_date: string | null
           email: string | null
@@ -10168,8 +10168,8 @@ export type Database = {
           colore_primario?: string | null
           company_id: string
           condizioni_pagamento_default?: string | null
-          conservazione_ade_aderito_il?: string | null
           conti_fatturazione?: Json
+          conservazione_ade_aderito_il?: string | null
           created_at?: string | null
           durc_expiry_date?: string | null
           email?: string | null
@@ -10250,8 +10250,8 @@ export type Database = {
           colore_primario?: string | null
           company_id?: string
           condizioni_pagamento_default?: string | null
-          conservazione_ade_aderito_il?: string | null
           conti_fatturazione?: Json
+          conservazione_ade_aderito_il?: string | null
           created_at?: string | null
           durc_expiry_date?: string | null
           email?: string | null
@@ -17036,7 +17036,6 @@ export type Database = {
           company_id: string
           created_at: string
           documento_id: string | null
-          fattura_ricevuta_id: string | null
           id: string
           invoice_id: string | null
           match_score: number | null
@@ -17049,7 +17048,6 @@ export type Database = {
           payment_source: Json | null
           prima_nota_id: string | null
           prove: Json | null
-          rata_fornitore_id: string | null
           regola: string | null
           ripartita: boolean
           scadenza_id: string | null
@@ -17061,7 +17059,6 @@ export type Database = {
           company_id: string
           created_at?: string
           documento_id?: string | null
-          fattura_ricevuta_id?: string | null
           id?: string
           invoice_id?: string | null
           match_score?: number | null
@@ -17074,7 +17071,6 @@ export type Database = {
           payment_source?: Json | null
           prima_nota_id?: string | null
           prove?: Json | null
-          rata_fornitore_id?: string | null
           regola?: string | null
           ripartita?: boolean
           scadenza_id?: string | null
@@ -17086,7 +17082,6 @@ export type Database = {
           company_id?: string
           created_at?: string
           documento_id?: string | null
-          fattura_ricevuta_id?: string | null
           id?: string
           invoice_id?: string | null
           match_score?: number | null
@@ -17099,7 +17094,6 @@ export type Database = {
           payment_source?: Json | null
           prima_nota_id?: string | null
           prove?: Json | null
-          rata_fornitore_id?: string | null
           regola?: string | null
           ripartita?: boolean
           scadenza_id?: string | null
@@ -29828,7 +29822,6 @@ export type Database = {
           acquisti_prezzo_toll_perc: number
           acquisti_quantita_toll_perc: number
           banca_differenza_max: number
-          chiusura_senza_fattura_automatica: boolean
           collegamento_automatico: boolean
           company_id: string
           created_at: string
@@ -29848,7 +29841,6 @@ export type Database = {
           acquisti_prezzo_toll_perc?: number
           acquisti_quantita_toll_perc?: number
           banca_differenza_max?: number
-          chiusura_senza_fattura_automatica?: boolean
           collegamento_automatico?: boolean
           company_id: string
           created_at?: string
@@ -29868,7 +29860,6 @@ export type Database = {
           acquisti_prezzo_toll_perc?: number
           acquisti_quantita_toll_perc?: number
           banca_differenza_max?: number
-          chiusura_senza_fattura_automatica?: boolean
           collegamento_automatico?: boolean
           company_id?: string
           created_at?: string
@@ -81899,8 +81890,6 @@ export type Database = {
           amount: number
           created_at: string
           documento_fiscale_id: string | null
-          documento_quota_lorda: number | null
-          documento_quota_offset: number | null
           expected_date: string | null
           giorni_preavviso: number
           id: string
@@ -81924,8 +81913,6 @@ export type Database = {
           amount?: number
           created_at?: string
           documento_fiscale_id?: string | null
-          documento_quota_lorda?: number | null
-          documento_quota_offset?: number | null
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
@@ -81949,8 +81936,6 @@ export type Database = {
           amount?: number
           created_at?: string
           documento_fiscale_id?: string | null
-          documento_quota_lorda?: number | null
-          documento_quota_offset?: number | null
           expected_date?: string | null
           giorni_preavviso?: number
           id?: string
@@ -82438,7 +82423,6 @@ export type Database = {
           planimetria_documento_id: string | null
           position: number | null
           posizioni: Json | null
-          preparazione_prezzo: Json | null
           prezzo_aggiornato_il: string | null
           prezzo_da_definire: boolean
           prezzo_fonte: string | null
@@ -82468,7 +82452,6 @@ export type Database = {
           unita_misura: string | null
           updated_at: string | null
           vat_rate: number | null
-          warehouse_reserved_quantity: number | null
         }
         Insert: {
           article_template_id?: string | null
@@ -82525,7 +82508,6 @@ export type Database = {
           planimetria_documento_id?: string | null
           position?: number | null
           posizioni?: Json | null
-          preparazione_prezzo?: Json | null
           prezzo_aggiornato_il?: string | null
           prezzo_da_definire?: boolean
           prezzo_fonte?: string | null
@@ -82555,7 +82537,6 @@ export type Database = {
           unita_misura?: string | null
           updated_at?: string | null
           vat_rate?: number | null
-          warehouse_reserved_quantity?: number | null
         }
         Update: {
           article_template_id?: string | null
@@ -82612,7 +82593,6 @@ export type Database = {
           planimetria_documento_id?: string | null
           position?: number | null
           posizioni?: Json | null
-          preparazione_prezzo?: Json | null
           prezzo_aggiornato_il?: string | null
           prezzo_da_definire?: boolean
           prezzo_fonte?: string | null
@@ -82642,7 +82622,6 @@ export type Database = {
           unita_misura?: string | null
           updated_at?: string | null
           vat_rate?: number | null
-          warehouse_reserved_quantity?: number | null
         }
         Relationships: [
           {
@@ -85103,7 +85082,6 @@ export type Database = {
           order_code: string | null
           order_type: string
           parent_contract_id: string | null
-          payment_terms: Json | null
           payment_type: string | null
           percentuale_avanzamento: number | null
           quote_id: string | null
@@ -85120,7 +85098,6 @@ export type Database = {
           total_amount: number
           updated_at: string
           valorizzazione: string | null
-          vat_breakdown: Json | null
           vat_rate: number | null
           version: number
           warehouse_arrival_date: string | null
@@ -85196,7 +85173,6 @@ export type Database = {
           order_code?: string | null
           order_type?: string
           parent_contract_id?: string | null
-          payment_terms?: Json | null
           payment_type?: string | null
           percentuale_avanzamento?: number | null
           quote_id?: string | null
@@ -85213,7 +85189,6 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           valorizzazione?: string | null
-          vat_breakdown?: Json | null
           vat_rate?: number | null
           version?: number
           warehouse_arrival_date?: string | null
@@ -85289,7 +85264,6 @@ export type Database = {
           order_code?: string | null
           order_type?: string
           parent_contract_id?: string | null
-          payment_terms?: Json | null
           payment_type?: string | null
           percentuale_avanzamento?: number | null
           quote_id?: string | null
@@ -85306,7 +85280,6 @@ export type Database = {
           total_amount?: number
           updated_at?: string
           valorizzazione?: string | null
-          vat_breakdown?: Json | null
           vat_rate?: number | null
           version?: number
           warehouse_arrival_date?: string | null
@@ -93752,121 +93725,6 @@ export type Database = {
           warehouse_id?: string | null
         }
         Relationships: []
-      }
-      preparazioni_forniture_salvataggi: {
-        Row: {
-          autore: string
-          company_id: string
-          created_at: string
-          impronta: string
-          order_id: string
-          richiesta: string
-          risultato: Json
-        }
-        Insert: {
-          autore: string
-          company_id: string
-          created_at?: string
-          impronta: string
-          order_id: string
-          richiesta: string
-          risultato: Json
-        }
-        Update: {
-          autore?: string
-          company_id?: string
-          created_at?: string
-          impronta?: string
-          order_id?: string
-          richiesta?: string
-          risultato?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "commesse_valore_pattuito"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders_visibili"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "v_cg_lavori_in_corso"
-            referencedColumns: ["order_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "v_cg_portafoglio_commesse"
-            referencedColumns: ["order_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "v_ordine_costi_mezzi_stimati"
-            referencedColumns: ["order_id"]
-          },
-          {
-            foreignKeyName: "preparazioni_forniture_salvataggi_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "v_ordine_esposizione"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       preventivo_da_foto_runs: {
         Row: {
@@ -105727,48 +105585,6 @@ export type Database = {
           },
           {
             foreignKeyName: "sal_certificati_sal_id_fkey"
-            columns: ["sal_id"]
-            isOneToOne: true
-            referencedRelation: "sal_records_visibili"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sal_contratto_emesso: {
-        Row: {
-          acquisito_il: string
-          aliquota_iva: number | null
-          company_id: string
-          importo_base: number
-          sal_id: string
-          varianti: Json
-        }
-        Insert: {
-          acquisito_il: string
-          aliquota_iva?: number | null
-          company_id: string
-          importo_base: number
-          sal_id: string
-          varianti: Json
-        }
-        Update: {
-          acquisito_il?: string
-          aliquota_iva?: number | null
-          company_id?: string
-          importo_base?: number
-          sal_id?: string
-          varianti?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sal_contratto_emesso_sal_id_fkey"
-            columns: ["sal_id"]
-            isOneToOne: true
-            referencedRelation: "sal_records"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sal_contratto_emesso_sal_id_fkey"
             columns: ["sal_id"]
             isOneToOne: true
             referencedRelation: "sal_records_visibili"
@@ -132900,97 +132716,6 @@ export type Database = {
           },
         ]
       }
-      warehouse_inventory_counts_v3: {
-        Row: {
-          adjustment_applied: boolean
-          applied_at: string | null
-          company_id: string
-          counted_quantity: number
-          created_at: string
-          difference: number | null
-          expected_quantity: number
-          id: string
-          notes: string | null
-          performed_by: string
-          serial_numbers: Json | null
-          snapshot: Json
-          stock_item_id: string
-        }
-        Insert: {
-          adjustment_applied?: boolean
-          applied_at?: string | null
-          company_id: string
-          counted_quantity: number
-          created_at?: string
-          difference?: number | null
-          expected_quantity: number
-          id?: string
-          notes?: string | null
-          performed_by: string
-          serial_numbers?: Json | null
-          snapshot: Json
-          stock_item_id: string
-        }
-        Update: {
-          adjustment_applied?: boolean
-          applied_at?: string | null
-          company_id?: string
-          counted_quantity?: number
-          created_at?: string
-          difference?: number | null
-          expected_quantity?: number
-          id?: string
-          notes?: string | null
-          performed_by?: string
-          serial_numbers?: Json | null
-          snapshot?: Json
-          stock_item_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_inventory_counts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_inventory_counts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_inventory_counts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_inventory_counts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_inventory_counts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-          {
-            foreignKeyName: "warehouse_inventory_counts_v3_stock_item_id_fkey"
-            columns: ["stock_item_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_stock"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       warehouse_lot_batches: {
         Row: {
           company_id: string
@@ -133354,339 +133079,6 @@ export type Database = {
           },
         ]
       }
-      warehouse_oda_scan_receipts_v3: {
-        Row: {
-          company_id: string
-          id: string
-          order_item_id: string
-          purchase_order_id: string
-          purchase_order_item_id: string
-          quantity_received: number
-          receipt_date: string
-        }
-        Insert: {
-          company_id: string
-          id?: string
-          order_item_id: string
-          purchase_order_id: string
-          purchase_order_item_id: string
-          quantity_received: number
-          receipt_date?: string
-        }
-        Update: {
-          company_id?: string
-          id?: string
-          order_item_id?: string
-          purchase_order_id?: string
-          purchase_order_item_id?: string
-          quantity_received?: number
-          receipt_date?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "order_items_senza_prezzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_order_item_id_fkey"
-            columns: ["order_item_id"]
-            isOneToOne: false
-            referencedRelation: "v_ordine_articoli_costi"
-            referencedColumns: ["order_item_id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_purchase_order_id_fkey"
-            columns: ["purchase_order_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_purchase_order_id_fkey"
-            columns: ["purchase_order_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_orders_senza_prezzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_purchase_order_item_id_fkey"
-            columns: ["purchase_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_oda_scan_receipts_v3_purchase_order_item_id_fkey"
-            columns: ["purchase_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_order_items_senza_prezzi"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      warehouse_operation_requests: {
-        Row: {
-          actor_id: string
-          company_id: string
-          created_at: string
-          operation: string
-          payload: Json
-          request_id: string
-          response: Json | null
-        }
-        Insert: {
-          actor_id: string
-          company_id: string
-          created_at?: string
-          operation: string
-          payload: Json
-          request_id: string
-          response?: Json | null
-        }
-        Update: {
-          actor_id?: string
-          company_id?: string
-          created_at?: string
-          operation?: string
-          payload?: Json
-          request_id?: string
-          response?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_operation_requests_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_operation_requests_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_operation_requests_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_operation_requests_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_operation_requests_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-        ]
-      }
-      warehouse_receipt_opening_balances_v4: {
-        Row: {
-          company_id: string
-          created_at: string
-          documented_quantity: number
-          id: string
-          purchase_order_item_id: string
-          quantity: number
-          reconciliation_id: string
-          recorded_quantity: number
-          source_hash: string
-          source_kind: string
-          source_snapshot: Json
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          documented_quantity: number
-          id?: string
-          purchase_order_item_id: string
-          quantity: number
-          reconciliation_id: string
-          recorded_quantity: number
-          source_hash: string
-          source_kind?: string
-          source_snapshot: Json
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          documented_quantity?: number
-          id?: string
-          purchase_order_item_id?: string
-          quantity?: number
-          reconciliation_id?: string
-          recorded_quantity?: number
-          source_hash?: string
-          source_kind?: string
-          source_snapshot?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances__purchase_order_item_id_fkey"
-            columns: ["purchase_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances__purchase_order_item_id_fkey"
-            columns: ["purchase_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "purchase_order_items_senza_prezzi"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_opening_balances_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-        ]
-      }
-      warehouse_receipt_reconciliations_v4: {
-        Row: {
-          company_id: string
-          created_at: string
-          id: string
-          result: Json
-          source_hash: string
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          id: string
-          result: Json
-          source_hash: string
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          id?: string
-          result?: Json
-          source_hash?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_receipt_reconciliations_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_reconciliations_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_reconciliations_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_reconciliations_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_receipt_reconciliations_v4_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-        ]
-      }
       warehouse_referenti: {
         Row: {
           company_id: string
@@ -133800,52 +133192,6 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      warehouse_return_allocations: {
-        Row: {
-          id: string
-          outbound_movement_id: string
-          quantity: number
-          return_movement_id: string
-          stock_unit_id: string | null
-        }
-        Insert: {
-          id?: string
-          outbound_movement_id: string
-          quantity: number
-          return_movement_id: string
-          stock_unit_id?: string | null
-        }
-        Update: {
-          id?: string
-          outbound_movement_id?: string
-          quantity?: number
-          return_movement_id?: string
-          stock_unit_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_return_allocations_outbound_movement_id_fkey"
-            columns: ["outbound_movement_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_movements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_return_allocations_return_movement_id_fkey"
-            columns: ["return_movement_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_movements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_return_allocations_stock_unit_id_fkey"
-            columns: ["stock_unit_id"]
-            isOneToOne: false
-            referencedRelation: "stock_units"
             referencedColumns: ["id"]
           },
         ]
@@ -134418,119 +133764,38 @@ export type Database = {
           },
         ]
       }
-      warehouse_stock_identity_v3: {
-        Row: {
-          company_id: string
-          root_stock_id: string
-          stock_item_id: string
-        }
-        Insert: {
-          company_id: string
-          root_stock_id: string
-          stock_item_id: string
-        }
-        Update: {
-          company_id?: string
-          root_stock_id?: string
-          stock_item_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_root_stock_id_fkey"
-            columns: ["root_stock_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_stock"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_stock_identity_v3_stock_item_id_fkey"
-            columns: ["stock_item_id"]
-            isOneToOne: true
-            referencedRelation: "warehouse_stock"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       warehouse_transfer_items: {
         Row: {
           created_at: string
-          destination_stock_item_id: string | null
           id: string
           notes: string | null
           quantity: number
           quantity_received: number
-          serial_numbers: Json | null
           sort_order: number
           stock_item_id: string
           transfer_id: string
         }
         Insert: {
           created_at?: string
-          destination_stock_item_id?: string | null
           id?: string
           notes?: string | null
           quantity: number
           quantity_received?: number
-          serial_numbers?: Json | null
           sort_order?: number
           stock_item_id: string
           transfer_id: string
         }
         Update: {
           created_at?: string
-          destination_stock_item_id?: string | null
           id?: string
           notes?: string | null
           quantity?: number
           quantity_received?: number
-          serial_numbers?: Json | null
           sort_order?: number
           stock_item_id?: string
           transfer_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "warehouse_transfer_items_destination_stock_item_id_fkey"
-            columns: ["destination_stock_item_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_stock"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "warehouse_transfer_items_stock_item_id_fkey"
             columns: ["stock_item_id"]
@@ -134543,84 +133808,6 @@ export type Database = {
             columns: ["transfer_id"]
             isOneToOne: false
             referencedRelation: "warehouse_transfers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      warehouse_transfer_links_v3: {
-        Row: {
-          company_id: string
-          destination_stock_id: string
-          destination_warehouse_id: string
-          source_stock_id: string
-        }
-        Insert: {
-          company_id: string
-          destination_stock_id: string
-          destination_warehouse_id: string
-          source_stock_id: string
-        }
-        Update: {
-          company_id?: string
-          destination_stock_id?: string
-          destination_warehouse_id?: string
-          source_stock_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "customer_profile"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "mv_company_metrics"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "v_insoluti"
-            referencedColumns: ["azienda_id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_destination_stock_id_fkey"
-            columns: ["destination_stock_id"]
-            isOneToOne: true
-            referencedRelation: "warehouse_stock"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_destination_warehouse_id_fkey"
-            columns: ["destination_warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_transfer_links_v3_source_stock_id_fkey"
-            columns: ["source_stock_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_stock"
             referencedColumns: ["id"]
           },
         ]
@@ -134710,46 +133897,6 @@ export type Database = {
             columns: ["to_warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      warehouse_unit_exits: {
-        Row: {
-          movement_id: string
-          returned_by: string | null
-          stock_unit_id: string
-        }
-        Insert: {
-          movement_id: string
-          returned_by?: string | null
-          stock_unit_id: string
-        }
-        Update: {
-          movement_id?: string
-          returned_by?: string | null
-          stock_unit_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "warehouse_unit_exits_movement_id_fkey"
-            columns: ["movement_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_movements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_unit_exits_returned_by_fkey"
-            columns: ["returned_by"]
-            isOneToOne: false
-            referencedRelation: "warehouse_movements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "warehouse_unit_exits_stock_unit_id_fkey"
-            columns: ["stock_unit_id"]
-            isOneToOne: false
-            referencedRelation: "stock_units"
             referencedColumns: ["id"]
           },
         ]
@@ -140370,8 +139517,6 @@ export type Database = {
           amount: number | null
           created_at: string | null
           documento_fiscale_id: string | null
-          documento_quota_lorda: number | null
-          documento_quota_offset: number | null
           expected_date: string | null
           giorni_preavviso: number | null
           id: string | null
@@ -141455,7 +140600,6 @@ export type Database = {
           order_code: string | null
           order_type: string | null
           parent_contract_id: string | null
-          payment_terms: Json | null
           payment_type: string | null
           percentuale_avanzamento: number | null
           quote_id: string | null
@@ -141471,7 +140615,6 @@ export type Database = {
           total_amount: number | null
           updated_at: string | null
           valorizzazione: string | null
-          vat_breakdown: Json | null
           vat_rate: number | null
           version: number | null
           warehouse_arrival_date: string | null
@@ -150187,10 +149330,6 @@ export type Database = {
         Args: { p_fattura_id: string; p_quote: Json }
         Returns: Json
       }
-      collega_fattura_rate: {
-        Args: { p_documento_id: string; p_order_id: string; p_rate: string[] }
-        Returns: undefined
-      }
       collega_fornitore_ricevute: {
         Args: {
           p_company_id: string
@@ -150425,10 +149564,6 @@ export type Database = {
       commessa_mezzi_lavoro: { Args: { p_order_id: string }; Returns: Json }
       commessa_pianifica_fasi: {
         Args: { p_order_id: string; p_piano: Json; p_sovrascrivi?: boolean }
-        Returns: Json
-      }
-      commessa_prepara_forniture: {
-        Args: { p_commessa: string; p_richiesta: string; p_voci: Json }
         Returns: Json
       }
       commessa_quadro_pagamenti: { Args: { p_order_id: string }; Returns: Json }
@@ -150799,18 +149934,6 @@ export type Database = {
         }
         Returns: string
       }
-      contabilita_rettifica_scrittura: {
-        Args: {
-          p_causale: string
-          p_data: string
-          p_descrizione: string
-          p_documento_data: string
-          p_documento_numero: string
-          p_righe: Json
-          p_scrittura: string
-        }
-        Returns: Json
-      }
       contabilita_riapri_esercizio: {
         Args: { p_anno: number; p_company: string; p_motivo: string }
         Returns: Json
@@ -150883,10 +150006,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      contabilita_storni_dell_esercizio: {
-        Args: { p_anno: number; p_company: string }
-        Returns: Json
-      }
       contabilizza_fattura_ricevuta: {
         Args: { p_fattura_id: string }
         Returns: Json
@@ -150908,8 +150027,6 @@ export type Database = {
         Args: { p_company_id: string; p_contract_id: string }
         Returns: Json
       }
-      contract_sal_plan_capabilities: { Args: never; Returns: Json }
-      contract_vat_split_capabilities: { Args: never; Returns: Json }
       contratto_importato_collega: {
         Args: {
           p_firmato_il?: string
@@ -154900,16 +154017,6 @@ export type Database = {
         }
         Returns: Json
       }
-      listino_crea_area: {
-        Args: {
-          p_area: string
-          p_company_id: string
-          p_nome_area: string
-          p_tipologia: string
-          p_tipologie: Json
-        }
-        Returns: Json
-      }
       listino_ditta_ricalcola_previsto: {
         Args: { p_fasi: string[]; p_subappaltatore: string }
         Returns: undefined
@@ -155852,10 +154959,6 @@ export type Database = {
           _url: string
         }
         Returns: number
-      }
-      materiali_prezzo_da_documenti: {
-        Args: { p_articolo: string }
-        Returns: undefined
       }
       materiali_prezzo_ripristina: {
         Args: { p_order_item: string }
@@ -157340,10 +156443,6 @@ export type Database = {
         }[]
       }
       pin_numero_whatsapp: { Args: { p_numero_id: string }; Returns: string }
-      pipeline_commesse: {
-        Args: { p_azienda: string; p_operazione?: Json }
-        Returns: Json
-      }
       pipeline_nascoste: { Args: never; Returns: string[] }
       piva_valida: { Args: { p_valore: string }; Returns: boolean }
       planimetria_aggiorna_misure_computo: {
@@ -157685,10 +156784,6 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: boolean
       }
-      previsionale_cantiere: {
-        Args: { p_azienda: string; p_commessa: string; p_operazione?: Json }
-        Returns: Json
-      }
       previsionale_rate_commesse: {
         Args: { p_company_id: string }
         Returns: {
@@ -157912,7 +157007,6 @@ export type Database = {
         Args: { p_piano: Json; p_totale_lordo: number }
         Returns: Json
       }
-      rate_fattura_quote: { Args: { p_order_id: string }; Returns: Json }
       rate_importi: {
         Args: { p_company: string }
         Returns: {
@@ -158209,10 +157303,6 @@ export type Database = {
           valori: Json
           volte: number
         }[]
-      }
-      registro_subappalto: {
-        Args: { p_azienda: string; p_commessa: string; p_operazione?: Json }
-        Returns: Json
       }
       release_render_bagno_session: {
         Args: { _session_id: string }
@@ -158691,68 +157781,6 @@ export type Database = {
       scadenza_accordo_fornitore: {
         Args: { p_data: string; p_supplier: string }
         Returns: string
-      }
-      scadenza_annulla_manuale: {
-        Args: { p_id: string; p_versione: string }
-        Returns: Json
-      }
-      scadenza_modifica_manuale: {
-        Args: { p_dati: Json; p_id: string; p_versione: string }
-        Returns: Json
-      }
-      scadenzario_fonti: {
-        Args: { p_company_id: string }
-        Returns: {
-          alert_days_before: number | null
-          alert_sent_at: string | null
-          amount: number
-          auto_source: string | null
-          company_id: string
-          contact_id: string | null
-          cost_id: string | null
-          created_at: string
-          created_by: string | null
-          description: string
-          direction: string | null
-          due_date: string
-          email_documento_estratto_id: string | null
-          email_id: string | null
-          id: string
-          invoice_id: string | null
-          is_auto_generated: boolean | null
-          is_previsionale: boolean
-          is_recurring: boolean
-          notes: string | null
-          order_id: string | null
-          order_item_id: string | null
-          paid_amount: number
-          paid_date: string | null
-          payment_method: string | null
-          prima_nota_entry_id: string | null
-          rata_numero: number | null
-          recurrence_rule: string | null
-          status: string
-          supplier_id: string | null
-          ticket_id: string | null
-          tipo: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "scadenze"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      scadenzario_riepilogo_fonti: {
-        Args: {
-          p_company_id: string
-          p_date_from?: string
-          p_date_to?: string
-          p_includi_senza_data?: boolean
-          p_solo_senza_data?: boolean
-        }
-        Returns: Json
       }
       scadenze_documento_incassa: {
         Args: {
@@ -162150,7 +161178,6 @@ export type Database = {
         Args: { _must_change: boolean }
         Returns: undefined
       }
-      stati_app_operai: { Args: { p_company_id: string }; Returns: Json }
       stato_blocco_accesso: {
         Args: { p_email: string; p_ip: unknown }
         Returns: {
@@ -162458,11 +161485,6 @@ export type Database = {
       }
       tesoreria_conferma_esito: {
         Args: { p_company: string; p_tx: string }
-        Returns: Json
-      }
-      tesoreria_conti: { Args: { p_company: string }; Returns: Json }
-      tesoreria_controparti: {
-        Args: { p_company: string; p_movimenti: string[] }
         Returns: Json
       }
       tesoreria_esito_movimento: {
@@ -162891,96 +161913,6 @@ export type Database = {
         Returns: Json
       }
       voice_campaign_runtime_ready: { Args: never; Returns: boolean }
-      warehouse_access_v2: {
-        Args: { p_company: string; p_permission: string }
-        Returns: undefined
-      }
-      warehouse_can_write_v4: {
-        Args: { p_company: string; p_warehouse: string }
-        Returns: boolean
-      }
-      warehouse_capabilities_v2: {
-        Args: { p_company_id: string }
-        Returns: Json
-      }
-      warehouse_claim_v2: {
-        Args: {
-          p_company: string
-          p_operation: string
-          p_payload: Json
-          p_request: string
-        }
-        Returns: Json
-      }
-      warehouse_effective_reserve_v2: {
-        Args: { p_explicit: number; p_quantity: number; p_status: string }
-        Returns: number
-      }
-      warehouse_goods_receipt_v3: {
-        Args: {
-          p_ddt_number: string
-          p_ddt_photo_url: string
-          p_ddt_ricezione_id: string
-          p_notes: string
-          p_order_item_id: string
-          p_quality_check_status: string
-          p_quality_notes: string
-          p_quantity_received: number
-          p_request_id: string
-          p_supplier_id: string
-          p_warehouse_id: string
-        }
-        Returns: Json
-      }
-      warehouse_import_stock_v3: {
-        Args: {
-          p_company_id: string
-          p_items: Json
-          p_request_id: string
-          p_warehouse_id: string
-        }
-        Returns: Json
-      }
-      warehouse_inventory_apply_v3: {
-        Args: { p_audit_id: string; p_request_id: string }
-        Returns: Json
-      }
-      warehouse_inventory_count_v3: {
-        Args: {
-          p_counted: number
-          p_notes: string
-          p_request_id: string
-          p_serial_numbers: Json
-          p_snapshot: Json
-          p_stock_item_id: string
-        }
-        Returns: Json
-      }
-      warehouse_inventory_list_v3: {
-        Args: { p_company_id: string; p_stock_item_id?: string }
-        Returns: Json
-      }
-      warehouse_inventory_preview_v3: {
-        Args: { p_stock_item_id: string }
-        Returns: Json
-      }
-      warehouse_inventory_state_v3: { Args: { p_stock: string }; Returns: Json }
-      warehouse_location_access_v2: {
-        Args: { p_company: string; p_warehouse: string }
-        Returns: undefined
-      }
-      warehouse_location_access_v3: {
-        Args: { p_company: string; p_warehouse: string }
-        Returns: undefined
-      }
-      warehouse_location_allowed_v2: {
-        Args: { p_company: string; p_warehouse: string }
-        Returns: boolean
-      }
-      warehouse_location_allowed_v3: {
-        Args: { p_company: string; p_warehouse: string }
-        Returns: boolean
-      }
       warehouse_movimento_rapido: {
         Args: {
           p_note?: string
@@ -162991,86 +161923,6 @@ export type Database = {
         }
         Returns: Json
       }
-      warehouse_receipt_assert_v4: {
-        Args: { p_po_id: string }
-        Returns: undefined
-      }
-      warehouse_receipt_reconciliation_apply_v4: {
-        Args: {
-          p_company_id: string
-          p_expected_hash: string
-          p_request_id: string
-        }
-        Returns: Json
-      }
-      warehouse_receipt_reconciliation_preview_v4: {
-        Args: { p_company_id: string }
-        Returns: Json
-      }
-      warehouse_receipt_totals_v4: {
-        Args: { p_po_id: string }
-        Returns: {
-          documented: number
-          item_id: string
-          opening: number
-          scanned: number
-        }[]
-      }
-      warehouse_receive_oda_v3: {
-        Args: {
-          p_ddt_number: string
-          p_ddt_ricezione_id: string
-          p_oda_id: string
-          p_request_id: string
-          p_scans: Json
-          p_warehouse_id: string
-        }
-        Returns: Json
-      }
-      warehouse_register_carico_v2: {
-        Args: {
-          p_ddt_ricezione_id?: string
-          p_notes?: string
-          p_request_id: string
-          p_scans: Json
-          p_supplier_id: string
-          p_warehouse_id: string
-        }
-        Returns: Json
-      }
-      warehouse_register_uscita_v2: {
-        Args: {
-          p_destinatario: Json
-          p_note?: string
-          p_request_id: string
-          p_scans: Json
-          p_vettore?: Json
-          p_warehouse_id: string
-        }
-        Returns: Json
-      }
-      warehouse_reorder_preview_v3: {
-        Args: { p_company_id: string; p_warehouse_id?: string }
-        Returns: Json
-      }
-      warehouse_reorder_v3: {
-        Args: {
-          p_company_id: string
-          p_lines: Json
-          p_request_id: string
-          p_supplier_id: string
-          p_warehouse_id: string
-        }
-        Returns: Json
-      }
-      warehouse_reserve_v2: {
-        Args: {
-          p_order_item_id: string
-          p_quantity: number
-          p_request_id: string
-        }
-        Returns: Json
-      }
       warehouse_rettifica_giacenza: {
         Args: {
           p_note?: string
@@ -163078,26 +161930,6 @@ export type Database = {
           p_quantita_vista: number
           p_stock_item_id: string
         }
-        Returns: Json
-      }
-      warehouse_return_candidates_v2: {
-        Args: { p_order_id: string }
-        Returns: Json
-      }
-      warehouse_return_material_v2: {
-        Args: {
-          p_expected_returned?: number
-          p_order_id: string
-          p_order_item_id: string
-          p_quantity: number
-          p_request_id: string
-          p_serial_numbers: Json
-          p_stock_item_id: string
-        }
-        Returns: Json
-      }
-      warehouse_return_state_v2: {
-        Args: { p_line: string; p_order: string; p_stock: string }
         Returns: Json
       }
       warehouse_scan_lookup: {
@@ -163116,22 +161948,6 @@ export type Database = {
           warehouse_id: string
           warehouse_name: string
         }[]
-      }
-      warehouse_transfer_list_v3: {
-        Args: { p_company_id: string }
-        Returns: Json
-      }
-      warehouse_transfer_v3: {
-        Args: {
-          p_company_id: string
-          p_from_warehouse_id: string
-          p_items: Json
-          p_notes: string
-          p_request_id: string
-          p_to_warehouse_id: string
-          p_transfer_date: string
-        }
-        Returns: Json
       }
       warmup_postgres_pool: { Args: never; Returns: undefined }
       wh_get_lotti_in_scadenza: {
