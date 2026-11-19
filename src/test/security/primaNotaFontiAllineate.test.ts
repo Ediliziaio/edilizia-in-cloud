@@ -24,6 +24,7 @@ beforeAll(async()=>{
     create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,direction text,category text,description text,amount numeric check(amount>0),entry_date date not null,payment_method text,bank_transaction_id uuid,account_label text,is_auto boolean default false,auto_source text,created_by uuid,payment_payload jsonb,invoice_id uuid,documento_fiscale_id uuid,movimento_id uuid,scadenza_id uuid,cost_id uuid,reversal_of uuid,reference_number text);
     grant usage on schema public,auth to authenticated;`);
   await pg.exec(await readFile("supabase/migrations/20290421183000_prima_nota_fonti_allineate.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421190000_prima_nota_incassi_storici_prudenti.sql","utf8"));
   await pg.exec(`create trigger bank_proof_payment_removed before delete or update of amount,direction,bank_transaction_id on prima_nota_entries for each row execute function private.bank_proof_payment_lifecycle();`);
 },30000);
 beforeEach(async()=>{
@@ -131,5 +132,11 @@ describe("Prima nota e fonti finanziarie",()=>{
   it("un saldo importato senza data effettiva resta da verificare",async()=>{
     await pg.query<Record<string, unknown>>("update invoices set external_provider='fattureincloud',paid_amount=500 where id=$1",[invoice]);
     const p=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);expect(p.da_verificare).toHaveLength(1);expect(await count()).toBe(0);
+  });
+  it("un saldo storico non viene ricopiato quando potrebbe essere già nella prima nota manuale",async()=>{
+    await pg.query("update invoices set external_provider='fattureincloud',paid_amount=500,payment_date='2026-11-16' where id=$1",[invoice]);
+    await pg.query("insert into prima_nota_entries(company_id,direction,amount,entry_date) values($1,'entrata',500,'2026-11-16')",[company]);
+    const esito=await rpc<{total:number;da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);
+    expect(esito.total).toBe(0);expect(esito.da_verificare).toHaveLength(1);expect(await count()).toBe(1);
   });
 });
