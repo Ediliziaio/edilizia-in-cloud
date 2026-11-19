@@ -36,16 +36,16 @@ describe("Commesse › Acquisti: chi entra", () => {
     stato.permessi = { canViewOrders: false, canManagePurchasing: true, canViewCosts: false };
   });
 
-  it("con il solo «Ufficio acquisti» si apre la scheda Acquisti, senza Commesse", () => {
+  it("con il solo «Ufficio acquisti» si apre la scheda Acquisti, senza Commesse", async () => {
     disegna();
-    expect(screen.getByText("pagina acquisti")).toBeInTheDocument();
+    expect(await screen.findByText("pagina acquisti")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Acquisti/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("tab", { name: /Commesse/ })).not.toBeInTheDocument();
   });
 
-  it("anche chiedendo la scheda delle commesse resta sugli acquisti", () => {
+  it("anche chiedendo la scheda delle commesse resta sugli acquisti", async () => {
     disegna("/azienda/ordini?tab=ordini");
-    expect(screen.getByText("pagina acquisti")).toBeInTheDocument();
+    expect(await screen.findByText("pagina acquisti")).toBeInTheDocument();
   });
 
   it("chi vede le commesse trova la scheda «Acquisti» fra le altre", () => {
