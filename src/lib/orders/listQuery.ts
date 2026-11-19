@@ -119,8 +119,8 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       let query = supabase
         .from("orders")
         .select(`
-          id, order_code, description, total_amount, deposit_amount, balance_amount,
-          vat_rate, created_at, expected_date, work_start_date, work_end_date,
+          id, order_code, description, client_name, total_amount, deposit_amount, balance_amount,
+          vat_rate, vat_breakdown, created_at, expected_date, work_start_date, work_end_date,
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
           financing_amount, financing_cost, deposit_2_amount, has_building_bonus,
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,

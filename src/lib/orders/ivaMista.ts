@@ -70,6 +70,12 @@ export function ivaMistaDaOrdine(order: unknown): QuoteIvaMista | null {
   return order && typeof order === "object" && "vat_breakdown" in order ? leggiIvaMista(order.vat_breakdown) : null;
 }
 
+/** Le quote coprono il contratto di base. Sulle varianti resta l'aliquota del contratto. */
+export function lordoPattuitoConQuote(pattuito: number, aliquota: number, quote?: { net: number; gross: number } | null): number {
+  const moltiplicatore = 1 + aliquota / 100;
+  return euro(cents(quote ? quote.gross + (pattuito - quote.net) * moltiplicatore : pattuito * moltiplicatore));
+}
+
 /** Suggerimento per una rata: ripartizione proporzionale, modificabile sulle righe della fattura. */
 export function ripartisciLordoIva(draft: QuoteIvaMista, gross: number) {
   const original = calcolaQuoteIva(draft);

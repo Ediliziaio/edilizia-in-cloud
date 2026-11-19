@@ -34,6 +34,7 @@ interface OrdersPipelineCardProps {
 }
 
 const SUMMARY_OPEN_DELAY_MS = 1000;
+const SIGLE_SOCIETARIE = /\b(?:S\.?R\.?L|S\.?P\.?A|S\.?A\.?S|S\.?N\.?C|A\.?P\.?S|E\.?T\.?S)\b/u;
 
 function isOverdue(order: OrderWithDetails): boolean {
   const days = getDaysToExpectedDate(order);
@@ -90,8 +91,26 @@ function getPaymentTypeLabel(paymentType?: string | null) {
 }
 
 function getCustomerName(order: OrderWithDetails) {
-  if (!order.customer) return "Cliente non indicato";
-  return `${order.customer.first_name} ${order.customer.last_name}`.trim() || "Cliente non indicato";
+  const nome = formatPersonName(order.customer) || order.client_name?.trim();
+  if (!nome) return "Cliente non indicato";
+  return nome.replace(/\p{L}+(?:\.\p{L}+)*/gu, parola => {
+    if (parola !== parola.toLocaleUpperCase("it-IT") || SIGLE_SOCIETARIE.test(parola)) return parola;
+    return parola[0].toLocaleUpperCase("it-IT") + parola.slice(1).toLocaleLowerCase("it-IT");
+  });
+}
+
+function getOrderDescription(order: OrderWithDetails) {
+  const descrizione = order.description?.trim() || "Descrizione non indicata";
+  const prefisso = descrizione.match(/^(.+?)\s+[-–—]\s+([\s\S]+)$/u);
+  if (!prefisso) return descrizione;
+  const confronta = (valore: string) => valore.trim().replace(/\s+/g, " ").toLocaleLowerCase("it-IT");
+  const cliente = order.customer;
+  const nomi = [
+    order.client_name,
+    formatPersonName(cliente),
+    cliente && formatPersonName({ first_name: cliente.last_name, last_name: cliente.first_name }),
+  ];
+  return nomi.some(nome => nome && confronta(nome) === confronta(prefisso[1])) ? prefisso[2] : descrizione;
 }
 
 function formatPersonName(person?: { first_name: string | null; last_name: string | null } | null) {
@@ -187,6 +206,8 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   const isPaid = due === 0 && incassabile > 0;
   const needsMaterials = materials.total > 0 && materials.ready < materials.total;
   const customerName = getCustomerName(order);
+  const codice = order.order_code?.trim();
+  const descrizione = getOrderDescription(order);
   const labor = getLaborSummary(order);
   const giorni = getDaysToExpectedDate(order);
   const posa = statoPosa(giorni, order.expected_date ? formatDateShort(order.expected_date) : null);
@@ -424,22 +445,20 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
             role="button"
             aria-label={`Apri dettagli commessa ${order.order_code || ""}`.trim()}
           >
-            {/* Codice */}
-            <div className="flex items-start gap-2">
-              <p title={order.description || order.order_code || undefined} className="truncate text-sm font-semibold leading-tight">{order.description || order.order_code || "Commessa"}</p>
+            <div className="flex min-w-0 items-baseline gap-2">
+              <p title={customerName} className="min-w-0 truncate text-sm font-semibold leading-tight">{customerName}</p>
+              {codice && <span className="shrink-0 text-[10px] text-muted-foreground">{codice}</span>}
+            </div>
+            <div className="mt-0.5 flex min-w-0 items-start gap-2">
+              <p title={descrizione} className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{descrizione}</p>
               {overdue && (
                 <span
-                  className="ml-auto inline-flex items-center rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-orange-200"
+                  className="shrink-0 rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-orange-200"
                   title={posa.dettaglio}
                 >
                   In ritardo
                 </span>
               )}
-            </div>
-
-            <div className="mt-0.5 flex min-w-0 items-baseline gap-2 text-xs text-muted-foreground">
-              <span className="truncate">{customerName}</span>
-              {order.description && order.order_code && <span className="shrink-0 text-[10px]">{order.order_code}</span>}
             </div>
 
             {/* Importo + pagamenti */}
@@ -522,16 +541,13 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
           onMouseLeave={handleMouseLeave}
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold leading-tight text-foreground">
-                {order.order_code || "Commessa senza codice"} · {order.status?.name || "Senza stato"}
-              </p>
-              <p className="mt-1 text-sm leading-snug text-foreground">
-                {customerName}
-              </p>
-              <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                {order.description || "Descrizione non indicata"}
-              </p>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <p title={customerName} className="min-w-0 truncate text-sm font-bold leading-tight text-foreground">{customerName}</p>
+                {codice && <span className="shrink-0 text-xs text-muted-foreground">{codice}</span>}
+              </div>
+              <p className="mt-1 whitespace-pre-line break-words text-xs leading-snug text-muted-foreground">{descrizione}</p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">{order.status?.name || "Senza stato"}</p>
             </div>
             <button
               type="button"

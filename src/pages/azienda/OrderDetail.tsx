@@ -1,6 +1,6 @@
 import { salvaPreparazioneForniture } from "@/lib/orders/salvaPreparazioneForniture";
 import { pianoSalDaOrdine } from "@/lib/orders/pianoSalAperto";
-import { ivaMistaDaOrdine } from "@/lib/orders/ivaMista";
+import { calcolaQuoteIva, ivaMistaDaOrdine, lordoPattuitoConQuote } from "@/lib/orders/ivaMista";
 import { incassiConFatture } from "@/lib/orders/incassiConFatture";
 import { applicaQuoteAlleRate, type QuotaFatturaRata } from "@/lib/orders/quoteFatturaRate";
 import "@/components/orders/income-workspace.css";
@@ -1477,10 +1477,14 @@ function OrderDetailInner() {
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
 
   // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
+  const vatSplit = ivaMistaDaOrdine(order);
+  const quoteIva = vatSplit && calcolaQuoteIva(vatSplit);
   const inputIncassi = {
     installments: displayInstallments,
     totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
+    totalePattuitoLordo: quoteIva?.net === Number(order.total_amount)
+      ? lordoPattuitoConQuote(agreedAmount, order.vat_rate ?? 22, quoteIva) : undefined,
     paymentType: order.payment_type,
     financingCost: order.financing_cost,
     financingCostMode: order.financing_cost_mode,

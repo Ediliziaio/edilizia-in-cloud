@@ -8,6 +8,7 @@ import type { OrderItem, Posizione } from "@/components/orders/OrderItemsList";
 import type { PaymentType } from "@/components/orders/FinancialSummary";
 import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@/lib/commissions";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
+import { calcolaQuoteIva, ivaMistaDaOrdine, lordoPattuitoConQuote } from "@/lib/orders/ivaMista";
 
 // ── Installment type ──────────────────────────────────────────────
 export interface Installment {
@@ -249,7 +250,7 @@ export function installmentsToLegacyColumns(installments: Installment[]) {
 
 // ── Existing types (unchanged) ────────────────────────────────────
 
-export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id">>, ImportiFinanziari {
+export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id" | "client_name" | "vat_breakdown">>, ImportiFinanziari {
   id: string;
   order_code: string | null;
   description: string;
@@ -492,6 +493,7 @@ export function getAmountCollected(order: OrderWithDetails): number {
     installments: rateDellaCommessa(order),
     totalAmount: contrattoPattuito(order),
     vatRate: order.vat_rate ?? 22,
+    totaleLordo: order.vat_breakdown ? getGrossOrderAmount(order) : undefined,
     financingCost: financingCostForOrder(order),
     financingCostMode: order.financing_cost_mode,
     includeFinancing: true,
@@ -523,10 +525,12 @@ export function getPendingPayments(order: OrderWithDetails): string[] {
   return pending;
 }
 
-export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate"> & { variazioni?: VarianteDellaCommessa[] | null } & import("@/lib/orders/importiFinanziari").ImportiFinanziari): number {
+export function getGrossOrderAmount(order: Pick<OrderWithDetails, "total_amount" | "vat_rate" | "vat_breakdown" | "variazioni"> & ImportiFinanziari): number {
   if(order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura') return order.crediti_misura?.fatturato ?? 0;
-  // Contratto più varianti approvate, IVA inclusa, al centesimo come la scheda commessa.
-  return Math.round(contrattoPattuito(order) * (1 + ((order.vat_rate ?? 22) / 100)) * 100) / 100;
+  const misto = ivaMistaDaOrdine(order);
+  const ripartizione = misto && calcolaQuoteIva(misto);
+  return lordoPattuitoConQuote(contrattoPattuito(order), order.vat_rate ?? 22,
+    ripartizione?.net === Number(order.total_amount) ? ripartizione : null);
 }
 
 export function getOrderMargin(totalAmount: number, variableCosts: number): {
