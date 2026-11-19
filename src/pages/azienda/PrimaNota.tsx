@@ -166,11 +166,22 @@ function PrimaNotaInner() {
     if (removeMany.isPending || eliminabili.length === 0) return;
     const righe = [...eliminabili];
     const somma = (verso: string) => righe.filter((r) => r.direction === verso).reduce((n, r) => n + Number(r.amount), 0);
-    if (!await confirm({ title: `Eliminare ${righe.length} registrazioni?`, description: `Entrate: ${formatCurrency(somma("entrata"))}. Uscite: ${formatCurrency(somma("uscita"))}. ${escluse.length ? `${escluse.length} righe collegate a documenti restano escluse. ` : ""}Gli incassi collegati verranno annullati e le fatture torneranno da incassare. L'eliminazione è definitiva.`, confirmLabel: "Elimina registrazioni", variant: "destructive" })) return;
+    if (!await confirm({ title: `Eliminare ${righe.length} registrazioni?`, description: `Entrate: ${formatCurrency(somma("entrata"))}. Uscite: ${formatCurrency(somma("uscita"))}. ${escluse.length ? `${escluse.length} righe collegate a documenti restano escluse. ` : ""}Il saldo dei costi e delle fatture verrà ricalcolato. Eliminando un pagamento si elimina anche l’eventuale storno collegato; eliminando solo uno storno si ripristina l’effetto del pagamento originale. L’eliminazione è definitiva.`, confirmLabel: "Elimina registrazioni", variant: "destructive" })) return;
     setErroriEliminazione([]);
     const esito = await removeMany.mutateAsync(righe);
     selezione.mantieni(esito.errori.map((e) => e.riga.id));
     setErroriEliminazione(esito.errori.map((e) => ({ nome: e.riga.description, motivo: e.motivo })));
+  };
+  const eliminaSingola = async (riga: PrimaNotaEntry) => {
+    if (remove.isPending || removeMany.isPending) return;
+    const effetto = riga.cost_id
+      ? riga.reversal_of
+        ? "Eliminando questo storno si ripristina l’effetto del pagamento originale sul costo."
+        : "Il costo e le sue scadenze seguiranno il saldo dei pagamenti rimasti. Verrà eliminato anche l’eventuale storno di questo movimento."
+      : riga.invoice_id ? "La fattura collegata verrà ricalcolata sul saldo degli incassi rimasti." : "";
+    if (await confirm({ title: "Eliminare il movimento?", description: `${riga.description}: ${formatCurrency(riga.amount)}. La registrazione verrà rimossa dalla prima nota. ${effetto} L’eliminazione è definitiva.`, confirmLabel: "Elimina", variant: "destructive" })) {
+      remove.mutate(riga.id, { onSuccess: () => setDettaglioId(null) });
+    }
   };
   const [isExporting, setIsExporting] = useState(false);
 
@@ -499,7 +510,7 @@ function PrimaNotaInner() {
         onPagina={selezione.pagina} onAzione={() => void eliminaSelezionate()} />}
       <ErroriOperazioneRighe errori={erroriEliminazione} />
       {permessi.isAdmin && selezione.selezionate.length > 0 && <div className="mb-3 space-y-2">
-        {eliminabili.length === 0 && <p className="text-sm text-muted-foreground">Le registrazioni selezionate sono collegate a documenti o pagamenti. Apri l'origine oppure usa lo storno dei pagamenti dei costi.</p>}
+        {eliminabili.length === 0 && <p className="text-sm text-muted-foreground">Le registrazioni selezionate hanno collegamenti da gestire nella schermata di origine.</p>}
         <StornaPagamentiCosto righe={selezione.selezionate} />
       </div>}
       {/* Table */}
@@ -623,18 +634,7 @@ function PrimaNotaInner() {
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                         aria-label="Elimina movimento di prima nota"
                         disabled={removeMany.isPending || remove.isPending}
-                        onClick={async () => {
-                          if (
-                            await confirm({
-                              title: "Eliminare il movimento?",
-                              description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota.${e.invoice_id ? " La fattura collegata tornerà da incassare." : ""} L'operazione non può essere annullata.`,
-                              confirmLabel: "Elimina",
-                              variant: "destructive",
-                            })
-                          ) {
-                            remove.mutate(e.id);
-                          }
-                        }}
+                        onClick={() => void eliminaSingola(e)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -759,6 +759,7 @@ function PrimaNotaInner() {
             {perchePrimaNotaNonModificabile(dettaglio) && <p className="text-xs text-muted-foreground">Per correggere importo e data, apri la registrazione di origine.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {permessi.isAdmin && !perchePrimaNotaNonEliminabile(dettaglio) && <Button variant="destructive" disabled={remove.isPending || removeMany.isPending} onClick={() => void eliminaSingola(dettaglio)}>Elimina registrazione</Button>}
             {permessi.isAdmin && <StornaPagamentiCosto righe={[dettaglio]} onFatto={() => setDettaglioId(null)} />}
             {perchePrimaNotaNonModificabile(dettaglio) && <Button variant="outline" onClick={() => apriOrigine(dettaglio)}>Apri origine</Button>}
             {dettaglio.documenti_fiscali?.id && <Button variant="outline" onClick={() => navigate(linkFattura(dettaglio.documenti_fiscali!.id, true))}>Apri documento</Button>}

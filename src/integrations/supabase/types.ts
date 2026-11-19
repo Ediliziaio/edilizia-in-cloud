@@ -153134,6 +153134,10 @@ export type Database = {
           urgency: string
         }[]
       }
+      finanza_revisione: {
+        Args: { p_company_id: string }
+        Returns: string
+      }
       scadenzario_fonti: {
         Args: { p_company_id: string }
         Returns: Database["public"]["Tables"]["scadenze"]["Row"][]

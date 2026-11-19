@@ -51,6 +51,9 @@ export interface PrimaNotaEntry {
   sal_sub_id?: string | null;
   reversal_of?: string | null;
   stornata?: boolean;
+  movimento_id?: string | null;
+  unita_movimento_id?: string | null;
+  updated_at?: string;
   order_item_id: string | null;
   account_label: string | null;
   is_auto: boolean;
@@ -79,8 +82,16 @@ export function perchePrimaNotaNonModificabile(e: Pick<PrimaNotaEntry, "is_auto"
   return null;
 }
 
-/** La cancellazione segue le stesse origini della modifica. */
-export const perchePrimaNotaNonEliminabile = perchePrimaNotaNonModificabile;
+/** I pagamenti dei costi si possono eliminare ricalcolandone il saldo. */
+export function perchePrimaNotaNonEliminabile(e: Pick<PrimaNotaEntry, "is_auto" | "auto_source" | "cost_id" | "documento_fiscale_id" | "bank_transaction_id" | "movimento_id" | "unita_movimento_id" | "sal_sub_id">): string | null {
+  if (e.bank_transaction_id) return "Il movimento è collegato alla banca: scollega prima il pagamento da Tesoreria.";
+  if (e.documento_fiscale_id || e.movimento_id) return "Elimina l’incasso dal dettaglio della fattura, per aggiornare anche il documento.";
+  if (e.unita_movimento_id) return "Elimina o annulla l’incasso dalla scheda dell’unità.";
+  if (e.sal_sub_id) return "Il pagamento è collegato a un SAL: gestiscilo dal SAL di origine.";
+  if (e.cost_id && (!e.is_auto || ["company_cost_payment", "storno_pagamento"].includes(e.auto_source ?? ""))) return null;
+  if (e.is_auto) return "La registrazione proviene da un altro documento: correggila dalla sua origine.";
+  return null;
+}
 
 /** I campi del modulo di registrazione, gli stessi per una nuova e per una modifica. */
 export interface DatiRegistrazione {
@@ -411,7 +422,9 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   // Elimina insieme all'incasso della sua fattura: prima la fattura restava «pagata» senza movimento.
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await rpc.rpc("prima_nota_elimina", { p_id: id });
+      const riga = entriesQuery.data?.data.find(r => r.id === id);
+      if (!riga) throw new Error("Registrazione non trovata. Ricarica la pagina.");
+      const { data, error } = await rpc.rpc("prima_nota_elimina_registrazione", { p_id: id, p_versione: riga.updated_at ?? null });
       if (error) throw new Error(error.message);
       const esito = (data ?? {}) as { incassi_tolti?: number; invoice_id?: string | null };
       return { tolti: Number(esito.incassi_tolti ?? 0), fic: (esito.incassi_tolti ?? 0) > 0 && await tocca_fattureincloud([esito.invoice_id]) };
@@ -427,11 +440,14 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
 
   const deleteManyMutation = useMutation({
     mutationFn: async (righe: PrimaNotaEntry[]) => {
+      const eliminate = new Set<string>();
       const esito = await eseguiPerRiga(righe, async (riga) => {
+        if (eliminate.has(riga.id)) return;
         const motivo = perchePrimaNotaNonEliminabile(riga);
         if (motivo) throw new Error(motivo);
-        const { error } = await rpc.rpc("prima_nota_elimina", { p_id: riga.id });
+        const { data, error } = await rpc.rpc("prima_nota_elimina_registrazione", { p_id: riga.id, p_versione: riga.updated_at ?? null });
         if (error) throw error;
+        for (const id of Array.isArray(data?.eliminati_ids) ? data.eliminati_ids : [riga.id]) if (typeof id === "string") eliminate.add(id);
       });
       return { ...esito, fic: await tocca_fattureincloud(esito.completate.map((r) => r.invoice_id)) };
     },

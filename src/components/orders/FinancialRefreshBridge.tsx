@@ -1,18 +1,16 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { refreshFinancialQueries } from '@/lib/orders/financialRefresh';
+import { useFinancialLive } from '@/hooks/useFinancialLive';
 
 /**
- * Quando un'altra scheda salva un fatto economico (refreshFinancialQueries la
- * avvisa sul canale), questa ricarica i suoi lettori.
- *
- * Fino al 31/10/2026 lo faceva anche ogni 30 secondi e a ogni ritorno sulla
- * scheda: ogni scheda aperta ricaricava tutte le query finanziarie attive (sulla
- * pagina Costi una dozzina, una senza limite), scavalcando lo staleTime di 5
- * minuti. Era il carico che saturava il database con un solo browser aperto.
- * Il salvataggio nella stessa scheda invalida già da sé (refreshFinancialQueries).
+ * Condivide i salvataggi fra schede e riceve i cambiamenti di altri utenti o
+ * importazioni tramite il segnale aziendale Realtime. Il recupero periodico
+ * controlla solo l'impronta del segnale: i dati finanziari vengono riletti
+ * quando cambia, senza ripristinare il vecchio polling globale dei dati.
  */
 export function FinancialRefreshBridge(): null {
+  useFinancialLive();
   const client = useQueryClient();
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
