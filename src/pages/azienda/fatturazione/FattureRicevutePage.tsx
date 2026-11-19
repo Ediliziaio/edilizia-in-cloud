@@ -935,7 +935,7 @@ export default function FattureRicevutePage() {
     if (f.pdf_storage_path && f.pdf_storage_bucket) { await apriPdfRicevuta(f); return; }
     const { data, error } = await supabase
       .from("fatture_ricevute" as never)
-      .select("xml_raw" as never)
+      .select("xml_raw,indice_corpo" as never)
       .eq("id", f.id)
       .eq("company_id", companyId!)
       .maybeSingle();
@@ -943,14 +943,15 @@ export default function FattureRicevutePage() {
       toast.error("Impossibile leggere la fattura", { description: error.message });
       return;
     }
-    const xml = (data as { xml_raw: string | null } | null)?.xml_raw ?? null;
+    const originale = data as { xml_raw: string | null; indice_corpo: number | null } | null;
+    const xml = originale?.xml_raw ?? null;
     if (!xml) {
       toast.info("Fattura non disponibile in formato leggibile", {
         description: "Arriva dal gestionale, che espone i dati ma non il file originale.",
       });
       return;
     }
-    const vista = fatturaRicevutaHtml(xml, new DOMParser());
+    const vista = fatturaRicevutaHtml(xml, new DOMParser(), { indiceCorpo: originale?.indice_corpo ?? 0 });
     if (!vista) {
       toast.error("Il file non è una fattura elettronica leggibile", {
         description: "Puoi comunque scaricare il file originale.",

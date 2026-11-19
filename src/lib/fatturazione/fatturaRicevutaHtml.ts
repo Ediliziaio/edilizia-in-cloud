@@ -9,8 +9,8 @@
 // Si usano gli stessi lettori dell'importazione (leggiFatturaRicevuta,
 // leggiFatturaPA): quello che si vede è quello che è stato registrato.
 
-import { leggiFatturaPA, type LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
-import { leggiFatturaRicevuta } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
+import { leggiFatturaPA, type ElementoXml, type LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
+import { leggiFatturaRicevuta, senzaPrefissi } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
 
 const esc = (v: unknown): string =>
   String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -60,11 +60,17 @@ export interface FatturaRicevutaVista {
 export function fatturaRicevutaHtml(
   xml: string,
   parser: LettoreXml,
-  opzioni: { emessa?: boolean } = {},
+  opzioni: { emessa?: boolean; indiceCorpo?: number } = {},
 ): FatturaRicevutaVista | null {
-  const f = leggiFatturaRicevuta(xml, parser);
+  const indiceCorpo = opzioni.indiceCorpo ?? 0;
+  if (!Number.isInteger(indiceCorpo) || indiceCorpo < 0) return null;
+  const pulito = senzaPrefissi(xml);
+  const f = leggiFatturaRicevuta(pulito, parser, indiceCorpo);
   if (!f) return null;
-  const extra = leggiFatturaPA(xml, parser);
+  const extra = leggiFatturaPA(pulito, parser, indiceCorpo);
+  const corpoXml = parser.parseFromString(pulito, "text/xml")?.getElementsByTagName("FatturaElettronicaBody")[indiceCorpo];
+  const lineeXml = Array.from(corpoXml?.getElementsByTagName("DettaglioLinee") ?? []);
+  const campo = (el: ElementoXml | undefined, tag: string) => el?.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
 
   const tipo = TIPI_DOCUMENTO[f.tipo_documento] ?? `Documento ${f.tipo_documento}`;
   // Alcuni fornitori scrivono già «(PN)» nel comune: non si ripete.
@@ -73,17 +79,32 @@ export function fatturaRicevutaHtml(
   const luogo = [f.cedente_cap, f.cedente_comune, provincia].filter(Boolean).join(" ");
   const nota = f.tipo_documento === "TD04" ? " — gli importi sono a credito" : "";
 
-  const righe = f.righe.map((r) => {
+  const righe = f.righe.map((r, i) => {
     const natura = r.natura_iva ? ` (${esc(r.natura_iva)})` : "";
+    const linea = lineeXml[i];
+    // Questi dati restano associati alla loro riga: una fattura può riguardare
+    // più mezzi e più DDT. Non si deducono targhe o unità dalle descrizioni.
+    const dettagli = Array.from(linea?.getElementsByTagName("AltriDatiGestionali") ?? []).map(d => {
+      const valori = [campo(d, "RiferimentoTesto"), campo(d, "RiferimentoNumero"), dataIt(campo(d, "RiferimentoData")) || campo(d, "RiferimentoData")].filter(Boolean);
+      if (!valori.length) return "";
+      return `<div><span class="etichetta">${esc(campo(d, "TipoDato") || "Altri dati")}:</span> ${esc(valori.join(" · "))}</div>`;
+    }).filter(Boolean).join("");
     return `<tr>
-      <td class="n">${esc(r.numero_linea)}</td>
-      <td>${esc(r.descrizione)}</td>
+      <td class="n">${esc(campo(linea, "NumeroLinea") || r.numero_linea)}</td>
+      <td><div class="descrizione">${esc(r.descrizione)}</div>${dettagli ? `<div class="dettagli-riga">${dettagli}</div>` : ""}</td>
+      <td class="um">${esc(campo(linea, "UnitaMisura")) || "—"}</td>
       <td class="d">${num(r.quantita)}</td>
       <td class="d">${eur(r.prezzo_unitario)}</td>
       <td class="d">${esc(r.aliquota_iva)}%${natura}</td>
       <td class="d">${eur(r.imponibile)}</td>
     </tr>`;
   }).join("");
+
+  const riferimentiDdt = Array.from(corpoXml?.getElementsByTagName("DatiDDT") ?? []).map(d => {
+    const linee = Array.from(d.getElementsByTagName("RiferimentoNumeroLinea")).map(l => l.textContent?.trim() ?? "").filter(Boolean);
+    return `<tr><td>${esc(campo(d, "NumeroDDT")) || "—"}</td><td>${esc(dataIt(campo(d, "DataDDT")) || campo(d, "DataDDT")) || "—"}</td><td>${esc(linee.join(", ")) || "—"}</td></tr>`;
+  }).join("");
+  const ddt = riferimentiDdt ? `<div class="blocco"><h3>Documenti di trasporto</h3><table aria-label="DDT dichiarati nella fattura"><thead><tr><th>Numero DDT</th><th>Data</th><th>Righe della fattura</th></tr></thead><tbody>${riferimentiDdt}</tbody></table></div>` : "";
 
   const riepilogo = f.riepilogo_iva.map((r) => `<tr>
       <td>${esc(r.aliquota)}%${r.natura ? ` (${esc(r.natura)})` : ""}</td>
@@ -101,9 +122,8 @@ export function fatturaRicevutaHtml(
 
   const bollo = extra && extra.bollo > 0 ? `<tr><td>Imposta di bollo</td><td class="d">${eur(extra.bollo)}</td></tr>` : "";
   const lotto = f.fatture_nel_file > 1
-    ? `<p class="avviso">Il file contiene ${f.fatture_nel_file} fatture: qui è mostrata la prima.</p>` : "";
+    ? `<p class="avviso">Il file contiene ${f.fatture_nel_file} fatture: qui è mostrata la ${indiceCorpo + 1}ª.</p>` : "";
 
-  const corpoXml = parser.parseFromString(xml, "text/xml")?.getElementsByTagName("FatturaElettronicaBody")[0];
   const causali = corpoXml ? Array.from(corpoXml.getElementsByTagName("Causale")).map(c => c.textContent?.trim() ?? "").filter(Boolean) : [];
 
   const emessa = !!opzioni.emessa;
@@ -133,6 +153,11 @@ export function fatturaRicevutaHtml(
   tr { break-inside: avoid; page-break-inside: avoid; }
   .d { text-align: right; white-space: nowrap; }
   .n { width: 24px; color: #94a3b8; }
+  .um { white-space: nowrap; }
+  .dettagli-riga { margin-top: 5px; font-size: 8.5pt; line-height: 1.45; color: #475569; overflow-wrap: anywhere; }
+  .etichetta { font-weight: 500; }
+  .descrizione { overflow-wrap: anywhere; }
+  thead { display: table-header-group; }
   .totali { width: 55%; margin-left: auto; break-inside: avoid; page-break-inside: avoid; }
   .totali td { border-bottom: 0; padding: 3px 6px; }
   .totale td { border-top: 2px solid #0f172a; font-weight: 700; font-size: 12pt; padding-top: 6px; }
@@ -165,8 +190,9 @@ export function fatturaRicevutaHtml(
       <div class="muted mono">P.IVA ${esc(f.cessionario_piva)}${f.cessionario_cf ? ` · C.F. ${esc(f.cessionario_cf)}` : ""}</div>
     </div>
   </div>
-  <table>
-    <thead><tr><th>#</th><th>Descrizione</th><th class="d">Q.tà</th><th class="d">Prezzo</th><th class="d">IVA</th><th class="d">Importo</th></tr></thead>
+  ${ddt}
+  <table aria-label="Righe della fattura">
+    <thead><tr><th>#</th><th>Descrizione</th><th>U.M.</th><th class="d">Q.tà</th><th class="d">Prezzo</th><th class="d">IVA</th><th class="d">Importo</th></tr></thead>
     <tbody>${righe}</tbody>
   </table>
   <div class="totali">
@@ -188,7 +214,7 @@ export function fatturaRicevutaHtml(
   <div class="pie">Rappresentazione leggibile della fattura elettronica${emessa ? "" : " ricevuta"}. Il documento con valore fiscale è il file XML${emessa ? " trasmesso allo SDI" : " originale, conservato in Edilizia in Cloud"}.</div>
 </body></html>`;
 
-  return { html, titolo, allegatiPdf: allegatiPdfDaXml(xml, parser) };
+  return { html, titolo, allegatiPdf: allegatiPdfDaXml(pulito, parser, indiceCorpo) };
 }
 
 /**
@@ -197,19 +223,19 @@ export function fatturaRicevutaHtml(
  * dall'intestazione %PDF del contenuto, così un allegato di altro tipo non si
  * apre come PDF.
  */
-export function allegatiPdfDaXml(xml: string, parser: LettoreXml): AllegatoPdf[] {
+export function allegatiPdfDaXml(xml: string, parser: LettoreXml, indiceCorpo = 0): AllegatoPdf[] {
   let doc;
   try {
-    doc = parser.parseFromString(xml, "text/xml");
+    doc = parser.parseFromString(senzaPrefissi(xml), "text/xml");
   } catch {
     return [];
   }
   if (!doc || doc.getElementsByTagName("parsererror").length > 0) return [];
   const trovati: AllegatoPdf[] = [];
   const corpi = doc.getElementsByTagName("FatturaElettronicaBody");
-  const primoCorpo = corpi.length > 0 ? corpi[0] : null;
-  if (!primoCorpo) return [];
-  for (const a of Array.from(primoCorpo.getElementsByTagName("Allegati"))) {
+  const corpo = corpi[indiceCorpo];
+  if (!corpo) return [];
+  for (const a of Array.from(corpo.getElementsByTagName("Allegati"))) {
     const nome = a.getElementsByTagName("NomeAttachment")[0]?.textContent?.trim() || "allegato.pdf";
     const formato = a.getElementsByTagName("FormatoAttachment")[0]?.textContent?.trim() || "";
     const base64 = (a.getElementsByTagName("Attachment")[0]?.textContent ?? "").replace(/\s+/g, "");
