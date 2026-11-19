@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   emetti: vi.fn(),
   rilascia: vi.fn(),
   successo: vi.fn(),
+  vuoto: (): null => null,
 }));
 
 vi.mock("@/hooks/useDocumentiFiscali", () => ({
@@ -19,29 +20,29 @@ vi.mock("@/hooks/useDocumentiFiscali", () => ({
   useEmittiDocumento: () => ({ mutate: mock.emetti, isPending: false }),
   useDeleteDocumento: () => ({ mutate: vi.fn() }),
 }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: null }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: (): { effectiveCompany: null } => ({ effectiveCompany: null }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: mock.rilascia } }));
-vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: null }) }));
-vi.mock("@/hooks/useContestoControlliPa", () => ({ useContestoControlliPa: () => undefined }));
+vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: (): { data: null } => ({ data: null }) }));
+vi.mock("@/hooks/useContestoControlliPa", () => ({ useContestoControlliPa: (): undefined => undefined }));
 vi.mock("@/hooks/useInvioSdi", () => ({
   useInvioSdi: () => ({ isPending: false, mutate: vi.fn() }),
   useAggiornaStatoSdi: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 vi.mock("sonner", () => ({ toast: { success: mock.successo, error: vi.fn(), info: vi.fn() } }));
-vi.mock("@/components/fatturazione/AllegatiFattura", () => ({ AllegatiFattura: () => null }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorClienteSection", () => ({ EditorClienteSection: () => null }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorRigheSection", () => ({ EditorRigheSection: () => null }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorDatiDocumento", () => ({ EditorDatiDocumento: () => null }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorPagamentoSection", () => ({ EditorPagamentoSection: () => null }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorOrdineSection", () => ({ EditorOrdineSection: () => null }));
+vi.mock("@/components/fatturazione/AllegatiFattura", () => ({ AllegatiFattura: mock.vuoto }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorClienteSection", () => ({ EditorClienteSection: mock.vuoto }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorRigheSection", () => ({ EditorRigheSection: mock.vuoto }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorDatiDocumento", () => ({ EditorDatiDocumento: mock.vuoto }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorPagamentoSection", () => ({ EditorPagamentoSection: mock.vuoto }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorOrdineSection", () => ({ EditorOrdineSection: mock.vuoto }));
 vi.mock("@/pages/azienda/fatturazione/editor/EditorFatturazioneElettronicaSection", () => ({
-  EditorFatturazioneElettronicaSection: () => null, APRI_FATTURAZIONE_ELETTRONICA: "apri-fe",
+  EditorFatturazioneElettronicaSection: mock.vuoto, APRI_FATTURAZIONE_ELETTRONICA: "apri-fe",
 }));
 vi.mock("@/pages/azienda/fatturazione/editor/EditorCommessaRiferimentiSection", () => ({
-  EditorCommessaRiferimentiSection: () => null, APRI_RIFERIMENTI_PA: "apri-riferimenti",
+  EditorCommessaRiferimentiSection: mock.vuoto, APRI_RIFERIMENTI_PA: "apri-riferimenti",
 }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorPreviewDialog", () => ({ EditorPreviewDialog: () => null }));
-vi.mock("@/pages/azienda/fatturazione/editor/EditorSendEmailDialog", () => ({ EditorSendEmailDialog: () => null }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorPreviewDialog", () => ({ EditorPreviewDialog: mock.vuoto }));
+vi.mock("@/pages/azienda/fatturazione/editor/EditorSendEmailDialog", () => ({ EditorSendEmailDialog: mock.vuoto }));
 
 import EditorDocumento from "@/pages/azienda/fatturazione/EditorDocumento";
 import { useEditorState } from "@/pages/azienda/fatturazione/editor/useEditorState";

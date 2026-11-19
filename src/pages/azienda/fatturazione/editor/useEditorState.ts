@@ -457,7 +457,7 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     const precedente = codaRef.current;
     if (precedente?.lettura === lettura && precedente.contenuto === contenuto) return precedente.esito;
     const esito = (async () => {
-      if (precedente) await precedente.esito.catch(() => undefined);
+      if (precedente) await precedente.esito.catch((): void => {});
       if (lettura !== letturaRef.current) throw new Error("Il documento è stato ricaricato. Riprova a salvare.");
       await mutateAsync(buildSavePayload(documento));
       if (lettura === letturaRef.current) setConfermato({ contenuto, data: new Date() });
