@@ -37,7 +37,7 @@ describe("misure del logo condivise", () => {
 
 describe.each([VULCANO, "altra-azienda"])("PDF operativi dell'azienda %s", id => {
   it.each(["materiali", "richiesta", "servizi", "trasporti", "economia"] as const)("%s riduce e ingrandisce il logo rispettando le proporzioni", tipo => {
-    const add = vi.spyOn(jsPDF.API as Pick<jsPDF, "addImage">, "addImage");
+    const add = vi.spyOn(jsPDF.API as unknown as Pick<jsPDF, "addImage">, "addImage");
     const misure = [85, 100, 175, 250].map(scalaLogo => {
       add.mockClear();
       const pdf = creaPdfOperativo(documentoEsempio(tipo), { id, name: "Impresa di prova" }, logo, { ...modelloPdfStandard(tipo), scalaLogo });
@@ -58,7 +58,7 @@ describe.each([VULCANO, "altra-azienda"])("PDF operativi dell'azienda %s", id =>
 
 describe("copertine del computo", () => {
   it.each(["piena", "fascia", "sobria"] as const)("%s usa la misura salvata senza schiacciare il logo largo", async copertina => {
-    const add = vi.spyOn(jsPDF.API as Pick<jsPDF, "addImage">, "addImage");
+    const add = vi.spyOn(jsPDF.API as unknown as Pick<jsPDF, "addImage">, "addImage");
     const larghezze: number[] = [];
     for (const scalaLogo of [50, 100, 200]) {
       add.mockClear();
