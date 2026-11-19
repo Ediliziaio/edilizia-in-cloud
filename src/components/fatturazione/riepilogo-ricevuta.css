@@ -1,0 +1,17 @@
+[role="dialog"].dialog-readable.ricevuta-riepilogo { width: min(1100px, calc(100vw - 48px)); }
+.ricevuta-riepilogo .ricevuta-testata { flex: 0 0 auto; border-bottom: 1px solid hsl(var(--border)); padding-bottom: 12px; }
+.ricevuta-azioni { display: flex; flex-wrap: wrap; gap: 8px; }
+.ricevuta-azioni button { height: auto; min-height: 36px; white-space: normal; text-align: left; }
+.ricevuta-overview { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ricevuta-overview > *, .ricevuta-overview dd { min-width: 0; overflow-wrap: anywhere; }
+.ricevuta-pagamenti .commessa-payment-summary > div { padding: 10px; }
+.ricevuta-riepilogo .commessa-modal-body { padding-top: 4px; }
+@media (max-width: 899px) { .ricevuta-overview { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 639px) {
+  [role="dialog"].dialog-readable.ricevuta-riepilogo { width: 100%; max-width: 100%; }
+  .ricevuta-azioni { gap: 6px; }
+  .ricevuta-azioni button { flex: 1 1 100%; min-height: 36px; font-size: 13px; line-height: 1.3; }
+  .ricevuta-overview { gap: 12px; }
+  .ricevuta-riepilogo .commessa-payment-summary { gap: 4px; }
+  .ricevuta-riepilogo .commessa-payment-summary > div { padding: 8px; }
+}
