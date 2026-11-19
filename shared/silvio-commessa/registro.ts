@@ -250,6 +250,7 @@ export const COLONNE_IGNORATE: Readonly<Record<string, string>> = {
   riferimento_committente: "identificativo contrattuale del percorso interventi: non viene inventato dal creatore AI standard",
   tetto_importo: "limite contrattuale: si verifica nel percorso contratti, non si deduce dall'importo della commessa",
   valorizzazione: "modalità di valorizzazione del contratto: scelta esplicita nel percorso dedicato",
+  vat_breakdown: "quote IVA del contratto: si confermano nel riepilogo economico, senza dedurle dal testo",
   financing_cost_mode: "trattamento del costo finanziario: scelta contabile esplicita, non impostata dal creatore AI",
   ritenuta_garanzia: "ritenuta a garanzia concordata: arriva dal preventivo firmato, non si deduce dal testo",
   work_start_time: "fascia oraria puntuale gestita nell'agenda; il creatore AI standard propone la data, non l'ora",

@@ -9,6 +9,17 @@ const base = {
 } as unknown as OrderWithDetails;
 
 describe("lista commesse: incassato e da ricevere", () => {
+  it("usa le quote IVA salvate anche per il saldo incassato", () => {
+    const order: OrderWithDetails = {
+      ...base, total_amount: 495432.79, vat_rate: 14.7336,
+      vat_breakdown: { version: 1, input_mode: "net", quota_10: 300000, quota_22: 195432.79 },
+      installments: [{ position: 0, type: "balance", amount: 568428, is_paid: true }],
+    };
+    expect(getGrossOrderAmount(order)).toBe(568428);
+    expect(getAmountCollected(order)).toBe(568428);
+    expect(getAmountDue(order)).toBe(0);
+  });
+
   it("il totale conta le varianti approvate", () => {
     const order = { ...base, variazioni: [
       { status: "approvato", impatto_economico: 3500 },

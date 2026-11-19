@@ -17,7 +17,7 @@ import { calculateInstallmentCollections, type VarianteDatata } from "@/lib/comm
 // 1,50 € nel totale, nel PDF e in fattura senza un solo segnale.
 import { parseDecimalIT, formatDecimalIT } from "@/lib/parseDecimalIT";
 import { QuoteIvaMista } from "./QuoteIvaMista";
-import { calcolaIvaContratto, calcolaQuoteIva, cambiaModalitaQuote, quoteIvaVuote, IVA_MISTA, type QuoteIvaMista as QuoteIvaDraft } from "@/lib/orders/ivaMista";
+import { calcolaIvaContratto, calcolaQuoteIva, cambiaModalitaQuote, lordoPattuitoConQuote, quoteIvaVuote, IVA_MISTA, type QuoteIvaMista as QuoteIvaDraft } from "@/lib/orders/ivaMista";
 import { RegistraIncassoPrimaNota, useIncassiRegistrati } from "./RegistraIncassoPrimaNota";
 import { RiconciliaRateBancaDialog } from "./RiconciliaRateBancaDialog";
 import type { RataDaIncassare } from "@/lib/rateBankMatch";
@@ -1041,7 +1041,8 @@ export function FinancialSummaryReadOnly({
   const { data: incassiRegistrati = {} } = useIncassiRegistrati(orderId, !!conPrimaNota);
   const [riconciliaOpen, setRiconciliaOpen] = useState(false);
   const splitSummary = vatSplit ? calcolaQuoteIva(vatSplit) : null;
-  const totalWithVat = Math.round(totalAmount * (1 + vatRate / 100) * 100) / 100;
+  const quoteValide = splitSummary && !splitSummary.error ? splitSummary : null;
+  const totalWithVat = lordoPattuitoConQuote(totalAmount, vatRate, quoteValide);
   const vatAmount = totalWithVat - totalAmount - (splitSummary?.rounding ?? 0);
   const financingCostValue = paymentType === "financing" ? (financingCost || 0) : 0;
 
@@ -1056,13 +1057,14 @@ export function FinancialSummaryReadOnly({
   const balanceAmount = importoSaldoFinale(installments, totalWithVat, financingCostValue, financingCostMode);
   // Il saldo già pagato vale quanto è entrato quel giorno: una variante approvata dopo resta da incassare.
   const incassiRate = varianti
-    ? calculateInstallmentCollections({ installments, totalAmount, vatRate, financingCost: financingCostValue, financingCostMode, includeFinancing: true, varianti })
+    ? calculateInstallmentCollections({ installments, totalAmount, vatRate, totaleLordo: quoteValide ? totalWithVat : undefined, financingCost: financingCostValue, financingCostMode, includeFinancing: true, varianti })
     : null;
   const importoRata = (i: Installment) => (i.documento_quota_lorda != null ? i.documento_quota_lorda : isSaldoFinale(i)
     ? (i.is_paid && incassiRate ? incassiRate[installments.findIndex(originale => i.id ? originale.id === i.id : originale.position === i.position)] ?? balanceAmount : balanceAmount)
     : i.type === "financing" && financingCostMode === "trattenuto" ? Math.max(0, i.amount - financingCostValue) : i.amount);
   // Stessa regola di intestazione e conto economico (incassiDellaCommessa).
-  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate, paymentType, financingCost, financingCostMode, varianti });
+  const incassi = incassiDellaCommessa({ installments, totalAmount, vatRate,
+    totalePattuitoLordo: quoteValide ? totalWithVat : undefined, paymentType, financingCost, financingCostMode, varianti });
   const collectedAmount = incassi.incassatoLordo;
   const dueAmount = incassi.daIncassareLordo;
 

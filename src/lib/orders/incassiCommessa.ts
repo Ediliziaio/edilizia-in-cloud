@@ -32,6 +32,7 @@ export function incassiDellaCommessa(input: {
   installments: Rate;
   totalAmount: number;
   vatRate: number;
+  totalePattuitoLordo?: number;
   paymentType: string | null | undefined;
   financingCost: number | null | undefined;
   financingCostMode?: ModalitaCostoFinanziaria | null;
@@ -40,11 +41,13 @@ export function incassiDellaCommessa(input: {
 }): IncassiCommessa {
   const iva = Number.isFinite(input.vatRate) ? input.vatRate : 22;
   const costoFinanziaria = input.paymentType === "financing" ? Math.max(0, Number(input.financingCost) || 0) : 0;
-  const totaleLordo = Math.max(0, Math.round((Number(input.totalAmount) || 0) * (1 + iva / 100) * 100) / 100 - costoTrattenuto(costoFinanziaria, input.financingCostMode));
+  const lordoContratto = input.totalePattuitoLordo ?? Math.round((Number(input.totalAmount) || 0) * (1 + iva / 100) * 100) / 100;
+  const totaleLordo = Math.max(0, lordoContratto - costoTrattenuto(costoFinanziaria, input.financingCostMode));
   const incassatoLordo = calculateCollectedGrossFromInstallments({
     installments: input.installments,
     totalAmount: input.totalAmount,
     vatRate: iva,
+    totaleLordo: input.totalePattuitoLordo,
     financingCost: costoFinanziaria,
     financingCostMode: input.financingCostMode,
     includeFinancing: true,
