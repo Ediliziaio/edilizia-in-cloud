@@ -1,6 +1,7 @@
 import {StatoPipelineIniziale} from "@/components/orders/StatoPipelineIniziale";
 import {usePipelineLocali,richiestaPipelineLocale,type PipelineLocale} from "@/lib/orders/pipelineLocali";
 import {PIPELINE_PRINCIPALE,verificaPipelineCreazione,assegnaPipelineNuovaCommessa,statoDiPartenza} from "@/lib/orders/pipelineCreazione";
+import { mostraPipelinePrincipale } from "@/lib/orders/pipelinePrincipale";
 import {verificaPianoSal} from "@/lib/orders/pianoSalAperto";
 import {verificaSupportoPianoSal} from "@/lib/orders/pianoSalServizio";
 import {calcolaIvaContratto, IVA_MISTA, serializzaIvaMista} from "@/lib/orders/ivaMista";
@@ -248,6 +249,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   }, [onlyAssigned, user?.id, setValue]);
 
   const pipelineCommessa=usePipelineLocali(effectiveCompany?.id??"");
+  const principale = mostraPipelinePrincipale(effectiveCompany?.id);
   const [pipelineDaCompletare,setPipelineDaCompletare]=useState(false);
   const [assegnazioneInCorso,setAssegnazioneInCorso]=useState(false);
 
@@ -1120,6 +1122,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
       if (contrattoImportato && !workflowProfilo.data) throw new Error("Attendi il caricamento della configurazione aziendale prima di salvare.");
       const values = getValues();
       const sceltaPipeline={pipelineId:values.pipeline_id,faseId:values.pipeline_id===PIPELINE_PRINCIPALE?values.status_id:values.pipeline_stage_id};
+      if (!principale && sceltaPipeline.pipelineId === PIPELINE_PRINCIPALE) throw new Error("Scegli la tipologia della commessa prima di salvare.");
       if(sceltaPipeline.pipelineId!==PIPELINE_PRINCIPALE){
         const attuale=await richiestaPipelineLocale<{pipeline:PipelineLocale[]}>(effectiveCompany.id);
         const errore=verificaPipelineCreazione(sceltaPipeline,attuale.pipeline,statuses);
@@ -1648,6 +1651,10 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
   const onSubmit = (values: OrderFormValues) => {
     // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
     if (createOrderMutation.isPending || createdOrderIdRef.current) return;
+    if (!principale && values.pipeline_id === PIPELINE_PRINCIPALE) {
+      toast.error("Scegli la tipologia della commessa prima di salvare.");
+      return;
+    }
     if ((clientePa || riferimentiPaAttivi) && bozzeRiferimentiPa.some(bozzaHaErrori)) {
       toast.error("Dati appalto da correggere", { description: "Un CIG, un CUP o un codice ufficio non ha il formato giusto: correggilo o svuotalo." });
       return;
@@ -1993,6 +2000,7 @@ function CreateOrderInner({ modelloIniziale }: { modelloIniziale: ModelloPagamen
               {/* La fase locale non viene mai usata come FK dello stato principale. */}
               <StatoPipelineIniziale
                 pipeline={pipelineCommessa.pipeline}
+                principale={principale}
                 statiPrincipali={statuses}
                 value={{pipelineId:pipelineId||PIPELINE_PRINCIPALE,faseId:pipelineId===PIPELINE_PRINCIPALE?statusId||"":pipelineStageId||""}}
                 disabled={createOrderMutation.isPending||!!createdOrderId}

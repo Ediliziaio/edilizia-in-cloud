@@ -7,7 +7,6 @@ import type { OrderStatus } from "@/lib/orderUtils";
 export interface PipelineLocale { id: string; nome: string; fasi: OrderStatus[]; versione?: number }
 interface Archivio { pipeline: PipelineLocale[]; fasiPerCommessa: Record<string, string> }
 const vuoto: Archivio = { pipeline: [], fasiPerCommessa: {} };
-export const PRINCIPALE = "principale";
 const chiaveBrowser = (azienda: string) => "ordini.pipeline.locali.v1." + azienda;
 
 export async function richiestaPipelineLocale<T>(azienda: string, body?: object): Promise<T> {

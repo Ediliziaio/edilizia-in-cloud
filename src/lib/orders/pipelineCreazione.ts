@@ -1,6 +1,7 @@
 import type {OrderStatus} from "@/lib/orderUtils";
 import type {PipelineLocale} from "@/lib/orders/pipelineLocali";
-export const PIPELINE_PRINCIPALE="principale";
+import { PIPELINE_PRINCIPALE } from "./pipelinePrincipale";
+export { PIPELINE_PRINCIPALE } from "./pipelinePrincipale";
 export interface SceltaPipelineCreazione {pipelineId:string;faseId:string;}
 export function statiPerPipeline(pipelineId:string,pipeline:ReadonlyArray<PipelineLocale>,principali:ReadonlyArray<OrderStatus>):ReadonlyArray<OrderStatus>{
  return pipelineId===PIPELINE_PRINCIPALE?principali:pipeline.find(p=>p.id===pipelineId)?.fasi??[];
