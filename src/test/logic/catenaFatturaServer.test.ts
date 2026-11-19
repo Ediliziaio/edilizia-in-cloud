@@ -49,6 +49,24 @@ const tabelle: Tabelle = {
 const fattura = (x: string, over = {}) => ({ id: "f", company_id: AZ, fornitore_id: FORN, data_fattura: "2026-09-30", xml_raw: x, ...over });
 
 describe("catena della fattura lato server", () => {
+  it("un ordine scritto soltanto nella causale carica l’ODA dello stesso fornitore",async()=>{
+    const r=await catenaDellaFattura(dbFinto(tabelle),fattura(xml('',"Riferimento ordine d'acquisto ODA-2026-0039")));
+    expect(r.commessa?.order_id).toBe('c-A');
+  });
+  it("il DDT citato nella causale segue la catena verso la commessa",async()=>{
+    const r=await catenaDellaFattura(dbFinto(tabelle),fattura(xml('',"DDT n. 1068 del 07/09/2026")));
+    expect(r.commessa?.order_id).toBe('c-A');
+  });
+  it("il cliente dà una proposta da confermare, con il riferimento leggibile",async()=>{
+    const nomi={...tabelle,orders:tabelle.orders.map(c=>({...c,client_name:c.id==='c-A'?'Mario Rossi':null,client_company:c.id==='c-B'?'Edil Beta S.r.l.':null}))};
+    const r=await catenaDellaFattura(dbFinto(nomi),fattura(xml('',"Cliente EDIL BETA SRL")));
+    expect(r.commessa).toBeNull();expect(r.proposta).toEqual({order_id:'c-B',motivo:'Da confermare: cliente Edil Beta S.r.l.'});
+  });
+  it("due cantieri dello stesso cliente bloccano la scelta automatica",async()=>{
+    const nomi={...tabelle,orders:tabelle.orders.map(c=>({...c,client_name:'Mario Rossi'}))};
+    const r=await catenaDellaFattura(dbFinto(nomi),fattura(xml('',"Fornitura per Mario Rossi")));
+    expect(r.commessa).toBeNull();expect(r.proposta).toBeUndefined();expect(r.conflitto).toContain('Più commesse');
+  });
   it("DDT → ordine → commessa, col percorso come motivo; mai i documenti di un'altra azienda", async () => {
     const r = await catenaDellaFattura(dbFinto(tabelle), fattura(xml("<DatiDDT><NumeroDDT>1068</NumeroDDT><DataDDT>2026-09-07</DataDDT></DatiDDT>")));
     expect(r.conflitto).toBeNull();
