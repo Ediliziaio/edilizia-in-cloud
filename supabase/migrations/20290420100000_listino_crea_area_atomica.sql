@@ -37,7 +37,7 @@ begin
     raise exception 'Scegli da 1 a 30 tipologie.' using errcode = '22023';
   end if;
   if not pg_try_advisory_xact_lock(hashtextextended('listino_crea_area:' || p_company_id::text, 0)) then
-    raise exception 'Un''area è già in creazione. Attendi qualche secondo e riprova.' using errcode = '40001';
+    raise exception 'Un''area è già in creazione. Attendi qualche secondo e riprova.' using errcode = 'PT409';
   end if;
   select coalesce(max(sort_order), 0) + 10 into v_ordine
     from public.listino_macrocategorie where company_id = p_company_id;

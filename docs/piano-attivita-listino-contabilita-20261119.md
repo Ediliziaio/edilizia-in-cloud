@@ -35,6 +35,7 @@ Migrazioni applicate tramite MCP e riallineate al registro:
 | `20290420101000` | Ruoli aggiuntivi e scheda personale |
 | `20290420102000` | Scadenze, protezione prima nota, rettifiche contabili |
 | `20290420103000` | Categorie multiple dei fornitori |
+| `20290420104000` | Conflitti applicativi HTTP 409 senza retry del gateway |
 
 Le nuove RPC usano `SECURITY INVOKER`, RLS e privilegi espliciti; esecuzione pubblica/anonima revocata e `search_path` impostato. La funzione esistente per assegnare ruoli conserva i controlli amministrativi e il `SECURITY DEFINER` necessario a gestirli.
 
@@ -47,9 +48,9 @@ L'advisor prima e dopo mantiene le segnalazioni preesistenti: RLS senza policy (
 | Controllo | Esito/metodo |
 |---|---|
 | Regressioni dopo integrazione con main | **486 test, 48 file**; inclusi filtri del giornale e venditori con ruoli aggiuntivi |
-| TypeScript applicazione | `npm run typecheck`, baseline senza errori |
+| TypeScript applicazione | **PASS**, `npm run typecheck`, baseline senza errori |
 | ESLint dei file modificati | **0 errori**, warning preesistenti (5 nei file iniziali e 56 nell'hook CRM) |
-| Build produzione | `npm run build:fast` |
+| Build produzione | **PASS**, `npm run build:fast` |
 | Prerender mirato | **2/2 passate**: funzionalità prima nota e scadenzario |
 | Browser | Chromium e WebKit, 375/768/1280/1920 px |
 | Console e adattamento | Nessun errore JavaScript o fuoriuscita orizzontale nei flussi provati |
