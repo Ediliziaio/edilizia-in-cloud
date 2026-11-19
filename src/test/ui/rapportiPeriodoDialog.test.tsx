@@ -8,6 +8,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DocumentoOperativo } from "@/lib/documentiOperativi/modello";
+import type { VocePerRendicontoTrasporti } from "@/lib/documentiOperativi/rendicontoTrasporti";
 import type { RapportinoCompleto } from "@/hooks/useRapportiniMese";
 import type { ReactNode } from "react";
 
@@ -87,6 +88,35 @@ beforeEach(() => {
   stato.errore.mockReset();
 });
 afterEach(cleanup);
+
+it("popola il PDF trasporti col cliente della commessa, i viaggi e i prezzi di vendita", async () => {
+  const filtro = {
+    order: () => filtro,
+    range: () => filtro,
+    abortSignal: async (): Promise<{ error: null; data: (VocePerRendicontoTrasporti & { costo_unitario?: number })[] }> => ({ error: null, data: [
+      { id: "v1", data: "2026-11-04", descrizione: "Trasporto a chilometro", quantita: 90, unita: "km",
+        vendita_unitaria: 2.4, costo_unitario: 98765, viaggio: { carico: "Deposito", scarico: "Cantiere", mezzo: "DEMO-01", ddt: "101" } },
+      { id: "v2", data: "2026-11-04", descrizione: "TRASPORTI", quantita: 2, unita: "cad", vendita_unitaria: 80, viaggio: null },
+      { id: "v3", data: "2026-11-04", descrizione: "Nolo piattaforma", quantita: 1, unita: "cad", vendita_unitaria: 97, viaggio: null },
+    ] }),
+  };
+  stato.rpc.mockReturnValue(filtro);
+  apri([r, { ...r, id: "inviato", stato: "inviato" }, { ...r, id: "altra", order_id: "o2" }]);
+  menu();
+  fireEvent.click(screen.getByRole("menuitem", { name: /Rendiconto trasporti al cliente/ }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Cantiere del documento" }), { target: { value: "o1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Apri bozza compilata" }));
+  await screen.findByRole("dialog", { name: "Documento pronto" });
+  const documento = JSON.parse(screen.getByTestId("documento").textContent!) as DocumentoOperativo;
+  expect(documento).toMatchObject({ rendicontoTrasporti: true, destinatario: { nome: "Cliente SIM" }, commessa: "SIM-1" });
+  expect(documento.righe).toHaveLength(2);
+  expect(documento.righe[0]).toMatchObject({ quantita: 90, unita: "km", prezzo: 2.4, mezzo: "DEMO-01", ddt: "101" });
+  expect(documento.righe[1]).toMatchObject({ quantita: 2, unita: "viaggio", prezzo: 80 });
+  expect(JSON.stringify(documento)).not.toContain("98765");
+  expect(stato.rpc).toHaveBeenCalledWith("rapportini_voci_approvate_per_trasporti", {
+    p_company_id: "azienda-1", p_order_id: "o1", p_rapportini: ["r1"],
+  });
+});
 
 describe("Riepilogo automatico dei rapportini approvati", () => {
   it("compila cliente e voci economiche registrate, senza costi interni", async () => {
