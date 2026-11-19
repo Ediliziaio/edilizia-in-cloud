@@ -269,7 +269,7 @@ function OrdersListInner() {
   }, [sortDir]);
   const isYearCorrente = yearFilter === "corrente";
   const periodLabel = yearFilter === "corrente" ? `${new Date().getFullYear()} + precedenti da gestire` : yearFilter === "all" ? "Tutti gli anni" : yearFilter;
-  const currentYear = new Date().getFullYear();
+  const currentYear = Number(new Date().getFullYear());
   const selectedYear = !isYearCorrente && yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
 
@@ -340,7 +340,9 @@ function OrdersListInner() {
     scopeOrders.filter(order => matchesOrderPayment(order, paymentFilter) && matchesOrderPayment(order, sidebarFilters.paymentStatus)).map(order => order.id),
     [scopeOrders, paymentFilter, sidebarFilters.paymentStatus]);
   const scopeOrderIds = useMemo(() => scopeOrders.map(order => order.id), [scopeOrders]);
-  const listScopeIds = useMemo(() => orderScopeGroupIds(scopeOrders,scopeGroup,currentYear), [scopeOrders,scopeGroup,currentYear]);
+  const listScopeIds = useMemo(() => (
+    scopeGroup === "all" ? scopeOrderIds : orderScopeGroupIds(scopeOrders, scopeGroup, currentYear)
+  ), [scopeGroup, scopeOrderIds, scopeOrders, currentYear]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!gestione && (orderPerms.canViewMargins || orderPerms.canViewCosts),
@@ -497,7 +499,13 @@ function OrdersListInner() {
   });
 
   const [compareChart, setCompareChart] = useState(false);
-  const comparisonPeriod = annualComparisonPeriod(isYearCorrente ? currentYear : hasSelectedYear ? selectedYear! : NaN);
+  // Il periodo del confronto resta stabile fino al cambio di giorno locale.
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const comparisonYear = isYearCorrente ? currentYear : hasSelectedYear ? selectedYear! : NaN;
+  const comparisonPeriod = useMemo(
+    () => annualComparisonPeriod(comparisonYear, new Date(todayStart)),
+    [comparisonYear, todayStart],
+  );
   const comparisonEnabled = compareChart && !!comparisonPeriod;
   const {data: previousChartOrders = [], isPending: comparisonPending, isError: comparisonError, refetch: retryComparison} = useQuery({
     queryKey: ["orders-monthly-sales-chart", "comparison-v1", effectiveCompany?.id, comparisonPeriod?.previousFrom.toISOString(), comparisonPeriod?.previousTo.toISOString()],
@@ -1103,7 +1111,7 @@ function OrdersListInner() {
       incassato: getAmountCollected(order as any), daIncassare: getAmountDue(order as any),
     }));
     return comparableOrderMonths(monthlySalesChart, values(monthlyOrders), values(previousChartOrders), comparisonPeriod);
-  }, [comparisonEnabled, comparisonPeriod?.to.getTime(), comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders, mappaGenerali]);
+  }, [comparisonEnabled, comparisonPeriod, comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders, mappaGenerali]);
 
   const monthlySalesTotals = useMemo(() => {
     return monthlySalesChart.reduce(
@@ -1321,7 +1329,7 @@ function OrdersListInner() {
   // Export PDF: una scheda completa per ogni cliente con i suoi ordini
   // Export schede clienti PDF: apre dialog con quantity selector + progress bar
   // (vedi CustomerSheetsExportDialog per il fix del bug "1000 schede").
-  const openCustomerSheetsDialog = useCallback(() => setCustomerSheetsOpen(true), []);
+  const openCustomerSheetsDialog = () => setCustomerSheetsOpen(true);
 
   // Import handler
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
@@ -1400,11 +1408,13 @@ function OrdersListInner() {
     appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita"),
   };
   const margineMedio = useMemo(() => directMarginSummary(scopeMargins ?? [], new Set(globalStats?.annualIds ?? [])), [scopeMargins, globalStats]);
+  const annualIds = globalStats?.annualIds;
+  const scopeRows = globalStats?.scopeRows;
   const margineConseguito = useMemo(() => {
-    const ids = new Set(globalStats?.annualIds ?? []);
-    const completate = new Set((globalStats?.scopeRows ?? []).filter(order => ids.has(order.id) && !!lastStatusId && order.current_status_id === lastStatusId).map(order => order.id));
+    const ids = new Set(annualIds ?? []);
+    const completate = new Set((scopeRows ?? []).filter(order => ids.has(order.id) && !!lastStatusId && order.current_status_id === lastStatusId).map(order => order.id));
     return directMarginSummary(scopeMargins ?? [], completate);
-  }, [scopeMargins, globalStats, lastStatusId]);
+  }, [scopeMargins, annualIds, scopeRows, lastStatusId]);
   const costiDaPagare = useOrdersPayables(effectiveCompany?.id, globalStats?.annualIds ?? [], orderPerms.canViewCosts && !!globalStats && !isGlobalStatsError && !isStatusesError);
   const riquadriRiepilogo = groupedSummaryCards(riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo));
   // I numeri delle generali li dà il server, già filtrati per permesso: si chiedono solo se un riquadro li usa.
