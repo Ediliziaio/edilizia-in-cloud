@@ -69,9 +69,10 @@ import { OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { commessaDaRiga } from "@/lib/orders/importaCommesse";
+import { messaggioErrore } from "@/lib/orders/sottofasi";
 import { CustomerSheetsExportDialog } from "@/components/orders/CustomerSheetsExportDialog";
 import { useToast } from "@/hooks/use-toast";
-import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
+import { type OrderPaymentDetails, type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
@@ -268,7 +269,6 @@ function OrdersListInner() {
     try { localStorage.setItem("orders-sort-dir", sortDir); } catch { /* noop */ }
   }, [sortDir]);
   const isYearCorrente = yearFilter === "corrente";
-  const periodLabel = yearFilter === "corrente" ? `${new Date().getFullYear()} + precedenti da gestire` : yearFilter === "all" ? "Tutti gli anni" : yearFilter;
   const currentYear = Number(new Date().getFullYear());
   const selectedYear = !isYearCorrente && yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
@@ -598,8 +598,6 @@ function OrdersListInner() {
   // Batch queries for cost calculations — use rawOrders IDs to avoid circular dep with salespeopleMap
   const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
 
-  const canonicalMargins = scopeMargins ?? [];
-
   // Materiali, personale, squadre e venditori delle commesse della pagina, e i
   // fornitori dei materiali, in una lettura sola (23/10/2026): erano cinque
   // richieste, ognuna a ripreparare le regole di accesso della sua tabella.
@@ -607,8 +605,7 @@ function OrdersListInner() {
   const { data: dettagli } = useQuery({
     queryKey: ["elenco-commesse-dettagli", effectiveCompany?.id, orderIds],
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("elenco_commesse_dettagli", { p_order_ids: orderIds });
+      const { data, error } = await supabase.rpc("elenco_commesse_dettagli", { p_order_ids: orderIds });
       if (error) throw error;
       return data as {
         materiali: Array<{ order_id: string; purchase_price: number | null; quantity: number | null; vat_rate: number | null; supplier_id: string | null }>;
@@ -631,7 +628,7 @@ function OrdersListInner() {
   const salespeopleMap = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const sp of salespeopleData) {
-      const p = (sp as any).salesperson;
+      const p = sp.salesperson;
       if (p) {
         const name = `${p.first_name} ${p.last_name}`;
         const existing = map.get(sp.order_id) || [];
@@ -645,7 +642,7 @@ function OrdersListInner() {
   const laborMap = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const e of employeeCosts) {
-      const emp = (e as any).employee;
+      const emp = e.employee;
       if (emp) {
         const name = `${emp.first_name} ${emp.last_name}`;
         const existing = map.get(e.order_id) || [];
@@ -654,7 +651,7 @@ function OrdersListInner() {
       }
     }
     for (const t of externalTeamCosts) {
-      const team = (t as any).external_team;
+      const team = t.external_team;
       if (team) {
         const existing = map.get(t.order_id) || [];
         if (!existing.includes(team.name)) existing.push(team.name);
@@ -774,9 +771,8 @@ function OrdersListInner() {
       marginReliable: boolean;
     }>();
 
-    for (const row of [...canonicalMargins, ...marginiFuoriPagina]) {
+    for (const row of [...(scopeMargins ?? []), ...marginiFuoriPagina]) {
       if (!row.id) continue;
-      const revenue = Number(row.preventivo_totale || 0);
       const variableCosts = Number(row.consuntivo || 0);
       map.set(row.id, {
         variableCosts,
@@ -787,7 +783,7 @@ function OrdersListInner() {
     }
 
     return map;
-  }, [canonicalMargins, marginiFuoriPagina]);
+  }, [scopeMargins, marginiFuoriPagina]);
 
   const { mutateAsync: updateOrderStatus } = useMutation({
     mutationFn: async ({ orderId, statusId }: { orderId: string; statusId: string }) => {
@@ -960,8 +956,7 @@ function OrdersListInner() {
         .limit(2000);
       if (error) throw error;
       const map = new Map<string, { id: string; name: string }>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (data as any[]).forEach((row) => {
+      (data ?? []).forEach((row) => {
         if (row.customer_id && row.customer && !map.has(row.customer_id)) {
           map.set(row.customer_id, {
             id: row.customer_id,
@@ -1086,7 +1081,7 @@ function OrdersListInner() {
     });
     const byKey = new Map(months.map((month) => [month.key, month]));
 
-    monthlyOrders.forEach((order: any) => {
+    monthlyOrders.forEach((order) => {
       if (!order.created_at) return;
       // Un'unità ancora in vendita non è venduto: il suo listino resta fuori dal grafico.
       if (unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))) return;
@@ -1096,9 +1091,9 @@ function OrdersListInner() {
       const month = byKey.get(key);
       if (!month) return;
       month.commesse += 1;
-      month.venduto += getGrossOrderAmount(order as any);
-      month.incassato += getAmountCollected(order as any);
-      month.daIncassare += getAmountDue(order as any);
+      month.venduto += getGrossOrderAmount(order);
+      month.incassato += getAmountCollected(order);
+      month.daIncassare += getAmountDue(order);
     });
 
     return months;
@@ -1106,10 +1101,13 @@ function OrdersListInner() {
 
   const chartWithComparison = useMemo(() => {
     if (!comparisonEnabled || !comparisonPeriod || comparisonPending || comparisonError) return monthlySalesChart;
-    const values = (rows: ReadonlyArray<Pick<OrderWithDetails, "id" | "created_at">>) => rows.filter(order => !unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))).map(order => ({
-      created_at: order.created_at!, venduto: getGrossOrderAmount(order as any),
-      incassato: getAmountCollected(order as any), daIncassare: getAmountDue(order as any),
-    }));
+    const values = (rows: ReadonlyArray<OrderPaymentDetails & Pick<OrderWithDetails, "id" | "created_at">>) =>
+      rows.filter(order => !unitaInVendita(mappaGenerali.statoVenditaUnita?.get(order.id))).map(order => ({
+        created_at: order.created_at,
+        venduto: getGrossOrderAmount(order),
+        incassato: getAmountCollected(order),
+        daIncassare: getAmountDue(order),
+      }));
     return comparableOrderMonths(monthlySalesChart, values(monthlyOrders), values(previousChartOrders), comparisonPeriod);
   }, [comparisonEnabled, comparisonPeriod, comparisonPending, comparisonError, monthlySalesChart, monthlyOrders, previousChartOrders, mappaGenerali]);
 
@@ -1155,7 +1153,6 @@ function OrdersListInner() {
       }
       for (const row of marginRows || []) {
         if (!row.id) continue;
-        const revenue = Number(row.preventivo_totale || 0);
         const variableCosts = Number(row.consuntivo || 0);
         exportCostsMap.set(row.id, {
           variableCosts,
@@ -1194,18 +1191,18 @@ function OrdersListInner() {
     const marginColumns = new Set(["gross_margin","margin_percent","economic_quality"]);
     const permittedColumns = columns.filter(column => (!financialColumns.has(column.key) || orderPerms.canViewOrderAmounts) &&
       (!costColumns.has(column.key) || orderPerms.canViewCosts) && (!marginColumns.has(column.key) || orderPerms.canViewMargins));
-    const rows = (allOrders || []).map((o) => {
-      const pending = getPendingPayments(o as any);
+    const rows = allOrders.map((o) => {
+      const pending = getPendingPayments(o);
       // Imponibile e IVA del valore pattuito (contratto più varianti), come il Totale Ivato.
-      const imponibile = contrattoPattuito(o as any);
-      const totalGross = getGrossOrderAmount(o as any);
+      const imponibile = contrattoPattuito(o);
+      const totalGross = getGrossOrderAmount(o);
       const vatAmount = Math.round((totalGross - imponibile) * 100) / 100;
-      const collected = getAmountCollected(o as any);
-      const due = getAmountDue(o as any);
+      const collected = getAmountCollected(o);
+      const due = getAmountDue(o);
       const costs = exportCostsMap.get(o.id);
       return {
         order_code: o.order_code || "",
-        customer: (o.customer as any) ? `${(o.customer as any).first_name} ${(o.customer as any).last_name}` : "",
+        customer: o.customer ? `${o.customer.first_name} ${o.customer.last_name}` : "",
         description: o.description,
         total_amount: String(imponibile),
         vat_amount: String(vatAmount),
@@ -1220,36 +1217,36 @@ function OrdersListInner() {
         gross_margin: costs?.marginReliable ? String(costs.grossMargin) : "",
         margin_percent: costs?.marginReliable ? `${costs.marginPercent.toFixed(1)}%` : "",
         economic_quality: costs?.marginReliable ? "Dati attendibili" : "Costi da completare",
-        status: (o.status as any)?.name || "",
+        status: o.status?.name || "",
         created_at: o.created_at ? format(new Date(o.created_at), "dd/MM/yyyy") : "",
         warehouse_arrival_date: o.warehouse_arrival_date ? format(new Date(o.warehouse_arrival_date), "dd/MM/yyyy") : "",
         expected_date: o.expected_date ? format(new Date(o.expected_date), "dd/MM/yyyy") : "",
         payment_status: pending.length > 0 ? pending.join(", ") : "Tutto pagato",
       };
     });
-    return { rows, columns:permittedColumns, count: allOrders?.length ?? 0 };
+    return { rows, columns:permittedColumns, count: allOrders.length };
     } catch {
       toast({title:"Esportazione non riuscita",description:"Non è stato possibile leggere tutte le commesse. Riprova.",variant:"destructive"});
       return null;
     }
   };
 
-  const exportOrdersCSV = useCallback(async () => {
+  const exportOrdersCSV = async () => {
     const result = await prepareExportData();
     if (!result) return;
     exportToCSV(result.rows, result.columns, `commesse-${format(new Date(), "yyyy-MM-dd")}.csv`);
     toast({ title: `CSV esportato — ${result.count} commesse` });
-  }, [prepareExportData, toast]);
+  };
 
-  const exportOrdersXLSX = useCallback(async () => {
+  const exportOrdersXLSX = async () => {
     const result = await prepareExportData();
     if (!result) return;
     await exportToXLSX(result.rows, result.columns, `commesse-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
     toast({ title: `Excel esportato — ${result.count} commesse` });
-  }, [prepareExportData, toast]);
+  };
 
   // Export PDF: tabella ordini landscape
-  const exportOrdersPDF = useCallback(async () => {
+  const exportOrdersPDF = async () => {
     const result = await prepareExportData();
     if (!result || result.count === 0) {
       toast({ title: "Nessuna commessa", description: "Non ci sono commesse da esportare.", variant: "destructive" });
@@ -1257,7 +1254,7 @@ function OrdersListInner() {
     }
     try {
       const jsPDFModule = await import("jspdf");
-      const jsPDF = jsPDFModule.default ?? (jsPDFModule as any).jsPDF;
+      const jsPDF = jsPDFModule.default ?? jsPDFModule.jsPDF;
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       doc.setFontSize(14);
       doc.text(`${effectiveCompany?.name ?? "Azienda"} — Commesse`, 40, 40);
@@ -1324,7 +1321,7 @@ function OrdersListInner() {
         variant: "destructive",
       });
     }
-  }, [prepareExportData, effectiveCompany, toast]);
+  };
 
   // Export PDF: una scheda completa per ogni cliente con i suoi ordini
   // Export schede clienti PDF: apre dialog con quantity selector + progress bar
@@ -1332,6 +1329,7 @@ function OrdersListInner() {
   const openCustomerSheetsDialog = () => setCustomerSheetsOpen(true);
 
   // Import handler
+  const importUserId = user?.id ?? null;
   const handleOrdersImport = useCallback(async (rows: Record<string, string>[]) => {
     if (!effectiveCompany?.id) return { success: 0, errors: ["Azienda non trovata"] };
 
@@ -1379,20 +1377,20 @@ function OrdersListInner() {
           p_order_data: esito.ordine,
           p_items: [],
           p_salesperson: null,
-          p_user_id: user?.id ?? null,
+          p_user_id: importUserId,
           p_installments: esito.rate.map((r) => ({ position: r.position, label: r.label, type: r.type, amount: r.amount, is_paid: false })),
         });
         if (error) throw error;
         if (esito.codice) existingCodeSet.add(esito.codice.toLowerCase());
         success++;
-      } catch (err: any) {
-        errors.push(`Riga ${i + 1}: ${err?.message || "Errore"}`);
+      } catch (err) {
+        errors.push(`Riga ${i + 1}: ${messaggioErrore(err, "Errore")}`);
       }
     }
 
     refreshOrderScope();
     return { success, errors };
-  }, [effectiveCompany, user?.id, queryClient, refreshOrderScope]);
+  }, [effectiveCompany, importUserId, refreshOrderScope]);
 
   const hasStatsError = isStatusesError || (isGlobalStatsError && !globalStats);
   const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
@@ -1466,7 +1464,7 @@ function OrdersListInner() {
       operazioni_margine: { titolo: "Margine a finire operazioni", valore: soldi(to?.margineAFinire), icona: Percent, nota: `stima su ${to?.conPiano ?? 0} operazioni con il piano` },
     };
     return valori;
-  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione, orderPerms.canViewBilling, isNative]);
+  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione]);
 
   const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !scopeError;
   const filtriCommesse = (<OrdersFilters panel={barraBacheca}
