@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi, type Mock } from "vitest";
 import { useFinancialLive } from "@/hooks/useFinancialLive";
 
 const state = vi.hoisted(() => ({ company: "a", fingerprint: "1", rpc: vi.fn(), channels: [] as Array<{ name: string; filter: unknown; change: () => void; status: (s: string) => void }>, remove: vi.fn() }));
@@ -19,14 +19,14 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 } }));
 let client: QueryClient;
 let stop: () => void;
-let fetchData: ReturnType<typeof vi.fn>;
+let fetchData: Mock<() => Promise<unknown[]>>;
 const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 const advance = async (ms = 350) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); };
 beforeEach(() => {
   vi.useFakeTimers(); state.company = "a"; state.fingerprint = "1"; state.channels = []; state.remove.mockReset();
   state.rpc.mockReset().mockImplementation(async () => ({ data: state.fingerprint, error: null }));
   client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
-  fetchData = vi.fn().mockResolvedValue([]);
+  fetchData = vi.fn<() => Promise<unknown[]>>().mockResolvedValue([]);
   const observer = new QueryObserver(client, { queryKey: ["scadenzario", "a"], queryFn: fetchData });
   stop = observer.subscribe(() => {});
 });
