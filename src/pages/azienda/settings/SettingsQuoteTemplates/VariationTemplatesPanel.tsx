@@ -6,6 +6,8 @@ import { blankVariationTemplate, VARIATION_TEMPLATE_COLORS, VARIATION_TEMPLATE_E
 import { variationTemplateExamplePdf } from "@/lib/orders/variationTemplateExample";
 import { VariationTemplatePreview } from "@/components/orders/VariationTemplatePreview";
 import { VariationTemplateAttachments } from "@/components/orders/VariationTemplateAttachments";
+import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
+import { DocumentEditorWorkspace, type VistaEditorDocumento } from "@/components/shared/DocumentEditorWorkspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +18,8 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
   const [archived,setArchived] = useState(false);
   const models = useVariationTemplates(companyId,true,archived);
   const [form, setForm] = useState<VariationTemplateContent | null>(null);
+  const [iniziale, setIniziale] = useState<VariationTemplateContent | null>(null);
+  const [vista, setVista] = useState<VistaEditorDocumento>("modifica");
   const [previous, setPrevious] = useState<VariationTemplateRow | undefined>();
   const [creationId, setCreationId] = useState<string>();
   const [dirty, setDirty] = useState(false);
@@ -24,13 +28,28 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
   const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [pdf, setPdf] = useState<{ url: string; snapshot: string } | null>(null);
   const lock = useRef(false);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [variableTarget,setVariableTarget] = useState<"intro_text"|"conditions_text"|"payment_terms">("intro_text");
   const confirmExit = useSettingsDraftGuard(dirty);
   const canEditCurrent = canEdit && previous?.is_active !== false;
   const busy = models.save.isPending || models.archive.isPending || models.restore?.isPending || pdfBusy || attachmentBusy;
-  const start = (content: VariationTemplateContent, row?: VariationTemplateRow) => {
-    if (!confirmExit() || busy) return;
-    setForm(content); setPrevious(row); setCreationId(row ? undefined : crypto.randomUUID()); setDirty(canEdit && !row); setError(""); setPdf(null);
+  const carica = (content: VariationTemplateContent, row?: VariationTemplateRow) => {
+    setForm(content);
+    setIniziale(content);
+    setPrevious(row);
+    setDirty(canEdit && !row);
+    setPdf(null);
+  };
+  const start = (content: VariationTemplateContent, row?: VariationTemplateRow, vistaIniziale: VistaEditorDocumento = "modifica") => {
+    if (busy) return;
+    if (!row || row.id !== previous?.id || !form) {
+      if (!confirmExit()) return;
+      carica(content, row);
+      setCreationId(row ? undefined : crypto.randomUUID());
+      setError("");
+    }
+    setVista(vistaIniziale);
+    requestAnimationFrame(() => editorRef.current?.scrollIntoView?.({ block: "start" }));
   };
   const change = <K extends keyof VariationTemplateContent>(key: K, value: VariationTemplateContent[K]) => {
     if (!form) return;
@@ -50,14 +69,15 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
       {(models.data ?? []).map(row => <div className="space-y-2 rounded-lg border p-4" key={row.id}>
         <h3 className="font-medium">{row.name}{!row.is_active && <span className="ml-2 text-xs text-muted-foreground">Archiviato</span>}</h3><p className="text-sm text-muted-foreground">{row.document_heading} · v{row.revision} · {row.variation_kind ?? "aggiunta"}</p>
         <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy} onClick={() => start(row, row)}>{canEdit && row.is_active ? "Modifica" : "Apri"}</Button>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => start(row, row)}>Anteprima PDF</Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => start(row, row, "anteprima")}>Anteprima PDF</Button>
           {canEdit && row.is_active && <><Button size="sm" variant="outline" disabled={busy} onClick={async () => {
             if(!companyId || lock.current || !confirmExit() || !window.confirm("Creare una copia del modello, inclusi gli allegati PDF attivi?"))return;
             lock.current=true;setAttachmentBusy(true);setError("");let copied:VariationTemplateRow|undefined;
             try {copied=await models.save.mutateAsync({content:{...row,name:`${row.name.slice(0,100)} · copia`},creationId:crypto.randomUUID()});
               for(const file of await listVariationFiles(companyId,row.id)){const blob=await downloadVariationFile(file,companyId,row.id);await uploadVariationFile(companyId,copied.id,new File([blob],file.file_name,{type:"application/pdf"}));}
-              setForm(copied);setPrevious(copied);setDirty(false);setPdf(null);
-            }catch(e){if(copied){setForm(copied);setPrevious(copied);setDirty(false);}setError(`${e instanceof Error?e.message:"Copia non completata."}${copied?" La copia dei testi è salvata: verifica gli allegati prima di usarla.":""}`);}finally{lock.current=false;setAttachmentBusy(false);}
+              carica(copied, copied);
+              setVista("modifica");
+            }catch(e){if(copied){carica(copied, copied);setVista("modifica");}setError(`${e instanceof Error?e.message:"Copia non completata."}${copied?" La copia dei testi è salvata: verifica gli allegati prima di usarla.":""}`);}finally{lock.current=false;setAttachmentBusy(false);}
           }}>Duplica con allegati</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={async () => {
               if (lock.current || !confirmExit() || !window.confirm("Archiviare il modello? I documenti delle commesse già creati non cambiano.")) return;
@@ -69,9 +89,11 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
       </div>)}
     </div>
     <div className="rounded-lg border p-3"><p className="mb-2 text-sm font-medium">Esempi da adattare</p><div className="flex flex-wrap gap-2">{VARIATION_TEMPLATE_EXAMPLES.map(example => <Button key={example.name} size="sm" variant="outline" disabled={busy} onClick={() => start(example)}>{example.name}</Button>)}</div><p className="mt-2 text-xs text-muted-foreground">Esempi di compilazione, non clausole legali verificate. Salva una copia per renderla disponibile alla tua azienda.</p></div>
-    {form && <div className="grid items-start gap-4 xl:grid-cols-2" aria-label="Editor e anteprima del modello">
-      <div className="space-y-4 rounded-lg border p-4 min-w-0" aria-label="Editor modello di variante">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">Testi e stile del documento</h3><a href="#variation-model-preview" className="text-sm underline xl:hidden">Vedi PDF</a></div>
+    {form && <div ref={editorRef} className="scroll-mt-4"><DocumentEditorWorkspace
+      selezioneVista={{ vista, onChange: setVista }}
+      previewClassName="xl:sticky xl:top-4"
+      editor={<div className="min-w-0 space-y-4 rounded-lg border p-4" aria-label="Editor modello di variante">
+      <h3 className="font-medium">Testi e stile del documento</h3>
       <fieldset disabled={!canEditCurrent || busy} className="space-y-3 min-w-0">
         <Label htmlFor="vt-name">Nome del modello *</Label><Input id="vt-name" maxLength={120} value={form.name} onChange={e => change("name", e.target.value)} />
         <Label htmlFor="vt-kind">Tipo di variante</Label><UniformSelect id="vt-kind" className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={form.variation_kind ?? "aggiunta"} onChange={e=>change("variation_kind",e.target.value as VariationTemplateContent["variation_kind"])}><option value="aggiunta">Aggiunta di lavori</option><option value="modifica">Modifica / sostituzione</option><option value="riduzione">Riduzione di lavori · importo sottratto</option></UniformSelect>
@@ -87,9 +109,15 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
       <div className="flex flex-wrap gap-2">
         {canEditCurrent && <Button disabled={busy || !companyId} onClick={async () => {
           if (lock.current || !form) return; lock.current = true; setError("");
-          try { const saved = await models.save.mutateAsync({ content: form, previous, creationId }); setPrevious(saved); setForm(saved); setDirty(false); }
+          try { const saved = await models.save.mutateAsync({ content: form, previous, creationId }); carica(saved, saved); }
           catch (e) { setError(e instanceof Error ? e.message : "Salvataggio non riuscito."); } finally { lock.current = false; }
         }}>{models.save.isPending ? "Salvataggio…" : "Salva modello di variante"}</Button>}
+        {canEditCurrent && <DiscardDocumentDraft disabled={busy || !dirty} onDiscard={() => {
+          setForm(iniziale);
+          setDirty(false);
+          setError("");
+          setPdf(null);
+        }} />}
         <Button variant="outline" disabled={busy} onClick={async () => {
           if (lock.current || !form) return; lock.current = true; setPdfBusy(true); setError("");
           try {
@@ -100,15 +128,15 @@ export function VariationTemplatesPanel({ companyId, canEdit }: { companyId?: st
         {pdf?.snapshot === JSON.stringify(form) && <a href={pdf.url} download="esempio-modello-variante.pdf" className="inline-flex min-h-11 items-center rounded-md border px-4 text-sm font-medium">Scarica esempio PDF</a>}
         <Button variant="ghost" disabled={busy} onClick={() => { if (confirmExit()) { setForm(null); setDirty(false); setPdf(null); } }}>Chiudi editor</Button>
       </div>
+      {dirty && <p className="text-sm text-amber-700">Modifiche non salvate</p>}
       {!dirty && previous && <p role="status" className="text-sm text-green-700">Modello salvato · disponibile nelle commesse dell'azienda.</p>}
       {previous?.is_active === false && <p className="text-sm text-muted-foreground">Modello archiviato, in sola lettura. Ripristinalo dalla libreria e riaprilo per modificarlo.</p>}
       {companyId && previous?.company_id === companyId ? <VariationTemplateAttachments key={`${companyId}:${previous.id}`} company={companyId} template={previous.id} content={form} canEdit={canEditCurrent} disabled={models.save.isPending || models.archive.isPending || pdfBusy} onBusyChange={setAttachmentBusy} /> : <p className="text-sm text-muted-foreground">Salva prima il modello per aggiungere allegati PDF.</p>}
-      </div>
-      <aside id="variation-model-preview" aria-label="Anteprima visiva della variante" className="min-w-0 space-y-2 xl:sticky xl:top-4 scroll-mt-4">
-        <p className="text-xs text-muted-foreground">PDF reale con dati dimostrativi. Testi e colore si aggiornano dopo la digitazione; puoi vedere tutte le pagine, ingrandire, aprire e scaricare il documento.</p>
+      </div>}
+      anteprima={<aside aria-label="Anteprima visiva della variante" className="min-w-0 space-y-2">
+        <p className="text-xs text-muted-foreground">Esempio con testi e colori della bozza.</p>
         <div className="h-[75dvh] min-h-[440px] max-h-[900px]"><VariationTemplatePreview content={form} scope={companyId} /></div>
-        <p className="text-xs text-muted-foreground">La modifica aggiorna questa bozza, non i documenti già creati. Salva il modello per riutilizzarlo nelle nuove varianti.</p>
-      </aside>
-    </div>}
+      </aside>}
+    /></div>}
   </section>;
 }

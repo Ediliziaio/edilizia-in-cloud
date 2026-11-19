@@ -42,6 +42,7 @@ import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { APRI_FATTURAZIONE_ELETTRONICA } from "./editor/EditorFatturazioneElettronicaSection";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
+import { FoglioFatturaAdattabile } from "@/components/fatturazione/FoglioFatturaAdattabile";
 import { AnteprimaXmlFattura } from "@/components/fatturazione/AnteprimaXmlFattura";
 import { useAuth } from "@/contexts/AuthContext";
 import { PanelRight } from "lucide-react";
@@ -732,11 +733,9 @@ function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocument
             {vistaAnteprima === "xml" && xmlDisponibile ? (
               <AnteprimaXmlFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} />
             ) : (
-              <div className="flex justify-center">
-                <div className="shrink-0">
-                  <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={0.45} />
-                </div>
-              </div>
+              <FoglioFatturaAdattabile>
+                <PreviewFattura documento={statoAnteprima} azienda={aziendaAnagrafica ?? null} logoAziendale={aziendaAnteprima?.logo_url} scale={1} />
+              </FoglioFatturaAdattabile>
             )}
           </aside>
         )}

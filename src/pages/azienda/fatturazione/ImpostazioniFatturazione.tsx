@@ -3,7 +3,10 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { ibanValido, pulisciIbanConto } from "@/lib/fatturazione/contiAzienda";
 import type { AnagraficaAzienda, ContoFatturazione } from "@/types/fatturazione";
 import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
-import { FatturaTemplatePreview } from "@/components/fatturazione/FatturaTemplatePreview";
+import { FatturaTemplatePreview, type TipoAnteprimaFiscale } from "@/components/fatturazione/FatturaTemplatePreview";
+import { DocumentEditorWorkspace } from "@/components/shared/DocumentEditorWorkspace";
+import { DiscardDocumentDraft } from "@/components/shared/DiscardDocumentDraft";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { logoDiRiserva } from "../../../../supabase/functions/_shared/logoAzienda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -46,6 +49,10 @@ const sezioneValida = (s: string | null): string => (s && SEZIONI.includes(s) ? 
 
 /** Il logo delle fatture pesa al massimo questo. */
 const LOGO_MAX_BYTE = 2 * 1024 * 1024;
+const COLORI_PDF = [
+  ["#0ea5e9", "Azzurro"], ["#10b981", "Verde"], ["#8b5cf6", "Viola"], ["#ef4444", "Corallo"],
+  ["#f59e0b", "Ambra"], ["#64748b", "Grigio"], ["#0f172a", "Antracite"], ["#dc2626", "Rosso"],
+] as const;
 
 export default function ImpostazioniFatturazione() {
   const isMobile = useIsMobile();
@@ -65,6 +72,7 @@ export default function ImpostazioniFatturazione() {
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [tipoAnteprima, setTipoAnteprima] = useState<TipoAnteprimaFiscale>("fattura");
   // Modifiche non salvate: chiede conferma uscendo dalla pagina (come Prezzo e margini).
   const isDirty = Object.keys(form).length > 0;
   useSettingsDraftGuard(isDirty);
@@ -184,6 +192,13 @@ export default function ImpostazioniFatturazione() {
     (current.ultimo_numero_fattura ?? 0) + 1,
     current.anno_corrente_fattura ?? new Date().getFullYear(),
   );
+  const numeriAnteprima: Record<TipoAnteprimaFiscale, string> = {
+    fattura: numeroDiProva,
+    nota_credito: "NC-ESEMPIO",
+    proforma: "PF-ESEMPIO",
+    ddt: "DDT-ESEMPIO",
+  };
+  const aspettoModificato = "colore_primario" in form || "scala_logo" in form;
 
   const handleSave = async () => {
     if (isError) return;
@@ -600,38 +615,59 @@ export default function ImpostazioniFatturazione() {
         {/* TAB: TEMPLATE PDF                                     */}
         {/* ═══════════════════════════════════════════════════════ */}
         <TabsContent value="pdf" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Colore delle fatture</CardTitle>
-              <CardDescription>Il colore dei titoli e delle righe nei PDF delle fatture.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="colore-fattura">Colore</Label>
-                <div className="flex flex-wrap items-center gap-3">
-                  <input id="colore-fattura" type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="w-10 h-10 rounded border cursor-pointer" />
-                  <div className="flex flex-wrap gap-2">
-                    {["#0ea5e9", "#10b981", "#8b5cf6", "#ef4444", "#f59e0b", "#64748b", "#0f172a", "#dc2626"].map((c) => (
-                      <button key={c} type="button" aria-label={`Colore ${c}`} aria-pressed={current.colore_primario === c} className={`w-8 h-8 rounded-full border-2 transition-all ${current.colore_primario === c ? "border-foreground scale-110" : "border-transparent hover:border-muted-foreground/30"}`}
-                        style={{ backgroundColor: c }}
-                        onClick={() => updateField("colore_primario", c)} />
-                    ))}
+          <DocumentEditorWorkspace colonne="xl:grid-cols-[minmax(0,1fr)_minmax(0,1.45fr)]"
+            previewClassName="xl:sticky xl:top-4"
+            editor={<Card>
+              <CardHeader>
+                <CardTitle className="text-base">Aspetto dei documenti</CardTitle>
+                <CardDescription>Colore e logo nei PDF generati dalla fatturazione.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <fieldset disabled={saving} className="min-w-0 space-y-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="colore-fattura">Colore di titoli e righe</Label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input id="colore-fattura" type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="h-10 w-10 rounded border cursor-pointer" />
+                      <div className="flex flex-wrap gap-2">
+                        {COLORI_PDF.map(([c, nome]) => {
+                          const selezionato = (current.colore_primario ?? "#0ea5e9").toLowerCase() === c;
+                          return <button key={c} type="button" title={nome} aria-label={nome} aria-pressed={selezionato} className={`h-9 w-9 rounded-full border-2 transition-colors ${selezionato ? "ring-2 ring-ring ring-offset-2" : "border-transparent hover:border-foreground/30"}`}
+                            style={{ backgroundColor: c }}
+                            onClick={() => updateField("colore_primario", c)} />;
+                        })}
+                      </div>
+                    </div>
                   </div>
+                  <div className="space-y-2 border-t pt-4">
+                    {logoFattura && <LogoSizeControl value={current.scala_logo} onChange={valore => updateField("scala_logo", valore)} disabled={saving} />}
+                    <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setActiveTab("azienda")}>
+                      {logoFattura ? "Gestisci logo in Azienda" : "Aggiungi un logo in Azienda"}
+                    </Button>
+                  </div>
+                  <DiscardDocumentDraft disabled={saving || !aspettoModificato} etichetta="Annulla modifiche all’aspetto"
+                    descrizione="Ripristina il colore e la dimensione del logo dell’ultimo salvataggio."
+                    onDiscard={() => setForm(({ colore_primario: _colore, scala_logo: _scala, ...resto }) => resto)} />
+                </fieldset>
+              </CardContent>
+            </Card>}
+            anteprima={<Card aria-label="Anteprima con dati di esempio" className="overflow-hidden">
+              <CardHeader className="border-b p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-base">Anteprima con dati di esempio</CardTitle>
+                  <UniformSelect aria-label="Documento in anteprima" value={tipoAnteprima}
+                    onChange={(e) => setTipoAnteprima(e.target.value as TipoAnteprimaFiscale)}
+                    className="h-10 min-w-36 rounded-md border bg-background px-3 text-sm">
+                    <option value="fattura">Fattura</option>
+                    <option value="nota_credito">Nota di credito</option>
+                    <option value="proforma">Proforma</option>
+                    <option value="ddt">DDT</option>
+                  </UniformSelect>
                 </div>
-              </div>
-              <LogoSizeControl value={current.scala_logo} onChange={valore => updateField("scala_logo", valore)} disabled={!logoFattura} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Anteprima</CardTitle>
-              <CardDescription>Un esempio con i tuoi dati: il numero è il prossimo che uscirà.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FatturaTemplatePreview azienda={current as AnagraficaAzienda} logoAziendale={effectiveCompany?.logo_url} numero={numeroDiProva} />
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <FatturaTemplatePreview tipo={tipoAnteprima} azienda={current as AnagraficaAzienda}
+                logoAziendale={effectiveCompany?.logo_url} numero={numeriAnteprima[tipoAnteprima]} />
+            </Card>}
+          />
         </TabsContent>
 
         {/* ═══════════════════════════════════════════════════════ */}

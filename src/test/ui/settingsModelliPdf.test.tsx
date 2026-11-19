@@ -40,6 +40,7 @@ import SettingsModelliPdf from "@/pages/azienda/settings/SettingsModelliPdf";
 beforeEach(() => {
   m.edit = true;
   m.data = [];
+  m.refetch.mockReset().mockResolvedValue({ isError: false });
   m.save.mockReset().mockImplementation(async (tipo, config) => ({
     document_type: tipo,
     config,
@@ -57,6 +58,9 @@ function open() {
       <SettingsModelliPdf />
     </MemoryRouter>,
   );
+}
+function vaiAllaScheda(nome: string) {
+  fireEvent.mouseDown(screen.getByRole("tab", { name: nome }), { button: 0 });
 }
 describe("Pagina modelli PDF", () => {
   it("mostra la libreria e cambia davvero modello e anteprima", () => {
@@ -171,16 +175,20 @@ it("non invia due salvataggi mentre il primo è in corso", async () => {
 
 it("applica uno stile senza cancellare i testi e salva le nuove opzioni", async () => {
   open();
+  vaiAllaScheda("Testi e condizioni");
   changeFormControl(screen.getByLabelText("Testo introduttivo"), {
     target: { value: "Messaggio aziendale da conservare" },
   });
+  vaiAllaScheda("Aspetto e logo");
   fireEvent.click(
     screen.getByRole("button", { name: "Classico" }),
   );
+  expect(screen.getByLabelText("Margini laterali")).toHaveValue("18");
+  vaiAllaScheda("Testi e condizioni");
   expect(screen.getByLabelText("Testo introduttivo")).toHaveValue(
     "Messaggio aziendale da conservare",
   );
-  expect(screen.getByLabelText("Margini laterali")).toHaveValue("18");
+  vaiAllaScheda("Firma e piè di pagina");
   changeFormControl(screen.getByLabelText("Nota su ogni pagina"), {
     target: { value: "Ufficio acquisti" },
   });
@@ -202,6 +210,7 @@ it("applica uno stile senza cancellare i testi e salva le nuove opzioni", async 
 
 it("depenna una clausola, ne riscrive un'altra e toglie il riquadro da compilare", async () => {
   open();
+  vaiAllaScheda("Testi e condizioni");
   expect(screen.getByLabelText("Conferma di data e prezzi")).toBeChecked();
   fireEvent.click(screen.getByLabelText("Conferma di data e prezzi"));
   expect(
@@ -237,6 +246,7 @@ it("i rapportini non hanno clausole, le richieste parlano di offerta", () => {
   fireEvent.click(
     screen.getByRole("button", { name: /Standard Richieste d’offerta/ }),
   );
+  vaiAllaScheda("Testi e condizioni");
   expect(
     screen.getByLabelText("Riquadro «Da indicare nella vostra offerta»"),
   ).toBeInTheDocument();
@@ -244,6 +254,29 @@ it("i rapportini non hanno clausole, le richieste parlano di offerta", () => {
   fireEvent.click(
     screen.getByRole("button", { name: /Standard Rapportino giornaliero/ }),
   );
+  vaiAllaScheda("Testi e condizioni");
   expect(screen.queryByLabelText("Come rispondere")).toBeNull();
   expect(screen.queryByText("Condizioni stampate sul documento")).toBeNull();
+});
+
+it("copia solo l'impaginazione e consente di scartare la bozza dopo aver visto il PDF", () => {
+  m.data = [{
+    document_type: "richiesta", updated_at: "2026-11-06T12:00:00Z",
+    config: { scalaLogo: 175, margine: 18, titolo: "Titolo fornitore", introduzione: "Testo del modello sorgente" },
+  }];
+  open();
+  changeFormControl(screen.getByLabelText("Titolo nel PDF"), { target: { value: "Titolo della bozza" } });
+  changeFormControl(screen.getByLabelText("Copia l’impaginazione da"), { target: { value: "richiesta" } });
+  expect(screen.getByLabelText("Dimensione del logo in percentuale")).toHaveValue(175);
+  expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("Titolo della bozza");
+  fireEvent.click(screen.getByRole("button", { name: "Anteprima", exact: true }));
+  expect(screen.getByTestId("anteprima")).toHaveTextContent('"scalaLogo":175');
+  expect(screen.getByTestId("anteprima")).not.toHaveTextContent("Testo del modello sorgente");
+  fireEvent.click(screen.getByRole("button", { name: "Modifica", exact: true }));
+  expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("Titolo della bozza");
+  fireEvent.click(screen.getByRole("button", { name: "Annulla modifiche" }));
+  fireEvent.click(screen.getByRole("button", { name: "Scarta modifiche" }));
+  expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("");
+  expect(screen.getByLabelText("Dimensione del logo in percentuale")).toHaveValue(100);
+  expect(m.save).not.toHaveBeenCalled();
 });

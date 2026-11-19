@@ -72,10 +72,18 @@ export function TemplateCoverDesignControls({ fields, hasImage, children, photoH
           const disabled = field.disabled || (photoOnly && !hasImage) || (field.id === "logoSize" && logoHidden) || (field.id === "decorationStyle" && decorationHidden);
           return <div key={field.id} className="min-w-0 space-y-1.5" data-cover-design-field={field.id}>
             {field.kind !== "toggle" && <label htmlFor={id} className="block text-xs font-medium">{label}{field.kind === "range" && <span className="text-muted-foreground"> ({field.unit})</span>}</label>}
-            {field.kind === "range" && <div className="flex min-w-0 items-center gap-3">
-              <input aria-label={`${label}: cursore`} aria-describedby={field.hint ? `${id}-hint` : undefined} type="range" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={field.value} disabled={disabled} className="min-w-0 flex-1 accent-orange-500 disabled:opacity-40" onChange={e => field.onChange(Number(e.target.value))} />
-              <DesignNumberInput field={field} id={id} disabled={disabled} />
-            </div>}
+            {field.kind === "range" && <>
+              <div className="flex min-w-0 items-center gap-3">
+                <input aria-label={`${label}: cursore`} aria-valuetext={`${field.value} ${field.unit}`} aria-describedby={field.hint ? `${id}-hint` : undefined} type="range" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={field.value} disabled={disabled} className="min-w-0 flex-1 accent-orange-500 disabled:opacity-40" onChange={e => field.onChange(Number(e.target.value))} />
+                <DesignNumberInput field={field} id={id} disabled={disabled} />
+              </div>
+              {field.id === "logoSize" && (
+                <Button type="button" size="sm" variant="ghost" disabled={disabled || field.value === 100}
+                  onClick={() => field.onChange(100)}>
+                  Ripristina logo al 100%
+                </Button>
+              )}
+            </>}
             {field.kind === "choice" && <UniformSelect id={id} value={field.value} disabled={disabled} onChange={e => field.onChange(e.target.value)} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50">
               {!field.choices.some(([value]) => value === field.value) && <option value={field.value}>Valore personalizzato: {field.value}</option>}
               {field.choices.map(([value, title]) => <option key={value} value={value}>{title}</option>)}

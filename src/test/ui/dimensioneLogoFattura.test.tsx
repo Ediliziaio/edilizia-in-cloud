@@ -3,12 +3,26 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { PreviewFattura } from "@/components/fatturazione/PreviewFattura";
+import { FatturaTemplatePreview } from "@/components/fatturazione/FatturaTemplatePreview";
 import type { AnagraficaAzienda } from "@/types/fatturazione";
 import { documentoHtml } from "../../../supabase/functions/generate-native-pdf/documentoHtml";
 import { PGlite } from "@electric-sql/pglite";
 
 afterEach(cleanup);
 describe("logo delle fatture", () => {
+  it("offre un esempio con il logo impostato sia nei documenti fiscali sia nei DDT", () => {
+    const azienda = { ragione_sociale: "Impresa", logo_url: "/logo.png", scala_logo: 175 } as AnagraficaAzienda;
+    const { container, rerender, getByText, queryByText } = render(
+      <FatturaTemplatePreview azienda={azienda} numero="NC-ESEMPIO" tipo="nota_credito" />,
+    );
+    expect(getByText("NOTA DI CREDITO")).toBeInTheDocument();
+    expect(getByText("Prezzo")).toBeInTheDocument();
+    rerender(<FatturaTemplatePreview azienda={azienda} numero="DDT-ESEMPIO" tipo="ddt" />);
+    expect(getByText("DOCUMENTO DI TRASPORTO")).toBeInTheDocument();
+    expect(queryByText("Prezzo")).not.toBeInTheDocument();
+    expect(container.querySelector(".fd-logo")).toHaveAttribute("src", "/logo.png");
+    expect(container.querySelector("style")).toHaveTextContent("height: 38.5mm;");
+  });
   it.each([undefined, 25, 85, 100, 175, 250, Infinity])("la misura %s arriva nello stesso modo all'anteprima e al documento stampato", scala_logo => {
     const azienda = { ragione_sociale: "Impresa", logo_url: "/logo.png", scala_logo } as AnagraficaAzienda;
     const doc = { tipo: "fattura" as const, numero: "FT-1", totale_documento: 1220, imponibile_totale: 1000, iva_totale: 220 };

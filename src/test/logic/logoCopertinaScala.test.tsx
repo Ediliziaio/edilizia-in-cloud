@@ -9,6 +9,10 @@ import { creaTema } from "@/components/preventivi/pdf/temaDocumento";
 
 const logo = `data:image/png;base64,${readFileSync(path.resolve("public/loghi/impresa-vulcano.png")).toString("base64")}`;
 describe("misura della copertina con veste aziendale", () => {
+  it.each([["left", "top_left"], ["center", "top_center"], ["right", "top_right"]])("riporta nel PDF l'allineamento %s del modello generico", (logo_position, posizione) => {
+    const { modello } = datiGenerici({ quote: {}, company: null, items: [], template: { logo_position } });
+    expect(modello.copertina.posizioneLogo).toBe(posizione);
+  });
   it.each(["7c87c209-7868-42d0-ad98-6c95ac6de196", "altra-azienda"])("%s rispetta il modello anche quando la veste dà una misura di serie", async company_id => {
     const larghezze: number[] = [];
     for (const percentuale of [60, 100, 160]) {
