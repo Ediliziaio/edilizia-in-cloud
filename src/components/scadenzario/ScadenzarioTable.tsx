@@ -1,3 +1,4 @@
+import { scadenzaDaFonte } from "@/lib/finance/fontiScadenzario";
 import { Fragment, useMemo } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -40,7 +41,8 @@ interface Props {
   inCorso?: boolean;
 }
 
-const monthLabel = (d: Date) => {
+const monthLabel = (d: Date | null) => {
+  if (!d) return "Senza data";
   const s = format(d, "LLLL yyyy", { locale: it });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
@@ -54,7 +56,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
     const m = new Map<string, TotaliMese>();
     for (const s of scadenze) {
       if (s.status === "annullata") continue;
-      const k = monthLabel(new Date(s.due_date));
+      const k = monthLabel(s.due_date ? new Date(s.due_date) : null);
       const t = m.get(k) ?? { incassi: 0, pagamenti: 0, apertoIn: 0, apertoOut: 0 };
       const resto = Math.max(0, Number(s.amount) - Number(s.paid_amount || 0));
       if (s.direction === "entrata") { t.incassi += Number(s.amount); t.apertoIn += s.status === "pagata" ? 0 : resto; }
@@ -92,12 +94,12 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
         di testo, badge del tipo e bottone per ogni scadenza. */}
     <div className="sm:hidden overflow-hidden rounded-lg border bg-card">
       {scadenze.map((s, idx) => {
-        const dueDate = new Date(s.due_date);
-        const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(new Date(scadenze[idx - 1].due_date));
+        const dueDate = s.due_date ? new Date(s.due_date) : null;
+        const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(scadenze[idx - 1].due_date ? new Date(scadenze[idx - 1].due_date!) : null);
         const remaining = s.amount - s.paid_amount;
-        const daysLeft = differenceInDays(dueDate, new Date());
-        const isOverdue = isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
-        const isDueToday = isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
+        const daysLeft = dueDate ? differenceInDays(dueDate, new Date()) : NaN;
+        const isOverdue = !!dueDate && isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
+        const isDueToday = !!dueDate && isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
         const isPaid = s.status === "pagata";
         const isCancelled = s.status === "annullata";
         const refLabel = s.invoices?.invoice_number
@@ -124,7 +126,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-semibold leading-tight">{s.description}</p>
                 <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                  {format(dueDate, "dd/MM", { locale: it })}
+                  {dueDate ? format(dueDate, "dd/MM", { locale: it }) : "Senza data"}
                   {refLabel ? ` · ${refLabel}` : ""}
                   {etichettaMetodo(s.payment_method) ? ` · ${etichettaMetodo(s.payment_method)}` : ""}
                   {isOverdue && <span className="font-medium text-destructive"> · da {Math.abs(daysLeft)} gg</span>}
@@ -144,7 +146,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                     className="tap-compact mt-0.5 text-[11px] font-medium leading-tight text-primary"
                     onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                   >
-                    {s.direction === "entrata" ? "Incassa" : "Paga"}
+                    {scadenzaDaFonte(s) ? "Apri fonte" : s.direction === "entrata" ? "Incassa" : "Paga"}
                   </button>
                 )}
                 {onAnnullaIncasso && siAnnullaIncasso(s) && (
@@ -186,8 +188,8 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
         </thead>
         <tbody>
           {scadenze.map((s, idx) => {
-            const dueDate = new Date(s.due_date);
-            const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(new Date(scadenze[idx - 1].due_date));
+            const dueDate = s.due_date ? new Date(s.due_date) : null;
+            const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(scadenze[idx - 1].due_date ? new Date(scadenze[idx - 1].due_date!) : null);
             const remaining = Math.max(0, s.amount - s.paid_amount);
             const stato = statoScadenza(s);
             const daysLeft = giorniDaOggi(s.due_date);
@@ -230,9 +232,9 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                 <td>
                   <span className={`inline-flex items-center gap-1.5 tabular-nums ${isOverdue ? "font-semibold text-destructive" : ""}`}>
                     {isOverdue && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
-                    {format(dueDate, "dd/MM/yyyy", { locale: it })}
+                    {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: it }) : "Senza data"}
                   </span>
-                  {!isPaid && !isCancelled && (
+                  {dueDate && !isPaid && !isCancelled && (
                     <span className={`ml-1.5 text-xs tabular-nums ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}
                       title={isOverdue ? `Scaduta da ${stato.giorniRitardo} giorni` : undefined}>
                       {isOverdue ? `+${stato.giorniRitardo} gg` : isDueToday ? "oggi" : `fra ${daysLeft} gg`}
@@ -273,16 +275,16 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAnn
                       <Button variant="ghost" size="icon" className="h-8 w-8" disabled={inCorso} aria-label={`Modifica ${s.description}`} title="Modifica scadenza" onClick={() => onModifica(s)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8" disabled={inCorso} aria-label={`Annulla scadenza ${s.description}`} title="Annulla scadenza" onClick={() => onCancel(s.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </>}
-                    {onNota && (
+                    {onNota && !scadenzaDaFonte(s) && (
                       <NotaRiga
                         nota={s.notes}
-                        titolo={`${format(dueDate, "dd/MM/yyyy", { locale: it })} · ${s.description}`}
+                        titolo={`${dueDate ? format(dueDate, "dd/MM/yyyy", { locale: it }) : "Senza data"} · ${s.description}`}
                         onSalva={(nota) => onNota(s, nota)}
                       />
                     )}
                     {!isPaid && !isCancelled && (
                       <Button variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => onMarkPaid(s)}>
-                        <CreditCard className="mr-1 h-3.5 w-3.5" />{s.direction === "entrata" ? "Incassa" : "Paga"}
+                        <CreditCard className="mr-1 h-3.5 w-3.5" />{scadenzaDaFonte(s) ? "Apri fonte" : s.direction === "entrata" ? "Incassa" : "Paga"}
                       </Button>
                     )}
                     {onAnnullaIncasso && siAnnullaIncasso(s) && (

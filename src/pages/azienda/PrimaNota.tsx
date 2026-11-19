@@ -42,6 +42,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { perchePrimaNotaNonEliminabile } from "@/hooks/usePrimaNota";
 import { BarraSelezioneRighe, ErroriOperazioneRighe } from "@/components/shared/BarraSelezioneRighe";
 import { linkFattura, linkTesoreriaMovimento } from "@/lib/finance/collegamentiFinanza";
+import { StornaPagamentiCosto } from "@/components/prima-nota/StornaPagamentiCosto";
 
 const CATEGORY_LABELS: Record<string, string> = {
   incasso: "Incasso",
@@ -56,7 +57,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function origineMovimento(e: PrimaNotaEntry) {
   if (!e.is_auto) return "Manuale";
-  const nomi: Record<string, string> = { fattura_emessa: "Fattura", incasso_fattura: "Incasso", nota_credito: "Nota credito" };
+  const nomi: Record<string, string> = { fattura_emessa: "Fattura", incasso_fattura: "Incasso", nota_credito: "Nota credito", company_cost_payment: "Pagamento costo", storno_pagamento: "Storno pagamento" };
   return nomi[e.auto_source ?? ""] ?? e.auto_source?.replaceAll("_", " ") ?? "Automatica";
 }
 
@@ -67,7 +68,7 @@ function PrimaNotaInner() {
   const permessi = usePermissions();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
-  const apriOrigine = (e: PrimaNotaEntry) => navigate(e.documento_fiscale_id ? linkFattura(e.documento_fiscale_id, true) : e.bank_transaction_id ? linkTesoreriaMovimento(e.bank_transaction_id) : e.cost_id ? "/azienda/costi" : e.scadenza_id ? "/azienda/scadenzario" : e.invoice_id ? linkFattura(e.invoice_id, false) : "/azienda/documenti");
+  const apriOrigine = (e: PrimaNotaEntry) => navigate(e.bank_transaction_id ? linkTesoreriaMovimento(e.bank_transaction_id) : e.documento_fiscale_id ? linkFattura(e.documento_fiscale_id, true) : e.cost_id ? `/azienda/costi?costo=${encodeURIComponent(e.cost_id)}` : e.scadenza_id ? "/azienda/scadenzario" : e.invoice_id ? linkFattura(e.invoice_id, false) : "/azienda/documenti");
   const [dettaglioId, setDettaglioId] = useState<string | null>(null);
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [page, setPage] = useState(1);
@@ -497,6 +498,10 @@ function PrimaNotaInner() {
         azione="Elimina selezionate" inCorso={removeMany.isPending} escluse={escluse}
         onPagina={selezione.pagina} onAzione={() => void eliminaSelezionate()} />}
       <ErroriOperazioneRighe errori={erroriEliminazione} />
+      {permessi.isAdmin && selezione.selezionate.length > 0 && <div className="mb-3 space-y-2">
+        {eliminabili.length === 0 && <p className="text-sm text-muted-foreground">Le registrazioni selezionate sono collegate a documenti o pagamenti. Apri l'origine oppure usa lo storno dei pagamenti dei costi.</p>}
+        <StornaPagamentiCosto righe={selezione.selezionate} />
+      </div>}
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center py-12">
@@ -754,6 +759,8 @@ function PrimaNotaInner() {
             {perchePrimaNotaNonModificabile(dettaglio) && <p className="text-xs text-muted-foreground">Per correggere importo e data, apri la registrazione di origine.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {permessi.isAdmin && <StornaPagamentiCosto righe={[dettaglio]} onFatto={() => setDettaglioId(null)} />}
+            {perchePrimaNotaNonModificabile(dettaglio) && <Button variant="outline" onClick={() => apriOrigine(dettaglio)}>Apri origine</Button>}
             {dettaglio.documenti_fiscali?.id && <Button variant="outline" onClick={() => navigate(linkFattura(dettaglio.documenti_fiscali!.id, true))}>Apri documento</Button>}
             {perchePrimaNotaNonModificabile(dettaglio) ? <ModificaCollegamentiMovimento key={dettaglio.id} movimento={dettaglio} /> : <Button onClick={() => { setModificaDalDettaglio(true); setDaModificare(dettaglio); setDettaglioId(null); }}>Modifica movimento e collegamenti</Button>}
           </div>

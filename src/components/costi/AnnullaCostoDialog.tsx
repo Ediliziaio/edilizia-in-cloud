@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import {
   annullabile, annullaCosto, leggiAnteprimaAnnullo, ripristinaCosto, stornaPagamentiCosto, stornoRisolve,
 } from "@/lib/costi/annulloCosto";
@@ -43,6 +44,7 @@ export function AnnullaCostoDialog({ costId, nome, open, onOpenChange, motivoIni
   });
 
   const aggiorna = () => {
+    refreshFinancialQueries(qc);
     void qc.invalidateQueries({ queryKey: ["costo-annullo-anteprima", costId] });
     void qc.invalidateQueries({ queryKey: ["costs"] });
     void qc.invalidateQueries({ queryKey: ["utenze-bollette"] });

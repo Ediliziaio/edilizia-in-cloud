@@ -11,7 +11,7 @@ import { messaggioErroreOperazione } from "@/lib/operazioniPerRiga";
 export function ModificaScadenzaDialog({ scadenza: s, onClose, onConfirm, isPending }: {
   scadenza: Scadenza; onClose: () => void; onConfirm: (dati: ModificaScadenza) => Promise<unknown>; isPending: boolean;
 }) {
-  const [dati, setDati] = useState({ description: s.description, amount: String(s.amount), due_date: s.due_date, payment_method: s.payment_method ?? "", notes: s.notes ?? "" });
+  const [dati, setDati] = useState({ description: s.description, amount: String(s.amount), due_date: s.due_date ?? "", payment_method: s.payment_method ?? "", notes: s.notes ?? "" });
   const [errore, setErrore] = useState("");
   const invio = useRef(false);
   const cambia = (campo: keyof typeof dati, valore: string) => setDati((prima) => ({ ...prima, [campo]: valore }));

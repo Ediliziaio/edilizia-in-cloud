@@ -1,3 +1,4 @@
+import { scadenzaDaFonte, linkFonteScadenza } from "@/lib/finance/fontiScadenzario";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDownLeft, ArrowUpRight, CreditCard, ExternalLink, Landmark, Undo2 } from "lucide-react";
@@ -37,6 +38,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
   onModifica?: (s: Scadenza) => void;
   onAnnullaScadenza?: (s: Scadenza) => void;
 }) {
+  const daFonte = scadenzaDaFonte(s);
   const entrata = s.direction === "entrata";
   const stato = statoScadenza(s);
   const residuo = Math.max(0, Math.round((s.amount - s.paid_amount) * 100) / 100);
@@ -53,6 +55,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
   });
   const pagamenti = useQuery({
     queryKey: ["scadenza-dettaglio", "pagamenti", s.id],
+    enabled: !daFonte,
     queryFn: async () => {
       const ors = [`scadenza_id.eq.${s.id}`];
       if (s.prima_nota_entry_id) ors.push(`id.eq.${s.prima_nota_entry_id}`);
@@ -65,6 +68,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
   });
   const bonifici = useQuery({
     queryKey: ["scadenza-dettaglio", "bonifici", s.id, s.invoice_id],
+    enabled: !daFonte,
     queryFn: async () => {
       const ors = [`scadenza_id.eq.${s.id}`];
       if (s.invoice_id) ors.push(`invoice_id.eq.${s.invoice_id}`, `documento_id.eq.${s.invoice_id}`);
@@ -79,7 +83,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
   // Le altre rate dello stesso documento (stessa fattura o stesso costo): si vede subito il quadro.
   const altre = useQuery({
     queryKey: ["scadenza-dettaglio", "altre", s.id, s.invoice_id, s.cost_id],
-    enabled: !!(s.invoice_id || s.cost_id),
+    enabled: !daFonte && !!(s.invoice_id || s.cost_id),
     queryFn: async () => {
       let q = supabase.from("scadenze").select("id, due_date, amount, paid_amount, status, direction")
         .eq("company_id", s.company_id).neq("id", s.id).neq("status", "annullata");
@@ -100,11 +104,11 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
       : controparte ?? "—"],
     ["Documento", s.invoice_id && s.invoices
       ? (nativa.isPending ? `Fatt. ${s.invoices.invoice_number}` : <Link to={linkFattura(s.invoice_id, !!nativa.data)} className="text-primary hover:underline">Fatt. {s.invoices.invoice_number}</Link>)
-      : s.company_costs?.name ? <Link to="/azienda/costi" className="text-primary hover:underline">Costo · {s.company_costs.name}</Link> : "—"],
+      : s.company_costs?.name ? <Link to={linkFonteScadenza(s) ?? "/azienda/costi"} className="text-primary hover:underline">Costo · {s.company_costs.name}</Link> : "—"],
     ["Data documento", s.invoices?.issue_date ? formatDateIt(s.invoices.issue_date) : "—"],
     ["Commessa", s.order_id && s.orders
       ? <Link to={linkCommessa(s.order_id)} className="text-primary hover:underline">{s.orders.order_code}</Link> : "—"],
-    ["Scadenza", formatDateIt(s.due_date)],
+    ["Scadenza", (s.due_date ? formatDateIt(s.due_date) : "Senza data")],
     ["Modalità", etichettaMetodo(s.payment_method) ?? "—"],
     // Incassato e residuo stanno nella barra qui sopra: non si ripetono.
     [entrata ? "Incassata il" : "Pagata il", s.paid_date ? formatDateIt(s.paid_date) : "—"],
@@ -119,7 +123,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
             {entrata ? <ArrowDownLeft className="h-5 w-5 text-emerald-600" /> : <ArrowUpRight className="h-5 w-5 text-red-600" />}
             <span className="truncate">{s.description}</span>
           </DialogTitle>
-          <DialogDescription>{entrata ? "Incasso" : "Pagamento"} in scadenza il {formatDateIt(s.due_date)}</DialogDescription>
+          <DialogDescription>{s.due_date ? `${entrata ? "Incasso" : "Pagamento"} in scadenza il ${formatDateIt(s.due_date)}` : "Data da definire nella commessa o nel costo"}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <section className="space-y-3 rounded-xl border bg-muted/30 p-4">
@@ -152,13 +156,13 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
               </div>
             ))}
           </dl>
-          {(nota || onNota) && (
+          {(nota || (onNota && !daFonte)) && (
             <div className="flex items-start gap-2 rounded-lg border p-3 text-sm">
               <p className="min-w-0 flex-1 whitespace-pre-wrap">
                 <span className="text-xs text-muted-foreground">Nota · </span>
                 {nota || <span className="text-muted-foreground">nessuna</span>}
               </p>
-              {onNota && <NotaRiga nota={s.notes} titolo={`Scadenza ${formatDateIt(s.due_date)} · ${s.description}`} onSalva={(n) => onNota(s, n)} />}
+              {onNota && !daFonte && <NotaRiga nota={s.notes} titolo={`Scadenza ${(s.due_date ? formatDateIt(s.due_date) : "Senza data")} · ${s.description}`} onSalva={(n) => onNota(s, n)} />}
             </div>
           )}
 
@@ -182,7 +186,7 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
             </section>
           )}
 
-          <section className="space-y-2">
+          {!daFonte && <><section className="space-y-2">
             <h3 className="text-sm font-semibold">{entrata ? "Incassi registrati" : "Pagamenti registrati"}</h3>
             {pagamenti.isPending ? <p role="status" className="text-sm text-muted-foreground">Caricamento…</p>
               : pagamenti.isError ? <p role="alert" className="text-sm text-destructive">Non riesco a leggere i pagamenti.</p>
@@ -220,11 +224,13 @@ export function ScadenzaDettaglio({ scadenza: s, onClose, onMarkPaid, onAnnullaI
                 </ul>}
           </section>
 
+          </>}
+          {daFonte && <p className="text-sm text-muted-foreground">Importo aggiornato dalla fonte. Aprila per completare la data e gestire lo storico dei pagamenti.</p>}
           <div className="flex flex-wrap gap-2 border-t pt-3">
             {onModifica && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onModifica(s)}>Modifica scadenza</Button>}
             {onAnnullaScadenza && !percheScadenzaNonModificabile(s) && <Button variant="outline" onClick={() => onAnnullaScadenza(s)}>Annulla scadenza</Button>}
             {percheScadenzaNonModificabile(s) && <p className="w-full text-xs text-muted-foreground">{percheScadenzaNonModificabile(s)}</p>}
-            {aperta && <Button onClick={() => onMarkPaid(s)}><CreditCard className="mr-1 h-4 w-4" />{entrata ? "Incassa" : "Paga"}</Button>}
+            {(aperta || daFonte) && <Button onClick={() => onMarkPaid(s)}><CreditCard className="mr-1 h-4 w-4" />{daFonte ? "Apri fonte" : entrata ? "Incassa" : "Paga"}</Button>}
             {onAnnullaIncasso && siAnnullaIncasso(s) && <Button variant="outline" onClick={() => onAnnullaIncasso(s)}><Undo2 className="mr-1 h-4 w-4" />Annulla incasso</Button>}
             {s.invoice_id && !nativa.isPending && <Button variant="outline" asChild><Link to={linkFattura(s.invoice_id, !!nativa.data)}>Apri la fattura</Link></Button>}
             {s.order_id && <Button variant="outline" asChild><Link to={linkCommessa(s.order_id)}>Apri la commessa</Link></Button>}
