@@ -298,7 +298,7 @@ function parteDi(c: ContoContabile): ParteBilancio {
   return c.natura === "ricavo" ? "ricavi" : c.natura === "costo" ? "costi" : (c.voce_cee ?? "").startsWith("A") || c.voce_cee === "C.16" ? "ricavi" : "costi";
 }
 
-export function bilancioASezioni(saldi: readonly SaldoConto[], conti: readonly ContoContabile[]): BilancioSezioni {
+export function bilancioASezioni(saldi: readonly SaldoConto[], conti: readonly ContoContabile[], opzioni: { dettaglioPartitari?: boolean } = {}): BilancioSezioni {
   const perId = new Map(conti.map((c) => [c.id, c]));
   const lati: Record<ParteBilancio, Map<string, MastroInBilancio>> = { attivo: new Map(), passivo: new Map(), costi: new Map(), ricavi: new Map() };
   const centesimi: Record<ParteBilancio, number> = { attivo: 0, passivo: 0, costi: 0, ricavi: 0 };
@@ -310,7 +310,11 @@ export function bilancioASezioni(saldi: readonly SaldoConto[], conti: readonly C
     const mastro = s.conto.mastro_id ? perId.get(s.conto.mastro_id) : undefined;
     const chiave = mastro?.id ?? "";
     const m = lati[parte].get(chiave) ?? { codice: mastro?.codice ?? "", descrizione: mastro?.descrizione ?? "Senza mastro", totale: 0, conti: [] };
-    m.conti.push({ codice: s.conto.codice, descrizione: s.conto.descrizione, importo });
+    // Il bilancio tiene i totali del raggruppamento Italia/estero del piano.
+    // I singoli soggetti restano consultabili nei partitari, senza sommarli due volte.
+    const aggrega = !opzioni.dettaglioPartitari && !!mastro && /\b(clienti|fornitori)\b/i.test(mastro.descrizione)
+      && (parte === "attivo" || parte === "passivo");
+    if (!aggrega) m.conti.push({ codice: s.conto.codice, descrizione: s.conto.descrizione, importo });
     m.totale = (cent(m.totale) + cent(importo)) / 100;
     lati[parte].set(chiave, m);
     centesimi[parte] += cent(importo);
@@ -340,7 +344,7 @@ export function htmlBilancioSezioni(d: { azienda: AziendaIntestazione; bilancio:
   const lato = (l: LatoBilancio) => {
     for (const m of l.mastri) {
       righe.push({ testo: `${m.codice ? `${m.codice} ` : ""}${m.descrizione}`, importo: euro(m.totale), forte: true });
-      for (const c of m.conti) righe.push({ testo: `   ${c.codice} ${c.descrizione}`, importo: euro(c.importo), forte: false });
+      for (const c of m.conti) righe.push({ testo: `\u00a0\u00a0\u00a0${c.codice} ${c.descrizione}`, importo: euro(c.importo), forte: false });
     }
   };
   const utile = b.utile >= 0 ? "Utile dell'esercizio" : "Perdita dell'esercizio";

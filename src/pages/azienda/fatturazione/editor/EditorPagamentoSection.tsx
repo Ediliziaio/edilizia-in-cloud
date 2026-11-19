@@ -26,10 +26,10 @@ interface Props {
 }
 
 const PAYMENT_GROUPS = {
-  Bancari: ["MP05", "MP12", "MP19", "MP16"],
+  Bancari: ["MP05", "MP12", "MP09", "MP10", "MP11", "MP19", "MP20", "MP21", "MP16"],
   Contanti: ["MP01", "MP02", "MP03"],
   Elettronici: ["MP08", "MP23"],
-  Altri: ["MP04", "MP06", "MP07", "MP09", "MP10", "MP11", "MP13", "MP14", "MP15", "MP17", "MP18", "MP20", "MP21", "MP22"],
+  Altri: ["MP04", "MP06", "MP07", "MP13", "MP14", "MP15", "MP17", "MP18", "MP22"],
 };
 
 const PRESET_DAYS: { label: string; days: number[] }[] = [

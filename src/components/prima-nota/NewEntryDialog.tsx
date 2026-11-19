@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { DatiRegistrazione, PrimaNotaEntry } from "@/hooks/usePrimaNota";
+import { useContiPrimaNota } from "@/hooks/useContiPrimaNota";
+import { useQuery } from "@tanstack/react-query";
 
 const CATEGORIES = [
   { value: "incasso", label: "Incasso cliente" },
@@ -45,6 +47,7 @@ const dataIt = (d: string | null) => (d ? d.split("-").reverse().join("/") : "")
 
 const METODI = [
   { value: "bonifico", label: "Bonifico" },
+  { value: "rid", label: "RID / SDD · addebito diretto" },
   { value: "contanti", label: "Contanti" },
   { value: "carta", label: "Carta" },
   { value: "assegno", label: "Assegno" },
@@ -70,6 +73,15 @@ interface Props {
 export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, mostraAllegato = false, entry = null }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const conti = useContiPrimaNota(companyId, open);
+  const metodiAzienda = useQuery({
+    queryKey: ["prima-nota-metodi", companyId], enabled: open && !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("prima_nota_metodi_pagamento" as never, { p_company: companyId } as never);
+      if (error) throw error;
+      return ((data ?? []) as { metodo: string }[]).map(r => r.metodo).filter(m => !METODI.some(s => s.value === m));
+    }, staleTime: 0,
+  });
 
   const [direction, setDirection] = useState<"entrata" | "uscita">("uscita");
   const [category, setCategory] = useState("altro");
@@ -77,8 +89,12 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [method, setMethod] = useState("bonifico");
+  const [metodoPersonalizzato, setMetodoPersonalizzato] = useState(false);
   const [reference, setReference] = useState("");
   const [accountLabel, setAccountLabel] = useState("banca");
+  const contoScelto = conti.data?.find(c => c.valore === accountLabel);
+  const [contoPiano, setContoPiano] = useState("");
+  const contiPiano = conti.data?.filter(c => c.conto_liquidita_id && !c.bank_account_id) ?? [];
   const [notes, setNotes] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [orderId, setOrderId] = useState("");
@@ -143,8 +159,10 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setAmount("");
     setEntryDate(new Date().toLocaleDateString("en-CA"));
     setMethod("bonifico");
+    setMetodoPersonalizzato(false);
     setReference("");
     setAccountLabel("banca");
+    setContoPiano("");
     setNotes("");
     setSupplierId("");
     setOrderId("");
@@ -181,6 +199,8 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   // precedente restava nel form (rischio doppioni/valori sbagliati).
   useEffect(() => {
     if (!open) return;
+    // Il modulo si reinizializza quando viene aperta una registrazione diversa.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     reset();
     if (entry) {
       setDirection(entry.direction);
@@ -189,8 +209,10 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       setAmount(String(entry.amount ?? ""));
       setEntryDate(entry.entry_date);
       setMethod(entry.payment_method || "");
+      setMetodoPersonalizzato(!!entry.payment_method && !METODI.some(m => m.value === entry.payment_method));
       setReference(entry.reference_number ?? "");
-      setAccountLabel(entry.account_label || "banca");
+      setAccountLabel(entry.bank_account_id ? `banca:${entry.bank_account_id}` : entry.conto_liquidita_id ? `conto:${entry.conto_liquidita_id}` : entry.account_label || "banca");
+      setContoPiano(entry.conto_liquidita_id ?? "");
       setNotes(entry.notes ?? "");
       setSupplierId(entry.supplier_id ?? "");
       setOrderId(entry.order_id ?? "");
@@ -217,11 +239,18 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     : !description.trim() ? { testo: "Manca la descrizione.", errore: false }
     : !(Number(amount) > 0) ? { testo: "Manca l’importo.", errore: false }
     : !entryDate ? { testo: "Manca la data.", errore: false }
+    : metodoPersonalizzato && !method.trim() ? { testo: "Indica il nome della modalità di pagamento.", errore: false }
+    : accountLabel === "banca" && conti.isPending ? { testo: "Caricamento dei conti bancari…", errore: false }
+    : accountLabel === "banca" && conti.isError ? { testo: "Ricarica i conti bancari prima di registrare.", errore: true }
+    : !entry && accountLabel === "banca" && !!conti.data?.length ? { testo: "Scegli il conto bancario effettivo.", errore: false }
+    : /^(banca|conto):/.test(accountLabel) && !contoScelto && !entry ? { testo: "Il conto scelto non è più disponibile: selezionalo di nuovo.", errore: true }
+    : contoScelto?.bank_account_id && contiPiano.length > 0 && !contoPiano && !contoScelto.conto_liquidita_id ? { testo: "Associa la banca al conto di liquidità del piano contabile.", errore: false }
     : null;
   const isValid = !blocco;
   const verso = VERSO[direction];
 
   const handleConfirm = async () => {
+    if (!isValid || isPending || isUploading) return;
     if (attachmentFile && !companyId) {
       toast.error("Azienda non disponibile: riapri la registrazione prima di caricare l’allegato.");
       return;
@@ -256,9 +285,11 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       description: description.trim(),
       amount: Number(amount),
       entry_date: entryDate,
-      payment_method: method || undefined,
+      payment_method: method.trim() || undefined,
       reference_number: reference || undefined,
-      account_label: accountLabel,
+      account_label: contoScelto?.account_label ?? (entry && /^(banca|conto):/.test(accountLabel) ? entry.account_label ?? "banca" : accountLabel),
+      bank_account_id: contoScelto?.bank_account_id ?? (entry && accountLabel === `banca:${entry.bank_account_id}` ? entry.bank_account_id : null),
+      conto_liquidita_id: contoScelto?.bank_account_id && contoPiano ? contoPiano : contoScelto?.conto_liquidita_id ?? (entry && accountLabel === `conto:${entry.conto_liquidita_id}` ? entry.conto_liquidita_id : null),
       supplier_id: supplierId || null,
       order_id: orderId || null,
       invoice_id: invoiceId || null,
@@ -438,23 +469,41 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
           <div className="grid grid-cols-2 gap-3 max-sm:gap-2">
             <div className="space-y-2">
               <Label htmlFor="pn-metodo">Metodo</Label>
-              <Select value={method} onValueChange={setMethod}>
+              <Select value={metodoPersonalizzato ? "__personalizzato" : method} onValueChange={v => { setMetodoPersonalizzato(v === "__personalizzato"); setMethod(v === "__personalizzato" ? "" : v); }}>
                 <SelectTrigger id="pn-metodo"><SelectValue placeholder="Non indicato" /></SelectTrigger>
                 <SelectContent>
                   {METODI.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  {metodiAzienda.data?.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  <SelectItem value="__personalizzato">Nuova modalità…</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="pn-conto">Conto</Label>
-              <Select value={accountLabel} onValueChange={setAccountLabel}>
+              <Select value={accountLabel} onValueChange={v => { setAccountLabel(v); setContoPiano(""); }}>
                 <SelectTrigger id="pn-conto"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="banca">Banca</SelectItem>
+                  <SelectItem value="banca">Banca · conto non specificato</SelectItem>
                   <SelectItem value="cassa">Cassa</SelectItem>
+                  {conti.data?.map(c => <SelectItem key={c.valore} value={c.valore}>{c.etichetta}</SelectItem>)}
+                  {entry && !["banca", "cassa"].includes(accountLabel) && !contoScelto && <SelectItem value={accountLabel}>{entry.account_label} · registrato</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          {metodoPersonalizzato && <div className="space-y-2"><Label htmlFor="pn-metodo-personalizzato">Modalità di pagamento personalizzata</Label><Input id="pn-metodo-personalizzato" value={method} maxLength={120} placeholder="Es. POS SumUp" onChange={e => setMethod(e.target.value)} /><p className="text-xs text-muted-foreground">Dopo il salvataggio sarà disponibile nelle registrazioni della stessa azienda.</p></div>}
+          {contoScelto?.bank_account_id && contiPiano.length > 0 && <div className="space-y-2">
+            <Label htmlFor="pn-conto-piano">Conto di liquidità nel piano contabile</Label>
+            <Select value={contoPiano || contoScelto.conto_liquidita_id || ""} onValueChange={setContoPiano}>
+              <SelectTrigger id="pn-conto-piano"><SelectValue placeholder="Associa il conto della banca" /></SelectTrigger>
+              <SelectContent>{contiPiano.map(c => <SelectItem key={c.valore} value={c.conto_liquidita_id!}>{c.etichetta}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>}
+          {conti.isError && <p role="alert" className="text-sm text-destructive">Conti non caricati. <button type="button" className="underline" onClick={() => void conti.refetch()}>Riprova</button></p>}
+          <p className="text-xs text-muted-foreground">Le banche di Tesoreria e i conti di liquidità del piano contabile sono selezionabili qui. <a className="underline" href="/azienda/tesoreria?tab=conti">Gestisci i conti bancari</a>.</p>
+          <div className="rounded-lg border p-3 text-sm">
+            <p>Per un pagamento con commissioni, arrotondamenti o sconti usa una scrittura con più righe Dare/Avere.</p>
+            <a className="mt-1 inline-block text-primary underline" href="/azienda/documenti?tab=fiscalita&sezione=contabilita&vista=scritture&nuova=scrittura">Apri scrittura con più conti</a>
           </div>
 
           {/* Riferimento, allegato e note: ci sono anche sul telefono, ma piegati. */}

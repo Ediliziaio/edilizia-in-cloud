@@ -3,10 +3,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ContoRigaMenu, ProposteContiRighe, useContiRighe, type RigaPerConto } from "@/components/fatturazione/ContoPerRiga";
 
-const m = vi.hoisted(() => ({ update: vi.fn(), rpc: vi.fn(), erroreGiornale: null as string | null, avviso: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: m.avviso } }));
+const m = vi.hoisted(() => ({ update: vi.fn(), rpc: vi.fn(), erroreGiornale: null as string | null, avviso: vi.fn(), errore: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: m.errore, warning: m.avviso } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   from: (tabella: string) => {
+    if (tabella === "companies") { const q = { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: { contabilita_generale_attiva: false }, error: null }) }; return q; }
     if (tabella === "cost_categories") {
       const q = { select: () => q, eq: () => q, order: () => Promise.resolve({ data: [], error: null }) };
       return q;
@@ -39,22 +40,26 @@ const disegna = (salvati: Record<string, string> = {}) => render(
 it("propone il conto dalla descrizione, conferma tutte le proposte e rifà la scrittura", async () => {
   disegna({ "2": "trasporti" });
   // La riga 2 ha già un conto scelto: resta il suo, non la proposta (noli).
-  await waitFor(() => expect(screen.getByText(/1 riga ha un conto proposto/)).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/1 righe hanno un conto proposto/)).toBeTruthy());
   const menu = screen.getAllByRole("combobox", { name: "Conto di costo della riga" });
   expect(menu[0].textContent).toBe("Materie prime");
   expect(menu[0].className).toMatch(/italic/);
   expect(menu[1].textContent).toBe("Trasporti");
   expect(menu[2].textContent).toBe("Conto della fattura");
-  fireEvent.click(screen.getByRole("button", { name: "Conferma le proposte" }));
-  await waitFor(() => expect(m.update).toHaveBeenCalledWith({ conti_righe: { "1": "materie_prime", "2": "trasporti" } }));
-  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("contabilita_riregistra_documento", expect.objectContaining({ p_documento: "f1" })));
+  fireEvent.click(screen.getByRole("button", { name: "Usa le proposte" }));
+  expect(m.rpc).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Salva conti della fattura" }));
+  await waitFor(() => expect(m.rpc).toHaveBeenCalledWith("contabilita_salva_conti_fattura", { p_fattura: "f1", p_conti: { "1": "materie_prime", "2": "trasporti" }, p_precedenti: { "2": "trasporti" } }));
+  expect(m.update).not.toHaveBeenCalled();
 });
 
-it("se la contabilità generale non segue il conto nuovo lo dice, anche senza il permesso", async () => {
+it("un errore conserva la bozza e non dichiara salvati conti non aggiornati", async () => {
   m.erroreGiornale = "Accesso negato";
   disegna({ "2": "trasporti" });
-  await waitFor(() => expect(screen.getByText(/1 riga ha un conto proposto/)).toBeTruthy());
-  fireEvent.click(screen.getByRole("button", { name: "Conferma le proposte" }));
-  await waitFor(() => expect(m.avviso).toHaveBeenCalledWith("Conto salvato · contabilità generale da aggiornare",
-    expect.objectContaining({ description: expect.stringMatching(/Il conto è salvato/) })));
+  await waitFor(() => expect(screen.getByText(/1 righe hanno un conto proposto/)).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: "Usa le proposte" }));
+  fireEvent.click(screen.getByRole("button", { name: "Salva conti della fattura" }));
+  await waitFor(() => expect(m.errore).toHaveBeenCalled());
+  expect(m.avviso).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Salva conti della fattura" })).toBeTruthy();
 });

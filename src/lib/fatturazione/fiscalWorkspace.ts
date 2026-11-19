@@ -280,7 +280,7 @@ export function fiscalRows(
     const credit =
       side === "vendite"
         ? doc.tipo === "nota_credito"
-        : /^(TD04)$|CREDIT/i.test(doc.tipo_documento || "");
+        : /^(TD04|TD08)$|CREDIT/i.test(doc.tipo_documento || "");
     // Come il prospetto del server: ogni riga tiene il suo segno (uno sconto resta
     // negativo); la nota di credito salvata in positivo si inverte, quella già
     // salvata in negativo resta com'è. Senza totale, come prima: sempre negativa.

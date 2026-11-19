@@ -124,17 +124,17 @@ it("quello che la generazione non sa classificare si vede: «Da guardare»", asy
   expect(screen.getByText(/va classificato/)).toBeTruthy();
 });
 
-it("rettifica una manuale con il modulo precompilato, conservando la quadratura", async () => {
+it("modifica una manuale provvisoria con il modulo precompilato, conservando la quadratura", async () => {
   state.manuale = true;
   apri("scritture");
   fireEvent.click(await screen.findByRole("button", { name: "Apri scrittura 4/2026" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Rettifica" }));
-  expect(screen.getByRole("heading", { name: "Rettifica scrittura" })).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "Modifica scrittura" }));
+  expect(screen.getByRole("heading", { name: "Modifica scrittura provvisoria" })).toBeInTheDocument();
   expect(screen.getByDisplayValue("Giroconto di prova")).toBeInTheDocument();
   for (const campo of screen.getAllByDisplayValue("100")) fireEvent.change(campo, { target: { value: "150" } });
-  fireEvent.click(screen.getByRole("button", { name: "Salva rettifica" }));
-  await waitFor(() => expect(state.rpc.find((r) => r.fn === "contabilita_rettifica_scrittura")?.args).toMatchObject({
-    p_scrittura: "s4", p_causale: "Giroconto di prova", p_righe: [
+  fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+  await waitFor(() => expect(state.rpc.find((r) => r.fn === "contabilita_modifica_scrittura")?.args).toMatchObject({
+    p_scrittura: "s4", p_revisione: 1, p_causale: "Giroconto di prova", p_righe: [
       { conto_id: "banca", dare: 150, avere: 0 }, { conto_id: "clienti", dare: 0, avere: 150 },
     ],
   }));
@@ -173,4 +173,13 @@ it("stampa ed esporta il giornale filtrato conservando solo le scritture cercate
   fireEvent.click(screen.getByRole("button", { name: "Stampa vista filtrata" }));
   expect(await screen.findByTestId("stampa")).toHaveTextContent("Incasso F1");
   expect(screen.getByTestId("stampa").textContent).not.toContain("Fattura ricevuta A7");
+});
+
+
+it("il bilancio al termine scelto esclude le scritture successive dalla stampa", async () => {
+  apri("bilancio");
+  fireEvent.change(await screen.findByLabelText("Bilancio al"), { target: { value: "2026-01-31" } });
+  fireEvent.click(screen.getByRole("button", { name: "Stampa stato patrimoniale e conto economico" }));
+  expect(await screen.findByTestId("stampa")).toHaveTextContent("31/01/2026");
+  expect(screen.getByTestId("stampa")).not.toHaveTextContent("40,00");
 });
