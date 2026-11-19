@@ -476,9 +476,13 @@ export function useUpdateDocumento() {
       return mapRow(data as Record<string, unknown>);
     },
     onSuccess: (doc) => {
+      // Riaprendo subito la bozza si vede già la versione confermata dal
+      // salvataggio, anche mentre la rilettura dal server è in corso.
+      queryClient.setQueryData<DocumentoFiscale>(queryKeys.documentiFiscali.detail(doc.id), (precedente) =>
+        precedente && { ...doc, stornato: precedente.stornato },
+      );
       refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.detail(doc.id) });
       // No toast — the editor top bar already shows "Salvata X fa" indicator
     },
     onError: (err: Error) => {
