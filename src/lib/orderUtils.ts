@@ -249,7 +249,7 @@ export function installmentsToLegacyColumns(installments: Installment[]) {
 
 // ── Existing types (unchanged) ────────────────────────────────────
 
-export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id">>, ImportiFinanziari {
+export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id" | "client_name">>, ImportiFinanziari {
   id: string;
   order_code: string | null;
   description: string;
