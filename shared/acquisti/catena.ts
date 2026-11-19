@@ -373,32 +373,35 @@ export function costruisciCatena(
           forti.push({ valore: comm, fonte: "cig", forte: true, testo: `CIG ${cig}`, righe: t.righe, percorso: { fonte: "cig", passi: [`CIG ${cig}`], documenti: [{ tipo: "commessa", id: c.id }] } });
       }
     const cod = soloAlfanumerico(c.codice);
+    const codiceRe = regexParolaIntera(c.codice ?? "");
     // Codice con lettere e cifre, o di almeno 6 cifre: un numero corto nudo è anche una quantità o un DDT.
     if (cod.length >= 4 && (/[A-Z]/.test(cod) ? /\d/.test(cod) : cod.length >= 6))
-      for (const t of testi.filter(t => parolaIntera(t.testo, c.codice ?? "")))
+      for (const t of testi.filter(t => codiceRe?.test(t.testo)))
         forti.push({ valore: comm, fonte: "codice_commessa", forte: true, testo: `codice commessa ${c.codice}`, righe: t.righe, percorso: { fonte: "codice_commessa", passi: [`codice ${c.codice}`], documenti: [{ tipo: "commessa", id: c.id }] } });
   }
 
   // Indirizzo e nome del cliente sono indizi, sempre da confermare.
   const deboli: IndRighe[] = [];
-  for (const c of commesse) for (const t of testi) {
-    const testoInd = ` ${indirizzoConfrontabile(t.testo)} `;
+  const testiNormalizzati = testi.map(t => ({ ...t, indirizzo: ` ${indirizzoConfrontabile(t.testo)} `, nome: ` ${nomeConfrontabile(t.testo)} ` }));
+  for (const c of commesse) {
     const ind = indirizzoConfrontabile(c.indirizzoCantiere);
-    if (ind.length >= 10 && /\d/.test(ind) && testoInd.includes(` ${ind} `))
-      deboli.push({
-        valore: `commessa:${c.id}`,
-        fonte: "indirizzo",
-        forte: false,
-        testo: `indirizzo del cantiere (${c.indirizzoCantiere})`,
-        righe: t.righe,
-        percorso: { fonte: "indirizzo", passi: [`indirizzo ${c.indirizzoCantiere}`], documenti: [{ tipo: "commessa", id: c.id }] },
-      });
-    const testoNome = ` ${nomeConfrontabile(t.testo)} `;
-    for (const nome of [...new Set([c.clienteNome, c.clienteRagioneSociale].filter(Boolean))]) {
-      const n = nomeConfrontabile(nome);
-      if (n.length < 6 || (n.split(" ").length < 2 && n.length < 8) || ["condominio", "cliente", "amministrazione", "costruzioni"].includes(n) || !testoNome.includes(` ${n} `)) continue;
-      deboli.push({ valore: `commessa:${c.id}`, fonte: "cliente", forte: false, testo: `cliente citato in fattura (${nome})`, righe: t.righe,
-        percorso: { fonte: "cliente", passi: [`cliente ${nome}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+    const nomi = [...new Set([c.clienteNome, c.clienteRagioneSociale].filter(Boolean))].map(nome => ({ nome, chiave: nomeConfrontabile(nome) }))
+      .filter(n => n.chiave.length >= 6 && (n.chiave.split(" ").length >= 2 || n.chiave.length >= 8) && !["condominio", "cliente", "amministrazione", "costruzioni"].includes(n.chiave));
+    for (const t of testiNormalizzati) {
+      if (ind.length >= 10 && /\d/.test(ind) && t.indirizzo.includes(` ${ind} `))
+        deboli.push({
+          valore: `commessa:${c.id}`,
+          fonte: "indirizzo",
+          forte: false,
+          testo: `indirizzo del cantiere (${c.indirizzoCantiere})`,
+          righe: t.righe,
+          percorso: { fonte: "indirizzo", passi: [`indirizzo ${c.indirizzoCantiere}`], documenti: [{ tipo: "commessa", id: c.id }] },
+        });
+      for (const n of nomi) {
+        if (!t.nome.includes(` ${n.chiave} `)) continue;
+        deboli.push({ valore: `commessa:${c.id}`, fonte: "cliente", forte: false, testo: `cliente citato in fattura (${n.nome})`, righe: t.righe,
+          percorso: { fonte: "cliente", passi: [`cliente ${n.nome}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+      }
     }
   }
 
@@ -491,8 +494,12 @@ export function costruisciCatena(
 
 /** Il codice compare come parola a sé (non dentro un numero più lungo). */
 function parolaIntera(testo: string, codice: string): boolean {
+  return regexParolaIntera(codice)?.test(testo) ?? false;
+}
+
+function regexParolaIntera(codice: string): RegExp | null {
   const c = codice.trim();
-  if (!c) return false;
+  if (!c) return null;
   const esc = c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^A-Za-z0-9])${esc}([^A-Za-z0-9]|$)`, "i").test(testo);
+  return new RegExp(`(^|[^A-Za-z0-9])${esc}([^A-Za-z0-9]|$)`, "i");
 }

@@ -91,6 +91,13 @@ describe("riferimenti testuali di fatture ricevute",()=>{
     const c=catena(xml("",[...Array.from({length:19},()=>"Materiali"),"Ordine ODA-2026-0040"]));
     expect(c.righe[19].decisione.sceltoId).toBe("commessa:b");expect(c.righe[0].decisione.sceltoId).toBeNull();
   });
+  it("cerca anche l’ultima di 500 commesse e l’ultima di 500 righe",()=>{
+    const commesse=Array.from({length:500},(_,i): (typeof noti.commesse)[number]=>({...noti.commesse[0],id:`commessa-${i}`,codice:`COMM-${String(i).padStart(4,'0')}`,clienteNome:`Cliente numero ${i}`,clienteRagioneSociale:null}));
+    const f=fattura(xml('',[...Array.from({length:499},()=>"Materiali generici"),'Cantiere COMM-0499']));
+    const inizio=performance.now();const c=costruisciCatena(f,{...noti,commesse});
+    expect(c.righe[499].decisione.sceltoId).toBe('commessa:commessa-499');expect(c.righe[0].decisione.sceltoId).toBeNull();
+    console.info(`Ricerca 500 commesse x 500 righe: ${Math.round(performance.now()-inizio)} ms`);
+  });
   it("i corpi di un lotto non si mescolano, neppure nella richiesta alle regole SQL",()=>{
     const a=corpoXmlFattura(xml("Ordine ODA-2026-0039")),b=corpoXmlFattura(xml("Cliente Lucia Bianchi"));
     const lotto=`<FatturaElettronica><FatturaElettronicaBody>${a}</FatturaElettronicaBody><FatturaElettronicaBody>${b}</FatturaElettronicaBody></FatturaElettronica>`;
