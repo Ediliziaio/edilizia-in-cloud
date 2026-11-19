@@ -441,7 +441,12 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   const deleteManyMutation = useMutation({
     mutationFn: async (righe: PrimaNotaEntry[]) => {
       const eliminate = new Set<string>();
-      const esito = await eseguiPerRiga(righe, async (riga) => {
+      const selezionate = new Set(righe.map(r => r.id));
+      // Lo storno è spesso la prima riga visibile: se c'è anche l'originale,
+      // lascia che la RPC li elimini insieme senza ripristinare il pagamento.
+      const priorita = (r: PrimaNotaEntry) => Number(!!r.reversal_of && selezionate.has(r.reversal_of));
+      const ordinate = [...righe].sort((a, b) => priorita(a) - priorita(b));
+      const esito = await eseguiPerRiga(ordinate, async (riga) => {
         if (eliminate.has(riga.id)) return;
         const motivo = perchePrimaNotaNonEliminabile(riga);
         if (motivo) throw new Error(motivo);
