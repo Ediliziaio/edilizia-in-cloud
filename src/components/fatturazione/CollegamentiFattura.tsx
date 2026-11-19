@@ -208,9 +208,10 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
       <dt className="text-muted-foreground">Mezzi</dt>
       <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {(data?.mezzi ?? []).map((m) => (
-          <span key={m.id} className="inline-flex items-center gap-1">
+          <span key={m.id} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 [overflow-wrap:anywhere]">
             {m.mezzi?.nome ?? "Mezzo"}{m.mezzi?.targa ? ` · ${m.mezzi.targa}` : ""}
             {m.importo != null && <span className="text-xs text-muted-foreground">{formatCurrency(m.importo)}</span>}
+            {m.importo == null && (data?.mezzi.length ?? 0)>1 && <span className="text-xs text-muted-foreground">quota da attribuire</span>}
             {!m.confermata && <span className="text-xs text-amber-700 dark:text-amber-400">da confermare</span>}
             {puoModificare && !m.confermata && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Conferma ${m.mezzi?.nome ?? "mezzo"}`} title="Conferma" onClick={() => conferma.mutate(m.id)}><Check className="h-3.5 w-3.5" /></button>}
             {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli ${m.mezzi?.nome ?? "mezzo"}`} title="Togli" onClick={() => togliMezzo.mutate(m.id)}><X className="h-3.5 w-3.5" /></button>}
@@ -236,7 +237,7 @@ export function CollegamentiFattura({ fatturaId, companyId, puoModificare, numer
       <dt className="text-muted-foreground">DDT</dt>
       <dd className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {ddtVisti.map((d) => (
-          <span key={d.id} className="inline-flex items-center gap-1">
+          <span key={d.id} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 [overflow-wrap:anywhere]">
             {d.ddt_ricezione_id ? <Link className="underline underline-offset-2" to={percorsoDocumentoGenerale(`/azienda/ddt/${d.ddt_ricezione_id}`, aspettoGenerale?.generaleId)}>{d.numero_ddt}</Link> : d.numero_ddt}
             {d.data_ddt && <span className="text-xs text-muted-foreground">{formatDateShort(d.data_ddt)}</span>}
             {puoModificare && <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`Togli DDT ${d.numero_ddt}`} title="Togli" onClick={() => togliDdt.mutate(d.id)}><X className="h-3 w-3" /></button>}

@@ -1,22 +1,24 @@
-import { render,screen,fireEvent,waitFor,cleanup } from '@testing-library/react';
+import { render,screen,fireEvent,waitFor,cleanup,within } from '@testing-library/react';
 import { QueryClient,QueryClientProvider } from '@tanstack/react-query';
 import { afterEach,beforeEach,describe,it,expect,vi } from 'vitest';
 import { ExpensePaymentDialog } from '@/components/orders/ExpensePaymentDialog';
 import { SalPaymentDialog } from '@/components/subappaltatori/SalPaymentDialog';
 import type { SALSubappaltatore } from '@/types/subappaltatori';
 Element.prototype.scrollIntoView ??= () => {};
-const fake=vi.hoisted(()=>({rpc:vi.fn(),readonly:false,paid:0,fail:false,conti:[] as {valore:string;etichetta:string;account_label:string;bank_account_id:string|null;conto_liquidita_id:string|null}[]}));
+const fake=vi.hoisted(()=>({rpc:vi.fn(),readonly:false,paid:0,total:1220,fail:false,movimenti:[] as {id:string;data:string;importo:number;direzione:string;conto:string;metodo:string;banca:null;riferimento:null;storno_di:null}[],conti:[] as {valore:string;etichetta:string;account_label:string;bank_account_id:string|null;conto_liquidita_id:string|null}[]}));
 vi.mock('@/integrations/supabase/client',()=>({supabase:{rpc:fake.rpc}}));
 vi.mock('@/hooks/useContiPrimaNota',()=>({useContiPrimaNota:()=>({data:fake.conti,isError:false,isFetching:false})}));
 vi.mock('@/hooks/usePermissions',()=>({usePermissions:()=>({canViewCosts:true,solaLettura:fake.readonly,canViewSubappaltatoriAmministrazione:false,canViewTesoreria:false,canManagePayments:false,isAdmin:false})}));
 beforeEach(()=>{
-  fake.readonly=false;fake.paid=0;fake.fail=false;fake.conti=[];fake.rpc.mockReset();
+  fake.readonly=false;fake.paid=0;fake.total=1220;fake.fail=false;fake.conti=[];fake.movimenti=[];fake.rpc.mockReset();
   vi.stubGlobal('BroadcastChannel',undefined);
   fake.rpc.mockImplementation(async(name:string,args:Record<string,unknown>)=>{
-    if(name==='dettaglio_pagamento_costo')return {data:{id:'cost',nome:'Fattura DEMO',totale:1220,pagato:fake.paid,residuo:1220-fake.paid,da_verificare:false,movimenti:[]},error:null};
+    if(name==='dettaglio_pagamento_costo')return {data:{id:'cost',nome:'Fattura DEMO',totale:fake.total,pagato:fake.paid,residuo:Math.round((fake.total-fake.paid)*100)/100,da_verificare:false,movimenti:fake.movimenti},error:null};
     if(name==='registra_pagamento_costo'||name==='registra_pagamento_costo_con_conto'){
       if(fake.fail)return {data:null,error:{message:'Connessione interrotta, esito da verificare'}};
-      fake.paid+=Number(args.p_importo);return {data:{residuo:1220-fake.paid},error:null};
+      fake.paid+=Number(args.p_importo);
+      fake.movimenti.push({id:String(fake.movimenti.length+1),data:String(args.p_data),importo:Number(args.p_importo),direzione:'uscita',conto:args.p_metodo==='contanti'?'Cassa':fake.conti.find(c=>c.bank_account_id===args.p_conto_banca)?.account_label??'Banca',metodo:String(args.p_metodo),banca:null,riferimento:null,storno_di:null});
+      return {data:{residuo:Math.round((fake.total-fake.paid)*100)/100},error:null};
     }
     throw new Error(`RPC inattesa ${name}`);
   });
@@ -78,5 +80,34 @@ describe('Pagamento contestuale di una spesa',()=>{
     const call=fake.rpc.mock.calls.find(([name])=>name==='registra_pagamento_sal_sub');
     expect(call?.[1]).toMatchObject({p_esistente:'payment',p_importo:100,p_data:'2026-10-01'});
     expect(fake.rpc.mock.calls.some(([name])=>name==='registra_pagamento_costo')).toBe(false);
+  });
+  it('salda la stessa fattura con contanti e due banche, conservando date, quote e l’ultimo centesimo',async()=>{
+    fake.total=1220.01;
+    fake.conti=['Alfa','Beta'].map(nome=>({valore:'banca:'+nome,etichetta:'Banca '+nome,account_label:'Banca '+nome,bank_account_id:nome,conto_liquidita_id:null}));
+    mount();
+    const inizia=async()=>{
+      const b=await screen.findByRole('button',{name:'Registra pagamento'});
+      await waitFor(()=>expect(b).toBeEnabled());fireEvent.click(b);
+    };
+    const seleziona=async(label:string,opzione:string)=>{fireEvent.keyDown(screen.getByLabelText(label),{key:'ArrowDown'});fireEvent.click(await screen.findByRole('option',{name:opzione,exact:true}));};
+    const conferma=async()=>{fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));await screen.findByRole('button',{name:'Registra pagamento'});};
+    await inizia();fireEvent.click(screen.getByRole('button',{name:'Metà del residuo'}));
+    expect(screen.getByLabelText('Importo')).toHaveValue('610');
+    fireEvent.change(screen.getByLabelText('Data'),{target:{value:'2025-11-17'}});
+    await seleziona('Metodo','Contanti');await conferma();
+    await inizia();fireEvent.change(screen.getByLabelText('Importo'),{target:{value:'300'}});
+    fireEvent.change(screen.getByLabelText('Data'),{target:{value:'2025-11-18'}});
+    await seleziona('Metodo','Bonifico');await seleziona('Conto del pagamento','Banca Alfa');await conferma();
+    await inizia();expect(screen.getByLabelText('Importo')).toHaveValue('310.01');
+    fireEvent.change(screen.getByLabelText('Data'),{target:{value:'2025-11-19'}});
+    await seleziona('Conto del pagamento','Banca Beta');
+    fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));
+    await waitFor(()=>expect(screen.queryByRole('button',{name:'Registra pagamento'})).toBeNull());
+    expect(within(screen.getByLabelText('Situazione dei pagamenti')).getByText('0,00 €')).toBeVisible();
+    const t=within(screen.getByRole('table',{name:'Pagamenti già registrati'}));
+    for(const conto of ['Cassa','Banca Alfa','Banca Beta'])expect(t.getByText(conto)).toBeVisible();
+    const calls=fake.rpc.mock.calls.filter(([name])=>name==='registra_pagamento_costo_con_conto').map(([,args])=>args);
+    expect(calls.map(c=>[c.p_importo,c.p_metodo,c.p_conto_banca,c.p_data])).toEqual([[610,'contanti',null,'2025-11-17'],[300,'bonifico','Alfa','2025-11-18'],[310.01,'bonifico','Beta','2025-11-19']]);
+    expect(new Set(calls.map(c=>c.p_richiesta)).size).toBe(3);
   });
 });

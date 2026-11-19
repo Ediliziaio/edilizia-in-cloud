@@ -19,9 +19,9 @@ beforeAll(async()=>{
     create table invoice_payments(id uuid primary key,company_id uuid,invoice_id uuid,amount numeric,payment_date date,payment_method text,reference text,created_by uuid);
     create table documenti_fiscali(id uuid primary key,company_id uuid);
     create table fatture_ricevute(id uuid primary key,company_id uuid,company_cost_id uuid);
-    create table bank_transactions(id uuid primary key,company_id uuid,amount numeric,amount_eur numeric,currency text default 'EUR',booking_date date,value_date date,description text,reconciliation_status text default 'pending',chiuso_senza_documento text);
+    create table bank_transactions(id uuid primary key,company_id uuid,account_id uuid,amount numeric,amount_eur numeric,currency text default 'EUR',booking_date date,value_date date,description text,reconciliation_status text default 'pending',chiuso_senza_documento text);
     create table bank_reconciliations(id uuid primary key,company_id uuid,transaction_id uuid,matched_amount numeric,unmatched_at timestamptz,unmatch_reason text,prima_nota_id uuid,invoice_id uuid,documento_id uuid,movimento_id uuid,scadenza_id uuid,fattura_ricevuta_id uuid);
-    create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,direction text,category text,description text,amount numeric check(amount>0),entry_date date not null,payment_method text,bank_transaction_id uuid,account_label text,is_auto boolean default false,auto_source text,created_by uuid,payment_payload jsonb,invoice_id uuid,documento_fiscale_id uuid,movimento_id uuid,scadenza_id uuid,cost_id uuid,reversal_of uuid,reference_number text,reconciliation_method text);
+    create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,bank_account_id uuid,direction text,category text,description text,amount numeric check(amount>0),entry_date date not null,payment_method text,bank_transaction_id uuid,account_label text,is_auto boolean default false,auto_source text,created_by uuid,payment_payload jsonb,invoice_id uuid,documento_fiscale_id uuid,movimento_id uuid,scadenza_id uuid,cost_id uuid,reversal_of uuid,reference_number text,reconciliation_method text);
     grant usage on schema public,auth to authenticated;`);
   await pg.exec(await readFile("supabase/migrations/20290421183000_prima_nota_fonti_allineate.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421190000_prima_nota_incassi_storici_prudenti.sql","utf8"));
@@ -31,6 +31,13 @@ beforeAll(async()=>{
   await pg.exec(await readFile("supabase/migrations/20290421193000_prima_nota_incassi_cumulativi.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421193000_prima_nota_incassi_cumulativi.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421194000_prima_nota_incassi_importati_da_confrontare.sql","utf8"));
+  await pg.exec(`create function registra_pagamento_costo(p_costo uuid,p_richiesta uuid,p_importo numeric,p_data date,p_metodo text,p_riferimento text,p_banca uuid,p_esistente uuid)
+    returns jsonb language plpgsql set search_path='public' as $$declare pn public.prima_nota_entries;begin
+    select * into pn from public.prima_nota_entries where id=p_esistente and cost_id=p_costo;
+  if p_banca is null then raise exception 'Scegli il movimento bancario da collegare'; end if;
+    return jsonb_build_object('prima_nota_id',pn.id);end$$;`);
+  await pg.exec(await readFile("supabase/migrations/20290421200000_pagamenti_misti_prove_bancarie.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421200000_pagamenti_misti_prove_bancarie.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421194000_prima_nota_incassi_importati_da_confrontare.sql","utf8"));
   await pg.exec(`create trigger bank_proof_payment_removed before delete or update of amount,direction,bank_transaction_id on prima_nota_entries for each row execute function private.bank_proof_payment_lifecycle();`);
 },30000);
@@ -201,5 +208,38 @@ describe("Prima nota e fonti finanziarie",()=>{
     await pay(null,500);expect(await count()).toBe(1);
     const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"from_invoices"]);
     expect(esito.da_verificare).toHaveLength(1);
+  });
+  const costo=id(70),ricevuta=id(71),banca1=id(72),banca2=id(73);
+  const quota=async(n:number,amount:number,bank:string|null,metodo='bonifico')=>pg.query("insert into prima_nota_entries(id,company_id,cost_id,direction,amount,entry_date,bank_account_id,payment_method,account_label) values($1,$2,$3,'uscita',$4,'2026-11-17',$5,$6,$7)",[id(n),company,costo,amount,bank,metodo,metodo==='contanti'?'cassa':'banca']);
+  const riconciliaCosto=async(importo:number)=>{
+    await pg.query("update bank_transactions set amount=$1,account_id=$2 where id=$3",[-importo,banca1,tx]);
+    await pg.query("insert into fatture_ricevute(id,company_id,company_cost_id) values($1,$2,$3)",[ricevuta,company,costo]);
+    await pg.query("insert into bank_reconciliations(id,company_id,transaction_id,fattura_ricevuta_id,matched_amount) values($1,$2,$3,$4,$5)",[rec,company,tx,ricevuta,importo]);
+    await pg.exec("update bank_transactions set reconciliation_status='reconciled'");
+  };
+  it("una fattura metà contanti e metà bonifico collega soltanto la quota bancaria, anche se uguale",async()=>{
+    await quota(80,100,null,'contanti');await quota(81,100,banca1);await riconciliaCosto(100);
+    expect(await count()).toBe(2);
+    expect((await pg.query<{id:string;bank_transaction_id:string|null}>("select id,bank_transaction_id from prima_nota_entries order by id")).rows).toEqual([{id:id(80),bank_transaction_id:null},{id:id(81),bank_transaction_id:tx}]);
+  });
+  it("sceglie il conto corretto fra due bonifici uguali da banche diverse",async()=>{
+    await quota(80,100,banca1);await quota(81,100,banca2);await riconciliaCosto(100);
+    expect(await count()).toBe(2);
+    expect((await pg.query<{id:string}>("select id from prima_nota_entries where bank_transaction_id=$1",[tx])).rows).toEqual([{id:id(80)}]);
+  });
+  it("gli altri acconti della stessa fattura non impediscono l’identificazione della quota esatta",async()=>{
+    await quota(80,100,banca1);await quota(81,40,banca1);await quota(82,60,banca1);await riconciliaCosto(40);
+    expect(await count()).toBe(3);
+    expect((await pg.query<{id:string}>("select id from prima_nota_entries where bank_transaction_id=$1",[tx])).rows).toEqual([{id:id(81)}]);
+  });
+  it("due quote uguali sulla stessa banca restano da verificare senza duplicare o scegliere a caso",async()=>{
+    await quota(80,100,banca1);await quota(81,100,banca1);await riconciliaCosto(100);
+    expect(await count()).toBe(2);
+    expect((await rpc<{esito:string}>("private.prima_nota_allinea_banca",[tx,false])).esito).toBe('da_verificare');
+  });
+  it("un pagamento già in contanti non diventa una prova bancaria e non genera una nuova uscita",async()=>{
+    await quota(80,100,null,'contanti');await riconciliaCosto(100);expect(await count()).toBe(1);
+    expect((await rpc<{esito:string}>("private.prima_nota_allinea_banca",[tx,false])).esito).toBe('da_verificare');
+    await expect(rpc("public.registra_pagamento_costo",[costo,id(90),100,'2026-11-17','contanti',null,tx,id(80)])).rejects.toMatchObject({code:'23514'});
   });
 });

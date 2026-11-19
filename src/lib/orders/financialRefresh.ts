@@ -11,7 +11,7 @@ const prefixes = new Set([
   'orders', 'ordini-variazione', 'order-supplier-payments', 'order-economics-canonical', 'order-subcontract-statistics',
   'oda-contabilita', 'purchase-orders', 'fatture-ricevute', 'fattura-ricevuta-riepilogo', 'sal-sub', 'sal-sub-tutti',
   'contratti-sub', 'ritenute-sub', 'ritenute-sub-tutte', 'subappaltatori-page', 'subappalto-contratti',
-  'mezzi-piano-fonti', 'pagamento-costo', 'pagamento-costo-banca', 'pagamento-costo-sal', 'pagamenti-sal-candidati', 'bank-transactions',
+  'mezzi-piano-fonti', 'fattura-collegamenti-pagamenti', 'pagamento-costo', 'pagamento-costo-banca', 'pagamento-costo-sal', 'pagamenti-sal-candidati', 'bank-transactions',
   'bank-reconciliation', 'bank-lotto-movimenti', 'bank-lotto-candidati', 'bank-movimenti-workspace', 'bank-movimento', 'bank-candidati', 'bank-contesto-movimenti', 'esposizione-commessa', 'suppliers', 'commessa-fatture-fornitori',
   'generale-fatture-fornitori', 'generale-controllo-forniture', 'generale-cassa-effettiva', 'generale-piano-reale', 'commessa-generale-riepilogo',
   'incassi-registrati', 'incassi-unita', 'generale-unita',
