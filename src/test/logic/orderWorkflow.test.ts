@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ORDER_WORKFLOW_MODELS, addWorkflowStatuses, orderWorkflowModel } from "@/lib/orders/workflowModels";
+import { ORDER_WORKFLOW_MODELS, addWorkflowStatuses, applyPipelineWorkflow, orderWorkflowModel } from "@/lib/orders/workflowModels";
 import { avvisoAlCliente, statoProposto } from "@/lib/orders/statoCommessa";
 import { statusVisits } from "@/lib/orders/statusHistory";
 import { COMMERCIAL_WORKFLOW_TEMPLATES } from "@/lib/orders/commercialWorkflowModels";
@@ -50,6 +50,18 @@ describe("Percorsi commessa · modello", () => {
     expect(merged.filter(s => s.is_support_phase)).toHaveLength(1);
     expect(JSON.stringify(existing)).toBe(before);
     expect(addWorkflowStatuses(merged, ORDER_WORKFLOW_MODELS[0], vi.fn())).toEqual(merged);
+  });
+  it.each(["serramenti", "fotovoltaico"])("mantiene lo stato esistente e avvia il percorso %s dal contratto", (key) => {
+    const modello = orderWorkflowModel(key)!;
+    const id = vi.fn(() => crypto.randomUUID());
+    const esistente = [{ id: "firma", name: "Commessa Acquisita", color: "#123456" }];
+    const fasi = applyPipelineWorkflow(esistente, modello, id);
+    expect(fasi[0]).toEqual({ ...esistente[0], name: "Contratto Firmato" });
+    expect(fasi.map((f) => f.name)).toEqual(["Contratto Firmato", ...modello.statuses.slice(1).map((f) => f.name)]);
+    expect(fasi.some((f) => /lead/i.test(f.name))).toBe(false);
+    id.mockClear();
+    expect(applyPipelineWorkflow(fasi, modello, id)).toEqual(fasi);
+    expect(id).not.toHaveBeenCalled();
   });
   it("lo storico ignora date invalide e sceglie l'ultima visita anche con righe non ordinate", () => {
     const visits = statusVisits([{status_id:"a",changed_at:"invalid"},{status_id:"a",changed_at:"2026-01-02T12:00:00Z"},{status_id:"a",changed_at:"2026-01-01T12:00:00Z"}]);
