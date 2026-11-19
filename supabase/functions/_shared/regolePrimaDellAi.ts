@@ -28,6 +28,9 @@ export function decidiRiferimentiCommessa(codici: CommessaDaRegole | null, caten
 } {
   const fermati = (conflitto: string, richiedeScelta = false): ReturnType<typeof decidiRiferimentiCommessa> => ({ regola: null, proposta: null, conflitto: { conflitto, richiedeScelta } });
   if (catena.conflitto) return fermati(catena.conflitto, catena.catena?.esito === "scelta");
+  const documenti = [...(catena.catena?.ddt ?? []), ...(catena.catena?.ordini ?? []), ...(catena.catena?.contratti ?? [])];
+  const incerto = documenti.find(d => d.decisione.esito === "conflitto" || d.decisione.esito === "scelta");
+  if (incerto) return fermati(`${incerto.riferimento.testo}: ${incerto.decisione.motivo}`, incerto.decisione.esito === "scelta");
   if (catena.saltata && catena.catena) return fermati(catena.saltata, true);
   const quote = catena.catena?.allocazioni ?? [];
   const destinazioni = new Set(quote.filter(a => a.destinazione.tipo !== "da_attribuire").map(a => `${a.destinazione.tipo}:${a.destinazione.id}`));

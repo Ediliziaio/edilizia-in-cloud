@@ -71,6 +71,12 @@ describe("riferimenti testuali di fatture ricevute",()=>{
     const r=decidiRiferimentiCommessa({order_id:'a',motivo:'CUP del contratto'},{catena:c,commessa:{order_id:'b',motivo:'ordine ODA-2026-0040'},conflitto:null,saltata:null});
     expect(r.regola).toBeNull();expect(r.conflitto?.conflitto).toContain('commesse diverse');
   });
+  it("l’ordine di un altro fornitore blocca il collegamento anche se un codice indica una commessa",()=>{
+    const c=costruisciCatena(fattura(xml('Ordine ODA-2026-0039')),{...noti,ordini:noti.ordini.map(o=>({...o,fornitoreId:'altro-fornitore'}))});
+    expect(c.ordini[0].decisione.esito).toBe('conflitto');
+    const r=decidiRiferimentiCommessa({order_id:'a',motivo:'codice commessa'},{catena:c,commessa:null,conflitto:null,saltata:null});
+    expect(r.regola).toBeNull();expect(r.conflitto?.conflitto).toContain('altro fornitore');
+  });
   it("la sola proposta da nome o indirizzo non viene promossa a regola certa",()=>{
     const c=catena(xml('Cliente Mario Rossi'));
     const r=decidiRiferimentiCommessa(null,{catena:c,commessa:null,proposta:{order_id:'a',motivo:'Da confermare: cliente Mario Rossi'},conflitto:null,saltata:null});
