@@ -14,6 +14,7 @@ import { conCondizioniDellArchivio, useModelloComputo } from "@/lib/computo/mode
 import { useCondizioniArchivio } from "@/hooks/useCondizioniArchivio";
 import { puoRiscrivereLeCondizioni } from "@/lib/preventivi/condizioniDelPreventivo";
 import { usePermissions } from "@/hooks/usePermissions";
+import { leggiContestoNuovoComputo } from "@/lib/computo/contestoNuovoComputo";
 
 export default function ComputoPreventivo() {
   const { effectiveCompany, user } = useAuth();
@@ -25,6 +26,14 @@ export default function ComputoPreventivo() {
   // Le condizioni vengono da «Contratti e condizioni» (07/11/2026): un computo nuovo parte da quelle.
   const archivio = useCondizioniArchivio();
   const permessi = usePermissions();
+  const contestoCrm = [params.get("customer_id"), params.get("contact_id"), params.get("opportunity_id")].join("|");
+  const conContesto = contestoCrm !== "||";
+  const prefill = useQuery({
+    queryKey: ["computo-contesto-crm", effectiveCompany?.id, user?.id, contestoCrm, permessi.isAdmin, permessi.canViewMarketingContacts, permessi.canViewCustomers, permessi.canViewOrders, permessi.canViewMarketingOpportunities, permessi.onlyAssigned],
+    enabled: conContesto && !!effectiveCompany?.id && !permessi.isLoading,
+    queryFn: () => leggiContestoNuovoComputo(effectiveCompany!.id, params, permessi),
+    retry: false,
+  });
   const richiesto = params.get("bozza");
   const soloEsistente = params.get("esistente") === "1";
   const esistente = useQuery({
@@ -47,14 +56,16 @@ export default function ComputoPreventivo() {
   if (soloEsistente && (!richiesto || !idComputoValido(richiesto) || esistente.error || esistente.data === false)) return <p role="alert" className="p-6">Il computo richiesto non è disponibile in questa azienda. Torna al preventivo per verificare il collegamento.</p>;
   if (soloEsistente && esistente.isPending) return <p role="status" className="p-6">Verifico il computo esistente…</p>;
   if (!import.meta.env.DEV && !computoCloudAttivo(effectiveCompany.id)) return <div className="space-y-3 p-6"><p role="alert">Azienda non riconosciuta: ricarica la pagina.</p><button className="underline" onClick={() => { void navigate("/azienda/marketing/preventivi"); }}>Torna ai Preventivi</button></div>;
-  if (modello.isLoading || archivio.inCaricamento) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
+  if (modello.isLoading || archivio.inCaricamento || (conContesto && (permessi.isLoading || prefill.isPending))) return <p role="status" className="p-6 text-sm text-muted-foreground">Apro il preventivo…</p>;
   const key = chiaveBozzaComputo(effectiveCompany.id, user.id, `preventivo:${id}`);
   const dettagli = [effectiveCompany.legal_address, effectiveCompany.legal_city,
     effectiveCompany.vat_number && `P.IVA ${effectiveCompany.vat_number}`, effectiveCompany.email, effectiveCompany.phone].filter(Boolean).join(" | ");
   const editorProps = { storageKey: key, consentiListini: true,
     ai: consentiPreventivoConversazionale(effectiveCompany.id) ? { companyId: effectiveCompany.id, draftId: id } : undefined, azienda: effectiveCompany.business_name || effectiveCompany.name,
     dettagliAzienda: dettagli, colore: effectiveCompany.brand_primary_color ?? undefined, fase,
+    datiAzienda: { partitaIva: effectiveCompany.vat_number, indirizzo: [effectiveCompany.legal_address, effectiveCompany.legal_city].filter(Boolean).join(", "), email: effectiveCompany.email, telefono: effectiveCompany.phone },
     modello: modello.data?.modello ? conCondizioniDellArchivio(modello.data.modello, archivio.modelli) : undefined,
+    datiIniziali: prefill.data,
     logoUrl: effectiveCompany.logo_url,
     vediMargini: permessi.canViewCosts && permessi.canViewMargins,
     puoRiscrivereCondizioni: puoRiscrivereLeCondizioni(permessi),
@@ -63,10 +74,11 @@ export default function ComputoPreventivo() {
       onApriCommessa: (quoteId: string) => { void navigate(`/azienda/ordini/nuovo?quote_id=${quoteId}`); } } : undefined,
     onFaseChange: (n: number) => { const next = new URLSearchParams(params); next.set("fase", String(n + 1)); setParams(next); },
     onBack: () => { void navigate("/azienda/marketing/preventivi"); } };
-  return <div className="mx-auto w-full max-w-[1440px] space-y-4 p-3 sm:p-6">
+  return <div className={`mx-auto w-full ${fase === 2 ? "max-w-none" : "max-w-[1440px]"} space-y-4 p-3 sm:p-6`}>
+    {prefill.error && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">{prefill.error.message} Puoi selezionare il destinatario nel passo Dati.</p>}
     <CollegamentiComputoNativo companyId={effectiveCompany.id} draftId={id} />
     {computoCloudAttivo(effectiveCompany.id)
       ? <ComputoCloudEditor key={key} {...editorProps} companyId={effectiveCompany.id} draftId={id} soloEsistente={soloEsistente} />
-      : <ComputoNativoEditor key={key} {...editorProps} />}
+      : <ComputoNativoEditor key={key} {...editorProps} companyId={effectiveCompany.id} />}
   </div>;
 }

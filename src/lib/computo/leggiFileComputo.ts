@@ -30,7 +30,12 @@ const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 async function pagineDaPdf(dati: ArrayBuffer): Promise<PdfPaginaPosizionata[]> {
   const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  const worker = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default as unknown;
+  // Il prebundle di sviluppo può restituire il modulo invece dell'URL. Come nel visore PDF,
+  // in locale si usa il file servito da Vite; in produzione deve esserci l'asset emesso dalla build.
+  const indirizzoWorker = typeof worker === "string" ? worker : import.meta.env.DEV ? "/node_modules/pdfjs-dist/build/pdf.worker.min.mjs" : null;
+  if (!indirizzoWorker) throw new Error("Il lettore PDF non si è caricato: ricarica la pagina e riprova.");
+  pdfjs.GlobalWorkerOptions.workerSrc = indirizzoWorker;
   // In pdfjs 6 si distrugge il caricamento, non il documento (che non ha più `destroy`).
   const caricamento = pdfjs.getDocument({ data: dati });
   const pdf = await caricamento.promise.catch((e: unknown) => {

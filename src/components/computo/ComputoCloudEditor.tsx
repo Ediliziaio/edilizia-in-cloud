@@ -168,6 +168,6 @@ export default function ComputoCloudEditor({ companyId, draftId, soloEsistente =
       {!soloEsistente && !stato.pronto && <Button variant="ghost" size="sm" disabled={caricando} onClick={() => setStato(s => ({ ...s, pronto: true }))}>Continua con la copia su questo computer</Button>}
     </div>}
     {!stato.pronto ? <p role="status" className="flex items-center gap-2 py-6 text-sm"><Loader2 className="h-4 w-4 animate-spin" />Apro il computo…</p>
-      : <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} cloud={{ onChange, status: testoStato }} /></fieldset>}
+      : <fieldset disabled={caricando} className="min-w-0"><ComputoNativoEditor key={stato.epoch} {...props} companyId={companyId} cloud={{ onChange, status: testoStato }} /></fieldset>}
   </div>;
 }

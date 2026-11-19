@@ -1,5 +1,5 @@
 import { arrotonda, type ComputoMisura, type ComputoStrutturato, type ComputoVoceStrutturata } from "./computoStrutturato";
-import { arrotondaDecimale, calcolaVoce, misuraVuota, voceVuota, type BozzaComputo, type MisuraEditor, type VoceEditor } from "./editorNativo";
+import { arrotondaDecimale, bozzaVuota, calcolaVoce, misuraVuota, voceVuota, type BozzaComputo, type MisuraEditor, type VoceEditor } from "./editorNativo";
 
 /**
  * Un computo letto da PriMus (PDF o XPWE) diventa una bozza dell'editor.
@@ -236,7 +236,7 @@ export function applicaImportComputo(bozza: BozzaComputo, esito: EsitoImportComp
   const i = esito.intestazione;
   return {
     ...bozza,
-    titolo: i.titolo && vuoto(bozza.titolo, "Nuovo computo metrico") ? i.titolo : bozza.titolo,
+    titolo: i.titolo && (vuoto(bozza.titolo, bozzaVuota().titolo) || bozza.titolo.trim() === "Nuovo computo metrico") ? i.titolo : bozza.titolo,
     committente: i.committente && vuoto(bozza.committente) ? i.committente : bozza.committente,
     oggetto: i.oggetto && vuoto(bozza.oggetto) ? i.oggetto : bozza.oggetto,
     dataDocumento: i.dataDocumento && vuoto(bozza.dataDocumento) ? i.dataDocumento : bozza.dataDocumento,

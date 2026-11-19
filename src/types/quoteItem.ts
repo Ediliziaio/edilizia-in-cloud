@@ -1,4 +1,6 @@
 export interface QuoteItemPro {
+  /** Dettaglio metrico facoltativo. Il prezzo e l'IVA restano quelli della normale riga preventivo. */
+  misureComputo?: import("@/lib/preventivi/misurePreventivo").MisurePreventivo;
   id?: string;
   item_type: 'product' | 'service';
   item_category:

@@ -74,7 +74,7 @@ export function CondizioniContratto({
   );
   const associato = perIPreventivi.find((m) => m.id === modelloAssociatoId) ?? null;
   const predefinito = perIPreventivi.find((m) => m.predefinito) ?? null;
-  const dallArchivio = associato ?? predefinito;
+  const dallArchivio = [associato, predefinito].find(m => m && testoDelModello(m).trim()) ?? null;
   const testoDelModulo = testo.trim();
 
   // Già nell'archivio lo stesso testo? Allora si associa quello, invece di crearne un doppione.

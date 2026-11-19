@@ -5,16 +5,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { calcolaIvaComputo, type ImpostazioniIvaComputo } from "@/lib/computo/ivaComputo";
 import { formatEuro } from "@/lib/computo/computoStrutturato";
 
-export default function ComputoIva({ value, imponibile, onChange, righePrima = [] }: {
+export default function ComputoIva({ value, imponibile, onChange, righePrima = [], compatto = false }: {
   value: ImpostazioniIvaComputo; imponibile: number; onChange: (patch: ImpostazioniIvaComputo) => void;
   /** Righe sopra l'imponibile, nel riquadro dei totali: il totale dei lavori e lo sconto. */
   righePrima?: [string, string][];
+  compatto?: boolean;
 }) {
   const fiscale = calcolaIvaComputo(imponibile, value);
   const aliquote = ["0", "4", "5", "10", "22"];
   const [personalizzata, setPersonalizzata] = useState(false);
   const custom = personalizzata || !aliquote.includes(value.ivaAliquota ?? "22");
-  return <section aria-label="IVA del preventivo" className="grid gap-4 rounded-lg border bg-white p-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+  return <section aria-label="IVA del preventivo" className={`grid gap-3 rounded-lg border bg-white p-3 ${compatto ? "" : "sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"}`}>
     <div className="min-w-0 space-y-3">
     <h3 className="text-sm font-semibold">IVA e totale</h3>
     <div className="grid gap-3 sm:grid-cols-2">

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactElement } from "react";
-import { fireEvent, render as renderRtl, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as renderRtl, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ComputoNativoEditor from "@/components/computo/ComputoNativoEditor";
 import { bozzaVuota, leggiBozzaComputo, voceVuota } from "@/lib/computo/editorNativo";
@@ -20,7 +20,35 @@ const scegliFormato = async (name: string) => {
   fireEvent.click(await screen.findByRole("radio", { name: new RegExp(`^${name}`) }));
 };
 
+it("precompila solo i nuovi computi e conserva i dati delle bozze salvate", () => {
+  const vista = render(<ComputoNativoEditor storageKey="nuova-da-crm" datiIniziali={{ committente: "Cliente da CRM", clienteId: "crm-1" }} />);
+  expect(screen.getByRole("textbox", { name: "Nome e cognome", exact: true })).toHaveValue("Cliente da CRM");
+  vista.unmount();
+  localStorage.setItem("gia-salvata", JSON.stringify({ ...bozzaVuota(), committente: "Nome già corretto", clienteId: "crm-originale" }));
+  render(<ComputoNativoEditor storageKey="gia-salvata" datiIniziali={{ committente: "Nome da non sovrascrivere", clienteId: "crm-altro" }} />);
+  expect(screen.getByRole("textbox", { name: "Nome e cognome", exact: true })).toHaveValue("Nome già corretto");
+});
+
 describe("editor computo integrato", () => {
+  it("modifica e aggiunge le voci sotto la riga, senza pannelli laterali né perdita dei dati", async () => {
+    const key = "ui-computo-inline";
+    localStorage.setItem(key, JSON.stringify({ ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Riga iniziale", capitolo: "Finiture", quantita: "2", prezzo: "10" }] }));
+    render(<ComputoNativoEditor initialFase={2} storageKey={key} />);
+    fireEvent.click(screen.getByRole("button", { name: "Apri voce 1" }));
+    const editor = screen.getByRole("group", { name: "Modifica lavorazione nella riga" });
+    expect(editor.closest("tr")?.previousElementSibling).toHaveTextContent("Riga iniziale");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    change("Prezzo unitario", "15");
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi dettagli" }));
+    expect(screen.queryByRole("group", { name: "Modifica lavorazione nella riga" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Riepilogo del computo")).toHaveTextContent("30,00 €");
+    fireEvent.click(screen.getByRole("button", { name: "Voce libera" }));
+    change("Descrizione della lavorazione", "Nuova riga senza prezzo");
+    expect(screen.getByRole("group", { name: "Modifica lavorazione nella riga" }).closest("tr")?.previousElementSibling).toHaveTextContent("Nuova riga senza prezzo");
+    expect(screen.getByLabelText("Prezzo unitario", { exact: true })).toHaveValue("");
+    await waitFor(() => expect(leggiBozzaComputo(localStorage.getItem(key)!).voci).toHaveLength(2));
+    expect(leggiBozzaComputo(localStorage.getItem(key)!).voci[0].prezzo).toBe("15");
+  });
   it("rimuove l’avviso di lavorazione mancante anche ripristinando la voce con Annulla", async () => {
     const key = "ui-undo-opzionale";
     localStorage.setItem(key, JSON.stringify({ ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Posa demo", quantita: "36", prezzo: "20" }] }));
@@ -49,7 +77,7 @@ describe("editor computo integrato", () => {
     render(<ComputoNativoEditor initialFase={3} storageKey="ui-iva" />);
     fireEvent.click(screen.getByRole("combobox", { name: "Trattamento IVA" }));
     fireEvent.click(await screen.findByRole("option", { name: "Applica IVA" }));
-    expect(screen.getByText("324,52 €")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "IVA del preventivo" })).getByText("324,52 €")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("combobox", { name: "Aliquota IVA" }));
     fireEvent.click(await screen.findByRole("option", { name: "Personalizzata" }));
     fireEvent.change(screen.getByLabelText("Aliquota IVA personalizzata"), { target: { value: "101" } });
@@ -114,6 +142,7 @@ describe("editor computo integrato", () => {
     expect(screen.getByRole("button", { name: "Scarica documento" })).toBeEnabled();
   });
   it("passa fra le cinque fasi conservando dati e computo e salva le varianti PDF", async () => {
+    const media = vi.spyOn(window, "matchMedia").mockImplementation(query => ({ matches: true, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
     render(<ComputoNativoEditor storageKey="ui-fasi" />);
     change("Nome e cognome", "Cliente di prova");
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
@@ -129,9 +158,31 @@ describe("editor computo integrato", () => {
     await waitFor(() => expect(leggiBozzaComputo(localStorage.getItem("ui-fasi")!).formatoPdf).toBe("senza-prezzi"));
     expect(leggiBozzaComputo(localStorage.getItem("ui-fasi")!).mostraDatiCliente).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Indietro" })); fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
-    // La voce che si stava modificando è ancora aperta nel pannello di lato.
+    // La voce che si stava modificando resta aperta sotto la sua riga.
     expect(screen.getByLabelText("Descrizione della lavorazione")).toHaveValue("Intonaco");
+    expect(screen.queryByRole("complementary", { name: "Anteprima del preventivo" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mostra PDF" }));
     expect(screen.getByRole("complementary", { name: "Anteprima del preventivo" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Indice dei capitoli" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Capitolo da visualizzare" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nascondi PDF" }));
+    expect(screen.queryByRole("complementary", { name: "Anteprima del preventivo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Indice dei capitoli" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Descrizione della lavorazione")).toHaveValue("Intonaco");
+    media.mockRestore();
+  });
+  it("mantiene accessibili i capitoli raccolti e conserva i contratti lunghi", async () => {
+    const testoContratto = "Condizioni complete del documento. ".repeat(700);
+    localStorage.setItem("ui-documento-raccolto", JSON.stringify({ ...bozzaVuota(), condizioniContrattuali: testoContratto, voci: Array.from({ length: 8 }, (_, n) => ({ ...voceVuota(), capitolo: `Capitolo ${n + 1}`, descrizione: `Voce ${n + 1}`, quantita: "1", prezzo: "10" })) }));
+    render(<ComputoNativoEditor initialFase={4} storageKey="ui-documento-raccolto" />);
+    expect(screen.getByRole("switch", { name: "Capitolo Capitolo 1 nel documento" }).closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText(/Capitoli nel documento/));
+    fireEvent.click(screen.getByRole("switch", { name: "Capitolo Capitolo 1 nel documento" }));
+    expect(screen.getByLabelText("Riepilogo del documento")).toHaveTextContent("70,00 €");
+    fireEvent.click(screen.getByText(/Contratto e condizioni dell'azienda/));
+    expect(screen.getByRole("textbox", { name: "Condizioni contrattuali" })).toHaveValue(testoContratto);
+    expect(screen.getByRole("textbox", { name: "Condizioni contrattuali" })).toHaveAttribute("maxlength", "100000");
+    await waitFor(() => expect(leggiBozzaComputo(localStorage.getItem("ui-documento-raccolto")!).condizioniContrattuali).toBe(testoContratto));
   });
   it("crea una voce, salva e genera il PDF con i dati dell'editor", async () => {
     const { unmount } = render(<ComputoNativoEditor initialFase={2} storageKey="ui-test" />);

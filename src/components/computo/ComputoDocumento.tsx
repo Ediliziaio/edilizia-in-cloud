@@ -88,10 +88,10 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
       <ComputoFormatoSchede value={bozza.formatoPdf} disabled={disabilitato} onChange={value => onSostituisci(applicaVarianteComputo(bozza, value))} />
     </section>
 
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="grid items-start gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 310px), 1fr))" }}>
       <section aria-label="Sezioni del documento" className="rounded-lg border bg-white p-3">
-        <h3 className="mb-1 text-sm font-semibold">Sezioni del documento</h3>
-        <ul className="divide-y">{sezioni.map(([k, titolo, testo, vai]) => <li key={k} className="flex items-center justify-between gap-3 py-2">
+        <h3 className="mb-1 flex items-center justify-between gap-2 text-sm font-semibold">Sezioni del documento <span className="text-xs font-normal text-muted-foreground">{sezioni.filter(([k]) => sez[k] !== false).length}/{sezioni.length} attive</span></h3>
+        <ul className="divide-y">{sezioni.map(([k, titolo, testo, vai]) => <li key={k} className="flex items-center justify-between gap-3 py-1.5">
           <div className="min-w-0"><span className="flex items-center gap-1 text-sm">{titolo}
             {vai && <button type="button" aria-label={`Modifica: ${titolo}`} title="Vai dove si modifica" className="text-muted-foreground hover:text-orange-600" onClick={vai}><ArrowUpRight className="h-3.5 w-3.5" /></button>}</span>
             <span className="block text-[11px] text-muted-foreground">{testo}</span></div>
@@ -101,13 +101,15 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
 
       <div className="space-y-4">
         <section aria-label="Capitoli nel documento" className="rounded-lg border bg-white p-3">
-          <h3 className="mb-1 text-sm font-semibold">Capitoli nel documento</h3>
-          {!capitoli.size ? <p className="text-xs text-muted-foreground">I capitoli compariranno qui.</p> : <ul className="divide-y">{[...capitoli].map(([nome, importo]) => <li key={nome} className="flex items-center justify-between gap-3 py-1.5">
-            <span className={`min-w-0 truncate text-sm ${esclusi.has(nome) ? "text-muted-foreground line-through" : ""}`}>{nome}</span>
+          <details open={capitoli.size <= 6 || esclusi.size > 0}>
+          <summary className="cursor-pointer text-sm font-semibold">Capitoli nel documento <span className="ml-1 text-xs font-normal text-muted-foreground">{[...capitoli.keys()].filter(n => !esclusi.has(n)).length}/{capitoli.size} inclusi</span></summary>
+          {!capitoli.size ? <p className="mt-2 text-xs text-muted-foreground">I capitoli compariranno qui.</p> : <ul className="mt-2 max-h-72 divide-y overflow-y-auto">{[...capitoli].map(([nome, importo]) => <li key={nome} className="flex items-center justify-between gap-3 py-1.5">
+            <span title={nome} className={`min-w-0 text-xs ${esclusi.has(nome) ? "text-muted-foreground line-through" : ""}`}>{nome}</span>
             <span className="flex shrink-0 items-center gap-3"><span className="text-xs tabular-nums text-muted-foreground">{formatEuro(importo)} €</span>
               <Switch aria-label={`Capitolo ${nome} nel documento`} checked={!esclusi.has(nome)} disabled={disabilitato} onCheckedChange={v => onChange({ capitoliEsclusiPdf: v ? bozza.capitoliEsclusiPdf.filter(n => n !== nome) : [...bozza.capitoliEsclusiPdf, nome] })} /></span>
           </li>)}</ul>}
           {importoEscluso > 0 && <p className="mt-1 text-xs text-amber-800">Il PDF non mostra {formatEuro(importoEscluso)} € di capitoli spenti: il totale del documento li esclude.</p>}
+          </details>
         </section>
         <section aria-label="Contenuti da mostrare al cliente" className="rounded-lg border bg-white px-3 pt-2">
           <h3 className="text-sm font-semibold">Colonne e dettagli</h3>
@@ -159,7 +161,10 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
       </>}
     </section>
 
-    <ComputoCronoprogramma bozza={bozza} companyId={companyId} onChange={patch => onChange(patch)} />
+    <details className="rounded-lg border bg-white p-3" open={bozza.cronoprogramma.fasi.length > 0}>
+      <summary className="cursor-pointer text-sm font-semibold">Tempi e cronoprogramma <span className="ml-1 text-xs font-normal text-muted-foreground">{bozza.cronoprogramma.fasi.length ? `${bozza.cronoprogramma.fasi.length} fasi` : "Facoltativo · da preparare"}{sez.cronoprogramma === false ? " · escluso dal PDF" : ""}</span></summary>
+      <div className="mt-3"><ComputoCronoprogramma bozza={bozza} companyId={companyId} onChange={patch => onChange(patch)} /></div>
+    </details>
 
     <section aria-label="Condizioni" className="space-y-3 rounded-lg border bg-white p-3">
       <div className="space-y-1"><Label htmlFor="native-condizioni" className="text-sm font-semibold">Note e condizioni del preventivo</Label><Textarea id="native-condizioni" maxLength={12000} rows={3} value={bozza.condizioni} onChange={e => onChange({ condizioni: e.target.value })} /></div>
@@ -167,12 +172,15 @@ export default function ComputoDocumento({ creaCommessa, bozza, onChange, onSost
         {([["Lavorazioni incluse", "inclusioni", 6000], ["Esclusioni e limiti", "esclusioni", 6000], ["Tempi di esecuzione", "tempi", 3000]] as const).map(([label, key, max]) =>
           <div key={key} className="space-y-1"><Label htmlFor={`native-${key}`} className="text-xs">{label}</Label><Textarea id={`native-${key}`} rows={3} maxLength={max} value={bozza[key]} onChange={e => onChange({ [key]: e.target.value })} /></div>)}
       </div></details>
-      <div className="space-y-1">
+      <details className="border-t pt-3">
+        <summary className="cursor-pointer text-sm font-semibold">Contratto e condizioni dell'azienda <span className="ml-1 text-xs font-normal text-muted-foreground">{bozza.contrattoOrigine ? `${bozza.contrattoOrigine.nome} · v${bozza.contrattoOrigine.versione}` : bozza.condizioniContrattuali.trim() ? "Testo del preventivo" : "Da impostare"}{sez.contrattuali === false ? " · escluso dal PDF" : ""}</span></summary>
+      <div className="mt-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2"><Label htmlFor="native-contrattuali" className="text-sm font-semibold">Condizioni contrattuali</Label>
           {puoRiscrivereCondizioni && !!condizioniDelModello?.trim() && condizioniDelModello !== bozza.condizioniContrattuali && <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onChange({ condizioniContrattuali: condizioniDelModello })}><RotateCcw className="mr-1 h-3.5 w-3.5" />Riprendi quelle del modello</Button>}</div>
         {!puoRiscrivereCondizioni && <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Lock className="h-3 w-3 shrink-0" />Sono quelle dell'azienda. Per cambiarle su questo preventivo serve il permesso «Riscrivere le condizioni su un documento».</p>}
-        <Textarea id="native-contrattuali" rows={5} maxLength={20000} readOnly={!puoRiscrivereCondizioni} placeholder={"Si impostano una volta in Impostazioni → Modelli preventivi → Computo metrico.\n# Condizioni contrattuali\n## 1. Oggetto\n- …"} value={bozza.condizioniContrattuali} onChange={e => onChange({ condizioniContrattuali: e.target.value })} />
+        <Textarea id="native-contrattuali" rows={8} maxLength={100000} readOnly={!puoRiscrivereCondizioni} placeholder={"Si impostano in Impostazioni → Modelli preventivi → Preventivo / computo metrico.\n# Condizioni contrattuali\n## 1. Oggetto\n- …"} value={bozza.condizioniContrattuali} onChange={e => onChange({ condizioniContrattuali: e.target.value })} />
       </div>
+      </details>
     </section>
 
     {invioFirma}

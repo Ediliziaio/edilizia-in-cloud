@@ -33,29 +33,29 @@ function Harness({ initial = "", ai = false }: { initial?: string; ai?: boolean 
   return <><p>Lista Preventivi</p><NewQuoteDialog ai={ai} open={open} onOpenChange={setOpen} params={new URLSearchParams(initial)} trigger={<button>Nuovo preventivo</button>} /><output data-testid="route">{location.pathname}{location.search}</output></>;
 }
 
-describe("ingresso locale computo nei Preventivi", () => {
-  it("in produzione mostra il nuovo computo solo a Demo Azienda 2", () => {
+describe("ingresso unificato preventivo / computo", () => {
+  it("mostra lo stesso ingresso anche in produzione", () => {
     vi.stubEnv("DEV", false); state.company = "d2000000-0000-4000-a000-000000000002";
     try {
       render(<MemoryRouter><Harness /></MemoryRouter>);
       fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
-      expect(screen.getByRole("link", { name: /^Computo metrico/ })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^Preventivo \/ computo metrico/ })).toBeInTheDocument();
     } finally { vi.unstubAllEnvs(); }
   });
-  it("in produzione non propone il nuovo computo ad altre aziende", () => {
+  it("propone il preventivo / computo anche alle altre aziende", () => {
     vi.stubEnv("DEV", false);
     try {
       render(<MemoryRouter><Harness /></MemoryRouter>);
       fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
-      expect(screen.queryByRole("link", { name: /^Computo metrico/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /^Preventivo \/ computo metrico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
     } finally { vi.unstubAllEnvs(); }
   });
-  it("propone il computo indipendente dalla commessa e conserva il classico", () => {
+  it("propone un solo ingresso comune, indipendente dalla commessa", () => {
     state.permissions.canEditPreventivi = true;
     render(<MemoryRouter><Harness /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" }));
-    expect(screen.getByRole("link", { name: /^Computo metrico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/computo");
-    expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
+    expect(screen.getByRole("link", { name: /^Preventivo \/ computo metrico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
+    expect(screen.queryByRole("link", { name: /^Preventivo classico/ })).not.toBeInTheDocument();
   });
 });
 const mount = (initial = "") => { render(<MemoryRouter initialEntries={["/azienda/marketing/preventivi"]}><Harness initial={initial} /></MemoryRouter>); fireEvent.click(screen.getByRole("button", { name: "Nuovo preventivo" })); };
@@ -86,10 +86,10 @@ describe("popup unico di creazione preventivi", () => {
     fireEvent.click(link);
     expect(screen.getByTestId('route')).toHaveTextContent('/azienda/bagni/nuovo?modello=completo&contact_id=c1');
   });
-  it('sceglie il classico prima della chat AI e conserva solo il contesto CRM consentito', () => {
+  it('sceglie il preventivo / computo prima della chat AI e conserva solo il contesto CRM consentito', () => {
     render(<MemoryRouter><Harness ai initial="contact_id=c1&opportunity_id=o1&scenario=tetti&token=non-copiare" /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Nuovo preventivo' }));
-    const classic = screen.getByRole('link', { name: /^Preventivo classico/ });
+    const classic = screen.getByRole('link', { name: /^Preventivo \/ computo metrico/ });
     expect(classic).toHaveAttribute('href', '/azienda/marketing/preventivi/nuovo?contact_id=c1&opportunity_id=o1&ai=1');
     fireEvent.click(classic);
     expect(screen.getByTestId('route')).toHaveTextContent('/azienda/marketing/preventivi/nuovo?contact_id=c1&opportunity_id=o1&ai=1');
@@ -124,7 +124,7 @@ describe("popup unico di creazione preventivi", () => {
     expect(screen.getByRole("dialog")).toHaveAccessibleName("Che preventivo vuoi creare?");
     expect(screen.getByTestId("route")).toHaveTextContent("/azienda/marketing/preventivi");
     expect(screen.getAllByRole("button", { name: /^Scegli area/ })).toHaveLength(14);
-    expect(screen.getByRole("link", { name: /^Preventivo classico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
+    expect(screen.getByRole("link", { name: /^Preventivo \/ computo metrico/ })).toHaveAttribute("href", "/azienda/marketing/preventivi/nuovo");
     expect(screen.queryByRole("link", { name: /PDF|Impostazioni/ })).not.toBeInTheDocument();
   });
   it("mostra soltanto aree abilitate, visibili e consentite dal ruolo", () => {
@@ -153,7 +153,7 @@ describe("popup unico di creazione preventivi", () => {
   });
   it("non mostra il classico senza il suo permesso", () => {
     state.permissions.canEditPreventivi = false; mount();
-    expect(screen.queryByRole("link", { name: /^Preventivo classico/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Preventivo \/ computo metrico/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Scegli area Fotovoltaico" })).not.toBeInTheDocument();
   });
   it("porta Ripasso al suo wizard e conserva soltanto il contesto CRM", () => {

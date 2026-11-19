@@ -13,15 +13,45 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import type { BozzaComputo } from "./editorNativo";
 import { testoPiano, type Clausola } from "@/lib/condizioni/archivio";
+import { condizioniStandard } from "@/lib/condizioniStandard";
+import { FONT_DOCUMENTO_IDS } from "./fontDocumento";
 
 const colore = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const testo = (max: number) => z.string().max(max).default("");
+const carattere = z.enum(FONT_DOCUMENTO_IDS);
+const percorsoAsset = z.string().max(500).refine(s => !s || /^[\w-]+\/[\w./-]+$/.test(s) && !s.includes(".."), "File non valido").default("");
+export const campoModelloSchema = z.object({
+  chiave: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,47}$/), etichetta: z.string().min(1).max(80),
+  valore: z.string().max(3000).default(""), mostraNelDocumento: z.boolean().default(true),
+});
 
 export const modelloComputoSchema = z.object({
   /** Vuoto = il colore del marchio dell'azienda. */
   colorePrimario: colore.or(z.literal("")).default(""),
   /** La copertina della prima pagina: fascia piena col colore, banda sottile, oppure sobria senza colore. */
-  copertina: z.enum(["piena", "fascia", "sobria"]).default("piena"),
+  copertina: z.enum(["piena", "editoriale", "fascia", "sobria"]).default("piena"),
+  fontFamiglia: carattere.default("helvetica"),
+  fontTitoli: carattere.nullable().default(null),
+  dimensioneTitolo: z.number().min(18).max(48).default(34),
+  dimensioneSottotitoli: z.number().min(9).max(20).default(11),
+  dimensioneTesto: z.number().min(8).max(12).default(9.5),
+  fontPersonalizzato: z.object({ nome: z.string().min(1).max(100), file: percorsoAsset, fileGrassetto: percorsoAsset }).nullable().default(null),
+  immagineCopertina: percorsoAsset,
+  logoPersonalizzato: percorsoAsset,
+  logoLarghezza: z.number().min(15).max(150).default(60),
+  logoAllineamento: z.enum(["sinistra", "centro", "destra"]).default("sinistra"),
+  logoFondoBianco: z.boolean().default(true),
+  mostraIntestazione: z.boolean().default(true),
+  campiPersonalizzati: z.array(campoModelloSchema).max(30).refine(campi => new Set(campi.map(c => c.chiave)).size === campi.length, "Usa codici diversi per i campi").default([]),
+  /** Il modello della libreria da cui è stata copiata la veste; nessuna modifica all'offerta originale. */
+  modelloOffertaId: z.string().uuid().nullable().default(null),
+  mostraNumeriPagina: z.boolean().default(true),
+  sezioni: z.object({
+    copertina: z.boolean().default(true), premessa: z.boolean().default(true), indice: z.boolean().default(true),
+    lavorazioni: z.boolean().default(true), riepilogo: z.boolean().default(true), cronoprogramma: z.boolean().default(true),
+    pagamenti: z.boolean().default(true), detrazione: z.boolean().default(true), contrattuali: z.boolean().default(true),
+    firme: z.boolean().default(true),
+  }).prefault({}),
   mostraLogo: z.boolean().default(true),
   scalaLogo: z.number().int().min(25).max(250).default(100),
   /** Sopra il titolo, in maiuscolo. Vuoto = «Preventivo / Computo metrico estimativo». */
@@ -37,11 +67,12 @@ export const modelloComputoSchema = z.object({
   condizioni: testo(12000), inclusioni: testo(6000), esclusioni: testo(6000), tempi: testo(3000), pagamenti: testo(3000),
   riferimentoPrezzi: testo(2000),
   /** Le condizioni contrattuali di ogni computo nuovo (titoli «#», righe «- »), come nelle offerte del preventivo classico. */
-  condizioniContrattuali: testo(20000),
+  condizioniContrattuali: testo(100000),
   /** Le clausole da approvare con una seconda firma (artt. 1341-1342 c.c.), una per riga. */
-  clausoleDaApprovare: testo(3000),
+  clausoleDaApprovare: testo(12000),
   /** Il modello di «Contratti e condizioni» che usa il computo. Vuoto = il predefinito (07/11/2026). */
   condizioniModelloId: z.string().uuid().nullable().default(null),
+  contrattoOrigine: z.object({ id: z.string(), nome: z.string(), versione: z.number() }).nullable().default(null),
   /** Quanti giorni vale l'offerta: va nella pagina di accettazione e nella firma online. */
   giorniValidita: z.number().int().min(1).max(365).default(30),
   ivaModalita: z.enum(["da-definire", "applicata", "non-applicabile"]).default("da-definire"),
@@ -60,18 +91,34 @@ export function leggiModelloComputo(dato: unknown): ModelloComputo {
     const campo = forma[chiave as keyof typeof forma].safeParse(valore);
     if (campo.success) pulito[chiave] = campo.data;
   }
-  return modelloComputoSchema.parse(pulito);
+  const modello = modelloComputoSchema.parse(pulito);
+  // I modelli precedenti esprimevano la larghezza in percentuale dei 60 mm di serie.
+  if (!("logoLarghezza" in grezzo) && typeof grezzo.scalaLogo === "number") modello.logoLarghezza = 60 * modello.scalaLogo / 100;
+  // La precedente prova caricava Garamond nel modello; ora è già incluso nell'app.
+  if (/^EBGaramond[- ]Regular$/i.test(modello.fontPersonalizzato?.nome ?? "")) {
+    if (modello.fontFamiglia === "personalizzato") modello.fontFamiglia = "garamond";
+    if (modello.fontTitoli === "personalizzato") modello.fontTitoli = "garamond";
+  }
+  return modello;
 }
 
 /** La parte del modello che serve al PDF. */
-export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "sopratitolo" | "premessa" | "mostraFirma" | "firmatario" | "piePagina"> & Partial<Pick<ModelloComputo, "scalaLogo" | "clausoleDaApprovare" | "giorniValidita">> & {
+export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "sopratitolo" | "premessa" | "mostraFirma" | "firmatario" | "piePagina"> & Partial<Pick<ModelloComputo, "scalaLogo" | "clausoleDaApprovare" | "giorniValidita" | "fontFamiglia" | "fontTitoli" | "dimensioneTitolo" | "dimensioneSottotitoli" | "dimensioneTesto" | "fontPersonalizzato" | "immagineCopertina" | "logoPersonalizzato" | "logoLarghezza" | "logoAllineamento" | "logoFondoBianco" | "mostraIntestazione" | "campiPersonalizzati" | "mostraNumeriPagina" | "sezioni">> & {
   /** Il logo già letto (data URL PNG o JPEG): jsPDF non scarica immagini da solo. */
   logo?: { dati: string; formato: "PNG" | "JPEG"; larghezza: number; altezza: number } | null;
+  /** TTF validati e letti prima del rendering, mai salvati nel JSON del modello. */
+  fontCaricato?: { normale: string; grassetto?: string };
+  fontSistemaCaricati?: Record<string, { normale: string; grassetto?: string }>;
 };
 export const vesteDalModello = (m: ModelloComputo): VesteComputo => ({
   copertina: m.copertina, mostraLogo: m.mostraLogo, scalaLogo: m.scalaLogo, sopratitolo: m.sopratitolo, premessa: m.premessa,
   mostraFirma: m.mostraFirma, firmatario: m.firmatario, piePagina: m.piePagina,
   clausoleDaApprovare: m.clausoleDaApprovare, giorniValidita: m.giorniValidita,
+  fontFamiglia: m.fontFamiglia, mostraNumeriPagina: m.mostraNumeriPagina, sezioni: m.sezioni,
+  fontTitoli: m.fontTitoli, dimensioneTitolo: m.dimensioneTitolo, dimensioneSottotitoli: m.dimensioneSottotitoli, dimensioneTesto: m.dimensioneTesto,
+  fontPersonalizzato: m.fontPersonalizzato, immagineCopertina: m.immagineCopertina, logoPersonalizzato: m.logoPersonalizzato,
+  logoLarghezza: m.logoLarghezza, logoAllineamento: m.logoAllineamento, logoFondoBianco: m.logoFondoBianco,
+  mostraIntestazione: m.mostraIntestazione, campiPersonalizzati: m.campiPersonalizzati,
 });
 
 /**
@@ -80,25 +127,29 @@ export const vesteDalModello = (m: ModelloComputo): VesteComputo => ({
  * arriva semplice, una clausola per titolo. Senza un modello nell'archivio il computo resta col suo testo:
  * chi non usa l'archivio non vede differenze. Le clausole da approvare a parte sono quelle segnate lì.
  */
-export function conCondizioniDellArchivio(
-  m: ModelloComputo,
-  modelliArchivio: ReadonlyArray<{ id: string; ambito: string; predefinito?: boolean | null; attivo?: boolean | null; clausole?: Clausola[] | null }>,
-): ModelloComputo {
-  const attivi = modelliArchivio.filter((x) => x.attivo !== false && x.ambito === "preventivo");
-  const scelto = attivi.find((x) => x.id === m.condizioniModelloId) ?? attivi.find((x) => x.predefinito) ?? null;
-  const clausole = (scelto?.clausole ?? []).filter((c) => testoPiano(c.testo) || (c.titolo ?? "").trim());
-  if (!scelto || !clausole.length) return m;
+export interface ContrattoDelModello { id: string; ambito: string; nome?: string; versione?: number; predefinito?: boolean | null; attivo?: boolean | null; clausole?: Clausola[] | null }
+
+export function contrattoDelModello(m: Pick<ModelloComputo, "condizioniModelloId">, modelliArchivio: ReadonlyArray<ContrattoDelModello>) {
+  const attivi = modelliArchivio.filter((x) => x.attivo !== false && x.ambito === "preventivo" && x.clausole?.some(c => c && (testoPiano(c.testo) || c.titolo?.trim())));
+  return attivi.find((x) => x.id === m.condizioniModelloId) ?? attivi.find((x) => x.predefinito) ?? null;
+}
+
+export function conCondizioniDellArchivio(m: ModelloComputo, modelliArchivio: ReadonlyArray<ContrattoDelModello>): ModelloComputo {
+  const scelto = contrattoDelModello(m, modelliArchivio);
+  const clausole = (scelto?.clausole ?? []).filter((c) => c && (testoPiano(c.testo) || (c.titolo ?? "").trim()));
+  if (!scelto || !clausole.length) return { ...m, contrattoOrigine: null, condizioniContrattuali: m.condizioniContrattuali.trim() || condizioniStandard("generico") };
   const righe = clausole.map((c) => {
     const titolo = (c.titolo ?? "").trim();
-    const corpo = testoPiano(c.testo);
+    const corpo = testoPiano((c.testo ?? "").replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, livello: string, testo: string) => `\n${"#".repeat(Math.min(3, Number(livello)))} ${testoPiano(testo)}\n`));
     // Un contratto intero importato si apre già col suo titolo: non se ne aggiunge un altro.
     const apreColTitolo = /^#{1,6}\s/.test(corpo);
     return [titolo && !(clausole.length === 1 && apreColTitolo) ? `# ${titolo}` : "", corpo].filter(Boolean).join("\n");
   });
   return {
     ...m,
-    condizioniContrattuali: righe.join("\n\n").slice(0, 20000),
-    clausoleDaApprovare: clausole.filter((c) => c.vessatoria).map((c) => (c.titolo ?? "").trim()).filter(Boolean).join("\n").slice(0, 3000),
+    contrattoOrigine: { id: scelto.id, nome: scelto.nome ?? "Condizioni contrattuali", versione: scelto.versione ?? 1 },
+    condizioniContrattuali: righe.join("\n\n"),
+    clausoleDaApprovare: clausole.filter((c) => c.vessatoria).map((c) => (c.titolo ?? "").trim() || testoPiano(c.testo).split("\n")[0]).filter(Boolean).join("\n"),
   };
 }
 
@@ -109,6 +160,8 @@ export function bozzaDalModello(bozza: BozzaComputo, m: ModelloComputo): BozzaCo
     condizioni: m.condizioni, inclusioni: m.inclusioni, esclusioni: m.esclusioni, tempi: m.tempi, pagamenti: m.pagamenti,
     riferimentoPrezzi: m.riferimentoPrezzi, ivaModalita: m.ivaModalita, ivaAliquota: m.ivaAliquota,
     condizioniContrattuali: m.condizioniContrattuali,
+    contrattoOrigine: m.contrattoOrigine,
+    sezioniPdf: { ...m.sezioni, firme: m.sezioni.firme && m.mostraFirma },
   };
 }
 
@@ -167,6 +220,10 @@ export function useSalvaModelloComputo(companyId: string | null | undefined) {
     mutationFn: async (modello: ModelloComputo) => {
       if (!companyId) throw new Error("Azienda non riconosciuta: ricarica la pagina.");
       const valido = modelloComputoSchema.parse(modello);
+      if ((valido.fontFamiglia === "personalizzato" || valido.fontTitoli === "personalizzato") && !valido.fontPersonalizzato?.file) throw new Error("Carica il file del carattere personalizzato prima di salvare.");
+      for (const percorso of [valido.immagineCopertina, valido.logoPersonalizzato, valido.fontPersonalizzato?.file, valido.fontPersonalizzato?.fileGrassetto]) {
+        if (percorso && !percorso.startsWith(`${companyId}/`)) throw new Error("Uno dei file appartiene a un'altra azienda. Caricalo nuovamente in questo modello.");
+      }
       const { data: utente } = await supabase.auth.getUser();
       const { error } = await supabase.from("computo_modelli" as never)
         .upsert({ company_id: companyId, impostazioni: valido, updated_at: new Date().toISOString(), updated_by: utente.user?.id ?? null } as never, { onConflict: "company_id" });

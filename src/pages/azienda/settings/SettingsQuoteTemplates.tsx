@@ -584,6 +584,11 @@ function RigaInterruttoreModello({
 }
 
 export default function SettingsQuoteTemplates() {
+  return <QuoteTemplatesLegacy unificato />;
+}
+
+/** La libreria resta leggibile dalle versioni precedenti; il percorso pubblico usa un solo builder. */
+export function QuoteTemplatesLegacy({ unificato = false }: { unificato?: boolean }) {
   const isMobile = useIsMobile();
   const { role, effectiveCompany } = useAuth();
   const permissions = usePermissions();
@@ -603,14 +608,17 @@ export default function SettingsQuoteTemplates() {
   // Se ?modulo non è specificato → undefined → landing con grid card.
   // Solo se l'URL contiene un modulo esplicito apre l'editor di quel modulo.
   const moduloFromUrl = searchParams.get("modulo") ?? undefined;
-  const topTab = resolveQuoteTemplatesTopTab(tabFromUrl, moduloFromUrl);
+  const tabRisolta = resolveQuoteTemplatesTopTab(tabFromUrl, moduloFromUrl);
+  const topTab = unificato && tabRisolta === "documenti" ? "computo" : tabRisolta;
 
   useEffect(() => {
-    const normalized = normalizeQuoteTemplatesParams(searchParams);
+    const normalized = unificato && tabRisolta === "documenti"
+      ? buildQuoteTemplatesTabParams(searchParams, "computo")
+      : normalizeQuoteTemplatesParams(searchParams);
     if (normalized) {
       setSearchParams(normalized, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, unificato, tabRisolta]);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
@@ -1003,13 +1011,13 @@ export default function SettingsQuoteTemplates() {
       className="space-y-4"
     >
       <TabsList className="h-auto max-w-full flex-wrap bg-slate-100">
-        <TabsTrigger value="documenti" className="gap-1.5">
+        {!unificato && <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
-          Preventivo generico
-        </TabsTrigger>
+          Libreria modelli
+        </TabsTrigger>}
         <TabsTrigger value="computo" className="gap-1.5">
           <FileSpreadsheet className="h-3.5 w-3.5" />
-          Computo metrico
+          {unificato ? "Preventivo / computo metrico" : "Builder preventivo"}
         </TabsTrigger>
         <TabsTrigger value="moduli-vendita" className="gap-1.5">
           <ShoppingBag className="h-3.5 w-3.5" />
