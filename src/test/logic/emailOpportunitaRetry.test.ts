@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   ai: vi.fn(), payment: vi.fn(), rpc: vi.fn(), calls: [] as Array<{ table: string; op: string; column?: string; value?: unknown }>,
-  email: { id: "email", company_id: "azienda", from_email: "cliente@example.test", from_name: "Cliente", subject: "Richiesta", raw_text: "Bagno", attachments: [] },
+  email: { id: "email", company_id: "azienda", from_email: "cliente@example.test", from_name: "Cliente", subject: "Richiesta", raw_text: "Bagno", attachments: [] as unknown[] },
   saveError: null as null | { message: string },
 }));
 vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => ({
@@ -10,7 +10,7 @@ vi.mock("https://esm.sh/@supabase/supabase-js@2", () => ({ createClient: () => (
   rpc: state.rpc,
   from: (table: string) => {
     let op = "select";
-    const result = () => table === "email_inbox" ? { data: state.email, error: null }
+    const result = (): { data: Record<string, unknown> | null; error: { message: string } | null } => table === "email_inbox" ? { data: state.email, error: null }
       : table === "email_opportunita_bozza" && op === "insert" ? { data: { id: "bozza" }, error: state.saveError }
       : { data: null, error: null };
     const q = {

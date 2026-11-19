@@ -18,7 +18,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   ] : [], error: null }),
   from: (table: string) => {
     let personal = false;
-    const result = () => {
+    const result = (): { data: unknown[]; error: Error | null } => {
       if (table === "internal_chat_members") return { data: state.joined ? [
         { id: "membership", channel_id: "new", user_id: "me", company_id: "company", role: "member" },
         ...(!personal ? [{ id: "other-membership", channel_id: "new", user_id: "other" }] : []),

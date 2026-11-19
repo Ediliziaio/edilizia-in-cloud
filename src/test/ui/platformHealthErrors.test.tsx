@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const rpc = vi.hoisted(() => vi.fn());
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
-vi.mock("@/components/admin/RenderAiChiavi", () => ({ RenderAiChiavi: () => null }));
+vi.mock("@/components/admin/RenderAiChiavi", () => ({ RenderAiChiavi: (): null => null }));
 import { ErroriRecenti } from "@/pages/admin/PlatformHealthPage";
 afterEach(() => { cleanup(); rpc.mockReset(); });
 function open() {
@@ -14,7 +14,7 @@ function open() {
 }
 describe("Registro salute raggruppato", () => {
   it("mostra conteggio e causa dei blocchi senza confonderli con un guasto tecnico", async () => {
-    const base = { avvenuto_il: new Date().toISOString(), primo_evento: new Date().toISOString(), azienda_nome: null, gravita: "avviso", origine: "cron", componente: "chiamata pianificata" };
+    const base = { avvenuto_il: new Date().toISOString(), primo_evento: new Date().toISOString(), azienda_nome: null as string | null, gravita: "avviso", origine: "cron", componente: "chiamata pianificata" };
     rpc.mockResolvedValue({ data: [
       { ...base, id: "credito", categoria: "azione_richiesta", numero_eventi: 1919, messaggio: "Crediti AI esauriti", codice: 402 },
       { ...base, id: "guasto", categoria: "errore_tecnico", numero_eventi: 3, messaggio: "Servizio non disponibile", codice: 503 },
