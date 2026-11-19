@@ -18,11 +18,12 @@ import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewP
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { ComputoFormatoSchede, ComputoOpzione } from "./ComputoPdfControls";
+import { coloriCopertina, creaTema } from "@/components/preventivi/pdf/temaDocumento";
 import { bozzaVuota, voceVuota, vociPerAnteprima, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { leggiLogoPerPdf, modelloComputoDiSerie, useModelloComputo, useSalvaModelloComputo, vesteDalModello, type ModelloComputo, type VesteComputo } from "@/lib/computo/modelloComputo";
 
 const COPERTINE = [
-  ["piena", "Fascia piena", "La prima pagina si apre col colore del marchio."],
+  ["piena", "Fascia piena", "La prima pagina usa lo sfondo della copertina."],
   ["fascia", "Banda sottile", "Un filo di colore in alto, testo scuro su bianco."],
   ["sobria", "Sobria", "Niente colore: titolo, filetto e dati del lavoro."],
 ] as const;
@@ -65,6 +66,8 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
   const cambiato = !!modello && !!salvato && JSON.stringify(modello) !== JSON.stringify(salvato);
   const cambia = (patch: Partial<ModelloComputo>) => setModello({ ...m, ...patch });
   const colore = m.colorePrimario || effectiveCompany?.brand_primary_color || "#1e3a8a";
+  const sfondoCopertina = coloriCopertina(creaTema({ primario: colore }), { fondo: m.coloreCopertina }).fondo;
+  const coloreCopertinaValido = !m.coloreCopertina || /^#[0-9a-f]{6}$/i.test(m.coloreCopertina);
 
   const esempio = useMemo(() => bozzaEsempio(m), [m]);
   const depsKey = useMemo(() => JSON.stringify([m, !!logo, effectiveCompany?.id]), [m, logo, effectiveCompany?.id]);
@@ -98,7 +101,7 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
           <p className="text-sm text-muted-foreground">La veste del PDF e le condizioni con cui parte ogni computo nuovo. Nel singolo preventivo si possono sempre cambiare.</p></div>
         {canEdit && <div className="flex gap-2">
           <Button variant="outline" size="sm" disabled={salva.isPending} onClick={() => setModello(modelloComputoDiSerie())}><RotateCcw className="mr-1 h-4 w-4" />Valori di serie</Button>
-          <Button size="sm" disabled={!cambiato && letto.data?.salvato || salva.isPending} onClick={() => {
+          <Button size="sm" disabled={(!cambiato && letto.data?.salvato) || salva.isPending || !coloreCopertinaValido} onClick={() => {
             salva.mutate(m, { onSuccess: () => toast.success("Modello del computo salvato", { description: "Lo usano i computi da adesso in poi." }), onError: e => toast.error((e as Error).message) });
           }}>{salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Save className="mr-1 h-4 w-4" />}Salva modello</Button>
         </div>}
@@ -112,12 +115,22 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
             {COPERTINE.map(([v, titolo, testo]) => <button key={v} type="button" role="radio" aria-checked={m.copertina === v} onClick={() => cambia({ copertina: v })}
               className={`rounded-lg border p-3 text-left transition-colors ${m.copertina === v ? "border-orange-400 bg-orange-50 ring-1 ring-orange-300" : "border-slate-200 bg-white hover:border-orange-200"}`}>
               <span className="mb-2 block h-8 overflow-hidden rounded border bg-white" aria-hidden="true">
-                {v === "piena" && <span className="block h-full" style={{ background: colore }} />}
+                {v === "piena" && <span className="block h-full" style={{ background: sfondoCopertina }} />}
                 {v === "fascia" && <span className="block h-1.5" style={{ background: colore }} />}
                 {v === "sobria" && <span className="mx-2 mt-5 block h-px" style={{ background: colore }} />}
               </span>
               <span className="block text-sm font-medium">{titolo}</span><span className="block text-xs text-muted-foreground">{testo}</span>
             </button>)}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="modello-sfondo-copertina" className="text-xs">Sfondo della copertina</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input id="modello-sfondo-copertina" type="color" aria-label="Sfondo della copertina" className="h-9 w-12 cursor-pointer rounded border bg-white p-1" disabled={m.copertina !== "piena"} value={sfondoCopertina} onChange={e => cambia({ coloreCopertina: e.target.value })} />
+              <Input aria-label="Codice colore della copertina" className="h-9 w-32 font-mono" maxLength={7} placeholder={sfondoCopertina} value={m.coloreCopertina} disabled={m.copertina !== "piena"} aria-invalid={!coloreCopertinaValido} onChange={e => cambia({ coloreCopertina: e.target.value })} />
+              {m.coloreCopertina && <Button type="button" variant="link" size="sm" onClick={() => cambia({ coloreCopertina: "" })}>Colore automatico</Button>}
+            </div>
+            <p className="text-xs text-muted-foreground">{m.copertina === "piena" ? "Il colore scelto viene usato esattamente sullo sfondo. Il testo si adatta per restare leggibile." : "Lo sfondo colorato è disponibile con Fascia piena."}</p>
+            {!coloreCopertinaValido && <p role="alert" className="text-xs text-destructive">Scrivi un colore come #1E40AF.</p>}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1"><Label htmlFor="modello-colore" className="text-xs">Colore del documento</Label>

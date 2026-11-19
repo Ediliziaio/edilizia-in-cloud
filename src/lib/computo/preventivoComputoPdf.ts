@@ -78,7 +78,10 @@ export function disegnaPreventivoComputo(doc: jsPDF, voci: VoceComputo[], i: Int
   const coperta = (veste?.copertina ?? "piena") === "piena" && i.sezioni?.copertina !== false;
   const logo = veste?.mostraLogo !== false ? veste?.logo : null;
   if (coperta) {
-    const c = coloriCopertina(t, {});
+    const colori = coloriCopertina(t, { fondo: veste?.coloreCopertina });
+    // Con uno sfondo libero, anche chiaro, occhiello e dati devono restare
+    // leggibili: l'accento schiarito del modello di serie è pensato per fondi scuri.
+    const c = veste?.coloreCopertina ? { ...colori, evidenza: colori.testo } : colori;
     // Niente trasparenze (jsPDF non le rende ovunque): i toni tenui sono il testo già mescolato col fondo.
     const mescola = (a: string, b: string, k: number) => {
       const n = (h: string, i0: number) => parseInt(h.replace("#", "").slice(i0, i0 + 2), 16);

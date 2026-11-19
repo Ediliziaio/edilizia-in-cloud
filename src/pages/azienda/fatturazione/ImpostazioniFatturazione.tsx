@@ -31,6 +31,9 @@ import {
 import { FatturaElettronicaPassi } from "@/components/fatturazione/FatturaElettronicaPassi";
 import { CANALE_SDI, CODICE_DESTINATARIO_EIC } from "@/lib/fatturazione/canaleSdi";
 import { isDemoCompanyId } from "@/lib/constants/demoCompany";
+import { ImpostazioniLogoFattura } from "@/components/fatturazione/ImpostazioniLogoFattura";
+import { cssLogoDocumentoFiscale, leggiLogoDocumentoFiscale } from "../../../../supabase/functions/_shared/logoDocumentoFiscale";
+import { logoDiRiserva } from "../../../../supabase/functions/_shared/logoAzienda";
 import { datiReaMancanti, eSocieta, eSocietaDiCapitali } from "../../../../supabase/functions/_shared/datiSocietari";
 
 import { useSearchParams } from "react-router-dom";
@@ -161,6 +164,8 @@ export default function ImpostazioniFatturazione() {
   const provvisori = campiProvvisori(azienda as unknown as Record<string, unknown> | null | undefined);
   const current: Record<string, any> = { ...(azienda?.id ? schedaDaMostrare(azienda as unknown as Record<string, unknown>) : schedaDalProfilo(profilo)), ...form };
   const updateField = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }));
+  const logoPdf = leggiLogoDocumentoFiscale(current.pdf_logo);
+  const logoAnteprima = logoDiRiserva(current.logo_url, effectiveCompany?.logo_url);
   // Rende il numero come il backend (formatta_numero_documento): stesso template nella scheda.
   const renderNumero = (formato: string | null | undefined, prefisso: string, n: number, anno: number): string => {
     const tpl = formato && String(formato).trim() ? String(formato) : "{prefisso}-{yyyy}-{nnnn}";
@@ -591,6 +596,10 @@ export default function ImpostazioniFatturazione() {
         {/* ═══════════════════════════════════════════════════════ */}
         <TabsContent value="pdf" className="space-y-4 mt-4">
           <Card>
+            <CardHeader><CardTitle className="text-base">Logo nel PDF</CardTitle><CardDescription>Posizione e dimensioni nella copia di cortesia delle fatture, note di credito e proforma.</CardDescription></CardHeader>
+            <CardContent><ImpostazioniLogoFattura valore={current.pdf_logo} onChange={v => updateField("pdf_logo", v)} /></CardContent>
+          </Card>
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Colore delle fatture</CardTitle>
               <CardDescription>Il colore dei titoli e delle righe nei PDF delle fatture.</CardDescription>
@@ -600,7 +609,7 @@ export default function ImpostazioniFatturazione() {
                 <Label htmlFor="colore-fattura">Colore</Label>
                 <div className="flex items-center gap-3">
                   <input id="colore-fattura" type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="w-10 h-10 rounded border cursor-pointer" />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {["#0ea5e9", "#10b981", "#8b5cf6", "#ef4444", "#f59e0b", "#64748b", "#0f172a", "#dc2626"].map((c) => (
                       <button key={c} type="button" aria-label={`Colore ${c}`} aria-pressed={current.colore_primario === c} className={`w-8 h-8 rounded-full border-2 transition-all ${current.colore_primario === c ? "border-foreground scale-110" : "border-transparent hover:border-muted-foreground/30"}`}
                         style={{ backgroundColor: c }}
@@ -618,16 +627,18 @@ export default function ImpostazioniFatturazione() {
               <CardDescription>Un esempio con i tuoi dati: il numero è il prossimo che uscirà.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg p-6 bg-white dark:bg-gray-950 min-h-[200px]">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {current.logo_url && <img loading="lazy" src={current.logo_url} alt="Logo" className="h-10 object-contain" />}
+              <div className="fd-foglio anteprima-logo-fattura border rounded-lg p-6 bg-white dark:bg-gray-950 min-h-[200px]">
+                <style>{cssLogoDocumentoFiscale(current.pdf_logo).replaceAll(".fd-foglio", ".anteprima-logo-fattura")}</style>
+                {logoAnteprima && logoPdf.posizione !== "sinistra" && <img src={logoAnteprima} alt="Logo nell'anteprima" className="fd-logo block object-contain" />}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    {logoAnteprima && logoPdf.posizione === "sinistra" && <img loading="lazy" src={logoAnteprima} alt="Logo nell'anteprima" className="fd-logo block object-contain" />}
                     <div>
                       <div className="font-bold text-sm" style={{ color: current.colore_primario ?? "#0ea5e9" }}>{current.ragione_sociale || "Nome azienda"}</div>
                       <div className="text-[10px] text-muted-foreground">P.IVA {current.partita_iva || "—"}</div>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <div className="text-lg font-bold" style={{ color: current.colore_primario ?? "#0ea5e9" }}>FATTURA</div>
                     <div className="text-xs text-muted-foreground">N° {numeroDiProva}</div>
                     <div className="text-xs text-muted-foreground">del {new Date().toLocaleDateString("it-IT")}</div>

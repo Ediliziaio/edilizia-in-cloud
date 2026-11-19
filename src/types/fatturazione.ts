@@ -512,6 +512,7 @@ export interface AnagraficaAzienda {
   intestatario_conto?: string;
   nome_banca?: string;
   logo_url?: string;
+  pdf_logo?: { posizione?: "sinistra" | "centro" | "destra"; dimensione?: number; spazioSopra?: number };
   colore_primario?: string;
   font_fattura?: string;
   telefono?: string;

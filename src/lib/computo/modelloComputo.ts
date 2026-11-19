@@ -20,6 +20,8 @@ const testo = (max: number) => z.string().max(max).default("");
 export const modelloComputoSchema = z.object({
   /** Vuoto = il colore del marchio dell'azienda. */
   colorePrimario: colore.or(z.literal("")).default(""),
+  /** Vuoto = sfondo automatico del marchio; altrimenti il colore esatto scelto. */
+  coloreCopertina: colore.or(z.literal("")).default(""),
   /** La copertina della prima pagina: fascia piena col colore, banda sottile, oppure sobria senza colore. */
   copertina: z.enum(["piena", "fascia", "sobria"]).default("piena"),
   mostraLogo: z.boolean().default(true),
@@ -63,12 +65,12 @@ export function leggiModelloComputo(dato: unknown): ModelloComputo {
 }
 
 /** La parte del modello che serve al PDF. */
-export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "sopratitolo" | "premessa" | "mostraFirma" | "firmatario" | "piePagina"> & Partial<Pick<ModelloComputo, "clausoleDaApprovare" | "giorniValidita">> & {
+export type VesteComputo = Pick<ModelloComputo, "copertina" | "mostraLogo" | "sopratitolo" | "premessa" | "mostraFirma" | "firmatario" | "piePagina"> & Partial<Pick<ModelloComputo, "clausoleDaApprovare" | "giorniValidita" | "coloreCopertina">> & {
   /** Il logo già letto (data URL PNG o JPEG): jsPDF non scarica immagini da solo. */
   logo?: { dati: string; formato: "PNG" | "JPEG"; larghezza: number; altezza: number } | null;
 };
 export const vesteDalModello = (m: ModelloComputo): VesteComputo => ({
-  copertina: m.copertina, mostraLogo: m.mostraLogo, sopratitolo: m.sopratitolo, premessa: m.premessa,
+  copertina: m.copertina, coloreCopertina: m.coloreCopertina, mostraLogo: m.mostraLogo, sopratitolo: m.sopratitolo, premessa: m.premessa,
   mostraFirma: m.mostraFirma, firmatario: m.firmatario, piePagina: m.piePagina,
   clausoleDaApprovare: m.clausoleDaApprovare, giorniValidita: m.giorniValidita,
 });

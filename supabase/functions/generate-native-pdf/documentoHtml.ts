@@ -12,6 +12,7 @@
 import { RIFERIMENTO_NORMATIVO, naturaToXml } from "../_shared/generateXML.ts";
 import { iscrizioneRea } from "../_shared/datiSocietari.ts";
 import { nativePdfSnapshot } from "../_shared/nativePdfSnapshot.ts";
+import { leggiLogoDocumentoFiscale } from "../_shared/logoDocumentoFiscale.ts";
 import {
   CSS_PAGINA_STAMPA,
   cssFoglio,
@@ -114,6 +115,7 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   const snap: Record<string, any> = doc.cliente_snapshot || {};
   const scadenze: Array<Record<string, any>> = Array.isArray(doc.scadenze_pagamento) ? doc.scadenze_pagamento : [];
   const tema = temaFattura(azienda.colore_primario);
+  const logoSeparato = leggiLogoDocumentoFiscale(azienda.pdf_logo).posizione !== "sinistra";
   const etichetta = etichettaTipoDocumento(doc.tipo);
   const conSconto = righe.some((r) => (Number(r.sconto_percentuale) || 0) > 0);
   const fiscale = TIPI_FISCALI.includes(doc.tipo);
@@ -248,12 +250,13 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   return `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <title>${esc(titolo)}</title>
-<style>${CSS_PAGINA_STAMPA}${cssFoglio(tema)}</style>
+<style>${CSS_PAGINA_STAMPA}${cssFoglio(tema, azienda.pdf_logo)}</style>
 </head><body>
 <div class="fd-foglio">
+  ${logoSeparato && azienda.logo_url ? `<div class="fd-logo-riga"><img class="fd-logo" src="${esc(azienda.logo_url)}" alt=""></div>` : ""}
   <div class="fd-testata">
     <div class="fd-emittente">
-      ${azienda.logo_url ? `<img class="fd-logo" src="${esc(azienda.logo_url)}" alt="">` : ""}
+      ${!logoSeparato && azienda.logo_url ? `<img class="fd-logo" src="${esc(azienda.logo_url)}" alt="">` : ""}
       <div class="fd-ragione">${esc(azienda.ragione_sociale)}</div>
       ${forma ? `<div class="fd-forma">${esc(forma)}</div>` : ""}
       ${datiEmittente ? `<div class="fd-dati">${datiEmittente}</div>` : ""}

@@ -3,6 +3,7 @@ import type { EditorState } from "@/pages/azienda/fatturazione/editor/useEditorS
 import type { AnagraficaAzienda } from "@/types/fatturazione";
 import { nativePdfSnapshot } from "../../../supabase/functions/_shared/nativePdfSnapshot";
 import { logoDiRiserva } from "../../../supabase/functions/_shared/logoAzienda";
+import { leggiLogoDocumentoFiscale } from "../../../supabase/functions/_shared/logoDocumentoFiscale";
 import { iscrizioneRea } from "../../../supabase/functions/_shared/datiSocietari";
 import { naturaToXml } from "../../../supabase/functions/_shared/generateXML";
 import { TIPI_FISCALI, clausoleDocumento, noteFiscali } from "../../../supabase/functions/generate-native-pdf/documentoHtml";
@@ -64,6 +65,7 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
   const etichetta = etichettaTipoDocumento(doc.tipo ?? "fattura");
   const conSconto = righe.some((r) => (Number(r.sconto_percentuale) || 0) > 0);
   const logo = logoDiRiserva(az.logo_url, logoAziendale);
+  const logoSeparato = leggiLogoDocumentoFiscale(az.pdf_logo).posizione !== "sinistra";
   const evidenza = importoInEvidenza(doc);
   const destinatario = nomeDestinatario(snap);
 
@@ -79,11 +81,12 @@ export function PreviewFattura({ documento, azienda, logoAziendale, scale = 0.65
       style={{ transform: `scale(${scale})`, transformOrigin: "top center", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
     >
       {/* Come HTML: il foglio di stile ha virgolette e «>» che React, come testo, renderebbe innocui. Solo colori già normalizzati. */}
-      <style dangerouslySetInnerHTML={{ __html: cssFoglio(tema) }} />
+      <style dangerouslySetInnerHTML={{ __html: cssFoglio(tema, az.pdf_logo) }} />
       <div className="preview-fattura-sheet fd-foglio shadow-lg border rounded-sm mx-auto" style={{ minHeight: "297mm" }}>
+        {logo && logoSeparato && <div className="fd-logo-riga"><img className="fd-logo" src={logo} alt="" /></div>}
         <div className="fd-testata">
           <div className="fd-emittente">
-            {logo && <img className="fd-logo" src={logo} alt="" />}
+            {logo && !logoSeparato && <img className="fd-logo" src={logo} alt="" />}
             {azienda ? (
               <>
                 <div className="fd-ragione">{az.ragione_sociale}</div>
