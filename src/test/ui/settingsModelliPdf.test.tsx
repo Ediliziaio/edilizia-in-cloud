@@ -269,10 +269,10 @@ it("copia solo l'impaginazione e consente di scartare la bozza dopo aver visto i
   changeFormControl(screen.getByLabelText("Copia l’impaginazione da"), { target: { value: "richiesta" } });
   expect(screen.getByLabelText("Dimensione del logo in percentuale")).toHaveValue(175);
   expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("Titolo della bozza");
-  fireEvent.click(screen.getByRole("button", { name: "Anteprima", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Anteprima" }));
   expect(screen.getByTestId("anteprima")).toHaveTextContent('"scalaLogo":175');
   expect(screen.getByTestId("anteprima")).not.toHaveTextContent("Testo del modello sorgente");
-  fireEvent.click(screen.getByRole("button", { name: "Modifica", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
   expect(screen.getByLabelText("Titolo nel PDF")).toHaveValue("Titolo della bozza");
   fireEvent.click(screen.getByRole("button", { name: "Annulla modifiche" }));
   fireEvent.click(screen.getByRole("button", { name: "Scarta modifiche" }));
