@@ -40,6 +40,8 @@ import {
   righeLeggibili,
 } from "@/lib/fatturazione/riepilogoRicevuta";
 import { INFO_TIPO_FORNITORE, isTipoFornitore } from "@/lib/fornitori/tipiFornitore";
+import { leggiFattureXmlStampabili, riferimentiRigaXml } from "@/lib/fatturazione/fatturaXmlTabellare";
+import { AltriDatiXmlRicevuta, CampiXmlRicevuta, RiferimentiXmlRicevuta, RigheXmlAggiuntiveRicevuta } from "./DatiXmlRicevuta";
 
 /**
  * La fattura ricevuta come si legge su carta: chi la manda, cosa fattura, quanto,
@@ -99,7 +101,7 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   const { data: f, error } = await db
     .from("fatture_ricevute")
     .select(
-      "id, da_leggere, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
+      "id, da_leggere, prima_nota_id, verifica_manuale, rettifica_motivo, note_interne, pagata_il, cedente_ragione_sociale, cedente_piva, cedente_cf, cedente_indirizzo, cedente_cap, cedente_comune, cedente_provincia, cedente_paese, tipo_documento, numero_fattura, data_fattura, data_ricezione_sdi, imponibile_totale, iva_totale, totale_documento, pdf_url, pdf_storage_bucket, pdf_storage_path, righe, conti_righe, riepilogo_iva, stato, xml_url, xml_bytes, xml_raw, indice_corpo, purchase_order_id, company_cost_id, fornitore_id, order_id_suggerito, order_match_confidenza, contratto_subappalto_id, sal_subappaltatore_id, categoria_ai, sottocategoria_ai, ai_riassunto, anomalie_rilevate, note, piano_pagamento, condizioni_pagamento, ritenuta_importo, ritenuta_aliquota, ritenuta_tipo, cassa_previdenziale, bollo_importo, trattenuta_garanzia, netto_a_pagare",
     )
     .eq("id", fatturaId)
     .eq("company_id", companyId)
@@ -351,6 +353,25 @@ function ContenutoRiepilogo({
   const datate = scadenze.filter(r => r.data && (saldata || !r.pagata)).sort((a,b) => a.data!.localeCompare(b.data!));
   const scadenza = saldata ? datate[datate.length - 1] : datate[0];
   const righe = useMemo(() => righeLeggibili(f?.righe), [f?.righe]);
+  const xmlFattura = useMemo(() => {
+    if (typeof f?.xml_raw !== "string" || !f.xml_raw.trim()) return null;
+    try {
+      return leggiFattureXmlStampabili(f.xml_raw, { indiceCorpo: Number(f.indice_corpo ?? 0) })[0];
+    } catch {
+      return null;
+    }
+  }, [f]);
+  const righeXmlPerChiave = useMemo(() => {
+    // Una posizione dell’array senza NumeroLinea non identifica una riga XML.
+    const numeri = new Set((Array.isArray(f?.righe) ? f.righe : []).flatMap(r =>
+      r && typeof r === "object" && r.numero_linea != null ? [String(r.numero_linea).trim()] : []));
+    return new Map(righe.map(r => [r.chiave, numeri.has(r.chiave) ? riferimentiRigaXml(xmlFattura, r.chiave) : undefined]));
+  }, [f, righe, xmlFattura]);
+  const righeXmlNonAssociate = useMemo(() => {
+    const associate = new Set(righeXmlPerChiave.values());
+    return xmlFattura?.righeXml.filter(r => !associate.has(r)) ?? [];
+  }, [righeXmlPerChiave, xmlFattura]);
+  const monetaXml = (s: string) => s + (xmlFattura?.valuta === "EUR" ? " €" : xmlFattura?.valuta ? " " + xmlFattura.valuta : "");
   const aliquote = useMemo(() => riepilogoIvaLeggibile(f?.riepilogo_iva, righe), [f?.riepilogo_iva, righe]);
   // Il conto di costo riga per riga: dove una fattura mette insieme costi diversi.
   const contiSalvati = useMemo(() => {
@@ -365,7 +386,7 @@ function ContenutoRiepilogo({
   // Con la contabilità generale accesa una riga può diventare un cespite (registro dei beni ammortizzabili).
   const cespitiPerRiga = !!f && contiRighe.modo === "piano" && permessi.canViewCosts && !permessi.solaLettura && f.stato !== "rifiutata" && !nota;
   const cespitiFattura = useCespitiDellaFattura(companyId ?? "", String(f?.id ?? ""), cespitiPerRiga);
-  const haXml = !!f && (Number(f.xml_bytes) > 0 || !!f.xml_url);
+  const haXml = !!f && (Number(f.xml_bytes) > 0 || !!f.xml_url || !!f.xml_raw);
   const imponibile = f?.imponibile_totale != null ? Number(f.imponibile_totale) : aliquote.reduce((s, a) => s + a.imponibile, 0);
   const iva = f?.iva_totale != null ? Number(f.iva_totale) : aliquote.reduce((s, a) => s + a.imposta, 0);
   const totale = f?.totale_documento != null ? Number(f.totale_documento) : imponibile + iva;
@@ -597,11 +618,14 @@ function ContenutoRiepilogo({
               {azioni.extraCollegamenti?.(d)}
             </section>
 
+            {xmlFattura && <RiferimentiXmlRicevuta fattura={xmlFattura} />}
+            {typeof f.xml_raw === "string" && f.xml_raw.trim() && !xmlFattura && <p role="status" className="text-xs text-muted-foreground">I dettagli dell’XML non sono leggibili. Consulta il file originale.</p>}
+
             {/* Righe */}
             <section className="space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-1.5"><Receipt className="h-4 w-4" /> Cosa fattura</h3>
               {righe.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Il dettaglio delle righe non è arrivato con questa fattura: ci sono solo i totali.</p>
+                <p className="text-sm text-muted-foreground">{righeXmlNonAssociate.length ? "Il dettaglio è disponibile nelle righe dell’XML." : "Il dettaglio delle righe non è arrivato con questa fattura: ci sono solo i totali."}</p>
               ) : (
                 <>
                 {contiPerRiga ? <ProposteContiRighe conti={contiRighe} /> : null}
@@ -609,15 +633,18 @@ function ContenutoRiepilogo({
                 <ul className="divide-y rounded-lg border sm:hidden">
                   {righe.map((r, i) => (
                     <li key={i} className="px-3 py-2 text-sm">
-                      <p className="whitespace-pre-line">{r.descrizione || "—"}</p>
+                      <p className="whitespace-pre-line">{righeXmlPerChiave.get(r.chiave)?.descrizione || r.descrizione || "—"}</p>
+                      <CampiXmlRicevuta campi={righeXmlPerChiave.get(r.chiave)?.dettagli ?? []} />
                       <p className="mt-0.5 flex justify-between gap-2 text-xs text-muted-foreground">
                         <span>
-                          {r.quantita != null && r.prezzoUnitario != null
+                          {righeXmlPerChiave.get(r.chiave)
+                            ? `${righeXmlPerChiave.get(r.chiave)!.quantita} ${righeXmlPerChiave.get(r.chiave)!.unitaMisura} × ${monetaXml(righeXmlPerChiave.get(r.chiave)!.prezzoUnitario)}`
+                            : r.quantita != null && r.prezzoUnitario != null
                             ? `${r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 })} × ${formatCurrency(r.prezzoUnitario)}`
                             : ""}
-                          {` · ${r.aliquota ? `IVA ${String(r.aliquota).replace(".", ",")}%` : nomeNatura(r.natura) ?? "IVA 0%"}`}
+                          {righeXmlPerChiave.get(r.chiave) ? ` · IVA ${righeXmlPerChiave.get(r.chiave)!.iva}` : ` · ${r.aliquota ? `IVA ${String(r.aliquota).replace(".", ",")}%` : nomeNatura(r.natura) ?? "IVA 0%"}`}
                         </span>
-                        <span className="font-medium text-foreground tabular-nums">{formatCurrency(r.imponibile)}</span>
+                        <span className="font-medium text-foreground tabular-nums">{righeXmlPerChiave.get(r.chiave) ? monetaXml(righeXmlPerChiave.get(r.chiave)!.importo) : formatCurrency(r.imponibile)}</span>
                       </p>
                       {contiPerRiga && r.imponibile !== 0 ? <div className="mt-1.5"><ContoRigaMenu chiave={r.chiave} conti={contiRighe} /></div> : null}
                       {cespitiPerRiga && (rigaPuoEssereCespite(r.descrizione, r.imponibile) || cespitiFattura.data?.has(r.chiave)) ? (
@@ -627,7 +654,7 @@ function ContenutoRiepilogo({
                   ))}
                 </ul>
                 <div className="hidden overflow-x-auto rounded-lg border sm:block">
-                  <table className="w-full text-sm">
+                  <table aria-label="Cosa fattura" className="w-full text-sm">
                     <thead className="bg-muted/50 text-xs text-muted-foreground">
                       <tr>
                         <th className="px-2 py-1.5 text-left font-medium">Descrizione</th>
@@ -641,13 +668,15 @@ function ContenutoRiepilogo({
                     </thead>
                     <tbody>
                       {righe.map((r, i) => (
-                        <tr key={i} className="border-t align-baseline">
-                          <td className="px-2 py-1.5 whitespace-pre-line">{r.descrizione || "—"}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{r.quantita != null ? r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 }) : ""}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{r.prezzoUnitario != null ? formatCurrency(r.prezzoUnitario) : ""}</td>
-                          <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrency(r.imponibile)}</td>
+                        <tr key={i} className="border-t align-top">
+                          <td className="px-2 py-1.5 whitespace-pre-line">{righeXmlPerChiave.get(r.chiave)?.descrizione || r.descrizione || "—"}
+                            <CampiXmlRicevuta campi={righeXmlPerChiave.get(r.chiave)?.dettagli ?? []} />
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? `${righeXmlPerChiave.get(r.chiave)!.quantita} ${righeXmlPerChiave.get(r.chiave)!.unitaMisura}` : r.quantita != null ? r.quantita.toLocaleString("it-IT", { maximumFractionDigits: 3 }) : ""}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? monetaXml(righeXmlPerChiave.get(r.chiave)!.prezzoUnitario) : r.prezzoUnitario != null ? formatCurrency(r.prezzoUnitario) : ""}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{righeXmlPerChiave.get(r.chiave) ? monetaXml(righeXmlPerChiave.get(r.chiave)!.importo) : formatCurrency(r.imponibile)}</td>
                           <td className="px-2 py-1.5 text-right text-muted-foreground" title={nomeNatura(r.natura) ?? undefined}>
-                            {r.aliquota ? `${String(r.aliquota).replace(".", ",")}%` : r.natura?.toUpperCase().startsWith("N6") ? "RC" : r.natura ? r.natura : "0%"}
+                            {righeXmlPerChiave.get(r.chiave)?.iva || (r.aliquota ? `${String(r.aliquota).replace(".", ",")}%` : r.natura?.toUpperCase().startsWith("N6") ? "RC" : r.natura ? r.natura : "0%")}
                           </td>
                           {contiPerRiga ? <td className="px-2 py-1">{r.imponibile !== 0 ? <ContoRigaMenu chiave={r.chiave} conti={contiRighe} /> : null}</td> : null}
                           {cespitiPerRiga ? (
@@ -661,6 +690,11 @@ function ContenutoRiepilogo({
                 </>
               )}
             </section>
+
+            {xmlFattura && <>
+              <RigheXmlAggiuntiveRicevuta righe={righeXmlNonAssociate} valuta={xmlFattura.valuta} />
+              <AltriDatiXmlRicevuta fattura={xmlFattura} />
+            </>}
 
             {/* Totali */}
             <section className="ml-auto w-full max-w-xs space-y-1 text-sm">

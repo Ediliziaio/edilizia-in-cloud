@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import schemaFattura from '../fixtures/fatturapa-1.2.2/Schema_del_file_xml_FatturaPA_v1.2.2.xsd?raw';
 import { fileOriginale, xmlDaFile } from '../../../supabase/functions/_shared/ricevuteOpenapi';
 import { fatturaRicevutaHtml } from '@/lib/fatturazione/fatturaRicevutaHtml';
+import { generaPdfFatturaXml, leggiFattureXmlStampabili, riferimentiRigaXml } from '@/lib/fatturazione/fatturaXmlTabellare';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 function completa() {
   return `<p:FatturaElettronica xmlns:p="urn:fattura" xmlns:f="urn:futuro" xmlns:ds="urn:firma" versione="FPR12" SistemaEmittente="GEST-TEST">
@@ -54,6 +56,57 @@ function catalogoSchema() {
 }
 
 describe('Copia leggibile completa dell’XML del fornitore', () => {
+  it('non perde una voce con descrizione più alta di una pagina e i suoi riferimenti finali', async () => {
+    const descrizione='INIZIO-RIGA-GRANDE '+('Specifiche della fornitura su misura e accessori da verificare. '.repeat(150))+' FINE-RIGA-GRANDE';
+    const bytes=await generaPdfFatturaXml(completa().replace('Fornitura di prova',descrizione));
+    const pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;
+    try {
+      const testi:string[]=[];
+      for(let i=1;i<=pdf.numPages;i++)testi.push((await(await pdf.getPage(i)).getTextContent()).items.map(x=>'str' in x?x.str:'').join(' '));
+      const testo=testi.join(' ').replace(/\s/g,'');
+      expect(testo).toContain('INIZIO-RIGA-GRANDE');
+      expect(testo).toContain('FINE-RIGA-GRANDE');
+      expect(testo).toContain('SERIALE-TEST');
+      expect(testo).toContain('COD-PAGAMENTO');
+      expect(pdf.numPages).toBeGreaterThan(2);
+    } finally {await pdf.cleanup();}
+  },30_000);
+
+  it('il download PDF conserva anche tutti i campi del catalogo, con testo selezionabile su più pagine', async () => {
+    const {xml} = catalogoSchema();
+    const bytes = await generaPdfFatturaXml(xml);
+    const pdf = await getDocument({data:new Uint8Array(bytes),useSystemFonts:true}).promise;
+    try {
+      expect(pdf.numPages).toBeGreaterThan(1);
+      const testi:string[] = [];
+      for(let i=1;i<=pdf.numPages;i++) {
+        const pagina=await pdf.getPage(i);
+        const contenuto=await pagina.getTextContent();
+        const larghezza=pagina.getViewport({scale:1}).width;
+        for(const x of contenuto.items) if('str' in x && x.str.trim()) {
+          expect(x.transform[4],x.str).toBeGreaterThanOrEqual(20);
+          expect(x.transform[4]+x.width,x.str).toBeLessThanOrEqual(larghezza-20);
+        }
+        testi.push(contenuto.items.map(x=>'str' in x ? x.str : '').join(' '));
+      }
+      const testo = testi.join(' ').replace(/\s/g,'');
+      const originale = new DOMParser().parseFromString(xml,'application/xml');
+      for(const e of Array.from(originale.getElementsByTagName('*'))) {
+        const valore=e.children.length?'':e.textContent!.trim();
+        if(valore.startsWith('VALORE-')) expect(testo,e.tagName).toContain(valore.replace(/\s/g,''));
+      }
+      for(const [i,t] of testi.entries()) expect(t).toContain('Pagina '+(i+1)+' di '+pdf.numPages);
+    } finally {await pdf.cleanup();}
+  },30_000);
+
+  it('associa i dettagli al numero originale e non alla posizione nel lotto o alla descrizione', () => {
+    const f = leggiFattureXmlStampabili(completa(),{indiceCorpo:0})[0];
+    expect(riferimentiRigaXml(f,'8')?.dettagli).toEqual(expect.arrayContaining([{campo:'DDT',valore:'DDT-TEST · 18-11-2026'}]));
+    expect(riferimentiRigaXml(f,'1')).toBeUndefined();
+    expect(()=>leggiFattureXmlStampabili(completa(),{indiceCorpo:1})).toThrow();
+    const duplicata=completa().replace('</DatiBeniServizi>', completa().match(/<DettaglioLinee[\s\S]*?<\/DettaglioLinee>/)![0]+'</DatiBeniServizi>');
+    expect(riferimentiRigaXml(leggiFattureXmlStampabili(duplicata)[0],'8')).toBeUndefined();
+  });
   it('copre ogni campo dichiarato nello schema, compresi quelli non ancora conosciuti dal gestionale', () => {
     const { xml, nomi } = catalogoSchema();
     const byte = new TextEncoder().encode(xml);
@@ -86,15 +139,15 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
 
   it('conserva tutti i riferimenti e i dati dell’intestazione, del documento, del trasporto e delle rate', () => {
     const testo = doc().body.textContent;
-    for (const atteso of ['TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'VIA FORNITORE', '12B', 'TEL-TEST', 'fornitore@example.test', 'VIA CLIENTE', 'RT01', '12.34', 'TC04', '7.89', 'ODA-TEST', 'COMMESSA-TEST', 'CUP-TEST', 'CIG-TEST', 'CONTRATTO-TEST', 'CONSEGNA-TEST', 'VIA CONSEGNA', 'NORMA-TEST', 'TP01', 'BANCA-UNO', 'BANCA-DUE', 'IBAN-UNO', 'IBAN-DUE', 'BIC-TEST', 'COD-PAGAMENTO', '19/12/2026', '19/01/2027']) expect(testo).toContain(atteso);
+    for (const atteso of ['TRASM-TEST', 'INVIO-TEST', 'ABC1234', 'VIA FORNITORE', '12B', 'TEL-TEST', 'fornitore@example.test', 'VIA CLIENTE', 'RT01', '12.34', 'TC04', '7.89', 'ODA-TEST', 'COMMESSA-TEST', 'CUP-TEST', 'CIG-TEST', 'CONTRATTO-TEST', 'CONSEGNA-TEST', 'VIA CONSEGNA', 'NORMA-TEST', 'TP01', 'BANCA-UNO', 'BANCA-DUE', 'IBAN-UNO', 'IBAN-DUE', 'BIC-TEST', 'COD-PAGAMENTO', '19-12-2026', '19-01-2027']) expect(testo).toContain(atteso);
   });
 
   it('tiene codici, sconti, periodi, seriali e campi futuri sulla loro riga senza ripetere l’articolo', () => {
     const documento = doc();
     const righe = documento.querySelectorAll('table[aria-label="Righe della fattura"] tbody tr');
     expect(righe).toHaveLength(1);
-    for (const atteso of ['ART-TEST', 'SC', '5.00', '0.01', '01/11/2026', '18/11/2026', 'AMMINISTRAZIONE-TEST', 'SERIALE-TEST', 'GESTIONALE-FUTURO', 'VALORE-FUTURO', 'ATTR-FUTURO', 'ATTR-RIGA', 'f:CampoFuturo']) expect(righe[0].textContent).toContain(atteso);
-    expect(documento.querySelector('[aria-label="Dati completi del documento originale"]')?.textContent).not.toContain('ART-TEST');
+    for (const atteso of ['ART-TEST', 'SC', '5%', '0,01', '01-11-2026', '18-11-2026', 'AMMINISTRAZIONE-TEST', 'SERIALE-TEST', 'GESTIONALE-FUTURO', 'VALORE-FUTURO', 'ATTR-FUTURO', 'ATTR-RIGA', 'f:CampoFuturo']) expect(righe[0].textContent).toContain(atteso);
+    expect(documento.querySelector('.altri')?.textContent).not.toContain('ART-TEST');
   });
 
   it('mantiene attributi, formato e dati della firma senza stampare il suo contenuto binario', () => {
@@ -109,8 +162,8 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
     const riga = documento.querySelector('table[aria-label="Righe della fattura"] tbody tr')!;
     expect(riga.textContent).toContain('2,12345678');
     expect(riga.textContent).toContain('0,12345678');
-    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '<Quantita>0</Quantita>')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[3].textContent).toBe('0');
-    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[3].textContent).toBe('—');
+    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '<Quantita>0</Quantita>')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[2].textContent).toBe('0');
+    expect(doc(completa().replace('<Quantita>2.12345678</Quantita>', '')).querySelectorAll('table[aria-label="Righe della fattura"] tbody td')[2].textContent).toBe('—');
   });
 
   it('usa la valuta dichiarata anche nella rappresentazione delle righe', () => {
@@ -152,7 +205,12 @@ describe('Copia leggibile completa dell’XML del fornitore', () => {
       if (el.children.length || opachi.has(el.localName) || (nellaRiga && colonne.has(el.localName))) continue;
       const valore = el.textContent?.trim() ?? '';
       const data = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valore);
-      expect(testo, el.tagName).toContain(data ? `${data[3]}/${data[2]}/${data[1]}` : valore);
+      const prezzi = new Set(['ImportoTotaleDocumento', 'ImportoPagamento', 'ImponibileImporto', 'Imposta']);
+      const numero = el.closest('ScontoMaggiorazione') && ['Percentuale', 'Importo'].includes(el.localName)
+        ? valore.replace(/\.00$/, '').replace('.', ',')
+        : prezzi.has(el.localName) ? valore.replace('.', ',')
+        : el.parentElement?.localName === 'DatiRiepilogo' && el.localName === 'AliquotaIVA' ? '22%' : valore;
+      expect(testo, el.tagName).toContain(data ? `${data[3]}-${data[2]}-${data[1]}` : numero);
     }
   });
 });

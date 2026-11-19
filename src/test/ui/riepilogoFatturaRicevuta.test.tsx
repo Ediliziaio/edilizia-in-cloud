@@ -55,6 +55,10 @@ function apri() {
   );
 }
 
+const XML_DETTAGLI = '<FatturaElettronica versione="FPR12"><FatturaElettronicaHeader><DatiTrasmissione><CodiceDestinatario>ABC1234</CodiceDestinatario></DatiTrasmissione><CedentePrestatore><DatiAnagrafici><Anagrafica><Denominazione>Fornitore prova</Denominazione></Anagrafica></DatiAnagrafici><Contatti><Email>xml@example.test</Email></Contatti></CedentePrestatore><CessionarioCommittente><DatiAnagrafici><Anagrafica><Denominazione>Cliente prova</Denominazione></Anagrafica></DatiAnagrafici></CessionarioCommittente></FatturaElettronicaHeader><FatturaElettronicaBody><DatiGenerali><DatiGeneraliDocumento><TipoDocumento>TD24</TipoDocumento><Divisa>EUR</Divisa><Data>2026-11-19</Data><Numero>PROVA</Numero><ImportoTotaleDocumento>434.32</ImportoTotaleDocumento><Causale>CAUSALE ORIGINALE</Causale></DatiGeneraliDocumento><DatiDDT><NumeroDDT>DDT-DIECI</NumeroDDT><DataDDT>2026-11-18</DataDDT><RiferimentoNumeroLinea>10</RiferimentoNumeroLinea></DatiDDT><DatiDDT><NumeroDDT>DDT-DUE</NumeroDDT><DataDDT>2026-11-17</DataDDT><RiferimentoNumeroLinea>2</RiferimentoNumeroLinea></DatiDDT></DatiGenerali><DatiBeniServizi>'+[[10,'AA000AA','80.00'],[2,'BB111BB','276.00']].map(([numero,targa,prezzo])=>'<DettaglioLinee><NumeroLinea>'+numero+'</NumeroLinea><Descrizione>Manutenzione</Descrizione><Quantita>1.12345678</Quantita><UnitaMisura>h.</UnitaMisura><PrezzoUnitario>'+prezzo+'</PrezzoUnitario><PrezzoTotale>'+prezzo+'</PrezzoTotale><AliquotaIVA>22.00</AliquotaIVA><AltriDatiGestionali><TipoDato>Targa</TipoDato><RiferimentoTesto>'+targa+'</RiferimentoTesto></AltriDatiGestionali></DettaglioLinee>').join('')+'</DatiBeniServizi></FatturaElettronicaBody></FatturaElettronica>';
+
+const conXml = () => ({...FIC,xml_raw:XML_DETTAGLI,indice_corpo:0,righe:(FIC.righe as object[]).map((r,i)=>({...r,numero_linea:i===0?10:2}))});
+
 beforeEach(() => {
   finto.rpc.mockReset().mockResolvedValue({ data: { esito: "collegata" }, error: null as null });
   finto.dati = {
@@ -66,6 +70,43 @@ beforeEach(() => {
 });
 
 describe("riepilogo della fattura ricevuta", () => {
+  it("mostra targhe e DDT sulla riga corrispondente, precisione XML, causale e altri riferimenti nel popup", async () => {
+    finto.dati.fatture_ricevute=conXml();
+    apri();
+    const tabella=within(await screen.findByRole('table',{name:'Cosa fattura'}));
+    const righe=tabella.getAllByRole('row').slice(1);
+    expect(righe[0]).toHaveTextContent('Manutenzione');
+    expect(righe[0]).toHaveTextContent('AA000AA');
+    expect(righe[0]).toHaveTextContent('DDT-DIECI');
+    expect(righe[0]).not.toHaveTextContent('BB111BB');
+    expect(righe[1]).toHaveTextContent('BB111BB');
+    expect(righe[1]).toHaveTextContent('DDT-DUE');
+    expect(righe[1]).not.toHaveTextContent('DDT-DIECI');
+    expect(righe[0]).toHaveTextContent('1,12345678 h.');
+    expect(screen.getByRole('table',{name:'Documenti di trasporto'})).toHaveTextContent('18-11-2026');
+    expect(screen.getByText('CAUSALE ORIGINALE')).toBeVisible();
+    const dettagli=screen.getByText(/Altri dati presenti nell’XML/).closest('details')!;
+    fireEvent.click(within(dettagli).getByText(/Altri dati presenti/));
+    expect(dettagli).toHaveTextContent('xml@example.test');
+  });
+
+  it("conserva anche righe XML assenti nell’importazione, senza associarle per posizione", async () => {
+    finto.dati.fatture_ricevute={...conXml(),righe:[(FIC.righe as object[])[0]]};
+    apri();
+    const extra=await screen.findByRole('region',{name:'Ulteriori righe XML'});
+    expect(extra).toHaveTextContent('AA000AA');
+    expect(extra).toHaveTextContent('BB111BB');
+    const tabella=screen.getByRole('table',{name:'Cosa fattura'});
+    expect(tabella).not.toHaveTextContent('AA000AA');
+  });
+
+  it("non mostra dati di un altro corpo quando l’indice del lotto non esiste", async () => {
+    finto.dati.fatture_ricevute={...conXml(),indice_corpo:1};
+    apri();
+    await screen.findByText(/I dettagli dell’XML non sono leggibili/);
+    expect(screen.queryByText('AA000AA')).toBeNull();
+    expect(screen.queryByText('CAUSALE ORIGINALE')).toBeNull();
+  });
   it("senza XML mostra righe, IVA ricavata e totale; niente «versione completa»", async () => {
     apri();
     expect((await screen.findAllByText("CEMENTO 32,5 R SACCO 25 KG")).length).toBeGreaterThan(0);

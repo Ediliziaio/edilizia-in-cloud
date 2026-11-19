@@ -42,10 +42,10 @@ describe("fatturaRicevutaHtml", () => {
     const h = v!.html;
     expect(h).toContain("Ferramenta Bianchi &amp; Figli S.r.l.");
     expect(h).toContain("FT-2026-0042");
-    expect(h).toContain("24/09/2026");
+    expect(h).toContain("24-09-2026");
     expect(h).toContain("Serramenti in PVC");
     expect(h).toMatch(/4\.?148,00/); // totale documento (3.400 + IVA 22%); l'italiano non raggruppa le migliaia a 4 cifre
-    expect(h).toContain("24/10/2026");
+    expect(h).toContain("24-10-2026");
     expect(h).toContain("IT60X0542811101000000123456");
     expect(h).toContain("Bonifico");
     expect(v!.titolo).toBe("Fattura FT-2026-0042 - Ferramenta Bianchi & Figli S.r.l.");
@@ -59,9 +59,10 @@ describe("fatturaRicevutaHtml", () => {
 
   it("la nota di credito si riconosce, il bollo compare", () => {
     const nc = fatturaRicevutaHtml(xmlFattura("Reso", "nota_credito"), new DOMParser())!.html;
-    expect(nc).toContain("Nota di credito");
+    expect(nc).toMatch(/TD04 \(nota di credito\)/);
     const conBollo = fatturaRicevutaHtml(xmlFattura("Consulenza", "fattura", true), new DOMParser())!.html;
-    expect(conBollo).toContain("Imposta di bollo");
+    expect(conBollo).toContain("ImportoBollo");
+    expect(conBollo).toContain("2.00");
   });
 
   it("un file che non è una fattura non produce una pagina", () => {

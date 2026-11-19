@@ -39,13 +39,13 @@ const celle = (doc: Document, tabella: string) => Array.from(doc.querySelectorAl
 describe('Dettagli originali della fattura ricevuta', () => {
   it('mantiene DDT, date e associazioni alle righe', () => {
     expect(celle(pagina(xmlDettagliato()), 'DDT dichiarati nella fattura')).toEqual([
-      ['0000042', '14/10/2026', '2, 3, 4'], ['0000043', '15/10/2026', '1'],
+      ['0000042', '14-10-2026', '2, 3, 4'], ['0000043', '15-10-2026', '1'],
     ]);
   });
 
   it('mostra unità originali e targhe sulle rispettive righe, senza perdere lo zero dei chilometri', () => {
     const righe = celle(pagina(xmlDettagliato()), 'Righe della fattura');
-    expect(righe.map(r => r[2])).toEqual(['Nr.', 'Nr.', 'h.', 'Nr.']);
+    expect(righe.map(r => r[4])).toEqual(['Nr.', 'Nr.', 'h.', 'Nr.']);
     expect(righe[0][1]).toContain('AA000AA');
     expect(righe[0][1]).not.toContain('BB111BB');
     expect(righe.slice(1).every(r => r[1]?.includes('BB111BB') && !r[1]?.includes('AA000AA'))).toBe(true);
@@ -55,20 +55,20 @@ describe('Dettagli originali della fattura ricevuta', () => {
   it('preserva prezzi, importi, IVA e pagamento dell’originale', () => {
     const doc = pagina(xmlDettagliato());
     const righe = celle(doc, 'Righe della fattura');
-    expect(righe.map(r => r[3])).toEqual(['1', '1', '2', '1']);
-    expect(righe.map(r => r[4]?.replace(/\s/g, ''))).toEqual(['20,49€', '50,00€', '45,00€', '15,00€']);
-    expect(doc.querySelector('.totali')?.textContent).toContain('175,49');
-    expect(doc.querySelector('.totali')?.textContent).toContain('38,61');
+    expect(righe.map(r => r[2])).toEqual(['1', '1', '2', '1']);
+    expect(righe.map(r => r[3])).toEqual(['20,49', '50,00', '45,00', '15,00']);
+    expect(doc.querySelector('.righe + h2 + table')?.textContent).toContain('175,49');
+    expect(doc.querySelector('.righe + h2 + table')?.textContent).toContain('38,61');
     expect(doc.querySelector('.totale')?.textContent).toContain('214,10');
-    expect(doc.body.textContent).toContain('RIBA');
-    expect(doc.body.textContent).toContain('30/11/2026');
+    expect(doc.body.textContent).toContain('MP12 Ri.Ba.');
+    expect(doc.body.textContent).toContain('30-11-2026');
   });
 
   it('non inventa l’unità o un’associazione alle righe se mancano nell’XML', () => {
     const xml = xmlDettagliato().replace('<UnitaMisura>Nr.</UnitaMisura>', '')
       .replace(/<RiferimentoNumeroLinea>[^<]*<\/RiferimentoNumeroLinea>/g, '');
     const doc = pagina(xml);
-    expect(celle(doc, 'Righe della fattura')[0][2]).toBe('—');
+    expect(celle(doc, 'Righe della fattura')[0][4]).toBe('—');
     expect(celle(doc, 'DDT dichiarati nella fattura').every(r => r[2] === '—')).toBe(true);
   });
 
@@ -112,8 +112,8 @@ describe('Dettagli originali della fattura ricevuta', () => {
     expect(vista.html).toContain('DDT-SECONDA');
     expect(vista.html).toContain('Solo seconda');
     expect(vista.html).not.toContain('Solo prima');
-    expect(vista.html).toContain('30/12/2026');
-    expect(vista.html).not.toContain('30/11/2026');
+    expect(vista.html).toContain('30-12-2026');
+    expect(vista.html).not.toContain('30-11-2026');
     expect(vista.allegatiPdf.map(a => a.nome)).toEqual(['seconda.pdf']);
     expect(fatturaRicevutaHtml(lotto, new DOMParser(), { indiceCorpo: 2 })).toBeNull();
   });
