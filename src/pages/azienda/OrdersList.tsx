@@ -63,6 +63,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePipelineLocali } from "@/lib/orders/pipelineLocali";
+import { mostraPipelinePrincipale, pipelineOperativa } from "@/lib/orders/pipelinePrincipale";
 import { PipelineCommesseBoard } from "@/components/orders/PipelineCommesseBoard";
 import { OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
@@ -158,7 +159,7 @@ function OrdersListInner() {
   const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
   const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
   const archivioTabella = usePipelineLocali(effectiveCompany?.id ?? "");
-  const pipelineSelezionata = archivioTabella.pipeline.find(p => p.id === searchParams.get("pipeline"));
+  const pipelineSelezionata = pipelineOperativa(effectiveCompany?.id, archivioTabella.pipeline, searchParams.get("pipeline"));
   const idsPipeline = useMemo(() => {
     if (!pipelineSelezionata) return null;
     const fasi = new Set(pipelineSelezionata.fasi.map(fase => fase.id));
@@ -1911,7 +1912,7 @@ function OrdersListInner() {
             <div className="space-y-4 max-sm:space-y-0">
               <OrdersTable
                 riferimentiPipeline={riferimentiPipeline}
-                pipelineFallback={archivioTabella.errore ? "Non disponibile" : archivioTabella.caricamento ? "…" : "Principale"}
+                pipelineFallback={archivioTabella.errore ? "Non disponibile" : archivioTabella.caricamento ? "…" : mostraPipelinePrincipale(effectiveCompany?.id) ? "Principale" : "Senza pipeline"}
                 canDelete={canDeleteOrders}
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}

@@ -22,9 +22,11 @@ interface StatusItemProps {
   onMove?: (id: string, direction: -1 | 1) => void;
   isFirst?: boolean;
   isLast?: boolean;
+  mostraIcona?: boolean;
+  maxNameLength?: number;
 }
 
-export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = false, usedBy, deletionBlocked, onMove, isFirst, isLast }: StatusItemProps) {
+export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = false, usedBy, deletionBlocked, onMove, isFirst, isLast, mostraIcona = true, maxNameLength = 50 }: StatusItemProps) {
   const {
     attributes,
     listeners,
@@ -81,7 +83,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
         className="min-w-[8rem] flex-1 basis-32 sm:basis-40"
         placeholder="Nome stato"
         aria-label={`Nome dello stato ${(status.position ?? 0) + 1}`}
-        maxLength={50}
+        maxLength={maxNameLength}
       />
 
       {usedBy != null && <Badge variant="secondary" className="text-[11px] font-normal">{usedBy} {usedBy === 1 ? "commessa" : "commesse"}</Badge>}
@@ -111,11 +113,11 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete, disabled = f
       )}
 
       {/* Icon picker */}
-      <IconPicker
+      {mostraIcona && <IconPicker
         value={status.icon ?? "Circle"}
         onChange={(icon) => onUpdate(status.id, { icon })}
         color={status.color}
-      />
+      />}
 
       {/* Color picker */}
       <ColorPicker

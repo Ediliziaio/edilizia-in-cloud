@@ -2,7 +2,13 @@ import {describe,expect,it,vi} from "vitest";
 import {assegnaPipelineNuovaCommessa,verificaPipelineCreazione,statoDiPartenza} from "@/lib/orders/pipelineCreazione";
 import {bozzaHaContenuto} from "@/hooks/useOrderDraft";
 import {orderSchema,orderDefaultValues} from "@/lib/orderSchema";
+import {AZIENDA_RENOVA,pipelineOperativa,SENZA_PIPELINE} from "@/lib/orders/pipelinePrincipale";
 const pipeline=[{id:"serramenti",nome:"Serramenti",fasi:[{id:"s-1",name:"Rilievo",color:"#123456"}]}];
+it("Renova apre una pipeline operativa anche da un vecchio link e può vedere le commesse senza pipeline",()=>{
+ expect(pipelineOperativa(AZIENDA_RENOVA,pipeline,"principale")).toBe(pipeline[0]);
+ expect(pipelineOperativa(AZIENDA_RENOVA,pipeline,SENZA_PIPELINE)).toBeUndefined();
+ expect(pipelineOperativa("altra-azienda",pipeline,"principale")).toBeUndefined();
+});
 describe("validazione e completamento pipeline in creazione",()=>{
  it("non accetta lo stato di un’altra pipeline",()=>{expect(verificaPipelineCreazione({pipelineId:"serramenti",faseId:"principale"},pipeline,[])).toContain("non appartiene");});
  it("non accetta una pipeline eliminata",()=>{expect(verificaPipelineCreazione({pipelineId:"eliminata",faseId:"s-1"},pipeline,[])).toContain("non è più disponibile");});

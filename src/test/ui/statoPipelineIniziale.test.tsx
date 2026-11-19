@@ -7,7 +7,7 @@ import type {SceltaPipelineCreazione} from "@/lib/orders/pipelineCreazione";
 const principali=[{id:"principale-firmato",name:"Contratto firmato",color:"#123456"},{id:"principale-finito",name:"Lavori conclusi",color:"#123456"}];
 const pipeline:PipelineLocale[]=[{id:"serramenti",nome:"Serramenti",fasi:[{id:"s-rilievo",name:"Rilievo definitivo",color:"#123456"},{id:"s-posa",name:"Posa programmata",color:"#123456"}]},{id:"tetti",nome:"Tetti",fasi:[{id:"t-ponteggio",name:"Ponteggio da preparare",color:"#123456"}]}];
 afterEach(cleanup);
-function Prova({initial={pipelineId:"principale",faseId:"principale-firmato"},items=pipeline}:{initial?:SceltaPipelineCreazione;items?:PipelineLocale[]}){const[value,setValue]=useState(initial);return <><StatoPipelineIniziale pipeline={items} statiPrincipali={principali} value={value} onChange={setValue}/><output aria-label="Scelta salvata">{JSON.stringify(value)}</output></>;}
+function Prova({initial={pipelineId:"principale",faseId:"principale-firmato"},items=pipeline,principale=true}:{initial?:SceltaPipelineCreazione;items?:PipelineLocale[];principale?:boolean}){const[value,setValue]=useState(initial);return <><StatoPipelineIniziale pipeline={items} statiPrincipali={principali} value={value} onChange={setValue} principale={principale}/><output aria-label="Scelta salvata">{JSON.stringify(value)}</output></>;}
 function scegli(label:string,option:string){fireEvent.keyDown(screen.getByRole("combobox",{name:label}),{key:"ArrowDown"});fireEvent.click(screen.getByRole("option",{name:option}));}
 describe("tipologia e stato iniziale della nuova commessa",()=>{
  it("selezionata una pipeline, mostra soltanto i suoi stati",()=>{
@@ -28,6 +28,14 @@ describe("tipologia e stato iniziale della nuova commessa",()=>{
  });
  it("la sola pipeline principale conserva il modulo semplice",()=>{
   render(<Prova items={[]}/>);expect(screen.queryByRole("combobox",{name:"Tipologia / pipeline"})).toBeNull();expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Contratto firmato");
+ });
+ it("richiede una tipologia operativa se la pipeline principale è nascosta",()=>{
+  render(<Prova principale={false}/>);
+  expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toBeDisabled();
+  fireEvent.keyDown(screen.getByRole("combobox",{name:"Tipologia / pipeline"}),{key:"ArrowDown"});
+  expect(screen.queryByRole("option",{name:"Principale"})).toBeNull();
+  fireEvent.click(screen.getByRole("option",{name:"Serramenti"}));
+  expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toHaveTextContent("Rilievo definitivo");
  });
  it("una pipeline eliminata non torna silenziosamente a Principale",()=>{
   render(<Prova initial={{pipelineId:"sparita",faseId:"s-rilievo"}}/>);expect(screen.getByRole("alert")).toHaveTextContent("non è più disponibile");expect(screen.getByRole("combobox",{name:"Stato iniziale"})).toBeDisabled();expect(screen.getByLabelText("Scelta salvata")).toHaveTextContent('"pipelineId":"sparita"');
