@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   liquidati: new Set<string>(),
   manuale: false,
   mostraF24: false,
+  csv: vi.fn(),
 }));
 beforeEach(() => { state.manuale = false; });
 
@@ -72,6 +73,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda-finta" } }) }));
 vi.mock("@/hooks/useAnagraficaAzienda", () => ({ useAnagraficaAzienda: () => ({ data: { ragione_sociale: "Prova srl" } }) }));
+vi.mock("@/lib/csv", () => ({ scaricaCsv: state.csv }));
+vi.mock("@/components/shared/PrintPreviewModal", () => ({ PrintPreviewModal: ({ htmlContent }: { htmlContent: string }) => <div data-testid="stampa">{htmlContent}</div> }));
 
 import ContabilitaGenerale from "@/components/contabilita/ContabilitaGenerale";
 
@@ -158,4 +161,16 @@ it("apre dal giornale il versamento F24 della scrittura", async () => {
   fireEvent.click(versamento);
   expect(versamento.closest("details")?.open).toBe(true);
   expect(versamento.closest("details")?.textContent).toMatch(/IVA gennaio.*50,00.*pagato.*16\/02\/2026/);
+});
+
+it("stampa ed esporta il giornale filtrato conservando solo le scritture cercate", async () => {
+  state.csv.mockClear();
+  apri("giornale");
+  fireEvent.change(await screen.findByLabelText("Cerca nelle scritture"), { target: { value: "Incasso F1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Esporta vista filtrata" }));
+  expect(state.csv).toHaveBeenCalledWith("libro-giornale-2026-filtrato", expect.stringContaining("Incasso F1"));
+  expect(state.csv.mock.calls[0][1]).not.toContain("Fattura ricevuta A7");
+  fireEvent.click(screen.getByRole("button", { name: "Stampa vista filtrata" }));
+  expect(await screen.findByTestId("stampa")).toHaveTextContent("Incasso F1");
+  expect(screen.getByTestId("stampa").textContent).not.toContain("Fattura ricevuta A7");
 });

@@ -46,10 +46,11 @@ L'advisor prima e dopo mantiene le segnalazioni preesistenti: RLS senza policy (
 
 | Controllo | Esito/metodo |
 |---|---|
-| Regressioni dopo integrazione con main | **479 test passati, 47 file** |
+| Regressioni dopo integrazione con main | **480 test, 47 file**; incluso filtro di stampa/esportazione del giornale |
 | TypeScript applicazione | `npm run typecheck`, baseline senza errori |
 | ESLint dei file modificati | **0 errori**, 5 warning preesistenti |
 | Build produzione | `npm run build:fast` |
+| Prerender mirato | **2/2 passate**: funzionalità prima nota e scadenzario |
 | Browser | Chromium e WebKit, 375/768/1280/1920 px |
 | Console e adattamento | Nessun errore JavaScript o fuoriuscita orizzontale nei flussi provati |
 

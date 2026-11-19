@@ -467,7 +467,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
         indirizzo_via: a?.indirizzo_via ?? null, indirizzo_numero_civico: a?.indirizzo_numero_civico ?? null, indirizzo_cap: a?.indirizzo_cap ?? null,
         indirizzo_comune: a?.indirizzo_comune ?? null, indirizzo_provincia: a?.indirizzo_provincia ?? null, logo_url: a?.logo_url ?? null,
       },
-      selezione: filtrata ? selezione : undefined,
+      selezione: filtrata ? filtroGiornale : undefined,
       scritture: elenco, conti, dal: `${anno}-01-01`, al: `${anno}-12-31`,
     }));
   };
@@ -529,7 +529,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
             <>
               {conFiltri && <>
                 <Button size="sm" variant="outline" onClick={() => apriStampa(true)}>Stampa vista filtrata</Button>
-                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, selezione))}>Esporta vista filtrata</Button>
+                <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}-filtrato`, csvGiornale(elenco, conti, filtroGiornale))}>Esporta vista filtrata</Button>
               </>}
               <Button size="sm" variant="outline" onClick={() => setDefinitiva(true)}><Lock className="mr-1 h-4 w-4" />Stampa definitiva</Button>
               <Button size="sm" variant="outline" onClick={() => scaricaCsv(`libro-giornale-${anno}`, csvGiornale(elenco, conti))}
@@ -595,7 +595,7 @@ function Scritture({ companyId, anno, conti, giornale }: { companyId: string; an
           ) : <TabellaContabile>
             <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr><th className="w-10 p-2"><span className="sr-only">Selezione</span></th>{["N.", "Data", "Causale", "Descrizione", "Importo"].map(t => <th key={t} className={t === "Importo" ? "p-2 text-right" : "p-2"}>{t}</th>)}</tr>
+                <tr><th className="relative w-10 p-2"><span className="sr-only">Selezione</span></th>{["N.", "Data", "Causale", "Descrizione", "Importo"].map(t => <th key={t} className={t === "Importo" ? "p-2 text-right" : "p-2"}>{t}</th>)}</tr>
               </thead>
               <tbody>{visibili.slice(0, mostra).map(s => (
                 <tr key={s.id} className="cursor-pointer border-t" onClick={e => {
