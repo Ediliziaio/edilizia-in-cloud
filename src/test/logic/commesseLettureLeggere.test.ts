@@ -24,8 +24,11 @@ describe("i dettagli dell'elenco commesse", () => {
     expect(pagina).not.toMatch(/from\("order_salespeople"\)\s*\.select\("order_id, commission_amount/);
     expect(leggi("src/lib/orders/refreshWorkQueries.ts")).toContain('"elenco-commesse-dettagli"');
   });
-  it("il grafico dell'andamento si scarica solo quando è aperto", () => {
-    expect(leggi("src/pages/azienda/OrdersList.tsx")).toContain("enabled: !!effectiveCompany?.id && !isMobile && analisiAperta && orderPerms.canViewOrderAmounts,");
+  it("riusa le commesse già lette e carica l'anno precedente solo col confronto aperto", () => {
+    const pagina = leggi("src/pages/azienda/OrdersList.tsx");
+    expect(pagina).toContain('lazy(() => import("@/components/orders/OrdersMonthlyChart")');
+    expect(pagina).toContain("const monthlyOrders = scopeOrders;");
+    expect(pagina).toMatch(/queryKey: \["orders-monthly-sales-chart", "comparison-v1".*\n\s+enabled: [^\n]*analisiAperta[^\n]*comparisonEnabled,/);
   });
 });
 
