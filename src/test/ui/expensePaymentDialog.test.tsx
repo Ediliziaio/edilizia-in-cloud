@@ -83,13 +83,13 @@ describe('Pagamento contestuale di una spesa',()=>{
   });
   it('salda la stessa fattura con contanti e due banche, conservando date, quote e l’ultimo centesimo',async()=>{
     fake.total=1220.01;
-    fake.conti=['Alfa','Beta'].map(nome=>({valore:'banca:'+nome,etichetta:'Banca '+nome,account_label:'Banca '+nome,bank_account_id:nome,conto_liquidita_id:null}));
+    fake.conti=['Alfa','Beta'].map<(typeof fake.conti)[number]>(nome=>({valore:'banca:'+nome,etichetta:'Banca '+nome,account_label:'Banca '+nome,bank_account_id:nome,conto_liquidita_id:null}));
     mount();
     const inizia=async()=>{
       const b=await screen.findByRole('button',{name:'Registra pagamento'});
       await waitFor(()=>expect(b).toBeEnabled());fireEvent.click(b);
     };
-    const seleziona=async(label:string,opzione:string)=>{fireEvent.keyDown(screen.getByLabelText(label),{key:'ArrowDown'});fireEvent.click(await screen.findByRole('option',{name:opzione,exact:true}));};
+    const seleziona=async(label:string,opzione:string)=>{fireEvent.keyDown(screen.getByLabelText(label),{key:'ArrowDown'});fireEvent.click(await screen.findByRole('option',{name:opzione}));};
     const conferma=async()=>{fireEvent.click(screen.getByRole('button',{name:'Conferma pagamento'}));await screen.findByRole('button',{name:'Registra pagamento'});};
     await inizia();fireEvent.click(screen.getByRole('button',{name:'Metà del residuo'}));
     expect(screen.getByLabelText('Importo')).toHaveValue('610');
