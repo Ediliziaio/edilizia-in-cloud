@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { isRapportinoQueryKey } from "./refreshRapportinoQueries";
+import { FASI_PIPELINE, queryConteggioPipeline } from "./conteggiPipeline";
 
 const ORDER_FIRST = new Set([
   "order_work_phases", "order_work_subphases", "order-phases-progress", "order-avanzamento",
@@ -15,7 +16,7 @@ const COMPANY_SUFFIX = new Set(["order-conteggi-viste", "campo-lavoro", "campo-a
 
 /** Only read models. Never applies hours, costs, stock movements or proposed progress. */
 export function isCommessaCampoQueryKey(key: readonly unknown[], orderId: string, companyId: string): boolean {
-  if (isRapportinoQueryKey(key, orderId, companyId)) return true;
+  if (isRapportinoQueryKey(key, orderId, companyId) || queryConteggioPipeline(key, FASI_PIPELINE, orderId, companyId)) return true;
   const prefix = key[0];
   if (typeof prefix !== "string") return false;
   if (["order-labor-economics", "order-labor-aggregate",

@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { refreshRapportinoQueries } from "./refreshRapportinoQueries";
+import { FASI_PIPELINE, queryConteggioPipeline } from "./conteggiPipeline";
 
 const SUBITO = ["order_work_phases", "order_work_subphases", "order-phases-progress", "order-avanzamento"];
 
@@ -16,6 +17,9 @@ export function refreshWorkQueries(
   opzioni: { leggero?: boolean } = {},
 ) {
   if (!orderId) return;
+  void qc.invalidateQueries({
+    predicate: ({ queryKey }) => queryConteggioPipeline(queryKey, FASI_PIPELINE, orderId, companyId),
+  });
   if (opzioni.leggero) {
     for (const key of SUBITO) void qc.invalidateQueries({ queryKey: [key, orderId] });
     void qc.invalidateQueries({ predicate: ({ queryKey }) => queryKey[1] === orderId && !SUBITO.includes(String(queryKey[0])), refetchType: "none" });

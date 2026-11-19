@@ -116,7 +116,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
       }
 
       const columns = `
-          id, order_code, description, client_name, total_amount, deposit_amount, balance_amount,
+          id, order_code, description, client_name, client_email, total_amount, deposit_amount, balance_amount,
           vat_rate, vat_breakdown, created_at, expected_date, work_start_date, work_end_date,
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
           financing_amount, financing_cost, deposit_2_amount, has_building_bonus,
@@ -130,7 +130,7 @@ export async function readOrdersPage(filters: OrdersReaderFilters, from: number,
           variazioni:ordini_variazione(status, impatto_economico, offline_signed_on, firmato_il, approval_recorded_at, richiesto_il, created_at),
           order_items(id, status, quantity),
           order_employees(employee:employees(id, first_name, last_name)),
-          order_external_teams(external_team:external_teams(id, name))
+          order_external_teams(external_team:external_teams(id, name, kind))
         `;
       const buildQuery = (projection: string, ids: string[] | null, count = false) => {
       let query = supabase.from("orders")

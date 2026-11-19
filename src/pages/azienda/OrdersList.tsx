@@ -1924,6 +1924,7 @@ function OrdersListInner() {
                 <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">Filtri commesse</h3>{filtriCommesse}</PopoverContent></Popover></>}
               orders={allOrdersForPipeline}
               statuses={statuses}
+              showAmounts={orderPerms.canViewOrderAmounts}
               onStatusChange={orderPerms.canEditOrders && !orderPerms.solaLettura ? handleStatusChange : undefined}
             />
           ) : (

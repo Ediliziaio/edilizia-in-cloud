@@ -7,6 +7,7 @@ import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { OrdersPipelineView } from "./OrdersPipelineView";
 import { usePipelineLocali } from "@/lib/orders/pipelineLocali";
+import { useConteggiPipeline } from "@/hooks/useConteggiPipeline";
 import { mostraPipelinePrincipale, pipelineOperativa, PIPELINE_PRINCIPALE, SENZA_PIPELINE } from "@/lib/orders/pipelinePrincipale";
 import type { OrderWithDetails, OrderStatus } from "@/lib/orderUtils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,8 +19,9 @@ interface Props {
   orders: OrderWithDetails[];
   statuses: OrderStatus[];
   onStatusChange?: (id: string, fase: string) => Promise<void>;
+  showAmounts: boolean;
 }
-export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChange, filtri }: Props) {
+export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChange, filtri, showAmounts }: Props) {
   const archivio = usePipelineLocali(azienda);
   const [params, setParams] = useSearchParams();
   const principale = mostraPipelinePrincipale(azienda);
@@ -47,6 +49,7 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
     const stato = fasi.get(assegnata);
     return stato ? [{...o, current_status_id:stato.id, status:stato}] : [];
   });
+  const conConteggi = useConteggiPipeline(azienda, visibili, !archivio.caricamento && !archivio.errore);
   if (archivio.caricamento) return <p role="status">Caricamento pipeline…</p>;
   if (archivio.errore) return <p role="alert">{archivio.errore} <Button variant="link" onClick={() => void archivio.riprova()}>Riprova</Button></p>;
   const controls = <>
@@ -75,14 +78,14 @@ export function PipelineCommesseBoard({ azienda, orders, statuses, onStatusChang
     </>;
   return <>
     {vista === SENZA_PIPELINE && <p className="text-sm text-muted-foreground">Commesse senza percorso assegnato. Usa «Sposta» per inserirle in una pipeline.</p>}
-    <OrdersPipelineView controls={controls} onMove={onStatusChange && archivio.pipeline.length ? order => {
+    <OrdersPipelineView controls={controls} canEdit={!!onStatusChange} showAmounts={showAmounts} onMove={onStatusChange && archivio.pipeline.length ? order => {
       const origine = archivio.fasiPerCommessa[order.id] ?? null;
       const meta = pipeline ?? (principale ? undefined : archivio.pipeline[0]);
       setSpostamento({order, origine, pipelineId:meta?.id ?? PIPELINE_PRINCIPALE, faseId:origine ?? meta?.fasi[0]?.id ?? ""});
-    } : undefined} key={vista} orders={visibili} statuses={pipeline?.fasi ?? statuses}
-      onStatusChange={onStatusChange && (pipeline ? async (id, nuova) => {
+    } : undefined} key={vista} orders={conConteggi} statuses={pipeline?.fasi ?? statuses}
+      onStatusChange={vista !== SENZA_PIPELINE && onStatusChange ? (pipeline ? async (id, nuova) => {
         try { await sposta(id, nuova, archivio.fasiPerCommessa[id] ?? null, fasi.get(nuova)?.name ?? pipeline.nome); } catch(e) { toast.error(e instanceof Error ? e.message : "Impossibile aggiornare la fase"); }
-      } : onStatusChange)} />
+      } : onStatusChange) : undefined} />
     <Dialog open={!!spostamento} onOpenChange={open => { if (!open && !salvataggio) setSpostamento(null); }}>
       {spostamento && <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Sposta {spostamento.order.order_code || "commessa"}</DialogTitle></DialogHeader>

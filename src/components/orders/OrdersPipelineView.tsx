@@ -1,17 +1,7 @@
 import { useMemo, useState } from "react";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-} from "@dnd-kit/core";
-import { OrdersPipelineColumn, haPosaScaduta, inizioOggi } from "./OrdersPipelineColumn";
-import { OrdersPipelineCard } from "./OrdersPipelineCard";
+import { OrdersPipelineColumn } from "./OrdersPipelineColumn";
+import { inizioOggi, ritardoLavori, scadenzaPipeline } from "@/lib/orders/etichettePipeline";
+import { PipelineDragScope } from "./PipelineDrag";
 import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -22,6 +12,8 @@ import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/
 interface OrdersPipelineViewProps {
   controls?: React.ReactNode;
   onMove?: (order: OrderWithDetails) => void;
+  canEdit: boolean;
+  showAmounts: boolean;
   orders: OrderWithDetails[];
   statuses: OrderStatus[];
   onStatusChange?: (orderId: string, newStatusId: string) => Promise<void>;
@@ -30,7 +22,7 @@ interface OrdersPipelineViewProps {
 type Ordinamento = "posa" | "recenti" | "valore";
 
 const ORDINAMENTI: { value: Ordinamento; label: string }[] = [
-  { value: "posa", label: "Data di posa" },
+  { value: "posa", label: "Scadenza prevista" },
   { value: "recenti", label: "Più recenti" },
   { value: "valore", label: "Valore più alto" },
 ];
@@ -68,12 +60,13 @@ function salva(chiave: string, valore: string) {
 }
 
 function getExpectedTimestamp(order: OrderWithDetails) {
-  if (!order.expected_date) return Number.MAX_SAFE_INTEGER;
-  const timestamp = new Date(order.expected_date).getTime();
+  const data = scadenzaPipeline(order);
+  if (!data) return Number.MAX_SAFE_INTEGER;
+  const timestamp = new Date(data).getTime();
   return Number.isNaN(timestamp) ? Number.MAX_SAFE_INTEGER : timestamp;
 }
 
-function perDataDiPosa(a: OrderWithDetails, b: OrderWithDetails) {
+function perScadenza(a: OrderWithDetails, b: OrderWithDetails) {
   const dateDiff = getExpectedTimestamp(a) - getExpectedTimestamp(b);
   if (dateDiff !== 0) return dateDiff;
   return getGrossOrderAmount(b) - getGrossOrderAmount(a);
@@ -88,32 +81,16 @@ function perValore(a: OrderWithDetails, b: OrderWithDetails) {
 }
 
 const CONFRONTO: Record<Ordinamento, (a: OrderWithDetails, b: OrderWithDetails) => number> = {
-  posa: perDataDiPosa,
+  posa: perScadenza,
   recenti: perPiuRecenti,
   valore: perValore,
 };
 
-export function OrdersPipelineView({ orders, statuses, onStatusChange, controls, onMove }: OrdersPipelineViewProps) {
-  const [activeOrder, setActiveOrder] = useState<OrderWithDetails | null>(null);
+export function OrdersPipelineView({ orders, statuses, onStatusChange, controls, onMove, canEdit, showAmounts }: OrdersPipelineViewProps) {
   const [ordinamento, setOrdinamento] = useState<Ordinamento>(leggiOrdinamento);
   const [compresse, setCompresse] = useState<Set<string>>(leggiCompresse);
   // L'elemento che scorre: serve alla barra di scorrimento sotto le colonne.
   const [scorrimento, setScorrimento] = useState<HTMLDivElement | null>(null);
-
-  // Sensors configuration
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200,
-        tolerance: 5,
-      },
-    })
-  );
 
   // Raggruppa ordini per stato
   const ordersByStatus = useMemo(() => {
@@ -136,20 +113,20 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
       }
     });
 
-    const confronta = CONFRONTO[ordinamento];
+    const confronta = CONFRONTO[!showAmounts && ordinamento === "valore" ? "posa" : ordinamento];
     Object.values(grouped).forEach((statusOrders) => {
       statusOrders.sort(confronta);
     });
 
     return grouped;
-  }, [orders, statuses, ordinamento]);
+  }, [orders, statuses, ordinamento, showAmounts]);
 
   // Ordini senza stato assegnato
   const ordersWithoutStatus = ordersByStatus[ID_SENZA_STATO] || [];
 
   const commesseInRitardo = useMemo(() => {
     const oggi = inizioOggi();
-    return orders.filter((o) => haPosaScaduta(o, oggi)).length;
+    return orders.filter((o) => ritardoLavori(o, oggi) > 0).length;
   }, [orders]);
 
   // Le colonne che si vedono davvero (con «Senza stato» solo se ha commesse).
@@ -176,58 +153,15 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
     impostaCompresse(prossime);
   };
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const order = orders.find(o => o.id === active.id);
-    if (order) {
-      setActiveOrder(order);
-    }
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveOrder(null);
-
-    if (!over) return;
-
-    const orderId = active.id as string;
-
-    // Trova l'ordine corrente
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
-
-    // Risolvi lo status di destinazione (potrebbe essere una colonna o una card)
-    let newStatusId = over.id as string;
-    const overOrder = orders.find(o => o.id === over.id);
-    if (overOrder) {
-      newStatusId = overOrder.current_status_id || "";
-    }
-
-    // Se lo stato è lo stesso, non fare nulla
-    if (order.current_status_id === newStatusId) return;
-
-    // Verifica che lo stato di destinazione sia valido
-    const isValidStatus = statuses.some(s => s.id === newStatusId);
-    if (!isValidStatus) return;
-
-    // Chiama il callback per aggiornare lo stato
-    if (onStatusChange) {
-      await onStatusChange(orderId, newStatusId);
-    }
-  };
-
-  const handleDragCancel = () => {
-    setActiveOrder(null);
-  };
+  const destinazioni = statuses.map((status) => ({ id: status.id, label: status.name }));
+  const spostaInFase = onStatusChange ? (orderId: string, faseId: string) => {
+    if (!destinazioni.some((fase) => fase.id === faseId)) return;
+    // Il salvataggio della fase mostra già il proprio errore all’utente.
+    void onStatusChange(orderId, faseId).catch(() => {});
+  } : undefined;
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={handleDragCancel}
-    >
+    <PipelineDragScope onMove={spostaInFase}>
       {/* Barra della board: quante commesse, come ordinarle, comprimere le colonne */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-background px-3 py-2 shadow-sm">
         <div className="flex min-w-0 flex-auto flex-wrap items-center gap-2">
@@ -243,12 +177,12 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
           </p>
           <div className="flex items-center gap-2">
             <span className="sr-only">Ordina per</span>
-            <Select value={ordinamento} onValueChange={(v) => cambiaOrdinamento(v as Ordinamento)}>
-              <SelectTrigger className="h-8 w-[125px] text-xs" aria-label="Ordina le commesse nelle colonne">
+            <Select value={!showAmounts && ordinamento === "valore" ? "posa" : ordinamento} onValueChange={(v) => cambiaOrdinamento(v as Ordinamento)}>
+              <SelectTrigger className="h-8 w-36 text-xs" aria-label="Ordina le commesse nelle colonne">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ORDINAMENTI.map((o) => (
+                {ORDINAMENTI.filter((o) => showAmounts || o.value !== "valore").map((o) => (
                   <SelectItem key={o.value} value={o.value}>
                     {o.label}
                   </SelectItem>
@@ -284,14 +218,14 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
             <PopoverContent align="end" className="w-[360px] space-y-2.5 text-xs">
               <p className="text-sm font-semibold">Cosa dice ogni riga</p>
               <dl className="space-y-2">
-                <div><dt className="font-semibold">Importo e incasso</dt><dd className="text-muted-foreground">Il valore della commessa e quanto è già stato incassato (barra e percentuale).</dd></div>
-                <div><dt className="font-semibold">Posa</dt><dd className="text-muted-foreground">La data di posa prevista. «Giorni di ritardo» = la data è passata e la commessa non è completata.</dd></div>
-                <div><dt className="font-semibold">Materiali</dt><dd className="text-muted-foreground">Articoli pronti su totali (in magazzino, prenotati o installati). Rosso se la posa è in ritardo e nessun articolo è pronto.</dd></div>
+                <div><dt className="font-semibold">Fasi e task ufficio</dt><dd className="text-muted-foreground">Quante lavorazioni e quante attività d’ufficio sono completate, ciascuna sul proprio totale.</dd></div>
+                {showAmounts && <div><dt className="font-semibold">Importo contratto</dt><dd className="text-muted-foreground">L’importo sulla scheda è con IVA. Nell’anteprima trovi anche incassato e residuo.</dd></div>}
+                <div><dt className="font-semibold">Materiali</dt><dd className="text-muted-foreground">Articoli pronti su totali (in magazzino, prenotati o installati).</dd></div>
                 <div><dt className="font-semibold">Squadra</dt><dd className="text-muted-foreground">Chi fa il lavoro: il primo nome e quanti altri sono assegnati. «Da assegnare» se manca.</dd></div>
-                <div><dt className="font-semibold">Ora</dt><dd className="text-muted-foreground">Il prossimo passo da fare, scelto in quest'ordine: incassare l'acconto, sbloccare la posa, ordinare i materiali, verificare gli arrivi, preparare la posa.</dd></div>
-                <div><dt className="font-semibold">«N in ritardo» sulla colonna</dt><dd className="text-muted-foreground">Quante commesse della colonna hanno la posa oltre la data prevista.</dd></div>
+                <div><dt className="font-semibold">Ora</dt><dd className="text-muted-foreground">Il collegamento apre la sezione dove gestire la prossima azione suggerita.</dd></div>
+                <div><dt className="font-semibold">«N in ritardo» sulla colonna</dt><dd className="text-muted-foreground">Quante commesse della colonna hanno superato la scadenza prevista.</dd></div>
               </dl>
-              <p className="text-muted-foreground">Passa il mouse su una riga per leggere la frase completa. Con la freccia in alto a destra di ogni colonna la comprimi.</p>
+              <p className="text-muted-foreground">Passa il mouse sulla scheda o usa Anteprima per leggere i dettagli. Per cambiare fase, trascina la scheda o usa Sposta.</p>
             </PopoverContent>
           </Popover>
         </div>
@@ -309,7 +243,11 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
               key={status.id}
               status={status}
               orders={ordersByStatus[status.id] || []}
-              isDragEnabled={!!onStatusChange}
+              canDrop={!!spostaInFase}
+              canEdit={canEdit}
+              showAmounts={showAmounts}
+              destinazioni={destinazioni}
+              onPhaseChange={spostaInFase}
               collapsed={compresse.has(status.id)}
               onMove={onMove} onToggleCollapse={alternaColonna}
             />
@@ -320,7 +258,11 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
             <OrdersPipelineColumn
               status={STATO_SENZA}
               orders={ordersWithoutStatus}
-              isDragEnabled={false}
+              canDrop={false}
+              canEdit={canEdit}
+              showAmounts={showAmounts}
+              destinazioni={destinazioni}
+              onPhaseChange={spostaInFase}
               collapsed={compresse.has(ID_SENZA_STATO)}
               onMove={onMove} onToggleCollapse={alternaColonna}
             />
@@ -329,14 +271,6 @@ export function OrdersPipelineView({ orders, statuses, onStatusChange, controls,
       </div>
       <BarraScorrimentoOrizzontale contenitore={scorrimento} />
 
-      {/* Drag Overlay - mostra la card durante il trascinamento */}
-      <DragOverlay>
-        {activeOrder ? (
-          <div className="w-[260px]">
-            <OrdersPipelineCard order={activeOrder} isDraggable={false} soloAnteprima />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+    </PipelineDragScope>
   );
 }

@@ -3,29 +3,20 @@ import { useDroppable } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
+import { inizioOggi, ritardoLavori } from "@/lib/orders/etichettePipeline";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
+import type { PipelineTarget } from "./PipelineDrag";
 import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/lib/orderUtils";
-
-/** Inizio di oggi: con la data di posa si confronta il giorno, non l'ora. */
-export function inizioOggi(): Date {
-  const oggi = new Date();
-  oggi.setHours(0, 0, 0, 0);
-  return oggi;
-}
-
-/** La commessa ha la data di posa prevista già passata. */
-export function haPosaScaduta(order: OrderWithDetails, oggi: Date): boolean {
-  if (!order.expected_date) return false;
-  const data = new Date(order.expected_date);
-  data.setHours(0, 0, 0, 0);
-  return data < oggi;
-}
 
 interface OrdersPipelineColumnProps {
   onMove?: (order: OrderWithDetails) => void;
   status: OrderStatus;
   orders: OrderWithDetails[];
-  isDragEnabled?: boolean;
+  canDrop: boolean;
+  canEdit: boolean;
+  showAmounts: boolean;
+  destinazioni: PipelineTarget[];
+  onPhaseChange?: (id: string, fase: string) => void;
   /** Colonna ridotta a una barra sottile (resta una zona dove rilasciare). */
   collapsed?: boolean;
   onToggleCollapse?: (statusId: string) => void;
@@ -34,33 +25,35 @@ interface OrdersPipelineColumnProps {
 export function OrdersPipelineColumn({
   status,
   orders,
-  isDragEnabled = true,
+  canDrop, canEdit, showAmounts, destinazioni, onPhaseChange,
   collapsed = false,
   onToggleCollapse, onMove,
 }: OrdersPipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
+    disabled: !canDrop,
   });
 
   const colore = status.color || "#6b7280";
 
   const totalAmount = useMemo(
     // Contratto più varianti, IVA inclusa: lo stesso importo delle schede qui sotto.
-    () => orders.reduce((sum, o) => sum + getGrossOrderAmount(o), 0),
-    [orders]
+    () => showAmounts ? orders.reduce((sum, o) => sum + getGrossOrderAmount(o), 0) : 0,
+    [orders, showAmounts]
   );
   const mediaAmount = orders.length > 0 ? totalAmount / orders.length : 0;
   const urgentCount = useMemo(() => {
     const oggi = inizioOggi();
-    return orders.filter((order) => haPosaScaduta(order, oggi)).length;
+    return orders.filter((order) => ritardoLavori(order, oggi) > 0).length;
   }, [orders]);
 
   // Colonna compressa: barra verticale sottile. Resta droppabile, così si può
   // spostare una commessa anche in una fase che si è scelto di non guardare.
   if (collapsed) {
     return (
-      <div
+      <section
         ref={setNodeRef}
+        aria-label={`Colonna ${status.name}`}
         onClick={() => onToggleCollapse?.(status.id)}
         title={`Espandi "${status.name}"`}
         className={cn(
@@ -82,12 +75,12 @@ export function OrdersPipelineColumn({
         <span className="mt-2 text-xs font-bold text-foreground" style={{ writingMode: "vertical-rl" }}>
           {status.name}
         </span>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div ref={setNodeRef} className="flex min-w-[280px] flex-1 flex-col">
+    <section ref={setNodeRef} aria-label={`Colonna ${status.name}`} className="flex min-w-[280px] flex-1 flex-col">
       {/* Intestazione: riga colorata in alto, conteggio, totale e media */}
       <div
         className="shrink-0 rounded-t-lg border-b bg-muted/60 px-3 py-2.5"
@@ -118,7 +111,7 @@ export function OrdersPipelineColumn({
         </div>
         <p className="mt-0.5 h-4 truncate text-[11px] leading-4 text-muted-foreground">
           {orders.length > 0
-            ? `${formatCurrency(totalAmount)} tot · ${formatCurrency(mediaAmount)} media · IVA incl.`
+            ? showAmounts ? `${formatCurrency(totalAmount)} tot · ${formatCurrency(mediaAmount)} media · IVA incl.` : null
             : "Nessuna commessa"}
         </p>
         {/* Riga sempre presente, anche vuota: così tutte le intestazioni hanno la
@@ -127,7 +120,7 @@ export function OrdersPipelineColumn({
           {urgentCount > 0 && (
             <span
               className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium leading-none text-orange-700 ring-1 ring-orange-200"
-              title="Commesse con la data di posa prevista già passata"
+              title="Commesse oltre la scadenza prevista"
             >
               {urgentCount} in ritardo
             </span>
@@ -146,7 +139,9 @@ export function OrdersPipelineColumn({
           <div className="max-h-[max(16rem,calc(100dvh-380px))] overflow-y-auto">
             <div className="w-full space-y-1.5">
               {orders.map((order) => (
-                <OrdersPipelineCard key={order.id} order={order} isDraggable={isDragEnabled} onMove={onMove} />
+                <OrdersPipelineCard key={order.id} order={order} stage={status.id}
+                  canEdit={canEdit} showAmounts={showAmounts} destinazioni={destinazioni}
+                  isDraggable={!!onPhaseChange} onMove={onMove} onPhaseChange={onPhaseChange} />
               ))}
             </div>
           </div>
@@ -161,6 +156,6 @@ export function OrdersPipelineColumn({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

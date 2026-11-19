@@ -46,16 +46,18 @@ export interface SchedaCommessa {
 export interface AvanzamentoFasi { total: number; done: number; inCorso: number; avgPct: number | null }
 
 /** Fasi fatte, in corso e media: completata = stato «completata» o percentuale al 100. */
+export function faseCompletata(fase: { status: string; percentuale: number | null }) {
+  return fase.status === "completata" || Number(fase.percentuale) >= 100;
+}
+
 export function avanzamentoFasi(rows: { status: string; percentuale: number | null }[]): AvanzamentoFasi {
-  const completata = (p: { status: string; percentuale: number | null }) =>
-    p.status === "completata" || Number(p.percentuale) >= 100;
   // Una fase completata senza percentuale vale 100.
   const pctDi = (p: { status: string; percentuale: number | null }) =>
-    completata(p) ? 100 : Math.min(100, Math.max(0, Number(p.percentuale) || 0));
+    faseCompletata(p) ? 100 : Math.min(100, Math.max(0, Number(p.percentuale) || 0));
   return {
     total: rows.length,
-    done: rows.filter(completata).length,
-    inCorso: rows.filter((p) => !completata(p) && (p.status === "in_corso" || Number(p.percentuale) > 0)).length,
+    done: rows.filter(faseCompletata).length,
+    inCorso: rows.filter((p) => !faseCompletata(p) && (p.status === "in_corso" || Number(p.percentuale) > 0)).length,
     avgPct: rows.length > 0 ? rows.reduce((s, p) => s + pctDi(p), 0) / rows.length : null,
   };
 }

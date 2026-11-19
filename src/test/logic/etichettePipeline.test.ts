@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  contaInRitardo, prossimoPasso, statoIncasso, statoMateriali, statoPosa, statoSquadra,
+  contaInRitardo, prossimoPasso, ritardoLavori, statoIncasso, statoMateriali, statoSquadra,
 } from "@/lib/orders/etichettePipeline";
 
 describe("etichette della pipeline commesse", () => {
-  it("dice della posa in chiaro", () => {
-    expect(statoPosa(-199, "15/03/2026")).toMatchObject({ testo: "199 giorni di ritardo", tono: "critico" });
-    expect(statoPosa(-1, "15/03/2026").testo).toBe("1 giorno di ritardo");
-    expect(statoPosa(0, null)).toMatchObject({ testo: "Oggi", tono: "attenzione" });
-    expect(statoPosa(5, "10 ott").testo).toBe("Tra 5 giorni");
-    expect(statoPosa(30, "10 nov")).toMatchObject({ testo: "10 nov", tono: "neutro" });
-    expect(statoPosa(null, null)).toMatchObject({ testo: "Da fissare", tono: "attenzione" });
-    expect(statoPosa(-199, "15/03/2026").dettaglio).toContain("prevista il 15/03/2026");
+  it("usa la fine lavori se presente e non segnala come in ritardo le fasi completate", () => {
+    const oggi = new Date(2026, 10, 19);
+    const ordine = { expected_date: "2026-11-12", work_end_date: "2026-11-18" };
+    expect(ritardoLavori(ordine, oggi)).toBe(1);
+    expect(ritardoLavori({ ...ordine, work_end_date: null }, oggi)).toBe(7);
+    expect(ritardoLavori({ expected_date: null }, oggi)).toBe(0);
+    expect(ritardoLavori({ ...ordine, fasiPipeline: { total: 2, done: 2 } }, oggi)).toBe(0);
   });
 
   it("dice dei materiali", () => {
@@ -35,13 +34,14 @@ describe("etichette della pipeline commesse", () => {
   });
 
   it("sceglie il prossimo passo nello stesso ordine di prima", () => {
-    const base = { giorniAllaPosa: 10, daIncassare: 0, incassato: 100, articoli: 0, pronti: 0, daOrdinare: 0 };
-    expect(prossimoPasso({ ...base, daIncassare: 100, incassato: 0 }).testo).toBe("Incassare l'acconto");
-    expect(prossimoPasso({ ...base, giorniAllaPosa: -3 }).testo).toBe("Sbloccare la posa");
+    const base = { ritardo: 0, daIncassare: 0, incassato: 100, articoli: 0, pronti: 0, daOrdinare: 0 };
+    expect(prossimoPasso({ ...base, daIncassare: 100, incassato: 0 }).testo).toBe("Verificare gli incassi");
+    expect(prossimoPasso({ ...base, ritardo: 3 }).testo).toBe("Verificare il ritardo");
     expect(prossimoPasso({ ...base, articoli: 4, pronti: 1, daOrdinare: 2 }).testo).toBe("Ordinare i materiali");
     expect(prossimoPasso({ ...base, articoli: 4, pronti: 1 }).testo).toBe("Verificare gli arrivi");
-    expect(prossimoPasso({ ...base, articoli: 4, pronti: 4 })).toMatchObject({ testo: "Preparare la posa", tipo: "pronto" });
+    expect(prossimoPasso({ ...base, articoli: 4, pronti: 4 })).toMatchObject({ testo: "Controllare il cronoprogramma", tipo: "pronto" });
     expect(prossimoPasso(base).testo).toBe("Aprire la scheda");
+    expect(prossimoPasso({ ...base, lavoriCompletati: true, daIncassare: 200, articoli: 4, daOrdinare: 2 }).testo).toBe("Verificare il saldo");
   });
 
   it("conta le commesse in ritardo", () => {

@@ -1,12 +1,5 @@
-/**
- * Pipeline delle commesse: cosa dice ogni riga della card.
- *
- * Le card mostravano sigle senza etichetta — «199g in ritardo», «5/5 pronti»,
- * «Francesco Barbieri +1», «Sbloccare posa» — e non si capiva di cosa: in
- * ritardo rispetto a cosa? pronti chi? E il «Sbloccare posa» sembrava un avviso,
- * mentre è il prossimo passo da fare. Qui le frasi, con il motivo di ciascuna
- * (per il suggerimento al passaggio del mouse) e il tono.
- */
+import type { OrderDetailDestination } from "@/lib/orders/detailNavigation";
+import type { OrderWithDetails } from "@/lib/orderUtils";
 
 export type Tono = "critico" | "attenzione" | "ok" | "neutro";
 
@@ -17,26 +10,33 @@ export interface Etichetta {
   dettaglio: string;
 }
 
-/** Giorni da oggi alla posa prevista: negativo = in ritardo, null = senza data. */
-export type GiorniAllaPosa = number | null;
+/** Giorni da oggi alla scadenza: negativo = in ritardo, null = senza data. */
+type GiorniAllaScadenza = number | null;
 
-export function statoPosa(giorni: GiorniAllaPosa, dataBreve: string | null): Etichetta {
-  if (giorni === null) {
-    return { testo: "Da fissare", tono: "attenzione", dettaglio: "La data di posa non è ancora stata indicata sulla commessa." };
-  }
-  if (giorni < 0) {
-    const n = Math.abs(giorni);
-    return {
-      testo: `${n} ${n === 1 ? "giorno" : "giorni"} di ritardo`,
-      tono: "critico",
-      dettaglio: `La posa era prevista il ${dataBreve ?? "—"}: la data è passata da ${n} ${n === 1 ? "giorno" : "giorni"} e la commessa non è ancora completata.`,
-    };
-  }
-  if (giorni === 0) return { testo: "Oggi", tono: "attenzione", dettaglio: "La posa è prevista per oggi." };
-  if (giorni <= 14) {
-    return { testo: `Tra ${giorni} ${giorni === 1 ? "giorno" : "giorni"}`, tono: "attenzione", dettaglio: `Posa prevista il ${dataBreve ?? "—"}.` };
-  }
-  return { testo: dataBreve ?? "—", tono: "neutro", dettaglio: `Posa prevista il ${dataBreve ?? "—"}.` };
+export function inizioOggi(): Date {
+  const oggi = new Date();
+  oggi.setHours(0, 0, 0, 0);
+  return oggi;
+}
+
+export function scadenzaPipeline(ordine: Pick<OrderWithDetails, "work_end_date" | "expected_date">) {
+  return ordine.work_end_date || ordine.expected_date;
+}
+
+export function lavoriCompletati({ fasiPipeline }: Pick<OrderWithDetails, "fasiPipeline">) {
+  return !!fasiPipeline?.total && fasiPipeline.done === fasiPipeline.total;
+}
+
+export function ritardoLavori(
+  ordine: Pick<OrderWithDetails, "work_end_date" | "expected_date" | "fasiPipeline">,
+  oggi = inizioOggi(),
+): number {
+  if (lavoriCompletati(ordine)) return 0;
+  const data = scadenzaPipeline(ordine);
+  if (!data) return 0;
+  const scadenza = new Date(data.length === 10 ? `${data}T00:00:00` : data);
+  scadenza.setHours(0, 0, 0, 0);
+  return Number.isNaN(scadenza.getTime()) ? 0 : Math.max(0, Math.round((oggi.getTime() - scadenza.getTime()) / 86_400_000));
 }
 
 export function statoMateriali(totale: number, pronti: number, daOrdinare: number): Etichetta {
@@ -77,7 +77,8 @@ export function statoSquadra(nomi: string[], interna: boolean, subappalto: boole
 }
 
 export interface DatiPassaggio {
-  giorniAllaPosa: GiorniAllaPosa;
+  ritardo: number;
+  lavoriCompletati?: boolean;
   daIncassare: number;
   incassato: number;
   articoli: number;
@@ -90,29 +91,35 @@ export interface Passaggio {
   motivo: string;
   /** «pronto» = niente da sbloccare, si può procedere. */
   tipo: "azione" | "pronto";
+  destinazione?: OrderDetailDestination;
 }
 
 /** Il prossimo passo da fare, con la ragione. Stesso ordine di priorità di prima. */
 export function prossimoPasso(d: DatiPassaggio): Passaggio {
-  if (d.daIncassare > 0 && d.incassato === 0) {
-    return { testo: "Incassare l'acconto", motivo: "Non è stato incassato ancora nulla.", tipo: "azione" };
+  if (d.lavoriCompletati) {
+    return d.daIncassare > 0
+      ? { testo: "Verificare il saldo", motivo: "I lavori sono completati e c’è ancora un residuo da incassare.", tipo: "azione", destinazione: { tab: "finanza", economiaView: "pagamenti" } }
+      : { testo: "Aprire la scheda", motivo: "I lavori sono completati.", tipo: "pronto" };
   }
-  if (d.giorniAllaPosa !== null && d.giorniAllaPosa < 0) {
-    return { testo: "Sbloccare la posa", motivo: "La data di posa è passata: serve una nuova data o capire cosa blocca.", tipo: "azione" };
+  if (d.daIncassare > 0 && d.incassato === 0) {
+    return { testo: "Verificare gli incassi", motivo: "Nessun incasso registrato per la commessa.", tipo: "azione", destinazione: { tab: "finanza", economiaView: "pagamenti" } };
+  }
+  if (d.ritardo > 0) {
+    return { testo: "Verificare il ritardo", motivo: "La scadenza prevista è passata. Controlla date e lavorazioni nel cronoprogramma.", tipo: "azione", destinazione: { tab: "cantiere", cantiereView: "cronoprogramma" } };
   }
   if (d.articoli > 0 && d.daOrdinare > 0) {
-    return { testo: "Ordinare i materiali", motivo: `${d.daOrdinare} ${d.daOrdinare === 1 ? "articolo è" : "articoli sono"} ancora da ordinare.`, tipo: "azione" };
+    return { testo: "Ordinare i materiali", motivo: `${d.daOrdinare} ${d.daOrdinare === 1 ? "articolo è" : "articoli sono"} ancora da ordinare.`, tipo: "azione", destinazione: { tab: "articoli", materialiView: "acquisti" } };
   }
   if (d.articoli > 0 && d.pronti < d.articoli) {
-    return { testo: "Verificare gli arrivi", motivo: "I materiali sono ordinati ma non tutti sono arrivati.", tipo: "azione" };
+    return { testo: "Verificare gli arrivi", motivo: "I materiali sono ordinati ma non tutti sono arrivati.", tipo: "azione", destinazione: { tab: "articoli", materialiView: "acquisti" } };
   }
   if (d.articoli > 0 && d.pronti === d.articoli) {
-    return { testo: "Preparare la posa", motivo: "Tutti i materiali sono pronti.", tipo: "pronto" };
+    return { testo: "Controllare il cronoprogramma", motivo: "Tutti i materiali sono pronti.", tipo: "pronto", destinazione: { tab: "cantiere", cantiereView: "cronoprogramma" } };
   }
   return { testo: "Aprire la scheda", motivo: "Mancano dati (articoli o date) per dire cosa fare.", tipo: "azione" };
 }
 
-/** Quante commesse hanno la posa oltre la data prevista. */
-export function contaInRitardo(giorni: GiorniAllaPosa[]): number {
+/** Quante commesse sono oltre la data prevista. */
+export function contaInRitardo(giorni: GiorniAllaScadenza[]): number {
   return giorni.filter((g) => g !== null && g < 0).length;
 }

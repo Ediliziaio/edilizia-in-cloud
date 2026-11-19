@@ -9,6 +9,7 @@ import type { PaymentType } from "@/components/orders/FinancialSummary";
 import { calculateCollectedGrossFromInstallments, type InstallmentLike } from "@/lib/commissions";
 import { agreedContractValue, variantiApprovateDatate } from "@/lib/orders/contractValue";
 import { calcolaQuoteIva, ivaMistaDaOrdine, lordoPattuitoConQuote } from "@/lib/orders/ivaMista";
+import type { ConteggioPipeline } from "@/lib/orders/conteggiPipeline";
 
 // ── Installment type ──────────────────────────────────────────────
 export interface Installment {
@@ -250,7 +251,7 @@ export function installmentsToLegacyColumns(installments: Installment[]) {
 
 // ── Existing types (unchanged) ────────────────────────────────────
 
-export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id" | "client_name" | "vat_breakdown">>, ImportiFinanziari {
+export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "customer_id" | "client_name" | "client_email" | "vat_breakdown">>, ImportiFinanziari {
   id: string;
   order_code: string | null;
   description: string;
@@ -265,6 +266,8 @@ export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "custom
   expected_date: string | null;
   work_start_date?: string | null;
   work_end_date?: string | null;
+  fasiPipeline?: ConteggioPipeline | null;
+  taskUfficioPipeline?: ConteggioPipeline | null;
   warehouse_arrival_date: string | null;
   indirizzo_lavori?: string | null;
   created_at: string;
@@ -319,6 +322,7 @@ export interface OrderWithDetails extends Partial<Pick<Tables<"orders">, "custom
     external_team?: {
       id: string;
       name: string | null;
+      kind?: string | null;
     } | null;
   }> | null;
 }
