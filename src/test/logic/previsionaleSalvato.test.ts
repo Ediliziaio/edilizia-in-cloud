@@ -57,7 +57,7 @@ it("riapre il database e legge date, ore, tariffa e costo della fase senza dupli
 });
 
 it("mantiene il costo delle voci ancora da pianificare e segnala le tariffe mancanti", () => {
-  const piano = { ...voce, operai: [{ id: "mario", nome: "Mario", tariffa: null }] };
+  const piano: PianoPrevisto = { ...voce, operai: [{ id: "mario", nome: "Mario", tariffa: null }] };
   const { fasi } = riepilogaPrevisioni([piano]);
   const conto = economiaFasi({
     fasi: [{ id: "f1", importo_venduto: 4000 }], righe: [], assegnazioni: [],

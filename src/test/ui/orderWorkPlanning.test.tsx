@@ -45,7 +45,7 @@ vi.mock("@/hooks/useCostiDirettiFasi", () => ({
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({}), useQuery: () => ({ data: [] as unknown[] }) }));
 vi.mock("@/hooks/usePrevisionaleCantiereLocale", () => ({
   usePrevisionaleCantiereLocale: () => ({
-    disponibile: state.piani !== null, archivio: { versione: 1, piani: state.piani ?? [] }, carica: false, errore: null,
+    disponibile: state.piani !== null, archivio: { versione: 1, piani: state.piani ?? [] }, carica: false, errore: null as Error | null,
   }),
 }));
 vi.mock("@/hooks/useAssegnaAlleFasi", () => ({ useAssegnaAlleFasi: () => ({ mutateAsync: vi.fn() }) }));
@@ -153,7 +153,7 @@ describe("Lavorazioni e squadra", () => {
     state.mobile = true;
     render(<OrderWorkPhases modo="schede" orderId="order" view="lavorazioni" />);
     expect(screen.queryByRole("button", {name: "Assegna squadra"})).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", {name: "Assegna", exact: true}));
+    fireEvent.click(screen.getByRole("button", {name: "Assegna"}));
     const dialogo = await screen.findByRole("dialog", {name: "Organizza il lavoro"});
     expect(within(dialogo).getByRole("heading", {name: "Operai"})).toBeInTheDocument();
     expect(within(dialogo).getByRole("heading", {name: "Squadre interne"})).toBeInTheDocument();

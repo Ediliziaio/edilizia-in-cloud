@@ -235,7 +235,7 @@ export function testoTrattenuta(t: TrattenutaCalcolata): string {
 export function componiFattura(
   righe: RigaDocumento[],
   clausoleAttive: string[],
-  opts: { formaGiuridica?: string | null; percentuali?: Record<string, number> } = {},
+  opts: { formaGiuridica?: string | null; percentuali?: Record<string, number>; arrotondamento?: number } = {},
 ): FatturaComposta {
   const attive = clausoleAttive.map((id) => clausola(id)).filter((c): c is ClausolaFattura => !!c);
   const reverse = attive.find((c) => c.effetto === "reverse_charge");
@@ -295,6 +295,7 @@ export function componiFattura(
     esigibilitaDefault: split ? "S" : "I",
     ritenutaAcconto: condominio,
     ritenutaAliquota: condominio ? 4 : undefined,
+    arrotondamento: opts.arrotondamento,
   });
 
   return {

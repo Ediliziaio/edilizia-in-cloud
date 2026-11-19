@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { PianificaAssegnazione } from "@/components/orders/PianificaAssegnazione";
+import type { Squadra } from "@/hooks/useOperai";
 
 vi.mock("@/hooks/useAssignmentHourlyCost", () => ({
   useDipendentiDeiProfili: () => ({}),
@@ -33,7 +34,7 @@ it("conserva l'esito parziale e riprende dalla prima operazione non confermata",
 
 it("permette di cambiare la quota di ogni voce e salva soltanto un totale completo", async () => {
   const salva = vi.fn().mockResolvedValue(undefined);
-  const squadra = { id: "sq", nome: "Squadra demo", colore: null, responsabile: null, componenti: [], commesse: [] };
+  const squadra: Squadra = { id: "sq", nome: "Squadra demo", colore: null, responsabile: null, componenti: [], commesse: [] };
   render(<PianificaAssegnazione
     ambiti={[
       { id: "v1", nome: "Esecuzione", faseId: "fase", sottofaseId: "v1" },
