@@ -84,6 +84,9 @@ jobs:
       - name: Fiscal XML notes, contributions and original XML PDF
         run: bunx vitest run src/test/logic/fatturaPaLotti45.test.ts src/test/logic/editorRiferimentiPa.test.ts src/test/ui/riferimentiPaFatturaEditor.test.tsx src/test/logic/fatturaPaLotto0.test.ts src/test/logic/noteCreditoXmlPa.test.ts src/test/logic/fatturaPaXml.test.ts src/test/logic/fatturaXmlTabellare.test.ts src/test/logic/originaleXmlFattura.test.ts src/test/ui/fatturaPdfXml.test.tsx src/test/ui/emettiBozzaDalDettaglio.test.tsx src/test/logic/contributiFiscaliSdi.test.ts src/test/logic/verificaFormale.test.ts src/test/logic/generateXmlEstero.test.ts src/test/logic/regoleFiscaliFattura.test.ts src/test/logic/allegatiFatturaSdi.test.ts src/test/logic/fatturaRicevutaHtml.test.ts src/test/logic/fatturaRicevutaDettagliXml.test.ts src/test/logic/noteCreditoImporti.test.ts src/test/logic/duplicaDocumento.test.ts --maxWorkers=2
 
+      - name: Complete received invoice representation and original attachments
+        run: bunx vitest run src/test/logic/fatturaRicevutaCompleta.test.ts src/test/ui/fatturaRicevutaCompleta.test.tsx src/test/logic/downloadAllegatoXml.test.ts --maxWorkers=2
+
       - name: Real SDI handler B2C B2B PA invoices and credit notes
         run: bunx vitest run src/test/logic/invioSdiFlussoCompleto.test.ts src/test/logic/italianFiscalValidation.test.ts --maxWorkers=2
 

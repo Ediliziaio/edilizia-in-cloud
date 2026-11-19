@@ -216,6 +216,11 @@ export interface NodoXml {
   /** Il valore come si legge (importi in euro, date in gg/mm/aaaa, codici spiegati). */
   valore: string | null;
   figli: NodoXml[];
+  /** Nella copia completa si conservano anche gli attributi del documento. */
+  attributi?: Array<{ nome: string; valore: string }>;
+  binario?: boolean;
+  testoMisto?: string;
+  nomeXml?: string;
 }
 
 const euro = (v: string): string => {
@@ -247,15 +252,21 @@ function valoreLeggibile(tag: string, grezzo: string): string {
   return v;
 }
 
-function nodoDa(el: Element): NodoXml {
-  const figliElemento = Array.from(el.children);
+function nodoDa(el: Element, completo = false, esclusi?: Set<Element>): NodoXml {
+  const figliElemento = Array.from(el.children).filter(e => !esclusi?.has(e));
   const tag = el.localName;
   const etichetta = ETICHETTE_XML[tag] ?? tag;
+  const attributi = completo ? Array.from(el.attributes).map(a => ({ nome: a.name, valore: a.value })) : undefined;
+  const extra = completo ? { attributi, nomeXml: el.tagName } : {};
+  if (completo && ['Attachment', 'SignatureValue', 'X509Certificate', 'X509CRL', 'Modulus'].includes(tag)) {
+    return { tag, etichetta, grezzo: null, valore: tag === 'Attachment' ? 'Contenuto disponibile nell’allegato e nel file originale.' : 'Contenuto della firma digitale conservato nel file originale.', figli: [], binario: true, ...extra };
+  }
   if (figliElemento.length === 0) {
     const grezzo = (el.textContent ?? "").trim();
-    return { tag, etichetta, grezzo, valore: valoreLeggibile(tag, grezzo), figli: [] };
+    return { tag, etichetta, grezzo, valore: valoreLeggibile(tag, grezzo), figli: [], ...extra };
   }
-  return { tag, etichetta, grezzo: null, valore: null, figli: figliElemento.map(nodoDa) };
+  const testoMisto = completo ? Array.from(el.childNodes).filter(n => n.nodeType === 3 || n.nodeType === 4).map(n => n.textContent?.trim() ?? '').filter(Boolean).join('\n') : '';
+  return { tag, etichetta, grezzo: null, valore: null, figli: figliElemento.map(e => nodoDa(e, completo, esclusi)), ...extra, ...(testoMisto ? { testoMisto } : {}) };
 }
 
 export class XmlNonLeggibile extends Error {}
@@ -275,6 +286,19 @@ export function sezioniFatturaXml(xml: string): NodoXml[] {
     for (const blocco of Array.from(parte.children)) sezioni.push(nodoDa(blocco));
   }
   return sezioni;
+}
+
+/** Tutti i dati del corpo scelto e dell'intestazione, inclusi campi sconosciuti.
+ * Gli allegati e le firme rimangono scaricabili dall'originale: non si stampano
+ * megabyte di base64 dentro la rappresentazione leggibile. */
+export function documentoFatturaXml(xml: string, parser: DOMParser, indiceCorpo = 0): NodoXml | null {
+  const doc = parser.parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagNameNS('*', 'parsererror').length) return null;
+  const radice = doc.documentElement;
+  if (radice?.localName !== 'FatturaElettronica') return null;
+  const corpi = Array.from(radice.children).filter(e => e.localName === 'FatturaElettronicaBody');
+  if (!Number.isInteger(indiceCorpo) || indiceCorpo < 0 || !corpi[indiceCorpo]) return null;
+  return nodoDa(radice, true, new Set(corpi.filter((_, i) => i !== indiceCorpo)));
 }
 
 /** La versione del file (FPA12 verso la PA, FPR12 verso i privati). */

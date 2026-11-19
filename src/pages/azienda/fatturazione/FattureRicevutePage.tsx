@@ -94,7 +94,6 @@ import {
   AlertTriangle,
   Euro,
   Sparkles,
-  Printer,
   FileSpreadsheet,
   Archive,
   ChevronDown,
@@ -107,7 +106,7 @@ import {
 import { NavyStatCard } from "@/components/costi/KpiCard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { fatturaRicevutaHtml, type FatturaRicevutaVista } from "@/lib/fatturazione/fatturaRicevutaHtml";
-import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
+import { FatturaRicevutaCompletaDialog } from "@/components/fatturazione/FatturaRicevutaCompletaDialog";
 import { esportaElencoRicevute, esportaXmlRicevuteZip, type RigaRicevuta } from "@/lib/fatturazione/esportaRicevute";
 import { toast } from "sonner";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
@@ -373,7 +372,7 @@ export default function FattureRicevutePage() {
   useEffect(() => { setMeseScelto(null); }, [annoFilter]);
   // La fattura aperta nel riepilogo leggibile (righe, totali, collegamenti).
   const [riepilogoId, setRiepilogoId] = useState<string | null>(null);
-  const [fatturaVista, setFatturaVista] = useState<FatturaRicevutaVista | null>(null);
+  const [fatturaVista, setFatturaVista] = useState<(FatturaRicevutaVista & { origine: FatturaRicevuta }) | null>(null);
   const [esportando, setEsportando] = useState<string | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
   // L'import vive tutto nel popup: file, anteprima riga per riga, spunte, esito.
@@ -958,7 +957,7 @@ export default function FattureRicevutePage() {
       });
       return;
     }
-    setFatturaVista(vista);
+    setFatturaVista({ ...vista, origine: f });
     if (ricevutaDaLeggere(f)) lettura.mutate({ id: f.id, daLeggere: false });
   };
 
@@ -1885,58 +1884,11 @@ export default function FattureRicevutePage() {
           refreshFinancialQueries(queryClient);
         }}
       />
-      {/* La fattura leggibile + stampa / PDF */}
-      <Dialog open={!!fatturaVista} onOpenChange={(o) => { if (!o) setFatturaVista(null); }}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between shrink-0 space-y-0">
-            <DialogTitle className="flex items-center gap-2 text-sm font-medium pr-8">
-              <FileText className="h-4 w-4" />
-              {fatturaVista?.titolo}
-            </DialogTitle>
-            <div className="flex items-center gap-2 mr-6">
-              {/* Il PDF che il fornitore ha messo dentro l'XML, se c'è. */}
-              {fatturaVista?.allegatiPdf.map((a) => (
-                <Button
-                  key={a.nome}
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  title={`Apri il PDF del fornitore (${a.nome})`}
-                  onClick={() => {
-                    const byte = Uint8Array.from(atob(a.base64), (c) => c.charCodeAt(0));
-                    const url = URL.createObjectURL(new Blob([byte], { type: "application/pdf" }));
-                    if (!window.open(url, "_blank")) toast.error("Il browser ha bloccato la nuova scheda: consenti i popup per questo sito.");
-                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                  }}
-                >
-                  <FileText className="h-3.5 w-3.5 mr-1.5" /> PDF del fornitore
-                </Button>
-              ))}
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs"
-                onClick={() => {
-                  if (!fatturaVista) return;
-                  stampaPreventivoNativo(fatturaVista.html, fatturaVista.titolo).catch((e: unknown) =>
-                    toast.error("Impossibile preparare la stampa", { description: e instanceof Error ? e.message : undefined }),
-                  );
-                }}
-              >
-                <Printer className="h-3.5 w-3.5 mr-1.5" /> Stampa / Salva PDF
-              </Button>
-            </div>
-          </DialogHeader>
-          {fatturaVista && (
-            <iframe
-              title={fatturaVista.titolo}
-              srcDoc={fatturaVista.html}
-              sandbox=""
-              className="flex-1 w-full bg-white border-0"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <FatturaRicevutaCompletaDialog
+        vista={fatturaVista}
+        onClose={() => setFatturaVista(null)}
+        onScaricaOriginale={async () => { if (fatturaVista) await handleScaricaOriginale(fatturaVista.origine); }}
+      />
 
       {/* La fattura leggibile, anche senza XML: righe, totali e a cosa è collegata. */}
       <RiepilogoFatturaRicevuta

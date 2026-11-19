@@ -11,15 +11,31 @@
 
 import { leggiFatturaPA, type ElementoXml, type LettoreXml } from "../../../supabase/functions/_shared/fatturapaReader";
 import { leggiFatturaRicevuta, senzaPrefissi } from "../../../supabase/functions/_shared/fatturaRicevutaXml";
+import { documentoFatturaXml } from './xmlLeggibile';
+import { altriDatiRicevuta, campoRicevutaHtml, dettagliRigaRicevuta } from './dettagliRicevutaHtml';
 
 const esc = (v: unknown): string =>
   String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const eur = (n: unknown): string =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(n) || 0);
+const eur = (n: unknown, valuta = 'EUR'): string => {
+  try { return new Intl.NumberFormat("it-IT", { style: "currency", currency: valuta }).format(Number(n) || 0); }
+  catch { return `${num(n)} ${esc(valuta)}`; }
+};
 
 const num = (n: unknown): string =>
   new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 }).format(Number(n) || 0);
+
+/** Le quantità e i prezzi dell'XML possono avere otto decimali: qui non si
+ * arrotondano né si convertono in float prima di mostrarli. */
+function decimaleOriginale(v: string, valuta?: string): string {
+  if (!v) return '—';
+  const m = /^([+-]?)(\d+)(?:[.,](\d+))?$/.exec(v.trim());
+  if (!m) return esc(v);
+  const intero = m[2].replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const frazione = (m[3] ?? '').replace(/0+$/, '');
+  const decimali = valuta ? frazione.padEnd(2, '0') : frazione;
+  return esc(`${m[1]}${intero}${decimali ? `,${decimali}` : ''}${valuta ? `\u00a0${valuta === 'EUR' ? '€' : valuta}` : ''}`);
+}
 
 const dataIt = (iso: string | null | undefined): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ""));
@@ -45,10 +61,18 @@ export interface AllegatoPdf {
   base64: string;
 }
 
+export interface AllegatoXml extends AllegatoPdf {
+  formato: string;
+  compressione: string;
+  descrizione: string;
+}
+
 export interface FatturaRicevutaVista {
   html: string;
   /** I PDF che il fornitore ha incorporato nell'XML, se ci sono. */
   allegatiPdf: AllegatoPdf[];
+  /** Tutti gli allegati, anche CSV, fogli di calcolo e file compressi. */
+  allegatiFile?: AllegatoXml[];
   /** Nome suggerito per il file PDF. */
   titolo: string;
 }
@@ -59,7 +83,7 @@ export interface FatturaRicevutaVista {
  */
 export function fatturaRicevutaHtml(
   xml: string,
-  parser: LettoreXml,
+  parser: DOMParser,
   opzioni: { emessa?: boolean; indiceCorpo?: number } = {},
 ): FatturaRicevutaVista | null {
   const indiceCorpo = opzioni.indiceCorpo ?? 0;
@@ -71,6 +95,15 @@ export function fatturaRicevutaHtml(
   const corpoXml = parser.parseFromString(pulito, "text/xml")?.getElementsByTagName("FatturaElettronicaBody")[indiceCorpo];
   const lineeXml = Array.from(corpoXml?.getElementsByTagName("DettaglioLinee") ?? []);
   const campo = (el: ElementoXml | undefined, tag: string) => el?.getElementsByTagName(tag)[0]?.textContent?.trim() ?? "";
+  const divisa = campo(corpoXml?.getElementsByTagName('DatiGeneraliDocumento')[0], 'Divisa') || 'EUR';
+  const moneta = (n: unknown) => eur(n, divisa);
+  const completo = documentoFatturaXml(xml, parser, indiceCorpo) ?? documentoFatturaXml(pulito, parser, indiceCorpo);
+  if (!completo) return null;
+  // Le righe mantengono i propri dati aggiuntivi; tutto il resto, compresi i
+  // campi non noti al gestionale, viene riportato nelle sezioni di dettaglio.
+  const corpoCompleto = completo?.figli.find(f => f.tag === 'FatturaElettronicaBody');
+  const righeComplete = corpoCompleto?.figli.find(f => f.tag === 'DatiBeniServizi')?.figli.filter(f => f.tag === 'DettaglioLinee') ?? [];
+  const altri = completo ? altriDatiRicevuta(completo) : null;
 
   const tipo = TIPI_DOCUMENTO[f.tipo_documento] ?? `Documento ${f.tipo_documento}`;
   // Alcuni fornitori scrivono già «(PN)» nel comune: non si ripete.
@@ -84,19 +117,15 @@ export function fatturaRicevutaHtml(
     const linea = lineeXml[i];
     // Questi dati restano associati alla loro riga: una fattura può riguardare
     // più mezzi e più DDT. Non si deducono targhe o unità dalle descrizioni.
-    const dettagli = Array.from(linea?.getElementsByTagName("AltriDatiGestionali") ?? []).map(d => {
-      const valori = [campo(d, "RiferimentoTesto"), campo(d, "RiferimentoNumero"), dataIt(campo(d, "RiferimentoData")) || campo(d, "RiferimentoData")].filter(Boolean);
-      if (!valori.length) return "";
-      return `<div><span class="etichetta">${esc(campo(d, "TipoDato") || "Altri dati")}:</span> ${esc(valori.join(" · "))}</div>`;
-    }).filter(Boolean).join("");
+    const dettagli = dettagliRigaRicevuta(righeComplete[i]);
     return `<tr>
       <td class="n">${esc(campo(linea, "NumeroLinea") || r.numero_linea)}</td>
       <td><div class="descrizione">${esc(r.descrizione)}</div>${dettagli ? `<div class="dettagli-riga">${dettagli}</div>` : ""}</td>
       <td class="um">${esc(campo(linea, "UnitaMisura")) || "—"}</td>
-      <td class="d">${num(r.quantita)}</td>
-      <td class="d">${eur(r.prezzo_unitario)}</td>
+      <td class="d">${decimaleOriginale(campo(linea, 'Quantita'))}</td>
+      <td class="d">${decimaleOriginale(campo(linea, 'PrezzoUnitario'), divisa)}</td>
       <td class="d">${esc(r.aliquota_iva)}%${natura}</td>
-      <td class="d">${eur(r.imponibile)}</td>
+      <td class="d">${decimaleOriginale(campo(linea, 'PrezzoTotale'), divisa)}</td>
     </tr>`;
   }).join("");
 
@@ -108,8 +137,8 @@ export function fatturaRicevutaHtml(
 
   const riepilogo = f.riepilogo_iva.map((r) => `<tr>
       <td>${esc(r.aliquota)}%${r.natura ? ` (${esc(r.natura)})` : ""}</td>
-      <td class="d">${eur(r.imponibile)}</td>
-      <td class="d">${eur(r.imposta)}</td>
+      <td class="d">${moneta(r.imponibile)}</td>
+      <td class="d">${moneta(r.imposta)}</td>
     </tr>`).join("");
 
   const pagamento = extra && (extra.scadenza || extra.iban || extra.modalitaPagamento)
@@ -120,7 +149,7 @@ export function fatturaRicevutaHtml(
       </div>`
     : "";
 
-  const bollo = extra && extra.bollo > 0 ? `<tr><td>Imposta di bollo</td><td class="d">${eur(extra.bollo)}</td></tr>` : "";
+  const bollo = extra && extra.bollo > 0 ? `<tr><td>Imposta di bollo</td><td class="d">${moneta(extra.bollo)}</td></tr>` : "";
   const lotto = f.fatture_nel_file > 1
     ? `<p class="avviso">Il file contiene ${f.fatture_nel_file} fatture: qui è mostrata la ${indiceCorpo + 1}ª.</p>` : "";
 
@@ -156,7 +185,16 @@ export function fatturaRicevutaHtml(
   .um { white-space: nowrap; }
   .dettagli-riga { margin-top: 5px; font-size: 8.5pt; line-height: 1.45; color: #475569; overflow-wrap: anywhere; }
   .etichetta { font-weight: 500; }
-  .descrizione { overflow-wrap: anywhere; }
+  .descrizione { overflow-wrap: anywhere; white-space: pre-wrap; }
+  .xml-completo { margin-top: 22px; font-size: 9pt; }
+  .xml-completo h2 { font-size: 13pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
+  .xml-gruppo { margin: 8px 0 8px 8px; padding-left: 8px; border-left: 1px solid #e2e8f0; }
+  .xml-gruppo h4 { font-size: inherit; margin: 7px 0 4px; break-after: avoid; }
+  .xml-campo { display: grid; grid-template-columns: minmax(100px, 32%) minmax(0, 1fr); gap: 8px; padding: 2px 0; break-inside: avoid; }
+  .xml-campo dt { color: #64748b; }
+  .xml-campo dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .xml-foglia, .dettagli-riga dl { margin: 0; }
+  .xml-valore { white-space: pre-wrap; overflow-wrap: anywhere; }
   thead { display: table-header-group; }
   .totali { width: 55%; margin-left: auto; break-inside: avoid; page-break-inside: avoid; }
   .totali td { border-bottom: 0; padding: 3px 6px; }
@@ -202,19 +240,21 @@ export function fatturaRicevutaHtml(
     </table>
     <table>
       <tbody>
-        <tr><td>Imponibile</td><td class="d">${eur(f.imponibile_totale)}</td></tr>
-        <tr><td>IVA</td><td class="d">${eur(f.iva_totale)}</td></tr>
+        <tr><td>Imponibile</td><td class="d">${moneta(f.imponibile_totale)}</td></tr>
+        <tr><td>IVA</td><td class="d">${moneta(f.iva_totale)}</td></tr>
         ${bollo}
-        <tr class="totale"><td>Totale</td><td class="d">${eur(f.totale_documento)}</td></tr>
+        <tr class="totale"><td>Totale</td><td class="d">${moneta(f.totale_documento)}</td></tr>
       </tbody>
     </table>
   </div>
   ${pagamento}
   ${causali.length ? `<div class="blocco"><h3>Causale / annotazioni</h3>${causali.map(c => `<p>${esc(c)}</p>`).join("")}</div>` : ""}
+  ${altri ? `<section class="xml-completo" aria-label="Dati completi del documento originale"><h2>Dati completi del documento originale</h2><p>Intestazione, riferimenti, pagamenti e altri dati presenti nell’XML. I dettagli delle singole voci sono riportati nelle rispettive righe.</p>${campoRicevutaHtml(altri)}</section>` : ''}
   <div class="pie">Rappresentazione leggibile della fattura elettronica${emessa ? "" : " ricevuta"}. Il documento con valore fiscale è il file XML${emessa ? " trasmesso allo SDI" : " originale, conservato in Edilizia in Cloud"}.</div>
 </body></html>`;
 
-  return { html, titolo, allegatiPdf: allegatiPdfDaXml(pulito, parser, indiceCorpo) };
+  const allegatiFile = allegatiDalCorpo(corpoXml);
+  return { html, titolo, allegatiPdf: pdfTraAllegati(allegatiFile), allegatiFile };
 }
 
 /**
@@ -224,6 +264,12 @@ export function fatturaRicevutaHtml(
  * apre come PDF.
  */
 export function allegatiPdfDaXml(xml: string, parser: LettoreXml, indiceCorpo = 0): AllegatoPdf[] {
+  return pdfTraAllegati(allegatiFatturaXml(xml, parser, indiceCorpo));
+}
+
+const pdfTraAllegati = (allegati: AllegatoXml[]): AllegatoPdf[] => allegati.filter(a => !a.compressione && (/pdf/i.test(a.formato) || /\.pdf$/i.test(a.nome)) && a.base64.startsWith('JVBER')).map(({ nome, base64 }) => ({ nome, base64 }));
+
+export function allegatiFatturaXml(xml: string, parser: LettoreXml, indiceCorpo = 0): AllegatoXml[] {
   let doc;
   try {
     doc = parser.parseFromString(senzaPrefissi(xml), "text/xml");
@@ -231,18 +277,19 @@ export function allegatiPdfDaXml(xml: string, parser: LettoreXml, indiceCorpo = 
     return [];
   }
   if (!doc || doc.getElementsByTagName("parsererror").length > 0) return [];
-  const trovati: AllegatoPdf[] = [];
   const corpi = doc.getElementsByTagName("FatturaElettronicaBody");
-  const corpo = corpi[indiceCorpo];
+  return allegatiDalCorpo(corpi[indiceCorpo]);
+}
+
+function allegatiDalCorpo(corpo: ElementoXml | undefined): AllegatoXml[] {
   if (!corpo) return [];
+  const trovati: AllegatoXml[] = [];
   for (const a of Array.from(corpo.getElementsByTagName("Allegati"))) {
-    const nome = a.getElementsByTagName("NomeAttachment")[0]?.textContent?.trim() || "allegato.pdf";
     const formato = a.getElementsByTagName("FormatoAttachment")[0]?.textContent?.trim() || "";
+    const nome = a.getElementsByTagName("NomeAttachment")[0]?.textContent?.trim() || `allegato.${/^[a-z0-9]{1,8}$/i.test(formato) ? formato.toLowerCase() : 'bin'}`;
     const base64 = (a.getElementsByTagName("Attachment")[0]?.textContent ?? "").replace(/\s+/g, "");
     if (!base64) continue;
-    const dichiaratoPdf = /pdf/i.test(formato) || /\.pdf$/i.test(nome);
-    // %PDF in base64 comincia con «JVBER».
-    if (dichiaratoPdf && base64.startsWith("JVBER")) trovati.push({ nome, base64 });
+    trovati.push({ nome, base64, formato, compressione: a.getElementsByTagName('AlgoritmoCompressione')[0]?.textContent?.trim() ?? '', descrizione: a.getElementsByTagName('DescrizioneAttachment')[0]?.textContent?.trim() ?? '' });
   }
   return trovati;
 }
