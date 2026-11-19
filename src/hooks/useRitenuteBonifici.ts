@@ -7,6 +7,28 @@ import type { RitenutaBonifico } from "@/lib/fatturazione/bonificiParlanti";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
 import { invalidaStatisticheFatturazione } from "@/lib/fatturazione/invalidaStatistiche";
+import type { ImportiBonificoCommessa } from "@/lib/orders/quadraturaCassaCommessa";
+
+export function useRitenuteBonificiCommessa(documenti: string[], enabled: boolean) {
+  const companyId = useEffectiveCompanyId();
+  const ids = [...new Set(documenti)].sort();
+  return useQuery({
+    queryKey: ["ritenute-bonifici", companyId, "documenti-commessa", ids],
+    enabled: !!companyId && enabled && ids.length > 0,
+    staleTime: 60_000,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const gruppi: string[][] = [];
+      for (let i = 0; i < ids.length; i += 75) gruppi.push(ids.slice(i, i + 75));
+      const righe = await Promise.all(gruppi.map(gruppo => readAllPages<ImportiBonificoCommessa>((from, to) =>
+        supabase.from("ritenute_bonifici" as never)
+          .select("documento_id,lordo,ritenuta,commissioni,stato")
+          .eq("company_id", companyId!).in("documento_id", gruppo)
+          .neq("stato", "stornata").order("id").range(from, to).abortSignal(signal) as never)));
+      return righe.flat();
+    },
+  });
+}
 
 export function useRitenuteBonifici(anno: number, enabled = true) {
   const companyId = useEffectiveCompanyId(),

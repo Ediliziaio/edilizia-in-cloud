@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { usePayrollWorkspace } from "@/hooks/usePayrollWorkspace";
 import {
@@ -181,7 +182,7 @@ function WorkspaceBody({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-white p-3">
         <div className="min-w-52 flex-1">
           <Label htmlFor="paghe-person-filter">Persona</Label>
-          <select
+          <UniformSelect
             id="paghe-person-filter"
             className={selectClass}
             value={person}
@@ -196,7 +197,7 @@ function WorkspaceBody({
                 {name}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         </div>
         {w.closed && (
           <Badge variant="outline">Mese HR chiuso · modifiche bloccate</Badge>
@@ -786,7 +787,7 @@ function EntryDialog({
               Buoni pasto attivi
             </label>
             <Label htmlFor="pay-modality">Modalità</Label>
-            <select
+            <UniformSelect
               id="pay-modality"
               className={selectClass}
               value={draft.modality}
@@ -797,7 +798,7 @@ function EntryDialog({
               <option value="entrambi">
                 Ore e ricevute (verificare eventuali duplicazioni)
               </option>
-            </select>
+            </UniformSelect>
             <Field
               id="pay-value"
               label="Valore unitario buono (€)"
@@ -835,7 +836,7 @@ function EntryDialog({
             {["km", "receipt", "movement"].includes(a.kind) && (
               <>
                 <Label htmlFor="pay-person">Persona</Label>
-                <select
+                <UniformSelect
                   id="pay-person"
                   className={selectClass}
                   value={draft.person}
@@ -848,7 +849,7 @@ function EntryDialog({
                       {!p.attivo ? " · Storico" : ""}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </>
             )}
             {["km", "receipt", "movement", "reverse"].includes(a.kind) && (
@@ -865,7 +866,7 @@ function EntryDialog({
             {a.kind === "movement" && (
               <>
                 <Label htmlFor="pay-type">Voce</Label>
-                <select
+                <UniformSelect
                   id="pay-type"
                   className={selectClass}
                   value={draft.type}
@@ -878,7 +879,7 @@ function EntryDialog({
                         {label}
                       </option>
                     ))}
-                </select>
+                </UniformSelect>
                 <Field
                   id="pay-amount"
                   label={
@@ -955,7 +956,7 @@ function EntryDialog({
             {["movement", "reverse"].includes(a.kind) && (
               <>
                 <Label htmlFor="pay-source">Fonte dichiarata</Label>
-                <select
+                <UniformSelect
                   id="pay-source"
                   className={selectClass}
                   value={draft.source}
@@ -965,7 +966,7 @@ function EntryDialog({
                   <option value="consulente">
                     Dato comunicato dal consulente
                   </option>
-                </select>
+                </UniformSelect>
               </>
             )}
             {a.kind === "reverse" && (
@@ -984,7 +985,7 @@ function EntryDialog({
                   effettuata fuori dal gestionale.
                 </p>
                 <Label htmlFor="pay-state">Esito</Label>
-                <select
+                <UniformSelect
                   id="pay-state"
                   className={selectClass}
                   value={draft.state}
@@ -1004,7 +1005,7 @@ function EntryDialog({
                       {statuses[s]}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </>
             )}
             {a.kind === "link" && (
@@ -1012,7 +1013,7 @@ function EntryDialog({
                 <Label htmlFor="pay-document">
                   Documento della stessa persona e periodo
                 </Label>
-                <select
+                <UniformSelect
                   id="pay-document"
                   className={selectClass}
                   value={draft.document}
@@ -1024,7 +1025,7 @@ function EntryDialog({
                       {d.titolo}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
                 {!docs.length && (
                   <p className="text-sm text-amber-800">
                     Nessun documento compatibile: caricalo prima da «Carica dal

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useDocumentoAffiancato } from "@/components/shared/contestoConfrontoDocumenti";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -60,7 +61,7 @@ export function OriginaliConfronto({
       {files.length > 1 && (
         <label className="min-w-0 flex-1 text-xs font-medium">
           <span className={nelConfronto ? "sr-only" : ""}>File del documento</span>
-          <select
+          <UniformSelect
             aria-label="Scegli il file originale"
             className={nelConfronto ? "h-8 w-full min-w-0 rounded-md border bg-background px-2 text-xs" : "mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"}
             value={file.id}
@@ -74,7 +75,7 @@ export function OriginaliConfronto({
                 {i + 1}. {f.etichetta ? `${f.etichetta} · ` : ""}{f.nome}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         </label>
       )}
           {files.length === 1 && <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={[file.etichetta,file.nome].filter(Boolean).join(' · ')}>{file.etichetta ? `${file.etichetta} · ` : ''}{file.nome}</span>}

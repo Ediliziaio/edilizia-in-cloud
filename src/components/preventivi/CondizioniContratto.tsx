@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il blocco «Clausole contrattuali» degli editor dei modelli dei preventivatori.
  *
@@ -136,12 +137,12 @@ export function CondizioniContratto({
               {onAssocia && perIPreventivi.length > 1 && (
                 <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   Per questo preventivatore usa
-                  <select aria-label="Modello delle condizioni per questo preventivatore"
+                  <UniformSelect aria-label="Modello delle condizioni per questo preventivatore"
                     className="h-8 rounded-md border bg-background px-2 text-sm text-foreground"
                     value={associato?.id ?? ""} onChange={(e) => onAssocia(e.target.value || null)}>
                     <option value="">il predefinito{predefinito ? ` («${predefinito.nome}»)` : ""}</option>
                     {perIPreventivi.filter((m) => !m.predefinito).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                  </select>
+                  </UniformSelect>
                 </label>
               )}
               <p className="line-clamp-2 text-xs text-muted-foreground">{riassunto(testoDelModello(dallArchivio))}</p>

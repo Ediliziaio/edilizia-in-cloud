@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Segnalare un problema dal cantiere (02/11/2026): una frase, scritta o detta, e una foto.
  * All'ufficio arriva come ticket con fonte='campo': il titolo sono le prime parole.
@@ -138,7 +139,7 @@ export default function CampoTicketNuovo() {
       </div>
 
       {!orderId && cantieri.length > 0 && (
-        <select
+        <UniformSelect
           aria-label="Cantiere"
           value={selectedOrderId}
           onChange={(e) => setSelectedOrderId(e.target.value)}
@@ -148,7 +149,7 @@ export default function CampoTicketNuovo() {
           {cantieri.map((c) => (
             <option key={c.id} value={c.id}>{c.order_code} — {c.description?.slice(0, 40)}</option>
           ))}
-        </select>
+        </UniformSelect>
       )}
 
       <textarea

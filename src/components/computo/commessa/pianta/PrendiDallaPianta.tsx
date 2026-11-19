@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { controlloPrimaDellUso } from "../../../../../shared/planimetrie/verificaDocumento.ts";
 import { ControlloUsoBloccato } from "@/components/planimetrie/ControlloPrimaDellUso";
 import { percorsiPlanimetrie } from "@/lib/planimetrie/render/percorsi";
@@ -94,12 +95,12 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
           <div className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="pianta-scelta">1. Quale pianta</Label>
-              <select id="pianta-scelta" className={selezione} value={piantaId ?? ""} onChange={e => cambiaPianta(e.target.value)}>
+              <UniformSelect id="pianta-scelta" className={selezione} value={piantaId ?? ""} onChange={e => cambiaPianta(e.target.value)}>
                 {!piantaId && <option value="" disabled>Scegli la pianta</option>}
                 {delComputo.length > 0 && <optgroup label="Associate a questo computo">{delComputo.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}</optgroup>}
                 {diCommessa.length > 0 && <optgroup label="Di questa commessa">{diCommessa.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}</optgroup>}
                 {altre.length > 0 && <optgroup label={diCommessa.length ? "Altre piante" : "Piante dell'azienda"}>{altre.map(p => <option key={p.id} value={p.id}>{p.titolo}</option>)}</optgroup>}
-              </select>
+              </UniformSelect>
               {pianta && <p className="text-xs text-slate-500">Versione {pianta.versione.numero} del {new Date(pianta.versione.created_at).toLocaleDateString("it-IT")}</p>}
             </div>
 
@@ -122,7 +123,7 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
             {scelta && (
               <div className="space-y-1">
                 <Label htmlFor="quantita-scelta">{stati.length > 1 ? "3" : "2"}. Quale quantità</Label>
-                <select id="quantita-scelta" className={selezione} value={scelta.id} onChange={e => setSceltaId(e.target.value)}>
+                <UniformSelect id="quantita-scelta" className={selezione} value={scelta.id} onChange={e => setSceltaId(e.target.value)}>
                   <optgroup label="Per ogni stanza">
                     {QUANTITA_LOCALI.map(q => <option key={q.id} value={q.id}>{q.etichetta} ({unitaLeggibile(q.unita)})</option>)}
                   </optgroup>
@@ -131,7 +132,7 @@ export default function PrendiDallaPianta({ voce, uploadId, companyId, orderId, 
                       {scelte.slice(QUANTITA_LOCALI.length).map(q => <option key={q.id} value={q.id}>{q.etichetta} ({unitaLeggibile(q.unita)})</option>)}
                     </optgroup>
                   )}
-                </select>
+                </UniformSelect>
                 {avviso && <p className="flex items-start gap-1 text-xs text-amber-800"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{avviso}</p>}
               </div>
             )}

@@ -15,6 +15,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useUfficiAttivi } from "@/hooks/useUffici";
+import { TaskAssignmentFields } from "@/components/tasks/TaskAssignmentFields";
+import { taskAssignment } from "@/lib/attivita/taskAssignment";
 import { campoWorkDay } from "@/lib/campo/workDay";
 import { messaggioErrore } from "@/lib/campo/messaggioErrore";
 import { Button } from "@/components/ui/button";
@@ -76,6 +79,7 @@ const emptyDraft = () => ({
   title: "",
   notes: "",
   assigned: "",
+  office: "",
   date: "",
   stage: "altro",
   priority: "normale",
@@ -94,10 +98,8 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
   const { effectiveCompany, user, role, profile } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
-  const editable =
-    role === "company_admin" ||
-    role === "super_admin" ||
-    !!permissions.canEditOrders;
+  const admin = role === "company_admin" || role === "super_admin";
+  const editable = !permissions.solaLettura && (admin || !!permissions.canEditOrders);
   const qc = useQueryClient();
   const [filter, setFilter] = useState<Filter>("aperte");
   const [search, setSearch] = useState("");
@@ -105,6 +107,8 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
   const [creating, setCreating] = useState(false);
   const addInFlightRef = useRef(false);
   const [draft, setDraft] = useState(emptyDraft);
+  const offices = useUfficiAttivi(creating ? companyId : null);
+  const availableOffices = offices.data.filter(o => admin || o.membri.includes(user?.id ?? ""));
   const [config, setConfig] = useState(false);
   const [applyTemplate, setApplyTemplate] = useState(false);
   const people = useQuery({
@@ -293,6 +297,8 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
     mutationFn: async () => {
       if (!editable || !companyId || !user || !draft.title.trim())
         throw Error("Titolo e sessione sono necessari.");
+      if (offices.isLoading || offices.isError) throw Error("Attendi il caricamento delle aree o riprova.");
+      const assignment = taskAssignment({ officeId: draft.office, assigneeId: draft.assigned, userId: user.id, offices: availableOffices, canAssignOthers: true });
       const predecessor = rows.find((r) => r.id === draft.predecessor);
       if (draft.predecessor && !predecessor)
         throw Error("Dipendenza non più disponibile.");
@@ -307,7 +313,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           order_id: orderId,
           title: draft.title.trim(),
           notes: draft.notes.trim() || null,
-          assigned_to: draft.assigned || user.id,
+          ...assignment,
           created_by: user.id,
           office_stage: draft.stage,
           priority: draft.priority,
@@ -330,7 +336,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
         taskTitle: draft.title,
         eventType: "task_created",
         description: "ha creato un’attività d’ufficio",
-        afterSnapshot: { activity_scope: "ufficio", office_stage: draft.stage },
+        afterSnapshot: { activity_scope: "ufficio", office_stage: draft.stage, ...assignment },
       });
     },
     onSuccess: () => {
@@ -744,12 +750,11 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
           if (!addInFlightRef.current) setCreating(v);
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent ampiezza="modulo" struttura="scorrevole" className="task-editor-dialog gap-3">
           <DialogHeader>
             <DialogTitle>Nuova attività d’ufficio</DialogTitle>
             <DialogDescription>
-              Collegata alla commessa e visibile nelle Attività del
-              responsabile.
+              Organizza il lavoro, scegli l’area e il responsabile. L’attività resta collegata a questa commessa.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -762,68 +767,39 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
               add.mutate();
             }}
           >
-            <fieldset disabled={add.isPending} aria-busy={add.isPending} className="min-w-0 space-y-4">
+            <fieldset disabled={add.isPending} aria-busy={add.isPending} className="min-w-0 space-y-3">
             <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Cosa c’è da fare</span>
+              <span className="font-medium">Titolo *</span>
               <Input
                 required
                 maxLength={250}
                 className="rounded-xl"
+                autoFocus
                 value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 placeholder="Es. Confermare l’ordine al fornitore"
               />
             </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="font-medium">Descrizione</span>
+              <Textarea className="rounded-xl" value={draft.notes}
+                onChange={e => setDraft({ ...draft, notes: e.target.value })}
+                placeholder="Aggiungi dettagli, link, note…" rows={2} />
+            </label>
+            <TaskAssignmentFields offices={availableOffices}
+              people={[
+                ...(user ? [{ id: user.id, name: names.get(user.id) || "Me stesso" }] : []),
+                ...(people.data ?? []).filter(p => p.id !== user?.id && (p.roles ?? []).some(r => ["company_admin", "company_staff", "salesperson", "call_center"].includes(r)))
+                  .map(p => ({ id: p.id, name: names.get(p.id) || "Nome non disponibile" })),
+              ]}
+              manageOffices={admin} userId={user?.id} officeId={draft.office}
+              assigneeId={draft.assigned || (draft.office ? "" : user?.id ?? "")}
+              onOfficeChange={office => setDraft({ ...draft, office, assigned: "" })}
+              onAssigneeChange={assigned => setDraft({ ...draft, assigned })}
+              loading={offices.isLoading || people.isLoading}
+              error={offices.isError || people.isError}
+              onRetry={() => { void offices.refetch(); void people.refetch(); }} />
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block space-y-1.5 text-sm">
-                <span className="font-medium">Fase dell’ufficio</span>
-                <OfficeSelect
-                  label="Fase dell’ufficio"
-                  value={draft.stage}
-                  onValueChange={(stage) => setDraft({ ...draft, stage })}
-                  options={OFFICE_STAGES.map(([value, label]) => ({
-                    value,
-                    label,
-                  }))}
-                />
-              </label>
-              <label className="block space-y-1.5 text-sm">
-                <span className="font-medium">Responsabile</span>
-                <OfficeSelect
-                  label="Responsabile"
-                  value={draft.assigned}
-                  onValueChange={(assigned) => setDraft({ ...draft, assigned })}
-                  options={[
-                    { value: "", label: "Io" },
-                    ...(people.data ?? [])
-                      .filter((p) =>
-                        (p.roles ?? []).some((r) =>
-                          [
-                            "company_admin",
-                            "company_staff",
-                            "salesperson",
-                            "call_center",
-                          ].includes(r),
-                        ),
-                      )
-                      .filter((p) => p.id !== user?.id)
-                      .map((p) => ({
-                        value: p.id,
-                        label: names.get(p.id) || "Nome non disponibile",
-                      })),
-                  ]}
-                />
-              </label>
-              <label className="block space-y-1.5 text-sm">
-                <span className="font-medium">Scadenza</span>
-                <Input
-                  type="date"
-                  className="rounded-xl"
-                  disabled={!!draft.predecessor}
-                  value={draft.date}
-                  onChange={(e) => setDraft({ ...draft, date: e.target.value })}
-                />
-              </label>
               <label className="block space-y-1.5 text-sm">
                 <span className="font-medium">Priorità</span>
                 <OfficeSelect
@@ -838,7 +814,26 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                   )}
                 />
               </label>
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">Scadenza</span>
+                <Input
+                  type="date"
+                  className="rounded-xl"
+                  disabled={!!draft.predecessor}
+                  value={draft.date}
+                  onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                />
+              </label>
             </div>
+            <section className="space-y-3 rounded-xl border bg-muted/20 p-3" aria-label="Flusso della commessa">
+              <p className="text-sm font-medium">Flusso della commessa</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">Fase dell’ufficio</span>
+                <OfficeSelect label="Fase dell’ufficio" value={draft.stage}
+                  onValueChange={stage => setDraft({ ...draft, stage })}
+                  options={OFFICE_STAGES.map(([value, label]) => ({ value, label }))} />
+              </label>
             <label className="block space-y-1.5 text-sm">
               <span className="font-medium">Parte dopo</span>
               <OfficeSelect
@@ -855,6 +850,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 ]}
               />
             </label>
+              </div>
             {draft.predecessor && (
               <label className="block space-y-1.5 text-sm">
                 <span className="font-medium">
@@ -873,15 +869,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
                 </span>
               </label>
             )}
-            <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Dettagli</span>
-              <Textarea
-                className="rounded-xl"
-                value={draft.notes}
-                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                rows={3}
-              />
-            </label>
+            </section>
             </fieldset>
           </form>
           <DialogFooter>
@@ -895,7 +883,7 @@ export function OfficeWorkspace({ orderId }: { orderId: string }) {
             </Button>
             <Button
               form="nuova-attivita-ufficio"
-              disabled={add.isPending || !draft.title.trim() || people.isError}
+              disabled={add.isPending || !draft.title.trim() || people.isError || offices.isError || offices.isLoading || people.isLoading}
               type="submit"
             >
               {add.isPending ? "Salvo…" : "Crea attività"}

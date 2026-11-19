@@ -307,10 +307,12 @@ export function CronoprogrammaCommessa({
   orderId,
   order,
   onOpenLavorazioni,
+  onOpenDate,
 }: {
   orderId: string;
   order: CommessaCronoprogramma;
   onOpenLavorazioni?: () => void;
+  onOpenDate?: () => void;
 }) {
   const { canViewOrderAmounts, canViewCosts } = usePermissions();
   const { phases, materials = [], allAssignments = [], isLoading, isError, refetch } = useOrderWorkPhases(orderId);
@@ -385,6 +387,7 @@ export function CronoprogrammaCommessa({
     economia: economia.perFase, voci: vociDelleSottofasi(vociPreviste ?? []).perSottofase,
   }), [fasi, sottofasiDi, sotto, economia, vociPreviste]);
   // Il PDF da stampare: tutte le fasi con tutte le sottofasi, sullo stesso periodo del grafico.
+  const asse = useMemo(() => intervalloCronoprogramma(fasi, traguardi, oggi, periodo, dateSottofasi), [fasi, traguardi, oggi, periodo, dateSottofasi]);
   const scaricaPdf = async () => {
     setStampa("in_corso");
     try {
@@ -411,7 +414,6 @@ export function CronoprogrammaCommessa({
       setStampa("pronta");
     }
   };
-  const asse = useMemo(() => intervalloCronoprogramma(fasi, traguardi, oggi, periodo, dateSottofasi), [fasi, traguardi, oggi, periodo, dateSottofasi]);
   const segni = useMemo(() => {
     const tutti = tacche(asse, scala === "adatta" ? undefined : scala);
     // Da telefono al massimo cinque date: di più si accavallano.
@@ -549,6 +551,7 @@ export function CronoprogrammaCommessa({
             title={periodo === "previsto" ? "Il piano da dare al cliente: un colore per fase, senza stati né ritardi" : "Lo stato dei lavori: fatte, in corso, da fare e ritardi"}>
             {stampa === "in_corso" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />}{periodo === "previsto" ? "PDF previsionale" : "PDF avanzamento"}
           </Button>
+          {onOpenDate && <Button size="sm" variant="outline" onClick={onOpenDate}><CalendarRange className="mr-1.5 h-4 w-4" aria-hidden="true" />Date della commessa</Button>}
           {onOpenLavorazioni && <Button size="sm" variant="outline" onClick={onOpenLavorazioni}>Gestisci fasi e date</Button>}
         </div>
       </div>

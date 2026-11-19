@@ -8,6 +8,7 @@ import { addDays, format } from "date-fns";
 export interface DashboardBillingKPI {
   fatturato_mese: number;
   fatturato_ytd: number;
+  fatturato_ytd_ivato?: number;
   fatture_emesse_mese: number;
   fatture_in_bozza: number;
   proforma_aperti: number;
@@ -21,7 +22,7 @@ export interface DashboardBillingKPI {
 
 export function useDashboardBillingKPI(companyId: string | null, enabled = true) {
   return useQuery({
-    queryKey: ["dashboard-billing-kpi", companyId, "native-importate-v2"],
+    queryKey: ["dashboard-billing-kpi", companyId, "native-importate-v3-vat"],
     enabled: enabled && !!companyId,
     queryFn: async (): Promise<DashboardBillingKPI> => {
       const now = new Date();
@@ -55,6 +56,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
 
       const { imponibile: fatturato_mese, fatture: fatture_emesse_mese } = fatturatoPeriodo(docRes, monthStart, finoAOggi);
       const { imponibile: fatturato_ytd } = fatturatoPeriodo(docRes, yearStart, finoAOggi);
+      const fatturato_ytd_ivato = Math.round(docRes.filter(d => documentoNelRegistro(d) && d.data_emissione >= yearStart && d.data_emissione < finoAOggi).reduce((sum, d) => sum + Math.round(d.totale_documento * 100), 0)) / 100;
       const { bozze: fatture_in_bozza, proforma: proforma_aperti } = conteggiPreparazione(docRes);
 
       // Incassi
@@ -89,6 +91,7 @@ export function useDashboardBillingKPI(companyId: string | null, enabled = true)
       return {
         fatturato_mese,
         fatturato_ytd,
+        fatturato_ytd_ivato,
         fatture_emesse_mese,
         fatture_in_bozza,
         proforma_aperti,
@@ -116,7 +119,7 @@ export interface TopCliente {
 
 export function useTopClientiByFatturato(companyId: string | null, limit = 5, enabled = true) {
   return useQuery({
-    queryKey: ["top-clienti-fatturato", companyId, limit, "native-importate-v2"],
+    queryKey: ["top-clienti-fatturato", companyId, limit, "native-importate-v3-vat"],
     enabled: enabled && !!companyId,
     queryFn: async (): Promise<TopCliente[]> => {
       const yearStart = `${new Date().getFullYear()}-01-01`;

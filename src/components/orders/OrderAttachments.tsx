@@ -99,6 +99,7 @@ interface OrderAttachmentsProps {
   orderId: string;
   editable?: boolean;
   actions?: ReactNode;
+  documentiCollegati?: ReactNode;
 }
 
 function formatFileSize(bytes: number): string {
@@ -137,7 +138,7 @@ export function OrderAttachments(props: OrderAttachmentsProps) {
   return <OrderAttachmentsPanel key={props.orderId} {...props} />;
 }
 
-function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttachmentsProps) {
+function OrderAttachmentsPanel({ orderId, editable = true, actions, documentiCollegati }: OrderAttachmentsProps) {
   const queryClient = useQueryClient();
   const permissions = usePermissions();
   const puoGestireCartelle = permissions.isAdmin || permissions.canEditSettingsOrders;
@@ -375,6 +376,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {documentiCollegati}
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
@@ -383,6 +385,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
     );
   }
   if (erroreAllegati || erroreCartelle) return <Card><CardHeader><CardTitle>Documenti commessa</CardTitle></CardHeader><CardContent>
+    {documentiCollegati}
     <div role="alert" className="space-y-2 text-sm text-destructive"><p>Documenti o categorie non disponibili. Non possiamo confermare che siano vuoti.</p>
       <Button type="button" variant="outline" onClick={() => { void rileggiAllegati(); void rileggiCartelle(); }}>Riprova</Button>
     </div>
@@ -430,6 +433,7 @@ function OrderAttachmentsPanel({ orderId, editable = true, actions }: OrderAttac
       </CardHeader>
 
       <CardContent className="space-y-3">
+        {documentiCollegati}
         {erroreCliente && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm"><span>Documenti del cliente non disponibili. L'elenco mostra solo gli allegati della commessa.</span><Button type="button" variant="outline" size="sm" onClick={() => { void rileggiCliente(); }}>Riprova documenti cliente</Button></div>}
         {caricoCliente && <p role="status" className="text-xs text-muted-foreground">Verifica documenti del cliente…</p>}
         {mancanti.length > 0 && (

@@ -269,12 +269,15 @@ export default function SupplierRfqDetail() {
               <Badge className={`${RDO_STATUS_COLORS[rfq.status] ?? ""} text-xs font-medium`}>{RDO_STATUS_LABELS[rfq.status] ?? rfq.status}</Badge>
               {rfq.purchase_order_id && (
                 <Link to={`/azienda/ordini-acquisto/${rfq.purchase_order_id}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 hover:bg-emerald-200">
-                  Ordine generato <ExternalLink className="h-3 w-3" />
+                  Apri ordine <ExternalLink className="h-3 w-3" />
                 </Link>
               )}
             </div>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               <span className="font-mono">{rfq.rfq_number}</span>
+              <span>· {fornitori.filter(f => f.inviata_at || f.status === "inviata").length} richieste inviate</span>
+              <span>· {fornitori.filter(f => f.risposta_at || f.status === "risposta").length} risposte</span>
+              {rfq.scadenza_offerte && <span>· Scadenza {dataIt(rfq.scadenza_offerte)}</span>}
               <span>· creata il {dataIt(rfq.created_at)}</span>
               {rfq.orders?.order_code && <span>· {rfq.orders.order_code}</span>}
             </p>
@@ -282,7 +285,7 @@ export default function SupplierRfqDetail() {
         </div>
         {rfq.status !== "aggiudicata" && rfq.status !== "annullata" && (
           <div className="flex flex-wrap items-center gap-2">
-            {haRisposte && (
+            {haRisposte && !chiusa && (
               <Button
                 size="sm"
                 className="gap-1.5"
@@ -293,7 +296,7 @@ export default function SupplierRfqDetail() {
                 }}
               >
                 <Trophy className="h-4 w-4" />
-                Aggiudica
+                Crea ordine da offerta
               </Button>
             )}
             <Button
@@ -509,9 +512,9 @@ export default function SupplierRfqDetail() {
                             className={`p-2 text-right font-bold tabular-nums ${vince ? "text-emerald-700 bg-emerald-50" : ""}`}
                           >
                             {t != null ? formatCurrency(t) : "—"}
-                            {t != null && (totaliPerFornitore[f.id]?.righeCoperte ?? 0) < items.length && (
-                              <span className="block text-[10px] font-normal text-amber-700">
-                                {totaliPerFornitore[f.id]?.righeCoperte} di {items.length} {items.length === 1 ? "voce" : "voci"}
+                            {(
+                              <span className="block text-xs font-normal text-slate-600">
+                                {totaliPerFornitore[f.id]?.righeCoperte ?? 0}/{items.length} voci quotate
                               </span>
                             )}
                           </td>
@@ -571,16 +574,7 @@ export default function SupplierRfqDetail() {
                 {rfq.motivazione_scelta && (
                   <p className="text-xs text-slate-500 italic">{rfq.motivazione_scelta}</p>
                 )}
-                {rfq.purchase_order_id && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => navigate(`/azienda/ordini-acquisto/${rfq.purchase_order_id}`)}
-                  >
-                    Apri l'ordine generato <ExternalLink className="h-3 w-3 ml-1.5" />
-                  </Button>
-                )}
+
               </CardContent>
             </Card>
           )}
@@ -657,9 +651,18 @@ export default function SupplierRfqDetail() {
                           : f.suppliers?.email ?? "nessuna email in anagrafica"}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={loadingAnagrafiche || erroreAnagrafiche || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || editingRfqId===rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>setPreviewFor(f)} aria-label={`Anteprima PDF per ${f.suppliers?.name??"fornitore"}`}><Eye className="mr-1 h-3.5 w-3.5"/>Anteprima PDF</Button>
-                    <Button size="sm" variant="outline" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || !!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onClick={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</Button>
-                    {!chiusa && <><Button size="sm" variant="outline" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</Button><Button size="sm" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</Button></>}
+                    {!chiusa && f.status === "da_inviare" && (<Button size="sm" className="h-8 text-xs" disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onClick={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Invia richiesta</Button>)}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button size="sm" variant="outline" aria-label={`Documenti e invio per ${f.suppliers?.name ?? "fornitore"}`}>Documenti e invio</Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem disabled={loadingAnagrafiche || erroreAnagrafiche || editingOffers.some(id=>fornitori.some(f=>f.id===id)) || editingRfqId===rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onSelect={()=>setPreviewFor(f)} aria-label={`Anteprima PDF per ${f.suppliers?.name??"fornitore"}`}><Eye className="mr-1 h-3.5 w-3.5"/>Anteprima PDF</DropdownMenuItem>
+                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || !!downloadingFor || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || updateRfq.isPending || updateFornitore.isPending || addItem.isPending || updateItem.isPending || deleteItem.isPending} onSelect={()=>void downloadPdf(f)} aria-label={`Scarica PDF per ${f.suppliers?.name ?? "fornitore"}`}>{downloadingFor === f.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin"/> : <FileDown className="mr-1 h-3.5 w-3.5"/>}Scarica PDF</DropdownMenuItem>
+                        {!chiusa && <>
+                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onSelect={()=>{setSendMode("testo");setInviaA(f);}} aria-label={`Email con testo a ${f.suppliers?.name ?? "fornitore"}`}><Mail className="mr-1 h-3.5 w-3.5"/>Email con testo</DropdownMenuItem>
+                        <DropdownMenuItem disabled={editingOffers.some(id=>fornitori.some(f=>f.id===id)) || loadingAnagrafiche || erroreAnagrafiche || editingRfqId === rfq.id || items.length===0 || addItem.isPending || updateItem.isPending || deleteItem.isPending || updateRfq.isPending || updateFornitore.isPending} onSelect={()=>{setSendMode("pdf");setInviaA(f);}} aria-label={`Email con PDF a ${f.suppliers?.name ?? "fornitore"}`}><Paperclip className="mr-1 h-3.5 w-3.5"/>Email con PDF</DropdownMenuItem>
+                        </>}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   {f.status !== "risposta" && <div><Label className="text-[11px] text-slate-500">Pagamento per questa richiesta</Label><Input aria-label={`Pagamento richiesta ${f.suppliers?.name}`} className="h-8 text-xs" disabled={chiusa} key={`${f.id}:${f.condizioni_pagamento ?? documentoInvio(f).pagamento}`} defaultValue={f.condizioni_pagamento || documentoInvio(f).pagamento || ""} onBlur={e=>{const v=e.target.value.trim() || null;if(v !== (f.condizioni_pagamento || documentoInvio(f).pagamento || null))updateFornitore.mutate({id:f.id,updates:{condizioni_pagamento:v}});}}/></div>}
                   {anagrafiche.find(s=>s.id===f.supplier_id) && <details className="rounded-lg border border-slate-100 bg-slate-50/50 p-2"><summary className="cursor-pointer text-xs font-medium text-slate-600">Anagrafica, referenti e pagamento</summary><div className="mt-2"><OdaFornitoreCard supplier={anagrafiche.find(s=>s.id===f.supplier_id)}/></div></details>}
@@ -985,8 +988,7 @@ export default function SupplierRfqDetail() {
               Aggiudica a {aggiudicaA?.suppliers?.name}
             </DialogTitle>
             <DialogDescription>
-              Nasce un ordine d'acquisto in bozza con i prezzi che ha offerto. Da lì in poi
-              si lavora sull'ordine.
+              La scelta chiude la richiesta e apre l’ordine in bozza con le voci offerte. Dalla bozza puoi inviare l’ordine al fornitore e registrare la sua conferma quando arriva.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1074,7 +1076,7 @@ export default function SupplierRfqDetail() {
               }}
             >
               <Send className="h-4 w-4 mr-1.5" />
-              {aggiudica.isPending ? "Creazione ordine..." : "Aggiudica e crea ordine"}
+              {aggiudica.isPending ? "Creazione ordine..." : "Scegli fornitore e crea bozza"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -78,8 +80,8 @@ function apri() {
 }
 it("apre il confronto e cerca anche le fatture storiche usando il server, senza registrare movimenti", async () => {
   apri();
-  await screen.findByRole("option", { name: /2020-45/ });
-  fireEvent.change(screen.getByLabelText("Cerca per numero o data"), {
+  await formOptions().findByRole("option", { name: /2020-45/ });
+  changeFormControl(screen.getByLabelText("Cerca per numero o data"), {
     target: { value: "2020-45" },
   });
   await waitFor(() =>
@@ -95,11 +97,11 @@ it("apre il confronto e cerca anche le fatture storiche usando il server, senza 
 });
 it("cambiando ricerca non conserva una fattura selezionata che può scomparire dall'elenco", async () => {
   apri();
-  await screen.findByRole("option", { name: /2020-45/ });
+  await formOptions().findByRole("option", { name: /2020-45/ });
   const select = screen.getByLabelText("Fattura dello stesso fornitore");
-  fireEvent.change(select, { target: { value: "fattura" } });
+  changeFormControl(select, { target: { value: "fattura" } });
   expect(select).toHaveValue("fattura");
-  fireEvent.change(screen.getByLabelText("Cerca per numero o data"), {
+  changeFormControl(screen.getByLabelText("Cerca per numero o data"), {
     target: { value: "un'altra fattura" },
   });
   expect(select).toHaveValue("");
@@ -110,5 +112,5 @@ it("un errore della ricerca mostra il ritentativo e permette di ricaricare le fa
   await screen.findByText(/Fatture non disponibili/);
   m.rpc.mockResolvedValue({ data: [invoice], error: null });
   fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
-  await screen.findByRole("option", { name: /2020-45/ });
+  await formOptions().findByRole("option", { name: /2020-45/ });
 });

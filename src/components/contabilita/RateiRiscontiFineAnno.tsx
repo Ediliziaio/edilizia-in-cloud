@@ -1,3 +1,4 @@
+import { TabellaContabile } from "./TabellaContabile";
 /**
  * Ratei e risconti al 31/12 nella contabilità generale (11/11/2026, docs/piano-assestamenti-fine-anno.md, lotto 2).
  *
@@ -146,7 +147,7 @@ export function RateiRiscontiFineAnno({ companyId, anno, chiuso }: { companyId: 
   return (
     <div className="space-y-3">
       <ContiPerRuolo companyId={companyId} ruoli={mancanti} chiuso={chiuso} />
-      <div className="overflow-x-auto rounded-xl border">
+      <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr><th className="p-2">Voce</th><th className="p-2">Conto</th><th className="p-2">Periodo</th><th className="p-2 text-right">Importo</th><th className="p-2 text-right">Quota al 31/12</th><th className="p-2" /></tr>
@@ -169,7 +170,7 @@ export function RateiRiscontiFineAnno({ companyId, anno, chiuso }: { companyId: 
             ))}
           </tbody>
         </table>
-      </div>
+      </TabellaContabile>
 
       {!chiuso && (
         <div className="space-y-2 rounded-lg border p-3">

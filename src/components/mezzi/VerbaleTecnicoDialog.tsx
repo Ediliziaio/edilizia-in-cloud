@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -250,7 +251,7 @@ export function VerbaleTecnicoDialog({
                   <Label htmlFor="verbale-categoria">
                     Classificazione tecnica
                   </Label>
-                  <select
+                  <UniformSelect
                     id="verbale-categoria"
                     className="h-10 w-full rounded border bg-background px-2 text-sm"
                     value={parametri.categoria}
@@ -263,7 +264,7 @@ export function VerbaleTecnicoDialog({
                         {categoriaDocumentoLabel(c)}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>

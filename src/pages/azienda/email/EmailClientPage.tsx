@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * EmailClientPage — ingresso del client email personale
  *
@@ -1592,7 +1593,7 @@ function DemoMailboxExperience() {
           </Button>
           {identityEditorOpen && (
             <div className="mt-2 space-y-2 rounded-xl border border-blue-100 bg-blue-50/50 p-2">
-              <select
+              <UniformSelect
                 aria-label="Casella da modificare"
                 className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none"
                 value={selectedIdentityEmail}
@@ -1604,7 +1605,7 @@ function DemoMailboxExperience() {
                 {identities.map((identity) => (
                   <option key={`edit-${identity.email}`} value={identity.email}>{identity.email}</option>
                 ))}
-              </select>
+              </UniformSelect>
               <input
                 aria-label="Nome visualizzato casella"
                 className="h-8 w-full rounded-lg border border-blue-100 bg-white px-2 text-xs text-slate-700 outline-none"
@@ -2346,7 +2347,7 @@ function DemoMailboxExperience() {
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
                 {activeIdentity.avatar}
               </span>
-              <select
+              <UniformSelect
                 aria-label="Mittente"
                 className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none"
                 value={composeDraft.from}
@@ -2357,7 +2358,7 @@ function DemoMailboxExperience() {
                     {identity.displayName} · {identity.email}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2">
               <span className="w-12 text-xs font-semibold uppercase text-slate-400">A</span>

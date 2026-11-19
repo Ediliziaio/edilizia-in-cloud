@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   render,
   screen,
@@ -74,7 +75,7 @@ describe("Viste dei contratti del subappaltatore", () => {
         onApri={vi.fn()}
       />,
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca contratti e commesse" }),
       { target: { value: "Mario" } },
     );
@@ -89,7 +90,7 @@ describe("Viste dei contratti del subappaltatore", () => {
         name: "SUB-1",
       }),
     ).toBeNull();
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato firma" }), {
+    changeFormControl(screen.getByRole("combobox", { name: "Stato firma" }), {
       target: { value: "firmato" },
     });
     expect(screen.getByText("Nessun contratto corrispondente.")).toBeTruthy();
@@ -134,7 +135,7 @@ describe("Viste dei contratti del subappaltatore", () => {
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
       6,
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca contratti e commesse" }),
       { target: { value: "COMM-25" } },
     );
@@ -154,7 +155,7 @@ describe("Viste dei contratti del subappaltatore", () => {
         contesto="commesse"
       />,
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Ordina contratti" }),
       { target: { value: "valore" } },
     );

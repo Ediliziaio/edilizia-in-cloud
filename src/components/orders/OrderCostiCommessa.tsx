@@ -260,7 +260,7 @@ export function OrderCostiCommessaCard({ orderId, puoModificare }: { orderId: st
           <Skeleton className="h-20 w-full" />
         ) : costi.length === 0 ? (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Nessun costo senza fattura su questa commessa.</p>
+            <p className="commessa-empty text-sm text-muted-foreground">Nessun costo senza fattura su questa commessa.</p>
             {puoModificare && (
               <div>
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground">Aggiungine uno con un clic</p>

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import {FvEconomiaAzienda} from "@/components/fotovoltaico/economiaAzienda/FvEconomiaAzienda";
 import {creaSnapshotEconomia,riferimentoClienteEconomia,snapshotEconomiaValido} from "../../../../supabase/functions/_shared/fvEconomiaAzienda";
 /**
@@ -4045,23 +4046,23 @@ export function Step5Configurazione({
                         placeholder="Cerca kit o marca…"
                         className="flex-1 min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm"
                       />
-                      <select value={kitPotenza} onChange={(e) => setKitPotenza(e.target.value as typeof kitPotenza)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                      <UniformSelect value={kitPotenza} onChange={(e) => setKitPotenza(e.target.value as typeof kitPotenza)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
                         <option value="all">Tutte le potenze</option>
                         <option value="s3">≤ 3 kWp</option>
                         <option value="3_6">3–6 kWp</option>
                         <option value="6_10">6–10 kWp</option>
                         <option value="g10">&gt; 10 kWp</option>
-                      </select>
-                      <select value={kitAccumulo} onChange={(e) => setKitAccumulo(e.target.value as typeof kitAccumulo)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                      </UniformSelect>
+                      <UniformSelect value={kitAccumulo} onChange={(e) => setKitAccumulo(e.target.value as typeof kitAccumulo)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
                         <option value="all">Con o senza accumulo</option>
                         <option value="con">Con accumulo</option>
                         <option value="senza">Senza accumulo</option>
-                      </select>
-                      <select value={kitSort} onChange={(e) => setKitSort(e.target.value as typeof kitSort)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                      </UniformSelect>
+                      <UniformSelect value={kitSort} onChange={(e) => setKitSort(e.target.value as typeof kitSort)} className="rounded-lg border border-slate-200 px-2 py-2 text-sm">
                         <option value="nome">Ordina: nome</option>
                         <option value="prezzo">Ordina: prezzo</option>
                         <option value="potenza">Ordina: potenza</option>
-                      </select>
+                      </UniformSelect>
                     </div>
                     <p className="text-[11px] text-slate-400">{kitFiltrati.length} di {kitDisponibili.length} kit</p>
                     <div className="-mx-1 overflow-y-auto px-1">

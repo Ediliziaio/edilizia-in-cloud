@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Firma elettronica avanzata: al primo documento con un'azienda chi firma si
  * identifica con un documento di riconoscimento valido e accetta le condizioni
@@ -131,9 +132,9 @@ export function IdentificazioneFirmatario({ token, sessioneFirma, nomeFirmatario
       </div>
       <div className="space-y-1">
         <Label>Documento</Label>
-        <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+        <UniformSelect className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm" value={tipo} onChange={(e) => setTipo(e.target.value)}>
           {TIPI.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
+        </UniformSelect>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1"><Label>Numero del documento</Label><Input value={numero} onChange={(e) => setNumero(e.target.value.toUpperCase())} maxLength={30} /></div>

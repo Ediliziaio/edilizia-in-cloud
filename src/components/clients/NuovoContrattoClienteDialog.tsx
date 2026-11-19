@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Nuovo contratto» dalla scheda del cliente (09/11/2026).
  *
@@ -61,11 +62,11 @@ export function NuovoContrattoClienteDialog({ aperto, onChiudi, clienteId, nomeC
         {(commesse.length > 0 || preventivi.length > 0) && (
           <div className="space-y-1">
             <label htmlFor="copia-righe" className="text-xs font-medium">Righe del nuovo lavoro</label>
-            <select id="copia-righe" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={copiaDa} onChange={(e) => setCopiaDa(e.target.value)}>
+            <UniformSelect id="copia-righe" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={copiaDa} onChange={(e) => setCopiaDa(e.target.value)}>
               <option value="">Le scrivo da zero</option>
               {commesse.length > 0 && <optgroup label="Da un suo lavoro">{commesse.map((c) => <option key={c.id} value={`lavoro:${c.id}`}>{nomeCommessa(c)}</option>)}</optgroup>}
               {preventivi.length > 0 && <optgroup label="Da un suo preventivo">{preventivi.map((q) => <option key={q.valore} value={q.valore}>{q.etichetta}</option>)}</optgroup>}
-            </select>
+            </UniformSelect>
             <p className="text-xs text-muted-foreground">Non serve fare un preventivo nuovo.</p>
           </div>
         )}

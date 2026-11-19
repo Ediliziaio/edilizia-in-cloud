@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -54,7 +55,7 @@ export function FontiSchedaTecnicaPos({
       <Label htmlFor={`${id}-modo`}>
         Fonte {tipo}: documenti o dichiarazione
       </Label>
-      <select
+      <UniformSelect
         id={`${id}-modo`}
         className="h-10 w-full rounded border bg-background px-2 text-sm"
         value={f.modalita}
@@ -77,7 +78,7 @@ export function FontiSchedaTecnicaPos({
             Documentazione non applicabile, con motivazione da verificare
           </option>
         )}
-      </select>
+      </UniformSelect>
       {f.modalita !== "da_verificare" && f.modalita !== "documenti" && (
         <>
           <Label htmlFor={`${id}-motivo`}>
@@ -197,7 +198,7 @@ export function FontiSchedaTecnicaPos({
                 </p>
               ) : (
                 <>
-                  <select
+                  <UniformSelect
                     aria-label={`Documento tecnico ${id}`}
                     className="h-10 w-full rounded border bg-background px-2 text-sm"
                     value={scelto}
@@ -210,7 +211,7 @@ export function FontiSchedaTecnicaPos({
                         {d.stato}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                   {!q.data?.documenti.length && (
                     <p className="text-xs">
                       Nessun documento tecnico selezionabile: completa il

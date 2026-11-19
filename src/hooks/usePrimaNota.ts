@@ -439,6 +439,8 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
       updateNotesMutation.mutateAsync({ id, notes }),
     entries: entriesQuery.data?.data || [],
     isLoading: entriesQuery.isLoading,
+    erroreElenco: entriesQuery.isError,
+    ricaricaElenco: entriesQuery.refetch,
     totalCount,
     totalPages,
     saldo: saldoQuery.data,

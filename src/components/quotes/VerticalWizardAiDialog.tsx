@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Dialog,
@@ -671,7 +672,7 @@ export default function VerticalWizardAiDialog<T>(
                                   >
                                     {labels[f.key] ?? f.key}
                                     {choices || typeof f.value === "boolean" ? (
-                                      <select
+                                      <UniformSelect
                                         aria-label={`${op.id} ${f.key}`}
                                         className="mt-1 w-full rounded-md border p-2 text-sm text-slate-900"
                                         value={
@@ -700,7 +701,7 @@ export default function VerticalWizardAiDialog<T>(
                                             <option value="false">No</option>
                                           </>
                                         )}
-                                      </select>
+                                      </UniformSelect>
                                     ) : (
                                       <input
                                         aria-label={`${op.id} ${f.key}`}
@@ -750,7 +751,7 @@ export default function VerticalWizardAiDialog<T>(
                                       <label className="block text-xs text-slate-500">
                                         {axis.label}
                                         {axis.required ? " *" : ""}
-                                        <select
+                                        <UniformSelect
                                           aria-label={`${op.id} variante ${axis.label}`}
                                           className="mt-1 w-full rounded border p-2 text-sm text-slate-900"
                                           value={axis.value ?? ""}
@@ -766,12 +767,12 @@ export default function VerticalWizardAiDialog<T>(
                                               {v.label}
                                             </option>
                                           ))}
-                                        </select>
+                                        </UniformSelect>
                                       </label>
                                       {choices.length > 0 && (
                                         <label className="mt-2 block text-xs text-slate-500">
                                           Dettaglio {axis.label}
-                                          <select
+                                          <UniformSelect
                                             aria-label={`${op.id} scelta ${axis.label}`}
                                             className="mt-1 w-full rounded border p-2 text-sm text-slate-900"
                                             value={axis.choice ?? ""}
@@ -790,7 +791,7 @@ export default function VerticalWizardAiDialog<T>(
                                                 {c}
                                               </option>
                                             ))}
-                                          </select>
+                                          </UniformSelect>
                                         </label>
                                       )}
                                     </div>

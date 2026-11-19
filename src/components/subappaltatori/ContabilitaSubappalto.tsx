@@ -1,3 +1,5 @@
+import { pagatoSal, residuoSal } from "@/lib/subappaltatori/importiSal";
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, useRef, type ReactNode } from "react";
 import { format, parseISO, differenceInCalendarDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -21,8 +23,7 @@ import type {
   StatoSALSub,
 } from "@/types/subappaltatori";
 
-const pagatoSal = (s: SALSubappaltatore) => Number(s.pagato_registrato ?? (s.stato === 'pagato' ? s.importo_netto : 0));
-const residuoSal = (s: SALSubappaltatore) => Math.max(0,Number(s.importo_netto)-pagatoSal(s));
+
 const statiSAL: Record<StatoSALSub, string> = {
   ricevuto: "Ricevuto",
   verificato: "Verificato",
@@ -105,7 +106,7 @@ function Filtri({
           onChange={(e) => onRicerca(e.target.value)}
         />
       </div>
-      <select
+      <UniformSelect
         aria-label="Filtra per stato"
         className="h-10 rounded-md border bg-background px-3 text-sm"
         value={stato}
@@ -117,7 +118,7 @@ function Filtri({
             {label}
           </option>
         ))}
-      </select>
+      </UniformSelect>
     </div>
   );
 }

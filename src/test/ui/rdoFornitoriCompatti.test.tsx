@@ -1,3 +1,4 @@
+import { changeFormControl, nativeFormControl } from "@/test/helpers/changeFormControl";
 // 11/11/2026 — «A chi lo chiedi»: una riga per fornitore, i dettagli a
 // richiesta (uno alla volta); nel confronto niente tendina per cella; il
 // totale offerto vuoto propone la somma delle voci senza salvarla.
@@ -75,27 +76,27 @@ it("ogni fornitore è una riga: nome, stato, totale, consegna e «Scegli questo�
   expect(righe[1]).toHaveTextContent("In attesa");
   expect(within(righe[1]).queryByRole("button", { name: /Scegli questo/ })).not.toBeInTheDocument();
   // Con più fornitori i dettagli partono chiusi.
-  expect(screen.queryByRole("button", { name: /Anteprima PDF/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Documenti e invio/ })).not.toBeInTheDocument();
 });
 
 it("un clic apre i dettagli di un fornitore alla volta", () => {
   apri();
   fireEvent.click(screen.getByRole("button", { name: "Dettagli Edilferro" }));
   expect(screen.getByRole("button", { name: "Dettagli Edilferro" })).toHaveAttribute("aria-expanded", "true");
-  expect(screen.getByRole("button", { name: "Anteprima PDF per Edilferro" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Documenti e invio per Edilferro" })).toBeInTheDocument();
   expect(screen.getByLabelText("Totale offerto Edilferro")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Dettagli Laterizi Sud" }));
-  expect(screen.queryByRole("button", { name: "Anteprima PDF per Edilferro" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Anteprima PDF per Laterizi Sud" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Documenti e invio per Edilferro" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Documenti e invio per Laterizi Sud" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Dettagli Laterizi Sud" }));
-  expect(screen.queryByRole("button", { name: /Anteprima PDF per/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Documenti e invio per/ })).not.toBeInTheDocument();
 });
 
 it("con un solo fornitore i dettagli sono aperti da subito", () => {
   m.fornitori = [fornitore("a", "Edilferro")];
   apri();
   expect(screen.getByRole("button", { name: "Dettagli Edilferro" })).toHaveAttribute("aria-expanded", "true");
-  expect(screen.getByRole("button", { name: "Anteprima PDF per Edilferro" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Documenti e invio per Edilferro" })).toBeInTheDocument();
 });
 
 it("il totale offerto vuoto propone la somma delle voci, senza salvarla", () => {
@@ -121,18 +122,18 @@ it("nel confronto niente tendina per cella: disponibile non si scrive, le eccezi
   apri();
   const tabella = screen.getByRole("table");
   // Le scritte visibili nelle celle (le <option> del comando non contano).
-  expect(within(tabella).queryByText("Disponibile", { selector: "span" })).not.toBeInTheDocument();
-  expect(within(tabella).getByText("Parziale", { selector: "span" })).toBeInTheDocument();
-  expect(within(tabella).getByText("Non disponibile", { selector: "span" })).toBeInTheDocument();
+  expect(within(tabella).queryByText("Disponibile", { selector: "span.inline-block" })).not.toBeInTheDocument();
+  expect(within(tabella).getByText("Parziale", { selector: "span.inline-block" })).toBeInTheDocument();
+  expect(within(tabella).getByText("Non disponibile", { selector: "span.inline-block" })).toBeInTheDocument();
   // Lo stato salvato si legge e si cambia dal comando della cella.
   const comando = screen.getByLabelText("Disponibilità Malta da Edilferro");
-  expect(comando).toHaveValue("parziale");
-  fireEvent.change(comando, { target: { value: "alternativa" } });
+  expect(nativeFormControl(comando)).toHaveValue("parziale");
+  changeFormControl(comando, { target: { value: "alternativa" } });
   expect(m.setQuote).toHaveBeenCalledWith({
     rfq_supplier_id: "a",
     rfq_item_id: "i2",
     updates: { disponibile: true, note: "[alternativa] 5 sacchi" },
   });
-  fireEvent.change(screen.getByLabelText("Disponibilità Blocchi da Laterizi Sud"), { target: { value: "disponibile" } });
+  changeFormControl(screen.getByLabelText("Disponibilità Blocchi da Laterizi Sud"), { target: { value: "disponibile" } });
   expect(m.setQuote).toHaveBeenLastCalledWith({ rfq_supplier_id: "b", rfq_item_id: "i1", updates: { disponibile: true, note: null as never } });
 });

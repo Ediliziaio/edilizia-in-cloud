@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -192,7 +193,7 @@ describe("organigramma: flussi e regressioni", () => {
         screen.getByRole("region", { name: "Profili senza collegamenti" }),
       ).getByText("Autonomo Rossi"),
     ).toBeInTheDocument();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca persona nell’organigramma" }),
       { target: { value: "Anna" } },
     );
@@ -219,7 +220,7 @@ describe("organigramma: flussi e regressioni", () => {
   });
   it("handles no results with reset, and exposes keyboard profile buttons in list view", () => {
     mount(<TabOrganigramma />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca persona nell’organigramma" }),
       { target: { value: "zzzz" } },
     );
@@ -237,7 +238,7 @@ describe("organigramma: flussi e regressioni", () => {
   });
   it("keeps existing URL state while selecting a site", () => {
     mount(<TabOrganigramma />, "tab=organigramma&mese=2026-10&keep=yes");
-    fireEvent.change(screen.getByLabelText("Filtra sede"), {
+    changeFormControl(screen.getByLabelText("Filtra sede"), {
       target: { value: "s1" },
     });
     expect(screen.getByTestId("url")).toHaveTextContent("sede_hr=s1");
@@ -267,7 +268,7 @@ describe("sedi: filtri, GPS, persone e scritture esplicite", () => {
     expect(
       screen.getByText("Area timbratura da configurare"),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Filtra sedi"), {
+    changeFormControl(screen.getByLabelText("Filtra sedi"), {
       target: { value: "inactive" },
     });
     expect(screen.queryByRole("heading", { name: "Milano" })).toBeNull();
@@ -308,10 +309,10 @@ describe("sedi: filtri, GPS, persone e scritture esplicite", () => {
   it("rejects a single coordinate and preserves the dialog", () => {
     mount(<TabSedi />);
     fireEvent.click(screen.getByRole("button", { name: "Nuova sede" }));
-    fireEvent.change(screen.getByLabelText("Nome sede *"), {
+    changeFormControl(screen.getByLabelText("Nome sede *"), {
       target: { value: "Test" },
     });
-    fireEvent.change(screen.getByLabelText("Latitudine"), {
+    changeFormControl(screen.getByLabelText("Latitudine"), {
       target: { value: "45" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crea sede" }));
@@ -324,7 +325,7 @@ describe("sedi: filtri, GPS, persone e scritture esplicite", () => {
   it("creates without GPS only on explicit save and closes only on success", () => {
     mount(<TabSedi />);
     fireEvent.click(screen.getByRole("button", { name: "Nuova sede" }));
-    fireEvent.change(screen.getByLabelText("Nome sede *"), {
+    changeFormControl(screen.getByLabelText("Nome sede *"), {
       target: { value: "  Test  " },
     });
     expect(state.create).not.toHaveBeenCalled();
@@ -344,7 +345,7 @@ describe("sedi: filtri, GPS, persone e scritture esplicite", () => {
     state.create.mockImplementation((_data, options) => options.onError());
     mount(<TabSedi />);
     fireEvent.click(screen.getByRole("button", { name: "Nuova sede" }));
-    fireEvent.change(screen.getByLabelText("Nome sede *"), {
+    changeFormControl(screen.getByLabelText("Nome sede *"), {
       target: { value: "Test" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Crea sede" }));

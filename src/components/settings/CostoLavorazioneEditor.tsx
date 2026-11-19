@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,13 +60,13 @@ export function CostoLavorazioneEditor({ value, onChange, costoManuale, onCostoM
               </div>
               {dipendenti.length > 0 && <label className="block text-xs">
                 Copia il costo dall'anagrafica (facoltativo)
-                <select aria-label={`Dipendente per operatore ${index + 1}`} value="" className="mt-1 h-10 w-full min-w-0 rounded-md border bg-background px-2 text-sm" onChange={e => {
+                <UniformSelect aria-label={`Dipendente per operatore ${index + 1}`} value="" className="mt-1 h-10 w-full min-w-0 rounded-md border bg-background px-2 text-sm" onChange={e => {
                   const d = dipendenti.find(d => d.id === e.target.value);
                   if (d) aggiornaRisorsa(index, { nome: `${d.first_name} ${d.last_name}`.trim(), dipendente_id: d.id, operatori: 1, costo_orario: d.costo_orario });
                 }}>
                   <option value="">Scegli dipendente…</option>
                   {dipendenti.map(d => <option key={d.id} value={d.id}>{d.first_name} {d.last_name} · {d.costo_orario == null ? "costo da impostare" : `${formatCurrency(d.costo_orario)}/h${d.costo_calcolato ? " · calcolato" : ""}`}</option>)}
-                </select>
+                </UniformSelect>
               </label>}
               {r.dipendente_id && dipendenti.find(d => d.id === r.dipendente_id)?.costo_nota && <p className="text-xs text-muted-foreground">Costo copiato: {dipendenti.find(d => d.id === r.dipendente_id)?.costo_nota}. La tariffa mantiene questo valore finché la modifichi.</p>}
               <label className="block space-y-1 text-xs">Operatore o qualifica

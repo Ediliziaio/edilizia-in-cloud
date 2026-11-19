@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Variante sulle voci» di un contratto firmato (10/11/2026, lotto 8 di docs/piano-subappalto-computo-listino.md).
  *
@@ -156,12 +157,12 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
         {senzaQuadro && (
           <label className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-950">
             <span className="min-w-0 flex-1">Prima variante: l'elenco per misure e SAL si crea adesso dal contratto. Quando matura il compenso?</span>
-            <select aria-label="Quando matura il compenso" className="h-8 rounded-md border bg-background px-2 text-sm" value={maturazione} onChange={(e) => setMaturazione(e.target.value)}>
+            <UniformSelect aria-label="Quando matura il compenso" className="h-8 rounded-md border bg-background px-2 text-sm" value={maturazione} onChange={(e) => setMaturazione(e.target.value)}>
               <option value="">Scegli…</option>
               <option value="saldo">Saldo a fine lavoro</option>
               <option value="sal_periodici">SAL periodici</option>
               <option value="traguardi">Traguardi concordati</option>
-            </select>
+            </UniformSelect>
           </label>
         )}
         <Textarea aria-label="Motivo della variante" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della variante (es. muri in più al piano terra)" rows={2} />

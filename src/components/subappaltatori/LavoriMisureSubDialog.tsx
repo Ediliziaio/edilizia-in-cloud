@@ -1,10 +1,13 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useRef, useState } from "react";
+import { avanzamentoVociSalSub, type RigaAvanzamentoSalSub } from "../../../supabase/functions/_shared/righeLavoriSalSub";
 import { puoConsultareSalSub, puoScrivereSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePermissions } from "@/hooks/usePermissions";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { Button } from "@/components/ui/button";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -112,6 +115,7 @@ export function LavoriMisureSubDialog({
     [quantita, setQuantita] = useState(""),
     [riferimento, setRiferimento] = useState(""),
     [data, setData] = useState(oggi);
+  const [storicoSelezionato, setStoricoSelezionato] = useState("");
   const [selezionate, setSelezionate] = useState<string[]>([]),
     [dataSal, setDataSal] = useState(oggi),
     [ritenuta, setRitenuta] = useState(String(c.ritenuta_garanzia_pct ?? 0)),
@@ -126,7 +130,7 @@ export function LavoriMisureSubDialog({
   const bloccato = useRef(false),
     richiesta = useRef(crypto.randomUUID());
   const q = useQuery({
-    queryKey: ["subappalto-lavori-misure", companyId, c.id],
+    queryKey: ["subappalto-lavori-misure", companyId, c.id, "numerazione-sal"],
     enabled: lettura,
     queryFn: async () => {
       const [a, b, s] = await Promise.all([
@@ -146,7 +150,7 @@ export function LavoriMisureSubDialog({
           .limit(1001),
         supabase
           .from("sal_subappaltatori")
-          .select("id,stato,importo_lordo,oneri_quota")
+          .select("id,numero_sal,stato,importo_lordo,oneri_quota")
           .eq("company_id", companyId)
           .eq("contratto_id", c.id)
           .limit(1001),
@@ -156,6 +160,7 @@ export function LavoriMisureSubDialog({
       const misure = (b.data ?? []) as unknown as MisuraSub[];
       const sal = (s.data ?? []) as unknown as {
         id: string;
+        numero_sal: number;
         stato: string;
         importo_lordo: number;
         oneri_quota: number | null;
@@ -386,6 +391,26 @@ export function LavoriMisureSubDialog({
     setNoteSal("");
     setDataSal(oggi());
   };
+  const salValidi = (q.data?.sal ?? []).filter(s => ["verificato", "pagato"].includes(s.stato));
+  const salConMisure = new Set(misure.filter(m => m.stato === "riconosciuta").map(m => m.sal_id));
+  const salPerQuantita = salValidi.filter(s => salConMisure.has(s.id))
+    .sort((a, b) => b.numero_sal - a.numero_sal);
+  const consultaStorico = !risultato && disponibiliSal.length === 0;
+  const salMostrato = risultato ? salValidi.find(s => s.id === risultato.id)
+    : consultaStorico ? salPerQuantita.find(s => s.id === storicoSelezionato) ?? salPerQuantita[0] : undefined;
+  const salPrecedenti = new Set(salValidi.filter(s =>
+    Number(s.importo_lordo) > 0 && (!salMostrato || s.numero_sal < salMostrato.numero_sal),
+  ).map(s => s.id));
+  const misurePrecedenti = misure.filter(m => m.stato === "riconosciuta" && m.sal_id && salPrecedenti.has(m.sal_id));
+  const periodoSelezionato = new Set(selezionate);
+  const misurePeriodo = salMostrato
+    ? misure.filter(m => m.sal_id === salMostrato.id && m.stato === "riconosciuta")
+    : disponibiliSal.filter(m => periodoSelezionato.has(m.id));
+  const revisioniPeriodo = new Set(misurePeriodo.map(m => m.quadro_id));
+  const baseSal = q.data?.quadri.find(base => revisioniPeriodo.has(base.id)) ?? quadro;
+  const avanzamento = tab === "sal" && baseSal && (!consultaStorico || salMostrato) ? avanzamentoVociSalSub(
+    baseSal.voci, misurePrecedenti, misurePeriodo, [...salPrecedenti].every(id => salConMisure.has(id)),
+  ) : [];
   let lavoriSal = 0;
   try {
     lavoriSal = misurePerSalSub(misure, selezionate).importo;
@@ -514,6 +539,13 @@ export function LavoriMisureSubDialog({
                 </nav>
               )}
               <div className="min-h-0 flex-1 space-y-4 overflow-auto p-4">
+                {!modifica && !dettaglio && tab === "sal" && avanzamento.length > 0 && (
+                  <AvanzamentoVociSub righe={avanzamento} numero={salMostrato?.numero_sal}
+                    selettore={consultaStorico && salPerQuantita.length > 1 && salMostrato
+                      ? <OfficeSelect label="SAL da consultare" value={salMostrato.id} onValueChange={setStoricoSelezionato}
+                        className="h-8 w-28" options={salPerQuantita.map(s => ({ value: s.id, label: `SAL ${s.numero_sal}` }))} />
+                      : null} />
+                )}
                 {!modifica && !dettaglio && !risultato && quadro && (
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm">
                     <p>
@@ -583,7 +615,7 @@ export function LavoriMisureSubDialog({
                         <div className="grid gap-3 sm:grid-cols-4">
                           <label className="grid gap-1 text-sm">
                             Calcolo del compenso
-                            <select
+                            <UniformSelect
                               className={selettore}
                               value={v.base}
                               onChange={(e) => {
@@ -603,7 +635,7 @@ export function LavoriMisureSubDialog({
                               <option value="corpo">A corpo</option>
                               <option value="misura">A misura</option>
                               <option value="ore">A ore</option>
-                            </select>
+                            </UniformSelect>
                           </label>
                           <label className="text-sm">
                             Quantità affidata
@@ -642,7 +674,7 @@ export function LavoriMisureSubDialog({
                         </div>
                         <label className="grid gap-1 text-sm">
                           Lavorazione della commessa (facoltativa)
-                          <select
+                          <UniformSelect
                             className={selettore}
                             value={v.fase_id}
                             onChange={(e) => {
@@ -661,7 +693,7 @@ export function LavoriMisureSubDialog({
                                 {f.name}
                               </option>
                             ))}
-                          </select>
+                          </UniformSelect>
                         </label>
                       </div>
                     ))}
@@ -694,7 +726,7 @@ export function LavoriMisureSubDialog({
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="grid gap-1 text-sm">
                         Quando matura il compenso
-                        <select
+                        <UniformSelect
                           className={selettore}
                           value={maturazione}
                           onChange={(e) => setMaturazione(e.target.value)}
@@ -705,7 +737,7 @@ export function LavoriMisureSubDialog({
                           <option value="traguardi">
                             Traguardi concordati
                           </option>
-                        </select>
+                        </UniformSelect>
                       </label>
                       <label className="text-sm">
                         Giorni di pagamento, se pattuiti
@@ -1266,9 +1298,7 @@ export function LavoriMisureSubDialog({
                   <fieldset disabled={busy} className="space-y-4">
                     <p className="text-sm text-muted-foreground">
                       Seleziona soltanto i lavori riconosciuti da includere in
-                      questo SAL del periodo. Gli importi vengono calcolati sul
-                      server ai prezzi della base lavori; oneri e acconti non
-                      vengono aggiunti automaticamente.
+                      questo SAL. Gli importi del periodo usano i prezzi della base lavori.
                     </p>
                     <div className="divide-y rounded-lg border">
                       {misure
@@ -1298,7 +1328,10 @@ export function LavoriMisureSubDialog({
                               {quadro?.voci.find((v) => v.id === m.voce_id)
                                 ?.descrizione || "Lavoro riconosciuto"}
                               <small className="block text-muted-foreground">
-                                {m.data_rilievo} · Rif. {m.id.slice(0, 8)}
+                                {(() => {
+                                  const voce = quadro?.voci.find(v => v.id === m.voce_id);
+                                  return voce ? `${quantitaSub(Number(m.quantita_riconosciuta), voce)} · ` : "";
+                                })()}{m.data_rilievo} · Rif. {m.id.slice(0, 8)}
                               </small>
                             </span>
                             <strong>
@@ -1430,4 +1463,45 @@ export function LavoriMisureSubDialog({
       </AlertDialog>
     </>
   );
+}
+
+
+function AvanzamentoVociSub({ righe, numero, selettore }: {
+  righe: RigaAvanzamentoSalSub[]; numero?: number; selettore: React.ReactNode;
+}) {
+  return <section className="mb-4 space-y-2" aria-labelledby="titolo-avanzamento-sal-sub">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 id="titolo-avanzamento-sal-sub" className="text-sm font-semibold">
+        {numero ? `Quantità a tutto il SAL ${numero}` : "Quantità del SAL"}
+      </h3>
+      {selettore}
+    </div>
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full min-w-[36rem] text-sm">
+        <thead className="bg-muted text-xs text-muted-foreground">
+          <tr><th scope="col" className="px-3 py-2 text-left">Lavorazione</th>
+            {["Affidata", "Già contabilizzata", "Nel periodo", "Cumulata"].map(titolo =>
+              <th key={titolo} scope="col" className="px-2 py-2 text-right">{titolo}</th>)}</tr>
+        </thead>
+        <tbody>
+          {righe.map(riga => {
+            const qta = (n: number | null) => n == null ? "—" : quantitaSub(n, {
+              base: riga.base === "corpo" ? "corpo" : "misura", unita: riga.unita,
+            });
+            return <tr key={riga.voce_id} className="border-t">
+              <th scope="row" className="px-3 py-2 text-left font-medium">{riga.descrizione}
+                <span className="block text-xs font-normal text-muted-foreground">
+                  {euroSub(riga.prezzo)}{riga.base === "corpo" ? " a corpo" : ` / ${riga.unita}`}</span></th>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">{qta(riga.affidata)}</td>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">{qta(riga.precedente)}</td>
+              <td className="whitespace-nowrap p-2 text-right font-semibold tabular-nums">{qta(riga.periodo)}</td>
+              <td className="whitespace-nowrap p-2 text-right tabular-nums">{qta(riga.cumulata)}</td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div>
+    {righe.some(riga => riga.precedente == null) &&
+      <p className="text-xs text-muted-foreground">Per alcune quantità precedenti mancano le misure storiche.</p>}
+  </section>;
 }

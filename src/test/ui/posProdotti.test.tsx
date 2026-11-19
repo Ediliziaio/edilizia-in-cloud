@@ -1,10 +1,11 @@
+import { formOptions, nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import {
   cleanup,
   fireEvent,
   render,
   screen,
-  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,7 +142,7 @@ describe("Prodotti fotografati nella lavorazione POS", () => {
     );
     expect(s.hook.mock.calls.at(-1)?.[1]).toBe(true);
     expect(
-      within(screen.getByLabelText("Prodotto da collegare alla lavorazione 1"))
+      formOptions(nativeFormControl(screen.getByLabelText("Prodotto da collegare alla lavorazione 1")))
         .getAllByRole("option")
         .map((o) => o.getAttribute("value")),
     ).toEqual(["", "p1"]);
@@ -153,7 +154,7 @@ describe("Prodotti fotografati nella lavorazione POS", () => {
         name: "Scegli dall’inventario di commessa",
       }),
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Prodotto da collegare alla lavorazione 1"),
       { target: { value: "p1" } },
     );
@@ -178,7 +179,7 @@ describe("Prodotti fotografati nella lavorazione POS", () => {
     ];
     p.lavorazioni[0].prodotti_riesaminati = true;
     render(<Wrapper iniziale={p} />);
-    fireEvent.change(screen.getByLabelText("Fase della lavorazione 1"), {
+    changeFormControl(screen.getByLabelText("Fase della lavorazione 1"), {
       target: { value: "fase2" },
     });
     expect(

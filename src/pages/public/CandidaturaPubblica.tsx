@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * /candidatura/:token — il modulo di candidatura pubblico.
  *
@@ -200,11 +201,11 @@ export default function CandidaturaPubblica() {
                 <label className="text-sm">
                   <span className="mb-1 block text-xs font-medium text-slate-600">Ruolo{ast("ruolo")}</span>
                   {config.ruoli.length > 0 ? (
-                    <select className="w-full rounded-lg border bg-white px-3 py-2 text-sm" value={form.ruolo} onChange={(e) => setForm({ ...form, ruolo: e.target.value })}>
+                    <UniformSelect className="w-full rounded-lg border bg-white px-3 py-2 text-sm" value={form.ruolo} onChange={(e) => setForm({ ...form, ruolo: e.target.value })}>
                       <option value="">— Scegli —</option>
                       {config.ruoli.map((r) => <option key={r} value={r}>{r}</option>)}
                       <option value="Altro">Altro</option>
-                    </select>
+                    </UniformSelect>
                   ) : (
                     <input className="w-full rounded-lg border px-3 py-2 text-sm" placeholder="Es. Muratore" value={form.ruolo} onChange={(e) => setForm({ ...form, ruolo: e.target.value })} />
                   )}

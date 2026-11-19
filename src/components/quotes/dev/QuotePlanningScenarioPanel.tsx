@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useCallback, useEffect, useId, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -299,10 +300,10 @@ export function QuotePlanningScenarioPanel({ value, onChange, disabled = false, 
           {value.tasks.map(task => <Detail key={task.id} title={`${task.label} · ${task.kind === 'work' ? `${task.personHours ?? '?'} h-persona` : `${task.calendarDays ?? '?'} giorni di attesa`}`}>
             <div className={gridClass}>
               <DraftField label="Nome fase" value={task.label} validate={nameError} report={report} onCommit={label => updateTask(task.id, { ...task, label })} />
-              <label className="block space-y-1 text-sm">Tipo di fase<select className={inputClass} value={task.kind} onChange={event => {
+              <label className="block space-y-1 text-sm">Tipo di fase<UniformSelect className={inputClass} value={task.kind} onChange={event => {
                 const common = { id: task.id, label: task.label, dependsOn: [...task.dependsOn], supplyIds: [...task.supplyIds] };
                 updateTask(task.id, event.target.value === 'work' ? { ...common, kind: 'work', personHours: null, skill: 'general', minCrew: 1, maxCrew: 32 } : { ...common, kind: 'wait', calendarDays: null });
-              }}><option value="work">Lavoro (ore-persona)</option><option value="wait">Attesa tecnica (giorni di calendario)</option></select></label>
+              }}><option value="work">Lavoro (ore-persona)</option><option value="wait">Attesa tecnica (giorni di calendario)</option></UniformSelect></label>
               {task.kind === 'work' ? <>
                 <NumericField label="Ore-persona richieste" value={task.personHours} nullable max={1000000} report={report} onCommit={personHours => updateTask(task.id, { ...task, personHours })} hint="Vuoto: carico mancante. Zero: carico esplicitamente nullo." />
                 <DraftField label="Competenza richiesta" value={task.skill} report={report} validate={raw => skillError(raw) || (tokens(raw).length !== 1 ? 'Scegli una sola competenza per fase.' : undefined)} onCommit={skill => updateTask(task.id, { ...task, skill: skill.trim() })} />
@@ -320,7 +321,7 @@ export function QuotePlanningScenarioPanel({ value, onChange, disabled = false, 
             <div className={gridClass}>
               <DraftField label="Nome fornitura" value={supply.label} validate={nameError} report={report} onCommit={label => updateSupply(supply.id, { label })} />
               <NumericField label="Tempo di approvvigionamento (giorni)" value={supply.leadDays} integer nullable max={3660} report={report} onCommit={leadDays => updateSupply(supply.id, { leadDays })} />
-              <label className="block space-y-1 text-sm">Calendario fornitore<select className={inputClass} value={supply.leadCalendar} onChange={event => updateSupply(supply.id, { leadCalendar: event.target.value as PlanningSupply['leadCalendar'] })}><option value="working">Giorni lavorativi del calendario scenario</option><option value="calendar">Giorni di calendario</option></select></label>
+              <label className="block space-y-1 text-sm">Calendario fornitore<UniformSelect className={inputClass} value={supply.leadCalendar} onChange={event => updateSupply(supply.id, { leadCalendar: event.target.value as PlanningSupply['leadCalendar'] })}><option value="working">Giorni lavorativi del calendario scenario</option><option value="calendar">Giorni di calendario</option></UniformSelect></label>
               {dateField('Ordine possibile dal', supply.releaseDate, raw => updateSupply(supply.id, { releaseDate: raw || null }))}
               {dateField('Data pronta confermata dal fornitore', supply.confirmedReadyDate, raw => updateSupply(supply.id, { confirmedReadyDate: raw || null }))}
             </div>
@@ -334,10 +335,10 @@ export function QuotePlanningScenarioPanel({ value, onChange, disabled = false, 
           <p className="text-xs text-slate-600">Tariffe vuote = sconosciute; 0 = costo dichiarato nullo. Le tariffe si applicano anche alle persone aggiuntive.</p>
           <div className={gridClass}>
             <NumericField label={`Costo lavoro (${value.costs.currency}/ora-persona)`} nullable max={1000000} value={value.costs.laborRatePerPersonHour} report={report} onCommit={laborRatePerPersonHour => cost({ laborRatePerPersonHour })} />
-            <label className="block space-y-1 text-sm">Base costo lavoro<select className={inputClass} value={value.costs.laborBasis} onChange={event => cost({ laborBasis: event.target.value as PlanningScenario['costs']['laborBasis'] })}><option value="attendance">Intera finestra di presenza</option><option value="productive">Solo ore di lavoro allocate</option></select></label>
-            <label className="block space-y-1 text-sm">Valorizzazione viaggio<select className={inputClass} value={value.costs.travelCostMode} onChange={event => cost({ travelCostMode: event.target.value as PlanningScenario['costs']['travelCostMode'] })}><option value="included">Incluso nella tariffa lavoro</option><option value="separate">Separato per ore-persona di viaggio</option></select></label>
+            <label className="block space-y-1 text-sm">Base costo lavoro<UniformSelect className={inputClass} value={value.costs.laborBasis} onChange={event => cost({ laborBasis: event.target.value as PlanningScenario['costs']['laborBasis'] })}><option value="attendance">Intera finestra di presenza</option><option value="productive">Solo ore di lavoro allocate</option></UniformSelect></label>
+            <label className="block space-y-1 text-sm">Valorizzazione viaggio<UniformSelect className={inputClass} value={value.costs.travelCostMode} onChange={event => cost({ travelCostMode: event.target.value as PlanningScenario['costs']['travelCostMode'] })}><option value="included">Incluso nella tariffa lavoro</option><option value="separate">Separato per ore-persona di viaggio</option></UniformSelect></label>
             {value.costs.travelCostMode === 'separate' && <NumericField label={`Costo viaggio (${value.costs.currency}/ora-persona)`} nullable max={1000000} value={value.costs.travelRatePerPersonHour} report={report} onCommit={travelRatePerPersonHour => cost({ travelRatePerPersonHour })} />}
-            <label className="block space-y-1 text-sm">Valorizzazione mezzo<select className={inputClass} value={value.costs.vehicleCostMode} onChange={event => cost({ vehicleCostMode: event.target.value as PlanningScenario['costs']['vehicleCostMode'] })}><option value="perKm">Tariffa per km-mezzo</option><option value="included">Già incluso, nessun costo aggiuntivo</option></select></label>
+            <label className="block space-y-1 text-sm">Valorizzazione mezzo<UniformSelect className={inputClass} value={value.costs.vehicleCostMode} onChange={event => cost({ vehicleCostMode: event.target.value as PlanningScenario['costs']['vehicleCostMode'] })}><option value="perKm">Tariffa per km-mezzo</option><option value="included">Già incluso, nessun costo aggiuntivo</option></UniformSelect></label>
             {value.costs.vehicleCostMode === 'perKm' && <NumericField label={`Costo mezzo (${value.costs.currency}/km-mezzo)`} nullable max={1000000} value={value.costs.vehicleRatePerKm} report={report} onCommit={vehicleRatePerKm => cost({ vehicleRatePerKm })} />}
             <NumericField label={`Altri costi (${value.costs.currency}/giorno attivo)`} nullable max={1000000} value={value.costs.otherCostPerActiveDay} report={report} onCommit={otherCostPerActiveDay => cost({ otherCostPerActiveDay })} />
           </div>

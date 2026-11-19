@@ -23,8 +23,8 @@ export function TabellaCommessa<T>({ etichetta, colonne, righe, chiave }: {
 }) {
   const aspetto = useAspettoOperativo();
   return (
-    <div className={cn("sm:overflow-x-auto", aspetto && "generale-operativo-table")}>
-      <table aria-label={etichetta} className="w-full text-sm max-sm:block">
+    <div className={cn("commessa-table-wrap sm:overflow-x-auto", aspetto && "generale-operativo-table")}>
+      <table aria-label={etichetta} className="commessa-table w-full text-sm max-sm:block">
         <thead className="max-sm:hidden">
           <tr className="border-b">
             {colonne.map(c => (
@@ -72,8 +72,8 @@ export function RiquadroCommessa({ icona, titolo, descrizione, conteggio, riassu
 }) {
   const aspetto = useAspettoOperativo();
   return (
-    <Card id={id} className={cn("scroll-mt-24", aspetto && "generale-operativo-card")}>
-      <CardHeader className="space-y-2 pb-3 max-sm:p-3 max-sm:pb-2">
+    <Card id={id} className={cn("commessa-card scroll-mt-24", aspetto && "generale-operativo-card")}>
+      <CardHeader className="commessa-card-header space-y-2 pb-3 max-sm:p-3 max-sm:pb-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 text-base">
             <span className="commessa-card-icon">{icona}</span>{titolo}
@@ -85,7 +85,7 @@ export function RiquadroCommessa({ icona, titolo, descrizione, conteggio, riassu
         {aspetto && descrizione && <p className="generale-operativo-description">{descrizione}</p>}
         {numeri && <div className="commessa-card-numeri">{numeri}</div>}
       </CardHeader>
-      <CardContent className="max-sm:p-3 max-sm:pt-0">{children}</CardContent>
+      <CardContent className="commessa-card-body max-sm:p-3 max-sm:pt-0">{children}</CardContent>
     </Card>
   );
 }

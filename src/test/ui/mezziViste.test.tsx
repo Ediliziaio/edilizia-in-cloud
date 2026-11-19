@@ -185,7 +185,8 @@ describe("Mezzi in gruppi", () => {
     apri("?per=elenco");
     const righe = screen.getAllByRole("row");
     const ducato = righe.find((r) => r.textContent?.includes("Ducato bianco"))!;
-    expect(ducato).toHaveTextContent("ORD-1 · Rossi · Luca Ferrari");
+    expect(within(ducato).getByRole("cell", { name: "ORD-1 · Rossi" })).toBeInTheDocument();
+    expect(within(ducato).getByRole("cell", { name: "Luca Ferrari" })).toBeInTheDocument();
     expect(ducato).toHaveTextContent("Mancano: bollo, revisione");
     expect(ducato).toHaveTextContent("84.000 km");
     const transit = righe.find((r) => r.textContent?.includes("Transit grigio"))!;

@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 const mocks = vi.hoisted(() => ({ upload: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: mocks.error } }));
@@ -17,7 +18,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 it("conserva modulo e allegato dopo un errore e consente di riprovare senza salvare una voce incompleta", async () => {
   mocks.upload.mockResolvedValueOnce({ error: new Error("Caricamento interrotto") }).mockResolvedValueOnce({ error: null });
   const confirm = vi.fn();
-  render(<NewEntryDialog open onOpenChange={vi.fn()} onConfirm={confirm} isPending={false} />);
+  render(<QueryClientProvider client={new QueryClient()}><NewEntryDialog open onOpenChange={vi.fn()} onConfirm={confirm} isPending={false} /></QueryClientProvider>);
   fireEvent.change(screen.getByPlaceholderText("es. Pagamento fornitore ABC"), { target: { value: "Prova allegato" } });
   fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "12" } });
   const file = new File(["Documento sintetico"], "prova.pdf", { type: "application/pdf" });

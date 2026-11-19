@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import React, { useEffect, useMemo, useState } from "react";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
 import { QuoteLivePreviewPanel } from "@/components/quotes/QuoteLivePreviewPanel";
@@ -32,7 +33,7 @@ export default function Simulazione({ companyId = "simulazione-isolata", company
   return <main className="simulation-shell">
     <header className="simulation-head"><div><span className="simulation-kicker">{companyName.toUpperCase()} · SIMULAZIONE LOCALE</span><h1>Tu rispondi. Il preventivo prende forma.</h1><p>Parla con l’assistente a sinistra: la bozza si compone a destra mentre rispondi. Puoi sempre modificare i numeri direttamente.</p></div><span className="simulation-safe">Nessun invio · Nessuna modifica ai dati</span></header>
     {mode !== "regional" && <section className="simulation-controls" aria-label="Controlli della simulazione">
-      <label>Scenario <select value={scenario} onChange={e => reset(e.target.value as LabScenario)}><option value="bagno">Bagno</option><option value="cappotto">Cappotto</option><option value="tennis">Campo da tennis</option></select></label>
+      <label>Scenario <UniformSelect value={scenario} onChange={e => reset(e.target.value as LabScenario)}><option value="bagno">Bagno</option><option value="cappotto">Cappotto</option><option value="tennis">Campo da tennis</option></UniformSelect></label>
       <label className="simulation-check"><input type="checkbox" checked={lenta} onChange={e => { demo.lenta = e.target.checked; setLenta(e.target.checked); }} />Analisi lenta per provare l’interruzione</label>
       <button type="button" onClick={() => reset(scenario)}>Ricomincia la prova</button>
     </section>}

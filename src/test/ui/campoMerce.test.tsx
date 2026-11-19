@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import type { ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -40,7 +41,7 @@ const lettura = (over: Partial<LetturaDocumento> = {}): LetturaDocumento => ({
 });
 const foto = (over: Partial<FotoDocumento> = {}): FotoDocumento => ({ path: "company/A/acquisti/f.jpg", anteprima: "blob:x", lettura: lettura(), ...over });
 const scatta = async () => {
-  fireEvent.change(screen.getByLabelText("Foto del documento"), { target: { files: [new File(["x"], "doc.jpg", { type: "image/jpeg" })] } });
+  changeFormControl(screen.getByLabelText("Foto del documento"), { target: { files: [new File(["x"], "doc.jpg", { type: "image/jpeg" })] } });
   await waitFor(() => expect(screen.getByAltText("Documento fotografato")).toBeInTheDocument());
 };
 const invia = () => fireEvent.click(screen.getByRole("button", { name: "Invia all’ufficio" }));
@@ -67,7 +68,7 @@ describe("Merce presa: dalla foto al modulo", () => {
 
   it("sostituendo la foto sostituisce tutti i dati, senza perdere cantiere e note", async () => {
     render(<CampoMerce />, { wrapper: conRouter }); await scatta();
-    fireEvent.change(screen.getByLabelText("Note per l’ufficio (facoltativo)"), { target: { value: "Ritiro urgente" } });
+    changeFormControl(screen.getByLabelText("Note per l’ufficio (facoltativo)"), { target: { value: "Ritiro urgente" } });
     state.foto = foto({ anteprima: "blob:y", path: "company/A/acquisti/nuovo.jpg", lettura: lettura({ fornitore: "Altro negozio", numero: "456", totale: 30, righe: [{ descrizione: "Guanti", quantita: 3 }] }) });
     await scatta();
     expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue("Tecnomat S.p.A.");
@@ -106,7 +107,7 @@ describe("Merce presa: dalla foto al modulo", () => {
     render(<CampoMerce />, { wrapper: conRouter });
     const input = screen.getByLabelText("Foto del documento");
     const event = { target: { files: [new File(["x"], "doc.jpg", { type: "image/jpeg" })] } };
-    fireEvent.change(input, event); fireEvent.change(input, event);
+    changeFormControl(input, event); changeFormControl(input, event);
     expect(state.elabora).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Invia all’ufficio" })).toBeDisabled();
     risolvi(foto());
@@ -139,8 +140,8 @@ describe("Merce presa: dalla foto al modulo", () => {
     expect(screen.getByText("Non sono riuscito a leggerlo: scrivi tu fornitore e totale.")).toBeInTheDocument();
     expect(screen.getByLabelText("Dove l’hai presa?")).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ }));
-    fireEvent.change(screen.getByLabelText("Dove l’hai presa?"), { target: { value: "Leroy Merlin" } });
-    fireEvent.change(screen.getByLabelText(/^Totale/), { target: { value: "120" } });
+    changeFormControl(screen.getByLabelText("Dove l’hai presa?"), { target: { value: "Leroy Merlin" } });
+    changeFormControl(screen.getByLabelText(/^Totale/), { target: { value: "120" } });
     invia();
     await waitFor(() => expect(state.registra).toHaveBeenCalledWith(expect.objectContaining({ fornitore: "Leroy Merlin", totale: 120, modalita: "conto_azienda" })));
   });
@@ -166,7 +167,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
   it("non cambia di nascosto il cantiere quando l'assegnazione scelta scompare", async () => {
     state.assignedIds = ["A", "B"];
     const view = render(<CampoMerce />, { wrapper: conRouter }); await scatta();
-    fireEvent.change(screen.getByLabelText("Per quale cantiere?"), { target: { value: "B" } });
+    changeFormControl(screen.getByLabelText("Per quale cantiere?"), { target: { value: "B" } });
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ }));
     state.assignedIds = ["A"]; view.rerender(<CampoMerce />);
     expect(screen.getByLabelText("Per quale cantiere?")).toHaveValue("");
@@ -176,27 +177,27 @@ describe("Merce presa: come l'ha presa e invio", () => {
 
   it("legge 1.234,56 e distingue una fattura dal modo in cui è stata pagata", async () => {
     render(<CampoMerce />, { wrapper: conRouter }); await scatta();
-    fireEvent.change(screen.getByLabelText(/^Totale/), { target: { value: "1.234,56" } });
-    fireEvent.change(screen.getByLabelText("Che documento è?"), { target: { value: "fattura" } });
+    changeFormControl(screen.getByLabelText(/^Totale/), { target: { value: "1.234,56" } });
+    changeFormControl(screen.getByLabelText("Che documento è?"), { target: { value: "fattura" } });
     fireEvent.click(screen.getByRole("button", { name: /L’ho pagata io/ })); invia();
     await waitFor(() => expect(state.registra).toHaveBeenCalledWith(expect.objectContaining({ totale: 1234.56, tipoDocumento: "fattura" })));
   });
 
   it("una quantità cancellata resta vuota e blocca l'invio, invece di diventare uno", async () => {
     render(<CampoMerce />, { wrapper: conRouter }); await scatta();
-    fireEvent.change(screen.getByLabelText("Quantità Silicone neutro"), { target: { value: "" } });
+    changeFormControl(screen.getByLabelText("Quantità Silicone neutro"), { target: { value: "" } });
     expect(screen.getByLabelText("Quantità Silicone neutro")).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ })); invia();
     expect(state.registra).not.toHaveBeenCalled();
     expect(state.error).toHaveBeenCalledWith("Controlla le quantità dei prodotti: devono essere maggiori di zero.");
-    fireEvent.change(screen.getByLabelText("Quantità Silicone neutro"), { target: { value: "2,5" } }); invia();
+    changeFormControl(screen.getByLabelText("Quantità Silicone neutro"), { target: { value: "2,5" } }); invia();
     await waitFor(() => expect(state.registra).toHaveBeenCalledWith(expect.objectContaining({ righe: [expect.objectContaining({ quantita: 2.5, importo: 21.25 }), expect.anything()] })));
     expect(state.registra.mock.calls[0][0].righe[0]).not.toHaveProperty("quantitaTesto");
   });
 
   it.each(["abc", "-5", "1000001"])("un totale esplicitamente sbagliato (%s) non viene rimpiazzato dalla somma delle righe", async totale => {
     render(<CampoMerce />, { wrapper: conRouter }); await scatta();
-    fireEvent.change(screen.getByLabelText(/^Totale/), { target: { value: totale } });
+    changeFormControl(screen.getByLabelText(/^Totale/), { target: { value: totale } });
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ })); invia();
     expect(state.registra).not.toHaveBeenCalled();
     expect(state.error).toHaveBeenCalledWith(expect.stringContaining("Controlla il totale"));
@@ -253,7 +254,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ritiro di un ordine/ }));
     invia();
     expect(state.error).toHaveBeenCalledWith("Scegli il cantiere a cui va la merce.");
-    fireEvent.change(screen.getByLabelText("Per quale cantiere?"), { target: { value: "A" } });
+    changeFormControl(screen.getByLabelText("Per quale cantiere?"), { target: { value: "A" } });
     invia();
     await waitFor(() => expect(state.registra).toHaveBeenCalledWith(expect.objectContaining({ orderId: "A", modalita: "ritiro_ordine", tipoDocumento: "bolla" })));
   });
@@ -263,7 +264,7 @@ describe("Merce presa: come l'ha presa e invio", () => {
     await scatta();
     fireEvent.click(screen.getByRole("button", { name: "Togli Viti inox" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi un prodotto" }));
-    fireEvent.change(screen.getByLabelText("Prodotto 2"), { target: { value: "Guanti" } });
+    changeFormControl(screen.getByLabelText("Prodotto 2"), { target: { value: "Guanti" } });
     fireEvent.click(screen.getByRole("button", { name: /Sul conto dell’azienda/ }));
     invia();
     await waitFor(() => expect(state.registra).toHaveBeenCalledWith(expect.objectContaining({

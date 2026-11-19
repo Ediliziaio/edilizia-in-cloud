@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/unita/PagamentiUnita.tsx
 // I pagamenti di un'unità: caparra, acconti, saldo e permuta, con quanto resta.
 // La permuta paga il prezzo senza incasso e vale anche come costo del terreno.
@@ -165,7 +166,7 @@ function AllineaIncasso({generaleId,orderId,movimentoId}:{generaleId:string;orde
   const n=leggiCampo(cassa);
   return <><Button type="button" size="sm" variant="outline" onClick={()=>setOpen(true)}>Collega prima nota</Button><Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Allinea l’incasso storico</DialogTitle><DialogDescription>Conferma quanto è entrato realmente. Se esiste già una prima nota, selezionala per riutilizzarla.</DialogDescription></DialogHeader>
     <Label htmlFor={`allinea-cassa-${movimentoId}`}>Entrata effettiva (IVA inclusa, se dovuta)</Label><Input id={`allinea-cassa-${movimentoId}`} inputMode="decimal" value={cassa} onChange={e=>setCassa(e.target.value)} />
-    <Label htmlFor={`allinea-pn-${movimentoId}`}>Prima nota</Label><select className="w-full rounded border p-2" id={`allinea-pn-${movimentoId}`} value={scelta} onChange={e=>setScelta(e.target.value)}><option value="">Scegli come collegare…</option><option value="nuova">Crea una nuova entrata</option>{(candidati.data??[]).map(p=><option key={p.id} value={p.id}>{dataBreve(p.entry_date)} · {euro(Number(p.amount))} · {p.description}</option>)}</select>
+    <Label htmlFor={`allinea-pn-${movimentoId}`}>Prima nota</Label><UniformSelect className="w-full rounded border p-2" id={`allinea-pn-${movimentoId}`} value={scelta} onChange={e=>setScelta(e.target.value)}><option value="">Scegli come collegare…</option><option value="nuova">Crea una nuova entrata</option>{(candidati.data??[]).map(p=><option key={p.id} value={p.id}>{dataBreve(p.entry_date)} · {euro(Number(p.amount))} · {p.description}</option>)}</UniformSelect>
     {candidati.isError && <p role="alert" className="text-sm text-destructive">Prima nota non disponibile. <button onClick={()=>void candidati.refetch()}>Riprova</button></p>}
     <Button disabled={salva.isPending || candidati.isLoading || candidati.isError || !scelta || !n || !Number.isFinite(n) || n<=0} onClick={()=>salva.mutate({movimentoId,importoCassa:n!,primaNotaId:scelta==='nuova'?null:scelta},{onSuccess:()=>{toast.success('Incasso collegato alla prima nota');setOpen(false);},onError:e=>toast.error(messaggioGenerale(e,'il collegamento alla prima nota'))})}>Conferma collegamento</Button>
   </DialogContent></Dialog></>;

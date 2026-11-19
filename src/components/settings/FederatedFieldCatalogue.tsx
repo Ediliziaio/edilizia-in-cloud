@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, Copy, RefreshCw, Search } from "lucide-react";
@@ -34,15 +35,15 @@ export function FederatedFieldCatalogue() {
     </div>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <div className="space-y-1"><Label htmlFor="cf-source">Origine dei campi</Label>
-        <select id="cf-source" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={source} onChange={e => { setSource(e.target.value as CatalogueSource); setScope(""); setPage(1); }}>
+        <UniformSelect id="cf-source" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={source} onChange={e => { setSource(e.target.value as CatalogueSource); setScope(""); setPage(1); }}>
           {CATALOGUE_SOURCES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-        </select>
+        </UniformSelect>
       </div>
       <div className="space-y-1"><Label htmlFor="cf-scope">Modello o scheda</Label>
-        <select id="cf-scope" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={scope} onChange={e => { setScope(e.target.value); setPage(1); }}>
+        <UniformSelect id="cf-scope" className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={scope} onChange={e => { setScope(e.target.value); setPage(1); }}>
           <option value="">Tutti i modelli di questa origine</option>
           {scopes.map(s => <option key={s.id} value={s.id}>{s.name}{s.count === 0 ? " · Nessun campo configurato" : ""}</option>)}
-        </select>
+        </UniformSelect>
       </div>
       <div className="space-y-1"><Label htmlFor="cf-source-search">Cerca nei campi</Label>
         <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="cf-source-search" className="pl-9" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Nome, chiave, unità o modello" /></div>

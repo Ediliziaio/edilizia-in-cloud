@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -38,9 +39,9 @@ export function MaterialiListino({ righe, puoModificare }: { righe: MaterialeLis
     <p className="text-sm text-muted-foreground">Costi dei materiali e dei servizi per ordini e preventivi. Le voci inattive restano consultabili e non vengono proposte per nuove righe.</p>
     <div className="flex flex-wrap gap-3">
       <Input aria-label="Cerca materiale" placeholder="Descrizione, codice o fornitore…" className="sm:max-w-sm" value={cerca} onChange={e => { setCerca(e.target.value); setPagina(0); }} />
-      <select aria-label="Fornitore" className="h-10 rounded-md border bg-background px-3 text-sm" value={fornitore} onChange={e => { setFornitore(e.target.value); setPagina(0); }}><option value="">Tutti i fornitori</option>{fornitori.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}</select>
-      <select aria-label="Categoria" className="h-10 rounded-md border bg-background px-3 text-sm" value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(0); }}><option value="">Tutte le categorie</option>{categorie.map(c => <option key={c}>{c}</option>)}</select>
-      <select aria-label="Stato materiale" className="h-10 rounded-md border bg-background px-3 text-sm" value={stato} onChange={e => { setStato(e.target.value); setPagina(0); }}><option value="">Tutti gli stati</option><option value="attivi">Attivi</option><option value="inattivi">Inattivi / da confermare</option></select>
+      <UniformSelect aria-label="Fornitore" className="h-10 rounded-md border bg-background px-3 text-sm" value={fornitore} onChange={e => { setFornitore(e.target.value); setPagina(0); }}><option value="">Tutti i fornitori</option>{fornitori.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}</UniformSelect>
+      <UniformSelect aria-label="Categoria" className="h-10 rounded-md border bg-background px-3 text-sm" value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(0); }}><option value="">Tutte le categorie</option>{categorie.map(c => <option key={c}>{c}</option>)}</UniformSelect>
+      <UniformSelect aria-label="Stato materiale" className="h-10 rounded-md border bg-background px-3 text-sm" value={stato} onChange={e => { setStato(e.target.value); setPagina(0); }}><option value="">Tutti gli stati</option><option value="attivi">Attivi</option><option value="inattivi">Inattivi / da confermare</option></UniformSelect>
       <Button variant="ghost" onClick={() => { setCerca(""); setFornitore(""); setCategoria(""); setStato(""); setPagina(0); }}>Azzera filtri</Button>
     </div>
     <p className="text-sm" aria-live="polite">{filtrate.length} voci su {righe.length} · {righe.filter(r => r.attivo === true).length} attive</p>

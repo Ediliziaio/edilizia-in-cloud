@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Documenti subappaltatore — caricamento e gestione documenti propri.
  * Upload verso bucket 'documenti-sub' + lista con stato scadenza.
@@ -346,7 +347,7 @@ export default function SubDocumenti() {
               {/* Tipo */}
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Tipo documento</label>
-                <select
+                <UniformSelect
                   value={tipoDoc}
                   onChange={e => setTipoDoc(e.target.value)}
                   className="w-full bg-muted border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none"
@@ -354,7 +355,7 @@ export default function SubDocumenti() {
                   {TIPI_DOCUMENTO.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
 
               {/* Scadenza */}

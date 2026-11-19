@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   act,
   cleanup,
@@ -183,7 +184,7 @@ describe('DWG nei configuratori tecnici', () => {
     vi.mocked(readCadLocally).mockResolvedValue(cadReading());
     const p = { ...props(), context: () => ({ module, modelTitle: 'Modello originale', current: [] as never[], catalogue: [] as never[] }), transport: vi.fn(async (req: QuoteChatRequest) => response(req, null)) };
     render(<VerticalWizardAiDialog {...p} />);
-    fireEvent.change(screen.getByLabelText('Allega rilievo tecnico'), { target: { files: [new File(['AC1032'], 'test.dwg')] } });
+    changeFormControl(screen.getByLabelText('Allega rilievo tecnico'), { target: { files: [new File(['AC1032'], 'test.dwg')] } });
     await screen.findByRole('region', { name: 'Disegno DWG del progetto' });
     expect(p.transport).not.toHaveBeenCalled(); expect(p.applyProposal).not.toHaveBeenCalled(); expect(p.onCommit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Progetto' })); expect(p.transport).not.toHaveBeenCalled();
@@ -198,14 +199,14 @@ describe('DWG nei configuratori tecnici', () => {
     let resolve!: (r: QuoteCadReading) => void;
     vi.mocked(readCadLocally).mockImplementation(() => new Promise(r => { resolve = r; })); const p = props();
     render(<VerticalWizardAiDialog {...p} />);
-    fireEvent.change(screen.getByLabelText('Allega rilievo tecnico'), { target: { files: [new File(['AC1032'], 'test.dwg')] } });
+    changeFormControl(screen.getByLabelText('Allega rilievo tecnico'), { target: { files: [new File(['AC1032'], 'test.dwg')] } });
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Leggo il DWG'));
     fireEvent.click(screen.getByRole('button', { name: 'Interrompi' })); await act(async () => resolve(cadReading()));
     expect(screen.queryByRole('region', { name: 'Disegno DWG del progetto' })).not.toBeInTheDocument(); expect(p.transport).not.toHaveBeenCalled(); expect(p.onCommit).not.toHaveBeenCalled();
   });
 });
 const send = (text = "Configura sedici pannelli") => {
-  fireEvent.change(screen.getByLabelText("Messaggio"), {
+  changeFormControl(screen.getByLabelText("Messaggio"), {
     target: { value: text },
   });
   fireEvent.click(screen.getByRole("button", { name: "Invia" }));
@@ -243,7 +244,7 @@ describe("isolated native conversation modal", () => {
       });
     });
     render(<VerticalWizardAiDialog {...p} />);
-    fireEvent.change(screen.getByLabelText("Allega rilievo tecnico"), {
+    changeFormControl(screen.getByLabelText("Allega rilievo tecnico"), {
       target: {
         files: [new File(["fixture"], "pianta.png", { type: "image/png" })],
       },
@@ -266,7 +267,7 @@ describe("isolated native conversation modal", () => {
     let request: QuoteChatRequest;
     render(<VerticalWizardAiDialog {...p} />);
     send();
-    fireEvent.change(
+    changeFormControl(
       await screen.findByLabelText("configurazione panelCount"),
       { target: { value: "19" } },
     );
@@ -282,7 +283,7 @@ describe("isolated native conversation modal", () => {
     expect(
       screen.getByRole("button", { name: "Scarta proposta" }),
     ).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("configurazione panelCount"), {
+    changeFormControl(screen.getByLabelText("configurazione panelCount"), {
       target: { value: "23" },
     });
     await act(async () => finish(response(request!, null)));
@@ -382,7 +383,7 @@ describe("isolated native conversation modal", () => {
     );
     send("Secondo messaggio");
     await waitFor(() => expect(p.transport).toHaveBeenCalledTimes(2));
-    fireEvent.change(screen.getByLabelText("Messaggio"), {
+    changeFormControl(screen.getByLabelText("Messaggio"), {
       target: { value: "Nuova idea non inviata" },
     });
     await act(async () => reject(new Error("Servizio non disponibile")));
@@ -435,10 +436,10 @@ describe("isolated native conversation modal", () => {
       <VerticalWizardAiDialog {...p} context={context} variants={variants} />,
     );
     send();
-    fireEvent.change(await screen.findByLabelText("new variante Vetro"), {
+    changeFormControl(await screen.findByLabelText("new variante Vetro"), {
       target: { value: "triple" },
     });
-    fireEvent.change(screen.getByLabelText("new scelta Vetro"), {
+    changeFormControl(screen.getByLabelText("new scelta Vetro"), {
       target: { value: "Satinato" },
     });
     fireEvent.click(

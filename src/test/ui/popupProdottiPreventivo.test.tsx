@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -74,7 +75,7 @@ function apri(extra: Record<string, unknown> = {}) {
   return { ricevuti, chiudi };
 }
 const scrivi = (etichetta: string, value: string) =>
-  fireEvent.change(screen.getByLabelText(etichetta), { target: { value } });
+  changeFormControl(screen.getByLabelText(etichetta), { target: { value } });
 
 beforeEach(() => {
   localStorage.clear();
@@ -160,7 +161,7 @@ describe("Popup prodotti del preventivo", () => {
     apri({ areaSuggerita: "area:bagni" });
     const area = screen.getByRole("combobox", { name: "Area di lavoro" });
     expect(area).toHaveValue("area:bagni");
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }), { target: { value: "Parete" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Cerca nel catalogo prodotti" }), { target: { value: "Parete" } });
     expect(screen.queryByRole("button", { name: /Parete a misura/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Cerca in tutte le aree" }));
     expect(area).toHaveValue("all");
@@ -194,14 +195,14 @@ describe("Popup prodotti del preventivo", () => {
     const area = () => screen.getByRole("combobox", { name: "Area di lavoro" });
     const primo = apri();
     expect(area()).toHaveValue("all");
-    fireEvent.change(area(), { target: { value: "area:bagni" } });
+    changeFormControl(area(), { target: { value: "area:bagni" } });
     cleanup();
     apri();
     expect(area()).toHaveValue("area:bagni");
     cleanup();
     apri({ areaSuggerita: "area:serramenti" });
     expect(area()).toHaveValue("area:serramenti");
-    fireEvent.change(area(), { target: { value: "all" } });
+    changeFormControl(area(), { target: { value: "all" } });
     expect(area()).toHaveValue("all");
     expect(primo.ricevuti).toHaveLength(0);
   });

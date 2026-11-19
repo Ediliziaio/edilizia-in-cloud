@@ -31,8 +31,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
 } }));
 beforeEach(() => { stato.importate=[]; stato.diretti = []; stato.legami = []; stato.collegati = []; stato.erroreCollegati = null; stato.filtri = []; });
 afterEach(cleanup);
-const apri = () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const apri = (client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) => {
   return renderHook(() => useFattureByOrdine("commessa-demo"), {
     wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
   });
@@ -63,4 +62,22 @@ describe("Documenti della commessa indipendenti dal piano rate", () => {
 
 it("include le importate collegate e i loro incassi senza confonderle coi PDF nativi",async()=>{
  stato.importate=[{id:"imp",origine:"importata",numero:"EST-1",importo_pagato:400,totale_da_pagare:1220}];const {result}=apri();await waitFor(()=>expect(result.current.isSuccess).toBe(true));expect(result.current.data).toEqual([expect.objectContaining({id:"imp",origine:"importata",importo_pagato:400})]);expect(stato.filtri).toContainEqual({tabella:"documenti_fiscali_elenco_operativo",campo:"company_id",valore:"azienda-demo"});
+});
+
+it('non conta due volte una fattura migrata che ha lo stesso UUID nelle due fonti', async()=>{
+ const f={id:'uuid-condiviso',numero:'FT-1',data_emissione:'2026-11-17',tipo:'fattura',stato:'pagata',cliente_snapshot:{},imponibile_totale:100,iva_totale:22,totale_documento:122,totale_da_pagare:122,importo_pagato:122};
+ stato.diretti=[f];stato.importate=[{...f,origine:'importata'}];
+ const {result}=apri();await waitFor(()=>expect(result.current.isSuccess).toBe(true));
+ expect(result.current.data).toHaveLength(1);
+ expect(result.current.data?.[0]).toMatchObject({id:'uuid-condiviso',copie_importate:[{id:'uuid-condiviso',numero:'FT-1'}]});
+});
+
+
+it('il riepilogo incompleto in cache non fa risultare non incassate le fatture pagate', async()=>{
+ const client=new QueryClient({defaultOptions:{queries:{retry:false,staleTime:120000}}});
+ client.setQueryData(['ordine-fatture','commessa-demo','azienda-demo'],[{id:'f',stato:'pagata',totale_documento:122}]);
+ stato.diretti=[{id:'f',stato:'pagata',tipo:'fattura',totale_documento:122,totale_da_pagare:122,importo_pagato:122}];
+ const {result}=apri(client);await waitFor(()=>expect(result.current.isSuccess).toBe(true));
+ expect(result.current.data?.[0].importo_pagato).toBe(122);
+ expect(stato.filtri).toContainEqual({tabella:'documenti_fiscali',campo:'company_id',valore:'azienda-demo'});
 });

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Voci impianti dalla pianta»: prese, punti luce, metri di cavo e tubi, split e linee del clima
  * contati nella pianta diventano voci del computo con un prezzo di partenza (modificabile qui e
@@ -112,16 +113,16 @@ export default function VociImpiantiDallaPianta({ uploadId, companyId, orderId, 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <label className="text-xs font-medium" htmlFor="vi-pianta">Pianta</label>
-            <select id="vi-pianta" className={selezione} value={piantaId ?? ""} onChange={(e) => setPiantaScelta(e.target.value || null)}>
+            <UniformSelect id="vi-pianta" className={selezione} value={piantaId ?? ""} onChange={(e) => setPiantaScelta(e.target.value || null)}>
               {!piantaId && <option value="">Scegli…</option>}
               {piante.map((p) => <option key={p.id} value={p.id}>{p.titolo}{p.computo_upload_id === uploadId ? " (associata a questo computo)" : p.order_id === orderId ? " (di questa commessa)" : ""}</option>)}
-            </select>
+            </UniformSelect>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium" htmlFor="vi-stato">Quale pianta</label>
-            <select id="vi-stato" className={selezione} value={stato?.chiave ?? ""} onChange={(e) => setStatoScelto(e.target.value)}>
+            <UniformSelect id="vi-stato" className={selezione} value={stato?.chiave ?? ""} onChange={(e) => setStatoScelto(e.target.value)}>
               {stati.map((s) => <option key={s.chiave} value={s.chiave}>{s.nome}</option>)}
-            </select>
+            </UniformSelect>
           </div>
         </div>
         {isLoading ? <p className="flex items-center gap-2 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" />Carico la pianta…</p>

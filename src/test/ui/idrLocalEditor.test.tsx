@@ -1,3 +1,4 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -50,7 +51,7 @@ describe("Termoidraulico: modelli originali locali", () => {
     mount("acqua-calda");
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Acqua calda sanitaria");
-    expect(screen.getByRole("combobox").querySelectorAll("option")).toHaveLength(10);
+    expect(nativeFormControl(screen.getByRole("combobox")).querySelectorAll("option")).toHaveLength(10);
   });
 });
 it("un modello appena aperto non segnala modifiche mai fatte", () => {

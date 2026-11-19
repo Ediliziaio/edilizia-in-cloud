@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -53,7 +54,7 @@ describe("origini dei campi: letture delimitate e accessi", () => {
   it("HR: non legge le configurazioni candidature senza permesso persone", async () => {
     render(<FederatedFieldCatalogue />, { wrapper: wrapper() });
     await screen.findByText(/Nessuna definizione trovata/);
-    fireEvent.change(screen.getByLabelText("Origine dei campi"), { target: { value: "recruitment" } });
+    changeFormControl(screen.getByLabelText("Origine dei campi"), { target: { value: "recruitment" } });
     expect(await screen.findByText(/serve anche il permesso/)).toBeTruthy();
     expect(state.calls.some(c => c.table === "hr_candidatura_forms")).toBe(false);
   });
@@ -74,7 +75,7 @@ describe("origini dei campi: letture delimitate e accessi", () => {
   it("un modello senza campi rimane selezionabile senza inventare definizioni", async () => {
     state.rows = [{ id: "vuoto", name: "Accordo senza extra", contractual_terms_text: "Nessun campo" }];
     render(<FederatedFieldCatalogue />, { wrapper: wrapper() });
-    fireEvent.change(screen.getByLabelText("Origine dei campi"), { target: { value: "contracts" } });
+    changeFormControl(screen.getByLabelText("Origine dei campi"), { target: { value: "contracts" } });
     expect(await screen.findByText("Accordo senza extra · Nessun campo configurato")).toBeTruthy();
     expect(screen.getByText("0 campi trovati · 1 modello o scheda")).toBeTruthy();
   });
@@ -92,7 +93,7 @@ describe("origini dei campi: letture delimitate e accessi", () => {
     render(<FederatedFieldCatalogue />, { wrapper: wrapper() });
     await screen.findByText(/Nessuna definizione trovata/);
     expect(state.calls.map(c => c.table)).toEqual(["listino_macrocategoria_fields"]);
-    fireEvent.change(screen.getByLabelText("Origine dei campi"), { target: { value: "documents" } });
+    changeFormControl(screen.getByLabelText("Origine dei campi"), { target: { value: "documents" } });
     await waitFor(() => expect(state.calls.map(c => c.table)).toEqual(["listino_macrocategoria_fields", "documento_template_fields"]));
   });
   it("un errore remoto resta un errore: nessun conteggio zero presentato come dato reale", async () => {
@@ -103,7 +104,7 @@ describe("origini dei campi: letture delimitate e accessi", () => {
     state.rows = ["A", "B"].map(id => ({ id, macrocategoria_id: id, field_key: "materiale", field_label: "Materiale", field_type: "text", listino_macrocategorie: { nome: `Scheda ${id}` } }));
     render(<FederatedFieldCatalogue />, { wrapper: wrapper() });
     expect(await screen.findAllByText("Materiale")).toHaveLength(2);
-    fireEvent.change(screen.getByLabelText("Modello o scheda"), { target: { value: "B" } });
+    changeFormControl(screen.getByLabelText("Modello o scheda"), { target: { value: "B" } });
     expect(screen.getAllByText("Materiale")).toHaveLength(1);
     expect(screen.getByText("1 campo trovato · 2 modelli o schede")).toBeTruthy();
   });

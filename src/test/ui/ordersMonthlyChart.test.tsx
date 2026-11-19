@@ -37,6 +37,7 @@ vi.mock("recharts", () => ({
   ),
   CartesianGrid: (): null => null,
   ReferenceLine: (): null => null,
+  ReferenceDot: (): null => null,
   Tooltip: (): null => null,
   XAxis: (): null => null,
   YAxis: (): null => null,
@@ -90,7 +91,7 @@ describe("Viste separate e dati accessibili dell’andamento", () => {
       ["Numero commesse"],
     );
     expect(
-      screen.getByText(/indipendentemente dalla data dell’incasso/),
+      screen.getByText("Commesse create per mese."),
     ).toBeVisible();
   });
   it("offre una tabella consultabile senza hover e distingue mesi futuri e correnti", () => {

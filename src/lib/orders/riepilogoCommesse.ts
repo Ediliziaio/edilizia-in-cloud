@@ -43,7 +43,7 @@ export const CATALOGO_RIQUADRI: readonly VoceCatalogo[] = [
   { id: "da_incassare", nome: "Da incassare", spiegazione: "Quanto manca da incassare, con la quota sul venduto.", permesso: "importi", gruppo: "commesse" },
   { id: "ticket_medio", nome: "Valore medio commessa", spiegazione: "Venduto diviso per il numero di commesse.", permesso: "importi", gruppo: "commesse" },
   { id: "fatturato", nome: "Fatturato dell'anno", spiegazione: "Registro vendite dell'anno, imponibile, tutta l'azienda.", permesso: "fatturazione", gruppo: "commesse" },
-  { id: "costi", nome: "Costi sostenuti", spiegazione: "Costi registrati sulle commesse del periodo.", permesso: "costi", gruppo: "commesse" },
+  { id: "costi", nome: "Costi delle commesse", spiegazione: "Costi registrati sulle commesse del periodo; non include i costi fissi aziendali non attribuiti alle commesse.", permesso: "costi", gruppo: "commesse" },
   { id: "margine", nome: "Margine", spiegazione: "Margine sulle commesse che hanno costi registrati.", permesso: "margini", gruppo: "commesse" },
   { id: "appalti_valore", nome: "Valore appalti in corso", spiegazione: "Contratti con atti e varianti, appalti in corso.", permesso: "importi", gruppo: "appalti" },
   { id: "appalti_da_eseguire", nome: "Lavori da eseguire", spiegazione: "Valore degli appalti meno l'eseguito.", permesso: "importi", gruppo: "appalti" },
@@ -63,7 +63,7 @@ export const NOMI_GRUPPI: Record<GruppoRiquadro, string> = {
   operazioni: "Commesse generali · sviluppo immobiliare e compravendita",
 };
 
-export const RIQUADRI_PREDEFINITI: RiquadroRiepilogo[] = ["commesse", "venduto", "incassato", "da_incassare"];
+export const RIQUADRI_PREDEFINITI: RiquadroRiepilogo[] = ["venduto", "fatturato", "incassato", "costi"];
 /** Chi non vede gli importi riempie i posti liberi con questi, nell'ordine. */
 const RIQUADRI_DI_RISERVA: RiquadroRiepilogo[] = ["commesse", "aperte", "in_ritardo", "assistenza", "completate"];
 

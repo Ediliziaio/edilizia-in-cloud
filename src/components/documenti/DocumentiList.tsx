@@ -1,3 +1,4 @@
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { it } from 'date-fns/locale';
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { TemplateDocumentUse } from './TemplateDocumentUse';
 
 interface DocumentiListProps {
+  layout?: "cards" | "table";
   onSelect?: (template: DocumentoTemplate) => void;
 }
 
@@ -27,7 +29,7 @@ const tipoBadgeColor: Record<DocumentoTipo, string> = {
   variante: 'bg-pink-100 text-pink-700',
 };
 
-export function DocumentiList({ onSelect }: DocumentiListProps) {
+export function DocumentiList({ onSelect, layout = "cards" }: DocumentiListProps) {
   const { templates, isLoading, error, refetch, deleteTemplate } = useDocumentoTemplates();
   const [selected, setSelected] = useState<DocumentoTemplate | null>(null);
   const confirm = useConfirm();
@@ -53,7 +55,48 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
   }
 
   return (
-    <><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <>{layout === "table" ? <Card className="overflow-hidden rounded-xl border-slate-200"><Table aria-label="Template moduli" className="min-w-[1000px] text-xs [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100 [&_th]:px-3"><TableHeader className="bg-slate-50"><TableRow><TableHead>Template</TableHead><TableHead>Descrizione</TableHead><TableHead>Tipo</TableHead><TableHead>Formato</TableHead><TableHead>Campi</TableHead><TableHead>Creato il</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader><TableBody>{templates.map(template => <TableRow key={template.id}><TableCell className="max-w-[240px] truncate font-medium" title={template.nome}>{template.nome}</TableCell><TableCell className="max-w-[260px] truncate text-muted-foreground" title={template.descrizione || undefined}>{template.descrizione || "—"}</TableCell><TableCell><Badge className={`text-xs ${tipoBadgeColor[template.tipo_doc]}`}>{template.tipo_doc}</Badge></TableCell><TableCell className="uppercase">{template.file_type}</TableCell><TableCell>{template.campi?.length ?? 0}</TableCell><TableCell className="whitespace-nowrap">{format(new Date(template.created_at), 'dd MMM yyyy', {locale:it})}</TableCell><TableCell>            <div className="flex justify-end gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => onSelect?.(template)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Configura campi
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50"
+                onClick={() => setSelected(template)}
+              >
+                <FilePlus className="h-3.5 w-3.5" />
+                Compila
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                aria-label={`Elimina template ${template.nome}`}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: 'Eliminare il template documento?',
+                      description: `Il template "${template.nome}" verrà disattivato. I documenti già generati non saranno modificati.`,
+                      confirmLabel: 'Elimina',
+                      variant: 'destructive',
+                    })
+                  ) {
+                    deleteTemplate.mutate(template.id);
+                  }
+                }}
+                disabled={deleteTemplate.isPending}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+</TableCell></TableRow>)}</TableBody></Table></Card> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {templates.map((template) => (
         <Card key={template.id} className="hover:shadow-md transition-shadow">
           <CardContent className="p-4 space-y-3">
@@ -129,7 +172,7 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
           </CardContent>
         </Card>
       ))}
-    </div>
+    </div>}
     <Dialog open={!!selected} onOpenChange={open => { if (!open) setSelected(null); }}>
       <DialogContent className="max-h-[90dvh] max-w-5xl overflow-y-auto">
         <DialogHeader><DialogTitle>{selected?.nome}</DialogTitle><DialogDescription>Compila i campi e controlla il documento prima di utilizzarlo.</DialogDescription></DialogHeader>

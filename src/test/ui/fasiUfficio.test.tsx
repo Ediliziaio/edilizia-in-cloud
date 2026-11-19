@@ -214,7 +214,7 @@ describe("office workspace", () => {
       screen.getByRole("button", { name: "Nuova attività d’ufficio" }),
     );
     const form = await screen.findByRole("dialog");
-    fireEvent.change(within(form).getByLabelText("Cosa c’è da fare"), {
+    fireEvent.change(within(form).getByLabelText("Titolo *"), {
       target: { value: "Ordina materiali" },
     });
     fireEvent.keyDown(
@@ -244,7 +244,7 @@ describe("office workspace", () => {
       screen.getByRole("button", { name: "Nuova attività d’ufficio" }),
     );
     const form = await screen.findByRole("dialog");
-    fireEvent.change(within(form).getByLabelText("Cosa c’è da fare"), {
+    fireEvent.change(within(form).getByLabelText("Titolo *"), {
       target: { value: "Ordine" },
     });
     fireEvent.keyDown(

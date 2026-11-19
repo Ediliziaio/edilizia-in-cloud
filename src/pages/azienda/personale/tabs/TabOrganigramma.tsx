@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOrganigramma, useSyncFromEmployees } from "@/hooks/useOrganigramma";
@@ -240,7 +241,7 @@ function OrganigrammaContent() {
                 className="pl-9"
               />
             </div>
-            <select
+            <UniformSelect
               aria-label="Filtra reparto"
               className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
               value={department}
@@ -252,8 +253,8 @@ function OrganigrammaContent() {
                   {r}
                 </option>
               ))}
-            </select>
-            <select
+            </UniformSelect>
+            <UniformSelect
               aria-label="Filtra sede"
               className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
               value={siteFilter}
@@ -274,7 +275,7 @@ function OrganigrammaContent() {
                     Sede selezionata non disponibile
                   </option>
                 )}
-            </select>
+            </UniformSelect>
             <div
               className="flex gap-1 rounded-lg bg-slate-100 p-1"
               role="group"
@@ -433,6 +434,7 @@ function OrganigrammaContent() {
           onOpenChange={setOpen}
           profilo={editing}
           allProfili={profili}
+          onApriProfilo={setEditing}
         />
       ) : (
         <Sheet open={open && !!editing} onOpenChange={setOpen}>

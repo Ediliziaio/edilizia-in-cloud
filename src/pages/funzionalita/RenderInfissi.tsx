@@ -975,7 +975,7 @@ export default function RenderInfissi() {
           applicationSubCategory: "Sales Enablement",
           operatingSystem: "Web, iOS, Android",
           url: pageUrl,
-          image: `${SITE_URL}/og/render-infissi-og.jpg`,
+          image: `${SITE_URL}${HERO_AFTER_IMAGE}`,
           inLanguage: "it-IT",
           description:
             "Render AI per serramentisti: prima/dopo di infissi, persiane, tapparelle, porte blindate e pergole sulla foto del cliente, pronto per WhatsApp.",
@@ -983,7 +983,7 @@ export default function RenderInfissi() {
             "@type": "Organization",
             name: "Edilizia in Cloud",
             url: SITE_URL,
-            logo: `${SITE_URL}/logo.png`,
+            logo: `${SITE_URL}/email/logo-edilizia-in-cloud.png`,
           },
           audience: {
             "@type": "Audience",
@@ -1041,9 +1041,9 @@ export default function RenderInfissi() {
             name: "Edilizia in Cloud",
             logo: {
               "@type": "ImageObject",
-              url: `${SITE_URL}/logo.png`,
-              width: 600,
-              height: 60,
+              url: `${SITE_URL}/email/logo-edilizia-in-cloud.png`,
+              width: 440,
+              height: 106,
             },
           },
         }}
@@ -1102,9 +1102,9 @@ export default function RenderInfissi() {
           },
           primaryImageOfPage: {
             "@type": "ImageObject",
-            url: `${SITE_URL}/og/render-infissi-og.jpg`,
-            width: 1200,
-            height: 630,
+            url: `${SITE_URL}${HERO_AFTER_IMAGE}`,
+            width: 1024,
+            height: 1536,
           },
           about: {
             "@type": "Thing",

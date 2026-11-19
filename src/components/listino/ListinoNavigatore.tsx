@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il listino come si naviga: area → tipologia → linea → prodotti.
  *
@@ -248,7 +249,7 @@ export function CappelloAree({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
         <label className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
           Scegli area
-          <select
+          <UniformSelect
             aria-label="Scegli area del listino"
             value={attiva?.chiave ?? ""}
             onChange={(event) => onScegli(event.target.value)}
@@ -256,7 +257,7 @@ export function CappelloAree({
           >
             {!attiva && <option value="" disabled>Seleziona un'area</option>}
             {aree.map((a) => <option key={a.chiave} value={a.chiave}>{a.nome} ({a.articoli})</option>)}
-          </select>
+          </UniformSelect>
         </label>
         {onNuovaArea && !cercando && (
           <Button variant="outline" size="sm" className="h-10 shrink-0 gap-1 border-dashed" onClick={onNuovaArea}>

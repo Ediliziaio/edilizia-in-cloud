@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { checkVariationDocument, type VariationDocument, type VariationWorkspace } from "@/lib/orders/variationWorkspace";
@@ -33,6 +34,7 @@ export async function openVariationDocument(order: string, company: string, id: 
 export function useVariationWorkflow(order: string, company: string) {
   const queryClient = useQueryClient();
   const refresh = async () => {
+    refreshFinancialQueries(queryClient);
     await Promise.all([
       ["ordini-variazione", order], ["order-attachments", order], ["marginalita-cantieri"], ["marginalita-widget"], ["order-marginality", order],
     ].map(queryKey => queryClient.invalidateQueries({ queryKey })));

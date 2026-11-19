@@ -1,3 +1,4 @@
+import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { FinancialRefreshBridge } from "@/components/orders/FinancialRefreshBridge";
 import { Suspense, useEffect, useRef, useState } from "react";
 // Alias: tutti i lazy() delle route ritentano l'import con cache-bust se un
@@ -471,7 +472,6 @@ const PRIVATE_APP_PREFIXES =
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
   return (
-    window.__EIC_GA_ENABLED === true &&
     MARKETING_ANALYTICS_HOSTS.has(window.location.hostname) &&
     !PRIVATE_ANALYTICS_PREFIXES.test(pathname || "/")
   );
@@ -488,20 +488,12 @@ const PIXEL_VIEW_CONTENT_PAGES: Record<string, { name: string; category: string 
   "/calendario-demo": { name: "CalendarioDemo", category: "lead_form" },
 };
 
-/** Tracks public marketing SPA route changes in Google Analytics 4 + Meta Pixel */
-function GARouteTracker(): null {
+/** Preserves existing public Meta events; Google page views belong to GTM. */
+function MarketingMetaRouteTracker(): null {
   const location = useLocation();
   const firstPixelRun = useRef(true);
   useEffect(() => {
     if (!canTrackMarketingPage(location.pathname)) return;
-
-    // GA4 page_view
-    if (typeof window.gtag === "function") {
-      window.gtag("event", "page_view", {
-        page_path: location.pathname + location.search,
-        page_location: window.location.href,
-      });
-    }
 
     // Meta Pixel: il PageView iniziale è già emesso dallo snippet base in
     // index.html → qui lo emettiamo solo dai cambi rotta SPA successivi (skip
@@ -594,7 +586,8 @@ const App = () => (
       <BrowserRouter>
         <BootGuardDismiss />
         <SubdomainTitleSetter />
-        <GARouteTracker />
+        <MarketingMetaRouteTracker />
+        <SiteAnalytics />
         <BannerCookie />
         <ScrollToTop />
         {/* MobileBootstrap è lazy SOLO su native. Va isolato in un suo Suspense:

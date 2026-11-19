@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ImportaBusinessPlan } from "@/components/orders/generali/piano/ImportaBusinessPlan";
@@ -13,7 +14,7 @@ afterEach(cleanup);
 async function carica(destinazione: "piano" | "simulatore" = "piano") {
   const onImporta = vi.fn(); render(<ImportaBusinessPlan companyId="demo" destinazione={destinazione} onImporta={onImporta} onAnnulla={vi.fn()}/>);
   const file = new File(["PDF demo"], "business-plan.pdf", { type: "application/pdf" }); Object.defineProperty(file, "arrayBuffer", { value: async () => new ArrayBuffer(4) });
-  fireEvent.change(screen.getByLabelText("File business plan"), { target: { files: [file] } });
+  changeFormControl(screen.getByLabelText("File business plan"), { target: { files: [file] } });
   await screen.findByLabelText("Scenario da importare"); return { onImporta, file };
 }
 it("il PDF usa la stessa anteprima, conserva mesi, durata e originale prima di importare", async () => {
@@ -24,9 +25,9 @@ it("il PDF usa la stessa anteprima, conserva mesi, durata e originale prima di i
   expect(onImporta.mock.calls[0][1]).toMatchObject({ file, foglio: "Base" });
 });
 it("il simulatore richiede stima e calendario, senza perdere lo scenario selezionato", async () => {
-  const { onImporta } = await carica("simulatore"); fireEvent.change(screen.getByLabelText("Scenario da importare"), { target: { value: "1" } });
+  const { onImporta } = await carica("simulatore"); changeFormControl(screen.getByLabelText("Scenario da importare"), { target: { value: "1" } });
   fireEvent.click(screen.getByLabelText(/Ho verificato scenario/)); expect(screen.getByRole("button", { name: "Usa 1 voci nell’ipotesi" })).toBeDisabled();
-  fireEvent.change(screen.getByLabelText("Importo previsto riga 1"), { target: { value: "0" } }); fireEvent.change(screen.getByLabelText("Mese previsto riga 1"), { target: { value: "2027-08" } });
+  changeFormControl(screen.getByLabelText("Importo previsto riga 1"), { target: { value: "0" } }); changeFormControl(screen.getByLabelText("Mese previsto riga 1"), { target: { value: "2027-08" } });
   fireEvent.click(screen.getByLabelText(/Ho verificato scenario/)); fireEvent.click(screen.getByRole("button", { name: "Usa 1 voci nell’ipotesi" }));
   expect(onImporta.mock.calls[0][0][0]).toMatchObject({ importo: 0, mese: "2027-08" }); expect(onImporta.mock.calls[0][0][0].nota).not.toContain("[EIC:DA_STIMARE]"); expect(onImporta.mock.calls[0][1].foglio).toBe("Prudente");
 });

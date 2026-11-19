@@ -23,12 +23,12 @@ describe("Registro anomalie", () => {
   it("parte dal registro compatto, distingue responsabile confermato e priorità scelta", () => {
     mount(); const table = screen.getByRole("table");
     expect(within(table).getByText("Mario Rossi")).toBeVisible(); expect(within(table).getByText("Critica")).toBeVisible();
-    expect(screen.queryByText("Andamento mensile per sorgente")).not.toBeInTheDocument();
+    expect(screen.queryByText("Andamento mensile degli importi")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nuova anomalia" })).toBeVisible();
     expect(within(table).getAllByRole("button", { name: "Apri dettaglio" })).toHaveLength(2);
   });
   it("filtra casi aperti e scaduti senza includere quelli risolti", () => {
-    mount(); fireEvent.change(screen.getByLabelText("Stato anomalie"), { target: { value: "overdue" } });
+    mount(); Element.prototype.scrollIntoView = vi.fn(); fireEvent.click(screen.getByLabelText("Stato anomalie")); fireEvent.click(screen.getByRole("option", {name:"Interventi scaduti"}));
     const table = screen.getByRole("table"); expect(within(table).getByText("Misura da rifare")).toBeVisible(); expect(within(table).queryByText("Vetro sostituito")).not.toBeInTheDocument();
   });
   it("cerca il responsabile confermato anche senza attribuzioni suggerite", () => {
@@ -37,8 +37,11 @@ describe("Registro anomalie", () => {
   });
   it("rende disponibili le analisi in una vista separata", () => {
     mount(); fireEvent.click(screen.getByRole("button", { name: "Analisi e statistiche" }));
-    expect(screen.getByText("Andamento mensile per sorgente")).toBeVisible();
+    expect(screen.getByText("Andamento mensile degli importi")).toBeVisible();
     expect(screen.getByText("Perdita finale netta")).toBeVisible();
+    expect(screen.getByText("Impatto economico")).toBeVisible();
+    expect(screen.queryByText("Cosa fare ora")).not.toBeInTheDocument();
+    expect(screen.queryByText("Azioni rapide")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apri dettaglio" })).not.toBeInTheDocument();
   });
 });

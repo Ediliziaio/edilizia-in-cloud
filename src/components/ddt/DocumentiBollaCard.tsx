@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // ============================================================================
 // DocumentiBollaCard — la bolla originale e gli allegati, in un posto solo
 // ----------------------------------------------------------------------------
@@ -119,7 +120,7 @@ export function DocumentiBollaCard({
             )}
           </CardTitle>
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <select
+            <UniformSelect
               aria-label="Tipo di documento"
               className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs sm:w-44 sm:flex-none"
               value={tipo}
@@ -130,7 +131,7 @@ export function DocumentiBollaCard({
                   {t.etichetta}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
             <Button
               type="button"
               size="sm"

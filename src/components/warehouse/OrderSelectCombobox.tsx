@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { filtriRicercaParole } from "@/lib/ricerca/ricercaContatti";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
@@ -43,6 +44,9 @@ export interface OrderOption extends RigaGerarchia {
 }
 
 interface Props {
+  id?: string;
+  /** Office tasks belong to an operational commessa, which has the Ufficio workspace. */
+  soloOperative?: boolean;
   companyId: string | undefined;
   value: string | undefined;
   onChange: (orderId: string, order: OrderOption) => void;
@@ -105,7 +109,10 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
   return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
 }
 
-export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder, filtroIniziale, esclusi, ariaLabel = "Commessa", generaliSempre = false }: Props) {
+export function OrderSelectCombobox({
+  id, soloOperative = false, generaliSempre = false, companyId, value, onChange, disabled,
+  placeholder, filtroIniziale, esclusi, ariaLabel = "Commessa",
+}: Props) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>(filtroIniziale ?? "soon");
   const [search, setSearch] = useState("");
@@ -117,8 +124,8 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data: orders = [], isLoading } = useQuery<OrderOption[]>({
-    queryKey: ["scarico-cantiere-orders-v2", companyId, filter, debouncedSearch, generaliSempre],
+  const { data: orders = [], isLoading, isError, refetch } = useQuery<OrderOption[]>({
+    queryKey: ["scarico-cantiere-orders-v2", companyId, filter, debouncedSearch, soloOperative, generaliSempre],
     enabled: !!companyId && open,
     staleTime: 60_000,
     queryFn: async () => {
@@ -134,6 +141,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         .eq("company_id", companyId)
         .is("deleted_at", null);
 
+      if (soloOperative) q = q.or("workflow_kind.neq.generale,workflow_kind.is.null");
       if (filter === "soon") {
         const today = new Date();
         const in30 = new Date(today);
@@ -150,12 +158,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
         q = q.or("workflow_kind.eq.generale,commessa_generale_id.not.is.null");
       }
 
-      if (debouncedSearch) {
-        const s = `%${debouncedSearch}%`;
-        q = q.or(
-          `order_code.ilike.${s},client_name.ilike.${s},client_company.ilike.${s},indirizzo_lavori.ilike.${s},work_address.ilike.${s},description.ilike.${s}`,
-        );
-      }
+      for (const condition of filtriRicercaParole(debouncedSearch, ["order_code", "client_name", "client_company", "indirizzo_lavori", "work_address", "description"])) q = q.or(condition);
 
       // Tra i prossimi lavori prima il più vicino; altrimenti prima la commessa più recente, non quelle di anni fa.
       q =
@@ -166,7 +169,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
       const { data: trovate, error } = await q;
       if (error) throw error;
       let data = trovate ?? [];
-      if (generaliSempre && filter !== "generali" && !debouncedSearch) {
+      if (generaliSempre && !soloOperative && filter !== "generali" && !debouncedSearch) {
         const { data: generali, error: eG } = await supabase
           .from("orders")
           .select(`
@@ -220,21 +223,15 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
     },
   });
 
-  // Selected order info displayed on trigger
-  const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(null);
-  useEffect(() => {
-    if (!value) {
-      setSelectedOrder(null);
-      return;
-    }
-    const found = orders.find((o) => o.id === value);
-    if (found) setSelectedOrder(found);
-  }, [value, orders, companyId]);
+  // Keep a clicked option until its lookup arrives; never reuse it across companies.
+  const [pickedOrder, setPickedOrder] = useState<{ companyId: string | undefined; order: OrderOption } | null>(null);
+  const listedOrder = orders.find(o => o.id === value);
+  const picked = pickedOrder?.companyId === companyId && pickedOrder?.order.id === value ? pickedOrder.order : null;
 
   // Lookup separato se l'ordine selezionato non è nella lista corrente
   const { data: standaloneOrder } = useQuery<OrderOption | null>({
     queryKey: ["scarico-order-lookup", companyId, value],
-    enabled: !!companyId && !!value && (!selectedOrder || selectedOrder.id !== value),
+    enabled: !!companyId && !!value && !listedOrder && !picked,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       if (!value || !companyId) return null;
@@ -275,17 +272,14 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
       return conNome;
     },
   });
-  useEffect(() => {
-    if (standaloneOrder?.id === value && (!selectedOrder || selectedOrder.id !== value)) setSelectedOrder(standaloneOrder);
-  }, [standaloneOrder, selectedOrder, value]);
-
+  const selectedOrder = value ? listedOrder ?? picked ?? (standaloneOrder?.id === value ? standaloneOrder : null) : null;
   const handleSelect = useCallback(
     (order: OrderOption) => {
-      setSelectedOrder(order);
+      setPickedOrder({ companyId, order });
       onChange(order.id, order);
       setOpen(false);
     },
-    [onChange],
+    [onChange, companyId],
   );
 
   // Group orders by relative time bucket for visual scanning
@@ -320,6 +314,8 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
+          type="button"
           variant="outline"
           role="combobox"
           aria-label={ariaLabel}
@@ -383,7 +379,12 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
               e.currentTarget.scrollTop += e.deltaY;
             }}
           >
-            {isLoading ? (
+            {isError ? (
+              <div role="alert" className="space-y-2 p-3 text-sm">
+                <p>Non riesco a caricare le commesse.</p>
+                <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>Riprova</Button>
+              </div>
+            ) : isLoading ? (
               <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
                 Caricamento ordini…

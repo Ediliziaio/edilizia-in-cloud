@@ -63,3 +63,60 @@ export function verificaRigheLavoriSalSub(
   }
   return totale / 100;
 }
+
+export type VoceAvanzamentoSalSub = {
+  id: string;
+  descrizione: string;
+  base: string;
+  unita: string;
+  quantita: number;
+  prezzo: number;
+};
+
+type QuantitaRilevataSalSub = { id: string; voce_id: string; quantita_riconosciuta: number | null };
+
+export type RigaAvanzamentoSalSub = {
+  voce_id: string;
+  descrizione: string;
+  base: string;
+  unita: string;
+  affidata: number;
+  prezzo: number;
+  precedente: number | null;
+  periodo: number;
+  cumulata: number | null;
+};
+
+/** Il SAL è per periodo. Le misure precedenti entrano soltanto nell'avanzamento. */
+export function avanzamentoVociSalSub(
+  voci: readonly VoceAvanzamentoSalSub[],
+  precedenti: readonly QuantitaRilevataSalSub[],
+  periodo: readonly QuantitaRilevataSalSub[],
+  storicoCompleto = true,
+): RigaAvanzamentoSalSub[] {
+  const centimillesimi = (n: unknown) => Math.round((Number(n) || 0) * 10000);
+  const viste = new Set<string>();
+  const somma = (misure: readonly QuantitaRilevataSalSub[]) => {
+    const perVoce = new Map<string, number>();
+    for (const misura of misure) {
+      if (viste.has(misura.id)) continue;
+      viste.add(misura.id);
+      perVoce.set(misura.voce_id, (perVoce.get(misura.voce_id) ?? 0) + centimillesimi(misura.quantita_riconosciuta));
+    }
+    return perVoce;
+  };
+  // In caso di dati ripetuti si dà precedenza alla misura del periodo documentato.
+  const attuali = somma(periodo);
+  const passate = somma(precedenti);
+  return voci.map(voce => {
+    const prima = passate.get(voce.id) ?? 0;
+    const ora = attuali.get(voce.id) ?? 0;
+    return {
+      voce_id: voce.id, descrizione: voce.descrizione, base: voce.base, unita: voce.unita,
+      affidata: centimillesimi(voce.quantita) / 10000, prezzo: Number(voce.prezzo),
+      precedente: storicoCompleto ? prima / 10000 : null,
+      periodo: ora / 10000,
+      cumulata: storicoCompleto ? (prima + ora) / 10000 : null,
+    };
+  });
+}

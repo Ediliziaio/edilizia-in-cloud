@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * RichTextEditor — editor WYSIWYG basato su TipTap.
  *
@@ -270,14 +271,14 @@ function Toolbar({
   return (
     <div className={cn('flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50',documentMode&&'sticky top-0 z-10')} role="toolbar" aria-label="Formattazione del testo">
       {documentMode&&<>
-        <select aria-label="Stile del paragrafo" className="h-8 max-w-36 rounded border bg-white px-2 text-xs" value="" onChange={e=>{
+        <UniformSelect aria-label="Stile del paragrafo" className="h-8 max-w-36 rounded border bg-white px-2 text-xs" value="" onChange={e=>{
           const v=e.target.value; if(!v)return;
           if(v==='articolo'||v==='titolo') editor.chain().focus().setHeading({level:v==='titolo'?1:2}).setFontSize(v==='titolo'?'14pt':'11pt').run();
           else editor.chain().focus().setParagraph().setFontSize(v==='nota'?'9pt':'10pt').run();
-        }}><option value="">Stili del testo</option><option value="titolo">Titolo</option><option value="articolo">Articolo</option><option value="testo">Testo</option><option value="nota">Nota piccola</option></select>
-        <select aria-label="Interlinea" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{lineHeight:e.target.value}).run();}}><option value="">Interlinea</option>{['1.15','1.3','1.5','1.8','2'].map(v=><option key={v} value={v}>{v}</option>)}</select>
-        <select aria-label="Spazio dopo il paragrafo" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{spaceAfter:e.target.value}).run();}}><option value="">Spaziatura</option>{['0pt','4pt','8pt','12pt','18pt'].map(v=><option key={v} value={v}>{v}</option>)}</select>
-        <select aria-label="Inserisci campo automatico" className="h-8 max-w-44 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().insertContent({type:'mergeField',attrs:{value:`{{${e.target.value}}}`}}).run();}}><option value="">Inserisci campo…</option>{['cliente.nome_completo','azienda.ragione_sociale','preventivo.numero','preventivo.data','preventivo.totale','preventivo.piano_pagamenti','cantiere.indirizzo'].map(v=><option key={v} value={v}>{v}</option>)}</select>
+        }}><option value="">Stili del testo</option><option value="titolo">Titolo</option><option value="articolo">Articolo</option><option value="testo">Testo</option><option value="nota">Nota piccola</option></UniformSelect>
+        <UniformSelect aria-label="Interlinea" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{lineHeight:e.target.value}).run();}}><option value="">Interlinea</option>{['1.15','1.3','1.5','1.8','2'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
+        <UniformSelect aria-label="Spazio dopo il paragrafo" className="h-8 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().updateAttributes(editor.isActive('heading')?'heading':'paragraph',{spaceAfter:e.target.value}).run();}}><option value="">Spaziatura</option>{['0pt','4pt','8pt','12pt','18pt'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
+        <UniformSelect aria-label="Inserisci campo automatico" className="h-8 max-w-44 rounded border bg-white px-2 text-xs" value="" onChange={e=>{if(e.target.value)editor.chain().focus().insertContent({type:'mergeField',attrs:{value:`{{${e.target.value}}}`}}).run();}}><option value="">Inserisci campo…</option>{['cliente.nome_completo','azienda.ragione_sociale','preventivo.numero','preventivo.data','preventivo.totale','preventivo.piano_pagamenti','cantiere.indirizzo'].map(v=><option key={v} value={v}>{v}</option>)}</UniformSelect>
       </>}
       {!senzaFont && <>
       {/* Font size */}

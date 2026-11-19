@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -43,17 +45,17 @@ describe("Pavimenti: modelli originali locali", () => {
     const leave = () => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; };
     expect(leave()).toBe(false);
     const hero = screen.getByRole("textbox", { name: "Titolo copertina" });
-    fireEvent.change(hero, { target: { value: "Titolo modificato" } });
+    changeFormControl(hero, { target: { value: "Titolo modificato" } });
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
     expect(leave()).toBe(true);
-    fireEvent.change(hero, { target: { value: t.cover_title } });
+    changeFormControl(hero, { target: { value: t.cover_title } });
     expect(onDirtyChange).toHaveBeenLastCalledWith(false);
     expect(leave()).toBe(false);
     expect(saveButton).toBeEnabled();
     fireEvent.click(saveButton);
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(saveButton).toBeDisabled();
-    fireEvent.change(hero, { target: { value: "Nuova versione" } });
+    changeFormControl(hero, { target: { value: "Nuova versione" } });
     expect(onDirtyChange).toHaveBeenLastCalledWith(true);
     fireEvent.click(saveButton);
     await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
@@ -80,7 +82,7 @@ describe("Pavimenti: modelli originali locali", () => {
     mount("resina");
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Pavimentazione in resina");
-    expect(screen.getByRole("combobox").querySelectorAll("option").length).toBeGreaterThanOrEqual(8);
+    expect(nativeFormControl(screen.getByRole("combobox")).querySelectorAll("option").length).toBeGreaterThanOrEqual(8);
   });
   it("preserva i campi cover salvati e il finanziamento durante un nuovo salvataggio", async () => {
     const save = vi.fn();
@@ -96,7 +98,7 @@ describe("Pavimenti: modelli originali locali", () => {
     const save = vi.fn();
     render(<MemoryRouter initialEntries={["/?section=brand"]}><PavimentiTemplateEditor embedded localModule={{ id: "resina", template: template("resina"), saved: false, save, onDirtyChange: vi.fn() }} /></MemoryRouter>);
     const input = document.querySelector('input[type="file"]')!;
-    fireEvent.change(input, { target: { files: [new File(["png"], "logo.png", { type: "image/png" })] } });
+    changeFormControl(input, { target: { files: [new File(["png"], "logo.png", { type: "image/png" })] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledOnce());
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());

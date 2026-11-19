@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Caricare il listino di un contratto: da un foglio o da un altro contratto.
  * Prima si vede riga per riga cosa entra e cosa no, poi si conferma.
@@ -184,7 +185,7 @@ export function CaricaListinoDialog({
                     <tr key={r.riga} className={cn(r.problema && "bg-red-50 dark:bg-red-950/20", gia.has(r.riga) && "text-muted-foreground")}>
                       <td className="px-2 py-1.5">{r.descrizione || "—"}{r.codice && <span className="ml-1.5 text-xs text-muted-foreground">{r.codice}</span>}</td>
                       <td className="px-2 py-1">
-                        <select
+                        <UniformSelect
                           aria-label={`Tipo di ${r.descrizione || `riga ${r.riga}`}`}
                           value={r.tipo}
                           disabled={!!r.problema || gia.has(r.riga)}
@@ -192,7 +193,7 @@ export function CaricaListinoDialog({
                           className={cn("rounded border bg-background px-1 py-0.5 text-xs disabled:opacity-50", r.tipoDaScegliere && "border-amber-400 bg-amber-50")}
                         >
                           {TIPI_VOCE.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
-                        </select>
+                        </UniformSelect>
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap">{UNITA_ETICHETTA[r.unita_misura] ?? (r.unita_misura || "—")}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{/rezzo/.test(r.problema ?? "") ? "—" : euro(r.prezzo_unitario, true)}</td>

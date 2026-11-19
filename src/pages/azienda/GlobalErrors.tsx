@@ -28,13 +28,11 @@ import {
   Wrench,
   UserCheck,
   Target,
-  Download,
   UserRound,
   Users,
   CheckCircle2,
   ClipboardCheck,
   Clock3,
-  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1164,7 +1162,7 @@ export default function GlobalErrors() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4">
       <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-2.5 sm:gap-3">
@@ -1195,9 +1193,7 @@ export default function GlobalErrors() {
               className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
-          <select aria-label="Stato anomalie" className="h-10 rounded-md border bg-background px-3 text-sm" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }}>
-            <option value="all">Tutti gli stati</option><option value="open">Da gestire</option><option value="overdue">Interventi scaduti</option>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
-          </select>
+          <Select value={statusFilter} onValueChange={value => {setStatusFilter(value);setPage(1);}}><SelectTrigger aria-label="Stato anomalie" className="h-10 w-full sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tutti gli stati</SelectItem><SelectItem value="open">Da gestire</SelectItem><SelectItem value="overdue">Interventi scaduti</SelectItem>{Object.entries(REVIEW_STATUS_META).map(([key, meta]) => <SelectItem key={key} value={key}>{meta.label}</SelectItem>)}</SelectContent></Select>
           {canEdit && <Button className="h-10 shrink-0" onClick={() => setCreating(true)}>Nuova anomalia</Button>}
           <Button variant="outline" className="h-10 shrink-0" onClick={exportFilteredCsv} disabled={filtered.length === 0}>Esporta</Button>
           <Button
@@ -1218,172 +1214,147 @@ export default function GlobalErrors() {
         </div>
       </div>
 
-      <OperationalSummary label="Riepilogo anomalie" title="I problemi da gestire" icon={AlertTriangle} columns={3} note="Indicatori riferiti ai filtri attivi.">
+      {view === "register" && <OperationalSummary label="Riepilogo anomalie" title="I problemi da gestire" icon={AlertTriangle} columns={3} note="Indicatori riferiti ai filtri attivi.">
         <OperationalSummaryMetric isLoading={isLoading} label="Anomalie aperte" value={String(openRows.length)} hint="Da verificare, assegnare o risolvere" icon={AlertTriangle} tone="orange" />
         <OperationalSummaryMetric isLoading={isLoading} label="Interventi scaduti" value={String(overdueRows.length)} hint="Scadenza correttiva superata, caso ancora aperto" icon={Clock3} tone={overdueRows.length ? "red" : "green"} />
         <OperationalSummaryMetric isLoading={isLoading} label="Costo stimato problemi aperti" value={formatCurrency(openRows.reduce((sum, e) => sum + anomalyNotes(e).estimate, 0))} hint="Stime dei casi aperti nei filtri attivi" icon={TrendingDown} tone="red" />
-      </OperationalSummary>
+      </OperationalSummary>}
       <div className="flex items-center justify-between gap-3 overflow-x-auto"><div className="flex shrink-0 gap-1 rounded-lg border p-1"><Button size="sm" variant={view === "register" ? "secondary" : "ghost"} aria-pressed={view === "register"} onClick={() => setView("register")}>Registro anomalie</Button><Button size="sm" variant={view === "analytics" ? "secondary" : "ghost"} aria-pressed={view === "analytics"} onClick={() => setView("analytics")}>Analisi e statistiche</Button></div><p className="whitespace-nowrap text-sm text-muted-foreground">{filtered.length} anomalie · Importi riferiti ai filtri attivi</p></div>
       {view === "analytics" && <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div><h2 className="text-base font-semibold">Impatto economico</h2><p className="mt-1 mb-3 text-xs text-muted-foreground">Importo complessivo: {formatCurrency(stats.totalLoss)} · comprende stime e costi finali netti. I tre valori sotto distinguono solo i costi confermati e non vanno sommati.</p><div className="grid gap-3 sm:grid-cols-3">
         <OperationalKpiCard label="Costi finali confermati" value={formatCurrency(filtered.reduce((sum, e) => sum + (anomalyNotes(e).finalCost ?? 0), 0))} hint="Solo casi con costo finale registrato" icon={TrendingDown} tone="orange" />
         <OperationalKpiCard label="Importi recuperati" value={formatCurrency(filtered.reduce((sum, e) => sum + anomalyNotes(e).recovered, 0))} hint="Recuperi già sottratti ai costi finali" icon={CheckCircle2} tone="green" />
         <OperationalKpiCard label="Perdita finale netta" value={formatCurrency(filtered.reduce((sum, e) => { const n = anomalyNotes(e); return sum + (n.finalCost == null ? 0 : n.finalCost - n.recovered); }, 0))} hint="Costo finale meno recuperi; stime escluse" icon={Target} tone="red" />
+      </div></div>
+      <div className="flex flex-wrap items-center gap-2 border-y py-3" aria-label="Priorità e azioni anomalie">
+        <span className="mr-1 text-xs font-semibold text-muted-foreground">Vai ai casi</span>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({severity:"high"}); setView("register"); }}>{stats.critical.length} critiche</Button>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"supplier"}); setView("register"); }}>{supplierCount} fornitori da verificare</Button>
+        <Button size="sm" variant="outline" onClick={() => { applyQuickFilter({responsibility:"unassigned"}); setView("register"); }}>{unassignedCount} da assegnare</Button>
+        <Button size="sm" variant="ghost" onClick={() => applyQuickFilter({dateFrom:startOfMonth(new Date()),dateTo:new Date()})}>Questo mese · {formatCurrency(stats.thisMonth)}</Button>
+        {highestLoss && <Button size="sm" variant="ghost" onClick={() => setSelectedId(highestLoss.id)}>Caso più costoso · {formatCurrency(getErrorAmount(highestLoss.amount))}</Button>}
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <OperationalKpiCard
-          label="Costi registrati"
-          value={formatCurrency(stats.totalLoss)}
-          hint={`${filtered.length} anomalie · stime o costi finali netti`}
-          icon={TrendingDown}
-          tone="red"
-        />
-        <OperationalKpiCard
-          label="Area da verificare"
-          value={stats.topResponsibility ? RESPONSIBILITY_META[stats.topResponsibility[0]].shortLabel : "Nessuna"}
-          hint={
-            stats.topResponsibility
-              ? `${formatCurrency(stats.topResponsibility[1].amount)} su ${stats.topResponsibility[1].count} casi`
-              : "Nessuna anomalia filtrata"
-          }
-          icon={UserCheck}
-          tone="orange"
-        />
-        <OperationalKpiCard
-          label="Anomalie critiche"
-          value={String(stats.critical.length)}
-          hint={
-            stats.critical.length > 0
-              ? `${formatCurrency(stats.critical.reduce((s, e) => s + getErrorAmount(e.amount), 0))} da presidiare`
-              : "Nessuna perdita sopra soglia"
-          }
-          icon={Target}
-          tone={stats.critical.length > 0 ? "red" : "green"}
-        />
-        <OperationalKpiCard
-          label="Questo mese"
-          value={formatCurrency(stats.thisMonth)}
-          hint={
-            stats.topDetailedCause
-              ? `Causa precisa: ${stats.topDetailedCause[0]} (${stats.topDetailedCause[1]})`
-              : stats.topCategory
-                ? `Causa frequente: ${CATEGORY_META[stats.topCategory[0]].label} (${stats.topCategory[1]})`
-              : "Nessuna causa ricorrente"
-          }
-          icon={CalendarDays}
-          tone="blue"
-        />
-      </div>
+      <section aria-label="Stato gestione anomalie" className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        {(Object.entries(REVIEW_STATUS_META) as [ReviewStatus, typeof REVIEW_STATUS_META[ReviewStatus]][]).map(([status, meta]) => <button key={status} className="rounded-md px-2 py-1 hover:bg-muted" onClick={() => {setStatusFilter(status);setPage(1);setView("register");}}>{meta.label} <strong className="ml-1 tabular-nums">{stats.statusTotals[status]}</strong></button>)}
+      </section>
+      <details className="rounded-lg border px-4 py-2 text-sm"><summary className="cursor-pointer font-medium">Lettura dei dati e suggerimenti</summary><p className="mt-2 text-muted-foreground">{aiExecutiveInsight}</p></details>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_0.74fr]">
-        <Card className="border-slate-200 bg-gradient-to-br from-white to-slate-50/80 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Cosa fare ora</CardTitle>
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Cause precise ricorrenti</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => applyQuickFilter({ severity: "high" })}
-              className="rounded-xl border border-red-100 bg-red-50/70 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
-            >
-              <p className="text-xs font-semibold uppercase text-red-700">Priorità</p>
-              <p className="mt-1 text-lg font-bold text-red-700">{stats.critical.length} critiche</p>
-              <p className="text-xs text-red-700/80">Isola le anomalie sopra soglia.</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => applyQuickFilter({ responsibility: "supplier" })}
-              className="rounded-xl border border-orange-100 bg-orange-50/70 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
-            >
-              <p className="text-xs font-semibold uppercase text-orange-700">Fornitori</p>
-              <p className="mt-1 text-lg font-bold text-orange-700">{supplierCount} casi</p>
-              <p className="text-xs text-orange-700/80">Apri reclami e ricorrenze.</p>
-            </button>
-            <button
-              type="button"
-              onClick={() => applyQuickFilter({ responsibility: "unassigned" })}
-              className="rounded-xl border border-slate-200 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm"
-            >
-              <p className="text-xs font-semibold uppercase text-slate-600">Governance</p>
-              <p className="mt-1 text-lg font-bold text-slate-900">{unassignedCount} da assegnare</p>
-              <p className="text-xs text-slate-500">Dai un responsabile operativo.</p>
-            </button>
+          <CardContent className="space-y-3">
+            {detailedCauseChart.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna causa precisa registrata</p>
+            ) : (
+              detailedCauseChart.map((item) => {
+                const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
+                return (
+                  <div key={item.cause} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium text-slate-800">{item.cause}</span>
+                      <span className="text-muted-foreground">{formatCurrency(item.amount)}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-orange-500"
+                        style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {item.count} casi · {percentage}% degli importi filtrati
+                    </p>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Azioni rapide</CardTitle>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Importi per causa</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <Button
-              variant="outline"
-              className="justify-start border-slate-200"
-              onClick={() => applyQuickFilter({ dateFrom: startOfMonth(new Date()), dateTo: new Date() })}
-            >
-              <CalendarDays className="mr-2 h-4 w-4 text-orange-500" />
-              Vedi solo questo mese
-            </Button>
-            <Button
-              variant="outline"
-              className="justify-start border-slate-200"
-              onClick={exportFilteredCsv}
-              disabled={filtered.length === 0}
-            >
-              <Download className="mr-2 h-4 w-4 text-orange-500" />
-              Esporta anomalie filtrate
-            </Button>
-            {highestLoss && (
-              <Button
-                asChild
-                variant="outline"
-                className="justify-start border-slate-200"
-              >
-                <Link to={`/azienda/ordini/${highestLoss.order_id}`}>
-                  <Target className="mr-2 h-4 w-4 text-red-500" />
-                  Apri perdita maggiore: {formatCurrency(getErrorAmount(highestLoss.amount))}
-                </Link>
-              </Button>
+          <CardContent>
+            {categoryChart.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Nessun dato</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={210}>
+                <BarChart data={categoryChart} layout="vertical" margin={{ left: 32 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" tickFormatter={formatCurrencyCompact} />
+                  <YAxis type="category" dataKey="category" width={126} />
+                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>
+                    {categoryChart.map((entry) => (
+                      <Cell key={entry.key} fill={CATEGORY_META[entry.key].color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Aree da verificare</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {responsibilityChart.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna responsabilità rilevata</p>
+            ) : (
+              responsibilityChart.map((item) => {
+                const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
+                return (
+                  <div key={item.key} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium">{item.label}</span>
+                      <span className="text-muted-foreground">{formatCurrency(item.amount)}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-orange-500"
+                        style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {item.count} casi · {percentage}% degli importi filtrati
+                    </p>
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-        <Card className="border-orange-200 bg-gradient-to-br from-orange-50/80 via-white to-white shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-orange-500" />
-              Riepilogo operativo
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm leading-relaxed text-slate-700">{aiExecutiveInsight}</p>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Andamento mensile degli importi</CardTitle>
+          {isFetching && !isLoading && (
+            <p className="text-xs text-muted-foreground">Aggiornamento dati in corso...</p>
+          )}
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={210}>
+            <BarChart data={monthlyChart}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={formatCurrencyCompact} />
+              <Tooltip formatter={(v: number) => formatCurrency(v)} />
+              <Legend />
+              <Bar dataKey="fornitura" name="Fornitura/merce" stackId="a" fill="hsl(20, 84%, 52%)" />
+              <Bar dataKey="esecuzione" name="Esecuzione" stackId="a" fill="hsl(260, 75%, 58%)" />
+              <Bar dataKey="logistica" name="Logistica" stackId="a" fill="hsl(205, 80%, 50%)" />
+              <Bar dataKey="altro" name="Altro" stackId="a" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
-        <Card className="border-slate-200 bg-white shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Stato gestione anomalie</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            {(Object.entries(REVIEW_STATUS_META) as [ReviewStatus, typeof REVIEW_STATUS_META[ReviewStatus]][]).map(([status, meta]) => {
-              const Icon = meta.icon;
-              return (
-                <div key={status} className="rounded-xl border border-slate-200 bg-slate-50/70 p-2">
-                  <div className="flex items-center gap-1.5">
-                    <Icon className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="text-[11px] font-medium text-slate-600">{meta.label}</span>
-                  </div>
-                  <p className="mt-1 text-lg font-bold text-slate-950">{stats.statusTotals[status]}</p>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-slate-200 bg-white shadow-sm">
+      <details className="rounded-xl border p-4"><summary className="cursor-pointer font-semibold text-sm">Soggetti collegati e piano di verifica</summary><div className="mt-4 space-y-4">      <Card className="border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1554,121 +1525,7 @@ export default function GlobalErrors() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Cause precise ricorrenti</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {detailedCauseChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna causa precisa registrata</p>
-            ) : (
-              detailedCauseChart.map((item) => {
-                const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
-                return (
-                  <div key={item.cause} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium text-slate-800">{item.cause}</span>
-                      <span className="text-muted-foreground">{formatCurrency(item.amount)}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-orange-500"
-                        style={{ width: `${Math.max(percentage, 4)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {item.count} casi · {percentage}% delle perdite filtrate
-                    </p>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Perdite per causa</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {categoryChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nessun dato</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={categoryChart} layout="vertical" margin={{ left: 32 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" tickFormatter={formatCurrencyCompact} />
-                  <YAxis type="category" dataKey="category" width={126} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                  <Bar dataKey="amount" name="Importo" radius={[0, 4, 4, 0]}>
-                    {categoryChart.map((entry) => (
-                      <Cell key={entry.key} fill={CATEGORY_META[entry.key].color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Responsabilità probabile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {responsibilityChart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nessuna responsabilità rilevata</p>
-            ) : (
-              responsibilityChart.map((item) => {
-                const percentage = stats.totalLoss > 0 ? Math.round((item.amount / stats.totalLoss) * 100) : 0;
-                return (
-                  <div key={item.key} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="font-medium">{item.label}</span>
-                      <span className="text-muted-foreground">{formatCurrency(item.amount)}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-orange-500"
-                        style={{ width: `${Math.max(percentage, 4)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {item.count} casi · {percentage}% delle perdite filtrate
-                    </p>
-                  </div>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Andamento mensile per sorgente</CardTitle>
-          {isFetching && !isLoading && (
-            <p className="text-xs text-muted-foreground">Aggiornamento dati in corso...</p>
-          )}
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={monthlyChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={formatCurrencyCompact} />
-              <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Legend />
-              <Bar dataKey="fornitura" name="Fornitura/merce" stackId="a" fill="hsl(20, 84%, 52%)" />
-              <Bar dataKey="esecuzione" name="Esecuzione" stackId="a" fill="hsl(260, 75%, 58%)" />
-              <Bar dataKey="logistica" name="Logistica" stackId="a" fill="hsl(205, 80%, 50%)" />
-              <Bar dataKey="altro" name="Altro" stackId="a" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
+</div></details>
       </div>}
       {view === "register" &&
       <Card>
@@ -1689,14 +1546,14 @@ export default function GlobalErrors() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto rounded-md border">
-            <Table className="min-w-[1100px] [&_th]:whitespace-nowrap [&_td]:py-2.5">
-              <TableHeader><TableRow>
+          <div className="max-h-[65vh] overflow-auto rounded-lg border">
+            <Table aria-label="Registro anomalie operative" className="min-w-[1050px] text-xs [&_th]:whitespace-nowrap [&_th]:px-3 [&_td]:px-3 [&_td]:py-2">
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-sm"><TableRow>
                 <SortableTableHead active={sort.key === "date"} direction={sort.direction} onClick={() => handleSort("date")}>Data</SortableTableHead>
                 <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Commessa</SortableTableHead>
                 <TableHead>Problema</TableHead><TableHead>Responsabile effettivo</TableHead>
                 <SortableTableHead active={sort.key === "severity"} direction={sort.direction} onClick={() => handleSort("severity")}>Priorità</SortableTableHead>
-                <TableHead>Scadenza intervento</TableHead><TableHead className="text-right">Costo registrato</TableHead><TableHead>Stato</TableHead><TableHead>Azioni</TableHead>
+                <TableHead>Scadenza intervento</TableHead><TableHead className="text-right">Impatto economico</TableHead><TableHead>Stato</TableHead><TableHead>Azioni</TableHead>
               </TableRow></TableHeader>
               <TableBody>{isLoading ? <TableRow><TableCell colSpan={9}>Caricamento anomalie…</TableCell></TableRow> : filtered.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center">Nessuna anomalia per questi filtri.</TableCell></TableRow> : visibleRows.map(e => <TableRow key={e.id}>
                 <TableCell className="whitespace-nowrap">{formatErrorDate(e.error_date)}</TableCell>
@@ -1705,7 +1562,7 @@ export default function GlobalErrors() {
                 <TableCell>{e.confirmed_responsibility_name || <span className="text-muted-foreground">Da assegnare</span>}</TableCell>
                 <TableCell><Badge variant="outline" className={SEVERITY_META[e.severity].color}>{SEVERITY_META[e.severity].label}</Badge></TableCell>
                 <TableCell className={cn("whitespace-nowrap", !anomalyClosed(e.reviewStatus) && e.corrective_due_date && e.corrective_due_date < format(new Date(), "yyyy-MM-dd") && "font-medium text-destructive")}>{e.corrective_due_date ? formatErrorDate(e.corrective_due_date) : "Da definire"}</TableCell>
-                <TableCell className="text-right tabular-nums"><span className="font-semibold">{formatCurrency(getErrorAmount(e.amount))}</span><span className="ml-2 text-xs text-muted-foreground">{anomalyNotes(e).finalCost == null ? "stimato" : "netto finale"}</span></TableCell>
+                <TableCell className="text-right tabular-nums"><span className="font-semibold">{formatCurrency(getErrorAmount(e.amount))}</span><span className="ml-2 text-xs text-muted-foreground">{anomalyNotes(e).finalCost == null ? "stima" : "finale netto"}</span></TableCell>
                 <TableCell><Badge variant="outline" className={REVIEW_STATUS_META[e.reviewStatus].color}>{REVIEW_STATUS_META[e.reviewStatus].label}</Badge></TableCell>
                 <TableCell><Button variant="outline" size="sm" className="h-8 whitespace-nowrap" onClick={() => setSelectedId(e.id)}>Apri dettaglio</Button></TableCell>
               </TableRow>)}</TableBody>

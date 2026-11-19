@@ -1,3 +1,4 @@
+import { pipelineCommesseDev } from "./dev/pipeline-commesse/plugin.mts";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
@@ -36,6 +37,7 @@ export default defineConfig(({ command, mode }) => ({
   },
   plugins: [
     react(),
+    pipelineCommesseDev(),
     localPlanOcrPlugin(),
     localCadPlugin(),
     // Explicitly authorized Demo 2 trial. Dev-only, fixed function, tenant checked twice.
@@ -324,7 +326,14 @@ export default defineConfig(({ command, mode }) => ({
     // flow-builder gli archi NON si renderizzavano (path SVG assenti, solo i "+"
     // dei label) e comparivano errori "no zustand provider". Il dedupe risolve
     // entrambi a un'unica istanza.
-    dedupe: ["@xyflow/react", "@xyflow/system"],
+    // Radix shares focus/layer contexts between Dialog, Select and Popover.
+    // Equal versions can still be installed twice at different paths.
+    dedupe: [
+      "@xyflow/react", "@xyflow/system",
+      "@radix-ui/react-dismissable-layer", "@radix-ui/react-focus-scope",
+      "@radix-ui/react-portal", "@radix-ui/react-popper",
+      "@radix-ui/react-collection", "react-remove-scroll",
+    ],
   },
   // ────────────────────────────────────────────────────────────────────────
   // optimizeDeps — pre-bundle delle dipendenze TipTap in modo coerente.

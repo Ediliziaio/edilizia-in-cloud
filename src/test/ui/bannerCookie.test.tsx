@@ -16,9 +16,10 @@ afterEach(() => { cleanup(); delete (window as unknown as { eicConsensoCookie?: 
 
 describe("Consenso ai cookie (Garante, 10/06/2021)", () => {
   it("nessun tracciamento parte prima del consenso", () => {
-    // Consent Mode con tutto negato, prima di ogni altro script di tracciamento.
-    expect(indice.indexOf("gtag('consent', 'default'")).toBeLessThan(indice.indexOf("GTM-PGLNPBW9"));
-    expect(indice).toMatch(/quando\('analitici', function \(\) \{\s+if \(document\.readyState === 'complete'\) \{ setTimeout\(loadGTM/);
+    // Google viene caricato solo dall'adapter dopo il consenso: nessun tag
+    // autonomo nell'HTML può partire prima della scelta dell'utente.
+    expect(indice).not.toMatch(/googletagmanager\.com\/(?:gtag\/js|gtm\.js|ns\.html)/);
+    expect(indice).not.toMatch(/gtag\s*\(/);
     expect(indice).toMatch(/quando\('marketing', function \(\) \{\s+window\.__EIC_PIXEL_ENABLED = true;/);
     expect(indice).toContain("window.eicConsensoCookie.quando('analitici',function(){var i=new Image();i.src=\"https://clientium.it");
     expect(readFileSync("src/main.tsx", "utf8")).toContain('.eicConsensoCookie?.quando("marketing", initFacebookClickTracker)');

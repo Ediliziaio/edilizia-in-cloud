@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -279,7 +280,7 @@ function Editor({
         >
           <label className="flex w-full items-center gap-3 text-sm 2xl:hidden">
             <span className="shrink-0 font-medium">Pagina da modificare</span>
-            <select
+            <UniformSelect
               aria-label="Pagina da modificare"
               className="h-10 min-w-0 flex-1 rounded-md border bg-white px-3"
               value={section}
@@ -292,7 +293,7 @@ function Editor({
                   {p.visible ? "" : " · nascosta"}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
           <div className="hidden 2xl:block">
             <Button

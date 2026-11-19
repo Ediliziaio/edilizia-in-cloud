@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Impostazioni → Modelli preventivi e contratti → «Preventivo generico» (10/10/2026).
  *
@@ -289,7 +290,7 @@ describe("Preventivo generico: l'editor", () => {
   it("senza nome il modello non si salva e il messaggio parla del modello", async () => {
     apri();
     apriModello("Offerta premium");
-    fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "  " } });
+    changeFormControl(screen.getByLabelText("Nome *"), { target: { value: "  " } });
     fireEvent.click(bottone("Salva bozza"));
     await waitFor(() => expect(state.errore).toHaveBeenCalledWith("Scrivi il nome del modello"));
     expect(state.upsert).not.toHaveBeenCalled();
@@ -487,7 +488,7 @@ describe("Preventivo generico: gli errori si leggono in italiano", () => {
     apriModello("Offerta premium");
     const file = new File(["x"], "logo.png", { type: "image/png" });
     const scelta = screen.getByText("Scegli file").closest("label")!.querySelector("input[type=file]") as HTMLInputElement;
-    fireEvent.change(scelta, { target: { files: [file] } });
+    changeFormControl(scelta, { target: { files: [file] } });
     await waitFor(() => expect(state.errore).toHaveBeenCalledOnce());
     expect(state.errore).toHaveBeenCalledWith("Logo non caricato", { description: "Non sono riuscito a caricarlo. Riprova tra poco." });
   });
@@ -536,7 +537,7 @@ describe("Preventivo generico: eliminare e scaricare l'anteprima", () => {
 
 describe("Preventivo generico: ogni campo ha il suo nome", () => {
   const controlli = () => [
-    ...Array.from(document.querySelectorAll<HTMLElement>("input:not([type=hidden]):not([type=file]):not([type=checkbox]), textarea, select")),
+    ...Array.from(document.querySelectorAll<HTMLElement>("input:not([type=hidden]):not([type=file]):not([type=checkbox]), textarea, select:not([aria-hidden=true])")),
     ...screen.getAllByRole("switch"),
   ];
 
@@ -663,7 +664,7 @@ describe("Preventivo generico: le modifiche non salvate non si perdono", () => {
     const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
     apri("/azienda/impostazioni/template-preventivi?tab=documenti");
     apriModello("Offerta premium");
-    fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
+    changeFormControl(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
     fireEvent.click(screen.getByRole("link", { name: "Prezzo e margini" }));
     expect(conferma).toHaveBeenCalledOnce();
     expect(conferma.mock.calls[0][0]).toMatch(/modifiche non salvate/i);
@@ -675,7 +676,7 @@ describe("Preventivo generico: le modifiche non salvate non si perdono", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     apri();
     apriModello("Offerta premium");
-    fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
+    changeFormControl(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
     fireEvent.click(screen.getByRole("link", { name: "Prezzo e margini" }));
     expect(indirizzo()).toBe("/azienda/impostazioni/margini");
   });
@@ -694,7 +695,7 @@ describe("Preventivo generico: le modifiche non salvate non si perdono", () => {
     apri();
     apriModello("Offerta premium");
     expect(confermaNavigazioneImpostazioni()).toBe(true);
-    fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
+    changeFormControl(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
     expect(confermaNavigazioneImpostazioni()).toBe(false);
     expect(conferma).toHaveBeenCalledOnce();
     const chiusura = new Event("beforeunload", { cancelable: true });
@@ -706,7 +707,7 @@ describe("Preventivo generico: le modifiche non salvate non si perdono", () => {
     const conferma = vi.spyOn(window, "confirm").mockReturnValue(false);
     apri();
     apriModello("Offerta premium");
-    fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
+    changeFormControl(screen.getByLabelText("Nome *"), { target: { value: "Offerta premium 2" } });
     fireEvent.click(bottone("Salva bozza"));
     await waitFor(() => expect(state.successo).toHaveBeenCalledWith("Bozza salvata"));
     fireEvent.click(screen.getByRole("link", { name: "Prezzo e margini" }));

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/settings/ModelliPagamentoConfig.tsx
 import { useRef, useState, type ReactNode } from "react";
 import {
@@ -223,7 +224,7 @@ export default function ModelliPagamentoConfig({
                     onChange={(e) => setCerca(e.target.value)}
                     className="min-w-0 flex-1"
                   />
-                  <select
+                  <UniformSelect
                     aria-label="Filtra modelli per SAL"
                     value={filtro}
                     onChange={(e) => setFiltro(e.target.value)}
@@ -232,7 +233,7 @@ export default function ModelliPagamentoConfig({
                     <option value="tutti">Tutti i modelli</option>
                     <option value="sal">Con SAL</option>
                     <option value="senza-sal">Senza SAL</option>
-                  </select>
+                  </UniformSelect>
                 </div>
               </div>
             )}

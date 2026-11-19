@@ -22,6 +22,7 @@ export interface CommissionCalculationInput {
 }
 
 export interface InstallmentLike {
+  documento_quota_lorda?: number | null;
   position?: number;
   type?: string | null;
   amount?: number | string | null;
@@ -280,8 +281,8 @@ export function calculateInstallmentCollections({
     // Partial invoice collections are actual cash even when is_paid is false.
     // Explicit zero is authoritative; never replace it with a paid flag.
     if (i.fattura?.importo_pagato != null) {
-      if (i.fattura.id && countedInvoices.has(i.fattura.id)) return 0;
-      if (i.fattura.id) countedInvoices.add(i.fattura.id);
+      if (i.documento_quota_lorda == null && i.fattura.id && countedInvoices.has(i.fattura.id)) return 0;
+      if (i.documento_quota_lorda == null && i.fattura.id) countedInvoices.add(i.fattura.id);
       const pagato = roundMoney(positiveMoney(i.fattura.importo_pagato));
       // Rata pagata e fattura incassata a meno di un centesimo di arrotondamento: vale la rata,
       // come rate_incassi nel database, così non resta un centesimo «da incassare».

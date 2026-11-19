@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Camera, FileUp, HardHat, Loader2, Receipt, Sparkles, Trash2, Warehouse } from "lucide-react";
@@ -261,7 +262,7 @@ function CampoDDTEditor() {
         {destinazione === "cantiere" && (
           <label className="block space-y-1 text-sm font-medium">
             Cantiere
-            <select
+            <UniformSelect
               className={campo}
               value={valoreCantiere}
               disabled={
@@ -277,7 +278,7 @@ function CampoDDTEditor() {
                   {c.order.description || c.order.indirizzo_lavori}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
         )}
         {assegnazioni.isError && (

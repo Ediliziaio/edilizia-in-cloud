@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
@@ -199,7 +200,7 @@ export function ModuloProdotto({
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="sds-materiale">Materiale di origine</Label>
-                <select
+                <UniformSelect
                   id="sds-materiale"
                   className={cls}
                   value={dati.materiale_id || ""}
@@ -218,13 +219,13 @@ export function ModuloProdotto({
                       {m.codice ? ` · ${m.codice}` : ""} · {m.id.slice(0, 8)}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
               <div>
                 <Label htmlFor="sds-impresa">
                   Impresa che impiega il prodotto
                 </Label>
-                <select
+                <UniformSelect
                   id="sds-impresa"
                   className={cls}
                   value={dati.subappaltatore_id || ""}
@@ -240,7 +241,7 @@ export function ModuloProdotto({
                       {s.ragione_sociale}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
             </div>
             {dati.materiale_id &&
@@ -284,7 +285,7 @@ export function ModuloProdotto({
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <Label htmlFor="sds-fase">Fase di impiego</Label>
-                <select
+                <UniformSelect
                   id="sds-fase"
                   className={cls}
                   value={dati.fase_id || ""}
@@ -299,7 +300,7 @@ export function ModuloProdotto({
                       {f.name}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
               {testo("dal", "Impiego dal", "date")}
               {testo("al", "Impiego fino al", "date")}
@@ -308,7 +309,7 @@ export function ModuloProdotto({
               <Label htmlFor="sds-necessaria">
                 SDS necessaria per questo prodotto?
               </Label>
-              <select
+              <UniformSelect
                 id="sds-necessaria"
                 className={cls}
                 value={dati.sds_necessaria}
@@ -322,7 +323,7 @@ export function ModuloProdotto({
                 <option value="da_valutare">Da valutare</option>
                 <option value="si">Sì, raccogliere e riesaminare la SDS</option>
                 <option value="no">No, con motivazione</option>
-              </select>
+              </UniformSelect>
             </div>
             {dati.sds_necessaria === "no" && (
               <div>
@@ -342,7 +343,7 @@ export function ModuloProdotto({
             )}
             <div className="space-y-2 rounded-lg border p-3">
               <Label htmlFor="sds-documento">SDS dal fascicolo</Label>
-              <select
+              <UniformSelect
                 id="sds-documento"
                 className={cls}
                 value={dati.evidenza_id || ""}
@@ -360,7 +361,7 @@ export function ModuloProdotto({
                     {e.file_name}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
               {documento && (
                 <p className="text-xs text-muted-foreground">
                   Revisione {documento.revisione || "non indicata"} · rilascio{" "}

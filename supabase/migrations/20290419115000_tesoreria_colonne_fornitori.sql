@@ -1,14 +1,3 @@
--- ════════════════════════════════════════════════════════════════════════════
--- Tesoreria: un collegamento di banca può puntare a una fattura ricevuta o a una
--- rata del fornitore (18/11/2026)
--- ════════════════════════════════════════════════════════════════════════════
--- Preparazione di 20290419120000_tesoreria_fornitori_e_prove: il vincolo
--- bank_reconciliations_target_check voleva una fattura emessa, una scadenza, un
--- movimento, un documento o la prima nota; un pagamento a fornitore non aveva
--- dove stare. Due colonne vuote (senza FK, come documento_id) e il vincolo che
--- le comprende. Solo aggiunte: nessuna riga cambia. Idempotente.
--- ════════════════════════════════════════════════════════════════════════════
-
 SET lock_timeout = '3s';
 
 ALTER TABLE public.bank_reconciliations ADD COLUMN IF NOT EXISTS fattura_ricevuta_id uuid;

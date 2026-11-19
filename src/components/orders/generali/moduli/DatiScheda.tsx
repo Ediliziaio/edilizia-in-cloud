@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/moduli/DatiScheda.tsx
 // Scheda «Dati» della commessa generale (piano 2026-11-14-macro-commessa-per-tipologia, T1).
 // Un posto solo per i dati dell'operazione: cliente, indirizzo, inizio e fine lavori, chi la segue,
@@ -85,7 +86,7 @@ function Campo({ id, campo, valore, onCambia, disabilitato }: { id: string; camp
         {campo.tipo === "importo" && <span className="font-normal text-muted-foreground"> (€, al netto dell'IVA)</span>}
       </Label>
       {campo.tipo === "scelta" ? (
-        <select
+        <UniformSelect
           id={id}
           value={valore}
           disabled={disabilitato}
@@ -94,7 +95,7 @@ function Campo({ id, campo, valore, onCambia, disabilitato }: { id: string; camp
         >
           <option value="">—</option>
           {campo.opzioni?.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        </UniformSelect>
       ) : (
         <Input
           id={id}

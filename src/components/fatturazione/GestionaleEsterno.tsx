@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
@@ -350,9 +351,9 @@ export function SegnaIncassateImportateDialog({ fatture, escluse, companyId, ope
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="incassi-metodo">Metodo</Label>
-            <select id="incassi-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+            <UniformSelect id="incassi-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
               {METODI.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            </UniformSelect>
           </div>
         </div>
         {daFattureInCloud && <p className="text-xs text-muted-foreground">Il pagamento si registra anche su Fatture in Cloud.</p>}
@@ -432,9 +433,9 @@ export function SegnaPagataImportataDialog({ fattura, companyId, onClose }: { fa
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="incasso-metodo">Metodo</Label>
-              <select id="incasso-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+              <UniformSelect id="incasso-metodo" value={metodo} onChange={(e) => setMetodo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm">
                 {METODI.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
+              </UniformSelect>
             </div>
           </div>
         </div>

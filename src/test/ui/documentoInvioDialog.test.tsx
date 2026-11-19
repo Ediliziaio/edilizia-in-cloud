@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import {
   render,
@@ -153,7 +154,7 @@ describe("Scelta testo o PDF", () => {
   });
   it("un cambio azienda scarta i dati modificati della precedente", () => {
     const v = render(<DocumentoInvioDialog {...props} />);
-    fireEvent.change(screen.getByLabelText("Destinatario", { exact: true }), {
+    changeFormControl(screen.getByLabelText("Destinatario", { exact: true }), {
       target: { value: "Nome precedente" },
     });
     mock.company = { id: "c2", name: "Azienda due", email: "due@demo.invalid" };
@@ -197,7 +198,7 @@ it("cambiando fornitore non mantiene l'email o il pagamento della copia preceden
       }}
     />,
   );
-  fireEvent.change(screen.getByLabelText("Email destinatario"), {
+  changeFormControl(screen.getByLabelText("Email destinatario"), {
     target: { value: "personalizzata@a.invalid" },
   });
   v.rerender(
@@ -226,7 +227,7 @@ it("cambiando fornitore non mantiene l'email o il pagamento della copia preceden
 
 it("permette di preparare un ordine senza prezzo e senza IVA ancora noti",async()=>{
  render(<DocumentoInvioDialog {...props} documento={{...documento,righe:[{...documento.righe[0],prezzo:null,iva:null}]}}/>);
- fireEvent.change(screen.getByLabelText("Prezzi dell’ordine da inviare"),{target:{value:"attesa"}});
+ changeFormControl(screen.getByLabelText("Prezzi dell’ordine da inviare"),{target:{value:"attesa"}});
  fireEvent.click(screen.getByRole("button",{name:"Prepara email"}));
  await waitFor(()=>expect(screen.getByTestId("email")).toBeInTheDocument());
  const ctx=JSON.parse(screen.getByTestId("email").textContent!);
@@ -235,9 +236,9 @@ it("permette di preparare un ordine senza prezzo e senza IVA ancora noti",async(
 
 it("le condizioni senza prezzi sono modificabili senza moltiplicare l'avviso automatico",async()=>{
  render(<DocumentoInvioDialog {...props} documento={{...documento,prezziDaConfermare:true}}/>);
- fireEvent.change(screen.getByLabelText("Condizioni da riportare nella copia"),{target:{value:"Scarico con preavviso"}});
+ changeFormControl(screen.getByLabelText("Condizioni da riportare nella copia"),{target:{value:"Scarico con preavviso"}});
  expect(screen.getByLabelText("Condizioni da riportare nella copia")).toHaveValue("Scarico con preavviso");
- fireEvent.change(screen.getByLabelText("Condizioni da riportare nella copia"),{target:{value:"Scarico con preavviso di 24 ore"}});
+ changeFormControl(screen.getByLabelText("Condizioni da riportare nella copia"),{target:{value:"Scarico con preavviso di 24 ore"}});
  fireEvent.click(screen.getByRole("button",{name:"Prepara email"}));await waitFor(()=>expect(screen.getByTestId("email")).toBeInTheDocument());
  const ctx=JSON.parse(screen.getByTestId("email").textContent!);expect(ctx.initialBodyHtml.match(/Prezzi da confermare dal fornitore/g)).toHaveLength(1);expect(ctx.initialBodyHtml).toContain("preavviso di 24 ore");
 });
@@ -248,7 +249,7 @@ it("un'email destinatario non valida blocca la preparazione prima dell'upload",(
 
 it("rimuovere la commessa non lascia indirizzo e istruzioni del cantiere precedente",()=>{render(<DocumentoInvioDialog {...props}/>);fireEvent.click(screen.getByRole("button",{name:"Scegli commessa test"}));fireEvent.click(screen.getByRole("button",{name:"Rimuovi commessa test"}));expect(screen.getByLabelText("Indirizzo completo di destinazione / ritiro")).toHaveValue("");expect(screen.getByLabelText("Dove consegnare / ritirare")).toHaveValue("altro");});
 
-it("cambiare tipo documento azzera l'inversione contabile invece di applicarla di nascosto ai materiali",()=>{render(<DocumentoInvioDialog {...props} tipi={["materiali","servizi"]}/>);fireEvent.change(screen.getByLabelText("Documento",{exact:true}),{target:{value:"servizi"}});fireEvent.click(screen.getByRole("checkbox",{name:"Inversione contabile concordata per questo ordine"}));expect(screen.getByRole("checkbox",{name:"Inversione contabile concordata per questo ordine"})).toBeChecked();fireEvent.change(screen.getByLabelText("Documento",{exact:true}),{target:{value:"materiali"}});fireEvent.change(screen.getByLabelText("Documento",{exact:true}),{target:{value:"servizi"}});expect(screen.getByRole("checkbox",{name:"Inversione contabile concordata per questo ordine"})).not.toBeChecked();});
+it("cambiare tipo documento azzera l'inversione contabile invece di applicarla di nascosto ai materiali",()=>{render(<DocumentoInvioDialog {...props} tipi={["materiali","servizi"]}/>);changeFormControl(screen.getByLabelText("Documento",{exact:true}),{target:{value:"servizi"}});fireEvent.click(screen.getByRole("checkbox",{name:"Inversione contabile concordata per questo ordine"}));expect(screen.getByRole("checkbox",{name:"Inversione contabile concordata per questo ordine"})).toBeChecked();changeFormControl(screen.getByLabelText("Documento",{exact:true}),{target:{value:"materiali"}});changeFormControl(screen.getByLabelText("Documento",{exact:true}),{target:{value:"servizi"}});expect(screen.getByRole("checkbox",{name:"Inversione contabile concordata per questo ordine"})).not.toBeChecked();});
 
 
 it("il testo email usa le condizioni del modello della stessa azienda",async()=>{

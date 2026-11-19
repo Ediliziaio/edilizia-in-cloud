@@ -1,3 +1,4 @@
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import React, { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
@@ -36,7 +37,6 @@ import {
   Search,
   Filter,
   ChevronRight,
-  User,
   Package,
   AlertCircle,
   RefreshCw,
@@ -182,6 +182,7 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [tabella, setTabella] = useState<HTMLDivElement | null>(null);
   const [nuovoOpen, setNuovoOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -969,20 +970,22 @@ const TicketsList = React.forwardRef<HTMLDivElement, { incorporata?: boolean; ac
               assegnato a larghezza fissa la tabella usciva dalla pagina anche
               a 1440 e l'oggetto restava di 70px. */}
           <div className="hidden sm:block">
-            <Table className="[&_td]:px-2.5 [&_th]:px-2.5 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
+            <BarraScorrimentoOrizzontale contenitore={tabella} className="mx-3" />
+            <Table wrapperRef={setTabella} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox checked={selectedAllVisible} onCheckedChange={toggleAllVisible} aria-label="Seleziona ticket visibili" />
                   </TableHead>
                   <SortableTableHead className="w-24" active={sort.key === "tipo"} direction={sort.direction} onClick={() => handleSort("tipo")}>Tipo</SortableTableHead>
-                  <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente · Oggetto</SortableTableHead>
+                  <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente</SortableTableHead>
+                  <TableHead>Oggetto</TableHead>
                   <SortableTableHead active={sort.key === "priority"} direction={sort.direction} onClick={() => handleSort("priority")}>Priorità</SortableTableHead>
-                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
+                  <SortableTableHead active={sort.key === "scadenza"} direction={sort.direction} onClick={() => handleSort("scadenza")}>Scadenza</SortableTableHead>
                   <SortableTableHead active={sort.key === "status"} direction={sort.direction} onClick={() => handleSort("status")}>Stato</SortableTableHead>
-                  <SortableTableHead className="hidden xl:table-cell" active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
-                  <SortableTableHead className="hidden 2xl:table-cell" active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
-                  <SortableTableHead className="hidden 2xl:table-cell" active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
+                  <SortableTableHead active={sort.key === "assigned"} direction={sort.direction} onClick={() => handleSort("assigned")}>Assegnato</SortableTableHead>
+                  <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
+                  <SortableTableHead active={sort.key === "updated"} direction={sort.direction} onClick={() => handleSort("updated")}>Aggiornato</SortableTableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1322,26 +1325,20 @@ function DesktopTicketRow({
   const priorityColor = getTicketPriorityColor(ticket.priority);
   const scadenza = ticket.data_intervento_prevista;
   const isUrgent = ticket.priority === "urgente";
+  const navigate = useNavigate();
   const bucketS = bucketScadenza(scadenza);
   const isOverdue = (bucketS === "scaduto" || bucketS === "oggi") && !TICKET_STATI_CHIUSI.includes(ticket.status as never);
   return (
-    <TableRow className={cn(isUrgent && "bg-red-50/50 dark:bg-red-950/10", isOverdue && !isUrgent && "bg-orange-50/50 dark:bg-orange-950/10")}>
-      <TableCell>
+    <TableRow onClick={() => navigate(`/azienda/assistenza/${ticket.id}`)} className={cn("cursor-pointer", isUrgent && "bg-red-50/50 dark:bg-red-950/10", isOverdue && !isUrgent && "bg-orange-50/50 dark:bg-orange-950/10")}>
+      <TableCell onClick={(event) => event.stopPropagation()}>
         <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} />
       </TableCell>
       <TableCell><TipoChip tipo={ticket.tipo} /></TableCell>
-      {/* L'oggetto è la colonna che conta: con le tendine di stato e
-          assegnato a larghezza fissa restava di 70px («Mancano…»). */}
-      <TableCell className="min-w-[200px] xl:min-w-[220px]">
+      <TableCell>{[ticket.customer?.first_name, ticket.customer?.last_name].filter(Boolean).join(" ") || "—"}</TableCell>
+      <TableCell>
         <div className="flex items-center gap-2">
-          <User className="h-4 w-4 text-muted-foreground shrink-0" />
-          <div className="min-w-0">
-            <p className="font-medium line-clamp-1">{ticket.subject}</p>
-            <p className="text-xs text-muted-foreground">
-              {ticket.customer?.first_name} {ticket.customer?.last_name}
-              {ticket.fonte === "campo" && <span className="ml-2 text-amber-600">📍 campo</span>}
-            </p>
-          </div>
+          <span className="max-w-80 truncate font-medium" title={ticket.subject}>{ticket.subject}</span>
+          {ticket.fonte === "campo" && <span className="text-xs text-amber-600">Campo</span>}
           {unreadCount !== undefined && unreadCount > 0 && (
             <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold shrink-0">
               {unreadCount}
@@ -1357,11 +1354,11 @@ function DesktopTicketRow({
           {getTicketPriorityLabel(ticket.priority)}
         </Badge>
       </TableCell>
-      <TableCell className="hidden xl:table-cell"><ScadenzaCell iso={scadenza} /></TableCell>
-      <TableCell>
+      <TableCell><ScadenzaCell iso={scadenza} /></TableCell>
+      <TableCell onClick={(event) => event.stopPropagation()}>
         <TicketStatusSelect value={ticket.status} disabled={isUpdating} onChange={(value) => onStatusChange(ticket.id, value)} />
       </TableCell>
-      <TableCell className="hidden xl:table-cell">
+      <TableCell onClick={(event) => event.stopPropagation()}>
         <TicketAssigneeSelect
           value={ticket.assigned_to || UNASSIGNED_VALUE}
           staffList={staffList}
@@ -1369,7 +1366,7 @@ function DesktopTicketRow({
           onChange={(value) => onAssigneeChange(ticket.id, value)}
         />
       </TableCell>
-      <TableCell className="hidden 2xl:table-cell">
+      <TableCell>
         {ticket.order ? (
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Package className="h-3.5 w-3.5" />
@@ -1379,7 +1376,7 @@ function DesktopTicketRow({
           <span className="text-muted-foreground">—</span>
         )}
       </TableCell>
-      <TableCell className="hidden 2xl:table-cell text-sm">
+      <TableCell className="text-sm">
         {(() => {
           // Sulle lavorazioni aperte conta da quanto sono ferme, non la data in
           // sé: "5 mesi fa" non dice se qualcuno se ne sta occupando.
@@ -1398,7 +1395,7 @@ function DesktopTicketRow({
           );
         })()}
       </TableCell>
-      <TableCell>
+      <TableCell onClick={(event) => event.stopPropagation()}>
         <Button variant="ghost" size="icon" asChild>
           <Link to={`/azienda/assistenza/${ticket.id}`} aria-label={`Apri assistenza: ${ticket.subject}`}>
             <ChevronRight className="h-4 w-4" />

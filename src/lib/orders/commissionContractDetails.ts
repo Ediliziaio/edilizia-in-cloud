@@ -1,3 +1,4 @@
+import { applicaQuoteAlleRate, type QuotaFatturaRata } from "./quoteFatturaRate";
 import { supabase } from "@/integrations/supabase/client";
 import { buildInstallmentsFromLegacy, type Installment } from "@/lib/orderUtils";
 import { calculateInstallmentCollections } from "@/lib/commissions";
@@ -22,7 +23,7 @@ const fields = `id,order_code,description,created_at,total_amount,vat_rate,payme
  deposit_amount,deposit_paid,deposit_paid_date,deposit_expected_date,deposit_2_amount,deposit_2_paid,deposit_2_paid_date,deposit_2_expected_date,
  balance_amount,balance_paid,balance_paid_date,balance_expected_date,financing_amount,financing_paid,financing_paid_date,financing_expected_date,
  customer:profiles!orders_customer_id_fkey(first_name,last_name),status:order_statuses!orders_current_status_id_fkey(name),
- installments:order_installments(id,order_id,position,label,type,amount,is_paid,paid_date,expected_date,documento_fiscale_id,fattura:documenti_fiscali(id,numero,stato,importo_pagato)),
+ installments:order_installments(id,order_id,position,label,type,amount,is_paid,paid_date,expected_date,documento_fiscale_id,documento_quota_lorda,documento_quota_offset,fattura:documenti_fiscali(id,numero,stato,importo_pagato)),
  variazioni:ordini_variazione(status,impatto_economico,offline_signed_on,firmato_il,approval_recorded_at,richiesto_il,created_at)`;
 
 export async function loadCommissionContract(companyId: string, orderId: string) {
@@ -31,7 +32,13 @@ export async function loadCommissionContract(companyId: string, orderId: string)
     if (error) throw error;
     const order = data as unknown as CommissionContract;
     if (!order) throw new Error("Commessa non disponibile");
-    return (await leggiModalitaCommesse(companyId, [order]))[0];
+    const completo=(await leggiModalitaCommesse(companyId, [order]))[0];
+    if(completo.installments.some(r=>r.documento_quota_lorda!=null)) {
+      const q=await supabase.rpc('rate_fattura_quote' as never,{p_order_id:id} as never);
+      if(q.error)throw q.error;
+      completo.installments=applicaQuoteAlleRate(completo.installments,(q.data??[]) as unknown as QuotaFatturaRata[]);
+    }
+    return completo;
   }
   const original = await read(orderId);
   // An operational intervention uses its parent contract's payment plan.

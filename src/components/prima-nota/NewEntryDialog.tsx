@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CommessaCombobox } from "@/components/orders/CommessaCombobox";
 import { AllegatoPrimaNota } from "./AllegatoPrimaNota";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,15 +29,6 @@ const CATEGORIES = [
 ];
 
 interface SupplierOption { id: string; name: string }
-// orders.customer_id → profiles (FK orders_customer_id_fkey): profiles non ha
-// `company_name`, il nome cliente si compone da first_name + last_name.
-interface OrderOption { id: string; order_code: string | null; customer?: { first_name: string | null; last_name: string | null } | null }
-function orderCustName(o: OrderOption | null | undefined): string {
-  const c = o?.customer;
-  if (!c) return "";
-  return `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
-}
-
 /** Fattura emessa con qualcosa ancora da incassare. */
 interface FatturaAperta {
   id: string;
@@ -71,10 +63,11 @@ interface Props {
   onConfirm: (params: DatiRegistrazione) => void;
   isPending: boolean;
   /** La registrazione da modificare: il modulo si apre già compilato. Assente = nuova registrazione. */
+  mostraAllegato?: boolean;
   entry?: PrimaNotaEntry | null;
 }
 
-export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, entry = null }: Props) {
+export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPending, mostraAllegato = false, entry = null }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -99,9 +92,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
 
   // Combobox data
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
-  const [orders, setOrders] = useState<OrderOption[]>([]);
   const [supplierOpen, setSupplierOpen] = useState(false);
-  const [orderOpen, setOrderOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !companyId) return;
@@ -116,14 +107,6 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
         return;
       }
       if (data) setSuppliers(data);
-    });
-    supabase.from("orders").select("id, order_code, customer:profiles!orders_customer_id_fkey(first_name, last_name)").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50).then(({ data, error }) => {
-      if (!alive) return;
-      if (error) {
-        console.warn("[NewEntryDialog] orders fetch error:", error.message);
-        return;
-      }
-      if (data) setOrders(data as unknown as OrderOption[]);
     });
     // Le fatture emesse ancora da incassare: dall'incasso si sceglie la fattura,
     // e la fattura porta con sé cliente, commessa e importo.
@@ -213,16 +196,15 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
       setOrderId(entry.order_id ?? "");
       setInvoiceId(entry.invoice_id ?? "");
       // Quello che la registrazione ha già scritto non si nasconde dietro un «Altri dettagli».
-      setDettagliAperti(Boolean(entry.notes || entry.reference_number || entry.attachment_url));
+      setDettagliAperti(Boolean(mostraAllegato || entry.notes || entry.reference_number || entry.attachment_url));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, entry?.id]);
+  }, [open, entry?.id, mostraAllegato]);
 
   const showSupplier = category === "fornitore";
   const showOrder = category === "incasso";
 
   const selectedSupplier = suppliers.find((s) => s.id === supplierId);
-  const selectedOrder = orders.find((o) => o.id === orderId);
   const fatturaScelta = fatture.find((f) => f.id === invoiceId);
   // Più del residuo non si incassa: l'eccedenza farebbe risultare pagata una fattura
   // con un importo che non torna, e il cliente in credito senza che nessuno lo sappia.
@@ -414,37 +396,11 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             </div>
           )}
 
-          {/* Order combobox */}
-          {showOrder && (
-            <div className="space-y-2">
-              <Label>Collega a ordine (opzionale)</Label>
-              <Popover open={orderOpen} onOpenChange={setOrderOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {selectedOrder ? `${selectedOrder.order_code || "—"}${orderCustName(selectedOrder) ? " - " + orderCustName(selectedOrder) : ""}` : "Seleziona ordine..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Cerca ordine..." />
-                    <CommandList>
-                      <CommandEmpty>Nessun ordine trovato.</CommandEmpty>
-                      <CommandGroup>
-                        {orders.map((o) => (
-                          <CommandItem key={o.id} value={`${o.order_code || ""} ${orderCustName(o)}`} onSelect={() => { setOrderId(o.id); setOrderOpen(false); }}>
-                            <Check className={cn("mr-2 h-4 w-4", orderId === o.id ? "opacity-100" : "opacity-0")} />
-                            <span className="font-mono text-xs mr-2">{o.order_code}</span>
-                            {orderCustName(o)}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Commessa o macrocommessa</Label>
+            <CommessaCombobox value={orderId || null} onChange={id => setOrderId(id ?? "")}
+              ariaLabel="Commessa o macrocommessa" nessunaLabel="Nessuna commessa collegata" />
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="pn-descrizione">Descrizione</Label>

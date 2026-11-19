@@ -79,7 +79,7 @@ export function OrderLaborEconomics({ orderId }: { orderId: string }) {
           Sulle {hours(confronto.oreCoperte)} con un cedolino la stima è {Math.abs(confronto.differenza) < 0.005 ? "giusta" : <>{confronto.differenza > 0 ? "bassa" : "alta"} di <strong>{formatCurrency(Math.abs(confronto.differenza))}</strong></>}.
           {confronto.oreScoperte > 0 && ` Altre ${hours(confronto.oreScoperte)} restano al costo registrato: senza cedolino o inserite a mano.`} Il margine della commessa usa ancora il costo registrato.
         </p>}
-        {!internal.people.length ? <p className="text-sm text-muted-foreground">Nessuna ora registrata: compaiono quando un rapportino viene approvato o vengono inserite a mano.</p> : (
+        {!internal.people.length ? <p className="commessa-empty text-sm text-muted-foreground">Nessuna ora registrata: compaiono quando un rapportino viene approvato o vengono inserite a mano.</p> : (
           <TabellaCommessa etichetta="Costi dei dipendenti" righe={internal.people} chiave={(p) => p.id} colonne={[
             { titolo: "Persona", principale: true, cella: (p) => <>
               <span className="font-medium">{p.name}</span>

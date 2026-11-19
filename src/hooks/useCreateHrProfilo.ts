@@ -24,6 +24,7 @@ export function useCreateHrProfilo() {
           ore_giornaliere: data.ore_giornaliere ?? 8,
           attivo: data.attivo ?? true,
           mansione: data.mansione,
+          mansione_id: data.mansione_id ?? null,
           reparto: data.reparto,
           responsabile_id: data.responsabile_id || null,
           sede_id: data.sede_id || null,
@@ -78,6 +79,7 @@ export function useCreateHrProfilo() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hr-organigramma"] });
       queryClient.invalidateQueries({ queryKey: ["hr-profili-all"] });
+      queryClient.invalidateQueries({ queryKey: ["stati-app-operai"] });
       queryClient.invalidateQueries({ queryKey: ["hr-sedi-persone"] });
       toast.success("Profilo HR creato con successo");
     },

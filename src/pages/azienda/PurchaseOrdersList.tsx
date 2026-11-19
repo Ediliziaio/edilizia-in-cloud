@@ -1,3 +1,4 @@
+import { OperationalDateRange } from "@/components/orders/OperationalDateRange";
 import { useOperationalDeletion } from "@/hooks/useOperationalDeletion";
 import { OperationalExtraFilters } from "@/components/orders/OperationalExtraFilters";
 import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
@@ -365,7 +366,7 @@ export default function PurchaseOrdersList() {
     "forn",
     "fase",
     "ritardo",
-    "periodo",
+    "periodo", "oda_da", "oda_a",
     "raggruppa",
   ], { restoreView: false });
   const filtri = useMemo(() => leggiFiltriAcquisti(params), [params]);
@@ -426,10 +427,10 @@ export default function PurchaseOrdersList() {
   // non c'era: per vedere cosa si è ordinato per un cantiere la si cercava a mano.
   const filterOrder = filtri.commessa ?? "all"; // all | _nessuna | id commessa
   const filterPeriodo = (
-    ["30", "90", "anno"].includes(params.get("periodo") ?? "")
+    ["30", "90", "anno", "personalizzato"].includes(params.get("periodo") ?? "")
       ? params.get("periodo")
       : "tutto"
-  ) as "tutto" | "30" | "90" | "anno";
+  ) as "tutto" | "30" | "90" | "anno" | "personalizzato";
   const vista: "elenco" | "commessa" =
     params.get("raggruppa") === "commessa" ? "commessa" : "elenco";
 
@@ -453,7 +454,7 @@ export default function PurchaseOrdersList() {
           "fase",
           "ritardo",
           "cerca",
-          "periodo",
+          "periodo", "oda_da", "oda_a",
           "stato",
           "oda_pagina",
           "oda_fonte",
@@ -1160,8 +1161,8 @@ export default function PurchaseOrdersList() {
       )}
 
       {/* Vista e filtri comuni: valgono per la pipeline e per l'elenco, e stanno nell'URL. */}
-      <section aria-label="Filtri acquisti" className="space-y-2 rounded-xl border bg-white p-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+      <section aria-label="Filtri acquisti" className="rounded-xl border bg-white p-2.5 shadow-sm">
+        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto"><div className="relative min-w-[180px] flex-1 sm:max-w-xs">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={
@@ -1174,7 +1175,7 @@ export default function PurchaseOrdersList() {
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 border-slate-200 pl-8 text-xs shadow-none"
             />
-          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <select aria-label="Stato degli OdA" className="h-8 max-w-full rounded-md border bg-background px-3 text-xs" value={tab} onChange={e => setTab(e.target.value)}>{hubTabs.map(item => <option key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</option>)}</select>}<OperationalViewSwitch
+          </div>{(vistaPrincipale === "elenco" || ["tutte", "ordini"].includes(fonte)) && <Select value={tab} onValueChange={setTab}><SelectTrigger aria-label="Stato degli OdA" className="h-8 w-[180px] max-w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{hubTabs.map(item => <SelectItem key={item.key} value={item.key}>{item.key === "tutti" ? "Tutti gli stati" : item.label}</SelectItem>)}</SelectContent></Select>}<OperationalViewSwitch
             value={vistaPrincipale}
             onChange={(v) =>
               setParams(
@@ -1190,8 +1191,7 @@ export default function PurchaseOrdersList() {
                 { replace: true },
               )
             }
-          /></div>
-        <OperationalExtraFilters count={Number(!!filtri.commessa) + Number(!!filtri.fornitore) + Number(!!filtri.fase) + Number(filtri.soloRitardo) + Number(filterPeriodo !== "tutto") + Number(params.has("oda_fonte")) + Number(archive.scope !== "all")}>      <div className="space-y-3">
+          /><OperationalExtraFilters count={Number(!!filtri.commessa) + Number(!!filtri.fornitore) + Number(!!filtri.fase) + Number(filtri.soloRitardo) + Number(filterPeriodo !== "tutto") + Number(params.has("oda_fonte")) + Number(archive.scope !== "all")}>      <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
 
           {vistaPrincipale === "pipeline" && (
@@ -1347,8 +1347,10 @@ export default function PurchaseOrdersList() {
                   <SelectItem value="30">Ultimi 30 giorni</SelectItem>
                   <SelectItem value="90">Ultimi 90 giorni</SelectItem>
                   <SelectItem value="anno">Quest'anno</SelectItem>
+                  <SelectItem value="personalizzato">Intervallo di date</SelectItem>
                 </SelectContent>
               </Select>
+              {filterPeriodo === "personalizzato" && <OperationalDateRange from={params.get("oda_da") ?? ""} to={params.get("oda_a") ?? ""} onChange={values => setParams(before => {let next = new URLSearchParams(before); if ("da" in values) next = scriviFiltroAcquisti(next,"oda_da",values.da ?? null);if ("a" in values) next = scriviFiltroAcquisti(next,"oda_a",values.a ?? null);return next;},{replace:true})} />}
               {vistaPrincipale === "elenco" && (
                 <div
                   className="flex rounded-lg bg-slate-100 p-0.5 "
@@ -1440,7 +1442,7 @@ export default function PurchaseOrdersList() {
           </Link>
         </div>
       </div>
-</OperationalExtraFilters>
+</OperationalExtraFilters></div>
       </section>
 
       {/* Pipeline o tabella */}

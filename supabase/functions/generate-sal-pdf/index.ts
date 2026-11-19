@@ -10,6 +10,7 @@ import { leggiColoreMarchio } from "../_shared/coloreMarchioAzienda.ts";
 
 import {buildSalHtml,chiaveVoce,type ContrattoSal,type SalExtra,type SalRecord} from "./render.ts";
 import {maturatoPrecedente} from "../_shared/salNetto.ts";
+import {valoreContrattoSal,variantiAlVerbale} from "./contract.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -39,7 +40,13 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { sal_id, company_id, prepare_signature=false, foto_ids, allegati, dettaglio_sottofasi } = await req.json();
+    const { sal_id, company_id, prepare_signature=false, foto_ids, allegati, dettaglio_sottofasi, formato } = await req.json();
+    if (formato != null && formato !== "completo" && formato !== "periodo" && formato !== "sintetico") {
+      return new Response(JSON.stringify({ error: "Versione del verbale non valida" }), {
+        status: 400,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
     if (!sal_id || !company_id) {
       return new Response(JSON.stringify({ error: "sal_id e company_id obbligatori" }), {
         status: 400,
@@ -66,7 +73,7 @@ Deno.serve(async (req) => {
     // Fetch SAL with voci
     const { data: sal, error: salErr } = await supabase
       .from("sal_records")
-      .select("*, sal_voci(id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, sal_voci_sottofasi(sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal))")
+      .select("*, sal_voci(id, fase_id, descrizione, importo_contrattuale, percentuale_avanzamento, importo_sal, note, sal_voci_sottofasi(sottofase_id, posizione, descrizione, unita, quantita_contratto, quantita_a_oggi, importo_contrattuale, percentuale_avanzamento, importo_sal))")
       .eq("id", sal_id)
       .eq("company_id", company_id)
       .single();
@@ -86,28 +93,62 @@ Deno.serve(async (req) => {
       .eq("company_id",company_id)
       .single();
     if(!order)throw new Error("Commessa non disponibile o non coerente con il SAL");
+    const orderForPrint = { ...order, customer: Array.isArray(order.customer) ? order.customer[0] ?? null : order.customer };
     const {data:prior,error:priorError}=await supabase.from("sal_records").select("id,numero_sal,stato,importo_totale").eq("order_id",sal.order_id).eq("company_id",company_id).lt("numero_sal",sal.numero_sal).in("stato",["emesso","approvato","firmato"]).order("numero_sal",{ascending:false}).limit(2);
     if(priorError || (prior?.length===2 && prior[0].numero_sal===prior[1].numero_sal))throw new Error("Storico SAL non verificabile o numerazione duplicata");
     const previous=maturatoPrecedente(sal,prior??[]);
     // Voci dell'ultimo SAL emesso: nel verbale, voce per voce, il già maturato e la quota di questo SAL.
     // Se non si leggono il verbale resta completo, col solo cumulativo.
     const ultimoPrecedente=(prior??[]).find(p=>p.id!==sal.id);
-    const extra:SalExtra={aliquotaIva:(order as {vat_rate?:number|null}).vat_rate ?? null,importoContratto:Number(order.total_amount)||null,dettaglioSottofasi:dettaglio_sottofasi!==false};
+    const { data: contrattoEmesso, error: contrattoEmessoError } = await supabase.from("sal_contratto_emesso")
+      .select("importo_base,aliquota_iva,varianti").eq("sal_id",sal.id).eq("company_id",company_id).maybeSingle();
+    if (contrattoEmessoError) throw new Error("Contratto del verbale non leggibile: riprova");
+    let valoreContratto;
+    if (contrattoEmesso) {
+      valoreContratto = valoreContrattoSal(contrattoEmesso.importo_base, contrattoEmesso.varianti);
+    } else {
+      const { data: variazioni, error: variantiError, count: variantiCount } = await supabase.from("ordini_variazione")
+        .select("status,impatto_economico,approval_recorded_at,firmato_il,offline_signed_on",{count:"exact"})
+        .eq("order_id",sal.order_id).eq("company_id",company_id).eq("status","approvato");
+      if (variantiError || variantiCount == null || variantiCount !== (variazioni?.length ?? 0))
+        throw new Error("Varianti approvate non verificabili: riprova prima di stampare il verbale");
+      valoreContratto = valoreContrattoSal(order.total_amount, variantiAlVerbale(variazioni ?? [], sal));
+    }
+    const extra: SalExtra = {
+      aliquotaIva: contrattoEmesso ? contrattoEmesso.aliquota_iva : order.vat_rate ?? null,
+      importoContratto: valoreContratto.totale,
+      importoVariantiApprovate: valoreContratto.varianti,
+      dettaglioSottofasi: dettaglio_sottofasi !== false,
+      formato: prepare_signature === true ? "completo" : formato ?? "completo",
+      esisteSalPrecedente: !!ultimoPrecedente,
+    };
     // Il certificato di pagamento (15/11/2026): con il certificato il verbale dice il netto da pagare, come la fattura.
     const {data:certificato,error:certificatoError}=await supabase.from("sal_certificati").select("lavori_contrattuali,varianti,ritenuta_pct,ritenuta,recupero_anticipazione,altre_detrazioni,altre_detrazioni_nota,acconti_precedenti,rinviato,netto").eq("sal_id",sal.id).eq("company_id",company_id).maybeSingle();
     if(certificatoError)throw new Error("Certificato di pagamento non leggibile: riprova");
     extra.certificato=(certificato ?? null) as SalExtra["certificato"];
     if(ultimoPrecedente){
-      const {data:vociPrec,error:vociPrecError}=await supabase.from("sal_voci").select("descrizione,importo_sal,sal_voci_sottofasi(sottofase_id,percentuale_avanzamento)").eq("sal_id",ultimoPrecedente.id);
-      if(!vociPrecError && Array.isArray(vociPrec)){
-        const mappa:Record<string,number>={};
-        const sotto:Record<string,number>={};
-        for(const v of vociPrec as Array<{descrizione:string|null;importo_sal:number|null;sal_voci_sottofasi?:Array<{sottofase_id:string|null;percentuale_avanzamento:number}>|null}>){
-          mappa[chiaveVoce(v.descrizione)]=(mappa[chiaveVoce(v.descrizione)]??0)+(Number(v.importo_sal)||0);
-          for(const d of v.sal_voci_sottofasi??[])if(d.sottofase_id)sotto[d.sottofase_id]=Number(d.percentuale_avanzamento)||0;
+      const { data: vociPrec, error: vociPrecError, count: numeroVoci } = await supabase.from("sal_voci")
+        .select("fase_id,descrizione,importo_sal,sal_voci_sottofasi(sottofase_id,percentuale_avanzamento,quantita_a_oggi,unita,importo_sal)", { count: "exact" })
+        .eq("sal_id", ultimoPrecedente.id);
+      if (!vociPrecError && Array.isArray(vociPrec) && numeroVoci === vociPrec.length && vociPrec.length > 0) {
+        const perNome = new Map<string, number>();
+        const perFase = new Map<string, number>();
+        const sotto: NonNullable<SalExtra["sottofasiPrecedenti"]> = {};
+        const misure: NonNullable<SalExtra["misurePrecedenti"]> = {};
+        for (const v of vociPrec) {
+          const chiave = chiaveVoce(v.descrizione);
+          perNome.set(chiave, (perNome.get(chiave) ?? 0) + Number(v.importo_sal));
+          if (v.fase_id) perFase.set(v.fase_id, (perFase.get(v.fase_id) ?? 0) + Number(v.importo_sal));
+          for (const d of v.sal_voci_sottofasi ?? []) {
+            if (!d.sottofase_id) continue;
+            sotto[d.sottofase_id] = Number(d.percentuale_avanzamento) || 0;
+            misure[d.sottofase_id] = { quantita: d.quantita_a_oggi, unita: d.unita, importo: d.importo_sal };
+          }
         }
-        extra.vociPrecedenti=mappa;
-        extra.sottofasiPrecedenti=sotto;
+        extra.vociPrecedenti = Object.fromEntries(perNome);
+        extra.fasiPrecedenti = Object.fromEntries(perFase);
+        extra.sottofasiPrecedenti = sotto;
+        extra.misurePrecedenti = misure;
       }
     }
     // Le foto scelte per il verbale: solo di questa commessa, firmate per il tempo di stampare.
@@ -144,7 +185,7 @@ Deno.serve(async (req) => {
       sal_voci: Array.isArray(sal.sal_voci) ? sal.sal_voci : [],
     };
     // Validate before granting a public signature link.
-    buildSalHtml(salWithVoci,order,azienda,null,undefined,previous,contratto,extra);
+    buildSalHtml(salWithVoci,orderForPrint,azienda,null,undefined,previous,contratto,extra);
 
     // Token di firma per il committente: RIUSA quello ancora valido e non
     // firmato — prima ogni export ne inseriva uno nuovo, lasciando righe
@@ -191,7 +232,7 @@ Deno.serve(async (req) => {
       ? `${branding.siteUrl}/firma-sal/${signToken.token}`
       : null;
 
-    const html = buildSalHtml(salWithVoci, order, azienda, signatureUrl, brandFooter,previous,contratto,extra);
+    const html = buildSalHtml(salWithVoci, orderForPrint, azienda, signatureUrl, brandFooter,previous,contratto,extra);
     const filename = `sal-${sal.numero_sal}-${sal.data_emissione}.html`;
 
     return new Response(JSON.stringify({ html, filename, signature_url: signatureUrl, signature_token: signToken?.token }), {

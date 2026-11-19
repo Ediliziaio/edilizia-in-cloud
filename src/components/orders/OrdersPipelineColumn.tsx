@@ -3,7 +3,6 @@ import { useDroppable } from "@dnd-kit/core";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { OrdersPipelineCard } from "./OrdersPipelineCard";
 import { type OrderWithDetails, type OrderStatus, getGrossOrderAmount } from "@/lib/orderUtils";
 
@@ -23,6 +22,7 @@ export function haPosaScaduta(order: OrderWithDetails, oggi: Date): boolean {
 }
 
 interface OrdersPipelineColumnProps {
+  onMove?: (order: OrderWithDetails) => void;
   status: OrderStatus;
   orders: OrderWithDetails[];
   isDragEnabled?: boolean;
@@ -36,7 +36,7 @@ export function OrdersPipelineColumn({
   orders,
   isDragEnabled = true,
   collapsed = false,
-  onToggleCollapse,
+  onToggleCollapse, onMove,
 }: OrdersPipelineColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
@@ -87,7 +87,7 @@ export function OrdersPipelineColumn({
   }
 
   return (
-    <div ref={setNodeRef} className="flex w-[280px] shrink-0 flex-col">
+    <div ref={setNodeRef} className="flex min-w-[280px] flex-1 flex-col">
       {/* Intestazione: riga colorata in alto, conteggio, totale e media */}
       <div
         className="shrink-0 rounded-t-lg border-b bg-muted/60 px-3 py-2.5"
@@ -143,17 +143,17 @@ export function OrdersPipelineColumn({
         )}
       >
         {orders.length > 0 ? (
-          <ScrollArea className="h-[calc(100vh-380px)]">
-            <div className="w-full space-y-2 pr-1">
+          <div className="max-h-[max(16rem,calc(100dvh-380px))] overflow-y-auto">
+            <div className="w-full space-y-1.5">
               {orders.map((order) => (
-                <OrdersPipelineCard key={order.id} order={order} isDraggable={isDragEnabled} />
+                <OrdersPipelineCard key={order.id} order={order} isDraggable={isDragEnabled} onMove={onMove} />
               ))}
             </div>
-          </ScrollArea>
+          </div>
         ) : (
           <div
             className={cn(
-              "flex items-center justify-center py-6 text-xs text-muted-foreground/60 transition-colors",
+              "flex items-center justify-center py-3 text-xs text-muted-foreground/60 transition-colors",
               isOver && "font-medium text-primary"
             )}
           >

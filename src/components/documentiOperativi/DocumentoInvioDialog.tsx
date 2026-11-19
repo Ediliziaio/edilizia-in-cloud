@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -256,7 +257,7 @@ function DocumentoInvioContent({
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <Label htmlFor="doc-tipo">Documento</Label>
-                <select
+                <UniformSelect
                   id="doc-tipo"
                   value={d.tipo}
                   onChange={(e) =>
@@ -274,7 +275,7 @@ function DocumentoInvioContent({
                       {TITOLI[t]}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
               <div>
                 <Label htmlFor="doc-numero">Numero / riferimento</Label>
@@ -392,7 +393,7 @@ function DocumentoInvioContent({
                   <Label htmlFor="doc-referente-scelta">
                     Referenti registrati presso il fornitore
                   </Label>
-                  <select
+                  <UniformSelect
                     id="doc-referente-scelta"
                     className="h-10 w-full rounded-md border bg-white px-2 text-sm"
                     value=""
@@ -415,7 +416,7 @@ function DocumentoInvioContent({
                         {[r.nome, r.ruolo, r.email].filter(Boolean).join(" · ")}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                 </div>
               )}
               {d.tipo !== "economia" && (<>
@@ -503,7 +504,7 @@ function DocumentoInvioContent({
                 <Label htmlFor="doc-prezzi">
                   Prezzi dell’ordine da inviare
                 </Label>
-                <select
+                <UniformSelect
                   id="doc-prezzi"
                   value={d.prezziDaConfermare ? "attesa" : "concordati"}
                   onChange={(e) =>
@@ -515,7 +516,7 @@ function DocumentoInvioContent({
                   <option value="attesa">
                     Senza prezzi — attendo la conferma del fornitore
                   </option>
-                </select>
+                </UniformSelect>
                 {senzaPrezzi(d) && (
                   <p className="mt-2 text-xs text-amber-900">
                     Invii descrizioni, quantità e consegna senza prezzi, sconti,

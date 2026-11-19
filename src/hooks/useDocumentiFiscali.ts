@@ -1,3 +1,4 @@
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -441,6 +442,7 @@ export function useCreateDocumento() {
       });
     },
     onSuccess: (doc) => {
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       if (doc.riutilizzata) toast.info("Hai già una bozza aperta: completala o eliminala prima di crearne un'altra", { description: "Riprendi da dove eri rimasto." });
       else toast.success("Documento creato");
@@ -473,6 +475,7 @@ export function useUpdateDocumento() {
       return mapRow(data as Record<string, unknown>);
     },
     onSuccess: (doc) => {
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.detail(doc.id) });
       // No toast — the editor top bar already shows "Salvata X fa" indicator
@@ -619,6 +622,7 @@ export function useEmittiDocumento() {
       return mapRow(updated as Record<string, unknown>);
     },
     onSuccess: (doc) => {
+      refreshFinancialQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.documentiFiscali.detail(doc.id) });
       toast.success("Documento emesso");

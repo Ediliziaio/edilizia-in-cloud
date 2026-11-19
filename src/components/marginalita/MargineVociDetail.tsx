@@ -1,18 +1,19 @@
+import { useCostiVociCollegati } from "@/hooks/useCostiVociCollegati";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency } from "@/lib/formatters";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -20,22 +21,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { ArrowUpRight, Euro, TrendingUp, Package, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { margineVoce } from "@/lib/marginalita/margineVoce";
 import { margineAffidabile, vociConsuntivo } from "@/lib/marginalita/fasceMargine";
-
-const COLORE_VOCE: Record<string, string> = {
-  acquisti: "bg-blue-500",
-  magazzino: "bg-orange-500",
-  manodopera: "bg-indigo-500",
-  diretti: "bg-slate-500",
-  provvigioni: "bg-purple-500",
-  rimborsi: "bg-cyan-500",
-  errori: "bg-red-500",
-  altro: "bg-slate-400",
-};
 
 interface MarginalitaRow {
   id: string;
@@ -99,34 +90,6 @@ function extractStructuredField(description: string | null | undefined, label: s
   return value || null;
 }
 
-function BreakdownBar({
-  label,
-  value,
-  total,
-  colorClass,
-}: {
-  label: string;
-  value: number;
-  total: number;
-  colorClass: string;
-}) {
-  const cleanValue = safeNumber(value);
-  const cleanTotal = safeNumber(total);
-  const pct = cleanTotal > 0 ? (cleanValue / cleanTotal) * 100 : null;
-  const larghezza = Math.min(100, Math.max(0, pct ?? 0));
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-medium">{formatCurrency(cleanValue)} ({pct === null ? "incidenza non calcolabile" : `${pct.toFixed(1)}%`})</span>
-      </div>
-      <div className="h-2 rounded-full bg-muted overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all", colorClass)} style={{ width: `${larghezza}%` }} />
-      </div>
-    </div>
-  );
-}
-
 export default function MargineVociDetail({ open, onClose, row, structureImpact, targetMarginPct }: Props) {
   // Fetch order items with costs
   const { data: items = [], isLoading: itemsLoading, error: itemsError, refetch: refetchItems } = useQuery({
@@ -175,6 +138,8 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
     staleTime: 2 * 60 * 1000,
   });
 
+  const { data: costiCollegati, isLoading: costiLoading, error: costiError, refetch: refetchCosti } = useCostiVociCollegati(row?.id, open);
+
   if (!row) return null;
 
   const preventivoTotale = safeNumber(row.preventivo_totale);
@@ -186,8 +151,6 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
   const marginePerc = safeNumber(row.margine_perc);
   const affidabile = margineAffidabile(row);
   const vociCosto = vociConsuntivo(row);
-  const margineColor =
-    marginePerc >= 25 ? "bg-green-500" : marginePerc >= 10 ? "bg-amber-500" : "bg-red-500";
   const margineTextColor =
     marginePerc >= 25 ? "text-green-600" : marginePerc >= 10 ? "text-amber-600" : "text-red-600";
   const openAnomalies = anomalies.filter((item) => {
@@ -199,13 +162,24 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
   // Per-voce computed values
   const vociWithMargin = items.map((item) => ({ ...item, ...margineVoce(item) }));
 
+  const stimeComplete = vociWithMargin.length > 0 && vociWithMargin.every(item => item.ricavo !== null && item.costo !== null);
+  const ricaviVoci = vociWithMargin.reduce((sum, item) => sum + (item.ricavo ?? 0), 0);
+  const costiVoci = vociWithMargin.reduce((sum, item) => sum + (item.costo ?? 0), 0);
+  const margineVoci = ricaviVoci - costiVoci;
+  const percentualeVoci = ricaviVoci > 0 ? margineVoci / ricaviVoci * 100 : null;
+  const vociConCosto = !costiError && !costiLoading ? vociWithMargin.filter(item => costiCollegati?.get(item.id)?.importo != null) : [];
+  const totaleCollegato = vociConCosto.reduce((sum, item) => sum + (costiCollegati?.get(item.id)?.importo ?? 0), 0);
+  const vociConfrontabili = vociConCosto.filter(item => item.costo !== null);
+  const scostamentoCollegato = vociConfrontabili.reduce((sum, item) => sum + (costiCollegati?.get(item.id)?.importo ?? 0) - (item.costo ?? 0), 0);
+  const percentuale = (value: number) => `${value.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`;
+
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader className="pb-4 border-b">
-          <SheetTitle className="flex flex-wrap items-center gap-2 pr-7 text-left text-base">
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent ampiezza="spazio" struttura="scorrevole" className="top-[50%] rounded-xl gap-3 p-5">
+        <DialogHeader className="pb-3 border-b">
+          <DialogTitle className="flex flex-wrap items-center gap-2 pr-7 text-left text-base">
             <TrendingUp className="h-5 w-5 text-primary" aria-hidden="true" />
-            <span>Marginalità per voce</span>
+            <span>Marginalità della commessa</span>
             <Link
               to={`/azienda/ordini/${row.id}?tab=finanza`}
               className="flex items-center gap-1 text-sm text-primary hover:underline ml-1"
@@ -214,35 +188,35 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
               {row.order_code ? `#${row.order_code}` : "Ordine"}
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
-          </SheetTitle>
-          <SheetDescription>Costi registrati, quota di struttura e stime delle voci della commessa.</SheetDescription>
+          </DialogTitle>
+          <DialogDescription>Ricavi, costi diretti e risultato dopo struttura. Importi IVA esclusa.</DialogDescription>
           {row.description && (
             <p className="text-sm text-muted-foreground">{row.description}</p>
           )}
           {row.cliente_nome && (
             <p className="text-xs text-muted-foreground">Cliente: {row.cliente_nome}</p>
           )}
-        </SheetHeader>
+        </DialogHeader>
 
-        <div className="space-y-5 py-4">
+        <div className="space-y-3 py-1">
           {/* Global summary */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="rounded-lg border p-3 space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Preventivo</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Ricavi contrattuali</p>
               <p className="text-lg font-bold text-primary">{formatCurrency(preventivoTotale)}</p>
               {variazioniApprovate > 0 && (
                 <p className="text-xs text-muted-foreground">+{formatCurrency(variazioniApprovate)} varianti</p>
               )}
             </div>
             <div className="rounded-lg border p-3 space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Consuntivo</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Costi diretti registrati</p>
               <p className="text-lg font-bold">{formatCurrency(consuntivo)}</p>
             </div>
             <div className="rounded-lg border p-3 space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Margine diretto</p>
               {affidabile ? (
                 <>
-                  <p className={cn("text-lg font-bold", margineTextColor)}>{formatCurrency(margine)}</p>
+                  <p className={cn("inline-block mr-2 text-lg font-bold", margineTextColor)}>{formatCurrency(margine)}</p>
                   <Badge className={cn("text-xs border-0",
                     marginePerc >= 25 ? "bg-green-100 text-green-800" :
                     marginePerc >= 10 ? "bg-amber-100 text-amber-800" :
@@ -260,55 +234,24 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
                 </>
               )}
             </div>
-          </div>
-
-          {structureImpact && <section className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/50 p-4" aria-label="Margine dopo struttura">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          {structureImpact && <section className="space-y-1 rounded-lg border border-amber-200 bg-amber-50/50 p-3" aria-label="Margine dopo struttura">
+            <div className="space-y-1">
               <p className="text-sm font-semibold">Dopo struttura stimata</p>
               <p className={cn("font-bold", structureImpact.adjustedMargin < 0 ? "text-red-700" : "text-slate-900")}>
                 {affidabile && structureImpact.source !== "none" ? `${formatCurrency(structureImpact.adjustedMargin)} (${structureImpact.adjustedMarginPct.toFixed(1)}%)` : "—"}
               </p>
             </div>
-            <p className="text-xs text-muted-foreground">{structureImpact.source === "none" ? "Quota di struttura non disponibile: completa date e dati aziendali." : `Quota struttura: ${formatCurrency(structureImpact.structureAmount)} · ${structureImpact.source === "automatic" ? `ripartizione automatica su ${structureImpact.months?.toFixed(1)} mesi` : "percentuale della vista corrente"}.`}</p>
-            {targetMarginPct !== undefined && <p className="text-xs text-muted-foreground">Target della vista corrente: {targetMarginPct.toFixed(1)}%.</p>}
+            <p className="text-xs text-muted-foreground" title={structureImpact.source === "automatic" ? `Ripartizione automatica su ${structureImpact.months?.toFixed(1)} mesi` : "Percentuale della vista corrente"}>{structureImpact.source === "none" ? "Quota struttura non disponibile" : `Struttura: ${formatCurrency(structureImpact.structureAmount)}`}{targetMarginPct !== undefined && ` · target ${targetMarginPct}%`}</p>
           </section>}
 
-          {/* Cost breakdown bars */}
-          <div className="space-y-3 p-4 rounded-lg bg-muted/30 border">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Breakdown costi</p>
-            {vociCosto.length === 0 && (
-              <p className="text-xs text-muted-foreground">Nessun costo registrato su questa commessa.</p>
-            )}
-            {vociCosto.map((voce) => (
-              <BreakdownBar
-                key={voce.chiave}
-                label={voce.etichetta}
-                value={voce.importo}
-                total={preventivoTotale}
-                colorClass={COLORE_VOCE[voce.chiave] ?? "bg-slate-400"}
-              />
-            ))}
-            {prelieviSenzaCosto > 0 && (
-              <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {prelieviSenzaCosto} {prelieviSenzaCosto === 1 ? "prelievo non ha" : "prelievi non hanno"} un costo unitario: il margine è parziale.
-              </p>
-            )}
-            {affidabile && (
-              <BreakdownBar
-                label={margine < 0 ? "Perdita diretta" : "Margine diretto"}
-                value={margine}
-                total={preventivoTotale}
-                colorClass={margineColor}
-              />
-            )}
           </div>
 
-          <div className="space-y-3 rounded-lg border border-orange-100 bg-orange-50/50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Anomalie e perdite collegate</p>
-                <p className="mt-1 text-sm text-orange-900">
+          <EconomicAnalysis revenue={preventivoTotale} costs={consuntivo} margin={margine} reliable={affidabile} entries={vociCosto} structure={structureImpact} target={targetMarginPct} />
+          <div className="space-y-2 border-y py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p className="text-xs font-semibold">Anomalie e perdite collegate</p>
+                <p className="text-xs text-muted-foreground">
                   {anomaliesLoading
                     ? "Caricamento anomalie..."
                     : anomaliesError
@@ -325,7 +268,7 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
             {anomaliesError && <Button variant="outline" size="sm" onClick={() => refetchAnomalies()}>Riprova anomalie</Button>}
             {!anomaliesLoading && !anomaliesError && anomalies.length > 0 && (
               <div className="space-y-2">
-                {anomalies.slice(0, 4).map((item) => {
+                {anomalies.map((item) => {
                   const status = normalizeReviewStatus(item.review_status);
                   const cause =
                     item.detailed_cause ||
@@ -358,12 +301,13 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
 
           {/* Per-voce table */}
           <div>
-            <div className="flex items-center gap-1.5 mb-3">
+            <div className="flex items-center gap-1.5 mb-2">
               <Package className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h3 className="text-sm font-semibold">Stime per voce ({items.length})</h3>
+              <h3 className="text-sm font-semibold">Dettaglio economico per voce ({items.length})</h3>
             </div>
 
-            <p className="mb-3 text-xs text-muted-foreground">Ricavi e costi unitari delle voci d’ordine. I costi mancanti sono indicati come da completare; il consuntivo registrato è riepilogato sopra.</p>
+            <p className="mb-3 text-xs text-muted-foreground">Importi totali di riga, IVA esclusa. Collegati: consumi netti di magazzino o impegni da OdA emessi, non necessariamente fatturati. Scostamento = costo collegato − stima; positivo indica maggior costo. Dati parziali: lavoro e spese senza collegamento restano nel totale commessa.</p>
+            {costiError && <p role="alert" className="mb-2 text-xs text-red-700">Costi collegati non disponibili. <Button variant="link" size="sm" className="h-auto p-0" onClick={() => refetchCosti()}>Riprova costi</Button></p>}
             {itemsLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
@@ -381,55 +325,60 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
               </p>
             ) : (
               <div className="border rounded-lg overflow-hidden">
-                <Table>
+                <Table aria-label="Ricavi e margini stimati per voce" className="text-xs tabular-nums [&_th]:h-9 [&_th]:px-3 [&_td]:px-3 [&_td]:py-2">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Voce</TableHead>
+                      <TableHead className="min-w-[180px]">Voce</TableHead>
                       <TableHead className="text-right">Qta</TableHead>
-                      <TableHead className="text-right hidden sm:table-cell">Ricavo</TableHead>
-                      <TableHead className="text-right hidden sm:table-cell">Costo</TableHead>
-                      <TableHead className="text-right">Margine</TableHead>
-                      <TableHead className="text-right">%</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Ricavi</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Costo stimato</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Costo collegato</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Scostamento</TableHead>
+                      <TableHead className="text-right bg-blue-50/60">Margine diretto stimato</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vociWithMargin.map((item) => (
+                    {vociWithMargin.map((item) => {
+                      const collegato = costiCollegati?.get(item.id);
+                      const costo = !costiError && !costiLoading ? collegato?.importo : null;
+                      const delta = costo != null && item.costo !== null ? costo - item.costo : null;
+                      return (
                       <TableRow key={item.id}>
                         <TableCell>
-                          <p className="text-sm font-medium">{item.name}</p>
+                          <p className="text-sm font-medium leading-snug">{item.name}</p>
                         </TableCell>
                         <TableCell className="text-right text-sm">{item.quantity}</TableCell>
-                        <TableCell className="text-right text-sm hidden sm:table-cell">
+                        <TableCell className="text-right text-sm whitespace-nowrap">
                           {item.ricavo !== null ? formatCurrency(item.ricavo) : "—"}
                         </TableCell>
-                        <TableCell className="text-right text-sm hidden sm:table-cell">
-                          {item.costo !== null ? formatCurrency(item.costo) : "Da completare"}
+                        <TableCell className="text-right text-sm whitespace-nowrap">
+                          <span title={item.purchase_price !== null ? "Stima da costo di acquisto unitario × quantità" : item.standard_cost !== null ? "Stima da costo standard unitario × quantità" : "Costo unitario mancante"} className={item.costo === null ? "text-amber-700" : undefined}>{item.costo !== null ? formatCurrency(item.costo) : "Da completare"}</span>
                         </TableCell>
-                        <TableCell className={cn("text-right text-sm font-semibold",
-                          item.margineVoce !== null && item.margineVoce > 0 ? "text-green-600" : item.margineVoce !== null && item.margineVoce < 0 ? "text-red-600" : "text-muted-foreground"
+                        <TableCell className="text-right whitespace-nowrap text-sm">
+                          {costiLoading ? "…" : costiError ? "Non disponibile" : collegato ? <span title={collegato.fonte}>{costo != null ? formatCurrency(costo) : "Da valorizzare"}<span className="block text-[11px] text-muted-foreground">{collegato.fonte}</span></span> : <span className="text-xs text-muted-foreground">Non collegato</span>}
+                        </TableCell>
+                        <TableCell className={cn("text-right whitespace-nowrap text-sm font-medium", delta !== null && delta > 0 ? "text-red-700" : delta !== null && delta < 0 ? "text-emerald-700" : "text-muted-foreground")} title="Confronto provvisorio sui soli costi collegati; non è il margine finale">
+                          {delta !== null ? `${delta > 0 ? "+" : ""}${formatCurrency(delta)}` : "—"}
+                        </TableCell>
+                        <TableCell className={cn("text-right text-sm whitespace-nowrap bg-blue-50/40",
+                          item.margineVoce !== null && item.margineVoce >= 0 ? "text-emerald-700" : item.margineVoce !== null ? "text-red-700" : "text-muted-foreground"
                         )}>
-                          {item.margineVoce !== null ? formatCurrency(item.margineVoce) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.margineVocePerc !== null ? (
-                            <div className="flex flex-col items-end gap-1">
-                              <span className={cn("text-xs font-medium",
-                                item.margineVocePerc >= 25 ? "text-green-600" :
-                                item.margineVocePerc >= 10 ? "text-amber-600" : "text-red-600"
-                              )}>
-                                {item.margineVocePerc.toFixed(1)}%
-                              </span>
-                              <Progress
-                                value={Math.max(Math.min(item.margineVocePerc, 100), 0)}
-                                className="h-1 w-16"
-                                aria-label={`Margine ${item.margineVocePerc.toFixed(1)}%`}
-                              />
-                            </div>
-                          ) : "—"}
+                          <span className="font-semibold">{item.margineVoce !== null ? formatCurrency(item.margineVoce) : "—"}</span>
+                          {item.margineVocePerc !== null && <span className="ml-2 text-xs">{percentuale(item.margineVocePerc)}</span>}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ); })}
                   </TableBody>
+                  <TableFooter className="bg-muted/40">
+                    <TableRow>
+                      <TableCell colSpan={2} className="font-semibold">{stimeComplete ? "Totale stime delle voci" : "Stime incomplete"}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">{vociWithMargin.every(item => item.ricavo !== null) ? formatCurrency(ricaviVoci) : "—"}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">{stimeComplete ? formatCurrency(costiVoci) : "Totale non disponibile"}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap" title="Somma dei soli costi collegati, non costo finale della commessa">{vociConCosto.length ? <>{formatCurrency(totaleCollegato)}<span className="block text-[11px] font-normal text-muted-foreground">{vociConCosto.length}/{items.length} voci · parziale</span></> : "—"}</TableCell>
+                      <TableCell className={cn("text-right whitespace-nowrap", scostamentoCollegato > 0 ? "text-red-700" : scostamentoCollegato < 0 ? "text-emerald-700" : "text-muted-foreground")} title="Scostamento delle sole voci con stima e costo collegato disponibili">{vociConfrontabili.length ? `${scostamentoCollegato > 0 ? "+" : ""}${formatCurrency(scostamentoCollegato)}` : "—"}</TableCell>
+                      <TableCell className="text-right whitespace-nowrap">{stimeComplete ? <><strong>{formatCurrency(margineVoci)}</strong>{percentualeVoci !== null && <span className="ml-2">{percentuale(percentualeVoci)}</span>}</> : "—"}</TableCell>
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </div>
             )}
@@ -459,7 +408,68 @@ export default function MargineVociDetail({ open, onClose, row, structureImpact,
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Chiudi dettaglio</Button><Button asChild><Link to={`/azienda/ordini/${row.id}?tab=finanza`} onClick={onClose}>Apri commessa <ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
+}
+
+function EconomicAnalysis({ revenue, costs, margin, reliable, entries, structure, target }: {
+  revenue: number; costs: number; margin: number; reliable: boolean;
+  entries: ReturnType<typeof vociConsuntivo>; structure: Props["structureImpact"]; target?: number;
+}) {
+  const available = !!structure && structure.source !== "none";
+  const overhead = available ? Math.max(0, structure.structureAmount) : 0;
+  const result = available ? structure.adjustedMargin : margin;
+  const scale = Math.max(revenue, Math.max(0, costs) + overhead, 1);
+  const pct = (n: number) => revenue > 0 ? `${(n / revenue * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%` : "—";
+  const width = (n: number) => `${Math.max(0, n) / scale * 100}%`;
+  const positiveCosts = entries.reduce((sum, entry) => sum + Math.max(0, entry.importo), 0);
+  const colors = ["#3b82f6", "#f97316", "#6366f1", "#64748b", "#a855f7", "#06b6d4", "#ef4444", "#94a3b8"];
+  const slices = entries.map((entry, index) => {
+    const share = positiveCosts > 0 ? Math.max(0, entry.importo) / positiveCosts * 100 : 0;
+    const offset = positiveCosts > 0 ? entries.slice(0, index).reduce((sum, prior) => sum + Math.max(0, prior.importo), 0) / positiveCosts * 100 : 0;
+    const slice = { ...entry, share, offset, color: colors[index % colors.length] };
+    return slice;
+  });
+  const targetAmount = target !== undefined ? revenue * target / 100 : null;
+  const gap = reliable && available && targetAmount !== null ? result - targetAmount : null;
+  return <>
+    <section aria-label="Barra economica" className="space-y-2 py-2">
+      <div className="flex flex-wrap justify-between gap-2 text-xs"><h3 className="font-semibold">Come si distribuiscono i ricavi</h3><span className="text-muted-foreground">Costi registrati · struttura stimata</span></div>
+      <div className="relative">
+        <div className="flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Costi diretti ${formatCurrency(costs)}, struttura ${available ? formatCurrency(overhead) : "non disponibile"}, ${reliable ? `${result < 0 ? "perdita" : "margine residuo"} ${formatCurrency(Math.abs(result))}` : "margine non disponibile"}`}>
+          <span className="bg-blue-500" style={{ width: width(costs) }} /><span className="bg-amber-400" style={{ width: width(overhead) }} />
+          {reliable && result > 0 && <span className="bg-emerald-500" style={{ width: width(result) }} />}
+        </div>
+        {revenue > 0 && costs + overhead > revenue && <span className="absolute -top-1 h-5 w-0.5 bg-red-700" style={{ left: width(revenue) }} title="Limite dei ricavi" />}
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs"><span>Costi diretti <strong>{pct(costs)}</strong></span><span>Struttura <strong>{available ? pct(overhead) : "non disponibile"}</strong></span><span className={result < 0 ? "text-red-700" : "text-emerald-700"}>{reliable ? `${result < 0 ? "Perdita" : "Margine residuo"}: ${formatCurrency(Math.abs(result))} · ${pct(Math.abs(result))}` : "Dati incompleti"}</span></div>
+      {revenue > 0 && costs + overhead > revenue && <p className="text-xs text-red-700">La linea rossa indica il limite dei ricavi; la barra si estende fino al totale dei costi.</p>}
+    </section>
+    <section aria-label="Analisi del margine" className="grid gap-5 border-t py-3 lg:grid-cols-[1.2fr_1fr]">
+      <div><h3 className="text-sm font-semibold">Composizione dei costi diretti</h3><p className="mt-1 text-xs text-muted-foreground">Quote sui costi positivi, senza struttura. Le rettifiche negative restano in elenco.</p>
+        <div className="mt-3 flex flex-col items-center gap-4 sm:flex-row">
+          <svg viewBox="0 0 160 160" className="h-40 w-40 shrink-0" role="img" aria-label="Grafico a torta dei costi diretti">
+            <circle cx="80" cy="80" r="60" fill="none" stroke="hsl(var(--muted))" strokeWidth="23" />
+            {slices.filter(slice => slice.share > 0).map(slice => <circle key={slice.chiave} cx="80" cy="80" r="60" fill="none" stroke={slice.color} strokeWidth="23" pathLength="100" strokeDasharray={`${slice.share} ${100 - slice.share}`} strokeDashoffset={-slice.offset} transform="rotate(-90 80 80)"><title>{slice.etichetta}: {formatCurrency(slice.importo)}</title></circle>)}
+            <text x="80" y="74" textAnchor="middle" className="fill-muted-foreground text-[10px]">COSTI DIRETTI</text><text x="80" y="94" textAnchor="middle" className="fill-foreground text-[12px] font-semibold">{formatCurrency(costs)}</text>
+          </svg>
+          <ul className="w-full min-w-0 space-y-2 text-xs">{slices.map(slice => <li key={slice.chiave} className="flex justify-between gap-2"><span><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: slice.color }} />{slice.etichetta}</span><span className="shrink-0 text-right font-medium">{formatCurrency(slice.importo)}<span className="block font-normal text-muted-foreground">{slice.importo < 0 ? "Rettifica" : `${slice.share.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% dei costi positivi`}</span></span></li>)}{slices.length === 0 && <li>Nessun costo registrato.</li>}</ul>
+        </div>
+      </div>
+      <div className="lg:border-l lg:pl-5"><h3 className="text-sm font-semibold">Dai ricavi al margine</h3>
+        <dl className="mt-3 space-y-2 text-xs">
+          <div className="flex justify-between gap-2"><dt>Ricavi contrattuali</dt><dd>{formatCurrency(revenue)}</dd></div>
+          <div className="flex justify-between gap-2"><dt>− Costi diretti registrati</dt><dd>{formatCurrency(costs)}</dd></div>
+          <div className="flex justify-between gap-2 border-t pt-2 font-semibold text-blue-700"><dt>{margin < 0 ? "Perdita diretta" : "Margine diretto"}</dt><dd>{reliable ? `${formatCurrency(margin)} · ${pct(margin)}` : "Non disponibile"}</dd></div>
+          <div className="flex justify-between gap-2"><dt>− Struttura stimata</dt><dd>{available ? formatCurrency(overhead) : "Non disponibile"}</dd></div>
+          <div className={cn("flex justify-between gap-2 border-t pt-2 font-semibold", result < 0 ? "text-red-700" : "text-emerald-700")}><dt>Dopo struttura</dt><dd>{reliable && available ? `${formatCurrency(result)} · ${pct(result)}` : "Non disponibile"}</dd></div>
+          {targetAmount !== null && <div className="flex justify-between gap-2 text-muted-foreground"><dt>Obiettivo dopo struttura · {target}%</dt><dd>{formatCurrency(targetAmount)}</dd></div>}
+          {gap !== null && <div className="flex justify-between gap-2"><dt>{gap < 0 ? "Da recuperare per il target" : "Sopra il target"}</dt><dd className="font-semibold">{formatCurrency(Math.abs(gap))}</dd></div>}
+        </dl>
+        <p className="mt-3 text-xs text-muted-foreground">{reliable ? "Risultato sui costi registrati; eventuali costi futuri non inseriti sono esclusi." : "Dati incompleti: completa ricavi e costi prima di valutare il margine."} La struttura è una stima distinta dai costi diretti.</p>
+      </div>
+    </section>
+  </>;
 }

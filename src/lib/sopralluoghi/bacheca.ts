@@ -1,3 +1,4 @@
+import { inDateRange } from "@/lib/orders/dateRange";
 // Sopralluoghi: fase della pratica, quando, cosa fare e filtri (01/10/2026).
 //
 // La pagina era un elenco di codici e indirizzi, senza cliente, tecnico o data (nessuno dei
@@ -116,11 +117,13 @@ export function cosaFareOra(righe: SopralluogoBacheca[], adesso: Date = new Date
   return out;
 }
 
-export type PeriodoFiltro = "tutti" | "oggi" | "settimana" | "mese" | "in_ritardo" | "senza_data";
+export type PeriodoFiltro = "tutti" | "oggi" | "settimana" | "mese" | "in_ritardo" | "senza_data" | "personalizzato";
 
 export interface FiltriBacheca {
   fase?: FasePratica | "tutte";
   periodo?: PeriodoFiltro;
+  da?: string;
+  a?: string;
   tecnico?: string; // id, "nessuno" o vuoto
   testo?: string;
   soloSenzaPreventivo?: boolean;
@@ -139,7 +142,8 @@ export function filtraBacheca(righe: SopralluogoBacheca[], f: FiltriBacheca, ade
     if (f.tecnico === "nessuno" ? !!s.technician_id : f.tecnico && f.tecnico !== "tutti" && s.technician_id !== f.tecnico) return false;
     if (f.soloSenzaPreventivo && (fase === "preventivo" || fase === "da_pianificare" || fase === "pianificato" || fase === "in_corso")) return false;
     if (f.periodo && f.periodo !== "tutti") {
-      if (f.periodo === "senza_data") { if (s.scheduled_at) return false; }
+      if (f.periodo === "personalizzato") {if (!inDateRange(s.scheduled_at, f.da ?? "", f.a ?? "")) return false;}
+      else if (f.periodo === "senza_data") { if (s.scheduled_at) return false; }
       else {
         if (!s.scheduled_at) return false;
         const g = giorniDa(s.scheduled_at, adesso);

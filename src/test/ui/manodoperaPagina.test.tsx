@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Impostazioni → Listino → Manodopera e servizi (10/10/2026).
  *
@@ -74,12 +76,12 @@ describe("Manodopera e servizi: voci da prezziario regionale", () => {
   it("trova il codice e la fonte, e filtra la categoria conservata nell'importazione", async () => {
     state.tabelle.tariffe_aziendali = VOCI.map(v => v.id === "t1" ? { ...v, codice: "REG.001", fonte: "Molise 2026", custom_field_values: { _prezzario: { capitolo_nome: "A · Demolizioni" } } } : v);
     apri(); await caricata();
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "REG.001" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "REG.001" } });
     expect(screen.getByText("Posa finestra")).toBeInTheDocument(); expect(screen.queryByText("Trasporto cantiere")).toBeNull();
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "Molise 2026" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "Molise 2026" } });
     expect(screen.getByText("Posa finestra")).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Filtra per categoria regionale" }), { target: { value: "A · Demolizioni" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Filtra per categoria regionale" }), { target: { value: "A · Demolizioni" } });
     expect(screen.queryByText("Trasporto cantiere")).toBeNull();
     expect(screen.getByText("Categoria regionale: A · Demolizioni")).toBeInTheDocument();
   });
@@ -88,7 +90,7 @@ describe("Manodopera e servizi: voci da prezziario regionale", () => {
     apri(); await caricata();
     fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona Posa finestra" }));
     expect(screen.getByText("1 voce selezionata")).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Filtra per categoria regionale" }), { target: { value: "A · Demolizioni" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Filtra per categoria regionale" }), { target: { value: "A · Demolizioni" } });
     expect(screen.queryByText("1 voce selezionata")).toBeNull();
   });
 });
@@ -181,8 +183,8 @@ describe("Manodopera e servizi: i numeri e l'avviso delle basi in una riga", () 
     fireEvent.click(screen.getByRole("button", { name: "Nuova voce" }));
     fireEvent.click(screen.getByRole("button", { name: "Squadra interna" }));
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi operatore / qualifica" }));
-    await waitFor(() => expect(screen.getByRole("option", { name: /Marco Calcolato.*22,97.*calcolato/ })).toBeInTheDocument());
-    fireEvent.change(screen.getByRole("combobox", { name: "Dipendente per operatore 1" }), { target: { value: "e1" } });
+    await waitFor(() => expect(formOptions().getByRole("option", { name: /Marco Calcolato.*22,97.*calcolato/ })).toBeInTheDocument());
+    changeFormControl(screen.getByRole("combobox", { name: "Dipendente per operatore 1" }), { target: { value: "e1" } });
     expect(screen.getByRole("spinbutton", { name: "Costo orario operatore 1" })).toHaveValue(22.97);
     expect(screen.getByText(/Costo copiato: Operaio: lordo × 12 mensilità/)).toBeInTheDocument();
   });
@@ -194,7 +196,7 @@ describe("Manodopera e servizi: i numeri e l'avviso delle basi in una riga", () 
   it("i pulsanti di completamento mostrano le voci attive effettivamente prive di costo o prezzo", async () => {
     state.tabelle.tariffe_aziendali = VOCI.map(v => v.id === "t2" ? { ...v, costo_interno: 0, prezzo_costo: 0 } : v.id === "t3" ? { ...v, prezzo_vendita: 0 } : v);
     apri(); await caricata();
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "Posa finestra" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "Posa finestra" } });
     fireEvent.click(screen.getByRole("button", { name: "1 senza costo" }));
     expect(screen.getByText("Trasporto cantiere")).toBeInTheDocument();
     expect(screen.queryByText("Posa finestra")).toBeNull();
@@ -274,7 +276,7 @@ describe("Manodopera e servizi: l'area di lavoro si sceglie una volta sola", () 
   it("prima della tabella ci sono 12 comandi in meno di prima", async () => {
     apri(); await caricata();
     const tabella = screen.getByRole("table");
-    const comandi = Array.from(document.querySelectorAll("button, a[href], input, select, [role='tab'], [role='combobox'], summary"));
+    const comandi = Array.from(document.querySelectorAll("button, a[href], input, select:not([aria-hidden=true]), [role='tab'], [role='combobox'], summary"));
     const davanti = comandi.filter((c) => Boolean(c.compareDocumentPosition(tabella) & Node.DOCUMENT_POSITION_FOLLOWING));
     // 4 schede + «Importa / Esporta» + «Nuova voce» + «2 sotto soglia» + «Completa le basi» + la ricerca + 5 filtri
     // + 3 schede di gruppo = 17. Con gli stessi dati la pagina di prima ne aveva 29: due schede, i quattro pulsanti
@@ -289,7 +291,7 @@ describe("Manodopera e servizi: l'area di lavoro si sceglie una volta sola", () 
     cleanup();
     state.tabelle.tariffe_aziendali = VOCI;
     apri(); await caricata();
-    fireEvent.change(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "zzzz" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Cerca tra le voci" }), { target: { value: "zzzz" } });
     await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: "Nessun risultato" })).toBeInTheDocument());
   });
 });

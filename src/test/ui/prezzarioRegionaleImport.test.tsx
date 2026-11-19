@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { webcrypto } from "node:crypto";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -140,7 +141,7 @@ function apri() {
       onImported={onImported}
     />,
   );
-  fireEvent.change(screen.getByRole("combobox", { name: "Regione e anno" }), {
+  changeFormControl(screen.getByRole("combobox", { name: "Regione e anno" }), {
     target: { value: "fonte" },
   });
   return { onImported, onOpenChange };
@@ -172,10 +173,10 @@ describe("Importazione regionale: selezione e categorie", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pagina successiva" }));
     fireEvent.click(screen.getByRole("button", { name: "Completa le selezionate" }));
     expect(screen.getByRole("list", { name: "Voci selezionate" })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Unità per COD-0" }), { target: { value: "h" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Unità per COD-0" }), { target: { value: "h" } });
     expect(screen.queryByText("voce selezionata da completare", { exact: false })).toBeNull();
     // L'unità integrata resta correggibile senza falsificare il dato originale.
-    fireEvent.change(screen.getByRole("combobox", { name: "Unità per COD-0" }), { target: { value: "mq" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Unità per COD-0" }), { target: { value: "mq" } });
     expect(screen.getByRole("combobox", { name: "Unità per COD-0" })).toHaveValue("mq");
     expect(screen.getByText("Unità del prezziario: non indicata")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Torna al catalogo" }));
@@ -228,7 +229,7 @@ describe("Importazione regionale: selezione e categorie", () => {
     expect(
       screen.queryByRole("checkbox", { name: "Seleziona COD-0" }),
     ).toBeNull();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca codice o descrizione" }),
       { target: { value: "COD-100" } },
     );
@@ -260,7 +261,7 @@ describe("Importazione regionale: selezione e categorie", () => {
       "1 voce selezionata da completare",
     );
     fireEvent.click(screen.getByRole("button", { name: "Pagina precedente" }));
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("combobox", { name: "Unità per COD-0" }),
       { target: { value: "mq" } },
     );
@@ -272,7 +273,7 @@ describe("Importazione regionale: selezione e categorie", () => {
   it("converte il prezzo in tonnellate, mantiene la categoria e usa insert senza sovrascrivere", async () => {
     stato.voci = [voce(0, { unita_misura: "t", prezzo: 150 })];
     const callbacks = apri();
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Ricarico sul prezzo regionale %" }),
       { target: { value: "20" } },
     );
@@ -331,7 +332,7 @@ describe("Importazione regionale: selezione e categorie", () => {
   it("non trasforma un ricarico sbagliato in zero", () => {
     apri();
     fireEvent.click(screen.getByRole("checkbox", { name: "Seleziona COD-0" }));
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", { name: "Ricarico sul prezzo regionale %" }),
       { target: { value: "abc" } },
     );

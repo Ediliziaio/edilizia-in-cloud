@@ -1,3 +1,4 @@
+import { inDateRange } from "@/lib/orders/dateRange";
 /**
  * Pipeline degli acquisti — una sola regola per decidere dove sta ogni cosa.
  *
@@ -119,7 +120,9 @@ export const STATI_RFQ_APERTE = ["bozza", "inviata", "in_valutazione"];
 export interface FiltriAcquisti {
   /** Stato ed emissione filtrano gli OdA, in entrambe le viste. */
   stato?: "bozze" | "attivi" | "ricevuti" | "annullati";
-  periodo?: "30" | "90" | "anno";
+  periodo?: "30" | "90" | "anno" | "personalizzato";
+  da?: string;
+  a?: string;
   /** null = tutte; "_nessuna" = senza commessa (scorte, attrezzatura). */
   commessa: string | null;
   /** null = tutti; "_nessuno" = materiali senza fornitore. */
@@ -148,6 +151,7 @@ export function leggiFiltriAcquisti(
     vista: params.get("vista") === "pipeline" ? "pipeline" : "elenco",
     commessa: params.get("commessa") || null,
     fornitore: params.get("forn") || null,
+    ...(params.has("oda_da") || params.has("oda_a") ? {da: params.get("oda_da") ?? "", a: params.get("oda_a") ?? ""} : {}),
     fase: params.get("fase") || null,
     soloRitardo: params.get("ritardo") === "1",
     cerca: params.get("cerca") ?? "",
@@ -156,7 +160,7 @@ export function leggiFiltriAcquisti(
     )
       ? { stato: params.get("stato") as FiltriAcquisti["stato"] }
       : {}),
-    ...(["30", "90", "anno"].includes(params.get("periodo") ?? "")
+    ...(["30", "90", "anno", "personalizzato"].includes(params.get("periodo") ?? "")
       ? { periodo: params.get("periodo") as FiltriAcquisti["periodo"] }
       : {}),
   };
@@ -177,7 +181,7 @@ export function scriviFiltroAcquisti(
       "fase",
       "ritardo",
       "cerca",
-      "periodo",
+      "periodo", "oda_da", "oda_a",
       "stato",
     ].includes(chiave)
   )
@@ -335,7 +339,8 @@ export function odaVisibile(
     return false;
   if (f.stato === "ricevuti" && o.status !== "ricevuto") return false;
   if (f.stato === "annullati" && o.status !== "annullato") return false;
-  if (f.periodo) {
+  if (f.periodo === "personalizzato") {if (!inDateRange(o.issue_date, f.da ?? "", f.a ?? "")) return false;}
+  else if (f.periodo) {
     const da =
       f.periodo === "anno"
         ? `${oggi.slice(0, 4)}-01-01`

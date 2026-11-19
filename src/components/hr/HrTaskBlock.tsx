@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * HrTaskBlock — task/obiettivi assegnati a una persona.
  * Lista con badge priorità/stato + scadenza IT, aggiunta inline, toggle stato,
@@ -89,13 +90,13 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
         </div>
         <div>
           <label className="text-xs text-muted-foreground">Priorità</label>
-          <select
+          <UniformSelect
             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-28"
             value={priorita}
             onChange={(e) => setPriorita(e.target.value as TaskPriorita)}
           >
             {PRIORITA.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
+          </UniformSelect>
         </div>
         <Button onClick={add} disabled={create.isPending || !titolo.trim()} className="shrink-0">
           {create.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}Aggiungi
@@ -136,7 +137,7 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <select
+                  <UniformSelect
                     className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                     value={t.stato}
                     onChange={(e) => setStato.mutate({ id: t.id, stato: e.target.value as TaskStato })}
@@ -144,7 +145,7 @@ export function HrTaskBlock({ profiloId, companyId }: Props) {
                     {(Object.keys(STATO) as TaskStato[]).map((s) => (
                       <option key={s} value={s}>{STATO[s].label}</option>
                     ))}
-                  </select>
+                  </UniformSelect>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Elimina">

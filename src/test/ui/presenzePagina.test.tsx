@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -134,10 +135,10 @@ describe("pagina presenze: una vista alla volta", () => {
   });
   it("combines search and department filters and resets the results", () => {
     mount();
-    fireEvent.change(screen.getByLabelText("Cerca persona o mansione"), {
+    changeFormControl(screen.getByLabelText("Cerca persona o mansione"), {
       target: { value: "anna" },
     });
-    fireEvent.change(screen.getByLabelText("Reparto presenze"), {
+    changeFormControl(screen.getByLabelText("Reparto presenze"), {
       target: { value: "Cantiere" },
     });
     expect(
@@ -231,7 +232,7 @@ describe("registro ore compatto", () => {
       screen.getByRole("button", { name: "Pagina successiva delle ore" }),
     );
     expect(screen.getByText("16–30 di 31 registrazioni")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Cerca nelle ore di cantiere"), {
+    changeFormControl(screen.getByLabelText("Cerca nelle ore di cantiere"), {
       target: { value: "Persona 30" },
     });
     expect(screen.getAllByRole("row")).toHaveLength(2);
@@ -248,14 +249,14 @@ describe("registro ore compatto", () => {
         busy={false}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Stato delle ore"), {
+    changeFormControl(screen.getByLabelText("Stato delle ore"), {
       target: { value: "pending" },
     });
     expect(screen.getAllByRole("row")).toHaveLength(2);
     expect(
       screen.getByText("Note della registrazione").closest("details"),
     ).not.toHaveAttribute("open");
-    fireEvent.change(screen.getByLabelText("Stato delle ore"), {
+    changeFormControl(screen.getByLabelText("Stato delle ore"), {
       target: { value: "unpriced" },
     });
     expect(screen.getAllByRole("row")).toHaveLength(2);
@@ -313,7 +314,7 @@ describe("registro ore compatto", () => {
       />,
     );
     expect(screen.getByText("1–1 di 1 registrazioni")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Cerca nelle ore di cantiere"), {
+    changeFormControl(screen.getByLabelText("Cerca nelle ore di cantiere"), {
       target: { value: "non esiste" },
     });
     expect(

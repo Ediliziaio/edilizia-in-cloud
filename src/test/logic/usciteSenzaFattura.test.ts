@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { erroreUscita, formDaUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita, type UscitaSalvata } from "@/lib/costi/usciteSenzaFattura";
 
-const base: FormUscita = { descrizione: "Bollo furgone", imponibile: "1.234,50", aliquota: "0", data: "2026-03-15", mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", pagata: true, note: "" };
+const base: FormUscita = { descrizione: "Bollo furgone", imponibile: "1.234,50", aliquota: "0", data: "2026-03-15", mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", pagata: true, dataPagamento: "2026-03-15", note: "" };
 
 describe("uscita senza fattura", () => {
   it("un'uscita completa si può salvare", () => expect(erroreUscita(base)).toBeNull());

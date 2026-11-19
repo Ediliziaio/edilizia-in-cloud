@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSalvaDpi, useStoricoDpi } from "@/hooks/useGestioneDpi";
@@ -224,7 +225,7 @@ export function ModuloConsegnaDpi({
           <fieldset disabled={bloccato} className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="dpi-addetto">Addetto titolare</Label>
-              <select
+              <UniformSelect
                 id="dpi-addetto"
                 className="w-full rounded-md border bg-background p-2 text-sm"
                 value={addetto}
@@ -250,12 +251,12 @@ export function ModuloConsegnaDpi({
                       {a.nome} {a.cognome} · rif. {a.id.slice(0, 8)}
                     </option>
                   ))}
-              </select>
+              </UniformSelect>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="dpi-tipo">Dispositivo</Label>
-                <select
+                <UniformSelect
                   id="dpi-tipo"
                   className="w-full rounded-md border bg-background p-2 text-sm"
                   value={dati.tipo}
@@ -267,11 +268,11 @@ export function ModuloConsegnaDpi({
                       {t}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="dpi-stato">Stato registrato</Label>
-                <select
+                <UniformSelect
                   id="dpi-stato"
                   className="w-full rounded-md border bg-background p-2 text-sm"
                   value={dati.stato}
@@ -282,7 +283,7 @@ export function ModuloConsegnaDpi({
                       {t}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </div>
               {testo("marca", "Marca")}
               {testo("taglia", "Taglia")}
@@ -332,7 +333,7 @@ export function ModuloConsegnaDpi({
               <Label htmlFor="dpi-verbale">
                 Verbale DPI dal fascicolo dell’operaio
               </Label>
-              <select
+              <UniformSelect
                 id="dpi-verbale"
                 className="w-full rounded border bg-background p-2 text-sm"
                 value={dati.evidenza_id ?? ""}
@@ -354,7 +355,7 @@ export function ModuloConsegnaDpi({
                     {v.fase_id ? " · fase specifica" : ""}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
               {verbale && (
                 <p className="text-xs text-muted-foreground">
                   Versione letta: {verbale.updated_at} · stato documentale:{" "}

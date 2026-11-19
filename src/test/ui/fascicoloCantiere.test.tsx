@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import {
@@ -126,10 +128,10 @@ describe("Fascicolo integrato: comportamenti operativi", () => {
   it("richiede nominante e riferimento prima di documentare una nomina", async () => {
     open(<IncarichiCantiere companyId="az" orderId="c1" />);
     fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
-    fireEvent.change(screen.getByLabelText("Nome e cognome"), {
+    changeFormControl(screen.getByLabelText("Nome e cognome"), {
       target: { value: "Tecnico Prova" },
     });
-    fireEvent.change(screen.getByLabelText("Stato della nomina"), {
+    changeFormControl(screen.getByLabelText("Stato della nomina"), {
       target: { value: "documentato" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -139,7 +141,7 @@ describe("Fascicolo integrato: comportamenti operativi", () => {
   it("salva la figura con la commessa corrente, senza inviare inviti", async () => {
     open(<IncarichiCantiere companyId="az" orderId="c1" />);
     fireEvent.click(screen.getByRole("button", { name: "Assegna" }));
-    fireEvent.change(screen.getByLabelText("Nome e cognome"), {
+    changeFormControl(screen.getByLabelText("Nome e cognome"), {
       target: { value: "Tecnico Prova" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -157,10 +159,10 @@ describe("Fascicolo integrato: comportamenti operativi", () => {
   it("non salva un POS senza la commessa né ricevuto senza allegato", () => {
     open(<FascicoloDocumenti companyId="az" subId="sub" />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    fireEvent.change(screen.getByLabelText("Tipo"), {
+    changeFormControl(screen.getByLabelText("Tipo"), {
       target: { value: "pos" },
     });
-    fireEvent.change(screen.getByLabelText("Titolo"), {
+    changeFormControl(screen.getByLabelText("Titolo"), {
       target: { value: "POS Prova" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -168,11 +170,11 @@ describe("Fascicolo integrato: comportamenti operativi", () => {
     expect(state.toast).toHaveBeenCalledWith(
       expect.stringContaining("commessa"),
     );
-    fireEvent.change(
+    changeFormControl(
       screen.getByLabelText("Commessa (necessaria per il POS)"),
       { target: { value: "c1" } },
     );
-    fireEvent.change(screen.getByLabelText("Stato"), {
+    changeFormControl(screen.getByLabelText("Stato"), {
       target: { value: "ricevuto" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -187,13 +189,13 @@ describe("Fascicolo integrato: comportamenti operativi", () => {
       .mockResolvedValue({ id: "saved" });
     open(<FascicoloDocumenti companyId="az" subId="sub" />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    fireEvent.change(screen.getByLabelText("Titolo"), {
+    changeFormControl(screen.getByLabelText("Titolo"), {
       target: { value: "DURC prova" },
     });
     const file = new File(["PDF sintetico"], "prova.pdf", {
       type: "application/pdf",
     });
-    fireEvent.change(screen.getByLabelText(/File PDF o immagine/), {
+    changeFormControl(screen.getByLabelText(/File PDF o immagine/), {
       target: { files: [file] },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -237,10 +239,10 @@ describe("Fascicolo integrato: comportamenti operativi", () => {
     open(<OperaiSubappaltatore companyId="az" subId="sub" />);
     state.fasi = [{ id: "fase-posa", name: "Posa", order_id: "c1" }];
     fireEvent.click(screen.getByRole("button", { name: "Modifica periodo" }));
-    fireEvent.change(screen.getByLabelText("Fase di lavoro"), {
+    changeFormControl(screen.getByLabelText("Fase di lavoro"), {
       target: { value: "fase-posa" },
     });
-    fireEvent.change(screen.getByLabelText("Al"), {
+    changeFormControl(screen.getByLabelText("Al"), {
       target: { value: "2026-10-31" },
     });
     fireEvent.submit(screen.getByRole("dialog").querySelector("form")!);
@@ -314,13 +316,13 @@ describe("SDS aziendali nel fascicolo", () => {
     expect(
       screen.queryByLabelText("Mese di competenza"),
     ).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Titolo"), {
+    changeFormControl(screen.getByLabelText("Titolo"), {
       target: { value: "SDS sigillante" },
     });
-    fireEvent.change(screen.getByLabelText("Revisione"), {
+    changeFormControl(screen.getByLabelText("Revisione"), {
       target: { value: "2" },
     });
-    fireEvent.change(screen.getByLabelText("Data rilascio"), {
+    changeFormControl(screen.getByLabelText("Data rilascio"), {
       target: { value: "2026-10-01" },
     });
     fireEvent.click(
@@ -443,7 +445,7 @@ describe("Titolarità dei documenti modificati dalla commessa", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Modifica / }));
     expect(screen.getByLabelText("Operaio (se personale)")).toHaveValue("o1");
     expect(screen.getByLabelText("Operaio (se personale)")).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Referente della richiesta"), {
+    changeFormControl(screen.getByLabelText("Referente della richiesta"), {
       target: { value: "Tecnico commessa" },
     });
     fireEvent.click(
@@ -497,7 +499,7 @@ describe("Titolarità dei documenti modificati dalla commessa", () => {
       screen.getByLabelText("Incarico titolare del documento"),
     ).toHaveValue("i1");
     expect(
-      screen.queryByRole("option", { name: /Referente interno/ }),
+      formOptions().queryByRole("option", { name: /Referente interno/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Salva nel fascicolo" }),
@@ -545,16 +547,16 @@ it("crea dalla commessa una richiesta per l’impresa selezionata, azzerando ope
   state.workers = [{ id: "o1", nome: "Mario", cognome: "Esterno" }];
   open(<FascicoloDocumenti companyId="az" orderId="c1" />);
   fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-  fireEvent.change(screen.getByLabelText("Titolo"), {
+  changeFormControl(screen.getByLabelText("Titolo"), {
     target: { value: "Attestato da richiedere" },
   });
-  fireEvent.change(screen.getByLabelText("Titolare del documento"), {
+  changeFormControl(screen.getByLabelText("Titolare del documento"), {
     target: { value: "sub-a" },
   });
-  fireEvent.change(screen.getByLabelText("Operaio (se personale)"), {
+  changeFormControl(screen.getByLabelText("Operaio (se personale)"), {
     target: { value: "o1" },
   });
-  fireEvent.change(screen.getByLabelText("Titolare del documento"), {
+  changeFormControl(screen.getByLabelText("Titolare del documento"), {
     target: { value: "sub-b" },
   });
   expect(screen.getByLabelText("Operaio (se personale)")).toHaveValue("");
@@ -608,7 +610,7 @@ describe("Chiusura sicura del modulo documento", () => {
   it("mantiene i dati tornando alla modifica e li abbandona solo con la scelta esplicita", () => {
     open(<FascicoloDocumenti companyId="az" orderId="c1" />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    fireEvent.change(screen.getByLabelText("Titolo"), {
+    changeFormControl(screen.getByLabelText("Titolo"), {
       target: { value: "Documento in preparazione" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
@@ -629,10 +631,10 @@ describe("Chiusura sicura del modulo documento", () => {
   it("un cambiamento riportato al valore iniziale non produce un falso avviso", () => {
     open(<FascicoloDocumenti companyId="az" orderId="c1" />);
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
-    fireEvent.change(screen.getByLabelText("Titolo"), {
+    changeFormControl(screen.getByLabelText("Titolo"), {
       target: { value: "Temporaneo" },
     });
-    fireEvent.change(screen.getByLabelText("Titolo"), {
+    changeFormControl(screen.getByLabelText("Titolo"), {
       target: { value: "" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));

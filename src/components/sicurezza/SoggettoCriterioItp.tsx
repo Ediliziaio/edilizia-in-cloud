@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { Button } from "@/components/ui/button";
 import { RUOLI_INCARICO } from "@/lib/sicurezza/fascicolo";
 import type { CriterioItp } from "@/lib/sicurezza/itp";
@@ -47,7 +48,7 @@ export function SoggettoCriterioItp({
     <div className="rounded-md bg-muted/40 p-3 space-y-2">
       <label className="block text-sm">
         Destinatario del criterio
-        <select
+        <UniformSelect
           className={stile}
           value={dest}
           disabled={!!c.gruppo_id}
@@ -67,12 +68,12 @@ export function SoggettoCriterioItp({
               }
             </option>
           ))}
-        </select>
+        </UniformSelect>
       </label>
       {dest === "operaio" && (
         <label className="block text-sm">
           Operaio titolare
-          <select
+          <UniformSelect
             className={stile}
             value={c.operaio_id ?? ""}
             disabled={!!c.gruppo_id}
@@ -101,14 +102,14 @@ export function SoggettoCriterioItp({
                   : ""}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         </label>
       )}
       {dest === "incarico" && (
         <>
           <label className="block text-sm">
             Ruolo da esaminare
-            <select
+            <UniformSelect
               className={stile}
               value={c.ruolo ?? ""}
               disabled={!!c.gruppo_id}
@@ -128,11 +129,11 @@ export function SoggettoCriterioItp({
                   {n}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           </label>
           <label className="block text-sm">
             Incarico titolare
-            <select
+            <UniformSelect
               className={stile}
               value={c.incarico_id ?? ""}
               disabled={!!c.gruppo_id}
@@ -167,7 +168,7 @@ export function SoggettoCriterioItp({
                       : ""}
                   </option>
                 ))}
-            </select>
+            </UniformSelect>
           </label>
         </>
       )}

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/piano/CassaIndicatori.tsx
 // Flusso di cassa mese per mese, capitale impegnato e indicatori (margine, ROI, TIR, durata,
 // valori al m²), affiancati: previsto · stima finale · scenario. Lo scenario è un «e se…»
@@ -405,7 +406,7 @@ export function CassaIndicatori({
         <div className="generale-table-toolbar">
           <label>
             Periodo
-            <select
+            <UniformSelect
               aria-label="Periodo del flusso di cassa"
               value={periodo}
               onChange={(e) => {
@@ -416,7 +417,7 @@ export function CassaIndicatori({
               <option value="tutto">Intera operazione</option>
               <option value="passato">Mesi precedenti · reale</option>
               <option value="futuro">Da questo mese · reale e previsto</option>
-            </select>
+            </UniformSelect>
           </label>
           <span className="text-xs text-muted-foreground">
             {picco.meseCapitaleMassimo

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * QuickContactModal — Modulo contatto rapido per la landing.
  * Si apre da qualsiasi CTA "Inizia Gratis / Richiedi Demo" tramite l'helper
@@ -274,7 +275,7 @@ export default function QuickContactModal() {
               {/* Qualificazione facoltativa: aumenta la personalizzazione
                   percepita e dà al commerciale la priorità del lead. */}
               <div>
-                <select
+                <UniformSelect
                   name="cantieri"
                   value={form.cantieri}
                   onChange={handleChange}
@@ -286,7 +287,7 @@ export default function QuickContactModal() {
                   <option value="1-3">1–3 cantieri</option>
                   <option value="4-10">4–10 cantieri</option>
                   <option value="10+">Più di 10 cantieri</option>
-                </select>
+                </UniformSelect>
               </div>
 
               {/* Consensi GDPR */}

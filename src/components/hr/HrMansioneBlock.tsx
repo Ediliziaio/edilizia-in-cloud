@@ -46,7 +46,7 @@ export function HrMansioneBlock({ profilo, companyId }: Props) {
     await update.mutateAsync({
       id: profilo.id,
       mansione_id: mansione?.id ?? null,
-      mansione: mansione?.nome ?? profilo.mansione ?? null,
+      mansione: mansione?.nome ?? null,
     } as any);
   };
 

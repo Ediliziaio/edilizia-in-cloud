@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { beforeEach, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -93,7 +95,7 @@ it("salva tutte le foto dello stesso DDT prima di avviare la rete, senza richied
     new File(["foto1"], "fronte.heic", { type: "image/heic" }),
     new File(["foto2"], "retro.png", { type: "image/png" }),
   ];
-  fireEvent.change(screen.getByLabelText("Scegli le pagine del DDT"), {
+  changeFormControl(screen.getByLabelText("Scegli le pagine del DDT"), {
     target: { files },
   });
   await screen.findByText("1. fronte.heic");
@@ -117,7 +119,7 @@ it("salva tutte le foto dello stesso DDT prima di avviare la rete, senza richied
 it("un errore di IndexedDB conserva le foto e non dichiara un invio riuscito", async () => {
   m.enqueue.mockRejectedValue(new Error("quota esaurita"));
   apri();
-  fireEvent.change(screen.getByLabelText("Scegli le pagine del DDT"), {
+  changeFormControl(screen.getByLabelText("Scegli le pagine del DDT"), {
     target: {
       files: [new File(["foto"], "bolla.jpg", { type: "image/jpeg" })],
     },
@@ -139,7 +141,7 @@ it("rifiuta un formato non supportato prima di salvare e non accetta cantieri es
   expect(screen.getByRole("combobox", { name: "Cantiere" })).toHaveValue(
     "cantiere",
   );
-  fireEvent.change(screen.getByLabelText("Scegli le pagine del DDT"), {
+  changeFormControl(screen.getByLabelText("Scegli le pagine del DDT"), {
     target: {
       files: [
         new File(["exe"], "programma.exe", {
@@ -161,7 +163,7 @@ const dueCantieri = () => {
   ];
 };
 const caricaBolla = async () => {
-  fireEvent.change(screen.getByLabelText("Scegli le pagine del DDT"), {
+  changeFormControl(screen.getByLabelText("Scegli le pagine del DDT"), {
     target: {
       files: [new File(["foto"], "bolla.jpg", { type: "image/jpeg" })],
     },
@@ -211,7 +213,7 @@ it("per l'operaio, in cantiere, il cantiere resta obbligatorio", async () => {
   );
   expect(screen.getByRole("button", { name: /In cantiere/ })).toHaveAttribute("aria-pressed", "true");
   expect(
-    screen.getByRole("option", { name: "Scegli il cantiere" }),
+    formOptions().getByRole("option", { name: "Scegli il cantiere" }),
   ).toBeInTheDocument();
   await caricaBolla();
   expect(

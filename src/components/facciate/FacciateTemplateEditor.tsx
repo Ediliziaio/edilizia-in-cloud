@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { TemplateSectionNavigation } from "@/components/preventivi/TemplateSectionNavigation";
 import { edileSectionExcluded } from "@/components/preventivi/templateNavigationState";
 import { withEdilePageVisibility } from "@/components/preventivi/edilePageVisibility";
@@ -153,7 +154,7 @@ export function FacciateTemplateEditor({ moduleId, template, saved, save, onDirt
           {[ ["ragione_sociale", "Ragione sociale"], ["indirizzo_completo", "Indirizzo"], ["telefono", "Telefono"], ["email", "Email"], ["partita_iva", "Partita IVA"] ].map(([key, label]) => text(key as keyof FullFacTemplate, label))}
           <FacciateLocalImageField label="Logo aziendale" value={form.logo_url} onChange={url => update("logo_url", url)} />
           <div className="grid grid-cols-2 gap-3">{(["color_primary", "color_accent"] as const).map((key, i) => <label key={key} className="text-sm">{i ? "Colore accento" : "Colore primario"}<Input type="color" aria-label={i ? "Colore accento" : "Colore primario"} value={form[key] || "#465b50"} onChange={e => update(key, e.target.value)} /></label>)}</div>
-          <label className="block text-sm">Carattere<select aria-label="Carattere" value={form.font_family || "helvetica"} onChange={e => update("font_family", e.target.value)} className="ml-2 rounded border p-2"><option value="helvetica">Lineare</option><option value="editoriale">Editoriale</option><option value="times">Classico</option></select></label>
+          <label className="block text-sm">Carattere<UniformSelect aria-label="Carattere" value={form.font_family || "helvetica"} onChange={e => update("font_family", e.target.value)} className="ml-2 rounded border p-2"><option value="helvetica">Lineare</option><option value="editoriale">Editoriale</option><option value="times">Classico</option></UniformSelect></label>
         </>}
         {section === "page_cover" && <>
           <TemplateCoverStylePicker presets={COVER_PRESETS} activeId={COVER_PRESETS.find(preset => Object.entries(preset.patch).filter(([key]) => key !== "pdf_cover_image_url").every(([key, value]) => coverFields[key] === value))?.id} onApply={applyCoverStyle} />

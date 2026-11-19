@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /** «Nuovo contratto» dalla scheda del cliente: si sceglie la commessa e il contratto si apre lì (09/11/2026). */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -37,7 +39,7 @@ describe("nuovo contratto dal cliente", () => {
   it("si possono riprendere le righe di un lavoro precedente", async () => {
     righe.valore = [{ id: "o1", order_code: "SIM-1", description: "Bagno" }];
     disegna();
-    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "lavoro:o1" } });
+    changeFormControl(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "lavoro:o1" } });
     fireEvent.click(screen.getByRole("button", { name: /Nuovo lavoro/ }));
     expect(screen.getByTestId("dove")).toHaveTextContent("contratto=1&copia_da=o1");
   });
@@ -45,7 +47,7 @@ describe("nuovo contratto dal cliente", () => {
     righe.valore = [];
     righe.preventivi = [{ id: "q1", quote_number: "PRV-2025-7", title: "Bagno", created_at: "2025-11-09T10:00:00Z" }];
     disegna();
-    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "preventivo:q1" } });
+    changeFormControl(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "preventivo:q1" } });
     fireEvent.click(screen.getByRole("button", { name: /Nuovo lavoro/ }));
     expect(screen.getByTestId("dove")).toHaveTextContent("contratto=1&copia_preventivo=preventivo%3Aq1");
     expect(screen.getByTestId("dove")).not.toHaveTextContent("quote_id");
@@ -55,8 +57,8 @@ describe("nuovo contratto dal cliente", () => {
     righe.valore = [];
     righe.moduli = [{ id: "p1", code: "RST-1", tipo_intervento: "Bagno", created_at: "2025-06-01T10:00:00Z" }];
     disegna();
-    fireEvent.change(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "modulo:rst:p1" } });
-    expect(screen.getByRole("option", { name: /Ristrutturazione · RST-1 · Bagno/ })).toBeTruthy();
+    changeFormControl(await screen.findByLabelText("Righe del nuovo lavoro"), { target: { value: "modulo:rst:p1" } });
+    expect(formOptions().getByRole("option", { name: /Ristrutturazione · RST-1 · Bagno/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Nuovo lavoro/ }));
     expect(screen.getByTestId("dove")).toHaveTextContent("copia_preventivo=modulo%3Arst%3Ap1");
     righe.moduli = [];

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   render,
   screen,
@@ -98,15 +99,15 @@ describe("Contabilità del subappalto", () => {
       />,
     );
     const riepilogo = screen.getByText("Lordo SAL").parentElement!;
-    expect(riepilogo.textContent).toContain("2000,00");
-    fireEvent.change(
+    expect(riepilogo.textContent).toContain("2.000,00");
+    changeFormControl(
       screen.getByRole("combobox", { name: "Filtra per stato" }),
       { target: { value: "contestato" } },
     );
     expect(screen.queryByRole("button", { name: "Apri SAL 1" })).toBeNull();
     expect(screen.getByRole("button", { name: "Apri SAL 2" })).toBeTruthy();
-    expect(riepilogo.textContent).toContain("2000,00");
-    fireEvent.change(
+    expect(riepilogo.textContent).toContain("2.000,00");
+    changeFormControl(
       screen.getByRole("textbox", { name: "Cerca nella contabilità" }),
       { target: { value: "inesistente" } },
     );

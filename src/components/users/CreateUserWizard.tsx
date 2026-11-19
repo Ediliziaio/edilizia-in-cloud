@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEmployeeAccountOptions } from "@/hooks/useEmployeeAccountOptions";
 import { OfficeProfileSelector } from "./OfficeProfileSelector";
 import { useState, useMemo, useRef, useEffect } from "react";
@@ -255,6 +256,9 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
   const showPermissions = ROLES_WITH_PERMISSIONS.includes(roleType);
   const isSuccessStep = step === 3;
   const conFlagDipendente = ROLES_WITH_EMPLOYEE_FLAG.includes(roleType);
+  const selezionaPersona = !!companyId && (roleType === "employee" || (conFlagDipendente && alsoEmployee));
+  const profiloScelto = selezionaPersona ? employeeOptions.find(p => p.id === employeeId) : undefined;
+  const sceltaMancante = selezionaPersona && !profiloScelto && employeeId !== "nuova";
   const stipendioRilevante = roleType === "employee" || (conFlagDipendente && alsoEmployee);
 
   // Permessi diversi dal preset del ruolo? Il riassunto lo dice.
@@ -333,6 +337,10 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
 
   /** Nome, cognome ed email: servono sia per creare sia per passare ai permessi. */
   const datiValidi = (): boolean => {
+    if (sceltaMancante) {
+      toast({ title: "Scegli il profilo del personale oppure Nuova persona", variant: "destructive" });
+      return false;
+    }
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       toast({ title: "Campi obbligatori", description: "Compila nome, cognome e email.", variant: "destructive" });
       return false;
@@ -374,7 +382,7 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
         commission_percentage: commission,
         gross_salary: Number.isFinite(grossSalaryNum) ? grossSalaryNum : undefined,
         also_employee: alsoEmp,
-        employee_id: (roleType === "employee" || alsoEmp) && employeeId ? employeeId : undefined,
+        employee_id: profiloScelto?.id,
       });
       if (result.temporaryPassword) {
         setTemporaryPassword(result.temporaryPassword);
@@ -459,48 +467,6 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
           {/* ── PASSO 1: chi è ── */}
           {step === 1 && (
             <div className="space-y-4 py-1 max-sm:space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="nu-nome">Nome</Label>
-                  <Input id="nu-nome" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Mario" autoComplete="off" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="nu-cognome">Cognome</Label>
-                  <Input id="nu-cognome" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Rossi" autoComplete="off" />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="nu-email">Email</Label>
-                <Input
-                  id="nu-email"
-                  type="email"
-                  inputMode="email"
-                  autoCapitalize="none"
-                  autoComplete="off"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="mario.rossi@azienda.it"
-                />
-              </div>
-
-              {(roleType === "employee" || alsoEmployee) && companyId && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="nu-personale">Scheda del personale</Label>
-                  <select id="nu-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId}
-                    disabled={employeeLoading || employeeError}
-                    onChange={e => {
-                      setEmployeeId(e.target.value);
-                      const employee=employeeOptions.find(p=>p.id===e.target.value);
-                      if(employee){setFirstName(employee.first_name);setLastName(employee.last_name);if(employee.email)setEmail(employee.email);}
-                    }}>
-                    <option value="">Nuova persona, non ancora presente</option>
-                    {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
-                  </select>
-                  <p className="text-xs text-muted-foreground">Se è già nel personale, seleziona la sua scheda: conserverà cantieri, presenze e documenti.</p>
-                  {employeeLoading && <p role="status" className="text-xs">Controllo il personale esistente…</p>}
-                  {employeeError && <p role="alert" className="text-xs text-destructive">Non riesco a verificare il personale. Riapri la finestra prima di creare l’accesso.</p>}
-                </div>
-              )}
               <div className="space-y-1.5">
                 <Label id="nu-ruolo">Ruolo</Label>
                 <div role="radiogroup" aria-labelledby="nu-ruolo" className="grid gap-1.5 sm:grid-cols-2">
@@ -532,6 +498,50 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
                 {NOTA_RUOLO[roleType] && (
                   <p className="text-[11px] leading-snug text-muted-foreground">{NOTA_RUOLO[roleType]}</p>
                 )}
+              </div>
+
+              {selezionaPersona && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="nu-personale">Scheda del personale</Label>
+                  <UniformSelect id="nu-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId}
+                    disabled={employeeLoading || employeeError}
+                    onChange={e => {
+                      setEmployeeId(e.target.value);
+                      const employee=employeeOptions.find(p=>p.id===e.target.value);
+                      if(employee){setFirstName(employee.first_name);setLastName(employee.last_name);setEmail(employee.email ?? "");}
+                      else if (profiloScelto) {setFirstName("");setLastName("");setEmail("");}
+                    }}>
+                    <option value="" disabled>Scegli un profilo di Personale &amp; HR</option>
+                    {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}{p.mansione ? ` · ${p.mansione}` : ""}{p.email ? ` · ${p.email}` : ""}</option>)}
+                    <option value="nuova">Nuova persona, non ancora presente</option>
+                  </UniformSelect>
+                  <p className="text-xs text-muted-foreground">Se è già nel personale, seleziona la sua scheda: conserverà cantieri, presenze e documenti.</p>
+                  {employeeLoading && <p role="status" className="text-xs">Controllo il personale esistente…</p>}
+                  {employeeError && <p role="alert" className="text-xs text-destructive">Non riesco a verificare il personale. Riapri la finestra prima di creare l’accesso.</p>}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="nu-nome">Nome</Label>
+                  <Input id="nu-nome" readOnly={!!profiloScelto} value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Mario" autoComplete="off" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="nu-cognome">Cognome</Label>
+                  <Input id="nu-cognome" readOnly={!!profiloScelto} value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Rossi" autoComplete="off" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="nu-email">Email</Label>
+                <Input
+                  id="nu-email"
+                  type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="mario.rossi@azienda.it"
+                />
               </div>
 
               {/* Venditore: provvigione accanto al flag «assunto». */}
@@ -866,12 +876,12 @@ export function CreateUserWizard({ open, onOpenChange, onSubmit, isLoading, comp
           ) : (
             <>
               {step === 2 && (
-                <Button variant="outline" onClick={() => setStep(1)} disabled={isLoading || ((roleType === "employee" || alsoEmployee) && !!companyId && (employeeLoading || employeeError))}>
+                <Button variant="outline" onClick={() => setStep(1)} disabled={isLoading}>
                   <ChevronLeft className="mr-1 h-4 w-4" />
                   Indietro
                 </Button>
               )}
-              <Button onClick={() => { void handleSubmit(); }} disabled={isLoading || ((roleType === "employee" || alsoEmployee) && !!companyId && (employeeLoading || employeeError))}>
+              <Button onClick={() => { void handleSubmit(); }} disabled={isLoading || sceltaMancante || (selezionaPersona && (employeeLoading || employeeError))}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Crea utente
               </Button>

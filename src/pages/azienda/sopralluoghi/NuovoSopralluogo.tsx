@@ -63,6 +63,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import type { OrderSurveyContext } from "@/lib/surveys/orderVisits";
 
 type LinkMode = "nessuno" | "cliente" | "prospect";
 
@@ -89,10 +90,14 @@ export default function NuovoSopralluogo() {
     <SurveyCreateForm key={companyId || "no-company"} companyId={companyId} />
   );
 }
-function SurveyCreateForm({
-  companyId,
+export function SurveyCreateForm({
+  companyId, commessa, onCreated, onCancel, onBusyChange,
 }: {
   companyId: ReturnType<typeof useEffectiveCompanyId>;
+  commessa?: OrderSurveyContext;
+  onCreated?: (id: string) => void;
+  onCancel?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -101,24 +106,24 @@ function SurveyCreateForm({
 
   // Pre-popolato da query params (es. da pagina Commessa)
   const [orderId, setOrderId] = useState<string | null>(
-    params.get("order") ?? null,
+    commessa?.orderId ?? params.get("order") ?? null,
   );
   const [clientId, setClientId] = useState<string | null>(
-    params.get("client") ?? null,
+    commessa?.clientId ?? params.get("client") ?? null,
   );
   /* Dalla commessa si va a prendere le misure per ordinare; prima del contratto sono di massima. */
   const [ruoloMisure, setRuoloMisure] = useState<"preliminare" | "definitivo">(
-    params.get("order") ? "definitivo" : "preliminare",
+    commessa?.orderId || params.get("order") ? "definitivo" : "preliminare",
   );
-  const [technicianId, setTechnicianId] = useState<string | null>(null);
-  const [address, setAddress] = useState(params.get("address") ?? "");
+  const [technicianId, setTechnicianId] = useState<string | null>(commessa?.appointment?.assigned_to ?? null);
+  const [address, setAddress] = useState(commessa?.address ?? params.get("address") ?? "");
   const [city, setCity] = useState(params.get("city") ?? "");
   const [zip, setZip] = useState("");
   /* L'indirizzo scelto dal cercatore: tiene anche coordinate e provincia, che
      i tre campi liberi non avevano. `address`/`city`/`zip` restano come sono
      perché è quello che il salvataggio scrive già. */
   const [indirizzoCantiere, setIndirizzoCantiere] = useState<AddressData>({
-    address_line: params.get("address") ?? "",
+    address_line: commessa?.address ?? params.get("address") ?? "",
     address_city: params.get("city") ?? "",
     address_postal_code: "",
     address_province: "",
@@ -129,8 +134,8 @@ function SurveyCreateForm({
     lng: null,
     place_id: "",
   });
-  const [scheduledDay, setScheduledDay] = useState("");
-  const [scheduledTime, setScheduledTime] = useState("09:00");
+  const [scheduledDay, setScheduledDay] = useState(commessa?.appointment?.appointment_date ?? "");
+  const [scheduledTime, setScheduledTime] = useState(commessa?.appointment?.appointment_time?.slice(0,5) ?? "09:00");
   /** Il calendario su cui fissare il rilievo, quando il tecnico ne ha piu' d'uno. */
   const [calendarioId, setCalendarioId] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -143,7 +148,7 @@ function SurveyCreateForm({
   // A chi si riferisce: cliente esistente OPPURE contatto/opportunità (prospect).
   // Chi arriva con ?client= parte da "cliente"; se non c'è nulla, si sceglie.
   const [linkMode, setLinkMode] = useState<LinkMode>(
-    params.get("client") || params.get("order") ? "cliente" : "nessuno",
+    commessa || params.get("client") || params.get("order") ? "cliente" : "nessuno",
   );
   const [contactId, setContactId] = useState<string | null>(null);
   const [opportunityId, setOpportunityId] = useState<string | null>(null);
@@ -220,7 +225,7 @@ function SurveyCreateForm({
 
   const { data: orders } = useQuery({
     queryKey: ["company-orders-for-surveys", companyId],
-    enabled: !!companyId,
+    enabled: !!companyId && !commessa,
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
@@ -492,10 +497,11 @@ function SurveyCreateForm({
       const survey = await createSurvey(
         {
           template_id: selectedModel.id,
-          client_id: linkMode === "cliente" ? clientId : null,
+          client_id: commessa ? commessa.clientId : linkMode === "cliente" ? clientId : null,
           contact_id: linkMode === "prospect" ? contactId : null,
           opportunity_id: linkMode === "prospect" ? opportunityId : null,
-          order_id: orderId,
+          order_id: commessa?.orderId ?? orderId,
+          ...(commessa?.appointment?.id ? {appointment_id: commessa.appointment.id} : {}),
           technician_id: technicianId,
           scheduled_at: surveyAppointment(scheduledDay, scheduledTime),
           address: address.trim() || null,
@@ -509,7 +515,7 @@ function SurveyCreateForm({
       /* Il rilievo va in agenda: occupa lo slot e compare nel calendario.
          Se l'agenda rifiuta la riga il sopralluogo resta creato comunque. */
       let inAgenda = false;
-      if (calendarioAgenda && scheduledDay && technicianId) {
+      if (!commessa?.appointment && calendarioAgenda && scheduledDay && technicianId) {
         const id = await fissaSopralluogoInAgenda(
           survey.id,
           appuntamentoDelSopralluogo({
@@ -531,14 +537,15 @@ function SurveyCreateForm({
       return { survey, inAgenda, conCalendario: !!calendarioAgenda };
     },
     onSuccess: ({ survey, inAgenda, conCalendario }) => {
-      toast.success(`Sopralluogo ${survey.code} creato`, {
+      toast.success(`Sopralluogo ${survey.code} ${commessa?.appointment ? "aperto" : "creato"}`, {
         description: inAgenda
           ? `In agenda il ${format(new Date(`${scheduledDay}T12:00:00`), "d MMMM", { locale: it })} alle ${scheduledTime}.`
           : conCalendario
             ? "Creato, ma non è stato possibile metterlo in agenda."
             : undefined,
       });
-      navigate(`/azienda/sopralluoghi/${survey.id}?modifica=1`);
+      if (onCreated) onCreated(survey.id);
+      else navigate(`/azienda/sopralluoghi/${survey.id}?modifica=1`);
     },
     onError: (e) => {
       setSubmitError(
@@ -548,6 +555,7 @@ function SurveyCreateForm({
     },
     onSettled: () => {
       creating.current = false;
+      onBusyChange?.(false);
     },
   });
 
@@ -591,6 +599,7 @@ function SurveyCreateForm({
   );
   function go(next: number) {
     if (createMutation.isPending) return;
+    if (commessa && next === 2) next = step === 1 ? 3 : 1;
     setStep(next);
     setSubmitError("");
     requestAnimationFrame(() => heading.current?.focus());
@@ -598,6 +607,7 @@ function SurveyCreateForm({
   function submit() {
     if (creating.current || !canSubmit) return;
     creating.current = true;
+    onBusyChange?.(true);
     setSubmitError("");
     createMutation.mutate();
   }
@@ -620,12 +630,12 @@ function SurveyCreateForm({
                 ? selectedOpportunity?.name || "Opportunità selezionata"
                 : contactId
                   ? nomeContatto(selectedContact) || "Contatto selezionato"
-                  : clientId
+              : commessa?.clientName || (clientId
                     ? person(selectedCustomer) || "Cliente selezionato"
-                    : "Nessun cliente selezionato"}
+                    : "Nessun cliente selezionato")}
             {orderId && (
               <span className="mt-1 block text-xs text-slate-500">
-                {selectedOrder?.order_code || "Commessa selezionata"}
+                {commessa?.orderCode || selectedOrder?.order_code || "Commessa selezionata"}
               </span>
             )}
           </dd>
@@ -667,7 +677,7 @@ function SurveyCreateForm({
           >
             Cambia modello
           </Button>
-          <Button
+          {!commessa && <Button
             type="button"
             size="sm"
             variant="outline"
@@ -676,7 +686,7 @@ function SurveyCreateForm({
             onClick={() => go(2)}
           >
             Cambia collegamenti
-          </Button>
+          </Button>}
         </div>
       )}
       <p className="mt-4 border-t pt-3 text-xs leading-relaxed text-slate-500">
@@ -696,7 +706,7 @@ function SurveyCreateForm({
           className="h-11 w-11 shrink-0 rounded-xl"
           disabled={createMutation.isPending}
           onClick={() =>
-            step > 1 ? go(step - 1) : navigate("/azienda/sopralluoghi")
+            step > 1 ? go(step - 1) : onCancel ? onCancel() : navigate("/azienda/sopralluoghi")
           }
         >
           <ArrowLeft className="h-4 w-4" />
@@ -713,6 +723,7 @@ function SurveyCreateForm({
           </p>
         </div>
       </header>
+      {commessa && <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm"><span className="font-medium">{commessa.orderCode || "Commessa corrente"}</span>{commessa.clientName ? ` · ${commessa.clientName}` : ""}<p className="mt-1 text-xs text-muted-foreground">Cliente e commessa sono già collegati. Qui prepari solo il sopralluogo.</p></div>}
       {!companyId && (
         <p
           role="alert"
@@ -723,14 +734,14 @@ function SurveyCreateForm({
       )}
       <nav
         aria-label="Passaggi nuovo sopralluogo"
-        className="grid grid-cols-3 gap-1 rounded-2xl border bg-white p-1.5 shadow-sm"
+        className={cn("grid gap-1 rounded-2xl border bg-white p-1.5 shadow-sm",commessa ? "grid-cols-2" : "grid-cols-3")}
       >
-        {stepNames.map((name, i) => (
+        {stepNames.map((name, i) => !commessa || i !== 1 ? (
           <button
             key={name}
             type="button"
             aria-current={step === i + 1 ? "step" : undefined}
-            aria-label={`${i + 1}. ${name}`}
+            aria-label={`${commessa && i === 2 ? 2 : i + 1}. ${name}`}
             disabled={createMutation.isPending || (i > 0 && !canNext1)}
             onClick={() => go(i + 1)}
             className={cn(
@@ -748,7 +759,7 @@ function SurveyCreateForm({
                   : "border-current/20",
               )}
             >
-              {step > i + 1 ? <Check className="h-3.5 w-3.5" /> : i + 1}
+              {step > i + 1 ? <Check className="h-3.5 w-3.5" /> : commessa && i === 2 ? 2 : i + 1}
             </span>
             <span className="min-w-0 font-medium leading-snug sm:hidden">
               {["Rilievo", "Cliente", "Luogo e data"][i]}
@@ -757,13 +768,13 @@ function SurveyCreateForm({
               {name}
             </span>
           </button>
-        ))}
+        ) : null)}
       </nav>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0 space-y-4">
           <div className="px-1">
             <p className="text-xs font-medium text-slate-500">
-              Passaggio {step} di 3
+              Passaggio {commessa && step === 3 ? 2 : step} di {commessa ? 2 : 3}
             </p>
             <h2
               ref={heading}
@@ -905,6 +916,7 @@ function SurveyCreateForm({
                 aria-label="Collegamenti del sopralluogo"
                 className="space-y-5 rounded-2xl border bg-white p-4 sm:p-5"
               >
+                {commessa ? <div className="space-y-2 text-sm"><h3 className="font-semibold">Collegato a questa commessa</h3><p>{commessa.orderCode || "Commessa corrente"}{commessa.clientName ? ` · ${commessa.clientName}` : ""}</p><p className="text-xs text-muted-foreground">Il rilievo rimane nella commessa e usa il cliente già presente.</p></div> : <>
                 <div
                   role="radiogroup"
                   aria-label="A chi si riferisce"
@@ -1087,6 +1099,7 @@ function SurveyCreateForm({
                     </div>
                   </>
                 )}
+                </>}
               </section>
             )}
             {step === 3 && (
@@ -1167,7 +1180,7 @@ function SurveyCreateForm({
                       : "Non conosci ancora il luogo? Lascia vuoto e completalo nella bozza."}
                   </p>
                 </section>
-                <section
+                {commessa?.appointment ? <section className="space-y-2 rounded-2xl border bg-white p-4"><h3 className="text-sm font-semibold">Appuntamento già fissato</h3><p className="text-sm">{scheduledDay ? format(new Date(`${scheduledDay}T12:00:00`), "d MMMM yyyy", {locale:it}) : "Data da verificare"}{commessa.appointment.appointment_time ? ` · ${scheduledTime}` : ""}</p><p className="text-xs text-muted-foreground">Il rilievo sarà collegato a questo appuntamento. Data e tecnico si modificano dalla pianificazione.</p></section> : <section
                   aria-label="Appuntamento e incaricato"
                   className="space-y-4 rounded-2xl border bg-white p-4 sm:p-5"
                 >
@@ -1348,7 +1361,7 @@ function SurveyCreateForm({
                         : "Scegli il tecnico per vedere i suoi orari liberi e fissare il rilievo nel suo calendario."}
                     </p>
                   )}
-                </section>
+                </section>}
                 <details className="rounded-2xl border bg-white p-4 sm:p-5">
                   <summary className="cursor-pointer text-sm font-semibold">
                     Note e accesso al cantiere{" "}

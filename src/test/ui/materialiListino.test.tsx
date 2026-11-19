@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -46,9 +47,9 @@ describe("Materiali nel Listino", () => {
     expect(screen.queryByText("Laterizio estraneo")).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Materiali e servizi (2)" })).toHaveAttribute("data-state", "active");
     expect(screen.getByText("Laterizio due")).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Fornitore" }), { target: { value: "s2" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Fornitore" }), { target: { value: "s2" } });
     expect(screen.queryByText("Laterizio uno")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("combobox", { name: "Stato materiale" }), { target: { value: "attivi" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Stato materiale" }), { target: { value: "attivi" } });
     expect(screen.getByText("Nessuna voce corrisponde ai filtri.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Azzera filtri" }));
     expect(screen.getByText("Laterizio uno")).toBeInTheDocument();

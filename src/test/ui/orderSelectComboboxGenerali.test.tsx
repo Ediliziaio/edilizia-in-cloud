@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Selettore di commessa di DDT, fatture ricevute, magazzino e mezzi (14/11/2026): la generale
  * si trova per nome, ha l'etichetta «Generale», e le figlie le stanno sotto.
  */
-const m = vi.hoisted(() => ({ chiamate: [] as Array<[string, unknown[]]>, righe: [] as unknown[], generali: [] as unknown[] }));
+const m = vi.hoisted(() => ({ chiamate: [] as Array<[string, unknown[]]>, righe: [] as unknown[], fail: false, generali: [] as unknown[] }));
 vi.mock("@/integrations/supabase/client", () => {
   // Una lettura con `.in("id", …)` è quella dei nomi delle generali; le altre sono l'elenco.
   const catena = (perNome = false): unknown =>
@@ -14,7 +14,7 @@ vi.mock("@/integrations/supabase/client", () => {
       {},
       {
         get(_t, k: string) {
-          if (k === "then") return (ok: (v: unknown) => void) => ok({ data: perNome ? m.generali : m.righe, error: null });
+          if (k === "then") return (ok: (v: unknown) => void) => ok(m.fail ? { data: null, error: { message: "offline" } } : { data: perNome ? m.generali : m.righe, error: null });
           if (k === "maybeSingle") return async (): Promise<{ data: unknown; error: unknown }> => ({ data: null, error: null });
           return (...args: unknown[]) => {
             m.chiamate.push([k, args]);
@@ -37,7 +37,7 @@ const riga = (id: string, order_code: string, extra: Record<string, unknown> = {
   workflow_kind: "commessa", commessa_generale_id: null, order_items: [], ...extra,
 });
 
-afterEach(() => { cleanup(); m.chiamate = []; });
+afterEach(() => { cleanup(); m.chiamate = []; m.fail = false; });
 
 describe("OrderSelectCombobox e le commesse generali", () => {
   it("«Grandi lavori» chiede generali e figlie e le mostra in fila, con l'etichetta", async () => {
@@ -99,4 +99,25 @@ describe("OrderSelectCombobox e le commesse generali", () => {
       expect(m.chiamate.some(([k, a]) => k === "or" && String(a[0]).includes("description.ilike.%Lotti%"))).toBe(true),
     );
   });
+});
+
+it("il collegamento all’Ufficio cerca solo commesse operative, mantenendo azienda e record non eliminati", async () => {
+  m.righe = []; m.generali = [];
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><OrderSelectCombobox companyId="company-demo" soloOperative filtroIniziale="all" onChange={vi.fn()} value={undefined} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("combobox", { name: "Commessa" }));
+  await waitFor(() => expect(m.chiamate).toContainEqual(["or", ["workflow_kind.neq.generale,workflow_kind.is.null"]]));
+  expect(m.chiamate).toContainEqual(["eq", ["company_id", "company-demo"]]);
+  expect(m.chiamate).toContainEqual(["is", ["deleted_at", null]]);
+});
+it("un errore di lettura non viene presentato come elenco vuoto e permette di riprovare", async () => {
+  m.fail = true; m.righe = []; m.generali = [];
+  const onChange = vi.fn();
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><OrderSelectCombobox companyId="company-demo" filtroIniziale="all" onChange={onChange} value={undefined} /></QueryClientProvider>);
+  fireEvent.click(screen.getByRole("combobox", { name: "Commessa" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a caricare le commesse.");
+  expect(onChange).not.toHaveBeenCalled();
+  m.fail = false;
+  fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  expect(screen.getByText("Nessun ordine trovato")).toBeInTheDocument();
 });

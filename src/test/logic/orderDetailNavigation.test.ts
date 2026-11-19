@@ -34,7 +34,7 @@ describe("Navigazione unica della commessa", () => {
   });
   it.each([
     ["section-pagamenti", "pagamenti"], ["section-ritenute", "pagamenti"], ["esposizione-commessa", "margini"],
-    ["section-sal", "sal"], ["section-varianti", "varianti"], ["section-fatturazione", "documenti"], ["section-conto-economico", "margini"],
+    ["section-sal", "sal"], ["section-varianti", "varianti"], ["section-fatturazione", "pagamenti"], ["section-conto-economico", "margini"],
   ])("l'ancora economica %s monta la vista corretta", (section, view) => {
     expect(resolveEconomiaView("?vista_economia=altra", section)).toBe(view);
     expect(resolveOrderDetailDestination("?tab=panoramica", `#${section}`).tab).toBe("finanza");
@@ -55,8 +55,9 @@ describe("Navigazione unica della commessa", () => {
     it("distingue i SAL e le fatture del cliente da quelli dei subappaltatori", () => {
       const etichetta = (valore: string) => ECONOMIA_VIEWS.find((v) => v.value === valore)?.label;
       expect(etichetta("sal")).toBe("SAL al cliente");
-      expect(etichetta("documenti")).toBe("Fatture al cliente");
-      expect(etichetta("pagamenti")).toBe("Incassi");
+      expect(etichetta("documenti")).toBeUndefined();
+      expect(resolveEconomiaView("?vista_economia=documenti")).toBe("pagamenti");
+      expect(etichetta("pagamenti")).toBe("Fatture e Incassi");
     });
     it.each([
       ["section-uscite", "tutte"], ["section-fatture-fornitori", "fornitori"], ["section-subappaltatori", "subappaltatori"],

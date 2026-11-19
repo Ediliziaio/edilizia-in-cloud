@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1047,7 +1048,7 @@ export function TariffaDialog({
               </div>
               <div>
                 <Label htmlFor={idDi("gruppo")}>Gruppo di lavorazioni</Label>
-                <select
+                <UniformSelect
                   id={idDi("gruppo")}
                   aria-describedby={idDi("gruppo-aiuto")}
                   value={gruppo}
@@ -1055,7 +1056,7 @@ export function TariffaDialog({
                   className={`mt-1.5 h-10 w-full rounded-md border bg-background px-3 text-sm ${CAMPO_DA_DITO}`}
                 >
                   {GRUPPI_LAVORAZIONE.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                </select>
+                </UniformSelect>
                 <p id={idDi("gruppo-aiuto")} className="mt-1 text-xs text-muted-foreground">All'interno dell'area, organizza la voce per fase o tipo di lavoro.</p>
               </div>
 
@@ -2553,15 +2554,15 @@ export default function SettingsTariffe() {
               ))}
             </SelectContent>
           </Select>
-          <select aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px] max-md:h-11">
+          <UniformSelect aria-label="Filtra per gruppo di lavorazioni" value={lavorazioneFilter} onChange={e => { setLavorazioneFilter(e.target.value as GruppoLavorazione | "all"); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[230px] max-md:h-11">
             <option value="all">Tutte le lavorazioni</option>
             {/* Solo i gruppi che l'azienda usa: a un serramentista non servono le strutture. */}
             {GRUPPI_LAVORAZIONE.filter(g => g.id === lavorazioneFilter || tariffe.some(t => gruppoLavorazione(t) === g.id)).map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-          </select>
-          {tariffe.some(t => categoriaPrezzarioTariffa(t)) && <select aria-label="Filtra per categoria regionale" value={categoriaRegionaleFilter} onChange={e => { setCategoriaRegionaleFilter(e.target.value); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[250px] max-md:h-11">
+          </UniformSelect>
+          {tariffe.some(t => categoriaPrezzarioTariffa(t)) && <UniformSelect aria-label="Filtra per categoria regionale" value={categoriaRegionaleFilter} onChange={e => { setCategoriaRegionaleFilter(e.target.value); setActiveGroup("all"); }} className="h-9 w-full rounded-md border bg-background px-3 text-sm md:w-[250px] max-md:h-11">
             <option value="all">Tutte le categorie regionali</option>
             {[...new Set(tariffe.flatMap(t => categoriaPrezzarioTariffa(t) ? [categoriaPrezzarioTariffa(t)!] : []))].sort().map(c => <option key={c} value={c}>{c}</option>)}
-          </select>}
+          </UniformSelect>}
           {squadre.length > 0 && (
             <Select value={squadraFilter} onValueChange={setSquadraFilter}>
               <SelectTrigger aria-label="Filtra per listino" className="h-9 w-full md:w-[180px] max-md:h-11">

@@ -1,3 +1,4 @@
+import { TabellaContabile } from "./TabellaContabile";
 /**
  * Rimanenze finali al 31/12 nella contabilità generale (11/11/2026, docs/piano-assestamenti-fine-anno.md, lotto 1).
  *
@@ -110,7 +111,7 @@ export function RimanenzeFineAnno({ companyId, anno, chiuso }: { companyId: stri
   return (
     <div className="space-y-3">
       <ContiPerRuolo companyId={companyId} ruoli={mancanti} chiuso={chiuso} />
-      <div className="overflow-x-auto rounded-xl border">
+      <TabellaContabile>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
             <tr><th className="p-2">Rimanenze</th><th className="p-2 text-right">Iniziali (dal giornale)</th><th className="p-2 text-right">Finali al 31/12/{anno}</th></tr>
@@ -120,7 +121,7 @@ export function RimanenzeFineAnno({ companyId, anno, chiuso }: { companyId: stri
             {riga("Materiali di magazzino", a.materiali, materiali, setMateriali, "rim-materiali", "Proposta: giacenza di oggi × costo medio. A fine anno contala davvero.")}
           </tbody>
         </table>
-      </div>
+      </TabellaContabile>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {a.da_aggiornare ? <strong className="text-amber-700">Da aggiornare: i valori di oggi non sono quelli registrati. Premi «Registra».</strong>

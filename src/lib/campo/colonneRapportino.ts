@@ -21,15 +21,18 @@ export interface CostoRapportino {
 const PAGINA = 1000;
 
 /** I costi dei rapportini nel periodo. Senza permesso costi: importi vuoti, ore sì. */
-export async function leggiCostiRapportini(filtro: { da?: string; a?: string; orderId?: string; employeeId?: string }): Promise<CostoRapportino[]> {
+export async function leggiCostiRapportini(filtro: { da?: string; a?: string; orderId?: string; employeeId?: string }, signal?: AbortSignal): Promise<CostoRapportino[]> {
   // La funzione non è ancora nei tipi generati.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const righe: CostoRapportino[] = [];
   for (let da = 0; ; da += PAGINA) {
-    const { data, error } = await db.rpc("rapportini_costi", {
+    if (signal?.aborted) throw new DOMException("Lettura annullata", "AbortError");
+    let query = db.rpc("rapportini_costi", {
       p_da: filtro.da ?? null, p_a: filtro.a ?? null, p_order_id: filtro.orderId ?? null, p_employee_id: filtro.employeeId ?? null,
-    }).order("id").range(da, da + PAGINA - 1);
+    });
+    if (signal) query = query.abortSignal(signal);
+    const { data, error } = await query.order("id").range(da, da + PAGINA - 1);
     if (error) throw error;
     righe.push(...((data ?? []) as CostoRapportino[]));
     if (!data || data.length < PAGINA) break;

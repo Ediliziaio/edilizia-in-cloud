@@ -765,8 +765,8 @@ export const blogIndice: BlogPostScheda[] = [
       "title": "Quanto guadagni davvero su un cantiere?",
       "poster": "/images/marketing/guide/00-margine-cantiere.webp"
     },
-    "title": "Analisi dei Margini per Imprese Edili",
-    "excerpt": "Il 68% delle imprese edili non conosce i margini reali per commessa. Come calcolarli, monitorarli in tempo reale e difenderli cantiere per cantiere.",
+    "title": "Margini di cantiere nel gestionale: dati e verifiche",
+    "excerpt": "Leggi i margini di cantiere nel gestionale: ricavi, costi, dati mancanti e confronto con il preventivo. Verifiche da eseguire sul proprio flusso.",
     "category": "Finanza",
     "tags": [
       "margini edilizia",
@@ -775,7 +775,7 @@ export const blogIndice: BlogPostScheda[] = [
       "contabilità edilizia"
     ],
     "publishedAt": "2025-09-09",
-    "updatedAt": "2026-07-10",
+    "updatedAt": "2026-11-18",
     "readTime": 11,
     "author": {
       "name": "Florin Andriciuc",
@@ -1650,8 +1650,8 @@ export const blogIndice: BlogPostScheda[] = [
   {
     "id": "45",
     "slug": "google-ads-impresa-edile-errori-budget",
-    "title": "Google Ads per Imprese Edili",
-    "excerpt": "Google Ads può portare clienti edili, ma solo se campagne, landing page e CRM lavorano insieme. Ecco cosa controllare prima di bruciare budget.",
+    "title": "Da Google Ads alla commessa: fonte ed esiti nel CRM",
+    "excerpt": "Dal contatto alla commessa: registra fonte, stato della richiesta e passaggi commerciali. Criteri per verificare il percorso nel CRM senza confondere clic e contratti.",
     "category": "Marketing",
     "tags": [
       "Google Ads impresa edile",
@@ -1661,7 +1661,7 @@ export const blogIndice: BlogPostScheda[] = [
       "budget marketing edilizia"
     ],
     "publishedAt": "2026-03-31",
-    "updatedAt": "2026-04-28",
+    "updatedAt": "2026-11-18",
     "readTime": 10,
     "author": {
       "name": "Florin Andriciuc",

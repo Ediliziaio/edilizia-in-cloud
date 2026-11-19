@@ -97,3 +97,8 @@ describe("filtri, conteggi e ordine", () => {
     expect(oraFine("09:15", 5)).toBe("09:30");
   });
 });
+
+it("l'intervallo filtra la data del sopralluogo, senza includere le bozze senza data", () => {
+  const righe=[s({id:"a",scheduled_at:giorno(0)}),s({id:"b",scheduled_at:giorno(1)}),s({id:"c",scheduled_at:null})];
+  expect(filtraBacheca(righe,{periodo:"personalizzato",da:"2026-10-01",a:"2026-10-01"},adesso).map(r=>r.id)).toEqual(["a"]);
+});

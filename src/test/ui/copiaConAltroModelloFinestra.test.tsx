@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * «Copia con un altro modello» (26/10/2026): la finestra elenca gli altri modelli del preventivatore (non quello in uso),
  * crea la copia e porta ad aprirla; se la copia non riesce lo dice e resta dov'è.
@@ -30,7 +32,7 @@ describe("CopiaConAltroModello", () => {
   it("elenca gli altri modelli e non quello in uso", () => {
     monta({ modelId: "completa" });
     apri();
-    const opzioni = Array.from((screen.getByLabelText("Nuovo modello") as HTMLSelectElement).options).map((o) => o.value);
+    const opzioni = Array.from(nativeFormControl(screen.getByLabelText("Nuovo modello")).options).map((o) => o.value);
     expect(opzioni).toContain("computo");
     expect(opzioni).toContain("parziale");
     expect(opzioni).not.toContain("completa");
@@ -46,7 +48,7 @@ describe("CopiaConAltroModello", () => {
     copia.mockResolvedValue({ id: "nuovo-9", code: "RST-2026-009" });
     monta();
     apri();
-    fireEvent.change(screen.getByLabelText("Nuovo modello"), { target: { value: "computo" } });
+    changeFormControl(screen.getByLabelText("Nuovo modello"), { target: { value: "computo" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea la copia" }));
     await waitFor(() => expect(copia).toHaveBeenCalledWith({ modulo: "ristrutturazione", sourceId: "p1", companyId: "az", nuovoModelId: "computo", costruisci }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Creato il preventivo RST-2026-009", expect.anything()));
@@ -56,7 +58,7 @@ describe("CopiaConAltroModello", () => {
     copia.mockRejectedValue(new Error("Questo intervento non ha un modello completo."));
     monta();
     apri();
-    fireEvent.change(screen.getByLabelText("Nuovo modello"), { target: { value: "parziale" } });
+    changeFormControl(screen.getByLabelText("Nuovo modello"), { target: { value: "parziale" } });
     fireEvent.click(screen.getByRole("button", { name: "Crea la copia" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Copia non riuscita", { description: "Questo intervento non ha un modello completo." }));
     expect(screen.getByLabelText("Nuovo modello")).toBeTruthy();

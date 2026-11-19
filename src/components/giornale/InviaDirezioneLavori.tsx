@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Invia alla direzione lavori» su una pagina firmata. Parte solo dal clic e dopo
  * la conferma che mostra l'indirizzo; il permesso lo controlla anche la funzione edge.
@@ -84,10 +85,10 @@ export function InviaDirezioneLavori({ giornaleId, orderId, dlNotifiedAt, onInvi
           </AlertDialogHeader>
           <div className="space-y-1">
             <Label htmlFor="giornale_ruolo">Destinatario</Label>
-            <select id="giornale_ruolo" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={ruolo}
+            <UniformSelect id="giornale_ruolo" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={ruolo}
               onChange={(e) => { setRuolo(e.target.value as RuoloInvioGiornale); setScritto(null); }}>
               {RUOLI_INVIO_GIORNALE.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            </UniformSelect>
           </div>
           <div className="space-y-1">
             <Label htmlFor="dl_email">Email del destinatario</Label>

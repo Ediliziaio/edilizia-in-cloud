@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useMemo, useState, useCallback } from "react";
-import { useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, useLocation, type To, type NavigateOptions } from "react-router-dom";
 import { Loader2, AlertTriangle } from "lucide-react";
 import {
   AlertDialog,
@@ -64,15 +64,26 @@ import type { TipoDocumento, DocumentoFiscale } from "@/types/fatturazione";
 
 // Un'istanza per documento: l'editor si inizializza una volta sola, e passando da
 // un documento all'altro (Duplica, Converti) sarebbe rimasto sul primo, salvando lì.
-export default function EditorDocumento() {
-  const { id } = useParams();
-  return <EditorDelDocumento key={id ?? "nuovo"} />;
+export interface EditorDocumentoInPopup {
+  id: string;
+  chiudi: () => void;
+  registraUscita: (gestore: (() => void) | null) => void;
 }
 
-function EditorDelDocumento() {
-  const { id } = useParams();
+export default function EditorDocumento({ popup }: { popup?: EditorDocumentoInPopup } = {}) {
+  const { id: idPagina } = useParams();
+  const id = popup?.id ?? idPagina;
+  return <EditorDelDocumento key={id ?? "nuovo"} id={id} popup={popup} />;
+}
+
+function EditorDelDocumento({ id, popup }: { id?: string; popup?: EditorDocumentoInPopup }) {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const navigaPagina = useNavigate();
+  const navigate = useCallback((destinazione: To | number, opzioni?: NavigateOptions) => {
+    if (popup && destinazione === "/azienda/documenti") { popup.chiudi(); return; }
+    if (typeof destinazione === "number") navigaPagina(destinazione);
+    else navigaPagina(destinazione, opzioni);
+  }, [navigaPagina, popup]);
   const isCreate = !id;
   const createdRef = useRef(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -385,6 +396,10 @@ function EditorDelDocumento() {
 
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
+    if (popup && isSaving) {
+      toast.info("Salvataggio in corso. Attendi per chiudere la bozza.");
+      return;
+    }
     // Draft vuoto → elimina silenziosamente senza dialog (no spreco numerazione)
     // Naviga IMMEDIATA (no await) — il cleanup avviene in background, evita
     // freeze UI se il network è lento. L'unmount cleanup useEffect riprova.
@@ -393,13 +408,19 @@ function EditorDelDocumento() {
       navigate("/azienda/documenti");
       return;
     }
-    if (isDirty && isBozza) {
+    if (isDirty && (isBozza || (popup && modificabile))) {
       setPendingNavigation("/azienda/documenti");
       setShowLeaveDialog(true);
     } else {
       navigate("/azienda/documenti");
     }
-  }, [state.id, isEmpty, isDirty, isBozza, navigate, releaseEmptyDraft]);
+  }, [state.id, isEmpty, isDirty, isBozza, isSaving, modificabile, navigate, popup, releaseEmptyDraft]);
+
+  useEffect(() => {
+    if (!popup) return;
+    popup.registraUscita(handleBack);
+    return () => popup.registraUscita(null);
+  }, [popup, handleBack]);
 
   // Controlli PA con il contesto (commesse collegate, cliente della commessa, ufficio): gli
   // stessi che fa invia-sdi prima di trasmettere.
@@ -474,7 +495,7 @@ function EditorDelDocumento() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)]">
+    <div className={popup ? "flex h-full min-h-0 flex-col" : "flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)]"}>
       <EditorTopBar
         state={state}
         isSaving={isSaving}
@@ -770,6 +791,7 @@ function EditorDelDocumento() {
                 toast.success("Bozza salvata");
               } catch {
                 toast.error("Errore nel salvataggio");
+                if (popup) return;
               }
               navigate(pendingNavigation || "/azienda/documenti");
               setPendingNavigation(null);

@@ -14,6 +14,14 @@ import type { Permissions } from "@/hooks/usePermissions";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useAuth, COMPANY_CHOSEN_KEY } from "@/contexts/AuthContext";
 
+/** Keep existing survey-list links within the Commesse workspace. */
+function SopralluoghiListRedirect() {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set("tab", "sopralluoghi");
+  return <Navigate to={`/azienda/ordini?${params.toString()}`} replace />;
+}
+
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
 function InterventoDetailRedirect() {
   const { id } = useParams();
@@ -373,7 +381,6 @@ const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage
 const EmailAiSettingsPage = lazy(() => import("@/pages/azienda/email/EmailAiSettingsPage"));
 const DocumentiDaConfermarePage = lazy(() => import("@/pages/azienda/email/DocumentiDaConfermarePage"));
 // 🆕 Sprint S1: modulo Sopralluoghi (Beta, gate via feature flag surveys_module)
-const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
 const NuovoSopralluogo = lazy(() => import("@/pages/azienda/sopralluoghi/NuovoSopralluogo"));
 const SopralluogoEditor = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluogoEditor"));
 const FirmaCliente = lazy(() => import("@/pages/azienda/sopralluoghi/FirmaCliente"));
@@ -667,8 +674,7 @@ export default function CompanyRoutesContainer() {
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
         <Route path="commesse/:id/modifica" element={<LegacyCommessaEditRedirect />} />
         <Route path="ordini" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>, vedeOrdiniOAcquisti)} />
-        {/* Cantieri oggi ora è una scheda di Commesse: il vecchio indirizzo ci porta. */}
-        <Route path="cantieri-oggi" element={<Navigate to="/azienda/ordini?tab=oggi" replace />} />
+        <Route path="cantieri-oggi" element={<Navigate to="/azienda/ordini" replace />} />
         <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><CommessaClienteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommessaClienteGuard></CommercialistaWriteGuard>)} />
         <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="ordini/simulatore" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel simulatore"><SimulatoreOperazione /></ErrorBoundary>, (p) => p.isAdmin || p.canViewMargins)} />
@@ -757,7 +763,7 @@ export default function CompanyRoutesContainer() {
         <Route path="email/ai" element={withCompanyPermission("canViewMarketingEmail", <EmailAiSettingsPage />)} />
         <Route path="email/documenti" element={withCompanyPermission("canViewMarketingEmail", <DocumentiDaConfermarePage />)} />
         {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
-        <Route path="sopralluoghi" element={withCompanyPermission("canViewSopralluoghi", <SopralluoghiList />)} />
+        <Route path="sopralluoghi" element={withCompanyPermission("canViewSopralluoghi", <SopralluoghiListRedirect />)} />
         <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewSopralluoghi", <SolaLetturaWriteGuard fallback="/azienda/sopralluoghi"><NuovoSopralluogo /></SolaLetturaWriteGuard>)} />
         <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewSopralluoghi", <SopralluogoEditor />)} />
         <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewSopralluoghi", <FirmaCliente />)} />

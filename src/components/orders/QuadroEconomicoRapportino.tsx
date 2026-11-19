@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * I soldi del rapportino: per persona ore, costo orario e costo; per i mezzi ore × costo orario; le voci
  * aggiunte dall'ufficio col prezzo del listino. Il permesso lo controlla il database.
@@ -303,11 +304,11 @@ export function QuadroEconomicoRapportino({ rapportinoId, puoModificare = false 
             </p>
           )}
           {!nuova.voce && vociPronte.length > 0 && (
-            <select aria-label="Scegli la voce" className="col-span-6 h-8 rounded-md border bg-background px-2 text-[13px]" value={vociPronte.find((v) => v.nome === nuova.descrizione)?.id ?? ""}
+            <UniformSelect aria-label="Scegli la voce" className="col-span-6 h-8 rounded-md border bg-background px-2 text-[13px]" value={vociPronte.find((v) => v.nome === nuova.descrizione)?.id ?? ""}
               onChange={(e) => { const v = vociPronte.find((x) => x.id === e.target.value); setNuova(v ? { ...nuova, descrizione: v.nome, unita: v.unita, costo: v.costo_unitario?.toString() ?? "", vendita: v.vendita_unitaria?.toString() ?? "" } : { ...nuova, descrizione: "" }); }}>
               <option value="">{aMano ? "Voci del rapportino, o scrivila sotto" : "Voci del rapportino"}</option>
               {vociPronte.map((v) => <option key={v.id} value={v.id}>{v.nome}</option>)}
-            </select>
+            </UniformSelect>
           )}
           {!nuova.voce && aMano && <Input aria-label="Descrizione voce" placeholder="Oppure scrivi la voce (es. trasporto, nolo)" className="col-span-6 h-8 text-[13px]" value={nuova.descrizione} onChange={(e) => setNuova({ ...nuova, descrizione: e.target.value })} />}
           <Input aria-label="Quantità" inputMode="decimal" placeholder="Q.tà" className="col-span-1 h-8 px-1.5 text-[13px]" value={nuova.quantita} onChange={(e) => setNuova({ ...nuova, quantita: e.target.value })} />

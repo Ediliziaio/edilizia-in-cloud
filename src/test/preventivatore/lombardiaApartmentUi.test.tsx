@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { source, catalog } from "./apartmentFixtures";
@@ -27,7 +28,7 @@ describe("Fonte reale, computo locale: interazioni senza scritture", () => {
   });
   it("un edit revoca l'approvazione, conserva riferimento e non rilegge il catalogo", () => {
     open(); load(); confirmFloor();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Prezzo Pavimento monocottura 30×30 su letto in malta" }), { target: { value: "55" } });
+    changeFormControl(screen.getByRole("spinbutton", { name: "Prezzo Pavimento monocottura 30×30 su letto in malta" }), { target: { value: "55" } });
     expect(screen.getByTestId("live-quote-total")).toHaveTextContent(formatCurrency(0));
     expect(screen.getByText(/Prezzo manuale · riferimento/)).toHaveTextContent(formatCurrency(100));
     confirmFloor(); expect(screen.getByTestId("live-quote-total")).toHaveTextContent(formatCurrency(4400));
@@ -37,7 +38,7 @@ describe("Fonte reale, computo locale: interazioni senza scritture", () => {
   });
   it("cancellare la quantità non la trasforma in zero o uno", () => {
     open(); load(); confirmFloor();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantità Pavimento monocottura 30×30 su letto in malta" }), { target: { value: "" } });
+    changeFormControl(screen.getByRole("spinbutton", { name: "Quantità Pavimento monocottura 30×30 su letto in malta" }), { target: { value: "" } });
     expect(screen.getByRole("checkbox", { name: "Conferma Pavimento monocottura 30×30 su letto in malta" })).toBeDisabled();
     expect(screen.getByTestId("live-quote-total")).toHaveTextContent(formatCurrency(0));
   });
@@ -51,7 +52,7 @@ describe("Fonte reale, computo locale: interazioni senza scritture", () => {
   it("cambiare fonte revoca prezzi manuali e conferme; nessuna traduzione automatica", () => {
     data.sources = [source, { ...source, id: "new-edition", anno: 2026, nome: "Lombardia 2026" }];
     open(); load(); confirmFloor();
-    fireEvent.change(screen.getByRole("combobox", { name: "Fonte Lombardia" }), { target: { value: "new-edition" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Fonte Lombardia" }), { target: { value: "new-edition" } });
     expect(screen.getByRole("checkbox", { name: /Confermo l’uso/ })).toBeDisabled();
     expect(screen.getByTestId("live-quote-total")).toHaveTextContent(formatCurrency(0));
   });

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Le condizioni di UN preventivo, scritte per quel cliente (07/11/2026).
  *
@@ -44,7 +45,7 @@ describe("Con il permesso", () => {
     const onChange = disegna();
     fireEvent.click(screen.getByRole("button", { name: /Scrivi condizioni solo per questo preventivo/ }));
     expect((screen.getByLabelText("Editor") as HTMLTextAreaElement).value).toContain("30% alla firma.");
-    fireEvent.change(screen.getByLabelText("Parti dalle condizioni di un altro modello"), { target: { value: "m2" } });
+    changeFormControl(screen.getByLabelText("Parti dalle condizioni di un altro modello"), { target: { value: "m2" } });
     expect((screen.getByLabelText("Editor") as HTMLTextAreaElement).value).toContain("60 giorni fine mese.");
     fireEvent.click(screen.getByRole("button", { name: "Salva per questo preventivo" }));
     expect(onChange).toHaveBeenCalledWith({ condizioni_testo: expect.stringContaining("60 giorni fine mese.") });

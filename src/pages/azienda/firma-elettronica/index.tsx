@@ -1,12 +1,16 @@
+import { OperationalSummary, OperationalSummaryMetric } from "@/components/shared/OperationalSummary";
 import { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   Plus, FileText, Loader2, Send, AlertTriangle,
-  Search, Mail, CheckCircle2, Clock, XCircle, Copy,
-  FileStack, Target, ExternalLink, RefreshCw, Download, IdCard,
+  Search, CheckCircle2, Clock, XCircle,
+  FileStack, Target, RefreshCw, IdCard,
 } from 'lucide-react';
 
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ArchivioFirmeTable, MenuColonneFirme, useColonneFirme } from "./ArchivioFirmeTable";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,7 +46,7 @@ import {
   sortSignatureRequestsByCreatedAt,
 } from '@/lib/fea/firmaElettronicaHub';
 
-interface SignatureRequestRow {
+export interface SignatureRequestRow {
   id: string;
   token: string | null;
   signer_name: string | null;
@@ -62,6 +66,7 @@ interface SignatureRequestRow {
   documento_url: string | null;
   firma_url: string | null;
   metodo_firma: "FEA OTP" | "Link preventivo";
+  sent_at?: string | null;
   source_kind: "fea" | "quote";
 }
 
@@ -146,14 +151,35 @@ async function readOptionalRows<T>(
   }
 }
 
+function aperta(r: SignatureRequestRow) {
+  return r.status === "pending" || r.status === "otp_verified";
+}
+
+function statoArchivio(r: SignatureRequestRow) {
+  return aperta(r) && isFirmaExpired(r.expires_at, r.status) ? "expired" : r.status;
+}
+
+function corrispondeStato(r: SignatureRequestRow, filtro: string) {
+  const stato = statoArchivio(r);
+  if (filtro === "aperte" || filtro === "scadenza") {
+    if (!aperta(r) || stato === "expired") return false;
+    return filtro === "aperte" || (!!r.expires_at && Date.parse(r.expires_at) <= Date.now() + 7 * 86400000);
+  }
+  return filtro === "tutti" || stato === filtro;
+}
+
 export default function FirmaElettronicaHub() {
   const navigate = useNavigate();
   const location = useLocation();
   const companyId = useEffectiveCompanyId();
+  const { user } = useAuth();
+  const colonneFirme = useColonneFirme(`firma-colonne-v1:${user?.id}:${companyId}`);
   const { sessioni, isLoading: sessioniLoading } = useDocumentoSessioni();
   const isMarketingContext = location.pathname.startsWith("/azienda/marketing/");
 
   const [activeTab, setActiveTab] = useState("richieste");
+  const [scegliDocumento, setScegliDocumento] = useState(false);
+  const [dettaglioId, setDettaglioId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [tipoDocFilter, setTipoDocFilter] = useState<string>("tutti");
@@ -167,27 +193,25 @@ export default function FirmaElettronicaHub() {
   }>({ open: false, documento_id: "", titolo: "", pdfMissing: false });
 
   // ── Richieste di firma (signature_requests) ──────────────────────────────
-  const {
-    data: requests = [],
-    isLoading: reqLoading,
-    fetchStatus: reqFetchStatus,
-    isError: reqIsError,
-    error: reqError,
-    refetch: refetchRequests,
-    isFetching: reqFetching,
-  } = useQuery<SignatureRequestRow[], Error>({
+  const opzioniArchivio = (statusFilter: string, tipoDocFilter: string) => ({
     queryKey: ["signature-requests", companyId, statusFilter, tipoDocFilter],
     enabled: !!companyId,
     // L'admin vede le firme completate senza refresh manuale
     refetchInterval: 15000,
-    queryFn: async ({ signal }) => {
+    queryFn: async ({ signal }: { signal: AbortSignal }) => {
       let q = supabase
         .from("signature_requests" as never)
         .select("id, token, signer_name, signer_email, status, tipo_documento, tipo_firmatario, order_id, quote_id, sessione_id, created_at, expires_at, signed_at, otp_tentativi")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(SIGNATURE_ARCHIVE_PAGE_SIZE);
-      if (statusFilter !== "tutti") q = q.eq("status", statusFilter) as typeof q;
+      if (["aperte", "scadenza", "pending", "otp_verified"].includes(statusFilter)) {
+        const stati = ["aperte", "scadenza"].includes(statusFilter) ? ["pending", "otp_verified"] : [statusFilter];
+        q = q.in("status", stati).or(`expires_at.is.null,expires_at.gte.${new Date().toISOString()}`);
+        if (statusFilter === "scadenza") q = q.lte("expires_at", new Date(Date.now() + 7 * 86400000).toISOString());
+      } else if (statusFilter === "expired") {
+        q = q.or(`status.eq.expired,and(status.in.(pending,otp_verified),expires_at.lt.${new Date().toISOString()})`);
+      } else if (statusFilter !== "tutti") q = q.eq("status", statusFilter);
       if (tipoDocFilter !== "tutti") q = q.eq("tipo_documento", tipoDocFilter) as typeof q;
 
       const requestTimeout = createTimeoutSignal(SIGNATURE_REQUESTS_TIMEOUT_MS, signal);
@@ -214,7 +238,7 @@ export default function FirmaElettronicaHub() {
       const orderIds = unique(feaRows.map((r) => r.order_id));
       const quoteIds = unique(feaRows.map((r) => r.quote_id));
       const sessioneIds = unique(feaRows.map((r) => r.sessione_id));
-      const legacyQuoteStatuses = getLegacyQuoteStatusFilter(statusFilter);
+      const legacyQuoteStatuses = getLegacyQuoteStatusFilter(["aperte", "scadenza"].includes(statusFilter) ? "pending" : statusFilter);
       const shouldFetchLegacyQuotes = (tipoDocFilter === "tutti" || tipoDocFilter === "quote") && legacyQuoteStatuses.length > 0;
 
       const optionalTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
@@ -330,7 +354,8 @@ export default function FirmaElettronicaHub() {
             order_id: null as null,
             quote_id: quote.id,
             sessione_id: null as null,
-            created_at: quote.sent_at ?? quote.created_at,
+            created_at: quote.created_at,
+            sent_at: quote.sent_at,
             expires_at: quote.expires_at,
             signed_at: quote.signed_at,
             otp_tentativi: null as null,
@@ -342,13 +367,34 @@ export default function FirmaElettronicaHub() {
             source_kind: "quote",
           };
         })
-        .filter((quote) => statusFilter === "tutti" || quote.status === statusFilter);
+        .filter((quote) => corrispondeStato(quote, statusFilter));
 
       return sortSignatureRequestsByCreatedAt([...mappedFeaRows, ...mappedQuoteRows]);
     },
     retry: 0,
   });
 
+  const {
+    data: requests = [],
+    isLoading: reqLoading,
+    fetchStatus: reqFetchStatus,
+    isError: reqIsError,
+    error: reqError,
+    refetch: refetchRequests,
+    isFetching: reqFetching,
+  } = useQuery(opzioniArchivio(statusFilter, tipoDocFilter));
+  const { data: riepilogo = [] } = useQuery(opzioniArchivio("tutti", "tutti"));
+  const dettaglio = requests.find(r => r.id === dettaglioId);
+  const storico = useQuery({
+    queryKey: ["firma-storico", companyId, dettaglioId],
+    enabled: !!companyId && dettaglio?.source_kind === "fea",
+    queryFn: async () => {
+      const { data, error } = await supabase.from("fea_audit_log").select("id, evento, created_at")
+        .eq("company_id", companyId!).eq("request_id", dettaglioId!).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
   const filteredRequests = useMemo(
     () => filterSignatureRequests(requests, search),
     [requests, search],
@@ -365,8 +411,8 @@ export default function FirmaElettronicaHub() {
 
   useEffect(() => {
     if (!showRequestsLoader) {
-      setRequestsLoadingTimedOut(false);
-      return undefined;
+      const reset = window.setTimeout(() => setRequestsLoadingTimedOut(false), 0);
+      return () => window.clearTimeout(reset);
     }
 
     const timer = window.setTimeout(() => setRequestsLoadingTimedOut(true), SIGNATURE_REQUESTS_TIMEOUT_MS);
@@ -394,19 +440,29 @@ export default function FirmaElettronicaHub() {
 
   // ── KPI calcolati ────────────────────────────────────────────────────────
   const kpi = useMemo(() => {
-    const totale = requests.length;
-    const inAttesa = requests.filter((r) => r.status === "pending" || r.status === "otp_verified").length;
-    const firmati = requests.filter((r) => r.status === "signed").length;
-    const scaduti = requests.filter((r) => r.status === "expired" || r.status === "cancelled").length;
-    const firmatiThisMonth = requests.filter((r) => {
-      if (r.status !== "signed" || !r.signed_at) return false;
-      const d = new Date(r.signed_at);
-      const now = new Date();
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-    }).length;
-    const conversionRate = totale > 0 ? Math.round((firmati / totale) * 100) : 0;
-    return { totale, inAttesa, firmati, scaduti, firmatiThisMonth, conversionRate };
-  }, [requests]);
+    return {
+      totale: riepilogo.length,
+      inAttesa: riepilogo.filter(r => corrispondeStato(r, "aperte")).length,
+      inScadenza: riepilogo.filter(r => corrispondeStato(r, "scadenza")).length,
+      firmati: riepilogo.filter(r => r.status === "signed").length,
+      scaduti: riepilogo.filter(r => statoArchivio(r) === "expired").length,
+    };
+  }, [riepilogo]);
+
+  const indicatori = [
+    ["aperte", "Da firmare", kpi.inAttesa],
+    ["scadenza", "In scadenza entro 7 giorni", kpi.inScadenza],
+    ["expired", "Scadute", kpi.scaduti],
+    ["signed", "Firmate", kpi.firmati],
+  ] as const;
+  const selezionaIndicatore = (filtro: string) => {
+    setActiveTab("richieste");
+    setSearch("");
+    setTipoDocFilter("tutti");
+    setStatusFilter(statusFilter === filtro ? "tutti" : filtro);
+  };
+  const moduliPronti = sessioni.filter(s => s.pdf_url && (s.stato === "generato" || s.stato === "bozza"));
+  const ultimoInvio = storico.data?.filter(e => e.evento === "link_inviato").at(-1)?.created_at ?? dettaglio?.sent_at;
 
   const handleSelectTemplate = (template: DocumentoTemplate) => {
     navigate(`/azienda/firma-elettronica/nuovo-template?templateId=${template.id}`);
@@ -467,10 +523,10 @@ export default function FirmaElettronicaHub() {
           </div>
           {/* v8.6.67 — flex-wrap su mobile: prima i 3 elementi (badge + 2 button)
               finivano in una riga forzata e uscivano dal viewport iPhone (375px). */}
-          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto max-sm:hidden">
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
             {/* Solo l'avviso: «Email transazionale · resend» quando tutto va era
                 un dettaglio tecnico in testata. */}
-            {!emailProvider?.is_active && (
+            {emailProvider?.is_active === false && (
               <Badge variant="outline" className="gap-1.5 border-yellow-200 bg-yellow-50 text-yellow-700">
                 <AlertTriangle className="h-3 w-3" />
                 Email transazionale non configurata
@@ -484,13 +540,7 @@ export default function FirmaElettronicaHub() {
               <FileText className="h-4 w-4" />
               {isMarketingContext ? "Apri preventivi" : "Apri commesse"}
             </Button>
-            <Button
-              className="gap-2 bg-gradient-to-r from-orange-500 to-eic-amber-strong text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600"
-              onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}
-            >
-              <Plus className="h-4 w-4" />
-              Nuovo template custom
-            </Button>
+            <Button onClick={() => setScegliDocumento(true)}><Send className="mr-2 h-4 w-4" />Richiedi firma</Button>
           </div>
         </div>
       </div>
@@ -499,29 +549,19 @@ export default function FirmaElettronicaHub() {
           passi per spiegare che la firma parte dal documento (130px prima dei
           numeri). La pagina resta l'archivio; le firme si mandano dal documento. */}
 
-      <KpiMobili
-        className="sm:hidden"
-        voci={[
-          { label: "Da firmare", valore: String(kpi.inAttesa), tono: kpi.inAttesa > 0 ? "text-amber-600" : undefined },
-          { label: "Firmati", valore: String(kpi.firmati), tono: kpi.firmati > 0 ? "text-green-700" : undefined },
-        ]}
-      />
-
-      {/* KPI */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-sm:hidden">
-        <KpiCard icon={<FileStack className="h-4 w-4" />} label="Documenti" value={String(kpi.totale)} />
-        <KpiCard icon={<Clock className="h-4 w-4 text-yellow-600" />} label="Da firmare" value={String(kpi.inAttesa)} accent="yellow" />
-        <KpiCard icon={<CheckCircle2 className="h-4 w-4 text-green-600" />} label="Firmati" value={String(kpi.firmati)} accent="green"
-          sub={kpi.firmatiThisMonth > 0 ? `${kpi.firmatiThisMonth} questo mese` : undefined} />
-        {/* "Scaduti" e "Tasso firma": metriche vetrina → solo da md in su.
-            Su mobile restano le 3 operative (Tracciati/Da firmare/Firmati). */}
-        <div className="hidden md:contents">
-          <KpiCard icon={<XCircle className="h-4 w-4 text-slate-400" />} label="Scaduti/annull." value={String(kpi.scaduti)} accent="slate" />
-          <KpiCard icon={<Target className="h-4 w-4 text-blue-600" />} label="Tasso firma" value={`${kpi.conversionRate}%`} accent="blue" />
-        </div>
+      <KpiMobili className="sm:hidden" voci={indicatori.map(([filtro, label, valore]) => ({
+        label, valore: String(valore), attivo: statusFilter === filtro, onClick: () => selezionaIndicatore(filtro),
+      }))} />
+      <div className="max-sm:hidden">
+        <OperationalSummary label="Riepilogo firme" title="Dal documento alla firma" icon={FileStack}
+          note="Conteggi sulle richieste recenti. Seleziona un indicatore per filtrare l’archivio.">
+          {indicatori.map(([filtro, label, valore]) =>
+            <OperationalSummaryMetric key={filtro} label={label} value={String(valore)}
+              active={statusFilter === filtro} onClick={() => selezionaIndicatore(filtro)} />)}
+        </OperationalSummary>
       </div>
 
-      {!emailProvider?.is_active && (
+      {emailProvider?.is_active === false && (
         <Alert className="border-yellow-500/40 bg-yellow-50/60 max-sm:py-2.5">
           <AlertTriangle className="h-4 w-4 text-yellow-600" />
           <AlertTitle className="max-sm:mb-0 max-sm:text-[13px]">Email transazionale non configurata</AlertTitle>
@@ -554,15 +594,18 @@ export default function FirmaElettronicaHub() {
 
         {/* ── Tab RICHIESTE FIRMA ─────────────────────────────────────────── */}
         <TabsContent value="richieste" className="mt-4 space-y-3 max-sm:mt-3 max-sm:space-y-2">
+          <div className="flex items-center gap-2 sm:hidden">
           <CercaConFiltri
-            className="sm:hidden"
+            className="min-w-0 flex-1"
             valore={search}
             onCambia={setSearch}
             filtriAttivi={[statusFilter !== "tutti", tipoDocFilter !== "tutti"].filter(Boolean).length}
             onApriFiltri={() => setFiltriMobileAperti(true)}
           />
+            <MenuColonneFirme {...colonneFirme} />
+          </div>
           {/* Filtri in riga sopra la tabella, senza riquadro attorno. */}
-          <div className="flex items-center gap-2 max-sm:hidden">
+          <div className="flex items-center gap-2 rounded-xl border bg-white p-2.5 shadow-sm max-sm:hidden">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -578,6 +621,8 @@ export default function FirmaElettronicaHub() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="tutti">Tutti gli stati</SelectItem>
+                <SelectItem value="aperte">Da firmare</SelectItem>
+                <SelectItem value="scadenza">In scadenza entro 7 giorni</SelectItem>
                 <SelectItem value="pending">In attesa firma</SelectItem>
                 <SelectItem value="otp_verified">OTP verificato</SelectItem>
                 <SelectItem value="signed">Firmato</SelectItem>
@@ -598,6 +643,7 @@ export default function FirmaElettronicaHub() {
                 <SelectItem value="odv">Ordine di vendita</SelectItem>
               </SelectContent>
             </Select>
+            <MenuColonneFirme {...colonneFirme} />
           </div>
 
           {!companyId && (
@@ -648,184 +694,23 @@ export default function FirmaElettronicaHub() {
               </CardContent>
             </Card>
           ) : (
-            <>
-            {/* Vista MOBILE a righe: documento e firmatario a sinistra, stato a
-                destra; copia link e apri come icone piccole. */}
-            <div className="divide-y overflow-hidden rounded-xl border bg-card md:hidden">
-              {filteredRequests.map((r) => {
-                const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.pending;
-                const isExpired = isFirmaExpired(r.expires_at, r.status);
-                const quando = r.signed_at
-                  ? `firmata ${formatFirmaDate(r.signed_at)}`
-                  : isExpired
-                    ? "scaduta"
-                    : `inviata ${formatFirmaDate(r.created_at)}`;
-                return (
-                  <div key={r.id} className="flex min-h-[52px] items-center gap-2 px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold leading-tight text-slate-900">{r.documento_label || "Documento"}</p>
-                      <p className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
-                        {r.signer_name || "Cliente"} · {quando}
-                      </p>
-                    </div>
-                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.className}`}>{cfg.label}</span>
-                    {r.source_kind === "fea" && r.status === "signed" && (
-                      <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="PDF firmato" disabled={pdfFirmatoInCorso === r.id} onClick={() => void scaricaPdfFirmato(r.id)}>
-                        {pdfFirmatoInCorso === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      </Button>
-                    )}
-                    {/* Il link serve solo finché la firma è aperta: annullata o
-                        scaduta, porta a una pagina d'errore. */}
-                    {r.firma_url && (r.status === "pending" || r.status === "otp_verified") && !isExpired && (
-                      <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="Copia link firma" onClick={() => void copyLink(r.firma_url!)}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {r.firma_url && r.status !== "cancelled" && r.status !== "expired" && !isExpired && (
-                      <Button variant="ghost" size="icon" className="tap-compact h-8 w-8 shrink-0" aria-label="Apri link firma" asChild>
-                        <a href={r.firma_url} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a>
-                      </Button>
-                    )}
-                  </div>
+            <ArchivioFirmeTable
+              key={JSON.stringify([user?.id, companyId, statusFilter, tipoDocFilter, search])}
+              visible={colonneFirme.visible}
+              rows={filteredRequests}
+              openDetail={setDettaglioId}
+              status={r => STATUS_CFG[statoArchivio(r)] ?? STATUS_CFG.pending}
+              documentType={r => TIPO_DOC_LABEL[r.tipo_documento] ?? r.tipo_documento}
+              actions={r => {
+                const stato = statoArchivio(r);
+                return (stato === "signed" && r.source_kind === "fea"
+                        ? <Button size="sm" variant="outline" disabled={pdfFirmatoInCorso === r.id} onClick={() => void scaricaPdfFirmato(r.id)}>Scarica PDF</Button>
+                        : <Button size="sm" variant="outline" onClick={() => setDettaglioId(r.id)}>
+                            {corrispondeStato(r, "aperte") && r.signer_email && r.firma_url ? "Sollecita" : stato === "expired" && (r.sessione_id || r.documento_url) ? "Prepara nuova richiesta" : "Dettagli"}
+                          </Button>
                 );
-              })}
-            </div>
-            {/* Firmatario e data di firma da 1280, invio da 1536, celle più
-                strette sotto: la tabella usciva dalla pagina anche a 1440. */}
-            <Card className="hidden md:block">
-              <Table className="[&_td]:px-2.5 [&_th]:px-2.5 2xl:[&_td]:px-4 2xl:[&_th]:px-4">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Documento</TableHead>
-                    <TableHead className="hidden xl:table-cell">Firmatario</TableHead>
-                    <TableHead>Stato</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Invio</TableHead>
-                    <TableHead className="hidden xl:table-cell">Firmata</TableHead>
-                    <TableHead>Scadenza</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRequests.map((r) => {
-                    const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.pending;
-                    const StatusIcon = cfg.icon;
-                    const isExpired = isFirmaExpired(r.expires_at, r.status);
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell className="min-w-[260px]">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="max-w-[200px] truncate text-sm font-semibold text-slate-900 lg:max-w-[240px] 2xl:max-w-[320px]">
-                                {r.documento_label || "Documento"}
-                              </span>
-                              {r.documento_url && (
-                                <Button variant="ghost" size="icon" className="h-6 w-6" asChild title="Apri documento operativo">
-                                  <a href={r.documento_url}>
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0">
-                                {TIPO_DOC_LABEL[r.tipo_documento] ?? r.tipo_documento}
-                              </Badge>
-                              <Badge variant="secondary" className="w-fit text-[10px] px-1.5 py-0">
-                                {r.metodo_firma}
-                              </Badge>
-                              {r.documento_subtitle && (
-                                <span className="max-w-[160px] truncate text-xs text-muted-foreground 2xl:max-w-[260px]">
-                                  {r.documento_subtitle}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden xl:table-cell">
-                          <div className="font-medium text-sm">{r.signer_name || "Cliente"}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {r.signer_email || "Email non salvata"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`gap-1 whitespace-nowrap ${cfg.className}`} variant="outline">
-                            <StatusIcon className="h-3 w-3" />
-                            {cfg.label}
-                          </Badge>
-                          {r.otp_tentativi != null && r.otp_tentativi > 2 && (
-                            <div className="text-[10px] text-red-600 mt-0.5">
-                              {r.otp_tentativi} tentativi OTP
-                            </div>
-                          )}
-                        </TableCell>
-                        {/* Date su una riga: «05 set / 2026» andava a capo. */}
-                        <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground 2xl:table-cell">
-                          {formatFirmaDate(r.created_at)}
-                        </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-xs xl:table-cell">
-                          {r.signed_at ? (
-                            <span className="text-green-700 font-medium">
-                              {formatFirmaDate(r.signed_at)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-xs">
-                          {r.expires_at ? (
-                            <span className={isExpired ? "text-red-600" : "text-muted-foreground"}>
-                              {formatFirmaDate(r.expires_at)}
-                              {isExpired && " (scaduto)"}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center gap-1 justify-end">
-                            {r.source_kind === "fea" && r.status === "signed" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Scarica il PDF firmato"
-                                disabled={pdfFirmatoInCorso === r.id}
-                                onClick={() => void scaricaPdfFirmato(r.id)}
-                              >
-                                {pdfFirmatoInCorso === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                              </Button>
-                            )}
-                            {r.firma_url && r.status !== "signed" && r.status !== "refused" && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Copia link firma"
-                                onClick={() => void copyLink(r.firma_url!)}
-                              >
-                                <Copy className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {r.firma_url && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Apri link firma in nuova scheda"
-                                asChild
-                              >
-                                <a href={r.firma_url} target="_blank" rel="noreferrer">
-                                  <Send className="h-3.5 w-3.5" />
-                                </a>
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Card>
-            </>
+              }}
+            />
           )}
         </TabsContent>
 
@@ -847,63 +732,28 @@ export default function FirmaElettronicaHub() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {sessioni.map((s) => {
+            <Card className="overflow-hidden rounded-xl border-slate-200"><Table aria-label="Moduli custom" className="min-w-[850px] text-xs [&_th]:px-3 [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100">
+              <TableHeader className="bg-slate-50"><TableRow><TableHead>Documento</TableHead><TableHead>Template</TableHead><TableHead>PDF</TableHead><TableHead>Stato firma</TableHead><TableHead>Creato il</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader>
+              <TableBody>{sessioni.map(s => {
                 const canRequestSign = s.stato !== "firmato";
-                const pdfMissing = !(s as unknown as { pdf_url?: string | null }).pdf_url;
-                return (
-                  <div
-                    key={s.id}
-                    className="flex items-center gap-4 p-4 bg-white border rounded-xl hover:shadow-sm transition-shadow max-sm:gap-2 max-sm:px-3 max-sm:py-2"
-                  >
-                    <FileText className="h-5 w-5 text-slate-400 shrink-0 max-sm:hidden" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-800 truncate max-sm:text-[13px]">{s.nome}</p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {s.template && (
-                          <p className="text-xs text-slate-500">{s.template.nome}</p>
-                        )}
-                        {pdfMissing && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded">
-                            <AlertTriangle className="h-2.5 w-2.5" />
-                            PDF non generato
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0 max-sm:gap-1.5">
-                      <FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} />
-                      <span className="text-xs text-slate-400 hidden sm:inline">
-                        {formatFirmaDate(s.created_at)}
-                      </span>
-                      {canRequestSign && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1.5 tap-compact max-sm:h-8 max-sm:w-8 max-sm:p-0"
-                          aria-label="Richiedi firma"
-                          onClick={() => setRichiediFirmaOpen({
-                            open: true,
-                            documento_id: s.id,
-                            titolo: s.nome,
-                            pdfMissing,
-                          })}
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                          <span className="max-sm:hidden">Richiedi firma</span>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                const pdfMissing = !(s as unknown as {pdf_url?: string | null}).pdf_url;
+                return <TableRow key={s.id}>
+                  <TableCell className="max-w-[320px] truncate font-medium" title={s.nome}>{s.nome}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">{s.template?.nome || "—"}</TableCell>
+                  <TableCell className={pdfMissing ? "text-amber-700" : "text-emerald-700"}>{pdfMissing ? "Da generare" : "Disponibile"}</TableCell>
+                  <TableCell><FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} /></TableCell>
+                  <TableCell className="whitespace-nowrap">{formatFirmaDate(s.created_at)}</TableCell>
+                  <TableCell className="text-right">{canRequestSign && <Button size="sm" variant="outline" className="h-8 gap-1.5" aria-label="Richiedi firma" onClick={() => setRichiediFirmaOpen({open:true,documento_id:s.id,titolo:s.nome,pdfMissing})}><Send className="h-3.5 w-3.5" />Richiedi firma</Button>}</TableCell>
+                </TableRow>;
+              })}</TableBody>
+            </Table></Card>
           )}
         </TabsContent>
 
         {/* ── Tab TEMPLATE ─────────────────────────────────────────────────── */}
         <TabsContent value="template" className="mt-4">
-          <DocumentiList onSelect={handleSelectTemplate} />
+          <Button className="mb-3" onClick={() => navigate('/azienda/firma-elettronica/nuovo-template')}><Plus className="mr-2 h-4 w-4" />Nuovo modello</Button>
+          <DocumentiList onSelect={handleSelectTemplate} layout="table" />
         </TabsContent>
 
         {/* ── Tab FIRMATARI (firma avanzata) ──────────────────────────────── */}
@@ -925,7 +775,9 @@ export default function FirmaElettronicaHub() {
           onScegli={setStatusFilter}
           scelte={[
             { value: "tutti", label: "Tutti" },
-            { value: "pending", label: "In attesa" },
+            { value: "aperte", label: "Da firmare" },
+            { value: "scadenza", label: "In scadenza" },
+            { value: "cancelled", label: "Annullate" },
             { value: "signed", label: "Firmati" },
             { value: "refused", label: "Rifiutati" },
             { value: "expired", label: "Scaduti" },
@@ -945,6 +797,48 @@ export default function FirmaElettronicaHub() {
         />
       </PannelloFiltri>
 
+      <Dialog open={scegliDocumento} onOpenChange={setScegliDocumento}>
+        <DialogContent className="max-h-[80dvh] overflow-y-auto">
+          <DialogTitle>Richiedi firma</DialogTitle>
+          <DialogDescription>Scegli il documento, poi verifica il firmatario prima dell’invio.</DialogDescription>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => navigate("/azienda/marketing/preventivi")}>Scegli preventivo</Button>
+            <Button variant="outline" onClick={() => navigate("/azienda/ordini")}>Scegli commessa</Button>
+          </div>
+          <h3 className="text-sm font-semibold">Moduli pronti per la firma</h3>
+          {sessioniLoading ? <p>Caricamento moduli…</p> : !moduliPronti.length ? <p className="text-sm text-muted-foreground">Nessun modulo pronto.</p> :
+            moduliPronti.map(s =>
+              <Button key={s.id} variant="outline" onClick={() => { setScegliDocumento(false); setRichiediFirmaOpen({open:true, documento_id:s.id, titolo:s.nome, pdfMissing:false}); }}>{s.nome}</Button>)}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) setDettaglioId(null); }}>
+        {dettaglio && <DialogContent className="max-h-[80dvh] overflow-y-auto">
+          <DialogTitle>{dettaglio.documento_label || "Richiesta di firma"}</DialogTitle>
+          <DialogDescription>{dettaglio.metodo_firma} · {STATUS_CFG[statoArchivio(dettaglio)]?.label}</DialogDescription>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt>Firmatario</dt><dd>{dettaglio.signer_name || "—"}</dd>
+            <dt>Email</dt><dd className="break-all">{dettaglio.signer_email || "—"}</dd>
+            <dt>Creata il</dt><dd>{formatFirmaDate(dettaglio.created_at)}</dd>
+            {ultimoInvio && <><dt>Ultimo invio registrato</dt><dd>{formatFirmaDate(ultimoInvio, "dd MMM yyyy HH:mm")}</dd></>}
+            <dt>Scadenza</dt><dd>{formatFirmaDate(dettaglio.expires_at)}</dd>
+            {dettaglio.signed_at && <><dt>Firmata il</dt><dd>{formatFirmaDate(dettaglio.signed_at)}</dd></>}
+          </dl>
+          {dettaglio.source_kind === "fea" && <div className="text-sm"><h3 className="font-semibold">Cronologia</h3>
+            {storico.isLoading ? "Caricamento…" : storico.isError ? "Cronologia non disponibile." : !storico.data?.length ? "Nessun evento registrato." : storico.data.map(e =>
+              <p key={e.id}>{formatFirmaDate(e.created_at, "dd MMM yyyy HH:mm")} · {e.evento.replaceAll("_", " ")}</p>)}
+          </div>}
+          <div className="flex flex-wrap gap-2">
+            {corrispondeStato(dettaglio, "aperte") && dettaglio.firma_url && <>
+              {dettaglio.signer_email && <Button asChild><a href={`mailto:${encodeURIComponent(dettaglio.signer_email)}?subject=${encodeURIComponent("Promemoria firma · " + dettaglio.documento_label)}&body=${encodeURIComponent("Buongiorno, ricordiamo che il documento " + dettaglio.documento_label + " è in attesa della sua firma. Può utilizzare il link ricevuto con l’invito.")}`}>Prepara email di sollecito</a></Button>}
+              <Button variant="outline" onClick={() => void copyLink(dettaglio.firma_url!)}>Copia link firma</Button>
+              <Button variant="outline" asChild><a href={dettaglio.firma_url} target="_blank" rel="noreferrer">Apri link firma</a></Button>
+            </>}
+            {statoArchivio(dettaglio) === "expired" && dettaglio.sessione_id && sessioni.some(s => s.id === dettaglio.sessione_id && s.stato !== "firmato") &&
+              <Button onClick={() => { const s = sessioni.find(s => s.id === dettaglio.sessione_id)!; setDettaglioId(null); setRichiediFirmaOpen({open:true, documento_id:s.id,titolo:s.nome,pdfMissing:!s.pdf_url}); }}>Prepara nuova richiesta</Button>}
+            {dettaglio.documento_url && <Button variant="outline" onClick={() => navigate(dettaglio.documento_url!)}>{statoArchivio(dettaglio) === "expired" ? "Prepara nuova richiesta dal documento" : "Apri documento"}</Button>}
+          </div>
+        </DialogContent>}
+      </Dialog>
       <RichiediFirmaDialog
         open={richiediFirmaOpen.open}
         onOpenChange={(o) => setRichiediFirmaOpen((prev) => ({ ...prev, open: o }))}
@@ -954,29 +848,5 @@ export default function FirmaElettronicaHub() {
         pdf_missing={richiediFirmaOpen.pdfMissing}
       />
     </div>
-  );
-}
-
-function KpiCard({
-  icon, label, value, sub, accent,
-}: { icon: React.ReactNode; label: string; value: string; sub?: string; accent?: "green" | "yellow" | "red" | "blue" | "slate" }) {
-  const accentClass =
-    accent === "green" ? "border-green-200" :
-    accent === "yellow" ? "border-yellow-200" :
-    accent === "red" ? "border-red-200" :
-    accent === "blue" ? "border-blue-200" :
-    accent === "slate" ? "border-slate-200" :
-    "";
-  return (
-    <Card className={accentClass}>
-      <CardContent className="p-3">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {icon}
-          {label}
-        </div>
-        <div className="text-xl font-bold mt-1 tabular-nums">{value}</div>
-        {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
-      </CardContent>
-    </Card>
   );
 }

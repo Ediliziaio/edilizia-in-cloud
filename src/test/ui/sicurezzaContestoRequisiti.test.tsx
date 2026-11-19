@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -234,10 +235,10 @@ describe("Riepilogo sicurezza e dettagli nei popup", () => {
   });
   it("data e fase arrivano ai dettagli aperti successivamente", () => {
     mostra();
-    fireEvent.change(screen.getByLabelText("Data di applicabilità"), {
+    changeFormControl(screen.getByLabelText("Data di applicabilità"), {
       target: { value: "2026-11-05" },
     });
-    fireEvent.change(screen.getByLabelText("Fase", { exact: true }), {
+    changeFormControl(screen.getByLabelText("Fase", { exact: true }), {
       target: { value: "fase2" },
     });
     area(/^Apri Documenti$/);

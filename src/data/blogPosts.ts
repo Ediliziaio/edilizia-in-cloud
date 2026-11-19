@@ -832,16 +832,16 @@ export const blogPosts: BlogPost[] = [
     video: constructionVideoGuides.margin,
     faqs: [
       { q: "Come si calcola il margine di una commessa edile?", a: "Margine lordo = ricavi di commessa meno costi diretti (manodopera ai costi aziendali reali, materiali, subappalti, noli). Margine netto = margine lordo meno la quota di costi indiretti e generali attribuita alla commessa. Vanno calcolati in corso d'opera, non a fine lavori." },
-      { q: "Qual è un buon margine per un'impresa edile?", a: "Dipende da segmento e rischio: nel residenziale privato un margine lordo del 20-30% e netto del 8-15% è sano; negli appalti a ribasso i margini sono più compressi. Sotto il 5% netto qualsiasi imprevisto ti porta in perdita: meglio saperlo prima di firmare." },
-      { q: "Perché il margine reale è sempre più basso di quello preventivato?", a: "Le cause ricorrenti: ore di manodopera sottostimate o non registrate, prezzi materiali cambiati tra preventivo e ordine, varianti fatte senza preventivo integrativo, e costi generali mai ribaltati sulle commesse. Il consuntivo in tempo reale serve a vederle mentre accadono." },
+      { q: "Qual è un buon margine per un'impresa edile?", a: "Non c’è una percentuale universale. Dichiara costi inclusi, quota di struttura e lavoro ancora da svolgere. Il risultato di commessa non coincide automaticamente con utile netto o cassa: per interpretarlo servono perimetro e dati aggiornati." },
+      { q: "Perché il margine può differire dal preventivo?", a: "Le cause ricorrenti: ore di manodopera sottostimate o non registrate, prezzi materiali cambiati tra preventivo e ordine, varianti fatte senza preventivo integrativo, e costi generali mai ribaltati sulle commesse. Il consuntivo in tempo reale serve a vederle mentre accadono." },
     ],
-    title: "Analisi dei Margini per Imprese Edili",
+    title: "Margini di cantiere nel gestionale: dati e verifiche",
     excerpt:
-      "Il 68% delle imprese edili non conosce i margini reali per commessa. Come calcolarli, monitorarli in tempo reale e difenderli cantiere per cantiere.",
+      "Leggi i margini di cantiere nel gestionale: ricavi, costi, dati mancanti e confronto con il preventivo. Verifiche da eseguire sul proprio flusso.",
     category: "Finanza",
     tags: ["margini edilizia", "redditività cantieri", "analisi costi", "contabilità edilizia"],
     publishedAt: "2025-09-09",
-    updatedAt: "2026-07-10",
+    updatedAt: "2026-11-18",
     readTime: 11,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage:
@@ -849,7 +849,7 @@ export const blogPosts: BlogPost[] = [
     content: [
       {
         type: "intro",
-        body: "Una ricerca condotta su 1.200 imprese edili italiane ha rivelato un dato sconcertante: il 68% degli imprenditori edili non conosce il margine reale delle proprie commesse. Lavorano, fatturano, pagano i fornitori e i dipendenti — ma non sanno se alla fine di ogni cantiere stanno guadagnando o perdendo. Questo articolo ti dà gli strumenti per cambiarlo.",
+        body: "Questa guida riguarda la lettura del risultato di una commessa nel gestionale: quali dati servono, che cosa manca ancora e come confrontare il quadro con il preventivo. Non basta una percentuale sullo schermo. Devi poter ricostruire il ricavo considerato, i costi attribuiti e il lavoro ancora da svolgere.",
       },
       {
         type: "section",
@@ -875,23 +875,22 @@ export const blogPosts: BlogPost[] = [
       {
         type: "section",
         heading: "Come Costruire il Conto Economico per Cantiere",
-        body: "Un conto economico per cantiere ben strutturato ha quattro livelli: ricavi (SAL emessi + varianti accettate), costi diretti (con dettaglio per voce), margine lordo (ricavi meno costi diretti) e margine netto (margine lordo meno quota di costi indiretti). Questo schema, aggiornato in tempo reale durante l'esecuzione dei lavori, è lo strumento più potente che un imprenditore edile abbia a disposizione. Non serve un commercialista per leggerlo: basta guardare il margine netto previsto a finire e confrontarlo con quello del preventivo.",
+        body: "Il prospetto di commessa deve dichiarare ricavo considerato, costi diretti attribuiti, quota di struttura e stima delle attività residue. Mantieni distinti preventivo, importi già rilevati e previsione finale. Il risultato dopo la quota di struttura non è automaticamente l’utile netto fiscale dell’impresa; un SAL o una fattura non dimostrano da soli un incasso. Nel gestionale verifica il perimetro del dato e confrontalo con la stessa base usata nel preventivo.",
       },
       {
-        type: "quote",
-        quote:
-          "Ho capito che stavo lavorando gratis su tre cantieri su cinque solo dopo aver iniziato a monitorare i margini in tempo reale. Nei sei mesi successivi ho rinegoziato i prezzi e aumentato il margine medio dal 4% al 9%.",
-        author: "Riccardo Fermi, Titolare, Costruzioni Fermi Srl, Torino",
+        type: "callout",
+        heading: "Prima del risultato: controlla le fonti",
+        body: "Per ogni costo verifica commessa, documento, stato e importo. Una fattura non attribuita non vale zero; un ordine e la fattura collegata non vanno sommati come due costi diversi. Se il lavoro è aperto, distingui costi già rilevati e stima del residuo. Il dato disponibile e quello verificato non sono la stessa cosa.",
       },
       {
         type: "section",
         heading: "KPI Fondamentali per le Imprese Edili",
-        body: "Oltre al margine per commessa, le imprese edili sane monitorano regolarmente cinque KPI chiave: il margine lordo percentuale (target: >25%), il fatturato per dipendente (target: >120.000€/anno), il Days Sales Outstanding (giorni medi di incasso: target: <60 giorni), il rapporto tra preventivi vinti e inviati (target: >40%) e l'indice di puntualità delle consegne (target: >85%). Questi cinque numeri, monitorati mensilmente, danno un quadro completo della salute finanziaria e operativa dell'impresa.",
+        body: "Definisci prima la domanda: risultato del lavoro, scostamento dei costi, avanzamento o incassi. Per ogni indicatore dichiara periodo, fonte e denominatore. I target vanno motivati sui dati dell’impresa e sul tipo di commessa; una soglia isolata non dimostra la salute finanziaria. Nel software verifica che il riepilogo permetta di risalire alle registrazioni che stai usando, segnalando ciò che è ancora da completare.",
       },
       {
         type: "section",
         heading: "Errori che Erodono i Margini Senza che Te ne Accorga",
-        body: "I principali margine-killer nelle imprese edili sono: le varianti non formalizzate (lavori extra eseguiti senza ordine scritto che finiscono a carico dell'impresa), i ritardi di cantiere non imputabili al committente (che aumentano il costo del lavoro senza incremento del ricavo), i materiali sovraordinati (che rimangono a magazzino e generano perdite per obsolescenza), e la sottostima del tempo di coordinamento nei preventivi. Ogni uno di questi errori, se sistematico, può erodere 2-5 punti di margine netto.",
+        body: "I principali margine-killer nelle imprese edili sono: le varianti non formalizzate (lavori extra eseguiti senza ordine scritto che finiscono a carico dell'impresa), i ritardi di cantiere non imputabili al committente (che aumentano il costo del lavoro senza incremento del ricavo), i materiali sovraordinati (che rimangono a magazzino e generano perdite per obsolescenza), e la sottostima del tempo di coordinamento nei preventivi. L’effetto va quantificato sui costi e sul perimetro del lavoro, senza attribuire una perdita standard a ogni causa.",
       },
       {
         type: "section",
@@ -899,9 +898,14 @@ export const blogPosts: BlogPost[] = [
         body: "Calcolare il margine per commessa è il primo passo, non l'ultimo. Il passo dopo è decidere cosa farci: quali lavori rifiutare, come ribaltare i costi indiretti, a che punto un cantiere va fermato invece che finito in perdita. Quello non è più analisi dei margini, è controllo di gestione, ed è un mestiere a sé.\n\nSe in azienda non c'è nessuno che se ne occupa stabilmente, [Numeri in Edilizia](https://www.numerinedilizia.com/) è il servizio che lo fa per le imprese edili: costruisce il sistema di controllo, lo tiene aggiornato e ti siede accanto quando i numeri vanno letti.",
       },
       {
+        type: "section",
+        heading: "Verifica il percorso dai dati al risultato",
+        body: "Nella [demo](/demo/) verifica il percorso dalle registrazioni alla [commessa](/funzionalita/gestione-commesse/) e al quadro dei [margini di cantiere](/funzionalita/margini-cantiere/). Chiedi quali dati sono presenti, quali vanno registrati e come vengono segnalate le informazioni mancanti. Per metodo e criteri economici puoi approfondire le guide di [Numeri in Edilizia](https://www.numerinedilizia.com/risorse).",
+      },
+      {
         type: "cta",
-        heading: "Conosci i Tuoi Margini in Tempo Reale",
-        body: "Con Edilizia in Cloud hai il conto economico per ogni cantiere aggiornato in tempo reale, senza inserimento manuale. Richiedi una demo e smetti di lavorare al buio.",
+        heading: "Porta una commessa al confronto",
+        body: "Descrivi quali dati raccogli e quale risultato vuoi verificare. La demo serve a controllare il percorso sul tuo esempio, senza presumere che tutti i costi siano già disponibili o attribuiti.",
       },
     ],
   },
@@ -4645,16 +4649,21 @@ export const blogPosts: BlogPost[] = [
       { q: "Come capisco se una campagna sta funzionando?", a: "Dopo un mese non guardare solo il costo per lead: conta quanti lead sono stati contattati, quanti sopralluoghi sono stati fissati, quanti preventivi inviati, quanti lavori chiusi e con quale margine previsto. Se i lead arrivano ma il commerciale non richiama, il problema non è la campagna; se i lead sono buoni ma i preventivi non si chiudono, il problema è l'offerta." },
       { q: "Quando devo spegnere una campagna?", a: "Quando genera traffico fuori zona, richieste troppo piccole, lead non contattabili o lavori con margine basso. Prima di spegnerla però verifica se il problema è l'annuncio, la pagina, il modulo o il follow-up: molte campagne sembrano non funzionare solo perché nessuno richiama in tempo o perché i preventivi restano fermi per giorni." },
     ],
-    title: "Google Ads per Imprese Edili",
-    excerpt: "Google Ads può portare clienti edili, ma solo se campagne, landing page e CRM lavorano insieme. Ecco cosa controllare prima di bruciare budget.",
+    title: "Da Google Ads alla commessa: fonte ed esiti nel CRM",
+    excerpt: "Dal contatto alla commessa: registra fonte, stato della richiesta e passaggi commerciali. Criteri per verificare il percorso nel CRM senza confondere clic e contratti.",
     category: "Marketing",
     tags: ["Google Ads impresa edile", "pubblicità edilizia", "campagne Google edilizia", "lead edilizia Google Ads", "budget marketing edilizia"],
     publishedAt: "2026-03-31",
-    updatedAt: "2026-04-28",
+    updatedAt: "2026-11-18",
     readTime: 10,
     author: { name: "Florin Andriciuc", role: "Founder", avatar: FLO_AVATAR },
     coverImage: "/blog/covers/google-ads-impresa-edile-errori-budget.jpg",
     content: [
+      {
+        type: "callout",
+        heading: "Questa guida: il passaggio dopo la campagna",
+        body: "Il tema qui è la continuità tra richiesta, trattativa e lavoro. Per l’impostazione delle campagne puoi leggere la [guida di Marketing Edile](https://www.marketingedile.com/blog/google-ads-imprese-edili-guida-completa-2026). In Edilizia in Cloud verifica invece il percorso nella pagina [CRM edilizia](/funzionalita/crm-edilizia/): fonte conosciuta o soltanto dichiarata, servizio richiesto, referente, stato e prossima attività. Non dare per scontato che ogni richiesta sia già qualificata o che l’origine venga riconosciuta automaticamente. Nella demo chiedi di mostrare quali dati arrivano dall’integrazione prevista e quali richiedono un controllo. Un contatto ricevuto, un appuntamento fissato e un contratto acquisito sono passaggi diversi; assegnare a tutti lo stesso esito renderebbe inutile il confronto economico.",
+      },
       {
         type: "intro",
         body: "Google Ads per un'impresa edile può funzionare molto bene, perché intercetta persone che stanno già cercando un servizio. Ma può anche bruciare budget velocemente se mandi traffico su pagine generiche e non tracci cosa succede dopo il clic.",

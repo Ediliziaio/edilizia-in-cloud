@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Libretto delle misure: registrazioni di cantiere sulle voci del computo
  * contrattuale, con le righe di misura come nel computo (par.ug., lung., larg.,
@@ -90,9 +91,9 @@ function FormRegistrazione({ contratto, progressivoVoce, orderId, companyId, dir
         <div className="space-y-1">
           <Label htmlFor="libretto-voce">Voce del computo contrattuale</Label>
           <Input type="search" placeholder="Cerca per numero, tariffa o descrizione" value={cerca} onChange={e => setCerca(e.target.value)} aria-label="Cerca la voce" className="h-8" />
-          <select id="libretto-voce" value={voceId} onChange={e => setVoceId(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm" size={Math.min(6, Math.max(2, opzioni.length))}>
+          <UniformSelect id="libretto-voce" value={voceId} onChange={e => setVoceId(e.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm" size={Math.min(6, Math.max(2, opzioni.length))}>
             {opzioni.slice(0, 300).map(v => <option key={v.voce_id} value={v.voce_id}>{v.numero} · {v.tariffa} · {v.descrizione.slice(0, 110)}</option>)}
-          </select>
+          </UniformSelect>
         </div>
         <div className="space-y-1"><Label htmlFor="libretto-data">Data</Label><Input id="libretto-data" type="date" value={data} onChange={e => setData(e.target.value)} className="h-8" /></div>
       </div>

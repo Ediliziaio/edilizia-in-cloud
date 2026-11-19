@@ -1,3 +1,4 @@
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -141,6 +142,7 @@ export function useCreateMovimento() {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshFinancialQueries(queryClient);
       invalidaStatisticheFatturazione(queryClient, companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({
@@ -181,6 +183,7 @@ export function useDeleteMovimento() {
       if (error) throw error;
     },
     onSuccess: () => {
+      refreshFinancialQueries(queryClient);
       invalidaStatisticheFatturazione(queryClient, companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({
@@ -230,6 +233,7 @@ export function useSegnaPagata() {
       );
     },
     onSuccess: (esito) => {
+      refreshFinancialQueries(queryClient);
       invalidaStatisticheFatturazione(queryClient, companyId);
       queryClient.invalidateQueries({ queryKey: ["movimenti-cassa"] });
       queryClient.invalidateQueries({

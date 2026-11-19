@@ -14,6 +14,7 @@ import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario"
 import { invalidaFattureImportate } from "@/components/fatturazione/GestionaleEsterno";
 import { AnnullaIncassoDialog } from "@/components/scadenzario/AnnullaIncassoDialog";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
+import { RateFornitori } from "@/components/scadenzario/RateFornitori";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
 import { ScadenzaDettaglio } from "@/components/scadenzario/ScadenzaDettaglio";
 import MarkPaidDialog from "@/components/scadenzario/MarkPaidDialog";
@@ -193,7 +194,7 @@ export default function Scadenzario() {
 
   // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
   // sopra l'elenco. Solo da tablet in su e con un anno scelto; le annullate non contano.
-  const conGraficoMesi = !isMobile && yearFilter !== "all" && tab !== "settimane" && tab !== "adempimenti";
+  const conGraficoMesi = !isMobile && yearFilter !== "all" && tab !== "rate" && tab !== "settimane" && tab !== "adempimenti";
   const { data: mesiScadenze } = useQuery({
     queryKey: ["scadenzario", "mesi", companyId, yearFilter],
     enabled: !!companyId && conGraficoMesi,
@@ -365,13 +366,13 @@ export default function Scadenzario() {
       {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
       {/* «Per settimana» ha i suoi numeri, dalla stessa fonte dell'elenco: questi leggono solo la tabella delle
           scadenze dell'anno scelto, e accanto a quell'elenco dicevano cifre diverse per la stessa domanda. */}
-      {tab !== "settimane" && (isSummaryError ? (
+      {tab !== "rate" && tab !== "settimane" && (isSummaryError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
           <p>Riepilogo scadenze non disponibile. I totali non sono aggiornati.</p>
           <Button variant="outline" size="sm" onClick={() => void refetchSummary()}>Riprova riepilogo</Button>
         </div>
       ) : <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} className="max-sm:hidden" scaduteAttive={tab === "scadute"} onScadute={() => { setTab((t) => (t === "scadute" ? "aperte" : "scadute")); setPage(1); }} />)}
-      {summary && !isSummaryError && tab !== "settimane" && (
+      {summary && !isSummaryError && tab !== "rate" && tab !== "settimane" && (
         <KpiMobili
           className="sm:hidden"
           voci={[
@@ -428,6 +429,7 @@ export default function Scadenzario() {
               <TabsTrigger value="aperte">Aperte<span className="hidden xl:inline">&nbsp;({counts.aperte})</span></TabsTrigger>
               <TabsTrigger value="tutte">Tutte<span className="hidden xl:inline">&nbsp;({counts.tutte})</span></TabsTrigger>
               <TabsTrigger value="da_incassare">Da Incassare<span className="hidden xl:inline">&nbsp;({counts.da_incassare})</span></TabsTrigger>
+              <TabsTrigger value="rate">Rate fornitori</TabsTrigger>
               <TabsTrigger value="da_pagare">Da Pagare<span className="hidden xl:inline">&nbsp;({counts.da_pagare})</span></TabsTrigger>
               <TabsTrigger value="scadute">
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
@@ -454,7 +456,7 @@ export default function Scadenzario() {
               onClick={() => setShowFilters(!showFilters)}
               aria-label="Filtri avanzati scadenzario"
               aria-expanded={showFilters}
-              className="relative"
+              className={tab === "rate" ? "hidden" : "relative"}
             >
               <Filter className="h-4 w-4" />
               {hasActiveFilters && (
@@ -462,7 +464,7 @@ export default function Scadenzario() {
               )}
             </Button>
             {/* Niente export su telefono: icon-only non lo rende un'altra cosa. */}
-            {!isMobile && (
+            {!isMobile && tab !== "rate" && (
               <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting || isLoading || isError} title="Esporta CSV" aria-label="Esporta CSV">
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               </Button>
@@ -471,7 +473,7 @@ export default function Scadenzario() {
         </div>
 
         {/* Advanced filters row */}
-        {showFilters && (
+        {showFilters && tab !== "rate" && (
           <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg border bg-muted/30">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Periodo</label>
@@ -569,7 +571,9 @@ export default function Scadenzario() {
       </div>
 
       {/* Adempimenti Fiscali tab */}
-      {tab === "settimane" ? (
+      {tab === "rate" ? (
+        companyId && <RateFornitori key={companyId} companyId={companyId} anno={yearFilter} cerca={search} />
+      ) : tab === "settimane" ? (
         <IncassiPerSettimanaVista cerca={search} />
       ) : tab === "adempimenti" ? (
         <AdempimentiFiscali />
@@ -642,13 +646,14 @@ export default function Scadenzario() {
         onAperto={setFiltriMobileAperti}
         attivi={nFiltriMobile}
         onAzzera={() => { setTab("aperte"); clearFilters(); }}
-        risultati={isLoading ? undefined : totalCount}
+        risultati={isLoading || tab === "rate" ? undefined : totalCount}
       >
         <PilloleFiltro
           titolo="Mostra"
           valore={tab === "adempimenti" || tab === "settimane" ? "aperte" : tab}
           onScegli={(v) => { setTab(v); setPage(1); }}
           scelte={[
+            { value: "rate", label: "Rate fornitori" },
             { value: "settimane", label: "Per settimana" },
             { value: "aperte", label: "Aperte", n: counts.aperte },
             { value: "tutte", label: "Tutte", n: counts.tutte },
@@ -658,6 +663,7 @@ export default function Scadenzario() {
             { value: "pagate", label: "Pagate", n: counts.pagate },
           ]}
         />
+        {tab !== "rate" && <>
         <PilloleFiltro
           titolo="Periodo"
           valore={datePreset && datePreset !== "custom" ? datePreset : "all"}
@@ -680,6 +686,7 @@ export default function Scadenzario() {
             { value: "altro", label: "Altro" },
           ]}
         />
+        </>}
       </PannelloFiltri>
 
       {/* Dialogs */}

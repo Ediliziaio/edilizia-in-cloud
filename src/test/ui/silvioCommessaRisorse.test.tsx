@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Il popup «Crea con Silvio», fase 4: squadra, ditte, mezzi e ordini proposti coi dati
  * dell'azienda; chi non è disponibile ha il ⚠ e resta fuori; «Va bene» li fa entrare in «Crea»;
@@ -158,7 +159,7 @@ describe("Popup «Crea con Silvio», fase 4", () => {
     const { s } = servizi(); apri(s);
     expect(await within(await area("Persone")).findByText("Luca Prova")).toBeInTheDocument();
     const campo = screen.getByLabelText("Scrivi a Silvio");
-    fireEvent.change(campo, { target: { value: "SIMULAZIONE: non assegnare personale o ditte, non creare ordini di acquisto. Le date e le lavorazioni restano quelle del documento, senza altre assegnazioni." } });
+    changeFormControl(campo, { target: { value: "SIMULAZIONE: non assegnare personale o ditte, non creare ordini di acquisto. Le date e le lavorazioni restano quelle del documento, senza altre assegnazioni." } });
     fireEvent.keyDown(campo, { key: "Enter" });
     await waitFor(() => expect(s.leggiTesto).toHaveBeenCalledOnce());
     await waitFor(() => expect(within(commessa()).queryByText("Luca Prova")).not.toBeInTheDocument());
@@ -204,7 +205,7 @@ describe("Popup «Crea con Silvio», fase 4", () => {
     await area("Persone");
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     await act(async () => {
-      fireEvent.change(input, { target: { files: [new File(["%PDF-1.4"], "offerta-idraulica.pdf", { type: "application/pdf" })] } });
+      changeFormControl(input, { target: { files: [new File(["%PDF-1.4"], "offerta-idraulica.pdf", { type: "application/pdf" })] } });
     });
     const fonti = screen.getByRole("list", { name: "Fonti caricate" });
     // L'offerta si legge solo col via (ha un costo): poi resta da collegare.
@@ -212,7 +213,7 @@ describe("Popup «Crea con Silvio», fase 4", () => {
     if (leggi) fireEvent.click(leggi);
     expect(await within(fonti).findByText(/da collegare/)).toBeInTheDocument();
 
-    fireEvent.change(await within(fonti).findByLabelText(/A quale richiesta risponde/), { target: { value: "r0000000-0000-4000-a000-000000000001" } });
+    changeFormControl(await within(fonti).findByLabelText(/A quale richiesta risponde/), { target: { value: "r0000000-0000-4000-a000-000000000001" } });
     fireEvent.click(within(fonti).getByRole("button", { name: /Leggi l'offerta/ }));
     await waitFor(() => expect(s.leggiOfferta).toHaveBeenCalledWith("r0000000-0000-4000-a000-000000000001", expect.any(File)));
 

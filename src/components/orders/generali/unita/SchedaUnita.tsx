@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/unita/SchedaUnita.tsx
 // La scheda «Unità e vendite» della generale: tabellone disponibilità (o tabella), avviso delle
 // garanzie per gli immobili da costruire, nuove unità in serie, l'unità aperta.
@@ -102,7 +103,7 @@ export function SchedaUnita({ riepilogo, puoModificare }: PropsScheda) {
           </Button>
         </div>
       )}
-      {!vuota && <div className="generale-table-toolbar"><label>Stato vendita<select aria-label="Filtra unità per stato vendita" value={filtroStato ?? ""} onChange={e => filtraStato(e.target.value)}><option value="">Tutte le unità</option>{STATI_VENDITA.map(s => <option value={s} key={s}>{NOMI_STATO[s].tante}</option>)}</select></label></div>}
+      {!vuota && <div className="generale-table-toolbar"><label>Stato vendita<UniformSelect aria-label="Filtra unità per stato vendita" value={filtroStato ?? ""} onChange={e => filtraStato(e.target.value)}><option value="">Tutte le unità</option>{STATI_VENDITA.map(s => <option value={s} key={s}>{NOMI_STATO[s].tante}</option>)}</UniformSelect></label></div>}
       {filtroStato && <FiltroAttivo onReset={() => filtraStato("")}>{NOMI_STATO[filtroStato].tante}: {venditeInVista.unita} di {vendite.unita} unità. I conteggi in alto riguardano l'intera operazione.</FiltroAttivo>}
       {!vuota && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
@@ -145,7 +146,7 @@ export function SelettorePrezzario({
               </Button>
             </div>
           ) : (
-            <select
+            <UniformSelect
               id="catalogo-fonte"
               value={fonteId ?? ""}
               disabled={disabled || fonti.isLoading}
@@ -173,7 +174,7 @@ export function SelettorePrezzario({
                     : ""}
                 </option>
               ))}
-            </select>
+            </UniformSelect>
           )}
           {!fonti.isLoading && !fonti.isError && fonti.data?.length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -470,7 +471,7 @@ export function SelettorePrezzario({
                           {scelta && !unitaOriginale?.trim() && (
                             <label className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                               Unità da usare per {v.codice ?? "questa voce"}
-                              <select
+                              <UniformSelect
                                 aria-label={`Unità per ${v.codice ?? v.id}`}
                                 value={scelta.unita_misura ?? ""}
                                 disabled={disabled}
@@ -504,7 +505,7 @@ export function SelettorePrezzario({
                                     {um === "a_corpo" ? "a corpo" : um}
                                   </option>
                                 ))}
-                              </select>
+                              </UniformSelect>
                             </label>
                           )}
                           {preview && (

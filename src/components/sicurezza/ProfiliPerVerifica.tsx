@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { useProfiliRequisiti } from "@/hooks/useProfiliRequisiti";
 import {
@@ -57,7 +58,7 @@ export function ProfiliPerVerifica({
             }}
           />
           <div className="flex flex-wrap gap-2">
-            <select
+            <UniformSelect
               aria-label="Profilo requisiti da caricare"
               className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
               value={scelta}
@@ -76,7 +77,7 @@ export function ProfiliPerVerifica({
                     {v.archiviato ? " · archiviato" : ""}
                   </option>
                 ))}
-            </select>
+            </UniformSelect>
             <Button
               variant="outline"
               disabled={!scelto || q.isLoading}

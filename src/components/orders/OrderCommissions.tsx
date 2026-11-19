@@ -35,23 +35,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { calculateCommissionGross, calculateStoredCommissionNet, type CompensationMode } from "@/lib/commissions";
-
-interface OrderSalesperson {
-  id: string;
-  salesperson_id: string;
-  commission_type: string;
-  commission_value: number;
-  commission_amount: number;
-  deduction_amount: number;
-  is_paid: boolean;
-  paid_date: string | null;
-  payment_expected_date: string | null;
-  salesperson: {
-    first_name: string;
-    last_name: string;
-    compensation_mode?: CompensationMode | null;
-  };
-}
+import { useCommercialiCommessa, type OrderSalesperson } from "@/hooks/useCommercialiCommessa";
 
 interface CommissionLedgerEntry {
   id: string;
@@ -148,34 +132,7 @@ export function OrderCommissions({
     enabled: !!effectiveCompany?.id && addDialogOpen,
   });
 
-  const { data: orderSalespeople = [], isLoading } = useQuery({
-    queryKey: queryKeys.orderSalespeople.byOrder(orderId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_salespeople")
-        .select(`
-          *,
-          salesperson:salespeople(first_name, last_name, compensation_mode)
-        `)
-        .eq("order_id", orderId);
-
-      if (error) throw error;
-      // Difesa: un venditore può essere stato rimosso → il join `salesperson`
-      // torna null/undefined. Sostituisco un placeholder così le righe non
-      // crashano su sp.salesperson?.first_name (era la causa di "reading 'first_name'").
-      return ((data ?? []) as Array<
-        Omit<OrderSalesperson, "salesperson"> & { salesperson: OrderSalesperson["salesperson"] | null }
-      >).map((row): OrderSalesperson => ({
-        ...row,
-        salesperson: row.salesperson ?? {
-          first_name: "Venditore",
-          last_name: "(rimosso)",
-          compensation_mode: null,
-        },
-      }));
-    },
-    enabled: !!orderId,
-  });
+  const { data: orderSalespeople = [], isLoading, isError, refetch } = useCommercialiCommessa(orderId);
 
   const { data: commissionLedger = [] } = useQuery({
     queryKey: queryKeys.orders.commissionLedger(orderId),
@@ -237,6 +194,7 @@ export function OrderCommissions({
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
       queryClient.invalidateQueries({ queryKey: ["oes-salespeople", orderId] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
+      queryClient.invalidateQueries({ queryKey: ["esposizione-commessa", orderId] });
       toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
     },
     onError: () => {
@@ -398,6 +356,11 @@ export function OrderCommissions({
     );
   }
 
+  if (isError) {
+    return <p role="alert" className="rounded-lg border bg-background p-3 text-sm">
+      Commerciali e provvigioni non disponibili. <button type="button" className="underline" onClick={() => void refetch()}>Riprova</button>
+    </p>;
+  }
   if (orderSalespeople.length === 0) {
     return (
       <>

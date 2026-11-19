@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -163,7 +164,7 @@ describe("libreria completa dei moduli", () => {
   });
   it("trova direttamente il modulo per intervento", () => {
     mount();
-    fireEvent.change(screen.getByLabelText("Cerca un modulo"), {
+    changeFormControl(screen.getByLabelText("Cerca un modulo"), {
       target: { value: "vasca" },
     });
     expect(
@@ -179,7 +180,7 @@ describe("libreria completa dei moduli", () => {
     expect(
       screen.getAllByRole("button", { name: "Personalizza PDF" }),
     ).toHaveLength(9);
-    fireEvent.change(screen.getByLabelText("Cerca un modulo"), {
+    changeFormControl(screen.getByLabelText("Cerca un modulo"), {
       target: { value: "inesistente" },
     });
     expect(screen.getByText("Nessun modulo trovato.")).toBeInTheDocument();
@@ -212,10 +213,10 @@ describe("libreria completa dei moduli", () => {
       </MemoryRouter>,
     );
     expect(localStorage.length).toBe(0);
-    fireEvent.change(screen.getByLabelText("Titolo del modulo"), {
+    changeFormControl(screen.getByLabelText("Titolo del modulo"), {
       target: { value: "La tua nuova doccia" },
     });
-    fireEvent.change(screen.getByLabelText("Pagina da modificare"), {
+    changeFormControl(screen.getByLabelText("Pagina da modificare"), {
       target: { value: "perimetro" },
     });
     fireEvent.click(

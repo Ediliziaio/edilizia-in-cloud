@@ -13,6 +13,7 @@ interface OrdineTempIsticheProps {
   orderCode?: string | null;
   orderDescription?: string | null;
   defaultAddress?: string | null;
+  onRequestEdit?: () => void;
 }
 
 export function OrdineTempistiche({
@@ -28,6 +29,7 @@ export function OrdineTempistiche({
   orderCode,
   orderDescription,
   defaultAddress,
+  onRequestEdit,
 }: OrdineTempIsticheProps) {
   return (
     <InlineEditableDatesCard
@@ -43,6 +45,7 @@ export function OrdineTempistiche({
       orderCode={orderCode}
       orderDescription={orderDescription}
       defaultAddress={defaultAddress}
+      onRequestEdit={onRequestEdit}
     />
   );
 }

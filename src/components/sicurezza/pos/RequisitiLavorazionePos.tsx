@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { RiesameProprioPos } from "../RiesameProprioPos";
 import { Button } from "@/components/ui/button";
@@ -113,7 +114,7 @@ export function RequisitiLavorazionePos({
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1 text-xs">
           Gestione
-          <select
+          <UniformSelect
             className="block w-full rounded border p-2 text-sm"
             aria-label={`Gestione requisiti addetti ${n + 1}`}
             value={v.modalita}
@@ -132,7 +133,7 @@ export function RequisitiLavorazionePos({
                 Interamente eseguita dall’impresa esterna
               </option>
             )}
-          </select>
+          </UniformSelect>
         </label>
         <label className="space-y-1 text-xs">
           Dal
@@ -170,7 +171,7 @@ export function RequisitiLavorazionePos({
       {!d.versione_prodotti && (
         <label className="block text-xs">
           Fase della lavorazione
-          <select
+          <UniformSelect
             className="block w-full rounded border p-2"
             disabled={ro || fasi.isError}
             value={l.fase_id || ""}
@@ -189,7 +190,7 @@ export function RequisitiLavorazionePos({
                 {f.name}
               </option>
             ))}
-          </select>
+          </UniformSelect>
         </label>
       )}
       {aperto && !ro && v.modalita === "riesami" && (
@@ -208,7 +209,7 @@ export function RequisitiLavorazionePos({
             <>
               <label className="block text-sm">
                 Riesame dell’attività
-                <select
+                <UniformSelect
                   className="block w-full rounded border p-2"
                   value={scelto}
                   onChange={(e) => setScelto(e.target.value)}
@@ -221,7 +222,7 @@ export function RequisitiLavorazionePos({
                         {r.dati.attivita} · {r.dal}–{r.al} · rev. {r.versione}
                       </option>
                     ))}
-                </select>
+                </UniformSelect>
               </label>
               {!storico.data?.length && (
                 <p className="text-sm">

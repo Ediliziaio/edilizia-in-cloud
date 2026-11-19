@@ -34,6 +34,7 @@ export const CUSTOMER_IMPORT_FIELDS: CustomerImportField[] = [
 export const ALL_COLUMNS = [
   { key: "avatar", label: "Avatar", defaultVisible: true, required: true },
   { key: "name", label: "Nome", defaultVisible: true, required: true },
+  { key: "locality", label: "Località", defaultVisible: true },
   { key: "health", label: "Salute", defaultVisible: true },
   { key: "email", label: "Email", defaultVisible: true },
   { key: "phone", label: "Telefono", defaultVisible: true },

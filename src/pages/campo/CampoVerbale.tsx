@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il verbale di collaudo dal telefono del capocantiere: compila dal modello dell'azienda, mostra il PDF al cliente e lo
  * fa firmare sullo schermo. Se il cliente non c'è, resta la bozza e la chiude l'ufficio.
@@ -208,10 +209,10 @@ export default function CampoVerbale() {
 
           <div className="grid gap-2 rounded-2xl border bg-background p-3">
             <div className="grid gap-1"><Label htmlFor="v-esito">Esito</Label>
-              <select id="v-esito" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={content.outcome}
+              <UniformSelect id="v-esito" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={content.outcome}
                 onChange={e => cambia({ outcome: e.target.value as AcceptanceContent["outcome"] })}>
                 {Object.entries(outcomes).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-              </select></div>
+              </UniformSelect></div>
             <div className="grid gap-1"><Label htmlFor="v-riserve">Riserve</Label>
               <Textarea id="v-riserve" rows={2} value={content.reservations} onChange={e => cambia({ reservations: e.target.value })} /></div>
             {(content.outcome === "reserves" || content.outcome === "negative" || content.actions.length > 0) && (

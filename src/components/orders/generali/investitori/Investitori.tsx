@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/investitori/Investitori.tsx
 // La scheda «Investitori» della commessa generale (piano §3.3, §B; tappa 5): da dove
 // arrivano i soldi dell'operazione, il capitale di ogni fonte contro il capitale massimo
@@ -126,7 +127,7 @@ export function Investitori({ riepilogo, puoModificare }: PropsScheda) {
 
           <RendimentoLeva conti={conti} fonti={inv.fonti} movimenti={inv.movimenti} numeri={inv.numeri} oggi={inv.oggi} />
 
-          <div className="generale-table-toolbar"><label>Fonti di capitale<select aria-label="Filtra fonti per gruppo" value={filtro ?? ""} onChange={e => filtra(e.target.value ? e.target.value as GruppoFonte : null)}><option value="">Tutte le fonti</option>{Object.entries(NOMI_GRUPPO).map(([id,nome]) => <option key={id} value={id}>{nome}</option>)}</select></label><span className="text-xs text-muted-foreground">{fontiInVista.length} di {conti.fonti.length} fonti</span></div>
+          <div className="generale-table-toolbar"><label>Fonti di capitale<UniformSelect aria-label="Filtra fonti per gruppo" value={filtro ?? ""} onChange={e => filtra(e.target.value ? e.target.value as GruppoFonte : null)}><option value="">Tutte le fonti</option>{Object.entries(NOMI_GRUPPO).map(([id,nome]) => <option key={id} value={id}>{nome}</option>)}</UniformSelect></label><span className="text-xs text-muted-foreground">{fontiInVista.length} di {conti.fonti.length} fonti</span></div>
           {filtro && <FiltroAttivo onReset={() => filtra(null)}>{NOMI_GRUPPO[filtro]}. I riepiloghi e il grafico mostrano l'intera operazione.</FiltroAttivo>}
           <section aria-label="Le fonti" className="generale-panel overflow-x-auto">
             <table className="w-full min-w-[56rem] text-sm">

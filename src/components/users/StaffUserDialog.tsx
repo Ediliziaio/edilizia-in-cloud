@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEmployeeAccountOptions } from "@/hooks/useEmployeeAccountOptions";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -386,11 +387,11 @@ export function StaffUserDialog({
           {roleType === "employee" && companyId && (
             <div className="space-y-2">
               <Label htmlFor="admin-personale">Scheda del personale</Label>
-              <select id="admin-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId} disabled={employeeLoading || employeeError}
+              <UniformSelect id="admin-personale" className="w-full rounded-md border bg-background p-2 text-sm" value={employeeId} disabled={employeeLoading || employeeError}
                 onChange={e=>{setEmployeeId(e.target.value);const p=employeeOptions.find(p=>p.id===e.target.value);if(p){setFirstName(p.first_name);setLastName(p.last_name);if(p.email)setEmail(p.email);}}}>
                 <option value="">Nuova persona, non ancora presente</option>
                 {employeeOptions.map(p=><option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>)}
-              </select>
+              </UniformSelect>
               <p className="text-xs text-muted-foreground">Seleziona la scheda esistente per conservare cantieri e storico.</p>
               {employeeError && <p role="alert">Non riesco a verificare il personale. Riapri la finestra.</p>}
             </div>

@@ -1,3 +1,4 @@
+import { withAbortableClientTimeout } from "@/lib/query-timeout";
 import { leggiCostiRapportini } from "@/lib/campo/colonneRapportino";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -69,7 +70,7 @@ export async function leggiRapportiniMese(companyId: string, periodo: string | I
     if (!data || data.length < PAGINA) break;
   }
   if (conCosti) {
-    const costi = new Map((await leggiCostiRapportini(intervallo)).map((c) => [c.id, c.costo_manodopera]));
+    const costi = new Map((await leggiCostiRapportini(intervallo, signal)).map((c) => [c.id, c.costo_manodopera]));
     for (const r of righe) r.costo_manodopera = costi.get(r.id) ?? null;
   }
   return righe.filter((r) => r.order && !r.order.deleted_at);
@@ -80,7 +81,8 @@ export function useRapportiniMese(companyId: string | null | undefined, periodo:
     queryKey: ["commesse-rapportini", companyId, periodo, conCosti],
     enabled: !!companyId && periodo !== null,
     staleTime: 30_000,
-    queryFn: ({ signal }) => leggiRapportiniMese(companyId!, periodo!, conCosti, signal),
+    retry: false,
+    queryFn: ({ signal }) => withAbortableClientTimeout(requestSignal => leggiRapportiniMese(companyId!, periodo!, conCosti, requestSignal), "Caricamento rapportini", 20_000, signal),
   });
 }
 

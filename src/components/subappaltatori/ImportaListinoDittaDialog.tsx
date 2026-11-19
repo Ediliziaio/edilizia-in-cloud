@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Carica listino» della ditta (10/11/2026, lotto 7 di docs/piano-subappalto-computo-listino.md).
  *
@@ -174,12 +175,12 @@ export function ImportaListinoDittaDialog({ companyId, anagraficaId, nomeDitta, 
                         </td>
                         <td className="px-1 py-1 text-right tabular-nums">{p.riga.prezzo == null ? "—" : formatCurrency(p.riga.prezzo)}</td>
                         <td className="px-2 py-1">
-                          <select aria-label={`Dove va la riga ${p.riga.riga}`} className="h-8 w-full rounded-md border bg-background px-1 text-xs"
+                          <UniformSelect aria-label={`Dove va la riga ${p.riga.riga}`} className="h-8 w-full rounded-md border bg-background px-1 text-xs"
                             value={valoreScelta(p.scelta)} onChange={(e) => cambia(i, e.target.value)} disabled={p.riga.prezzo == null || p.riga.prezzo < 0}>
                             <option value="salta">Non caricare</option>
                             <option value="nuova">Voce nuova della ditta</option>
                             {opzioniVoci.map((v) => <option key={v.id} value={`v:${v.id}`}>{v.codice ? `${v.codice} · ` : ""}{v.nome} ({unitaDelListino(v.unita)})</option>)}
-                          </select>
+                          </UniformSelect>
                         </td>
                       </tr>
                     );

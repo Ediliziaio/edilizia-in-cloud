@@ -1,3 +1,4 @@
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -250,17 +251,10 @@ function Posizione({
         {lati && (
           <div className="min-w-0">
             <Label htmlFor={`pos-${riga.id}-tipo`} className="text-xs">È la misura del</Label>
-            <select
-              id={`pos-${riga.id}-tipo`}
-              className="mt-1 h-11 w-full rounded-md border bg-white px-2 text-sm disabled:opacity-60"
-              disabled={!canEdit}
-              value={bozza?.tipo ?? scheda.misuraTipo}
-              onChange={(e) => onChange({ tipo: e.target.value as TipoMisura })}
-            >
-              <option value="foro">Foro</option>
-              <option value="telaio">Telaio</option>
-              <option value="finita">Prodotto finito</option>
-            </select>
+            <Select disabled={!canEdit} value={bozza?.tipo ?? scheda.misuraTipo} onValueChange={value => onChange({tipo:value as TipoMisura})}>
+              <SelectTrigger id={`pos-${riga.id}-tipo`} className="mt-1 h-11 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="foro">Foro</SelectItem><SelectItem value="telaio">Telaio</SelectItem><SelectItem value="finita">Prodotto finito</SelectItem></SelectContent>
+            </Select>
           </div>
         )}
       </div>

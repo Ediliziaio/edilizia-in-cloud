@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useId, useRef } from "react";
 import { ArrowDown, ArrowUp, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,10 +44,10 @@ export function GalleriaImmaginiCatalogo({ value, onChange, disabled = false }: 
       {value.map((immagine, index) => <div key={immagine.id} className="min-w-0 space-y-2 rounded-md border p-3">
         <div className="aspect-[4/3] overflow-hidden bg-white"><img src={immagine.url} alt={immagine.didascalia || `Immagine ${index + 1} della linea`} className="h-full w-full object-contain" /></div>
         <label htmlFor={`${uid}-ruolo-${immagine.id}`} className="block text-xs text-muted-foreground">Uso nel preventivo</label>
-        <select id={`${uid}-ruolo-${immagine.id}`} value={immagine.ruolo} disabled={disabled} className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+        <UniformSelect id={`${uid}-ruolo-${immagine.id}`} value={immagine.ruolo} disabled={disabled} className="h-9 w-full rounded-md border bg-background px-2 text-sm"
           onChange={e => onChange(assegnaRuolo(value, immagine.id, e.target.value as RuoloImmagineCatalogo))}>
           {Object.entries(RUOLI_IMMAGINE).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+        </UniformSelect>
         <label htmlFor={`${uid}-testo-${immagine.id}`} className="block text-xs text-muted-foreground">Didascalia</label>
         <Input id={`${uid}-testo-${immagine.id}`} value={immagine.didascalia} maxLength={240} disabled={disabled}
           onChange={e => onChange(value.map(i => i.id === immagine.id ? { ...i, didascalia: e.target.value } : i))} />

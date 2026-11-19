@@ -85,15 +85,17 @@ const emptyForm = (): CedolinoForm => ({
   note: "",
 });
 
-export function TabCedolini() {
+type PeriodoIniziale = { annoIniziale?: string | null; meseIniziale?: string | null };
+
+export function TabCedolini(periodo: PeriodoIniziale = {}) {
   const [view,setView]=useState<'cedolini'|'benefit'|'registers'>('cedolini');
   const permissions=usePermissions();
   return <div className="mt-4 space-y-4"><nav aria-label="Sezioni paghe" className="flex flex-wrap gap-2 rounded-xl border bg-white p-2">
     {([['cedolini','Cedolini'],['benefit','Benefit e rimborsi'],['registers','TFR e welfare']] as const).map(([key,label])=><Button key={key} aria-pressed={view===key} variant={view===key?'default':'ghost'} disabled={key!=='cedolini'&&(!permissions.isAdmin||permissions.isLoading)} onClick={()=>setView(key)}>{label}</Button>)}
-  </nav>{view==='cedolini'?<CedoliniArchivio/>:<PagheWorkspace key={view} area={view}/>}</div>;
+  </nav>{view==='cedolini'?<CedoliniArchivio {...periodo} />:<PagheWorkspace key={view} area={view}/>}</div>;
 }
 
-function CedoliniArchivio() {
+function CedoliniArchivio({ annoIniziale, meseIniziale }: PeriodoIniziale) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -108,13 +110,13 @@ function CedoliniArchivio() {
   const [paging, setPaging] = useState({ key: "", page: 0 });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CedolinoForm>(emptyForm());
-  const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
+  const [filterYear, setFilterYear] = useState(annoIniziale && /^\d{4}$/.test(annoIniziale) ? annoIniziale : String(new Date().getFullYear()));
   const [isExporting, setIsExporting] = useState(false);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [printTitle, setPrintTitle] = useState("");
   const [caricaOpen, setCaricaOpen] = useState(false);
-  const [filterMese, setFilterMese] = useState(String(new Date().getMonth() + 1));
+  const [filterMese, setFilterMese] = useState(meseIniziale && /^(?:[1-9]|1[0-2])$/.test(meseIniziale) ? meseIniziale : String(new Date().getMonth() + 1));
   const [cerca, setCerca] = useState("");
 
   // I documenti caricati dal consulente nell'anno: il PDF vero di ogni busta,
@@ -432,7 +434,7 @@ function CedoliniArchivio() {
     }
   };
 
-  const years = Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i));
+  const years = [...new Set([filterYear, ...Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i))])].sort().reverse();
   const testoCerca = cerca.trim().toLowerCase();
   const cedoliniVisibili = cedolini.filter((c: any) =>
     (filterMese === "tutti" || c.mese === Number(filterMese))

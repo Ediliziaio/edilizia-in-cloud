@@ -1,3 +1,4 @@
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import {OrderTrashConfirmDialog} from './OrderTrashConfirmDialog';
 import {orderPaymentTiming} from "@/lib/orders/listPayments";
 import React, { useState, useMemo, useRef } from "react";
@@ -53,6 +54,8 @@ export interface OrderCosts {
 }
 
 interface OrdersTableProps {
+  riferimentiPipeline?: Map<string,string>;
+  pipelineFallback?: string;
   canDelete?: boolean;
   orders: OrderWithDetails[];
   previousReasons?: Record<string,string[]>;
@@ -109,6 +112,7 @@ function daIncassareConUnita(o: OrderWithDetails, mappa: MappaGenerali): number 
 
 export const OrdersTable = React.memo(function OrdersTable({
   canDelete = true,
+  riferimentiPipeline, pipelineFallback = "Principale",
   orders,
   previousReasons = {},
   onDelete,
@@ -159,6 +163,7 @@ export const OrdersTable = React.memo(function OrdersTable({
   const { sortConfig, toggleSort, sortedItems } = useTableSort(orders, sortAccessors);
 
   const navigate = useNavigate();
+  const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Conferma eliminazione a livello componente (prima ogni riga montava il suo
   // AlertDialog dentro la cella azioni).
@@ -304,6 +309,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                     <HardHat className="h-3 w-3 shrink-0 text-amber-600" aria-label="Lavoro per appaltatore" />
                   )}
                   {riga.livello === 0 && <SegnoGenerale order={order} mappa={mappaGenerali} compatto />}
+                  {visibleColumns.has("pipeline") && <span className="text-xs text-muted-foreground">Pipeline · {riferimentiPipeline?.get(order.id) ?? pipelineFallback}</span>}
                   {stato && (
                     <span className="flex min-w-0 items-center gap-1 text-[11px]" style={{ color: stato.color }}>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: stato.color }} />
@@ -411,12 +417,13 @@ export const OrdersTable = React.memo(function OrdersTable({
         </div>
       )}
 
+      <BarraScorrimentoOrizzontale contenitore={scrollContainer} className="mx-3 my-2" />
       <div className="overflow-x-auto">
         {/* Celle compatte (audit UX 2026-09): il p-4 di default = 32px di sola
             aria per riga; con gli a-capo le righe arrivavano a 93px. Ora ~52px,
             in linea con l'estimateSize=56 del virtualizer (prima mentiva). */}
         {/* Sotto i 1280px celle più strette: la tabella deve stare nella pagina. */}
-        <Table className="[&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-2 xl:[&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-2 xl:[&_tbody_td]:px-3 [&_tbody_td]:py-2">
+        <Table wrapperRef={setScrollContainer} className="[&_thead_th]:h-10 [&_thead_th]:whitespace-nowrap [&_thead_th]:px-2 xl:[&_thead_th]:px-3 [&_tbody_td]:whitespace-nowrap [&_tbody_td]:px-2 xl:[&_tbody_td]:px-3 [&_tbody_td]:py-2">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px]">
@@ -447,6 +454,7 @@ export const OrdersTable = React.memo(function OrdersTable({
               {visibleColumns.has("work_end") && <SortableTableHead column="work_end_date" label="Fine Lavori" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
               {visibleColumns.has("payment_type") && <SortableTableHead column="payment_type" label="Tipo Pagamento" sortConfig={sortConfig} onSort={toggleSort} className="hidden lg:table-cell" />}
               {visibleColumns.has("payments") && <SortableTableHead column="payments" label="Pagamenti" sortConfig={sortConfig} onSort={toggleSort} className="hidden xl:table-cell" />}
+              {visibleColumns.has("pipeline") && <TableHead>Pipeline</TableHead>}
               <SortableTableHead column="status" label="Stato" sortConfig={sortConfig} onSort={toggleSort} />
               <TableHead className="text-right">Azioni</TableHead>
             </TableRow>
@@ -670,6 +678,7 @@ export const OrdersTable = React.memo(function OrdersTable({
                       </Badge>
                     </TableCell>
                   )}
+                  {visibleColumns.has("pipeline") && <TableCell className="text-xs">{riferimentiPipeline?.get(order.id) ?? pipelineFallback}</TableCell>}
                   <TableCell>
                     {stato ? (
                       <Badge

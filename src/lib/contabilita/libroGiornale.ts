@@ -43,6 +43,7 @@ export interface Scrittura {
   documento_numero: string | null;
   documento_data: string | null;
   origine: string;
+  origine_id?: string | null;
   storno_di: string | null;
   stornata?: boolean;
   contabilita_righe: RigaScrittura[];
@@ -104,6 +105,7 @@ export function controllaBozza(righe: readonly RigaBozza[], conti: readonly Cont
 
 /** Una riga del libro giornale: la testata ripetuta su ogni riga, come nei libri. */
 export interface RigaGiornale {
+  scritturaId: string;
   progressivo: number;
   /** Numero di giornale: progressivo per esercizio in ordine di data, come vuole la tenuta del libro. */
   numero: string;
@@ -120,7 +122,7 @@ export interface RigaGiornale {
   primaDellaScrittura: boolean;
 }
 
-export function costruisciGiornale(scritture: readonly Scrittura[], conti: readonly ContoContabile[], riporto = 0) {
+export function costruisciGiornale(scritture: readonly Scrittura[], conti: readonly ContoContabile[], riporto = 0, selezione?: ReadonlySet<string>) {
   const nomi = new Map(conti.map((c) => [c.id, `${c.codice} ${c.descrizione}`]));
   const ordinate = [...scritture].sort((a, b) =>
     a.data_registrazione.localeCompare(b.data_registrazione) || a.esercizio - b.esercizio || a.numero - b.numero);
@@ -137,10 +139,12 @@ export function costruisciGiornale(scritture: readonly Scrittura[], conti: reado
     const fuoriPosto = nGiornale !== s.numero;
     const proprie = [...(s.contabilita_righe ?? [])].sort((a, b) => a.riga - b.riga);
     proprie.forEach((r, i) => {
+      progressivo += 1;
+      if (selezione && !selezione.has(s.id)) return;
       totDare += cent(Number(r.dare) || 0);
       totAvere += cent(Number(r.avere) || 0);
-      progressivo += 1;
       righe.push({
+        scritturaId: s.id,
         progressivo,
         numero: `${nGiornale}/${s.esercizio}`,
         registrazione: `${s.numero}/${s.esercizio}`,
@@ -156,7 +160,7 @@ export function costruisciGiornale(scritture: readonly Scrittura[], conti: reado
       });
     });
   }
-  return { righe, totaleDare: totDare / 100, totaleAvere: totAvere / 100, scritture: ordinate.length };
+  return { righe, totaleDare: totDare / 100, totaleAvere: totAvere / 100, scritture: selezione ? ordinate.filter(s => selezione.has(s.id)).length : ordinate.length };
 }
 
 const euro = (n: number | null): string =>
@@ -183,15 +187,16 @@ export function htmlLibroGiornale(d: {
   dal: string;
   al: string;
   definitiva?: boolean;
+  selezione?: ReadonlySet<string>;
 }): string {
-  const tutto = costruisciGiornale(d.scritture, d.conti);
+  const tutto = costruisciGiornale(d.scritture, d.conti, 0, d.selezione);
   const prima = tutto.righe.filter((r) => r.data < d.dal);
   const righe = tutto.righe.filter((r) => r.data >= d.dal && r.data <= d.al);
   const riporto = prima.length ? prima[prima.length - 1].progressivoDare : 0;
   const totale = righe.length ? righe[righe.length - 1].progressivoDare : riporto;
   const scritture = righe.filter((r) => r.primaDellaScrittura).length;
   return htmlDocumentoContabile<RigaGiornale>({
-    titolo: d.definitiva ? "Libro giornale — stampa definitiva" : "Libro giornale",
+    titolo: d.definitiva ? "Libro giornale — stampa definitiva" : d.selezione ? "Libro giornale — vista filtrata" : "Libro giornale",
     periodo: periodoInLettere(d.dal, d.al),
     sottotitolo:
       "Scritture in partita doppia in ordine di data, numerate per esercizio. Ogni scrittura quadra; le correzioni sono storni, non cancellazioni.",
@@ -235,7 +240,7 @@ const cella = (v: string | number | null | undefined): string => {
  * conto, in CSV all'italiana (i programmi di contabilità lo importano con un tracciato
  * configurabile). Il numero è quello del giornale; la registrazione resta nella sua colonna.
  */
-export function csvGiornale(scritture: readonly Scrittura[], conti: readonly ContoContabile[]): string {
+export function csvGiornale(scritture: readonly Scrittura[], conti: readonly ContoContabile[], selezione?: ReadonlySet<string>): string {
   const perId = new Map(conti.map((c) => [c.id, c]));
   const ordinate = [...scritture].sort((a, b) =>
     a.data_registrazione.localeCompare(b.data_registrazione) || a.esercizio - b.esercizio || a.numero - b.numero);
@@ -249,10 +254,11 @@ export function csvGiornale(scritture: readonly Scrittura[], conti: readonly Con
   const righe = [["Esercizio", "N. giornale", "N. registrazione", "Data", "Causale", "Descrizione", "N. documento", "Data documento",
     "Codice conto", "Conto", "Descrizione riga", "Dare", "Avere", "Origine"].join(";")];
   for (const s of ordinate) {
+    if (selezione && !selezione.has(s.id)) continue;
     for (const r of [...(s.contabilita_righe ?? [])].sort((a, b) => a.riga - b.riga)) {
       const c = perId.get(r.conto_id);
       righe.push([
-        s.esercizio, giornale.get(s.id), s.numero, dataIT(s.data_registrazione), s.causale, s.descrizione, s.documento_numero,
+        String(s.esercizio), giornale.get(s.id)?.toString(), String(s.numero), dataIT(s.data_registrazione), s.causale, s.descrizione, s.documento_numero,
         s.documento_data ? dataIT(s.documento_data) : "", c?.codice, c?.descrizione, r.descrizione,
         Number(r.dare) || 0, Number(r.avere) || 0, s.origine,
       ].map((v) => cella(v as string | number | null | undefined)).join(";"));

@@ -81,7 +81,7 @@ export function LeadMagnet() {
   }, { scope: visualRef });
 
   async function onSubmit(values: LeadForm) {
-    trackEvent("landing_ai_lead_magnet_submit", { email_domain: values.email.split("@")[1] ?? "" });
+    trackEvent("landing_ai_lead_magnet_submit");
     await fetchWithTimeout("/api/lead-magnet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Rapportino giornaliero, diverso per chi lo compila:
  *
@@ -1296,13 +1297,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                       {fotoPreviews.map((p, i) => (
                         <div key={i}>
                           <ImgRiservata loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt={`Foto ${i + 1}`} />
-                          <select aria-label={`Fase della foto ${i + 1}`}
+                          <UniformSelect aria-label={`Fase della foto ${i + 1}`}
                             value={fotoFase[fotoUrls[i]] && fasiSelezionate.some(f => f.id === fotoFase[fotoUrls[i]]) ? fotoFase[fotoUrls[i]] : ""}
                             onChange={e => { const url = fotoUrls[i]; const fase = e.target.value; setFotoFase(prev => { const next = { ...prev }; if (fase) next[url] = fase; else delete next[url]; return next; }); }}
                             className="mt-1 h-11 w-full min-w-0 rounded-lg border bg-background px-2 text-base">
                             <option value="">Nessuna fase</option>
                             {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                          </select>
+                          </UniformSelect>
                         </div>
                       ))}
                     </div>
@@ -1351,13 +1352,13 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                   {sceltaFasePerOgniCosa && (
                     <label className="flex w-full items-center gap-2 text-xs text-muted-foreground">
                       <span className="shrink-0">Fase</span>
-                      <select aria-label={`Fase di ${m.nome}`}
+                      <UniformSelect aria-label={`Fase di ${m.nome}`}
                         value={m.faseId && fasiSelezionate.some(f => f.id === m.faseId) ? m.faseId : ""}
                         onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, faseId: e.target.value || undefined } }))}
                         className="h-11 min-w-0 flex-1 rounded-lg border bg-background px-2 text-base text-foreground">
                         <option value="">Nessuna fase</option>
                         {fasiSelezionate.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                      </select>
+                      </UniformSelect>
                     </label>
                   )}
                   <button
@@ -1377,12 +1378,12 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                     aria-label={`Quantità ${m.nome}`} value={m.quantita}
                     onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, quantita: Number(e.target.value) } }))}
                     className="h-11 min-w-0 w-20 rounded-lg border bg-background px-2 text-center text-base" />
-                  <select aria-label={`Unità ${m.nome}`} value={m.unita || ""}
+                  <UniformSelect aria-label={`Unità ${m.nome}`} value={m.unita || ""}
                     onChange={e => setMaterialiSel(prev => ({ ...prev, [key]: { ...m, unita: e.target.value } }))}
                     className="h-11 min-w-0 max-w-full rounded-lg border bg-background px-2 text-base">
                     <option value="" disabled>Scegli unità</option>
                     {rapportinoUnitOptions(m.unita).map(unit => <option key={unit} value={unit}>{unit}</option>)}
-                  </select>
+                  </UniformSelect>
                   {!m.unita && <p className="w-full text-xs text-amber-700">Unità non disponibile: scegli come hai misurato il materiale.</p>}
                   <button
                     type="button"
@@ -1568,7 +1569,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
           <>
             <div className="flex items-center gap-2">
               <label htmlFor="rapportino-giornata" className="shrink-0 text-sm font-semibold">Giornata di lavoro</label>
-              <select id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto}
+              <UniformSelect id="rapportino-giornata" value={workDay} disabled={saving || uploadingFoto}
                 onChange={e => {
                   if (datiInseriti && !window.confirm("Cambiare giornata apre un altro modulo. La bozza resta sul telefono, salvo errori di salvataggio; le firme vanno raccolte di nuovo. Continuare?")) return;
                   const next = new URLSearchParams(params); next.set("data", e.target.value); setParams(next, { replace: true });
@@ -1579,7 +1580,7 @@ function CampoRapportinoEditor({ workDay, tipo }: { workDay: string; tipo: "dail
                     {g === today ? "Oggi" : g === yesterday ? "Ieri" : format(new Date(`${g}T12:00:00`), "EEEE", { locale: it })} · {format(new Date(`${g}T12:00:00`), "dd/MM")}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </div>
             {/* La scadenza si dice solo quando conta: oggi per oggi non serve leggerla. */}
             {(daRifare || workDay !== today) && <p className="text-xs text-muted-foreground">{daRifare ? "Correzione richiesta dall’ufficio: puoi rimandarla anche dopo la scadenza originale." : dayAllowed ? ultimoGiornoInvio === today ? "Da inviare entro oggi alle 23:59." : ultimoGiornoInvio === shiftWorkDay(today, 1) ? "Da inviare entro domani alle 23:59." : `Da inviare entro il ${format(new Date(`${ultimoGiornoInvio}T12:00:00`), "dd/MM")} alle 23:59.` : "Giornata fuori termine."}</p>}

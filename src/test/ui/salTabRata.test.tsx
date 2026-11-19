@@ -1,20 +1,21 @@
 // src/test/ui/salTabRata.test.tsx
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Installment } from "@/lib/orderUtils";
 
 const stato = vi.hoisted(() => ({
   sal: [] as Array<Record<string, unknown>>, salMatura: "emesso" as string,
   update: vi.fn(), sostituisci: vi.fn(), conferma: vi.fn(),
-  canEdit:true,readError:false,save:vi.fn(),
+  canEdit:true,canViewBilling:true,readError:false,save:vi.fn(),
   fasi: [] as Array<Record<string, unknown>>,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/ui/confirm-dialog", () => ({ useConfirm: () => stato.conferma }));
 vi.mock("@/components/shared/PrintPreviewModal", () => ({ PrintPreviewModal: (): null => null }));
 vi.mock("@/hooks/useSalMatura", () => ({ useSalMatura: () => stato.salMatura }));
-vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:stato.canEdit,canViewSettingsOrders:false})}));
+vi.mock("@/hooks/usePermissions",()=>({usePermissions:()=>({canEditOrders:stato.canEdit,canViewBilling:stato.canViewBilling,canViewSettingsOrders:false})}));
 vi.mock("@/lib/orders/saveSalDraft",async(importOriginal)=>({...await importOriginal<typeof import("@/lib/orders/saveSalDraft")>(),saveSalDraft:stato.save}));
 vi.mock("@/hooks/usePianoPagamenti", () => ({ useSostituisciRate: () => ({ mutate: stato.sostituisci, isPending: false }) }));
 vi.mock("@/integrations/supabase/client", () => {
@@ -51,14 +52,19 @@ const rate = (): Installment[] => [
 const disegna = (installments: Installment[] = rate()) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <SalTab orderId="o1" companyId="c1" orderTotalAmount={20000} vatRate={22} installments={installments} />
+      <MemoryRouter>
+        <Routes>
+          <Route path="/" element={<SalTab orderId="o1" companyId="c1" orderTotalAmount={20000} vatRate={22} installments={installments} />} />
+          <Route path="/azienda/documenti/bozza-r2/dettaglio" element={<h1>Bozza della rata SAL 2</h1>} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 
 beforeEach(() => {
   vi.clearAllMocks();
   stato.sal = []; stato.salMatura = "emesso"; stato.fasi = [];
-  stato.canEdit=true;stato.readError=false;stato.save.mockResolvedValue({id:"draft"});
+  stato.canEdit=true;stato.canViewBilling=true;stato.readError=false;stato.save.mockResolvedValue({id:"draft"});
   stato.conferma.mockResolvedValue(true);
 });
 afterEach(cleanup);
@@ -66,7 +72,7 @@ afterEach(cleanup);
 describe("SAL = rata: i SAL che il piano aspetta", () => {
   it("elenca le rate «al SAL n°» senza verbale, con il loro importo", async () => {
     disegna();
-    expect(await screen.findByText("SAL da emettere")).toBeInTheDocument();
+    expect(await screen.findByText("Rate previste al SAL")).toBeInTheDocument();
     expect(screen.getByText(/SAL n\. 1/)).toBeInTheDocument();
     expect(screen.getByText(/SAL n\. 2/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Prepara SAL" })).toHaveLength(2);
@@ -76,7 +82,7 @@ describe("SAL = rata: i SAL che il piano aspetta", () => {
     stato.sal = [sal(1, "emesso", 10000, "r1")];
     disegna();
     // il SAL 1 c'è già: resta da emettere solo il 2
-    await screen.findByText("SAL da emettere");
+    await screen.findByText("Rate previste al SAL");
     expect(screen.getAllByRole("button", { name: "Prepara SAL" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Prepara SAL" }));
     expect(await screen.findByText(/SAL n\. 2\. La rata «SAL 2» vale/)).toBeInTheDocument();
@@ -86,11 +92,31 @@ describe("SAL = rata: i SAL che il piano aspetta", () => {
     stato.sal = [sal(2, "emesso", 10000, "r2"), sal(1, "emesso", 5000, "r1")];
     disegna();
     await screen.findByText("SAL #2");
-    expect(screen.queryByText("SAL da emettere")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rate previste al SAL")).not.toBeInTheDocument();
   });
 });
 
 describe("SAL = rata: la vita del verbale", () => {
+  it("apre solo la fattura esistente della rata del SAL", async () => {
+    stato.sal = [sal(2, "emesso", 10000, "r2"), sal(1, "emesso", 5000, "r1")];
+    disegna(rate().map(rata => rata.id === "r2" ? { ...rata, documento_fiscale_id: "bozza-r2" } : rata));
+    const schedaSal2 = await screen.findByRole("article", { name: "SAL #2" });
+    const schedaSal1 = screen.getByRole("article", { name: "SAL #1" });
+    expect(within(schedaSal1).queryByRole("link", { name: "Apri fattura" })).toBeNull();
+    fireEvent.click(within(schedaSal2).getByRole("link", { name: "Apri fattura" }));
+    expect(await screen.findByRole("heading", { name: "Bozza della rata SAL 2" })).toBeVisible();
+    expect(stato.update).not.toHaveBeenCalled();
+    expect(stato.save).not.toHaveBeenCalled();
+  });
+
+  it("mostra il collegamento solo a chi può aprire la fatturazione", async () => {
+    stato.canViewBilling = false;
+    stato.sal = [sal(2, "emesso", 10000, "r2")];
+    disegna(rate().map(rata => rata.id === "r2" ? { ...rata, documento_fiscale_id: "bozza-r2" } : rata));
+    const schedaSal2 = await screen.findByRole("article", { name: "SAL #2" });
+    expect(within(schedaSal2).queryByRole("link", { name: "Apri fattura" })).toBeNull();
+  });
+
   it("una bozza si emette dopo conferma; un emesso si segna approvato; poi niente", async () => {
     stato.sal = [sal(1, "bozza", 7000)];
     disegna([]);
@@ -214,7 +240,8 @@ describe("SAL standard, lotto 1: il verbale nasce dalle fasi", () => {
     await waitFor(() => expect(screen.getByLabelText("Descrizione *", { selector: "#sal-desc-1" })).toHaveValue("Massetti"));
     // il cantiere dice 40%, il SAL 1 ha già certificato 60%: si riparte da 60
     expect(screen.getByLabelText("Avanzamento cumulativo (%)", { selector: "#sal-pct-1" })).toHaveValue("60");
-    expect(screen.getAllByText("SAL n. 1: 60%").length).toBe(1);
+    expect(screen.getByRole("columnheader", {name:"SAL 1"})).toBeInTheDocument();
+    expect(screen.getByRole("cell", {name:"60%"})).toBeInTheDocument();
     expect(screen.getByText("Massetti", { selector: "span" })).toBeInTheDocument();
   });
 

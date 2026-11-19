@@ -2,13 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const stato = vi.hoisted(() => ({ righe: null as unknown, costo: null as unknown, rpc: vi.fn(), chiudi: vi.fn(), scelte: 0 }));
+const stato = vi.hoisted(() => ({ righe: null as unknown, costo: null as unknown, rpc: vi.fn(), chiudi: vi.fn(), scelte: 0, condiviso: false }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
   rpc: (f: string, a: unknown) => { stato.rpc(f, a); return Promise.resolve({ data: {}, error: null }); },
   from: (t: string) => {
     const q: Record<string, unknown> = {};
-    Object.assign(q, { select: () => q, eq: () => q, maybeSingle: () => Promise.resolve({ data: t === "fatture_ricevute" ? { righe: stato.righe } : stato.costo, error: null }) });
+    Object.assign(q, { select: () => q, eq: () => q, neq: () => q, limit: () => Promise.resolve({data: stato.condiviso ? [{id:"altra"}] : [], error:null}), maybeSingle: () => Promise.resolve({ data: t === "fatture_ricevute" ? { righe: stato.righe } : stato.costo, error: null }) });
     return q;
   },
 } }));
@@ -21,8 +21,8 @@ vi.mock("@/components/warehouse/OrderSelectCombobox", () => ({
 import { CollegaFatturaCommesseDialog } from "@/components/fatturazione/CollegaFatturaCommesseDialog";
 
 const fattura = { id: "f1", numero: "F1", fornitore: "Aluplast", imponibile: 1000, totale: 1220, companyCostId: "k1" };
-const mostra = (extra = {}) => render(<QueryClientProvider client={new QueryClient()}><CollegaFatturaCommesseDialog companyId="co" onChiudi={stato.chiudi} fattura={{ ...fattura, ...extra }} /></QueryClientProvider>);
-beforeEach(() => { vi.clearAllMocks(); stato.righe = null; stato.costo = { order_id: null, allocations: [], quota_magazzino: null, quota_magazzino_righe: null }; stato.scelte = 0; });
+const mostra = (extra = {}, suImponibile = false) => render(<QueryClientProvider client={new QueryClient()}><CollegaFatturaCommesseDialog suImponibile={suImponibile} companyId="co" onChiudi={stato.chiudi} fattura={{ ...fattura, ...extra }} /></QueryClientProvider>);
+beforeEach(() => { vi.clearAllMocks(); stato.righe = null; stato.costo = { order_id: null, allocations: [], quota_magazzino: null, quota_magazzino_righe: null }; stato.scelte = 0; stato.condiviso = false; });
 afterEach(cleanup);
 
 describe("Collegare una fattura alle commesse", () => {
@@ -46,6 +46,26 @@ describe("Collegare una fattura alle commesse", () => {
     expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("976");
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", { p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 200 }, { order_id: "c2", importo: 800 }], p_magazzino: 0, p_magazzino_righe: null }));
+  });
+  it("dal riepilogo divide il netto per percentuale e conserva gli importi passando agli euro", async () => {
+    mostra({}, true);
+    fireEvent.click(await screen.findByRole("button", { name: "Cerca la commessa…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dividi su un’altra commessa" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Cerca la commessa…" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Percentuali" }));
+    fireEvent.change(screen.getByLabelText("Percentuale della commessa 1"), { target: { value: "32,15" } });
+    fireEvent.click(screen.getByRole("button", { name: "Importi" }));
+    expect(screen.getByLabelText("Importo della commessa 2")).toHaveValue("678,5");
+    fireEvent.click(screen.getByRole("button", { name: "Salva" }));
+    await waitFor(() => expect(stato.rpc).toHaveBeenCalledWith("fattura_collega_commesse", {
+      p_fattura_id: "f1", p_quote: [{ order_id: "c1", importo: 321.5 }, { order_id: "c2", importo: 678.5 }], p_magazzino: 0, p_magazzino_righe: null,
+    }));
+  });
+  it("un costo condiviso tra documenti non può essere sovrascritto dalla singola fattura", async () => {
+    stato.condiviso = true;
+    mostra({}, true);
+    await screen.findByText(/raggruppa più fatture/);
+    expect(screen.queryByRole("button", { name: "Salva" })).toBeNull();
   });
   it("oltre il totale non si salva", async () => {
     mostra();

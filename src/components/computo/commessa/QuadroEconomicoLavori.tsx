@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Quadro economico del lavoro pubblico: A) lavori (a misura + a corpo, di cui
  * sicurezza, ribasso solo su A − sicurezza) e B) somme a disposizione
@@ -52,14 +53,14 @@ function SceltaSezione({ valore, misto, onScegli, disabilitato, etichetta }: {
   valore: Scelta; misto?: boolean; onScegli: (s: Scelta) => void; disabilitato: boolean; etichetta: string;
 }) {
   return (
-    <select aria-label={etichetta} disabled={disabilitato} value={misto ? "" : valore}
+    <UniformSelect aria-label={etichetta} disabled={disabilitato} value={misto ? "" : valore}
       onChange={e => e.target.value && onScegli(e.target.value as Scelta)}
       className="h-8 rounded-md border bg-background px-2 text-xs disabled:opacity-60">
       {misto && <option value="">Misto</option>}
       <option value="auto">Automatico</option>
       <option value="lavori">Lavori</option>
       <option value="somme_a_disposizione">Somme a disposizione</option>
-    </select>
+    </UniformSelect>
   );
 }
 

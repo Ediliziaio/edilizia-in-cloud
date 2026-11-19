@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // src/components/orders/generali/design/FasiDalPianoDialog.tsx
 // «Le fasi dal piano» (lotto 6 del piano 2026-11-14-operazione-immobiliare-piano-completo).
 // Propone le fasi tipiche di un cantiere con dentro le voci del piano che le appartengono e le
@@ -230,7 +231,7 @@ function ElencoVoci({ voci, righe, dove, setDove, vedeCosti }: {
         <li key={v.id} className="flex items-center gap-2 text-xs">
           <span className="min-w-0 flex-1 truncate" title={v.descrizione}>{v.descrizione}</span>
           {vedeCosti && <span className="shrink-0 tabular-nums text-muted-foreground">{euro(v.importo)}</span>}
-          <select
+          <UniformSelect
             aria-label={`Fase di ${v.descrizione}`}
             value={dove[v.id] ?? RESTA}
             onChange={(e) => setDove((d) => ({ ...d, [v.id]: e.target.value }))}
@@ -238,7 +239,7 @@ function ElencoVoci({ voci, righe, dove, setDove, vedeCosti }: {
           >
             {righe.map((r) => <option key={r.chiave} value={r.chiave}>{r.nome}</option>)}
             <option value={RESTA}>Resta sulla generale</option>
-          </select>
+          </UniformSelect>
         </li>
       ))}
     </ul>

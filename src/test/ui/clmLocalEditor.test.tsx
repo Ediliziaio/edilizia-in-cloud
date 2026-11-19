@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -33,10 +35,10 @@ function mount(id: FullClmModuleId, save = vi.fn(), onDirtyChange = vi.fn(), sav
 describe("Climatizzazione: modelli originali locali", () => {
   it("mantiene sincronizzati i campi legacy dei comandi comuni", async () => {
     const save = mount("canalizzato");
-    fireEvent.change(screen.getByRole("combobox", { name: "Allineamento testo" }), { target: { value: "center" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "Posizione logo" }), { target: { value: "top_right" } });
-    fireEvent.change(screen.getByRole("textbox", { name: "Colore testo" }), { target: { value: "#AABBCC" } });
-    fireEvent.change(screen.getByRole("slider", { name: "Dimensione sottotitolo: cursore" }), { target: { value: "15" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Allineamento testo" }), { target: { value: "center" } });
+    changeFormControl(screen.getByRole("combobox", { name: "Posizione logo" }), { target: { value: "top_right" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Colore testo" }), { target: { value: "#AABBCC" } });
+    changeFormControl(screen.getByRole("slider", { name: "Dimensione sottotitolo: cursore" }), { target: { value: "15" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0]).toMatchObject({ pdf_cover_text_align: "center", cover_text_align: "center", pdf_cover_logo_position: "top_right", cover_logo_position: "top_right", pdf_cover_text_color: "#AABBCC", cover_text_color: "#AABBCC", pdf_cover_subtitle_size: 15 });
@@ -52,7 +54,7 @@ describe("Climatizzazione: modelli originali locali", () => {
     const initialExit = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(initialExit);
     expect(initialExit.defaultPrevented).toBe(false);
-    fireEvent.change(screen.getAllByDisplayValue(/Il comfort si diffonde/)[0], { target: { value: "Titolo modificato" } });
+    changeFormControl(screen.getAllByDisplayValue(/Il comfort si diffonde/)[0], { target: { value: "Titolo modificato" } });
     expect(dirty).toHaveBeenLastCalledWith(true);
     const editedExit = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(editedExit);
@@ -92,7 +94,7 @@ describe("Climatizzazione: modelli originali locali", () => {
     mount("vmc");
     fireEvent.click(screen.getByRole("button", { name: "Testi per questo modulo" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Ventilazione meccanica controllata");
-    expect(screen.getByRole("combobox").querySelectorAll("option")).toHaveLength(10);
+    expect(nativeFormControl(screen.getByRole("combobox")).querySelectorAll("option")).toHaveLength(10);
   });
   it("keeps uploaded images in the local draft and synchronizes both cover fields", async () => {
     const save = mount("monosplit");
@@ -100,10 +102,10 @@ describe("Climatizzazione: modelli originali locali", () => {
     const inputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
     const input = inputs[1]; // Cover image, after the optional cover logo.
     expect(input).toBeTruthy();
-    fireEvent.change(input, { target: { files: [new File(["image"], "cover.png", { type: "image/png" })] } });
+    changeFormControl(input, { target: { files: [new File(["image"], "cover.png", { type: "image/png" })] } });
     await waitFor(() => expect(calls.image).toHaveBeenCalledOnce());
     await waitFor(() => expect(calls.success).toHaveBeenCalledWith("Immagine aggiunta"));
-    fireEvent.change(screen.getAllByDisplayValue(/Il tuo ambiente/)[0], { target: { value: "Titolo personale" } });
+    changeFormControl(screen.getAllByDisplayValue(/Il tuo ambiente/)[0], { target: { value: "Titolo personale" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save.mock.calls[0][0].cover_title).toBe("Titolo personale");
@@ -115,7 +117,7 @@ describe("Climatizzazione: modelli originali locali", () => {
   });
   it("keeps the draft dirty after a failed local save", async () => {
     mount("vmc", vi.fn(() => { throw new Error("Quota locale esaurita"); }));
-    fireEvent.change(screen.getAllByDisplayValue(/Aria che si rinnova/)[0], { target: { value: "Titolo modificato" } });
+    changeFormControl(screen.getAllByDisplayValue(/Aria che si rinnova/)[0], { target: { value: "Titolo modificato" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     await waitFor(() => expect(calls.error).toHaveBeenCalledWith("Salvataggio non riuscito", { description: "Quota locale esaurita" }));
     expect(screen.getByText("Modifiche non salvate")).toBeInTheDocument();

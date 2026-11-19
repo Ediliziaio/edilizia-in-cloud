@@ -1,5 +1,6 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { CampaignPageField } from "@/components/ads/CampaignPageField";
 afterEach(cleanup);
 const pages = [{ id: "a", asset_id: "page-a", asset_name: "Pagina A", selected: true }, { id: "b", asset_id: "page-b", asset_name: "Pagina B", selected: true }];
@@ -8,7 +9,7 @@ describe("scelta della Pagina nell'annuncio", () => {
     const change = vi.fn(); render(<CampaignPageField pages={pages} onChange={change} />);
     const picker = screen.getByLabelText("Pagina Facebook dell’annuncio");
     expect((picker as HTMLSelectElement).value).toBe("");
-    fireEvent.change(picker, { target: { value: "page-b" } });
+    changeFormControl(picker, { target: { value: "page-b" } });
     expect(change).toHaveBeenCalledWith("page-b");
   });
   it("mostra l'unica Pagina e segnala una scelta non più disponibile senza sostituirla", () => {

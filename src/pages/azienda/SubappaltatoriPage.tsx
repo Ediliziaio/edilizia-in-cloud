@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -28,9 +28,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, ShieldCheck, Trash2, CheckCircle2, XCircle, X, Building2,
+  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, ExternalLink, Loader2, Trash2, CheckCircle2, XCircle, X, Building2,
 } from 'lucide-react';
 import type { SubappaltatoreConDashboard } from '@/types/subappaltatori';
+import { formatCurrency } from '@/lib/formatters';
+import { BarraScorrimentoOrizzontale } from '@/components/common/BarraScorrimentoOrizzontale';
 import { OperationalKpiCard } from '@/components/orders/OperationalKpiCard';
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from '@/components/mobile/FiltriMobile';
 import { DATA_MASSIMA, dataPlausibile } from '@/lib/dataPlausibile';
@@ -86,7 +88,9 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
   const isMobile = useIsMobile();
   const { canViewCosts } = usePermissions();
   const oggi = oggiLocale();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [contenitore, setContenitore] = useState<HTMLDivElement | null>(null);
   const [search, setSearch] = useState('');
   // Ditte con un contratto attivo: il riquadro «Al lavoro».
   const [soloAlLavoro, setSoloAlLavoro] = useState(false);
@@ -247,7 +251,25 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
   });
 
   // ── Contratti: su quali cantieri lavora ogni ditta ──────────────────────
-  const { data: contratti = [] } = useContrattiDitte();
+  const { data: contratti = [], isLoading: caricaContratti, isError: erroreContratti, refetch: rileggiContratti } = useContrattiDitte(canViewCosts);
+  const totaliDitte = useMemo(() => {
+    const totali = new Map<string, { commesse: Set<string>; pagato: number; daPagare: number }>();
+    for (const s of subappaltatori) {
+      const chiave = s.campo_subappaltatore_id ?? s.id;
+      const r = totali.get(chiave) ?? { commesse: new Set<string>(), pagato: 0, daPagare: 0 };
+      if (s.order_id) r.commesse.add(s.order_id);
+      totali.set(chiave, r);
+    }
+    const perScheda = new Map(subappaltatori.map(s => [s.id, totali.get(s.campo_subappaltatore_id ?? s.id)!]));
+    for (const c of contratti) {
+      const r = perScheda.get(c.schedaId);
+      if (!r) continue;
+      if (c.orderId) r.commesse.add(c.orderId);
+      r.pagato += c.pagato ?? 0;
+      r.daPagare += c.daPagare ?? 0;
+    }
+    return perScheda;
+  }, [subappaltatori, contratti]);
   const { alLavoroIds, cantieriPer } = useMemo(() => {
     const alLavoro = new Set<string>();
     const cantieri = new Map<string, Set<string>>();
@@ -316,7 +338,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       if (search && !s.ragione_sociale.toLowerCase().includes(term) &&
           !(s.tipo_lavori ?? '').toLowerCase().includes(term) &&
           !(s.piva ?? '').toLowerCase().includes(term) &&
-          !(s.email ?? '').toLowerCase().includes(term)) return false;
+          ![s.email, s.pec, s.telefono, s.responsabile].some(v => v?.toLowerCase().includes(term))) return false;
       if (filtroDoc === '__con__' && (fascicoloPer.get(s.id)?.n ?? 0) === 0) return false;
       if (filtroDoc === '__senza__' && !(mancanzePer.get(s.id) ?? []).some(m => m.chiave !== 'piva')) return false;
       if (filtroStato === '__active__' && !s.campo_is_active) return false;
@@ -503,7 +525,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
       <Tooltip>
         <TooltipTrigger asChild>
           {/* span wrapper: un elemento disabled non emette eventi hover */}
-          <span className="inline-flex cursor-not-allowed">{sw}</span>
+          <span data-row-control className="inline-flex cursor-not-allowed">{sw}</span>
         </TooltipTrigger>
         <TooltipContent>Collega prima l'anagrafica</TooltipContent>
       </Tooltip>
@@ -629,7 +651,7 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Cerca per ragione sociale, P.IVA, email o tipo lavori..."
+            placeholder="Cerca ditta, referente, contatto o tipo lavori…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -714,10 +736,10 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
         {/* ── Tabella desktop (md+) ─────────────────────────────────────── */}
         <Card className="hidden md:block">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              {/* Contatti da 1280 e documenti da 1024, celle più strette sotto i
-                  1280: a 768 la tabella era larga 918px e lo stato restava fuori. */}
-              <Table className="[&_td]:px-2.5 [&_th]:px-2.5 xl:[&_td]:px-4 xl:[&_th]:px-4">
+            {erroreContratti && <div role="alert" className="p-2 text-sm">Commesse e importi non disponibili. <Button variant="link" onClick={() => void rileggiContratti()}>Riprova</Button></div>}
+            <BarraScorrimentoOrizzontale contenitore={contenitore} className="mx-3" />
+            <div>
+              <Table wrapperRef={setContenitore} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -728,11 +750,9 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                       />
                     </TableHead>
                     <TableHead>Ditta</TableHead>
-                    {/* P.IVA e sede da 1536px: stanno nel dettaglio, e con i contatti
-                        e le pastiglie la tabella non stava nella pagina. */}
-                    <TableHead className="hidden 2xl:table-cell">P.IVA / C.F.</TableHead>
-                    <TableHead className="hidden 2xl:table-cell">Sede</TableHead>
-                    <TableHead className="hidden xl:table-cell">Contatti</TableHead>
+                    <TableHead>Commesse</TableHead>
+                    {canViewCosts && <><TableHead className="text-right">SAL pagati (€)</TableHead><TableHead className="text-right">SAL da pagare (€)</TableHead></>}
+                    {["Referente", "Telefono", "Email", "PEC", "Tipo lavori", "P.IVA", "Codice fiscale", "Sede"].map(label => <TableHead key={label}>{label}</TableHead>)}
                     <TableHead>DURC</TableHead>
                     <TableHead className="hidden lg:table-cell">Documenti</TableHead>
                     <TableHead title="Accesso della ditta all'app di cantiere">App cantiere</TableHead>
@@ -741,7 +761,12 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                 </TableHeader>
                 <TableBody>
                   {filtered.map((sub) => (
-                    <TableRow key={sub.id} className="align-top" data-state={selected.has(sub.id) ? 'selected' : undefined}>
+                    <TableRow key={sub.id} className="cursor-pointer align-top hover:bg-slate-50"
+                      data-state={selected.has(sub.id) ? 'selected' : undefined}
+                      onClick={(event) => {
+                        if (event.target instanceof Element && event.target.closest('a, button, input, [data-row-control]')) return;
+                        navigate(`/azienda/subappaltatori/${sub.id}`);
+                      }}>
                       <TableCell className="w-10">
                         <Checkbox
                           checked={selected.has(sub.id)}
@@ -751,54 +776,18 @@ export default function SubappaltatoriPage({ incorporata = false }: { incorporat
                       </TableCell>
                       {/* Ditta */}
                       <TableCell className="max-w-[220px]">
-                        <p className="font-semibold leading-tight truncate">{sub.ragione_sociale}</p>
-                        {sub.responsabile && (
-                          <p className="text-xs text-muted-foreground truncate">{sub.responsabile}</p>
-                        )}
-                        {sub.tipo_lavori && (
-                          <p className="text-xs text-muted-foreground truncate">{sub.tipo_lavori}</p>
-                        )}
+                        <Link to={`/azienda/subappaltatori/${sub.id}`} title={sub.ragione_sociale} className="block truncate font-semibold hover:underline">{sub.ragione_sociale}</Link>
                       </TableCell>
-                      {/* P.IVA / C.F. */}
-                      <TableCell className="hidden 2xl:table-cell text-sm">
-                        {sub.piva && <div>P.IVA {sub.piva}</div>}
-                        {sub.codice_fiscale && (
-                          <div className="text-xs text-muted-foreground">C.F. {sub.codice_fiscale}</div>
-                        )}
-                        {!sub.piva && !sub.codice_fiscale && <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      {/* Sede */}
-                      <TableCell className="hidden 2xl:table-cell max-w-[180px] text-sm">
-                        {sub.indirizzo
-                          ? <span className="block truncate" title={sub.indirizzo}>{sub.indirizzo}</span>
-                          : <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                      {/* Contatti */}
-                      <TableCell className="hidden xl:table-cell">
-                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                          {(sub as any).telefono && (
-                            <a href={`tel:${(sub as any).telefono}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                              <Phone className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{(sub as any).telefono}</span>
-                            </a>
-                          )}
-                          {sub.email && (
-                            <a href={`mailto:${sub.email}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                              <Mail className="h-3 w-3 shrink-0" />
-                              <span className="truncate max-w-[160px]">{sub.email}</span>
-                            </a>
-                          )}
-                          {sub.pec && (
-                            <a href={`mailto:${sub.pec}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                              <ShieldCheck className="h-3 w-3 shrink-0" />
-                              <span className="truncate max-w-[160px]">{sub.pec}</span>
-                            </a>
-                          )}
-                          {!(sub as any).telefono && !sub.email && !sub.pec && (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </div>
-                      </TableCell>
+                      <TableCell className="tabular-nums">{erroreContratti ? "—" : caricaContratti ? "…" : totaliDitte.get(sub.id)?.commesse.size ?? 0}</TableCell>
+                      {canViewCosts && (["pagato", "daPagare"] as const).map(campo =>
+                        <TableCell key={campo} className="text-right tabular-nums">{erroreContratti ? "—" : caricaContratti ? "…" : formatCurrency(totaliDitte.get(sub.id)?.[campo] ?? 0)}</TableCell>)}
+                      <TableCell>{sub.responsabile || "—"}</TableCell>
+                      <TableCell>{sub.telefono ? <a className="text-primary hover:underline" href={`tel:${sub.telefono}`}>{sub.telefono}</a> : "—"}</TableCell>
+                      {[sub.email, sub.pec].map((email,i) => <TableCell key={i}>{email ? <a className="text-primary hover:underline" href={`mailto:${email}`}>{email}</a> : "—"}</TableCell>)}
+                      <TableCell>{sub.tipo_lavori || "—"}</TableCell>
+                      <TableCell>{sub.piva || "—"}</TableCell>
+                      <TableCell>{sub.codice_fiscale || "—"}</TableCell>
+                      <TableCell>{sub.indirizzo || "—"}</TableCell>
                       {/* DURC */}
                       <TableCell><DurcPastiglia scadenza={sub.durc_scadenza} oggi={oggi} /></TableCell>
                       {/* Documenti */}

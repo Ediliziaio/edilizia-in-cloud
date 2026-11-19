@@ -1,6 +1,7 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { ApplicabilitaItp } from "@/components/sicurezza/ApplicabilitaItp";
 import { nuovoCriterioItp, type VerificaItp } from "@/lib/sicurezza/itp";
 import type { EvidenzaFascicolo } from "@/lib/sicurezza/fascicolo";
@@ -66,14 +67,14 @@ describe("Applicabilità documentale registrata", () => {
     expect(
       screen.getByText("Stessa versione del record esaminato"),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Filtra applicabilità"), {
+    changeFormControl(screen.getByLabelText("Filtra applicabilità"), {
       target: { value: "non_applicabile" },
     });
     expect(
       screen.getByText("Ponteggi non previsti nella fase"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Attestato")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Cerca criteri di applicabilità"), {
+    changeFormControl(screen.getByLabelText("Cerca criteri di applicabilità"), {
       target: { value: "inesistente" },
     });
     expect(

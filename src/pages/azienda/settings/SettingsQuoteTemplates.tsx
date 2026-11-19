@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import React, { useId, useState, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -482,7 +483,7 @@ function BlockLinkSelector({ label, value, options, onChange, onCreate }: BlockL
         {value && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700"><CircleCheck className="h-3 w-3" /> Collegato</span>}
       </div>
       <div className="flex items-center gap-2">
-        <select
+        <UniformSelect
           id={id}
           value={value ?? ""}
           onChange={(event) => onChange(event.target.value || null)}
@@ -492,7 +493,7 @@ function BlockLinkSelector({ label, value, options, onChange, onCreate }: BlockL
           {options.map((option) => (
             <option key={option.id} value={option.id}>{option.name}</option>
           ))}
-        </select>
+        </UniformSelect>
         <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 px-2.5 text-xs" onClick={onCreate} aria-label={`Crea: ${label}`}>
           <Plus className="mr-1 h-3.5 w-3.5" /> Crea
         </Button>

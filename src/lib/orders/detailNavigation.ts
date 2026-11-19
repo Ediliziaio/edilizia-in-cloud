@@ -18,12 +18,11 @@ export const ECONOMIA_VIEWS = [
   // non avrebbe niente da mostrare.
   { value: "rendiconto", label: "Rendiconto", description: "Quello che hai fatto per il committente, tradotto in quello che devi fatturare." },
   { value: "margini", label: "Margini e costi", description: "Risultato della commessa, scostamenti e costi da verificare." },
-  { value: "pagamenti", label: "Incassi", description: "Rate del cliente, SAL in bozza o emessi e disponibilità di cassa." },
+  { value: "pagamenti", label: "Fatture e Incassi", description: "Rate del cliente, fatture collegate, incassi e movimenti bancari della commessa." },
   { value: "varianti", label: "Varianti", description: "Modifiche del contratto e dei lavori concordati." },
   { value: "sal", label: "SAL al cliente", description: "Avanzamento riconosciuto al cliente e verbali." },
-  { value: "documenti", label: "Fatture al cliente", description: "Fatture e documenti fiscali emessi al cliente." },
 ] as const;
-export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"];
+export type EconomiaView = typeof ECONOMIA_VIEWS[number]["value"] | "documenti"; // Compatibilità con i collegamenti salvati.
 export const MATERIALI_VIEWS = [
   { value: "articoli", label: "Articoli e misure", description: "Materiali divisi per fase, validazione del tecnico, acquisti e verifica delle misure." },
   { value: "offerte", label: "Richieste d’offerta", description: "Prezzi chiesti ai fornitori per questa commessa, prima dell’ordine." },
@@ -32,7 +31,7 @@ export const MATERIALI_VIEWS = [
   { value: "magazzino", label: "Magazzino e seriali", description: "Movimenti dei materiali, matricole e garanzie." },
 ] as const;
 export type MaterialiView = typeof MATERIALI_VIEWS[number]["value"];
-/** Fatture e costi (02/11/2026): tutto quello che esce dalla commessa, diviso per chi lo riceve. */
+/** Costi e Fatture Fornitori (02/11/2026): tutto quello che esce dalla commessa, diviso per chi lo riceve. */
 export const COSTI_VIEWS = [
   { value: "tutte", label: "Tutte", description: "Ogni uscita della commessa: quanto è pagato, quanto resta e quando scade." },
   { value: "fornitori", label: "Fornitori", description: "Fatture dei fornitori: verifica, commesse e pagamento." },
@@ -42,14 +41,15 @@ export const COSTI_VIEWS = [
 ] as const;
 export type CostiView = typeof COSTI_VIEWS[number]["value"];
 export function resolveEconomiaView(search: string, section?: string): EconomiaView {
-  if (section === "section-pagamenti" || section === "section-ritenute") return "pagamenti";
+  if (section === "section-pagamenti" || section === "section-ritenute" || section === "section-iva-commessa") return "pagamenti";
   // «Chi finanzia il cantiere» sta in Margini e costi dal 01/11/2026.
   if (section === "esposizione-commessa") return "margini";
   if (section === "section-rendiconto") return "rendiconto";
   if (section === "section-sal") return "sal";
   if (section === "section-varianti") return "varianti";
-  if (section === "section-fatturazione") return "documenti";
-  if (section === "section-conto-economico") return "margini";
+  if (section === "section-fatturazione") return "pagamenti";
+  if (section === "section-conto-economico" || section === "section-provvigioni") return "margini";
+  if (new URLSearchParams(search).get("vista_economia") === "documenti") return "pagamenti";
   return ECONOMIA_VIEWS.find(view => view.value === new URLSearchParams(search).get("vista_economia"))?.value ?? "margini";
 }
 export function resolveMaterialiView(search: string, section?: string): MaterialiView {
@@ -93,8 +93,8 @@ export const ORDER_DETAIL_TABS = [
   { value: "panoramica", label: "Panoramica", shortLabel: "Panoramica" },
   { value: "cantiere", label: "Cantiere", shortLabel: "Cantiere" },
   { value: "articoli", label: "Articoli e Materiali", shortLabel: "Materiali" },
-  { value: "costi", label: "Fatture e costi", shortLabel: "Costi" },
-  { value: "finanza", label: "Economia e pagamenti", shortLabel: "Economia" },
+  { value: "costi", label: "Costi e Fatture Fornitori", shortLabel: "Costi" },
+  { value: "finanza", label: "Economia, Pagamenti e SAL", shortLabel: "Economia" },
 ] as const satisfies readonly {
   value: OrderDetailTab;
   label: string;
@@ -138,6 +138,8 @@ const SECTION_TABS = {
   "section-fatturazione": "finanza",
   "section-pagamenti": "finanza",
   "section-conto-economico": "finanza",
+  "section-provvigioni": "finanza",
+  "section-iva-commessa": "finanza",
   "section-manodopera-costi": "costi",
   "esposizione-commessa": "finanza",
   "section-ritenute": "finanza",
@@ -186,7 +188,7 @@ export function resolveOrderDetailDestination(
     };
   }
   const tab = params.get("tab") ?? "panoramica";
-  // Viste spostate in Fatture e costi (02/11/2026): notifiche e segnalibri vecchi arrivano lì.
+  // Viste spostate in Costi e Fatture Fornitori (02/11/2026): notifiche e segnalibri vecchi arrivano lì.
   if (tab === "articoli" && params.get("vista_materiali") === "fatture") return { tab: "costi", section: "section-fatture-fornitori" };
   if (tab === "finanza" && params.get("vista_economia") === "manodopera") return { tab: "costi", section: "section-manodopera-costi" };
   // I mezzi si gestiscono in Cantiere → Lavorazioni e si leggono in Margini e costi: una vista in più era un doppione.
@@ -204,7 +206,7 @@ export function orderDetailLocation(
 ) {
   const params = new URLSearchParams(search);
   params.delete("section");
-  // Senza, tornando su Economia o Materiali il vecchio indirizzo riporterebbe a Fatture e costi.
+  // Senza, tornando su Economia o Materiali il vecchio indirizzo riporterebbe a Costi e Fatture Fornitori.
   if (params.get("vista_materiali") === "fatture") params.delete("vista_materiali");
   if (params.get("vista_economia") === "manodopera") params.delete("vista_economia");
   if (params.get("vista_costi") === "noleggi") params.delete("vista_costi");
@@ -213,7 +215,7 @@ export function orderDetailLocation(
     destination.section ? SECTION_TABS[destination.section] : destination.tab,
   );
   if (destination.cantiereView) params.set("vista_cantiere", destination.cantiereView);
-  if (destination.economiaView) params.set("vista_economia", destination.economiaView);
+  if (destination.economiaView) params.set("vista_economia", destination.economiaView === "documenti" ? "pagamenti" : destination.economiaView);
   if (destination.materialiView) params.set("vista_materiali", destination.materialiView);
   if (destination.costiView) params.set("vista_costi", destination.costiView);
   return {

@@ -108,7 +108,7 @@ export function CollegaAttivitaPicker({
             className="h-9 w-full justify-between gap-2 px-3 font-normal"
           >
             <span className={cn("truncate", !valore && "text-muted-foreground")}>
-              {valore ? valore.etichetta : "Nessuno — cerca cliente o opportunità"}
+              {valore ? valore.etichetta : "Cerca cliente o opportunità…"}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>

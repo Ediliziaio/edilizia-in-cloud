@@ -73,6 +73,8 @@ interface AppointmentDialogProps {
   defaultAssignedTo?: string | null;
   requireTime?: boolean;
   hideMarketingFields?: boolean;
+  readOnly?: boolean;
+  dialogHeading?: string;
 }
 
 interface WorkEmployeeRow {
@@ -427,13 +429,16 @@ export function AppointmentDialog({
   defaultAssignedTo,
   requireTime = false,
   hideMarketingFields = false,
+  readOnly = false,
+  dialogHeading,
 }: AppointmentDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const currentAppointment = appointment ?? initialData ?? null;
   const isEditing = !!currentAppointment?.id;
-  const { onlyAssigned: onlyAssignedCrm, solaLettura } = usePermissions();
+  const { onlyAssigned: onlyAssignedCrm, solaLettura: accountReadOnly } = usePermissions();
+  const solaLettura = accountReadOnly || readOnly;
   // Con «Solo i propri» l'appuntamento è di chi lo crea; il responsabile di una
   // squadra (Impostazioni → Team) lo può dare anche ai membri, di cui vede e
   // lavora gli appuntamenti.
@@ -471,6 +476,7 @@ export function AppointmentDialog({
   const [luogoAperto, setLuogoAperto] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate the form when opening or selecting a different saved appointment.
     setLuogoAperto(false);
     if (currentAppointment) {
       setTitle(currentAppointment.title);
@@ -806,6 +812,7 @@ export function AppointmentDialog({
 
   useEffect(() => {
     if (!open || referenceType !== "ticket" || !selectedTicket) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Prefill from the asynchronously loaded ticket selected by the user.
     if (selectedTicket.order_id) setOrderId(selectedTicket.order_id);
     if (selectedTicket.assigned_to && !assignedTo) setAssignedTo(selectedTicket.assigned_to);
     if (selectedTicket.indirizzo_intervento && !addressData.formatted_address) {
@@ -817,6 +824,7 @@ export function AppointmentDialog({
 
   useEffect(() => {
     if (!open || referenceType !== "maintenance" || !selectedMaintenancePlan) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- A selected maintenance record uses its own context instead of an order reference.
     setOrderId("");
     if (selectedMaintenancePlan.tecnico_preferito && !assignedTo) {
       setAssignedTo(selectedMaintenancePlan.tecnico_preferito);
@@ -1063,7 +1071,7 @@ export function AppointmentDialog({
     <Dialog open={open} onOpenChange={(next) => { if (!savingRef.current) onOpenChange(next); }}>
       <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b py-2.5 pl-4 pr-11 text-left">
-          <DialogTitle className="text-sm font-semibold">{isEditing ? "Modifica appuntamento" : "Nuovo appuntamento"}</DialogTitle>
+          <DialogTitle className="text-sm font-semibold">{dialogHeading || (isEditing ? "Modifica appuntamento" : "Nuovo appuntamento")}</DialogTitle>
           {/* Ripeteva il titolo: resta solo per i lettori di schermo. */}
           <DialogDescription className="sr-only">
             {isEditing ? "Modifica i dettagli dell'appuntamento" : "Compila i campi per creare un nuovo appuntamento"}

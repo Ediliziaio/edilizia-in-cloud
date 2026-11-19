@@ -18,6 +18,8 @@ export interface RataCliente {
   expected_date: string | null;
   fattura: string | null;
   scaduta: boolean;
+  incassato?: number;
+  residuo?: number;
 }
 
 export interface SalCliente {
@@ -118,7 +120,8 @@ export interface TotaliQuadro {
 export function totaliQuadro(q: Pick<QuadroPagamenti, "rate" | "uscite"> & Pick<QuadroPagamenti,'crediti_misura'|'incassi_unita'>): TotaliQuadro {
   const t = { incassato: 0, daIncassare: 0, incassoScaduto: 0, pagato: 0, daPagare: 0, pagamentoScaduto: 0, impegnato: 0 };
   for (const r of q.rate) {
-    if (r.is_paid) t.incassato += r.amount;
+    if (r.incassato != null) { t.incassato+=n(r.incassato);t.daIncassare+=n(r.residuo);if(r.scaduta)t.incassoScaduto+=n(r.residuo); }
+    else if (r.is_paid) t.incassato += r.amount;
     else {
       t.daIncassare += r.amount;
       if (r.scaduta) t.incassoScaduto += r.amount;

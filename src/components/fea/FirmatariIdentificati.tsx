@@ -1,3 +1,5 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 /**
  * Firmatari identificati per la firma elettronica avanzata.
  *
@@ -19,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, IdCard, Loader2, Plus, UserX } from "lucide-react";
+import { Eye, Loader2, Plus, UserX } from "lucide-react";
 
 interface Firmatario {
   id: string;
@@ -149,33 +151,25 @@ export function FirmatariIdentificati() {
       ) : firmatari.length === 0 ? (
         <p className="rounded-xl border border-dashed bg-white p-6 text-center text-sm text-slate-500">Nessuno è ancora identificato.</p>
       ) : (
-        <div className="divide-y rounded-xl border bg-white">
-          {firmatari.map((f) => {
-            const scaduto = f.documento_scadenza < oggi();
-            return (
-              <div key={f.id} className="flex flex-wrap items-center gap-3 p-3">
-                <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-900">{f.cognome} {f.nome}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {f.email} · {TIPI[f.documento_tipo] ?? "Documento"} valido fino al {dataIT(f.documento_scadenza)}
-                  </p>
-                </div>
-                <Badge variant="outline">{f.modalita === "azienda" ? "Caricato dall'azienda" : "Caricato dal firmatario"}</Badge>
-                {scaduto ? <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Documento scaduto</Badge>
-                  : f.dichiarazione_accettata_at ? <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Condizioni accettate il {dataIT(f.dichiarazione_accettata_at)}</Badge>
-                  : <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Accetterà le condizioni al primo documento</Badge>}
-                <Button size="sm" variant="ghost" className="gap-1" disabled={azione.isPending} onClick={() => azione.mutate({ tipo: "vedi", id: f.id })}>
+        <div className="overflow-hidden rounded-xl border bg-white"><Table aria-label="Firmatari identificati" className="min-w-[1150px] text-xs [&_td]:px-3 [&_td]:py-2 [&_td]:border-r [&_td]:border-slate-100 [&_th]:px-3"><TableHeader className="bg-slate-50"><TableRow><TableHead>Firmatario</TableHead><TableHead>Email</TableHead><TableHead>Documento</TableHead><TableHead>Scadenza</TableHead><TableHead>Identificazione</TableHead><TableHead>Condizioni</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader><TableBody>{firmatari.map(f => {
+          const scaduto = f.documento_scadenza < oggi();
+          return <TableRow key={f.id}>
+            <TableCell className="whitespace-nowrap font-medium">{f.cognome} {f.nome}</TableCell>
+            <TableCell className="max-w-[220px] truncate" title={f.email}>{f.email}</TableCell>
+            <TableCell className="whitespace-nowrap">{TIPI[f.documento_tipo] ?? "Documento"}</TableCell>
+            <TableCell className={scaduto ? "whitespace-nowrap text-red-700" : "whitespace-nowrap"}>{dataIT(f.documento_scadenza)}{scaduto && " · scaduto"}</TableCell>
+            <TableCell className="whitespace-nowrap">{f.modalita === "azienda" ? "Caricato dall'azienda" : "Caricato dal firmatario"}</TableCell>
+            <TableCell>{scaduto ? <Badge className="bg-red-100 text-red-700">Documento scaduto</Badge> : f.dichiarazione_accettata_at ? <span className="whitespace-nowrap text-emerald-700">Accettate il {dataIT(f.dichiarazione_accettata_at)}</span> : <span className="whitespace-nowrap text-amber-700">Da accettare alla prima firma</span>}</TableCell>
+            <TableCell><div className="flex justify-end gap-1">                <Button size="sm" variant="ghost" className="gap-1" disabled={azione.isPending} onClick={() => azione.mutate({ tipo: "vedi", id: f.id })}>
                   <Eye className="h-3.5 w-3.5" />Foto
                 </Button>
                 <Button size="sm" variant="ghost" className="gap-1 text-red-600" disabled={azione.isPending}
                   onClick={() => { if (window.confirm(`Revocare l'identificazione di ${f.nome} ${f.cognome}?`)) azione.mutate({ tipo: "revoca", id: f.id }); }}>
                   <UserX className="h-3.5 w-3.5" />Revoca
                 </Button>
-              </div>
-            );
-          })}
-        </div>
+</div></TableCell>
+          </TableRow>;
+        })}</TableBody></Table></div>
       )}
 
       <Dialog open={aperto} onOpenChange={(v) => { if (!salva.isPending) setAperto(v); }}>
@@ -192,9 +186,9 @@ export function FirmatariIdentificati() {
             {campo("codiceFiscale", "Codice fiscale (facoltativo)", { maxLength: 16 })}
             <div className="space-y-1">
               <Label htmlFor={`${formId}-tipo`}>Documento</Label>
-              <select id={`${formId}-tipo`} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dati.tipo} onChange={(e) => setDati({ ...dati, tipo: e.target.value })}>
+              <UniformSelect id={`${formId}-tipo`} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={dati.tipo} onChange={(e) => setDati({ ...dati, tipo: e.target.value })}>
                 {Object.entries(TIPI).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
+              </UniformSelect>
             </div>
             <div className="grid grid-cols-2 gap-3">{campo("numero", "Numero")}{campo("scadenza", "Scade il", { type: "date" })}</div>
             {campo("rilasciatoDa", "Rilasciato da (facoltativo)")}

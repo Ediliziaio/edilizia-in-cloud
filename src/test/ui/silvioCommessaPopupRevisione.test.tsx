@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Il popup «Crea con Silvio», seconda revisione del 2/11/2026 (docs/silvio-commessa-revisione-20261102.md,
  * P1–P9), più quello che database e logica hanno preparato e il popup deve mostrare (D7, D9, D10,
@@ -147,7 +148,7 @@ const crea = () => screen.getByRole("button", { name: /^Crea/ });
 const pronto = () => screen.findByText("Rifacimento bagno");
 /** Scrive in chat, dopo che la fonte è stata letta. */
 const inChat = async (testo: string) => {
-  fireEvent.change(screen.getByRole("textbox", { name: "Scrivi a Silvio" }), { target: { value: testo } });
+  changeFormControl(screen.getByRole("textbox", { name: "Scrivi a Silvio" }), { target: { value: testo } });
   fireEvent.keyDown(screen.getByRole("textbox", { name: "Scrivi a Silvio" }), { key: "Enter" });
 };
 const pdf = () => new File(["x"], "Contratto.pdf", { type: "application/pdf" });
@@ -166,7 +167,7 @@ describe("P1: «Crea» non scrive una bozza vecchia", () => {
     await pronto();
     await waitFor(() => expect(db.inserite.length).toBeGreaterThan(0), { timeout: 3000 });
     fireEvent.click(within(commessa()).getByRole("button", { name: "Modifica «Importo»" }));
-    fireEvent.change(within(commessa()).getByLabelText("Importo"), { target: { value: "50000" } });
+    changeFormControl(within(commessa()).getByLabelText("Importo"), { target: { value: "50000" } });
     fireEvent.click(within(commessa()).getByRole("button", { name: "Salva" }));
     fireEvent.click(crea());
     expect(await screen.findByRole("alert")).toHaveTextContent(/non si è salvata/);
@@ -294,7 +295,7 @@ describe("D9: la risposta di prima si è persa", () => {
     await pronto();
     await waitFor(() => expect(db.inserite.length).toBeGreaterThan(0), { timeout: 3000 });
     fireEvent.click(within(commessa()).getByRole("button", { name: "Modifica «Importo»" }));
-    fireEvent.change(within(commessa()).getByLabelText("Importo"), { target: { value: "50000" } });
+    changeFormControl(within(commessa()).getByLabelText("Importo"), { target: { value: "50000" } });
     fireEvent.click(within(commessa()).getByRole("button", { name: "Salva" }));
     fireEvent.click(crea());
     await waitFor(() => expect(onCreata).toHaveBeenCalledWith("o1"));
@@ -491,7 +492,7 @@ describe("P9: il telefono e le uscite", () => {
     const bozza = (id: string, titolo: string) => ({ id, created_by: UTENTE, modo: "crea", updated_at: "2026-11-01T10:00:00Z", fonti: [] as unknown[], storia: [] as unknown[], piano: fondi(pianoVuoto(AZIENDA), base({ identita: { "identita.description": { valore: titolo, fiducia: 1, stato: "fatto" } } })) });
     const { s, db } = servizi({}, [], { bozze: [bozza("b9", "Casa A"), bozza("b10", "Casa B")] });
     apri(s, { iniziale: null });
-    fireEvent.change(await screen.findByRole("combobox", { name: "Bozza da riprendere" }), { target: { value: "b10" } });
+    changeFormControl(await screen.findByRole("combobox", { name: "Bozza da riprendere" }), { target: { value: "b10" } });
     fireEvent.click(screen.getByRole("button", { name: "Riprendi la commessa" }));
     expect((await within(commessa()).findAllByText("Casa B")).length).toBeGreaterThan(0);
     expect(db.cancellate).toEqual([]);
@@ -584,7 +585,7 @@ describe("Quello che i livelli sotto hanno preparato", () => {
     apri(s);
     await pronto();
     fireEvent.click(within(commessa()).getByRole("button", { name: /Modifica «Inizio lavori»|Modifica «.*nizio/ }));
-    fireEvent.change(within(commessa()).getByLabelText("Inizio lavori"), { target: { value: "2030-01-06" } });
+    changeFormControl(within(commessa()).getByLabelText("Inizio lavori"), { target: { value: "2030-01-06" } });
     fireEvent.click(within(commessa()).getByRole("button", { name: "Salva" }));
     await within(commessa()).findByText(/primo giorno utile/);
   });

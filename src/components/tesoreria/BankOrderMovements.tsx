@@ -8,9 +8,11 @@ import { prettyTxDesc } from "./txLabel";
 export function BankOrderMovements({
   company,
   order,
+  richiudibile = false,
 }: {
   company: string;
   order: string;
+  richiudibile?: boolean;
 }) {
   const q = useQuery({
     queryKey: ["bank-contesto-movimenti", company, "commessa", order],
@@ -42,13 +44,14 @@ export function BankOrderMovements({
       </div>
     );
   if (!q.data.count) return null;
+  const Container = richiudibile ? "details" : "section";
   return (
-    <section className="rounded-xl border bg-card p-4">
-      <h3 className="font-semibold">
+    <Container className="income-bank-movements rounded-xl border bg-card p-4">
+      {richiudibile ? <summary className="cursor-pointer text-sm font-semibold">Movimenti bancari collegati <span className="text-muted-foreground">({q.data.count})</span><span className="mt-1 block text-xs font-normal text-muted-foreground">Bonifici e quote attribuite alla commessa. Apri per controllare i movimenti.</span></summary> : <h3 className="font-semibold">
         Movimenti bancari collegati{" "}
         <span className="text-muted-foreground">({q.data.count})</span>
-      </h3>
-      <p className="mt-1 text-xs text-muted-foreground">
+      </h3>}
+      <p className="mt-3 text-xs text-muted-foreground">
         Il bonifico può comprendere più commesse. La quota attribuita è indicata
         soltanto quando è stata specificata.
       </p>
@@ -110,6 +113,6 @@ export function BankOrderMovements({
           Tesoreria e cerca il codice della commessa.
         </p>
       )}
-    </section>
+    </Container>
   );
 }

@@ -1,7 +1,9 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 // 11/11/2026 — «Documento DDT» e «Allegati» diventano «Documenti della bolla»:
 // un elenco e un solo «Aggiungi file» con la scelta del tipo.
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 vi.mock("@/components/ddt/DDTOriginaliCard", () => ({
   DDTOriginaliCard: () => <li>originale archiviato</li>,
@@ -21,7 +23,7 @@ const base = (extra: Partial<DocumentiBollaCardProps> = {}): DocumentiBollaCardP
   ...extra,
 });
 const scegli = (...nomi: string[]) =>
-  fireEvent.change(screen.getByTestId("documenti-bolla-file"), {
+  changeFormControl(screen.getByTestId("documenti-bolla-file"), {
     target: { files: nomi.map((n) => new File(["x"], n, { type: "application/pdf" })) },
   });
 
@@ -48,8 +50,8 @@ it("con l'originale caricato lo mostra in cima e i file nuovi sono allegati del 
   expect(elenco.querySelectorAll("li")[0]).toHaveTextContent("b.pdf");
   expect(elenco.querySelectorAll("li")[0]).toHaveTextContent("Bolla originale");
   expect(elenco).toHaveTextContent("danno.jpg");
-  expect(screen.queryByRole("option", { name: "Bolla originale" })).not.toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("Tipo di documento"), { target: { value: "packing_list" } });
+  expect(formOptions().queryByRole("option", { name: "Bolla originale" })).not.toBeInTheDocument();
+  changeFormControl(screen.getByLabelText("Tipo di documento"), { target: { value: "packing_list" } });
   scegli("pl.pdf");
   expect(p.onCaricaOriginale).not.toHaveBeenCalled();
   expect((p.onCaricaAllegati as ReturnType<typeof vi.fn>).mock.calls[0][0][0].kind).toBe("packing_list");

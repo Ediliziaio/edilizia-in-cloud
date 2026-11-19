@@ -4,6 +4,7 @@ import {readFileSync,writeFileSync} from "node:fs";
 import ts from "typescript";
 import {buildSalHtml,chiaveVoce,type SalRecord} from "../../../supabase/functions/generate-sal-pdf/render";
 import {maturatoPrecedente} from "../../../supabase/functions/_shared/salNetto";
+import { valoreContrattoSal, variantiAlVerbale } from "../../../supabase/functions/generate-sal-pdf/contract";
 const record=(state="emesso"):SalRecord=>({id:"sal",numero_sal:3,data_emissione:"2026-10-14",stato:state,importo_totale:30000,note:"Lavori verificati dall'ufficio",order_id:"order",company_id:"company",sal_voci:[{id:"v",descrizione:"Opere murarie e finiture",importo_contrattuale:40000,percentuale_avanzamento:75,importo_sal:30000,note:null}]});
 const company={ragione_sociale:"Azienda DEMO",partita_iva:null as null,colore_primario:"#1e3a5f",logo_url:null as null};
 describe("Documento SAL progressivo",()=>{
@@ -48,16 +49,16 @@ describe("Documento SAL progressivo",()=>{
     expect(html).toContain("BOZZA - Non emessa");expect(html).toContain("Bozza del");expect(html).not.toContain("Emesso il");expect(html).toContain("&lt;img");expect(html).not.toContain('<img src="x"');
   });
 });
-function harness(options:{prepare?:boolean;state?:string;permitted?:boolean;editPermitted?:boolean;tokenError?:boolean}={}){
+function harness(options:{prepare?:boolean;state?:string;permitted?:boolean;editPermitted?:boolean;tokenError?:boolean;formato?:string}={}){
   let handler!:(req:Request)=>Promise<Response>;const insert=vi.fn();const rpc=vi.fn().mockImplementation((_name:string,input:{_permission:string})=>Promise.resolve({data:input._permission==="can_edit_orders" ? options.editPermitted??true : options.permitted??true,error:null as null}));
   const sal=record(options.state??"emesso");
   const db={auth:{getUser:async()=>({data:{user:{id:"user"}},error:null as null})},rpc,from:(table:string)=>{
-    let columns="";const q={select:(value:string)=>{columns=value;return q;},eq:()=>q,is:()=>q,gte:()=>q,order:()=>q,limit:()=>q,lt:()=>q,in:()=>q,insert:(value:unknown)=>{insert(table,value);return q;},maybeSingle:async()=>({data:table==="companies"?{logo_url:null as null}:null,error:null as null}),single:async()=>({data:table==="sal_records"?sal:table==="orders"?{company_id:"company",description:"Cantiere TEST",order_code:"TEST",total_amount:40000}:table==="anagrafica_azienda"?company:{token:"generated"},error:options.tokenError&&table==="sal_signature_tokens"?{message:"fail"}:null}),then:(fn:(v:unknown)=>unknown)=>Promise.resolve({data:columns==="id,numero_sal,stato,importo_totale"?[{id:"prior",numero_sal:2,stato:"emesso",importo_totale:20000}]:[],error:null as null}).then(fn)};return q;
+    let columns="";const q={select:(value:string)=>{columns=value;return q;},eq:()=>q,is:()=>q,gte:()=>q,order:()=>q,limit:()=>q,lt:()=>q,in:()=>q,insert:(value:unknown)=>{insert(table,value);return q;},maybeSingle:async()=>({data:table==="companies"?{logo_url:null as null}:null,error:null as null}),single:async()=>({data:table==="sal_records"?sal:table==="orders"?{company_id:"company",description:"Cantiere TEST",order_code:"TEST",total_amount:40000}:table==="anagrafica_azienda"?company:{token:"generated"},error:options.tokenError&&table==="sal_signature_tokens"?{message:"fail"}:null}),then:(fn:(v:unknown)=>unknown)=>Promise.resolve({data:columns==="id,numero_sal,stato,importo_totale"?[{id:"prior",numero_sal:2,stato:"emesso",importo_totale:20000}]:[],error:null as null,count:0}).then(fn)};return q;
   }};
   const code=ts.transpileModule(readFileSync("supabase/functions/generate-sal-pdf/index.ts","utf8").replace(/^import .*;\n/gm,""),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-  new Function("Deno","createClient","verifyCompanyAccess","getCorsHeaders","getBrandingForCompany","leggiAziendaDocumento","leggiColoreMarchio","buildSalHtml","chiaveVoce","maturatoPrecedente",code)(
-    {serve:(h:typeof handler)=>{handler=h;},env:{get:()=>"TEST"}},()=>db,async()=>{},()=>({}),async()=>({siteUrl:"https://example.invalid",platformName:"DEMO",hidePoweredBy:true}),async()=>company,async():Promise<null>=>null,buildSalHtml,chiaveVoce,maturatoPrecedente);
-  return {insert,rpc,run:()=>handler(new Request("https://example.invalid/sal",{method:"POST",headers:{Authorization:"Bearer TEST"},body:JSON.stringify({sal_id:"sal",company_id:"company",prepare_signature:options.prepare??false})}))};
+  new Function("Deno","createClient","verifyCompanyAccess","getCorsHeaders","getBrandingForCompany","leggiAziendaDocumento","leggiColoreMarchio","buildSalHtml","chiaveVoce","maturatoPrecedente","valoreContrattoSal","variantiAlVerbale",code)(
+    {serve:(h:typeof handler)=>{handler=h;},env:{get:()=>"TEST"}},()=>db,async()=>{},()=>({}),async()=>({siteUrl:"https://example.invalid",platformName:"DEMO",hidePoweredBy:true}),async()=>company,async():Promise<null>=>null,buildSalHtml,chiaveVoce,maturatoPrecedente,valoreContrattoSal,variantiAlVerbale);
+  return {insert,rpc,run:()=>handler(new Request("https://example.invalid/sal",{method:"POST",headers:{Authorization:"Bearer TEST"},body:JSON.stringify({sal_id:"sal",company_id:"company",prepare_signature:options.prepare??false,formato:options.formato})}))};
 }
 describe("Anteprima separata dalla preparazione firma: handler reale, servizi simulati",()=>{
   it("una stampa non crea token né scrive dati",async()=>{const h=harness();const r=await h.run();expect(r.status).toBe(200);expect(await r.json()).toMatchObject({signature_url:null});expect(h.insert).not.toHaveBeenCalled();expect(h.rpc).toHaveBeenCalledWith("has_permission_for_company",expect.objectContaining({_permission:"can_view_order_amounts"}));});

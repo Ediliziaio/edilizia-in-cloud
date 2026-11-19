@@ -1,6 +1,7 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // Il comando piccolo di una cella del confronto offerte: di norma la voce è
 // disponibile e non si vede niente; le eccezioni si scelgono qui e restano
-// scritte nella cella. Una <select> nativa sotto l'icona: sul telefono apre la
+// scritte nella cella. Un menu condiviso sotto l'icona, uguale a quello delle altre pagine: apre la
 // scelta di sistema, con la tastiera si raggiunge come un campo.
 import { MoreVertical } from "lucide-react";
 import {
@@ -36,7 +37,7 @@ export function StatoVoceCella({
       title="Disponibilità della voce"
     >
       <MoreVertical className="h-3.5 w-3.5" aria-hidden />
-      <select
+      <UniformSelect
         aria-label={etichettaAccessibile}
         className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-default"
         disabled={disabled}
@@ -55,7 +56,7 @@ export function StatoVoceCella({
             {s.etichetta}
           </option>
         ))}
-      </select>
+      </UniformSelect>
     </span>
   );
 }

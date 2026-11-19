@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Editor delle planimetrie, pensato per il titolare d'impresa: stanze, pareti,
  * porte e finestre, misure scritte sopra la parete, stato di oggi e progetto.
@@ -1558,9 +1559,9 @@ export default function EditorPlanimetria({ piantaIniziale, onChange, soloVista,
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b bg-slate-50/80 px-3 py-2 text-xs">
         <div className="flex items-center gap-2"><label htmlFor="ambito-documento-pianta" className="font-medium">Cosa rappresenta la pianta?</label>
-          <select id="ambito-documento-pianta" className="h-8 rounded-md border bg-background px-2 font-normal" value={documento.ambitoDocumento ?? ""} disabled={soloVista} onChange={(e) => applica({ ...pianta, ambitoDocumento: e.target.value === "ambiente" ? "ambiente" : e.target.value === "alloggio" ? "alloggio" : undefined })}>
+          <UniformSelect id="ambito-documento-pianta" className="h-8 rounded-md border bg-background px-2 font-normal" value={documento.ambitoDocumento ?? ""} disabled={soloVista} onChange={(e) => applica({ ...pianta, ambitoDocumento: e.target.value === "ambiente" ? "ambiente" : e.target.value === "alloggio" ? "alloggio" : undefined })}>
             <option value="">Da specificare</option><option value="ambiente">Singolo ambiente</option><option value="alloggio">Alloggio completo</option>
-          </select>
+          </UniformSelect>
         </div>
         <span className="text-muted-foreground">{documento.ambitoDocumento === "ambiente" ? "Verifiche sui locali rappresentati; esclusi superficie e dotazioni dell’intero alloggio." : documento.ambitoDocumento === "alloggio" ? "Verifiche sui locali e sull’intero alloggio." : "La scelta non conferma misure o aperture."}</span>
       </div>

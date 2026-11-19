@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import {
   useIncarichiCantiere,
@@ -256,7 +257,7 @@ export function IncarichiCantiere({
                   <Label htmlFor="inc-fonte">
                     Riprendi una figura dall’anagrafica aziendale
                   </Label>
-                  <select
+                  <UniformSelect
                     id="inc-fonte"
                     className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
                     value={form.figura_id}
@@ -302,7 +303,7 @@ export function IncarichiCantiere({
                           : ""}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                   {figure.isError && (
                     <p role="alert" className="text-xs text-destructive">
                       Anagrafica delle figure non disponibile.{" "}
@@ -325,7 +326,7 @@ export function IncarichiCantiere({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="inc-ruolo">Ruolo</Label>
-                  <select
+                  <UniformSelect
                     id="inc-ruolo"
                     className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                     value={form.ruolo}
@@ -336,7 +337,7 @@ export function IncarichiCantiere({
                         {l}
                       </option>
                     ))}
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="inc-nome">Nome e cognome</Label>
@@ -401,7 +402,7 @@ export function IncarichiCantiere({
               </div>
               <div>
                 <Label htmlFor="inc-stato">Stato della nomina</Label>
-                <select
+                <UniformSelect
                   id="inc-stato"
                   className="h-10 w-full rounded-md border bg-background px-3 text-sm"
                   value={form.stato}
@@ -410,7 +411,7 @@ export function IncarichiCantiere({
                   <option value="proposto">Da verificare</option>
                   <option value="documentato">Nomina documentata</option>
                   <option value="cessato">Cessato / sostituito</option>
-                </select>
+                </UniformSelect>
               </div>
               <div>
                 <Label htmlFor="inc-nominante">Soggetto nominante</Label>

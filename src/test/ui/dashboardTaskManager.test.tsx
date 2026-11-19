@@ -1,12 +1,15 @@
+import "@testing-library/jest-dom/vitest";
+import { setupRadixMenus, scegliNelMenu } from "@/test/helpers/radixMenus";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { MieAttivita, TeamTaskPulse } from "@/pages/azienda/AttivitaStaff";
 import { DEFAULT_TASK_STATUS_DEFINITIONS } from "@/lib/taskStatuses";
 import type { DashboardTask } from "@/lib/attivita/dashboardTasks";
 
+setupRadixMenus();
 const state = vi.hoisted(() => ({
   tasks: [] as import("@/lib/attivita/dashboardTasks").DashboardTask[], role: "company_admin", readonly: false, teamPermission: true, permissionsLoading: false,
   fail: false, calls: [] as { method: string; args: unknown[] }[],
@@ -15,11 +18,12 @@ const state = vi.hoisted(() => ({
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "me" }, effectiveCompany: { id: "company" }, role: state.role }) }));
 vi.mock("@/hooks/usePermissions", () => ({ usePermissions: () => ({ isAdmin: state.role === "company_admin", canViewTeamTasks: state.teamPermission, canViewAllTeamCalendar: true, isLoading: state.permissionsLoading, canViewOrders: true, solaLettura: state.readonly, canViewMarketingContacts: false, canViewMarketingOpportunities: false }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
-vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [] as { id: string; first_name: string; last_name: string }[] }) }));
-vi.mock("@/hooks/useUffici", () => ({ useUfficiAttivi: () => ({ data: [{ id: "office", nome: "Tecnica", membri: ["me"] }], isError: false }) }));
+vi.mock("@/hooks/useCompanyStaffUsers", () => ({ useCompanyStaffUsers: () => ({ data: [{ id: "anna", first_name: "Anna", last_name: "Rossi" }, { id: "outsider", first_name: "Persona", last_name: "Esterna" }] }) }));
+vi.mock("@/hooks/useUffici", () => ({ useUfficiAttivi: () => ({ data: [{ id: "office", nome: "Tecnica", membri: ["me", "anna"] }], isError: false }) }));
 vi.mock("@/hooks/useDashboardTasks", () => ({ useDashboardTasks: () => ({ data: state.tasks, isLoading: false, isError: false, refetch: vi.fn() }) }));
 vi.mock("@/hooks/useTaskStatuses", () => ({ useTaskStatuses: () => ({ statuses: [...DEFAULT_TASK_STATUS_DEFINITIONS, ...state.extraStatuses] }) }));
 vi.mock("sonner", () => ({ toast: { success: state.success, error: state.error } }));
+vi.mock("@/components/warehouse/OrderSelectCombobox", () => ({ OrderSelectCombobox: ({ value, onChange, disabled, id }: { id?: string; value?: string; disabled?: boolean; onChange: (id: string) => void }) => <button type="button" id={id} role="combobox" aria-label="Commessa" disabled={disabled} onClick={() => onChange("order-demo")}>{value || "Scegli commessa"}</button> }));
 vi.mock("@/components/tasks/CollegaAttivitaPicker", () => ({ CollegaAttivitaPicker: () => <div>Collegamento attività</div>, etichettaCollegamento: () => null as null }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...args: unknown[]) => { state.calls.push({method: "rpc",args}); return Promise.resolve(state.fail ? {error:{message:"Già in carico"}} : {data:"task",error:null}); }, from: () => {
   const builder: Record<string, unknown> = {};
@@ -147,7 +151,7 @@ describe("Task manager della Dashboard", () => {
   it("un errore di salvataggio conserva modulo e titolo senza una falsa conferma", async () => {
     state.fail = true; page(); fireEvent.click(screen.getAllByRole("button", { name: "Nuova" })[0]);
     fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Bozza da conservare" } });
-    fireEvent.click(screen.getByRole("button", { name: "Crea" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
     await waitFor(() => expect(state.error).toHaveBeenCalled());
     expect((screen.getByLabelText("Titolo *") as HTMLInputElement).value).toBe("Bozza da conservare");
     expect(state.success).not.toHaveBeenCalled();
@@ -217,4 +221,58 @@ describe("Attività condivise dell’area", () => {
   expect(screen.getByRole("button",{name:"Attività shared"})).toBeTruthy();
   expect(screen.queryByRole("button",{name:"Me ne occupo io"})).toBeNull();
  });
+});
+
+it("la creazione dalla dashboard conserva area e membro scelto", async () => {
+  page(); fireEvent.click(screen.getAllByRole("button", { name: "Nuova" })[0]);
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Controllare ordine" } });
+  await scegliNelMenu("Area / Ufficio", "Tecnica");
+  expect(screen.getByRole("combobox", { name: "Assegna a" })).toHaveTextContent("Da prendere in carico");
+  await scegliNelMenu("Assegna a", "Anna Rossi");
+  fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
+  await waitFor(() => expect(state.calls.find(c => c.method === "insert")?.args[0]).toMatchObject({ ufficio_id: "office", assigned_to: "anna" }));
+});
+it("modificare un’attività d’area senza assegnatario non la prende in carico automaticamente", async () => {
+  state.tasks = [task("area", { ufficio_id: "office", assigned_to: null, area_mia: true })];
+  page(); fireEvent.click(screen.getByRole("button", { name: "Attività area" }));
+  expect(screen.getByRole("combobox", { name: "Assegna a" })).toHaveTextContent("Da prendere in carico");
+  fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+  await waitFor(() => expect(state.calls.some(c => c.method === "update")).toBe(true));
+  const patch = state.calls.find(c => c.method === "update")?.args[0];
+  expect(patch).not.toHaveProperty("assigned_to");
+});
+
+it("un doppio invio del modulo crea una sola attività", async () => {
+  page(); fireEvent.click(screen.getAllByRole("button", { name: "Nuova" })[0]);
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Una sola attività" } });
+  const form = document.getElementById("attivita-modulo")!;
+  act(() => { fireEvent.submit(form); fireEvent.submit(form); });
+  await waitFor(() => expect(state.calls.filter(c => c.method === "insert")).toHaveLength(1));
+});
+
+it("collega una nuova attività alla commessa e la destina all’Ufficio", async () => {
+  page(); fireEvent.click(screen.getAllByRole("button", { name: "Nuova" })[0]);
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Controllare conferma materiali" } });
+  fireEvent.click(screen.getByRole("combobox", { name: "Commessa" }));
+  expect(screen.getByRole("link", { name: "Apri ufficio" })).toHaveAttribute("href", "/azienda/ordini/order-demo?tab=cantiere&vista_cantiere=ufficio");
+  fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
+  await waitFor(() => expect(state.calls.find(c => c.method === "insert")?.args[0]).toMatchObject({ order_id: "order-demo", activity_scope: "ufficio", office_stage: "altro", assigned_to: "me", category: "ordini" }));
+  expect(state.calls.filter(c => c.method === "insert")).toHaveLength(1);
+});
+it("aggiunge la commessa a un’attività esistente mantenendo il collegamento CRM e la sua identità", async () => {
+  state.tasks = [task("crm", { contact_id: "contatto", contatto: { id: "contatto", first_name: "Anna", last_name: "Rossi" } })];
+  page(); fireEvent.click(screen.getByRole("button", { name: "Attività crm" }));
+  fireEvent.click(screen.getByRole("combobox", { name: "Commessa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+  await waitFor(() => expect(state.calls.find(c => c.method === "update")?.args[0]).toMatchObject({ order_id: "order-demo", activity_scope: "ufficio", contact_id: "contatto" }));
+  expect(state.calls).toContainEqual({ method: "eq", args: ["id", "crm"] });
+  expect(state.calls.filter(c => c.method === "insert")).toHaveLength(0);
+});
+it("rimuovere la commessa dalla bozza mantiene l’attività generale", async () => {
+  page(); fireEvent.click(screen.getAllByRole("button", { name: "Nuova" })[0]);
+  fireEvent.change(screen.getByLabelText("Titolo *"), { target: { value: "Attività senza commessa" } });
+  fireEvent.click(screen.getByRole("combobox", { name: "Commessa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Togli il collegamento alla commessa" }));
+  fireEvent.click(screen.getByRole("button", { name: "Crea attività" }));
+  await waitFor(() => expect(state.calls.find(c => c.method === "insert")?.args[0]).toMatchObject({ order_id: null, activity_scope: "generale" }));
 });

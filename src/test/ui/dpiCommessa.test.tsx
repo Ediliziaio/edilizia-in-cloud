@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -171,7 +172,7 @@ describe("DPI nella sicurezza della commessa", () => {
     ]);
     fireEvent.click(screen.getByText("DPI indicati nelle lavorazioni dei POS"));
     expect(screen.getByText("DPI tecnici da verificare")).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("POS da consultare"), {
+    changeFormControl(screen.getByLabelText("POS da consultare"), {
       target: { value: "p2" },
     });
     expect(screen.getByText("Guanti previsti nel testo")).toBeTruthy();

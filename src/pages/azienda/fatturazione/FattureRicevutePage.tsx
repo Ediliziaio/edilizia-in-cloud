@@ -376,6 +376,7 @@ export default function FattureRicevutePage() {
   const [esportando, setEsportando] = useState<string | null>(null);
   const [collegaFattura, setCollegaFattura] = useState<FatturaRicevuta | null>(null);
   // L'import vive tutto nel popup: file, anteprima riga per riga, spunte, esito.
+  const [moduloUscitaAperto, setModuloUscitaAperto] = useState(false);
   const [importaAperto, setImportaAperto] = useState(false);
   const [confermaClassifica, setConfermaClassifica] = useState(false);
   const [classProgress, setClassProgress] = useState<{ fatte: number; totale: number } | null>(null);
@@ -533,6 +534,13 @@ export default function FattureRicevutePage() {
       };
     },
   });
+  function dataScadenza(f: FatturaRicevuta) {
+    if (nonSiPaga(f.tipo_documento)) return "—";
+    const data = prossimaScadenza(f.piano_pagamento, oggiIso);
+    const piano = Array.isArray(f.piano_pagamento) ? f.piano_pagamento : [];
+    const riba = piano.some(r => r?.modalita === "MP12" && (typeof r.scadenza === "string" ? r.scadenza.slice(0, 10) : null) === data);
+    return [data ? formatDateShort(data) : "—", riba && "Ri.Ba."].filter(Boolean).join(" · ");
+  }
   const commesseDi = useCallback((f: FatturaRicevuta) => (f.company_cost_id ? datiCosti?.quote[f.company_cost_id] ?? [] : []), [datiCosti]);
   const pagataSulCosto = useCallback((f: FatturaRicevuta) => !!f.company_cost_id && !!datiCosti && f.company_cost_id in datiCosti.pagati, [datiCosti]);
   const haCollegamento = useCallback((f: FatturaRicevuta) => haOrdine(f) || commesseDi(f).length > 0, [haOrdine, commesseDi]);
@@ -1043,7 +1051,8 @@ export default function FattureRicevutePage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground max-sm:text-lg">Fatture Ricevute</h1>
         </div>
-        <div className="flex items-center gap-3 max-sm:hidden">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 max-sm:hidden">
           {/* Il tipo del fornitore decide se la fattura va su una commessa o nelle spese generali. */}
           <Button variant="outline" asChild>
             <Link to="/azienda/documenti/tipi-fornitori">Tipi dei fornitori</Link>
@@ -1086,6 +1095,10 @@ export default function FattureRicevutePage() {
             <Upload className="h-4 w-4 mr-2" />
             Importa XML o PDF
           </Button>
+          </div>
+          {companyId && permessiCosti.canViewCosts && !permessiCosti.solaLettura && (
+            <Button onClick={() => setModuloUscitaAperto(true)}>Nuovo costo senza fattura</Button>
+          )}
         </div>
       </div>
 
@@ -1329,7 +1342,7 @@ export default function FattureRicevutePage() {
           {companyId && permessiCosti.canViewCosts && (
             <span className="ml-auto flex items-center gap-2 max-md:hidden">
               <FattureDaAssegnare companyId={companyId} puoModificare={!permessiCosti.solaLettura} variante="pillola" />
-              <UsciteSenzaFattura companyId={companyId} puoModificare={!permessiCosti.solaLettura} variante="pillola" />
+              <UsciteSenzaFattura moduloAperto={moduloUscitaAperto} onModuloChange={setModuloUscitaAperto} companyId={companyId} puoModificare={!permessiCosti.solaLettura} variante="pillola" />
             </span>
           )}
           <p className={cn("text-xs tabular-nums text-muted-foreground", !(companyId && permessiCosti.canViewCosts) && "ml-auto")}>
@@ -1386,6 +1399,7 @@ export default function FattureRicevutePage() {
                 <div className="truncate text-[13px] font-semibold leading-tight">{f.cedente_ragione_sociale}</div>
                 <div className="mt-0.5 truncate text-[11px] leading-tight text-muted-foreground">
                   N. {f.numero_fattura} · emessa {formatDateShort(f.data_fattura)}
+                  {colonne.has("scadenza") && ` · scad. ${dataScadenza(f)}`}
                   {f.data_ricezione_sdi ? ` · arrivata ${formatDateShort(f.data_ricezione_sdi)}` : ""}
                   {f.categoria_ai ? ` · ${etichettaCategoria(f.categoria_ai)}` : ""}
                 </div>
@@ -1418,6 +1432,7 @@ export default function FattureRicevutePage() {
                 {/* Numero, data, fornitore (16/11/2026): come si cerca una fattura su carta. */}
                 <TableHead>Numero</TableHead>
                 <IntestazioneOrdinabile campo="data" ordinamento={ordinamento} onOrdina={ordinaPer}>Emessa il</IntestazioneOrdinabile>
+                {colonne.has("scadenza") && <TableHead className="whitespace-nowrap">Scadenza fattura</TableHead>}
                 <IntestazioneOrdinabile campo="fornitore" ordinamento={ordinamento} onOrdina={ordinaPer}>Fornitore</IntestazioneOrdinabile>
                 <TableHead>Arrivata il</TableHead>
                 {colonne.has("imponibile") && <TableHead className="text-right">Imponibile</TableHead>}
@@ -1427,7 +1442,6 @@ export default function FattureRicevutePage() {
                 {colonne.has("verifica") && <TableHead>Verifica</TableHead>}
                 {colonne.has("pagamento") && <TableHead>Pagamento</TableHead>}
                 {colonne.has("metodo") && <TableHead>Modalità</TableHead>}
-                {colonne.has("scadenza") && <TableHead>Scadenza</TableHead>}
                 {colonne.has("collegata") && <TableHead>Collegata a</TableHead>}
                 {colonne.has("allegati") && <TableHead>Allegati</TableHead>}
                 {colonne.has("note") && <TableHead>Note</TableHead>}
@@ -1438,7 +1452,14 @@ export default function FattureRicevutePage() {
               {filtered.map((f) => (
                 <TableRow
                   key={f.id}
-                  className={`[&>td]:py-1.5 ${ricevutaDaLeggere(f) ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
+                  onClick={event => {
+                    const target = event.target;
+                    if (target instanceof Element && event.currentTarget.contains(target) &&
+                        !target.closest("button,a,input,label,select,textarea,[role=button],[role=checkbox],[role=combobox]")) {
+                      setRiepilogoId(f.id);
+                    }
+                  }}
+                  className={`cursor-pointer [&>td]:py-1.5 ${ricevutaDaLeggere(f) ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}
                 >
                   {puoInBlocco && (
                     <TableCell className="w-8 pr-0">
@@ -1461,6 +1482,7 @@ export default function FattureRicevutePage() {
                   <TableCell className="whitespace-nowrap">
                     <DataEmissione f={f} />
                   </TableCell>
+                  {colonne.has("scadenza") && <TableCell className="whitespace-nowrap text-xs tabular-nums">{dataScadenza(f)}</TableCell>}
                   <TableCell>
                     {/* Una riga sola: P.IVA, tipo e categoria si leggono passando il mouse. */}
                     <button type="button" className="block max-w-[260px] truncate text-left font-medium underline-offset-2 hover:underline" onClick={() => setRiepilogoId(f.id)}
@@ -1507,7 +1529,6 @@ export default function FattureRicevutePage() {
                     )}
                   </TableCell>}
                   {colonne.has("metodo") && <TableCell className="whitespace-nowrap text-xs">{metodiPagamento(f.piano_pagamento).join(", ") || <span className="text-muted-foreground">—</span>}</TableCell>}
-                  {colonne.has("scadenza") && <TableCell className="whitespace-nowrap text-xs">{prossimaScadenza(f.piano_pagamento, oggiIso) ? formatDateShort(prossimaScadenza(f.piano_pagamento, oggiIso)!) : <span className="text-muted-foreground">—</span>}</TableCell>}
                   {colonne.has("collegata") && <TableCell>
                     <div className="flex flex-nowrap items-center gap-1">
                     {(quoteOrdini[f.id]?.length ?? 0) > 0 ? (

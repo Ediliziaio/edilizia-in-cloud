@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -122,6 +123,8 @@ describe("«Prendi dalla pianta»", () => {
     apriVoce2();
     fireEvent.click(screen.getByRole("button", { name: "Prendi dalla pianta" }));
     expect(screen.getByLabelText("1. Quale pianta")).toHaveValue("p9");
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(screen.getByLabelText("1. Quale pianta"));
     expect(screen.getByRole("group", { name: "Associate a questo computo" })).toHaveTextContent("Pianta di un'altra commessa");
   });
   it("parte dalla pianta della commessa, si scelgono le stanze e nascono le righe", () => {
@@ -148,7 +151,7 @@ describe("«Prendi dalla pianta»", () => {
     render(<OrderComputoTab orderId="o1" companyId="c1" canEdit />);
     apriVoce2();
     fireEvent.click(screen.getByRole("button", { name: "Prendi dalla pianta" }));
-    fireEvent.change(screen.getByLabelText("3. Quale quantità"), { target: { value: "battiscopa_ml" } });
+    changeFormControl(screen.getByLabelText("3. Quale quantità"), { target: { value: "battiscopa_ml" } });
     expect(screen.getByText(/La voce è in mq, la quantità scelta è in m/)).toBeInTheDocument();
     const aggiungiRighe = screen.getByRole("button", { name: /Aggiungi \d+ rig/ });
     expect(aggiungiRighe).toBeDisabled();

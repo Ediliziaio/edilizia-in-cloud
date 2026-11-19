@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -100,22 +101,22 @@ beforeEach(() => {
   m.errore = false;
 });
 function collega() {
-  fireEvent.change(screen.getByLabelText("Gestione requisiti addetti 1"), {
+  changeFormControl(screen.getByLabelText("Gestione requisiti addetti 1"), {
     target: { value: "riesami" },
   });
-  fireEvent.change(screen.getByLabelText("Inizio requisiti addetti 1"), {
+  changeFormControl(screen.getByLabelText("Inizio requisiti addetti 1"), {
     target: { value: "2026-11-10" },
   });
-  fireEvent.change(screen.getByLabelText("Fine requisiti addetti 1"), {
+  changeFormControl(screen.getByLabelText("Fine requisiti addetti 1"), {
     target: { value: "2026-11-15" },
   });
-  fireEvent.change(screen.getByLabelText("Pertinenza requisiti addetti 1"), {
+  changeFormControl(screen.getByLabelText("Pertinenza requisiti addetti 1"), {
     target: { value: "TEST attività applicata" },
   });
   fireEvent.click(
     screen.getByRole("button", { name: "Scegli riesami della commessa" }),
   );
-  fireEvent.change(screen.getByLabelText("Riesame dell’attività"), {
+  changeFormControl(screen.getByLabelText("Riesame dell’attività"), {
     target: { value: fontePropria().id },
   });
   fireEvent.click(

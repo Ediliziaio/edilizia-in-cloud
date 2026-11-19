@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { CappelloAree } from "@/components/listino/ListinoNavigatore";
@@ -17,8 +19,8 @@ describe("Navigazione di tutte le aree del listino", () => {
   it("espone tutte le aree nel selettore, anche quelle fuori dalla barra", () => {
     const onScegli = vi.fn();
     render(<CappelloAree aree={aree} attiva={aree[0]} cercando={false} onScegli={onScegli} />);
-    expect(screen.getAllByRole("option")).toHaveLength(12);
-    fireEvent.change(screen.getByRole("combobox", { name: "Scegli area del listino" }), { target: { value: "area-11" } });
+    expect(formOptions().getAllByRole("option")).toHaveLength(12);
+    changeFormControl(screen.getByRole("combobox", { name: "Scegli area del listino" }), { target: { value: "area-11" } });
     expect(onScegli).toHaveBeenCalledWith("area-11");
   });
 

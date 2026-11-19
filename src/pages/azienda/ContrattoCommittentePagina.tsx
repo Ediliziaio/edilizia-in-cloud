@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Il contratto col committente, a pagina intera (09/11/2026).
  *
@@ -281,19 +282,19 @@ export default function ContrattoCommittentePagina() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-sm font-semibold">Tariffe concordate</h2>
                     {puoModificare && (altriContratti.data ?? []).filter((c) => c.id !== contrattoId).length > 0 && (
-                      <select aria-label="Copia le tariffe da un altro contratto" className="h-8 rounded-md border bg-background px-2 text-xs" value=""
+                      <UniformSelect aria-label="Copia le tariffe da un altro contratto" className="h-8 rounded-md border bg-background px-2 text-xs" value=""
                         onChange={(e) => { if (e.target.value) void copiaDa(e.target.value); }}>
                         <option value="">Copia le tariffe da…</option>
                         {(altriContratti.data ?? []).filter((c) => c.id !== contrattoId).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                      </select>
+                      </UniformSelect>
                     )}
                   </div>
                   <div className="space-y-1.5">
                     {visibili.map((r, i) => (
                       <div key={r.chiave} className="grid grid-cols-[minmax(0,1fr)_7.5rem_6.5rem_6rem_2rem] items-center gap-1.5">
                         <Input aria-label={`Descrizione tariffa ${i + 1}`} className="h-9" value={r.descrizione} disabled={!puoModificare} placeholder="Operaio specializzato" onChange={(e) => cambiaRiga(r.chiave, { descrizione: e.target.value })} />
-                        <select aria-label={`Tipo tariffa ${i + 1}`} className={selectClasse} value={r.tipo} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { tipo: e.target.value })}>{TIPI.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-                        <select aria-label={`Unità tariffa ${i + 1}`} className={selectClasse} value={r.unita_misura} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { unita_misura: e.target.value })}>{UNITA.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+                        <UniformSelect aria-label={`Tipo tariffa ${i + 1}`} className={selectClasse} value={r.tipo} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { tipo: e.target.value })}>{TIPI.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</UniformSelect>
+                        <UniformSelect aria-label={`Unità tariffa ${i + 1}`} className={selectClasse} value={r.unita_misura} disabled={!puoModificare} onChange={(e) => cambiaRiga(r.chiave, { unita_misura: e.target.value })}>{UNITA.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</UniformSelect>
                         <Input aria-label={`Prezzo tariffa ${i + 1}`} className="h-9 text-right tabular-nums" inputMode="decimal" value={r.prezzo} disabled={!puoModificare} placeholder="0,00"
                           onChange={(e) => cambiaRiga(r.chiave, { prezzo: e.target.value })}
                           onBlur={() => r.prezzo.trim() && cambiaRiga(r.chiave, { prezzo: formatDecimalIT(parseDecimalIT(r.prezzo)) })}
@@ -312,11 +313,11 @@ export default function ContrattoCommittentePagina() {
                 {numero("giorni_pagamento", "Giorni di pagamento", 365)}
                 {numero("ritenuta_pct", "Ritenuta a garanzia %", 100)}
                 <div className="space-y-1"><Label htmlFor="fatturazione">Come si fattura</Label>
-                  <select id="fatturazione" className={selectClasse} value={b.modo_fatturazione} disabled={!puoModificare} onChange={(e) => cambia({ modo_fatturazione: e.target.value })}>
-                    <option value="per_commessa">Per commessa</option><option value="mensile_cumulativa">Mensile, tutte le commesse</option></select></div>
+                  <UniformSelect id="fatturazione" className={selectClasse} value={b.modo_fatturazione} disabled={!puoModificare} onChange={(e) => cambia({ modo_fatturazione: e.target.value })}>
+                    <option value="per_commessa">Per commessa</option><option value="mensile_cumulativa">Mensile, tutte le commesse</option></UniformSelect></div>
                 <div className="space-y-1"><Label htmlFor="iva">IVA in fattura</Label>
-                  <select id="iva" className={selectClasse} value={b.regime_iva} disabled={!puoModificare} onChange={(e) => cambia({ regime_iva: e.target.value })}>
-                    <option value="ordinaria">Ordinaria</option><option value="reverse_charge">Reverse charge</option></select></div>
+                  <UniformSelect id="iva" className={selectClasse} value={b.regime_iva} disabled={!puoModificare} onChange={(e) => cambia({ regime_iva: e.target.value })}>
+                    <option value="ordinaria">Ordinaria</option><option value="reverse_charge">Reverse charge</option></UniformSelect></div>
               </div>
               <details>
                 <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">Altre opzioni</summary>
@@ -333,10 +334,10 @@ export default function ContrattoCommittentePagina() {
           {passo === 2 && (
             <section aria-label="Condizioni" className="space-y-3">
               <div className="space-y-1"><Label htmlFor="modello">Modello di condizioni</Label>
-                <select id="modello" className={selectClasse} value={modello?.id ?? ""} disabled={!puoModificare || !puoRiscrivere} onChange={(e) => scegliModello(e.target.value)}>
+                <UniformSelect id="modello" className={selectClasse} value={modello?.id ?? ""} disabled={!puoModificare || !puoRiscrivere} onChange={(e) => scegliModello(e.target.value)}>
                   {!modello && <option value="">Nessun modello</option>}
                   {modelli.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </select>
+                </UniformSelect>
                 {modello && <p className="text-xs text-muted-foreground">{modello.clausole.length} clausole{modello.clausole.some((c) => c.vessatoria) ? `, ${modello.clausole.filter((c) => c.vessatoria).length} da approvare a parte con la seconda firma` : ""}. Le prende da Contratti e condizioni.</p>}
               </div>
               <div className="space-y-1"><Label htmlFor="condizioni">Per questo committente</Label>

@@ -7,6 +7,7 @@ import {
   ComposedChart,
   Line,
   ReferenceLine,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -156,16 +157,15 @@ export function OrdersMonthlyChart({
     animationEasing: "ease-out" as const,
   };
   return (
-    <section aria-label="Andamento commesse" className="min-w-0">
+    <section aria-label="Andamento commesse" className="flex min-w-0 flex-1 flex-col">
       <h3 className="text-base font-semibold tracking-tight text-slate-950">
         Andamento commesse{" "}
         <span className="font-normal text-slate-500">· {period}</span>
       </h3>
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        Per mese di creazione. Incassato su quelle commesse, indipendentemente
-        dalla data dell’incasso.
+        {view === "count" ? "Commesse create per mese." : "Per mese di creazione. Incassato su quelle commesse, indipendentemente dalla data dell’incasso."}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <div
           role="group"
           aria-label="Visualizzazione andamento"
@@ -185,7 +185,7 @@ export function OrdersMonthlyChart({
                 setAnimateInteraction(event.detail > 0);
                 setView(item.value);
               }}
-              className={`orders-chart-control rounded-md px-3 py-1.5 text-xs font-medium ${view === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+              className={`orders-chart-control rounded-md px-2 py-1 text-xs font-medium ${view === item.value ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
             >
               {item.label}
             </button>
@@ -211,7 +211,7 @@ export function OrdersMonthlyChart({
                   setAnimateInteraction(event.detail > 0);
                   setShape(item.value);
                 }}
-                className={`orders-chart-control rounded-md px-2 py-1.5 text-xs ${shape === item.value ? "bg-blue-50 font-medium text-blue-800" : "text-slate-500"}`}
+                className={`orders-chart-control rounded-md px-2 py-1 text-xs ${shape === item.value ? "bg-blue-50 font-medium text-blue-800" : "text-slate-500"}`}
               >
                 {item.label}
               </button>
@@ -226,7 +226,7 @@ export function OrdersMonthlyChart({
               setAnimateInteraction(event.detail > 0);
               comparison.onToggle();
             }}
-            className={`orders-chart-control rounded-lg border px-3 py-1.5 text-xs font-medium ${comparison.enabled ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}
+            className={`orders-chart-control rounded-lg border px-2 py-1 text-xs font-medium ${comparison.enabled ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600"}`}
           >
             Confronta {comparison.year}
           </button>
@@ -263,7 +263,7 @@ export function OrdersMonthlyChart({
         </div>
       )}
       <div
-        className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
+        className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600"
         aria-label="Legenda grafico"
       >
         {view === "money" ? (
@@ -282,14 +282,9 @@ export function OrdersMonthlyChart({
             Numero commesse
           </span>
         )}
-        {current && (
-          <span className="ml-auto text-slate-500">
-            {monthName(current).replace(/ \d{4}$/, "")}: in corso
-          </span>
-        )}
       </div>
       <div
-        className={`mt-1 h-[220px] ${onSelectMonth ? "cursor-pointer" : ""}`}
+        className={`mt-1 h-[140px] shrink-0 ${onSelectMonth ? "cursor-pointer" : ""}`}
         role="img"
         aria-label={
           view === "money"
@@ -333,6 +328,7 @@ export function OrdersMonthlyChart({
             />
             <XAxis
               dataKey="mese"
+              tickFormatter={(label: string) => /^\d{4}$/.test(period) ? label.split(" ")[0] : label}
               tickLine={false}
               axisLine={false}
               tick={{ fontSize: 10, fill: "#64748b" }}
@@ -355,6 +351,7 @@ export function OrdersMonthlyChart({
             {current && current.key !== selected?.key && (
               <ReferenceLine
                 x={current.mese}
+                label={{ value: "In corso", position: "insideTop", fontSize: 10, fill: "#475569" }}
                 stroke="#94a3b8"
                 strokeDasharray="4 4"
               />
@@ -362,6 +359,7 @@ export function OrdersMonthlyChart({
             {selected && (
               <ReferenceLine
                 x={selected.mese}
+                label={selected.current ? { value: "In corso", position: "insideTop", fontSize: 10 } : undefined}
                 stroke="#f97316"
                 strokeWidth={2}
                 strokeDasharray="3 3"
@@ -455,18 +453,33 @@ export function OrdersMonthlyChart({
                 {...animation}
               />
             )}
+            {view === "count" && selected && selected.count !== null && (
+              <ReferenceDot x={selected.mese} y={selected.count} r={5} fill="#f97316" stroke="white" strokeWidth={2} />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       {onSelectMonth && (
-        <div className="mt-2">
-          <p className="mb-1 text-[11px] text-slate-500">
-            Seleziona un mese per filtrare l’elenco.
-          </p>
+        <div className="mt-1">
+          {selected ? (
+            <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <strong className="capitalize">{monthName(selected)}</strong>
+              <button type="button" aria-label="Rimuovi filtro mese" title="Rimuovi filtro mese"
+                onClick={() => onSelectMonth(null)} className="orders-chart-control rounded px-1.5">×</button>
+              <span role="status" className="flex flex-wrap gap-x-3 tabular-nums">
+                {view === "count" ? `${selected.commesse} ${selected.commesse === 1 ? "commessa" : "commesse"}` :
+                  linee.map((serie) => (
+                    <span key={serie.id}>{serie.nome} <strong>{chartMoney(selected[CHIAVE_SERIE[serie.id].dato] ?? 0)}</strong></span>
+                  ))}
+              </span>
+            </div>
+          ) : (
+            <p className="mb-1 text-[11px] text-slate-500">Seleziona un mese per filtrare l’elenco.</p>
+          )}
           <div
             role="group"
             aria-label="Filtra commesse per mese"
-            className="grid grid-cols-6 gap-1 2xl:grid-cols-12"
+            className="grid grid-cols-6 gap-1 lg:grid-cols-12"
           >
             {data.map((month) => (
               <button
@@ -487,23 +500,10 @@ export function OrdersMonthlyChart({
               </button>
             ))}
           </div>
-          {selected && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-orange-50 px-2.5 py-2 text-xs text-orange-900">
-              <span role="status">
-                Elenco filtrato: <strong>{monthName(selected)}</strong>
-              </span>
-              <button
-                type="button"
-                className="orders-chart-control rounded underline underline-offset-2"
-                onClick={() => onSelectMonth(null)}
-              >
-                Rimuovi filtro mese
-              </button>
-            </div>
-          )}
+
         </div>
       )}
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
+      <div className="mt-1 flex flex-wrap items-start justify-between gap-2 text-[11px] text-slate-500">
         <p>
           {hasFuture
             ? "I mesi futuri senza dati restano vuoti; il mese in corso è parziale."

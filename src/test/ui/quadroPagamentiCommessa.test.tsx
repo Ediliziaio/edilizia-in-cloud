@@ -109,3 +109,25 @@ describe("Incassi e pagamenti della commessa", () => {
     expect(screen.queryByText("Pagato")).toBeNull();
   });
 });
+
+
+it('la vista unificata mostra il solo elenco cliente, senza ripetere riepilogo, SAL e fatture',async()=>{
+ mostra({vistaUnificata:true,incassi:(totali)=><p>Unico elenco cliente: {totali.incassato}</p>,documenti:<p>Elenco fatture separato</p>});
+ expect(await screen.findByText(/Unico elenco cliente/)).toBeInTheDocument();
+ expect(screen.queryByText('Elenco fatture separato')).toBeNull();
+ expect(screen.queryByText('Incassato')).toBeNull();
+ expect(screen.queryByText('SAL al cliente')).toBeNull();
+});
+it('le unità conservano i propri versamenti senza usare il piano rate della commessa',async()=>{
+ mockRpc.mockResolvedValueOnce({data:{...quadro,incassi_unita:{incassato:1210,residuo:306779,scaduto:0,generale_id:'generale',da_collegare:0}},error:null});
+ mostra({vistaUnificata:true,incassi:<p>Piano duplicato</p>,documenti:<p>Documenti fiscali unità</p>});
+ expect(await screen.findByText('Versamenti dell’unità')).toBeInTheDocument();
+ expect(screen.getByText('Documenti fiscali unità')).toBeInTheDocument();expect(screen.queryByText('Piano duplicato')).toBeNull();
+ expect(screen.getByRole('link',{name:'Apri Unità e vendite'})).toHaveAttribute('href','/azienda/ordini/generale?scheda=unita');
+});
+
+it('un ruolo senza accesso ai ricavi non vede una scheda vuota o importi del cliente',async()=>{
+ mostra({vistaUnificata:true,mostraIncassi:false,mostraUscite:false});
+ expect(await screen.findByRole('note')).toHaveTextContent('Il tuo ruolo non permette');
+ expect(screen.queryByText('Incassato')).toBeNull();
+});

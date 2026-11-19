@@ -1,0 +1,72 @@
+/* Un'unica vista per piano rate, fatture e movimenti; stessi spazi delle altre schede. */
+.commessa-income-workspace > div:first-child > .grid { gap: 10px; }
+.commessa-income-workspace > div:first-child > .grid > div { border-radius: 10px; }
+.income-documents-card { box-shadow: none; overflow: hidden; }
+.income-documents-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px; }
+.income-document-actions { margin-left: auto; }
+.income-document-actions button { min-height: 34px; }
+.income-documents-totals { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--muted)/.15); }
+.income-documents-totals > div { padding: 12px; }
+.income-documents-totals > div + div { border-left: 1px solid hsl(var(--border)); }
+.income-documents-totals dt, .income-documents-totals small { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.income-documents-totals dd { margin: 3px 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.income-documents-card [data-due="true"] { color: #b45309; }
+.income-documents-filters { display: grid; gap: 10px; padding: 14px 16px; }
+.income-document-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.income-document-tabs button { display: inline-flex; align-items: center; gap: 8px; border-radius: 6px; padding: 7px 10px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.income-document-tabs button:hover { background: hsl(var(--muted)); }
+.income-document-tabs button[aria-pressed="true"] { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.income-document-tabs button span { font-size: 11px; opacity: .8; font-variant-numeric: tabular-nums; }
+.income-documents-filters .income-document-kind { width: 220px; border-radius: 6px; height: 40px; box-shadow: none; }
+.income-documents-table-wrap { overflow-x: auto; margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; }
+.income-documents-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.income-documents-table th { background: hsl(var(--muted)/.4); color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.income-documents-table :is(td,th) { padding: 10px; text-align: left; border-bottom: 1px solid hsl(var(--border)); vertical-align: middle; }
+.income-documents-table :is(td,th):nth-child(n+3):not(:last-child) { text-align: right; white-space: nowrap; }
+.income-documents-table tr:last-child td { border-bottom: 0; }
+.income-documents-table button { height: 32px; min-height: 32px; }
+.income-documents-table tr[data-inactive="true"] { background: hsl(var(--muted)/.2); color: hsl(var(--muted-foreground)); }
+.income-document-status { display: inline-flex; margin-top: 5px; border-radius: 999px; border: 1px solid hsl(var(--border)); padding: 1px 7px; font-size: 11px; }
+.income-document-status[data-state="Incassata"] { color: #065f46; background: #ecfdf5; border-color: #a7f3d0; }
+.income-document-status:is([data-state="Parziale"],[data-state="Da incassare"],[data-state="Bozza"]) { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.income-documents-footnote { padding: 12px 16px; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.commessa-income-workspace :where([role="radiogroup"]) { flex-shrink: 0; }
+@media(max-width:639px) {
+  .income-documents-totals { grid-template-columns: 1fr; }
+  .income-documents-totals > div { padding: 8px 12px; }
+  .income-documents-totals > div + div { border-left: 0; border-top: 1px solid hsl(var(--border)); }
+  .income-documents-totals dd { font-size: 18px; }
+  .income-documents-filters .income-document-kind { width: 100%; }
+  .income-document-actions { margin-left: 0; }
+  .income-documents-table { min-width: 780px; }
+}
+@media(pointer:coarse) { .income-documents-card :is(button,a[role="button"]),.income-document-tabs button { min-height: 44px; } }
+.dark .income-document-status[data-state="Incassata"] { color:#a7f3d0; background:#064e3b; border-color:#047857; }
+.dark .income-document-status:is([data-state="Parziale"],[data-state="Da incassare"],[data-state="Bozza"]) { color:#fde68a; background:#451a03; border-color:#92400e; }
+.commessa-income-workspace .income-rates-card { border-radius: 10px; box-shadow: none; }
+.commessa-income-workspace .income-rates-card > div { padding: 16px; }
+.commessa-income-workspace .income-rates-card > div + div { padding-top: 0; }
+.commessa-income-workspace .income-bank-movements table th { font-size: 12px; }
+.commessa-income-workspace .income-bank-movements table :is(td,th) { padding-top: 9px; padding-bottom: 9px; }
+.commessa-income-workspace .income-bank-movements summary { min-height: 40px; }
+.income-unified-totals { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.income-unified-list { margin: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; overflow: hidden; }
+.income-unified-list > li + li { border-top: 1px solid hsl(var(--border)); }
+.income-unlinked-row { padding: 12px; }
+.income-rate-invoice { margin-top: 4px; padding-top: 10px; border-top: 1px dashed hsl(var(--border)); }
+.income-linked-document { display: grid; grid-template-columns: minmax(150px,1fr) auto auto; align-items: center; gap: 12px; font-size: 13px; }
+.income-linked-document-info { display: grid; gap: 3px; }
+.income-linked-document-money { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.income-linked-document-money dt { color: hsl(var(--muted-foreground)); font-size: 11px; }
+.income-linked-document-money dd { margin-top: 3px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.income-linked-document-actions { display: flex; align-items: center; gap: 4px; }
+.income-linked-document-actions :is(button,a) { min-height: 32px; height: 32px; }
+.income-invoice-schedule { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12px; }
+.income-invoice-due-status { margin-inline-start: 6px; font-size: 11px; color: hsl(var(--muted-foreground)); }
+.income-invoice-due-status[data-status="Pagata"] { color: light-dark(#047857, #6ee7b7); }
+.income-invoice-due-status[data-status="Parziale"] { color: light-dark(#92400e, #fcd34d); }
+.income-unified-plan { margin: 12px 16px 0; border-top: 1px solid hsl(var(--border)); padding-top: 12px; }
+.income-unified-plan > div { padding-top: 12px; }
+.income-unified .income-document-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+@media(max-width:900px) { .income-linked-document { grid-template-columns: 1fr auto; }.income-linked-document-money { grid-column:1/-1;grid-row:2;justify-content:space-between; }.income-linked-document-actions {grid-column:2;grid-row:1;} }
+@media(max-width:639px) { .income-unified-totals { grid-template-columns: repeat(2,minmax(0,1fr)); }.income-unified-totals > div + div {border-left:0;}.income-unified-totals > div:nth-child(even) {border-left:1px solid hsl(var(--border));}.income-linked-document-money {gap:8px;}.income-unified-list {margin:0 10px;}.income-linked-document-money dd {text-align:left;} }

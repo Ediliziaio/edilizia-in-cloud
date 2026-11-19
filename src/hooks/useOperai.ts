@@ -182,6 +182,7 @@ export function useSalvaOperaio() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+      qc.invalidateQueries({ queryKey: ["stati-app-operai"] });
       // Personale e Gestione staff leggono le stesse persone.
       qc.invalidateQueries({ queryKey: ["hr-profili-all"] });
       qc.invalidateQueries({ queryKey: ["hr-profili"] });
@@ -214,6 +215,7 @@ export function useDaiAccessoApp() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: chiaviOperai.tutti });
+      qc.invalidateQueries({ queryKey: ["stati-app-operai"] });
     },
   });
 }

@@ -1,32 +1,3 @@
--- ════════════════════════════════════════════════════════════════════════════
--- Tesoreria: l'incasso di una fattura importata da XML si conta una volta sola
--- ════════════════════════════════════════════════════════════════════════════
--- Su Impresa Vulcano, la prima azienda che riconcilia la banca con fatture
--- emesse importate da XML, la conferma degli incassi si fermava sempre con
--- «Le quote superano il residuo della fattura importata» — anche su casi
--- perfetti (bonifico del cliente, numero in causale, importo = residuo).
---
--- Il pagamento veniva contato due volte:
---   1. riconcilia_movimento_su_documenti inserisce la riga in invoice_payments,
---      e per external_provider = 'xml_import' il trigger
---      fn_update_invoice_on_payment applica già la differenza a paid_amount;
---   2. bank_record_imported rifaceva paid_amount + quota.
--- 31.499 € su una fattura da 31.499 diventavano 62.998: sopra il totale, e la
--- conferma si annullava. Valeva per la conferma automatica, per il clic sulla
--- proposta e per il lotto (bank_conferma_lotto): tutti passano da qui.
---
--- bank_record_imported era stato scritto per le fatture dei gestionali esterni
--- (Fatture in Cloud), dove il trigger NON conta niente e aspetta
--- l'allineamento: lì il suo += è l'unico conteggio e resta com'è. Per l'XML
--- il trigger ha già fatto il lavoro: si registra la quota in
--- bank_imported_allocations, si controlla il residuo, e basta.
---
--- `allinea` diventa false per l'XML: non c'è un gestionale da riallineare
--- (billing-payment-push lo salterebbe comunque).
---
--- Idempotente: CREATE OR REPLACE.
--- ════════════════════════════════════════════════════════════════════════════
-
 CREATE OR REPLACE FUNCTION private.bank_record_imported(p_company uuid, p_tx uuid, p_result jsonb)
  RETURNS jsonb
  LANGUAGE plpgsql

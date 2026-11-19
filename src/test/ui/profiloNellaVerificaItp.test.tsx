@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -95,7 +96,7 @@ it("il profilo entra nella verifica con tutti i criteri, senza esiti; non eredit
     screen.getByRole("button", { name: "Registra verifica ITP" }),
   );
   await screen.findByRole("dialog");
-  fireEvent.change(screen.getByLabelText("Profilo requisiti da caricare"), {
+  changeFormControl(screen.getByLabelText("Profilo requisiti da caricare"), {
     target: { value: "p1" },
   });
   expect(screen.getByText("Esclusi ponteggi")).toBeTruthy();
@@ -120,20 +121,20 @@ it("il profilo entra nella verifica con tutti i criteri, senza esiti; non eredit
   });
   fireEvent.click(conferma);
   expect(conferma).toBeChecked();
-  fireEvent.change(screen.getAllByLabelText("Riferimento del criterio")[0], {
+  changeFormControl(screen.getAllByLabelText("Riferimento del criterio")[0], {
     target: { value: "Adattato al caso" },
   });
   expect(conferma).not.toBeChecked();
-  fireEvent.change(screen.getByLabelText("Lavori e ambito esaminati"), {
+  changeFormControl(screen.getByLabelText("Lavori e ambito esaminati"), {
     target: { value: "Posa in questa commessa" },
   });
-  fireEvent.change(screen.getByLabelText("Responsabile della valutazione"), {
+  changeFormControl(screen.getByLabelText("Responsabile della valutazione"), {
     target: { value: "Tecnico" },
   });
-  fireEvent.change(screen.getByLabelText("Ruolo del responsabile"), {
+  changeFormControl(screen.getByLabelText("Ruolo del responsabile"), {
     target: { value: "Responsabile" },
   });
-  fireEvent.change(
+  changeFormControl(
     screen.getByLabelText("Motivazione dell’esito e azioni richieste"),
     { target: { value: "Da integrare per questo caso" } },
   );

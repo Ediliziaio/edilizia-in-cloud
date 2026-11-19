@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from 'react';
 import type { ChatDocument } from '@/lib/preventivi/quoteChatDocument';
 import { calculateQuoteQuantity, readIndicativeEstimate, type QuoteIndicativeEstimate } from '@/lib/preventivi/quoteCalculations';
@@ -20,7 +21,7 @@ export function QuoteCalculationTools({ mode, document, disabled, onFormula, onE
   return <section className="quote-calculation-tool" aria-label={quantity ? 'Calcolatore quantità in chat' : 'Stima indicativa in chat'}>
     <h3>{quantity ? 'Quantità calcolata dal software' : 'Stima indicativa · separata dal preventivo'}</h3>
     <p>{quantity ? 'Scrivi una formula con misure già confermate, tutte nella stessa unità. Il software calcola, non l’AI. La conferma aggiorna solo la voce scelta e la riporta da confermare.' : 'Cerca una base nel prezzario oppure inserisci un intervallo e spiega da dove deriva. Nessun valore precompilato: una stima senza basi non viene prodotta.'}</p>
-    <fieldset disabled={disabled}><label>Voce da elaborare<select aria-label="Voce da elaborare" value={id} onChange={e => { setId(e.target.value); setExpression(''); changed(); }}>{document.lines.map((r, i) => !r.supersededBy?.length && <option key={r.id} value={r.id}>{i + 1}. {r.title}</option>)}</select></label>
+    <fieldset disabled={disabled}><label>Voce da elaborare<UniformSelect aria-label="Voce da elaborare" value={id} onChange={e => { setId(e.target.value); setExpression(''); changed(); }}>{document.lines.map((r, i) => !r.supersededBy?.length && <option key={r.id} value={r.id}>{i + 1}. {r.title}</option>)}</UniformSelect></label>
     {quantity ? <><label>Formula della quantità<input aria-label="Formula della quantità" value={expression} maxLength={240} placeholder="Es. 2*(3+4)*2,20-0,80*2,10-1,20*1" onChange={e => { setExpression(e.target.value); changed(); }} /></label>
       <button disabled={!row} onClick={() => { try { setPreview({ id, revision: document.revision, result: calculateQuoteQuantity(expression) }); setError(''); } catch (e) { setError((e as Error).message); } }}>Verifica formula</button>
       {preview && <div role="status"><strong>{preview.result.toLocaleString('it-IT')} {row?.unit}</strong><p>{expression} · non ancora applicata</p><button disabled={preview.id !== id || preview.revision !== document.revision} onClick={() => { onFormula(id, expression, preview.revision); setPreview(null); }}>Conferma quantità calcolata</button></div>}

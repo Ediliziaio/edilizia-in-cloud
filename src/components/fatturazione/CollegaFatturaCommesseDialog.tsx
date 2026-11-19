@@ -39,26 +39,32 @@ export interface FatturaDaCollegare {
 type Riga = { chiave: number; order_id: string; importo: string };
 const testoImporto = (n: number) => (Math.round(n * 100) / 100).toString().replace(".", ",");
 
-export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onScegliOrdine, commessaIniziale }: {
-  fattura: FatturaDaCollegare; companyId: string; onChiudi: () => void; onScegliOrdine?: () => void; commessaIniziale?: string;
+export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onScegliOrdine, commessaIniziale, suImponibile = false }: {
+  fattura: FatturaDaCollegare; companyId: string; onChiudi: () => void; onScegliOrdine?: () => void; commessaIniziale?: string; suImponibile?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const totale = Math.abs(Number(fattura.totale ?? fattura.imponibile ?? 0));
   const imponibile = Math.abs(Number(fattura.imponibile ?? fattura.totale ?? 0));
+  const totale = suImponibile ? imponibile : Math.abs(Number(fattura.totale ?? imponibile));
+  const [percentuali, setPercentuali] = useState(false);
+  const [percentualeEditata, setPercentualeEditata] = useState<{ chiave: number; testo: string } | null>(null);
   const suOrdine = !!fattura.purchaseOrderId || !!fattura.suOrdini;
-  const { data, isLoading } = useQuery({
-    queryKey: ["fattura-collega-commesse", fattura.id],
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["fattura-collega-commesse", companyId, fattura.id, fattura.companyCostId],
     staleTime: 0,
     queryFn: async () => {
-      const [{ data: f, error: e1 }, costo] = await Promise.all([
+      const [{ data: f, error: e1 }, costo, altreFatture] = await Promise.all([
         db.from("fatture_ricevute").select("righe").eq("id", fattura.id).eq("company_id", companyId).maybeSingle(),
         fattura.companyCostId
           ? db.from("company_costs").select("order_id, allocations, quota_magazzino, quota_magazzino_righe").eq("id", fattura.companyCostId).eq("company_id", companyId).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
+        fattura.companyCostId
+          ? db.from("fatture_ricevute").select("id").eq("company_id", companyId).eq("company_cost_id", fattura.companyCostId).neq("id", fattura.id).limit(1)
+          : Promise.resolve({ data: [], error: null }),
       ]);
+      if (altreFatture.error) throw altreFatture.error;
       if (e1) throw e1;
       if (costo.error) throw costo.error;
-      return { righe: f?.righe ?? null, costo: costo.data };
+      return { righe: f?.righe ?? null, costo: costo.data, condiviso: !!altreFatture.data?.length };
     },
   });
   // Le operazioni dell'azienda (commesse generali): la scelta rapida in cima e il nome nell'avviso.
@@ -92,7 +98,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
     if (giaInMagazzino > 0) setMagazzino(testoImporto(imponibile ? (giaInMagazzino * totale) / imponibile : giaInMagazzino));
     if (salvate.length === 0 && righeInMagazzino.length === 0) return;
     setRighe(salvate.length
-      ? salvate.map((q, i) => ({ chiave: i, order_id: q.order_id, importo: testoImporto((totale * q.pct) / 100) }))
+      ? salvate.map((q, i) => ({ chiave: i, order_id: q.order_id, importo: testoImporto(suImponibile && q.importo != null ? q.importo : (totale * q.pct) / 100) }))
       : [{ chiave: 0, order_id: "", importo: "" }]);
     if (salvate.length === 1 && salvate[0].pct < 99.99) setSoloUnaParte(true);
     if (salvate.some((q) => q.righe?.length) || righeInMagazzino.length > 0) {
@@ -102,7 +108,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
         ...Object.fromEntries(righeInMagazzino.map((n) => [n, DESTINAZIONE_MAGAZZINO])),
       });
     }
-  }, [data, letto, salvate, totale, imponibile]);
+  }, [data, letto, salvate, totale, imponibile, suImponibile]);
 
   // `leggiImporto` dà NaN per la casella vuota o scritta a metà: senza questo filtro
   // il NaN si propagherebbe negli importi delle commesse e le svuoterebbe.
@@ -142,7 +148,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
   const cambiaImporto = (chiave: number, testo: string) => setRighe((prima) => {
     const dopo = prima.map((x) => (x.chiave === chiave ? { ...x, importo: testo } : x));
     // In due, l'altra prende il resto: non c'è da fare conti.
-    if (dopo.length !== 2) return dopo;
+    if (dopo.length !== 2 || !Number.isFinite(leggiImporto(testo))) return dopo;
     const resto = totale - magazzinoLordo - leggiImporto(testo);
     return dopo.map((x) => (x.chiave === chiave || resto < 0 ? x : { ...x, importo: testoImporto(resto) }));
   });
@@ -189,7 +195,7 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
         : `Fattura divisa su ${quote.length} commesse`,
       );
       refreshFinancialQueries(queryClient);
-      for (const k of ["fatture-ricevute", "fatture-costi-commesse", "fattura-ricevuta-riepilogo", "margin"]) void queryClient.invalidateQueries({ queryKey: [k] });
+      for (const k of ["fattura-collega-commesse", "fatture-ricevute", "fatture-costi-commesse", "fattura-ricevuta-riepilogo", "margin"]) void queryClient.invalidateQueries({ queryKey: [k] });
       onChiudi();
     } catch (e) {
       toast.error("Collegamento non salvato", { description: e instanceof Error ? e.message : String(e) });
@@ -204,12 +210,16 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
       <DialogContent struttura="scorrevole" className="max-h-[90dvh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>A quale commessa va?</DialogTitle>
-          <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> IVA inclusa</DialogDescription>
+          <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? "imponibile" : "IVA inclusa"}</DialogDescription>
         </DialogHeader>
         {suOrdine ? (
           <p role="status" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
             È su un ordine d’acquisto: la commessa viene da lì. Per sceglierla qui, scollegala prima dall’ordine.
           </p>
+        ) : data?.condiviso ? (
+          <p role="status">Il costo contabilizzato raggruppa più fatture. Una ripartizione su questo costo coinvolgerebbe anche gli altri documenti.</p>
+        ) : isError ? (
+          <p role="alert">Impossibile caricare le quote salvate. Riapri il dettaglio per riprovare.</p>
         ) : isLoading ? (
           <p role="status" className="text-sm text-muted-foreground">Caricamento…</p>
         ) : perVoci ? (
@@ -246,6 +256,13 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
           </div>
         ) : (
           <div className="space-y-2">
+            {suImponibile && <div className="flex items-center gap-1" role="group" aria-label="Unità delle quote">
+              {(["Importi", "Percentuali"] as const).map((label) => <Button key={label} type="button" size="sm"
+                variant={percentuali === (label === "Percentuali") ? "secondary" : "ghost"}
+                aria-pressed={percentuali === (label === "Percentuali")} onClick={() => {
+                  setPercentuali(label === "Percentuali"); setSoloUnaParte(true); setPercentualeEditata(null);
+                }}>{label}</Button>)}
+            </div>}
             {generali.length > 0 && righe.length === 1 && !righe[0].order_id && (
               <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
                 <p className="text-xs font-medium text-muted-foreground">Su tutta l’operazione (costo comune, si divide tra le unità)</p>
@@ -271,8 +288,18 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
                 </div>
                 {mostraImporti && (
                   <div className="relative w-28 shrink-0">
-                    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">€</span>
-                    <Input aria-label={`Importo della commessa ${i + 1}`} inputMode="decimal" className="pl-6 text-right" value={r.importo} onChange={(e) => cambiaImporto(r.chiave, e.target.value)} />
+                    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{percentuali ? "%" : "€"}</span>
+                    <Input aria-label={`${percentuali ? "Percentuale" : "Importo"} della commessa ${i + 1}`} inputMode="decimal" className="pl-6 text-right" value={percentuali
+                      ? percentualeEditata?.chiave === r.chiave ? percentualeEditata.testo : imponibile && r.importo ? testoImporto(leggiImporto(r.importo) * 100 / imponibile) : ""
+                      : r.importo}
+                      onBlur={() => setPercentualeEditata(null)}
+                      onChange={(e) => {
+                        const testo = e.target.value;
+                        if (!percentuali) return cambiaImporto(r.chiave, testo);
+                        setPercentualeEditata({ chiave: r.chiave, testo });
+                        const pct = leggiImporto(testo);
+                        cambiaImporto(r.chiave, Number.isFinite(pct) && pct >= 0 && pct <= 100 ? testoImporto(imponibile * pct / 100) : "");
+                      }} />
                   </div>
                 )}
                 {righe.length > 1 && (
@@ -341,10 +368,10 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
         <DialogFooter className="items-center gap-2 sm:justify-between">
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {onScegliOrdine && <button type="button" className={linkDiscreto} onClick={onScegliOrdine}>{suOrdine ? "Cambia ordine d’acquisto" : "Va su un ordine d’acquisto"}</button>}
-            {!suOrdine && (salvate.length > 0 || quotaMagazzinoDelCosto(data?.costo) > 0) && <button type="button" className={linkDiscreto} disabled={salvataggio} onClick={() => void salva([], 0)}>Scollega</button>}
+            {!suOrdine && !data?.condiviso && (salvate.length > 0 || quotaMagazzinoDelCosto(data?.costo) > 0) && <button type="button" className={linkDiscreto} disabled={salvataggio} onClick={() => void salva([], 0)}>Scollega</button>}
           </div>
-          {!suOrdine && (
-            <Button type="button" disabled={salvataggio || isLoading || !!problema || (dasalvare.length === 0 && magazzinoNetto === 0)} onClick={() => void salva(dasalvare, magazzinoNetto)}>
+          {!suOrdine && !data?.condiviso && (
+            <Button type="button" disabled={salvataggio || isLoading || isError || !!problema || residuo < 0 || (dasalvare.length === 0 && magazzinoNetto === 0)} onClick={() => void salva(dasalvare, magazzinoNetto)}>
               {salvataggio && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}Salva
             </Button>
           )}

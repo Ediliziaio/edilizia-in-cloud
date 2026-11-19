@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // Commessa generale dai documenti — il grande popup «Costruisci la commessa generale» (lotti 4-8 di
 // docs/piano-commessa-generale-da-documenti.md, §4). Sul modello di «Crea con Silvio»: Fonti ·
 // Proposta · Documento. Ogni dato mostra pagina e citazione, cosa diventa e il suo stato; si
@@ -266,10 +267,10 @@ function IntestazioneCostruisci({ dove, tipo, bozza, setBozza, campi, accordo, s
           </div>
           {bozza.forma === "applicativo" && accordo && <ResiduoAccordo accordoId={accordo} importo={campi.find((c) => c.chiave === "importo_contrattuale")?.valore ?? null} />}
           {bozza.forma === "applicativo" && (
-            <select className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm" value={accordo ?? ""} onChange={(e) => setAccordo(e.target.value || null)} aria-label="Accordo quadro">
+            <UniformSelect className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm" value={accordo ?? ""} onChange={(e) => setAccordo(e.target.value || null)} aria-label="Accordo quadro">
               <option value="">Scegli l'accordo quadro…</option>
               {(generali.data ?? []).map((g) => <option key={g.id} value={g.id}>{[g.order_code, g.description].filter(Boolean).join(" · ")}{g.accordo ? " (accordo quadro)" : ""}</option>)}
-            </select>
+            </UniformSelect>
           )}
         </div>
       )}

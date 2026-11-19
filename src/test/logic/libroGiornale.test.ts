@@ -62,6 +62,19 @@ describe("libro giornale", () => {
     documento_numero: null, documento_data: null, origine: "manuale", storno_di: null,
     contabilita_righe: righe.map(([c, d, a], i) => ({ riga: i + 1, conto_id: c, dare: d, avere: a, descrizione: null as string | null })),
   });
+  it("con il filtro conserva i numeri annuali e totalizza solo le scritture scelte", () => {
+    const elenco = [
+      s(9, "2026-01-15", [["clienti", 10, 0], ["ricavi", 0, 10]]),
+      s(4, "2026-02-01", [["clienti", 20, 0], ["ricavi", 0, 20]]),
+    ];
+    const selezione = new Set(["s4"]);
+    const g = costruisciGiornale(elenco, conti, 0, selezione);
+    expect(g.righe.map(r => [r.scritturaId, r.numero, r.progressivo])).toEqual([["s4", "2/2026", 3], ["s4", "2/2026", 4]]);
+    expect([g.scritture, g.totaleDare, g.totaleAvere]).toEqual([1, 20, 20]);
+    const csv = csvGiornale(elenco, conti, selezione);
+    expect(csv.split("\r\n")).toHaveLength(3);
+    expect(csv).toContain("2026;2;4;");
+  });
   it("ordina per data e numero e porta i progressivi", () => {
     const g = costruisciGiornale([
       s(2, "2026-02-01", [["clienti", 50, 0], ["ricavi", 0, 50]]),

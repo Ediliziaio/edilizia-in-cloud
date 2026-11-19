@@ -1,0 +1,103 @@
+.fattura-commessa-dialog .commessa-modal-body {
+  padding: 12px 20px 16px;
+}
+
+.fattura-commessa-modulo > * + * {
+  margin-top: 12px;
+}
+
+.fattura-commessa-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.fattura-commessa-modulo { min-width: 0; }
+.fattura-commessa-anteprima { display: none; }
+
+@media (min-width: 1120px) {
+  .fattura-commessa-workspace { grid-template-columns: minmax(0, 1fr) 355px; align-items: start; }
+  .fattura-commessa-anteprima { display: block; position: sticky; top: 0; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--muted) / .35); overflow: hidden; }
+  .fattura-commessa-foglio { display: flex; justify-content: center; overflow: auto; max-height: 65dvh; padding: 6px 0 10px; }
+  .fattura-commessa-foglio > .preview-fattura-scale { zoom: 0.43; }
+}
+
+.fattura-commessa-riepilogo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / .35);
+}
+
+.fattura-commessa-riepilogo > div {
+  min-width: 0;
+  padding: 8px 12px;
+}
+
+.fattura-commessa-riepilogo > div + div {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.fattura-commessa-riepilogo dt {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+
+.fattura-commessa-riepilogo dd {
+  margin-top: 2px;
+  font-weight: 600;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fattura-commessa-riepilogo small {
+  display: block;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.fattura-commessa-cliente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.fattura-commessa-cliente:has(details[open]) > details {
+  flex-basis: 100%;
+}
+
+.fattura-commessa-opzione > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 28px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fattura-commessa-opzione > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fattura-commessa-dialog > .fattura-commessa-azioni[data-ui="dialog-footer"] {
+  justify-content: space-between;
+  padding: 10px 20px;
+  gap: 8px;
+}
+
+@media (max-width: 639px) {
+  .fattura-commessa-dialog .commessa-modal-body,
+  .fattura-commessa-dialog > .fattura-commessa-azioni[data-ui="dialog-footer"] {
+    padding-inline: 12px;
+  }
+  .fattura-commessa-riepilogo > div {
+    padding-inline: 6px;
+  }
+  .fattura-commessa-riepilogo dd {
+    font-size: 12px;
+  }
+  .fattura-commessa-dialog > .fattura-commessa-azioni[data-ui="dialog-footer"] {
+    flex-wrap: nowrap;
+  }
+}

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { tutteLePagine } from "@/lib/fatturazione/registroVendite";
-import { erroreUscita, formDaUscita, meseMostrato, partiUguali, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
+import { erroreUscita, formDaUscita, meseMostrato, partiUguali, quoteInEuro, quoteInPercentuale, rigaUscita, type FormUscita } from "@/lib/costi/usciteSenzaFattura";
 import { AllegatiFattura, caricaAllegati, dimensioneLeggibile } from "@/components/fatturazione/AllegatiFattura";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { COLONNE_GERARCHIA, eGenerale, raggruppaPerGenerale, type RigaGerarchia } from "@/lib/orders/generali/gerarchiaScelta";
+import { CATEGORIE_DI_BASE } from "@/lib/fatturazione/contoPerRiga";
 import { ViaggioSelect } from "@/components/mezzi/ViaggioSelect";
 import { SupplierSelect } from "@/components/orders/SupplierSelect";
 import { Textarea } from "@/components/ui/textarea";
+import { queryKeys } from "@/lib/queryKeys";
 import { userErrorMessage } from "@/lib/userErrorMessage";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +32,7 @@ const db = supabase as any;
 const NESSUNO = "__nessuno__";
 
 interface Uscita {
+  category: string | null;
   id: string; name: string; amount: number; vat_rate: number | null; documento_data: string | null; due_date: string; documento_riferimento: string | null;
   mese_competenza: string | null; is_paid: boolean; notes: string | null; allocations: Array<{ order_id: string; pct: number }> | null;
   supplier_id: string | null; order_id: string | null; mezzo_id: string | null;
@@ -39,13 +43,15 @@ interface Uscita {
  * `variante="pillola"` (16/11/2026): pulsante compatto accanto ai filtri delle ricevute, con
  * conteggio e totale; l'elenco e «Nuova uscita» si aprono in una finestra.
  */
-export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fascia" }: { companyId: string; puoModificare: boolean; variante?: "fascia" | "pillola" }) {
+export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fascia", moduloAperto, onModuloChange }: { moduloAperto?: boolean; onModuloChange?: (open: boolean) => void; companyId: string; puoModificare: boolean; variante?: "fascia" | "pillola" }) {
   const qc = useQueryClient();
   const [aperto, setAperto] = useState(false);
-  const [dialogo, setDialogo] = useState(false);
+  const [dialogoLocale, setDialogoLocale] = useState(false);
+  const dialogo = moduloAperto ?? dialogoLocale;
+  const setDialogo = onModuloChange ?? setDialogoLocale;
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   const oggi = useMemo(() => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Rome" }), []);
-  const vuoto: FormUscita = { descrizione: "", imponibile: "", aliquota: "0", data: oggi, mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", pagata: true, note: "" };
+  const vuoto: FormUscita = { categoria: "altro", descrizione: "", imponibile: "", aliquota: "0", data: oggi, mese: "", riferimento: "", fornitoreId: "", commesse: [{ id: "", pct: "100" }], mezzoId: "", dataPagamento: "", pagata: false, note: "" };
   const [form, setForm] = useState<FormUscita>(vuoto);
   const set = <K extends keyof FormUscita>(k: K, v: FormUscita[K]) => setForm((f) => ({ ...f, [k]: v }));
   // I documenti si scelgono subito, con il resto; si caricano appena l'uscita è salvata.
@@ -56,15 +62,20 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
   const chiudi = () => { setDialogo(false); setForm(vuoto); setFile([]); setInModifica(null); };
   const apriModifica = (u: Uscita) => { setForm(formDaUscita(u)); setFile([]); setInModifica(u.id); setDialogo(true); };
   const cambiaCommessa = (i: number, id: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, id } : c)));
-  const cambiaQuota = (i: number, pct: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, pct } : c)));
+  const inEuro = form.modoQuota === "euro";
+  const cambiaModoQuota = (euro: boolean) => {
+    if (euro === inEuro) return;
+    setForm(f => ({ ...f, modoQuota: euro ? "euro" : "percentuale", commesse: (euro ? quoteInEuro : quoteInPercentuale)(f.commesse, f.imponibile) }));
+  };
+  const cambiaQuota = (i: number, pct: string) => set("commesse", form.commesse.map((c, j) => (j === i ? { ...c, [inEuro ? "euro" : "pct"]: pct } : c)));
   // Aggiungere o togliere una commessa rifà le parti uguali: poi si correggono a mano.
-  const ridividi = (commesse: FormUscita["commesse"]) => { const parti = partiUguali(commesse.length); return commesse.map((c, i) => ({ ...c, pct: parti[i] })); };
+  const ridividi = (commesse: FormUscita["commesse"]) => { const parti = partiUguali(commesse.length); const quote = commesse.map((c, i) => ({ ...c, pct: parti[i] })); return inEuro ? quoteInEuro(quote, form.imponibile) : quote; };
   const aggiungiCommessa = () => set("commesse", ridividi([...form.commesse, { id: "", pct: "" }]));
   const togliCommessa = (i: number) => set("commesse", ridividi(form.commesse.filter((_, j) => j !== i)));
   const { data: uscite = [] } = useQuery({
     queryKey: ["uscite-senza-fattura", companyId],
     queryFn: () => tutteLePagine<Uscita>((from, to) => db.from("company_costs")
-      .select("id, name, amount, vat_rate, documento_data, due_date, documento_riferimento, mese_competenza, is_paid, notes, allocations, supplier_id, order_id, mezzo_id, suppliers(name), orders(order_code), mezzi(nome)")
+      .select("id, name, category, amount, vat_rate, documento_data, due_date, paid_date, documento_riferimento, mese_competenza, is_paid, notes, allocations, supplier_id, order_id, mezzo_id, suppliers(name), orders(order_code), mezzi(nome)")
       .eq("company_id", companyId).eq("senza_fattura", true).order("due_date", { ascending: false }).order("id").range(from, to)),
   });
   const { data: scelte } = useQuery({
@@ -73,12 +84,17 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
     queryFn: async () => {
       // I fornitori li carica SupplierSelect, che li cerca e ne crea di nuovi.
       const [o, m] = await Promise.all([
-        db.from("orders").select("id, order_code, description").eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).limit(500),
+        tutteLePagine<RigaGerarchia & { description: string | null }>((from, to) => db.from("orders").select(`id, order_code, description, ${COLONNE_GERARCHIA}`).eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).order("id").range(from, to)),
         db.from("mezzi").select("id, nome, targa").eq("company_id", companyId).is("deleted_at", null).order("nome").limit(1000),
       ]);
-      return { commesse: (o.data ?? []) as Array<{ id: string; order_code: string | null; description: string | null }>, mezzi: (m.data ?? []) as Array<{ id: string; nome: string; targa: string | null }> };
+      return { commesse: o, mezzi: (m.data ?? []) as Array<{ id: string; nome: string; targa: string | null }> };
     },
   });
+  const aggiornaCosti = () => {
+    for (const key of [queryKeys.costs.all, queryKeys.companyCosts.all, queryKeys.scadenzario.all, queryKeys.cashflow.companyCosts(companyId), queryKeys.cashflow.scadenze(companyId), queryKeys.cashflow.summary(companyId), ["uscite-senza-fattura"]]) {
+      void qc.invalidateQueries({ queryKey: key });
+    }
+  };
   const salva = useMutation({
     mutationFn: async () => {
       const riga = rigaUscita(form, companyId);
@@ -100,7 +116,7 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
       if (erroreFile) toast.warning(`${fatto}, ma un documento non è stato caricato`, { description: `${erroreFile} Riallegalo qui sotto.` });
       else toast.success(conFile ? `${fatto} con ${conFile === 1 ? "il documento" : `${conFile} documenti`}` : fatto);
       chiudi(); setAperto(true); setDettaglio(id);
-      void qc.invalidateQueries({ queryKey: ["uscite-senza-fattura"] });
+      aggiornaCosti();
       void qc.invalidateQueries({ queryKey: ["fattura-allegati"] });
       void qc.invalidateQueries({ queryKey: ["fattura-allegati-conteggi"] });
     },
@@ -119,25 +135,59 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
       const percorsi = ((allegati ?? []) as Array<{ storage_path: string }>).map((a) => a.storage_path).filter(Boolean);
       if (percorsi.length) await supabase.storage.from("fatture-allegati").remove(percorsi);
     },
-    onSuccess: () => { toast.success("Uscita eliminata"); setDaEliminare(null); setDettaglio(null); void qc.invalidateQueries({ queryKey: ["uscite-senza-fattura"] }); },
+    onSuccess: () => { toast.success("Uscita eliminata"); setDaEliminare(null); setDettaglio(null); aggiornaCosti(); },
     onError: (e) => toast.error("Uscita non eliminata", { description: userErrorMessage(e, "Non sono riuscito a eliminarla. Riprova.") }),
   });
   const errore = erroreUscita(form);
-  const opzioniCommesse = useMemo(() => (scelte?.commesse ?? []).map((x) => ({ value: x.id, label: [x.order_code, x.description].filter(Boolean).join(" · ") || "Commessa" })), [scelte]);
+  const { data: categorie = [] } = useQuery({
+    queryKey: queryKeys.costCategories.list(companyId),
+    enabled: dialogo,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("cost_categories").select("*").eq("company_id", companyId).order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const conti = [...new Set([...(categorie.length ? categorie.map(c => c.name) : CATEGORIE_DI_BASE), ...(form.categoria ? [form.categoria] : [])])];
+  const opzioniCommesse = useMemo(() => {
+    const righe = [...(scelte?.commesse ?? [])].sort((a,b) => Number(eGenerale(b)) - Number(eGenerale(a)));
+    const nomi = new Map(righe.map(r => [r.id, r.order_code || r.description]));
+    return raggruppaPerGenerale(righe).map(({ riga }) => ({
+      value: riga.id,
+      label: [eGenerale(riga) ? "Macrocommessa" : "", riga.order_code, riga.description,
+        riga.commessa_generale_id ? `in ${nomi.get(riga.commessa_generale_id) || "macrocommessa"}` : ""].filter(Boolean).join(" · "),
+    }));
+  }, [scelte]);
+  const costo = uscite.find(u => u.id === dettaglio);
+  const riparto = costo ? formDaUscita(costo) : null;
+  const quote = riparto ? quoteInEuro(riparto.commesse.filter(c => c.id), riparto.imponibile) : [];
+  const ids = quote.map(q => q.id);
+  const commesseCosto = useQuery({
+    queryKey: ["uscita-commesse-dettaglio", companyId, ids],
+    enabled: !!costo && ids.length > 0 && !dialogo,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("id,order_code,description,workflow_kind")
+        .eq("company_id", companyId).in("id", ids);
+      if (error) throw error;
+      return new Map((data ?? []).map(r => [r.id, r]));
+    },
+  });
+  const assegnato = quote.reduce((somma, q) => somma + Math.round(Number(q.euro.replace(",", ".")) * 100), 0);
+  const residuo = costo ? Math.round(costo.amount * 100) - assegnato : 0;
+  const percentuale = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 4 }) + "%";
   const totale = uscite.reduce((s, u) => s + Number(u.amount ?? 0), 0);
   const elenco = (
           <div className="mt-3 divide-y rounded-md border">
             {!uscite.length && <p className="p-3 text-sm text-muted-foreground">Bollo, tasse, spese senza fattura: registrale qui, con i documenti. Non entrano nel registro IVA.</p>}
             {uscite.map((u) => (
               <div key={u.id} className="p-2 text-sm">
-                <button type="button" className="flex w-full flex-wrap items-center gap-2 text-left" aria-expanded={dettaglio === u.id} onClick={() => setDettaglio((d) => (d === u.id ? null : u.id))}>
+                <button type="button" className="flex w-full flex-wrap items-center gap-2 text-left" aria-haspopup="dialog" onClick={() => setDettaglio(u.id)}>
                   <Badge variant="outline">Senza fattura</Badge>
                   <span className="min-w-0 flex-1 truncate font-medium">{u.name}</span>
                   <span className="text-xs text-muted-foreground">{[u.suppliers?.name, u.orders?.order_code, u.allocations?.length ? `${u.allocations.length} commesse` : null, u.mezzi?.nome, u.documento_riferimento, formatDateShort(u.documento_data ?? u.due_date)].filter(Boolean).join(" · ")}</span>
                   <span className="font-medium tabular-nums">{formatCurrency(u.amount)}</span>
-                  <span className={`text-xs ${u.is_paid ? "text-emerald-600" : "text-amber-700"}`}>{u.is_paid ? "Pagata" : "Da pagare"}</span>
+                  <span className={`text-xs ${u.is_paid ? "text-emerald-600" : "text-amber-700"}`}>{u.is_paid ? "Pagata" : `Scadenza ${formatDateShort(u.due_date)}`}</span>
                 </button>
-                {dettaglio === u.id && <div className="mt-2 space-y-2 border-t pt-2">{puoModificare && <div className="flex gap-2"><Button size="sm" variant="outline" className="h-7" onClick={() => apriModifica(u)}><Pencil className="mr-1.5 h-3.5 w-3.5" />Modifica</Button><Button size="sm" variant="ghost" className="h-7 text-destructive" onClick={() => setDaEliminare(u)}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Elimina</Button></div>}{u.notes && <p className="whitespace-pre-wrap text-xs text-muted-foreground">{u.notes}</p>}<AllegatiFattura companyId={companyId} madre={{ costoId: u.id }} sola_lettura={!puoModificare} /></div>}
               </div>
             ))}
           </div>
@@ -145,6 +195,31 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
 
   const dialoghi = (
     <>
+      {costo && <Dialog open={!dialogo} onOpenChange={open => { if (!open) setDettaglio(null); }}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader><DialogTitle>{costo.name}</DialogTitle><DialogDescription>Costo senza fattura · {formatDateShort(costo.documento_data ?? costo.due_date)}</DialogDescription></DialogHeader>
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div><dt className="text-muted-foreground">Conto di costo</dt><dd className="font-semibold">{costo.category || "Da scegliere"}</dd></div>
+            <div><dt className="text-muted-foreground">Imponibile</dt><dd className="font-semibold">{formatCurrency(costo.amount)}</dd></div>
+          </dl>
+          <table className="w-full text-sm [&_td]:py-2 [&_th]:pb-2">
+            <caption className="mb-2 text-left font-semibold">Ripartizione del costo</caption>
+            <thead><tr className="border-b text-muted-foreground"><th className="text-left">Commessa o macrocommessa</th><th className="text-right">Quota</th><th className="text-right">Importo</th></tr></thead>
+            <tbody>{quote.map(q => {
+              const r = commesseCosto.data?.get(q.id);
+              const nome = r ? [eGenerale(r) ? "Macrocommessa" : "Commessa", r.order_code, r.description].filter(Boolean).join(" · ") :
+                (q.id === costo.order_id && costo.orders?.order_code) || (commesseCosto.isLoading ? "Caricamento…" : "Commessa " + q.id);
+              return <tr key={q.id} className="border-b"><td>{nome}</td><td className="text-right tabular-nums">{percentuale(Number(q.pct.replace(",", ".")))}</td><td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(Number(q.euro.replace(",", ".")))}</td></tr>;
+            })}
+            {(residuo > 0 || !quote.length) && <tr><td>Costo generale</td><td className="text-right">{percentuale(100 - quote.reduce((n,q) => n + Number(q.pct.replace(",", ".")), 0))}</td><td className="text-right">{formatCurrency(residuo / 100)}</td></tr>}</tbody>
+          </table>
+          {commesseCosto.isError && <Button variant="outline" onClick={() => void commesseCosto.refetch()}>Ricarica nomi commesse</Button>}
+          {costo.notes && <p className="whitespace-pre-wrap text-sm">{costo.notes}</p>}
+          <AllegatiFattura companyId={companyId} madre={{ costoId: costo.id }} sola_lettura={!puoModificare} />
+          {puoModificare && <DialogFooter><Button variant="ghost" onClick={() => setDaEliminare(costo)}><Trash2 className="mr-2 h-4 w-4" />Elimina</Button>
+            <Button variant="outline" onClick={() => apriModifica(costo)}><Pencil className="mr-2 h-4 w-4" />Modifica</Button></DialogFooter>}
+        </DialogContent>
+      </Dialog>}
       <Dialog open={dialogo} onOpenChange={(v) => (v ? setDialogo(true) : chiudi())}>
         <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-2xl">
           <DialogHeader>
@@ -157,6 +232,12 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
             <div className="space-y-1"><Label htmlFor="us-iva">IVA %</Label><Input id="us-iva" inputMode="decimal" value={form.aliquota} onChange={(e) => set("aliquota", e.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="us-data">Data</Label><Input id="us-data" type="date" value={form.data} onChange={(e) => set("data", e.target.value)} /></div>
             <div className="space-y-1"><Label htmlFor="us-mese">Mese di competenza</Label><Input id="us-mese" type="month" value={meseMostrato(form)} onChange={(e) => set("mese", e.target.value)} /></div>
+            <div className="space-y-1"><Label htmlFor="us-scadenza">Scadenza pagamento</Label><Input id="us-scadenza" type="date" required value={form.scadenza ?? form.data} onChange={e => set("scadenza", e.target.value)} /></div>
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 text-sm"><Checkbox checked={form.pagata} onCheckedChange={v => set("pagata", v === true)} />Già pagata</label>
+              <Label htmlFor="us-pagamento" className="sr-only">Pagata il</Label>
+              <Input id="us-pagamento" type="date" disabled={!form.pagata} required={form.pagata} value={form.pagata ? (form.dataPagamento ?? "") : ""} onChange={e => set("dataPagamento", e.target.value)} />
+            </div>
             <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-rif">Riferimento del documento</Label><Input id="us-rif" value={form.riferimento} maxLength={100} onChange={(e) => set("riferimento", e.target.value)} placeholder="Numero ricevuta, avviso…" /></div>
             {/* Fornitore con la ricerca e il «+» per crearlo (12/11/2026): era una tendina con
                 tutti i fornitori, senza ricerca, che non si scorreva bene con le frecce o col
@@ -166,7 +247,12 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
               <SupplierSelect value={form.fornitoreId} onValueChange={(v) => set("fornitoreId", v ?? "")} fallbackCompanyId={companyId} searchable allowCreate />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label>{form.commesse.length > 1 ? "Commesse e quota" : "Commessa"}</Label>
+              <div className="flex items-center justify-between gap-2"><Label>{form.commesse.length > 1 ? "Commesse, macrocommesse e quote" : "Commessa o macrocommessa"}</Label>
+                {form.commesse.length > 1 && <div role="group" aria-label="Unità delle quote" className="flex gap-1">
+                  <Button type="button" size="sm" className="h-7" variant={inEuro ? "ghost" : "secondary"} aria-pressed={!inEuro} onClick={() => cambiaModoQuota(false)}>Percentuale</Button>
+                  <Button type="button" size="sm" className="h-7" variant={inEuro ? "secondary" : "ghost"} aria-pressed={inEuro} onClick={() => cambiaModoQuota(true)}>Importo €</Button>
+                </div>}
+              </div>
               {form.commesse.map((c, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
@@ -180,8 +266,8 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
                   </div>
                   {form.commesse.length > 1 && (
                     <>
-                      <Input aria-label={`Quota commessa ${i + 1} %`} inputMode="decimal" className="w-20" value={c.pct} onChange={(e) => cambiaQuota(i, e.target.value)} />
-                      <span className="text-xs text-muted-foreground">%</span>
+                      <Input aria-label={`Quota commessa ${i + 1} ${inEuro ? "€" : "%"}`} inputMode="decimal" className="w-20" value={inEuro ? c.euro ?? "" : c.pct} onChange={(e) => cambiaQuota(i, e.target.value)} />
+                      <span className="text-xs text-muted-foreground">{inEuro ? "€" : "%"}</span>
                       <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Togli commessa ${i + 1}`} onClick={() => togliCommessa(i)}><X className="h-4 w-4" /></Button>
                     </>
                   )}
@@ -189,8 +275,10 @@ export function UsciteSenzaFattura({ companyId, puoModificare, variante = "fasci
               ))}
               <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={aggiungiCommessa}><Plus className="mr-1 h-3 w-3" />Dividi su un'altra commessa</Button>
             </div>
+            <div className="space-y-1"><Label>Conto di costo</Label><ViaggioSelect label="Conto di costo"
+              value={form.categoria ?? ""} onValueChange={v => set("categoria", v)}
+              options={conti.map(c => ({ value: c, label: c }))} emptyMessage="Nessun conto trovato." /></div>
             <Scelta etichetta="Mezzo" valore={form.mezzoId} cambia={(v) => set("mezzoId", v)} opzioni={(scelte?.mezzi ?? []).map((x) => [x.id, x.targa ? `${x.nome} · ${x.targa}` : x.nome])} />
-            <label className="flex items-center gap-2 self-end text-sm"><Checkbox checked={form.pagata} onCheckedChange={(v) => set("pagata", v === true)} />Già pagata</label>
             <div className="space-y-1 sm:col-span-2"><Label htmlFor="us-note">Note</Label><Textarea id="us-note" rows={2} maxLength={2000} value={form.note} onChange={(e) => set("note", e.target.value)} placeholder="A cosa si riferisce, chi l'ha pagata…" /></div>
             <div className="space-y-1 sm:col-span-2">
               <Label>Documenti</Label>

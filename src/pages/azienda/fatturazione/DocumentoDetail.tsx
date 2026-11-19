@@ -20,7 +20,8 @@ import { FaseSdiBadge } from "@/components/fatturazione/FaseSdiBadge";
 import { SegnaPagataDialog } from "@/components/fatturazione/SegnaPagataDialog";
 import { IncassiFattura } from "@/components/fatturazione/IncassiFattura";
 import { creditoCliente, residuoDaIncassare } from "@/lib/fatturazione/incassi";
-import { useRataDellaFattura } from "@/hooks/useRataDellaFattura";
+import { useRateDellaFattura } from "@/hooks/useRataDellaFattura";
+import { CommessaRateFattura } from "@/components/fatturazione/CommessaRateFattura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
@@ -77,7 +78,8 @@ export default function DocumentoDetail() {
   const inPopup = useDentroPopupDocumento();
   const navigate = useNavigaDocumento();
   const { data: doc, isLoading, refetch } = useDocumentoFiscale(id);
-  const { data: rataCommessa } = useRataDellaFattura(id);
+  const rateQuery = useRateDellaFattura(id);
+  const rateCommessa = rateQuery.data ?? [];
   const { data: azienda } = useAnagraficaAzienda();
   const { effectiveCompany } = useAuth();
   const fatturazioneEsterna = useBillingMode({ facoltativo: true })?.isExternal ?? false;
@@ -452,31 +454,7 @@ export default function DocumentoDetail() {
           )}
 
           {/* La rata della commessa che questa fattura incassa (25/09/2026). */}
-          {rataCommessa && (
-            <Card>
-              <CardHeader className="pb-3 max-sm:p-3 max-sm:pb-1"><CardTitle className="text-sm">Commessa</CardTitle></CardHeader>
-              <CardContent className="space-y-2 text-sm max-sm:space-y-1 max-sm:px-3 max-sm:pb-3 max-sm:text-[13px]">
-                {rataCommessa.commessa && (
-                  <Link to={`/azienda/ordini/${rataCommessa.commessa.id}`} className="font-medium text-primary hover:underline">
-                    {rataCommessa.commessa.order_code || rataCommessa.commessa.description || "Apri la commessa"}
-                  </Link>
-                )}
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Rata</span>
-                  <span className="text-right">{rataCommessa.label} · {formatCurrency(rataCommessa.amount)}</span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">Nella commessa</span>
-                  <span>
-                    {rataCommessa.is_paid
-                      ? `Incassata${rataCommessa.paid_date ? ` il ${new Date(`${rataCommessa.paid_date}T12:00:00`).toLocaleDateString("it-IT")}` : ""}`
-                      : "Da incassare"}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground max-sm:hidden">Pagata la fattura, la rata risulta incassata; incassata la rata, l'incasso va sulla fattura.</p>
-              </CardContent>
-            </Card>
-          )}
+          <CommessaRateFattura ordineId={doc.ordine_id} rate={rateCommessa} loading={rateQuery.isPending} error={rateQuery.isError} onRetry={()=>void rateQuery.refetch()}/>
 
           {/* SDI Status Card: parole, non sigle («AT», «NS») come prima. */}
           {/* Mobile no: codici di trasmissione; fase e motivo sono nel riquadro in cima. */}

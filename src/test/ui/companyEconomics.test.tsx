@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   render,
@@ -118,7 +119,7 @@ describe("Scheda economia azienda", () => {
   it("cerca aziende senza cambiare il riparto e ordina il confronto", () => {
     state.data = data;
     render(<CompanyEconomicsTab companyId="a" />);
-    fireEvent.change(
+    changeFormControl(
       screen.getByRole("textbox", {
         name: "Cerca azienda nel confronto economico",
       }),
@@ -126,7 +127,7 @@ describe("Scheda economia azienda", () => {
     );
     expect(screen.getByText("1 di 2 aziende")).toBeInTheDocument();
     expect(screen.getAllByText("1/2").length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByLabelText("Ordina confronto economico"), {
+    changeFormControl(screen.getByLabelText("Ordina confronto economico"), {
       target: { value: "margin" },
     });
     expect(

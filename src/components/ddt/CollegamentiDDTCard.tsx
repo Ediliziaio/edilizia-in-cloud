@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 // ============================================================================
 // CollegamentiDDTCard — a che cosa è legata una bolla, e come cambiarlo
 // ----------------------------------------------------------------------------
@@ -434,7 +435,7 @@ function FormCollegamenti({
           <><p className="font-mono text-sm font-medium">{ddt.purchase_orders?.oda_number ?? "Nessuno"}</p><Bloccato motivo={blocco.ordine} /></>
         ) : (
           <>
-            <select
+            <UniformSelect
               id="ddt-collega-ordine"
               className={selectCls}
               value={bozza.purchase_order_id ?? NESSUNO}
@@ -455,7 +456,7 @@ function FormCollegamenti({
               {opzioniOrdine.map((o) => (
                 <option key={o.id} value={o.id}>{o.oda_number} · {o.status}</option>
               ))}
-            </select>
+            </UniformSelect>
             <p className="text-xs text-muted-foreground">Se la bolla porta più ordini, aggiungili con «Collega ordine» nel controllo ordini.</p>
           </>
         )}
@@ -484,7 +485,7 @@ function FormCollegamenti({
           <Bloccato motivo={blocco.destinazione} />
         ) : (
           <>
-            <select
+            <UniformSelect
               id="ddt-collega-destinazione"
               className={selectCls}
               value={bozza.destinazione}
@@ -492,7 +493,7 @@ function FormCollegamenti({
             >
               <option value="cantiere">Direttamente in cantiere</option>
               {(puoMagazzino || ddt.destinazione === "magazzino") && <option value="magazzino">In magazzino</option>}
-            </select>
+            </UniformSelect>
             {bozza.destinazione === "magazzino" && (
               <WarehouseSelect value={bozza.warehouse_id} onChange={(v) => setBozza({ ...bozza, warehouse_id: v ?? null })} />
             )}

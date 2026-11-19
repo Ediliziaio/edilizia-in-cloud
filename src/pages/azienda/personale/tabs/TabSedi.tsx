@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -278,7 +279,7 @@ function SediContent() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <select
+            <UniformSelect
               aria-label="Filtra sedi"
               className="h-10 max-w-full rounded-md border bg-white px-3 text-sm"
               value={filter}
@@ -289,7 +290,7 @@ function SediContent() {
               <option value="inactive">Disattivate</option>
               <option value="missing">GPS da completare</option>
               <option value="gps">GPS configurato</option>
-            </select>
+            </UniformSelect>
             {(search || filter !== "all") && (
               <Button variant="ghost" onClick={reset}>
                 Azzera filtri

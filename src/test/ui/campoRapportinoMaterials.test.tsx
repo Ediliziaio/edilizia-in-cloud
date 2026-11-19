@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CampoRapportino from "@/pages/campo/CampoRapportino";
@@ -58,7 +59,7 @@ beforeEach(() => { vi.clearAllMocks(); state.allowed = true; state.role = { isCa
 beforeEach(() => { localStorage.clear(); state.reportDate = null; state.existing = null; vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date("2026-09-24T15:00:00+02:00")); });
 beforeEach(() => { state.deliveries = []; state.deliveriesError = false; });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
-const openMaterials = () => { render(<CampoRapportino />); fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } }); fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Malta" })); };
+const openMaterials = () => { render(<CampoRapportino />); changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } }); fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Malta" })); };
 
 describe('Materiali consegnati: scelta esplicita senza nuovo scarico',()=>{
   it('salva lo SKU scelto senza inventare il collegamento al computo',async()=>{
@@ -67,8 +68,8 @@ describe('Materiali consegnati: scelta esplicita senza nuovo scarico',()=>{
     fireEvent.click(screen.getByText('Dal magazzino al cantiere (1)'));
     fireEvent.click(screen.getByRole('button',{name:'Cemento'}));
     expect(screen.getByLabelText('Unità Cemento')).toHaveValue('');
-    fireEvent.change(screen.getByLabelText('Unità Cemento'),{target:{value:'kg'}});
-    fireEvent.change(screen.getByLabelText('Quantità Cemento'),{target:{value:'25'}});
+    changeFormControl(screen.getByLabelText('Unità Cemento'),{target:{value:'kg'}});
+    changeFormControl(screen.getByLabelText('Quantità Cemento'),{target:{value:'25'}});
     fireEvent.click(screen.getByRole('button',{name:'Invia rapportino'}));
     await waitFor(()=>expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({materiali_usati:[{nome:'Cemento',quantita:25,unita:'kg',da_furgone:false,stock_item_id:'cement'}]})));
   });
@@ -86,7 +87,7 @@ describe("Giornata e invio entro il giorno successivo", () => {
     expect(screen.getByLabelText("Giornata di lavoro")).toHaveValue("2026-09-23");
     expect(state.dayArgs).toHaveBeenCalledWith("worker", "company", "2026-09-23");
     expect(screen.getByText(/entro oggi alle 23:59/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "3" } });
+    changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     expect(screen.getByText("23 settembre 2026")).toBeInTheDocument();
     expect(screen.getByText("Materiali usati nella giornata")).toBeInTheDocument();
@@ -101,7 +102,7 @@ describe("Giornata e invio entro il giorno successivo", () => {
   });
   it("blocca anche l'invio da modulo già aperto dopo la scadenza", async () => {
     state.reportDate = "2026-09-23"; render(<CampoRapportino />);
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "4" } });
+    changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     vi.setSystemTime(new Date("2026-09-25T00:00:00+02:00"));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
@@ -127,7 +128,7 @@ describe("Giornata e invio entro il giorno successivo", () => {
   it("ieri non eredita il meteo di oggi", async () => {
     state.reportDate = "2026-09-23"; state.weather = new Map([["2026-09-24", { code: 0 }]]);
     render(<CampoRapportino />);
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } });
+    changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ meteo: null as null })));
   });
@@ -137,7 +138,7 @@ describe("Giornata e invio entro il giorno successivo", () => {
     expect(screen.queryByText("Condizioni meteo")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sole/ })).not.toBeInTheDocument();
     await new Promise(resolve => setTimeout(resolve, 20)); // le previsioni si applicano appena arrivate
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } });
+    changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" })); fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ meteo: "soleggiato" })));
   });
@@ -196,14 +197,14 @@ describe("Rapportino mobile, interazione con API simulate", () => {
   });
   it("invia articolo, quantità decimale e unità scelti nell'interfaccia", async () => {
     openMaterials();
-    fireEvent.change(screen.getByLabelText("Quantità Malta"), { target: { value: "2.5" } });
-    fireEvent.change(screen.getByLabelText("Unità Malta"), { target: { value: "kg" } });
+    changeFormControl(screen.getByLabelText("Quantità Malta"), { target: { value: "2.5" } });
+    changeFormControl(screen.getByLabelText("Unità Malta"), { target: { value: "kg" } });
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ materiali_usati: [{ nome: "Malta", quantita: 2.5, unita: "kg", order_item_id: "article", da_furgone: false }] })));
     expect(state.error).not.toHaveBeenCalled();
   });
   it("non salva una quantità nulla e conserva il materiale per correggerlo", async () => {
-    openMaterials(); fireEvent.change(screen.getByLabelText("Quantità Malta"), { target: { value: "0" } });
+    openMaterials(); changeFormControl(screen.getByLabelText("Quantità Malta"), { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("quantità maggiore di zero")));
     expect(state.insert).not.toHaveBeenCalled(); expect(screen.getByLabelText("Quantità Malta")).toHaveValue(0);
@@ -247,7 +248,7 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
   });
   it("non sovrascrive un valore manuale quando arrivano le timbrature", async () => {
     const page = render(<CampoRapportino />);
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "2" } });
+    changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "2" } });
     state.punches = [punch("entrata", "08:00"), punch("uscita", "16:00")]; page.rerender(<CampoRapportino />);
     await waitFor(() => expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(2));
   });
@@ -279,14 +280,14 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     await waitFor(() => expect(state.error).toHaveBeenCalledWith(expect.stringContaining("ogni persona selezionata")));
     expect(state.insert).not.toHaveBeenCalled();
     fireEvent.click(screen.getAllByRole("button", { name: "Passo precedente" })[0]);
-    fireEvent.change(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "3" } });
+    changeFormControl(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     fireEvent.click(screen.getByRole("button", { name: "Invia rapportino" }));
     await waitFor(() => expect(state.insert).toHaveBeenCalledWith(expect.objectContaining({ presenze: [{ employee_id: "e", nome: "Luca Bianchi", ore: 3 }] })));
   });
   it("il cambio cantiere non trascina ore o campi dalla bozza precedente", () => {
     const page = render(<CampoRapportino />);
-    fireEvent.change(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "5" } });
+    changeFormControl(screen.getByLabelText("Ore ordinarie su questo cantiere"), { target: { value: "5" } });
     state.orderId = "other"; page.rerender(<CampoRapportino />);
     expect(screen.getByLabelText("Ore ordinarie su questo cantiere")).toHaveValue(null);
   });
@@ -300,7 +301,7 @@ describe("Ore del rapportino: interazione e arrivo asincrono dei dati", () => {
     fireEvent.click(screen.getByRole("button", { name: "Luca Bianchi" }));
     expect(screen.queryByLabelText("Ore ordinarie su questo cantiere")).not.toBeInTheDocument();
     expect(screen.getByText(/Se hai lavorato anche tu/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "4" } });
+    changeFormControl(screen.getByLabelText("Ore di Luca Bianchi"), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Avanti" }));
     expect(screen.getByText("Ore personali ordinarie")).toBeInTheDocument();
     expect(screen.getByText("Vedi presenze squadra")).toBeInTheDocument();

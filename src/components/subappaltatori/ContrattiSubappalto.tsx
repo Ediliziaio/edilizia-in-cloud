@@ -1,3 +1,6 @@
+import { AffidaContrattoDaCommessa } from "@/components/orders/AffidaContrattoDialog";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
+import { LavorazioniAffidateDialog } from "./LavorazioniAffidateDialog";
 import { ElencoContrattiSub, type RigaContrattoSub } from "./ElencoContrattiSub";
 import { puoConsultareSalSub } from "@/lib/permessi/contabilitaSubappalto";
 import { ContrattoCarta } from "./ContrattoCarta";
@@ -6,6 +9,7 @@ import {VerbaleSalSubDialog} from "./VerbaleSalSubDialog";
 import type {SALSubappaltatore} from "@/types/subappaltatori";
 import {usePermissions} from "@/hooks/usePermissions";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { Link } from "react-router-dom";
 /**
  * I contratti di un subappaltatore, uno per ogni commessa su cui lavora: elenco,
  * creazione e modifica (con importi, oneri della sicurezza, responsabili,
@@ -16,17 +20,19 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Download, FileText, Link2, Loader2, Pencil, Plus, Printer, Send, Trash2, Unlink, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronRight, ClipboardList, Clock, Download, Ellipsis, FilePenLine, FileText, Link2, Loader2, Pencil, Plus, Printer, ReceiptText, Ruler, Send, Trash2, Unlink, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { CHIAVE_CLAUSOLE_FISSATE, clausoleArchivioDelContratto, articoliContratto, clausoleFirmaSubappalto, costruisciContrattoSubappaltoHtml, costruisciElencoCantiereHtml, unisciArticoliPersonalizzati, type DatiContrattoSubappalto, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
@@ -37,6 +43,10 @@ import { CondizioniContrattoDialog } from "./CondizioniContrattoDialog";
 import { vesteContratto } from "@/lib/subappaltatori/vesteContratto";
 import { clienteCommessa } from "@/lib/subappaltatori/clienteCommessa";
 import { riepilogoContratto, type RiepilogoContratto } from "@/lib/subappaltatori/riconciliazioneContratto";
+import { chiavePiva, imponibileFattura, testoFattura, type SalCtrl } from "@/lib/subappaltatori/controlloFatturaSubappalto";
+import { fatturePerSalSub, valoriPivaSub, type FatturaContrattoSub } from "@/lib/subappaltatori/fattureSalContratto";
+import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
+import { CollegaFatturaSalSubDialog, type ConfermaFatturaSalSub } from "./CollegaFatturaSalSubDialog";
 
 export interface ContrattoCompleto {
   id: string;
@@ -97,7 +107,7 @@ const STATI: Record<ContrattoCompleto["stato"], { label: string; cls: string }> 
   risolto: { label: "Risolto", cls: "bg-red-100 text-red-800" },
 };
 
-const euro = (v: number) => (Number(v) || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
+const euro = (v: number) => (Number(v) || 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: true });
 const dataIT = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "—");
 const oggi = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" });
 
@@ -202,7 +212,7 @@ async function scaricaFirmato(richiestaId: string) {
 }
 
 export function ContrattiSubappalto({
-  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, richiestaApertura, onAperturaGestita, invioRichiesto, onInvioGestito,
+  companyId, sub, selezionatoId, onSeleziona, onApriContabilita, onApriAnagrafica, richiestaApertura, onAperturaGestita, invioRichiesto, onInvioGestito,
 }: {
   richiestaApertura?: string | null;
   /** Il contratto per cui aprire subito l'invio in firma (da «Affida e manda il contratto»). */
@@ -214,6 +224,7 @@ export function ContrattiSubappalto({
   selezionatoId: string | null;
   onSeleziona: (id: string) => void;
   onApriContabilita: (id: string) => void;
+  onApriAnagrafica: () => void;
 }) {
   const qc = useQueryClient();
   const [dettaglioLocale, setDettaglio] = useState<string | null>(null);
@@ -221,22 +232,24 @@ export function ContrattiSubappalto({
   const ritornoDettaglio = useRef<HTMLElement | null>(null);
   const chiudiDettaglio = () => {setDettaglio(null);onAperturaGestita?.();};
   const permessiLavori = usePermissions();
+  const [computo, setComputo] = useState<ContrattoCompleto | null>(null);
   const [lavoriMisure, setLavoriMisure] = useState<ContrattoCompleto|null>(null);
   const [verbaleDaMisure, setVerbaleDaMisure] = useState<SALSubappaltatore|null>(null);
   const { data: contratti = [], isLoading, isError: erroreContratti, refetch: ricaricaContratti } = useContrattiSubappaltatore(sub.id);
   const ids = contratti.map((c) => c.id);
   const [dialog, setDialog] = useState<{ id: string | null } | null>(null);
+  const [scegliCommessa, setScegliCommessa] = useState(false);
+  const [commessaScelta, setCommessaScelta] = useState("");
+  const [creaDaCommessa, setCreaDaCommessa] = useState<string | null>(null);
   const [form, setForm] = useState<FormContratto>(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
   const [stampa, setStampa] = useState<{ html: string; nome: string; pdf: () => Promise<Blob> } | null>(null);
-  const [collega, setCollega] = useState<string | null>(null);
+  const [collega, setCollega] = useState<{ contrattoId: string; salId?: string; fattura?: FatturaContrattoSub } | null>(null);
   const [condizioni, setCondizioni] = useState<ContrattoCompleto | null>(null);
   // Variante tracciata: nuovo importo e oneri di un contratto con base lavori registrata.
   const [variante, setVariante] = useState<{ c: ContrattoCompleto; importo: string; oneri: string; motivo: string } | null>(null);
-  // Fattura scelta nel collegamento: poi si sceglie il SAL che paga.
-  const [fatturaScelta, setFatturaScelta] = useState<string | null>(null);
   const [invio, setInvio] = useState<{ c: ContrattoCompleto; nome: string; email: string; telefono: string } | null>(null);
 
-  const { data: commesse = [] } = useQuery({
+  const commesseContratto = useQuery({
     queryKey: ["contratti-sub-commesse", companyId],
     queryFn: async () => {
       const { data, error } = await supabase.from("orders").select("id, order_code, description").eq("company_id", companyId)
@@ -244,16 +257,18 @@ export function ContrattiSubappalto({
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!dialog,
+    enabled: !!dialog || scegliCommessa,
   });
+  const commesse = commesseContratto.data ?? [];
 
   const { data: sal = [], isLoading: caricoSal, isError: erroreSal } = useQuery({
-    queryKey: [...chiaviContratti.salTutti(sub.id), ids.join(",")],
+    queryKey: [...chiaviContratti.salTutti(sub.id), ids.join(","), companyId],
     queryFn: async () => {
       const { data, error } = await supabase.from("sal_subappaltatori" as never)
-        .select("id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, acconto_recuperato, importo_netto, pagato_registrato, stato").in("contratto_id", ids);
+        .select("id, company_id, contratto_id, numero_sal, importo_lordo, oneri_quota, ritenuta_importo, acconto_recuperato, importo_netto, pagato_registrato, stato, data_emissione")
+        .eq("company_id", companyId).in("contratto_id", ids);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; contratto_id: string; numero_sal: number; importo_lordo: number; oneri_quota?: number | null; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null; stato: string }>;
+      return (data ?? []) as unknown as Array<SalCtrl & { stato: string; ritenuta_importo: number; importo_netto: number; pagato_registrato?: number | null }>;
     },
     enabled: ids.length > 0,
   });
@@ -292,19 +307,21 @@ export function ContrattiSubappalto({
     },
     enabled: ids.length > 0,
   });
+  const pivaSub = chiavePiva(sub.piva);
+  const chiaveFatture = ["fatture-sub", sub.id, companyId, ids.join(","), pivaSub] as const;
   const { data: fatture = [], isLoading: caricoFatture, isError: erroreFatture } = useQuery({
-    queryKey: ["fatture-sub", sub.id, ids.join(","), sub.piva],
-    queryFn: async () => {
-      // Le collegate ai contratti e quelle ancora libere con la stessa P.IVA.
-      const filtri = [ids.length ? `contratto_subappalto_id.in.(${ids.join(",")})` : null, sub.piva ? `cedente_piva.eq.${sub.piva.replace(/\s/g, "")}` : null].filter(Boolean).join(",");
+    queryKey: chiaveFatture,
+    queryFn: async (): Promise<FatturaContrattoSub[]> => {
+      const filtri = [ids.length ? `contratto_subappalto_id.in.(${ids.join(",")})` : null,
+        ...valoriPivaSub(pivaSub).map(piva => `cedente_piva.ilike.${piva}`)].filter(Boolean).join(",");
       if (!filtri) return [];
       const { data, error } = await supabase.from("fatture_ricevute")
-        .select("id, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, subappalto_acconto, cedente_ragione_sociale, stato")
+        .select("id, company_id, cedente_piva, numero_fattura, data_fattura, imponibile_totale, totale_documento, tipo_documento, contratto_subappalto_id, sal_subappaltatore_id, subappalto_acconto, cedente_ragione_sociale, stato, righe, note")
         .eq("company_id", companyId).or(filtri).order("data_fattura", { ascending: false }).limit(200);
       if (error) throw error;
-      return (data ?? []) as unknown as Array<{ id: string; numero_fattura: string | null; data_fattura: string | null; imponibile_totale: number | null; totale_documento: number | null; tipo_documento: string | null; contratto_subappalto_id: string | null; sal_subappaltatore_id: string | null; cedente_ragione_sociale: string | null; stato: string | null }>;
+      return (data ?? []).map(({ righe, note, ...f }) => ({ ...f, testo: testoFattura({ righe, note }) })) as FatturaContrattoSub[];
     },
-    enabled: !!sub.piva || ids.length > 0,
+    enabled: !!pivaSub || ids.length > 0,
   });
   // L'ultima richiesta di firma di ogni contratto: inviata, aperta, firmata, rifiutata.
   const {data: richieste = [], isLoading: caricoFirme, isError: erroreFirme} = useFirmeSubappalto(sub.id, ids);
@@ -395,6 +412,11 @@ export function ContrattiSubappalto({
     qc.invalidateQueries({ queryKey: ["order-subcontract-statistics"] });
     qc.invalidateQueries({ queryKey: ["fascicolo-cantiere"] });
     qc.invalidateQueries({ queryKey: ["sicurezza-documenti", companyId] });
+  };
+  const riprovaRiepilogo = () => {
+    void qc.invalidateQueries({ queryKey: chiaviContratti.salTutti(sub.id) });
+    void qc.invalidateQueries({ queryKey: ["ritenute-sub-tutte", sub.id] });
+    void qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] });
   };
 
   const salva = useMutation({
@@ -552,29 +574,42 @@ export function ContrattiSubappalto({
   // sulla commessa del contratto (subappalto_collega_fattura). Così il
   // pagamento del SAL paga proprio quella fattura.
   const collegaFattura = useMutation({
-    mutationFn: async ({ fatturaId, contrattoId, salId = null }: { fatturaId: string; contrattoId: string | null; salId?: string | null }) => {
+    mutationFn: async ({ fatturaId, contrattoId, salId = null, acconto = false, prove: esiti = [] }: {
+      fatturaId: string; contrattoId: string | null; salId?: string | null;
+      acconto?: boolean; prove?: ConfermaFatturaSalSub["prove"];
+    }) => {
       // Nella traccia comune resta la scelta della persona, con quello che ha scelto.
       const salScelto = salId ? sal.find((x) => x.id === salId) : null;
       const contratto = contrattoId ? contratti.find((c) => c.id === contrattoId) : null;
-      const prove = contrattoId ? [{
+      const prove = contrattoId ? [...esiti, {
         campo: "scelta_dalla_scheda_subappaltatore", ruolo: "conferma", esito: "uguale",
         trovato: [contratto?.numero_contratto ?? "contratto senza numero", salScelto ? `SAL n. ${salScelto.numero_sal}` : null].filter(Boolean).join(" · "),
         testo: `Scelto dalla scheda del subappaltatore: ${contratto?.numero_contratto ?? "contratto senza numero"}${salScelto ? `, SAL n. ${salScelto.numero_sal}` : ""}`,
       }] : [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("subappalto_collega_fattura", {
-        p_fattura: fatturaId, p_contratto: contrattoId, p_sal: salId, p_esito: "manuale", p_regola: "subappalto_controllo_fattura", p_prove: prove,
+        p_fattura: fatturaId, p_contratto: contrattoId, p_sal: salId, p_esito: "manuale", p_regola: "subappalto_controllo_fattura",
+        p_prove: prove, p_acconto: acconto,
       });
       if (error) throw new Error(error.message || "Collegamento non riuscito. Riprova.");
-      return data as { esito?: string } | null;
+      const esito: string | undefined = data?.esito;
+      if (!esito || !["collegata", "contabilizzata_e_collegata", "scollegata"].includes(esito)) {
+        throw new Error("Collegamento non confermato dal server. Riprova.");
+      }
+      return esito;
     },
-    onSuccess: (esito) => {
-      qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] });
-      qc.invalidateQueries({ queryKey: ["fatture-ricevute"] });
-      if (esito?.esito === "contabilizzata_e_collegata") toast.success("Fattura contabilizzata e messa fra i costi della commessa");
-      else if (esito?.esito === "collegata") toast.success("Fattura collegata");
+    onSuccess: (esito, scelta) => {
+      qc.setQueryData<FatturaContrattoSub[]>(chiaveFatture, prima => prima?.map(f => f.id === scelta.fatturaId ? {
+        ...f, contratto_subappalto_id: scelta.contrattoId, sal_subappaltatore_id: scelta.salId ?? null,
+        subappalto_acconto: !!scelta.acconto,
+      } : f));
+      void qc.invalidateQueries({ queryKey: ["fatture-sub", sub.id] });
+      void qc.invalidateQueries({ queryKey: ["fattura-controllo-subappalto", companyId] });
+      refreshFinancialQueries(qc);
+      if (esito === "contabilizzata_e_collegata") toast.success("Fattura collegata e contabilizzata");
+      else if (esito === "collegata") toast.success("Fattura collegata");
+      else toast.success("Fattura scollegata");
     },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const datiContratto = (c: ContrattoCompleto, opzioni: { rileggi?: boolean } = {}): DatiContrattoSubappalto => {
@@ -701,17 +736,65 @@ export function ContrattiSubappalto({
 
 
   // Le rifiutate non si collegano (il database lo vieta): non proporle.
-  const fattureLibere = fatture.filter((f) => !f.contratto_subappalto_id && f.stato !== "rifiutata");
+  const fattureLibere = fatture.filter(f => !!pivaSub && chiavePiva(f.cedente_piva) === pivaSub
+    && !f.contratto_subappalto_id && f.stato !== "rifiutata");
+  const contrattoCollegamento = contratti.find(c => c.id === collega?.contrattoId);
+  const apriVerbaleSal = async (id: string, contrattoId: string) => {
+    const { data, error } = await supabase.from("sal_subappaltatori").select("*")
+      .eq("id", id).eq("company_id", companyId).eq("contratto_id", contrattoId).single();
+    if (error || !data) throw new Error("Verbale SAL non disponibile. Riprova.");
+    setVerbaleDaMisure(data as SALSubappaltatore);
+  };
   const campo = (k: keyof FormContratto) => ({ value: form[k] as string, onChange: (e: { target: { value: string } }) => setForm((p) => ({ ...p, [k]: e.target.value })) });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Un contratto per ogni commessa su cui lavora questa impresa.</p>
-        <Button size="sm" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(formVuoto(sub.order_id ?? "", sub.responsabile ?? "")); setDialog({ id: null }); }}>
+        <Button size="sm" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => {
+          if (sub.campo_subappaltatore_id && permessiLavori.canViewCosts) {
+            setCommessaScelta(sub.order_id ?? "");
+            setScegliCommessa(true);
+          } else {
+            setForm(formVuoto(sub.order_id ?? "", sub.responsabile ?? ""));
+            setDialog({ id: null });
+          }
+        }}>
           <Plus className="mr-1 h-4 w-4" />Nuovo contratto
         </Button>
       </div>
+
+      <Dialog open={scegliCommessa} onOpenChange={setScegliCommessa}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nuovo contratto di subappalto</DialogTitle>
+            <DialogDescription>Scegli la commessa per aprire le lavorazioni di {sub.ragione_sociale || "questa ditta"}.</DialogDescription>
+          </DialogHeader>
+          {commesseContratto.isError ? <p role="alert" className="text-sm text-destructive">Commesse non disponibili.
+            <Button variant="link" onClick={() => void commesseContratto.refetch()}>Riprova</Button>
+          </p> : <OfficeSelect label="Commessa del nuovo contratto" value={commessaScelta} onValueChange={setCommessaScelta}
+            placeholder={commesseContratto.isLoading ? "Carico le commesse…" : "Scegli la commessa"}
+            options={commesse.map(o => ({ value: o.id, label: [o.order_code, o.description].filter(Boolean).join(" · ") }))} />}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" disabled={!commesse.some(o => o.id === commessaScelta)} onClick={() => {
+              setForm(formVuoto(commessaScelta, sub.responsabile ?? ""));
+              setScegliCommessa(false);
+              setDialog({ id: null });
+            }}>Usa importo complessivo</Button>
+            <Button disabled={!commesse.some(o => o.id === commessaScelta)} onClick={() => {
+              setScegliCommessa(false);
+              setCreaDaCommessa(commessaScelta);
+            }}>Apri lavorazioni</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {creaDaCommessa && sub.campo_subappaltatore_id && <AffidaContrattoDaCommessa key={creaDaCommessa}
+        orderId={creaDaCommessa} companyId={companyId} dittaFissa={{ id: sub.campo_subappaltatore_id, nome: sub.ragione_sociale || "Subappaltatore", schedaId: sub.id }}
+        onChiudi={() => setCreaDaCommessa(null)} onContrattoSalvato={id => {
+          invalida();
+          setDettaglio(id);
+          onSeleziona(id);
+        }} />}
 
       {erroreContratti ? <p role="alert" className="rounded-lg border p-4 text-sm">Contratti non disponibili. <Button variant="outline" onClick={() => void ricaricaContratti()}>Riprova</Button></p> : isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -721,145 +804,367 @@ export function ContrattiSubappalto({
         </CardContent></Card>
       ) : erroreSal || erroreRitenute || erroreFatture ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm">Riepilogo dei contratti non disponibile. Non mostriamo importi parziali.<Button variant="outline" className="ml-3" onClick={invalida}>Riprova</Button></div> : caricoSal || caricoRitenute || caricoFatture ? <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento riepilogo dei contratti…</p> : <ElencoContrattiSub righe={contratti.map(c => ({contratto:c, riepilogo:riepiloghi.get(c.id)!, firma:c.firmato_il ? 'firmato' : caricoFirme || erroreFirme ? 'non_disponibile' : ['pending','otp_verified','signed'].includes(richiestaDi(c.id)?.status || '') ? 'in_attesa' : 'da_firmare'}))} onApri={cid => {ritornoDettaglio.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;onAperturaGestita?.();setDettaglio(cid); onSeleziona(cid);}}/>}
       {erroreFirme && <p role="alert" className="text-sm text-amber-800">Stato delle richieste di firma non disponibile. <Button variant="link" onClick={() => void qc.invalidateQueries({queryKey:['firme-subappalto',sub.id]})}>Riprova</Button></p>}
-      <Dialog open={!!dettaglio} onOpenChange={open => {if (!open) chiudiDettaglio();}}>
-        <DialogContent onCloseAutoFocus={event => {if (ritornoDettaglio.current?.isConnected) {event.preventDefault();ritornoDettaglio.current.focus();}}} className="flex max-h-[90dvh] max-w-6xl flex-col gap-0 overflow-hidden p-0"><DialogHeader className="sr-only"><DialogTitle>Dettaglio contratto</DialogTitle><DialogDescription>Documento, firma, lavori e contabilità del contratto selezionato.</DialogDescription></DialogHeader><div className="overflow-y-auto">
-        {contratti.filter(c => c.id === dettaglio).map((c) => {
-        const r = riepiloghi.get(c.id)!;
-        const suoFatture = fatture.filter((f) => f.contratto_subappalto_id === c.id);
-        const selezionato = c.id === selezionatoId;
-        const richiesta = richiestaDi(c.id);
-        return (
-          <Card key={c.id} className={cn(selezionato && "border-primary/50 ring-1 ring-primary/30")}>
-            <CardHeader className="gap-3 border-b bg-muted/20 p-4 pr-12 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 space-y-1"><CardTitle className="flex items-start gap-2 text-base"><FileText className="mt-0.5 h-4 w-4 shrink-0"/>{c.numero_contratto || "Contratto di subappalto"}</CardTitle><p className="text-sm text-muted-foreground">{c.commessa?.order_code ?? "Commessa"}{c.commessa?.description ? ` · ${c.commessa.description}` : ""}</p></div>
-              <div className="flex shrink-0 flex-wrap gap-2"><Badge className={cn("hover:opacity-100",STATI[c.stato]?.cls)}>{STATI[c.stato]?.label??c.stato}</Badge>{c.firmato_il?<Badge className="bg-emerald-100 text-emerald-800">Firma registrata · {dataIT(c.firmato_il)}</Badge>:<Badge variant="outline" className="border-amber-300 text-amber-700">Da firmare</Badge>}</div>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4">
-              <p className="text-sm">{c.descrizione_lavori}</p>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {([
-                  ["Valore (con oneri)", euro(r.valore)],
-                  ["Eseguito (SAL)", euro(r.eseguito)],
-                  ["Netto SAL non pagati", euro(r.daPagare)],
-                  ["Ritenute trattenute", euro(r.ritenuteTrattenute)],
-                ] as const).map(([k, v]) => (
-                  <div key={k} className="rounded-xl border bg-background p-3">
-                    <p className="text-[11px] text-muted-foreground">{k}</p>
-                    <p className="mt-1 text-lg font-semibold tabular-nums">{v}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground"><span>Eseguito {r.avanzamento}%</span><span>Residuo {euro(r.residuo)}</span></div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${r.avanzamento}%` }} /></div>
-                {r.acconto > 0 && (
-                  <p className="pt-1 text-xs text-muted-foreground" data-testid="acconto-contratto">
-                    Acconto {euro(r.acconto)} · fatturato {euro(r.accontoFatturato)} · recuperato nei SAL {euro(r.accontoRecuperato)} ·{" "}
-                    <span className={r.accontoDaRecuperare > 0 ? "font-medium text-amber-800" : undefined}>da recuperare {euro(r.accontoDaRecuperare)}</span>
-                  </p>
-                )}
-              </div>
-              {/* Firma elettronica: a che punto è */}
-              {richiesta && !c.firmato_il && (
-                <div className={cn("flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs",
-                  richiesta.status === "refused" ? "border-red-200 bg-red-50 text-red-800"
-                    : richiesta.status === "expired" || richiesta.status === "cancelled" ? "border-slate-200 bg-slate-50 text-slate-700"
-                    : "border-sky-200 bg-sky-50 text-sky-900")}>
-                  {richiesta.status === "refused" ? <XCircle className="h-4 w-4 shrink-0" /> : <Clock className="h-4 w-4 shrink-0" />}
-                  {richiesta.status === "refused" ? `${richiesta.signer_name ?? "Il subappaltatore"} ha rifiutato la firma.`
-                    : richiesta.status === "expired" ? "Il link per firmare è scaduto: invialo di nuovo."
-                    : richiesta.status === "cancelled" ? "La richiesta di firma è stata annullata."
-                    : `Inviato per la firma il ${dataIT(richiesta.created_at)} a ${richiesta.signer_name ?? ""} (${richiesta.signer_email ?? ""}): in attesa della firma.`}
-                </div>
-              )}
-              <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={!!richiesta && ["pending","otp_verified","signed"].includes(richiesta.status)} onSaved={invalida}>                <Button size="sm" variant="outline" className="gap-1" disabled={caricoIva} onClick={() => stampaContratto(c)}><Printer className="h-3.5 w-3.5" />Contratto da firmare</Button>
-                {Array.isArray(c.elenco_lavori) && c.elenco_lavori.length > 0 && (
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => stampaElencoCantiere(c)} title="Gli stessi lavori con quantità, senza prezzi: da lasciare in cantiere">
-                    <FileText className="h-3.5 w-3.5" />Elenco lavori per il cantiere
-                  </Button>
-                )}
-                {/* In firma non si elimina: la ditta ha in mano il link. Prima si annulla la richiesta (11/11/2026). */}
-                {!c.firmato_il && !permessiLavori.solaLettura && permessiLavori.canEditOrders && !(richiesta && ["pending", "otp_verified"].includes(richiesta.status)) && (
-                  <Button size="sm" variant="ghost" className="gap-1 text-destructive" disabled={eliminaContratto.isPending}
-                    onClick={() => { if (window.confirm("Eliminare questo contratto? Non si può se ha SAL, fatture o una base lavori registrata (allora si segna Risolto).")) eliminaContratto.mutate(c); }}>
-                    <Trash2 className="h-3.5 w-3.5" />Elimina
-                  </Button>
-                )}
-                {!c.firmato_il && (
-                  <Button size="sm" className="gap-1" disabled={(permessiLavori.solaLettura || !permessiLavori.canEditOrders) || caricoIva || caricoModello || erroreModello} title={caricoIva || caricoModello ? "Sto leggendo IVA della ditta e condizioni dell'azienda" : erroreModello ? "Condizioni standard dell'azienda non lette: ricarica la pagina prima di inviare" : undefined} onClick={() => setInvio({
-                    c, nome: c.referente_subappaltatore || sub.responsabile || "",
-                    email: sub.pec || sub.email || "", telefono: sub.telefono || "",
-                  })}>
-                    <Send className="h-3.5 w-3.5" />{richiesta && ["pending", "otp_verified"].includes(richiesta.status) ? "Invia di nuovo" : "Invia per la firma"}
-                  </Button>
-                )}
-                {!c.firmato_il && richiesta && ["pending", "otp_verified"].includes(richiesta.status) && (
-                  <Button size="sm" variant="ghost" className="gap-1" disabled={annullaFirma.isPending || permessiLavori.solaLettura || !permessiLavori.canEditOrders}
-                    onClick={() => { if (window.confirm("Annullare la richiesta di firma? Il link inviato smette di funzionare.")) annullaFirma.mutate(c.id); }}>
-                    <XCircle className="h-3.5 w-3.5" />Annulla richiesta di firma
-                  </Button>
-                )}
-                {c.firmato_il && richiesta?.status === "signed" && (
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => scaricaFirmato(richiesta.id)}>
-                    <Download className="h-3.5 w-3.5" />Contratto firmato
-                  </Button>
-                )}
-</ContrattoCarta>
-              {r.avvisi.length>0&&<details className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><summary className="flex cursor-pointer items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4"/>{r.avvisi.length} verifiche contabili da completare</summary><ul className="mt-2 list-disc space-y-2 pl-5">{r.avvisi.map(a=><li key={a}>{a}</li>)}</ul></details>}
-              <details className="rounded-xl border p-3"><summary className="cursor-pointer text-sm font-medium">Contabilità e fatture collegate · {suoFatture.length} {suoFatture.length===1?"fattura":"fatture"}</summary>
-                <div className="my-3 grid grid-cols-3 gap-2 text-sm">{[["Approvato",r.approvato],["Fatturato",r.fatturato],["Pagato",r.pagato]].map(([label,amount])=><div key={String(label)}><p className="text-xs text-muted-foreground">{label}</p><strong className="tabular-nums">{euro(Number(amount))}</strong></div>)}</div>
+      <Dialog open={!!dettaglio} onOpenChange={open => { if (!open) chiudiDettaglio(); }}>
+        <DialogContent
+          onCloseAutoFocus={event => {
+            if (ritornoDettaglio.current?.isConnected) {
+              event.preventDefault();
+              ritornoDettaglio.current.focus();
+            }
+          }}
+          className="flex w-full max-w-4xl flex-col gap-0 overflow-hidden p-0 focus:outline-none sm:w-[calc(100%-2rem)]"
+        >
+          {contratti.filter(c => c.id === dettaglio).map(c => {
+            const r = riepiloghi.get(c.id)!;
+            const suoiSal = sal.filter(s => s.contratto_id === c.id);
+            const suoFatture = fatture.filter(f => f.contratto_subappalto_id === c.id);
+            const coperturaSal = fatturePerSalSub(suoiSal, suoFatture);
+            const richiesta = richiestaDi(c.id);
+            const firmaInCorso = !!richiesta && ["pending", "otp_verified"].includes(richiesta.status);
+            const puoGestire = !permessiLavori.solaLettura && permessiLavori.canEditOrders;
+            const puoCollegareFatture = puoGestire && permessiLavori.canViewSubappaltatoriAmministrazione;
+            const haBaseLavori = conBase.includes(c.id);
+            const puoEliminare = puoGestire && !c.firmato_il && !firmaInCorso && !haBaseLavori
+              && !suoiSal.length && !suoFatture.length && !ritenute.some(ritenuta => ritenuta.contratto_id === c.id);
+            const datiContabiliDisponibili = !caricoSal && !caricoRitenute && !caricoFatture
+              && !erroreSal && !erroreRitenute && !erroreFatture;
+            const accessiLavori = [
+              {
+                titolo: "Lavori e quantità", testo: "Registra le misure e prepara un SAL",
+                Icona: Ruler, visibile: puoConsultareSalSub(permessiLavori), apri: () => setLavoriMisure(c),
+                principale: true,
+              },
+              {
+                titolo: "Computo del contratto", testo: "Voci, quantità e prezzi concordati",
+                Icona: ClipboardList, visibile: !!c.elenco_lavori?.length, apri: () => setComputo(c),
+              },
+              {
+                titolo: "SAL e verbali", testo: suoiSal.length === 1 ? "1 SAL registrato"
+                  : suoiSal.length > 1 ? `${suoiSal.length} SAL registrati` : "Consulta lo storico dei SAL",
+                Icona: FileText, visibile: true, apri: () => onApriContabilita(c.id),
+              },
+            ];
 
-              <div className="rounded-lg border">
-                <div className="flex items-center justify-between px-3 py-2 text-sm font-medium">
-                  Fatture del subappaltatore su questo contratto
-                  <Button size="sm" variant="ghost" className="h-7 gap-1" onClick={() => setCollega(c.id)} disabled={!fattureLibere.length || (permessiLavori.solaLettura || !permessiLavori.canEditOrders)}
-                    title={fattureLibere.length ? "Collega una fattura ricevuta" : sub.piva ? "Nessuna fattura libera con questa partita IVA" : "Manca la partita IVA del subappaltatore"}>
-                    <Link2 className="h-3.5 w-3.5" />Collega fattura
-                  </Button>
-                </div>
-                {suoFatture.length === 0 ? (
-                  <p className="border-t px-3 py-2 text-xs text-muted-foreground">Nessuna fattura collegata.</p>
-                ) : suoFatture.map((f) => (
-                  <div key={f.id} className="flex items-center gap-2 border-t px-3 py-1.5 text-xs">
-                    <span className="font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</span>
-                    <span className="text-muted-foreground">del {dataIT(f.data_fattura)}</span>
-                    {(() => { const s = sal.find((x) => x.id === f.sal_subappaltatore_id); return s
-                      ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">SAL n. {s.numero_sal}</span>
-                      : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">SAL non indicato</span>; })()}
-                    <span className="ml-auto tabular-nums">{euro(Number(f.imponibile_totale ?? f.totale_documento) || 0)}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Scollega la fattura" disabled={(permessiLavori.solaLettura || !permessiLavori.canEditOrders)} onClick={() => collegaFattura.mutate({ fatturaId: f.id, contrattoId: null })}>
-                      <Unlink className="h-3.5 w-3.5" />
-                    </Button>
+            return (
+              <Tabs key={c.id} defaultValue="panoramica" className="flex min-h-0 flex-1 flex-col">
+                <DialogHeader className="shrink-0 gap-3 border-b px-4 pb-4 pt-5 pr-12 text-left sm:px-6 sm:pr-14 md:flex-row md:items-start md:justify-between md:space-y-0">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="hidden shrink-0 rounded-lg bg-primary/10 p-2.5 text-primary sm:block">
+                      <FileText aria-hidden="true" className="size-5" />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <DialogTitle className="break-words text-lg sm:text-xl">{c.numero_contratto || "Contratto di subappalto"}</DialogTitle>
+                      <DialogDescription className="break-words">
+                        {[c.commessa?.order_code, c.commessa?.description].filter(Boolean).join(" · ") || "Contratto di subappalto"}
+                      </DialogDescription>
+                    </div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className={STATI[c.stato]?.cls}>{STATI[c.stato]?.label ?? c.stato}</Badge>
+                    {c.firmato_il
+                      ? <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-800">Firmato · {dataIT(c.firmato_il)}</Badge>
+                      : !caricoFirme && !erroreFirme && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{firmaInCorso ? "In attesa di firma" : "Da firmare"}</Badge>}
+                  </div>
+                </DialogHeader>
 
-              </details>
-              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                {puoConsultareSalSub(permessiLavori) && <Button size="sm" onClick={() => setLavoriMisure(c)}>Lavori e quantità</Button>}
-                <Button size="sm" variant="outline" onClick={() => onApriContabilita(c.id)}>SAL e verbali</Button>
-                <Button size="sm" variant="ghost" className="gap-1" disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders} onClick={() => { setForm(daContratto(c)); setMotivoVariante(""); setDialog({ id: c.id }); }}><Pencil className="h-3.5 w-3.5" />Modifica</Button>
-                <Button size="sm" variant="ghost" className="gap-1" title="Riscrivi gli articoli del contratto, per questo subappaltatore o come standard dell'azienda" onClick={() => setCondizioni(c)}>
-                  <FileText className="h-3.5 w-3.5" />Condizioni
-                </Button>
-                {(conBase.includes(c.id) || !!c.firmato_il) && (
-                  <Button size="sm" variant="ghost" className="gap-1"
-                    disabled={permessiLavori.solaLettura || !permessiLavori.canEditOrders || ["pending", "otp_verified"].includes(richiestaDi(c.id)?.status ?? "")}
-                    title={["pending", "otp_verified"].includes(richiestaDi(c.id)?.status ?? "") ? "Il contratto è in firma: annulla prima la richiesta di firma" : "Cambia importo e oneri del contratto con una variante tracciata"}
-                    onClick={() => setVariante({ c, importo: String(c.importo_contrattuale ?? ""), oneri: String(c.oneri_sicurezza ?? 0), motivo: "" })}>
-                    <FileText className="h-3.5 w-3.5" />Variante
-                  </Button>
-                )}
-                <div className="ml-auto flex items-center gap-2"><span className="text-xs text-muted-foreground">Stato lavori</span><Select disabled={cambiaStato.isPending || permessiLavori.solaLettura || !permessiLavori.canEditOrders} value={c.stato} onValueChange={(v) => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
-                  <SelectTrigger aria-label="Stato lavori del contratto" className="h-9 w-36 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{(Object.keys(STATI) as ContrattoCompleto["stato"][]).map((s) => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}</SelectContent>
-                </Select></div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-        </div><DialogFooter className="border-t bg-background p-3"><Button variant="outline" onClick={chiudiDettaglio}>Torna ai contratti</Button></DialogFooter></DialogContent>
+                <div className="shrink-0 border-b px-4 py-2 sm:px-6">
+                  <TabsList aria-label="Sezioni del contratto" className="grid h-auto w-full grid-cols-3 sm:inline-grid sm:w-auto">
+                    <TabsTrigger value="panoramica" className="px-2 sm:px-4">Panoramica</TabsTrigger>
+                    <TabsTrigger value="documenti" className="gap-2 px-2 sm:px-4">
+                      <FilePenLine aria-hidden="true" className="hidden size-4 sm:block" />Documenti
+                    </TabsTrigger>
+                    <TabsTrigger value="fatture" className="gap-2 px-2 sm:px-4">
+                      <ReceiptText aria-hidden="true" className="hidden size-4 sm:block" />Fatture
+                      {suoFatture.length > 0 && <span className="rounded-full bg-muted px-1.5 text-xs tabular-nums">{suoFatture.length}</span>}
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+                  <TabsContent value="panoramica" className="mt-0 space-y-4">
+                    {datiContabiliDisponibili && (
+                      <section aria-label="Riepilogo economico del contratto" className="overflow-hidden rounded-xl border">
+                        <dl className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
+                          {([
+                            ["Contratto con oneri", r.valore],
+                            ["Eseguito da SAL", r.eseguito],
+                            ["Netto SAL da pagare", r.daPagare],
+                            ["Ritenute trattenute", r.ritenuteTrattenute],
+                          ] as const).map(([label, amount]) => (
+                            <div key={label} className={cn("bg-muted px-3 py-2.5 sm:px-4", label === "Netto SAL da pagare" && "bg-blue-50 dark:bg-blue-950")}>
+                              <dt className="text-xs text-muted-foreground">{label}</dt>
+                              <dd className={cn("mt-0.5 text-base font-semibold tabular-nums sm:text-lg", label === "Netto SAL da pagare" && "text-primary")}>{euro(amount)}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <div className="space-y-2 border-t px-3 py-2.5 sm:px-4">
+                          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span>Avanzamento SAL <span className="ml-1.5 font-semibold tabular-nums text-foreground">{r.avanzamento}%</span></span>
+                            <span>Residuo contratto <span className="ml-1.5 font-medium tabular-nums text-foreground">{euro(r.residuo)}</span></span>
+                          </div>
+                          <div role="progressbar" aria-label="Avanzamento SAL" aria-valuenow={r.avanzamento} className="h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${r.avanzamento}%` }} />
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                    {(erroreSal || erroreRitenute || erroreFatture) && (
+                      <p role="alert" className="text-sm text-destructive">Riepilogo economico non disponibile. <Button variant="link" onClick={riprovaRiepilogo}>Riprova</Button></p>
+                    )}
+                    {!datiContabiliDisponibili && (caricoSal || caricoRitenute || caricoFatture) && (
+                      <p role="status" className="text-sm text-muted-foreground">Caricamento riepilogo economico…</p>
+                    )}
+
+                    <section aria-label="Lavorazioni del contratto">
+                      {c.descrizione_lavori && <p className="mb-2 break-words text-sm font-medium">{c.descrizione_lavori}</p>}
+                      <div className="divide-y overflow-hidden rounded-xl border">
+                        {accessiLavori.filter(accesso => accesso.visibile).map(({ titolo, testo, Icona, apri, principale }) => (
+                          <Button key={titolo} type="button" variant="ghost" aria-label={titolo} onClick={apri}
+                            className={cn("h-auto w-full justify-start gap-3 whitespace-normal rounded-none px-3 py-2 text-left focus-visible:ring-inset sm:px-4",
+                              principale && "bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary")}>
+                            <span className={cn("grid size-8 shrink-0 place-items-center rounded-md", principale ? "bg-primary/10" : "bg-muted text-muted-foreground")}>
+                              <Icona aria-hidden="true" className="size-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-medium">{titolo}</span>
+                              <span className="block text-xs font-normal text-muted-foreground">{testo}</span>
+                            </span>
+                            <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                          </Button>
+                        ))}
+                      </div>
+                    </section>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Stato lavori</span>
+                        <Select disabled={cambiaStato.isPending || !puoGestire} value={c.stato} onValueChange={v => cambiaStato.mutate({ id: c.id, stato: v as ContrattoCompleto["stato"] })}>
+                          <SelectTrigger aria-label="Stato lavori del contratto" className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(STATI) as ContrattoCompleto["stato"][]).map(s => <SelectItem key={s} value={s}>{STATI[s].label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-2"><Ellipsis aria-hidden="true" className="size-4" />Gestisci contratto</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="gap-2" disabled={!puoGestire} onSelect={() => {
+                            setForm(daContratto(c));
+                            setMotivoVariante("");
+                            setDialog({ id: c.id });
+                          }}><Pencil aria-hidden="true" className="size-4" />Modifica</DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2" onSelect={() => setCondizioni(c)}>
+                            <FileText aria-hidden="true" className="size-4" />Condizioni
+                          </DropdownMenuItem>
+                          {(haBaseLavori || c.firmato_il) && (
+                            <DropdownMenuItem className="gap-2" disabled={!puoGestire || firmaInCorso}
+                              title={firmaInCorso ? "Annulla la richiesta di firma per aggiungere una variante" : undefined}
+                              onSelect={() => setVariante({ c, importo: String(c.importo_contrattuale ?? ""), oneri: String(c.oneri_sicurezza ?? 0), motivo: "" })}>
+                              <FilePenLine aria-hidden="true" className="size-4" />Variante
+                            </DropdownMenuItem>
+                          )}
+                          {puoEliminare && datiContabiliDisponibili && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" disabled={eliminaContratto.isPending}
+                                onSelect={() => { if (window.confirm("Eliminare questo contratto?")) eliminaContratto.mutate(c); }}>
+                                <Trash2 aria-hidden="true" className="size-4" />Elimina contratto
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="documenti" className="mt-0 space-y-3">
+                    {erroreFirme && <p role="alert" className="text-sm text-amber-800">Stato firma non disponibile. <Button variant="link" onClick={() => void qc.invalidateQueries({ queryKey: ["firme-subappalto", sub.id] })}>Riprova</Button></p>}
+                    {richiesta && !c.firmato_il && (
+                      <div className={cn("flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm",
+                        richiesta.status === "refused" ? "border-red-200 bg-red-50 text-red-800"
+                          : firmaInCorso ? "border-sky-200 bg-sky-50 text-sky-900" : "bg-muted/25 text-muted-foreground")}>
+                        {richiesta.status === "refused" ? <XCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" /> : <Clock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />}
+                        <span className="min-w-0 break-words">
+                          {richiesta.status === "refused" ? `${richiesta.signer_name ?? "Il subappaltatore"} ha rifiutato la firma.`
+                            : richiesta.status === "expired" ? "Il link per firmare è scaduto."
+                            : richiesta.status === "cancelled" ? "La richiesta di firma è stata annullata."
+                            : richiesta.status === "signed" ? "Firma completata. Registrazione in aggiornamento."
+                            : `Inviato il ${dataIT(richiesta.created_at)} a ${richiesta.signer_name || richiesta.signer_email || "chi deve firmare"}.`}
+                        </span>
+                      </div>
+                    )}
+                    {puoConsultareSalSub(permessiLavori) ? (
+                      <ContrattoCarta companyId={companyId} contratto={c} firmaElettronica={firmaInCorso || richiesta?.status === "signed"} onSaved={invalida}>
+                        {c.firmato_il && richiesta?.status === "signed" && (
+                          <Button size="sm" variant="outline" onClick={() => scaricaFirmato(richiesta.id)}>
+                            <Download className="size-4" />Contratto firmato
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" disabled={caricoIva} onClick={() => stampaContratto(c)}>
+                          <Printer className="size-4" />{c.firmato_il ? "Anteprima contratto" : "Contratto da firmare"}
+                        </Button>
+                        {Array.isArray(c.elenco_lavori) && c.elenco_lavori.length > 0 && (
+                          <Button size="sm" variant="outline" onClick={() => stampaElencoCantiere(c)} title="Elenco delle lavorazioni con quantità, senza prezzi">
+                            <FileText className="size-4" />Elenco lavori per il cantiere
+                          </Button>
+                        )}
+                        {!c.firmato_il && (
+                          <Button size="sm" disabled={!puoGestire || caricoIva || caricoModello || erroreModello}
+                            title={caricoIva || caricoModello ? "Caricamento IVA e condizioni dell’azienda" : erroreModello ? "Condizioni standard non disponibili: ricarica la pagina" : undefined}
+                            onClick={() => setInvio({
+                              c, nome: c.referente_subappaltatore || sub.responsabile || "",
+                              email: sub.pec || sub.email || "", telefono: sub.telefono || "",
+                            })}>
+                            <Send className="size-4" />{firmaInCorso ? "Invia di nuovo" : "Invia per la firma"}
+                          </Button>
+                        )}
+                        {!c.firmato_il && firmaInCorso && (
+                          <Button size="sm" variant="ghost" disabled={annullaFirma.isPending || !puoGestire}
+                            onClick={() => { if (window.confirm("Annullare la richiesta di firma? Il link inviato smette di funzionare.")) annullaFirma.mutate(c.id); }}>
+                            <XCircle className="size-4" />Annulla richiesta di firma
+                          </Button>
+                        )}
+                      </ContrattoCarta>
+                    ) : <p className="text-sm text-muted-foreground">Documenti e firma richiedono l’accesso ai contratti di subappalto.</p>}
+                  </TabsContent>
+
+                  <TabsContent value="fatture" className="mt-0 space-y-3">
+                    {datiContabiliDisponibili && (
+                      <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-xl border bg-border">
+                        {([["SAL approvati", r.approvato], ["Fatturato", r.fatturato], ["Pagato", r.pagato]] as const).map(([label, amount]) => (
+                          <div key={label} className="bg-muted px-2.5 py-2 sm:px-4 sm:py-3">
+                            <dt className="text-xs text-muted-foreground">{label}</dt>
+                            <dd className="mt-0.5 text-sm font-semibold tabular-nums sm:text-base">{euro(amount)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                    {datiContabiliDisponibili && (
+                      <section aria-label="Fatture per SAL" className="overflow-hidden rounded-xl border">
+                        <div className="border-b bg-muted px-3 py-2.5 sm:px-4">
+                          <h3 className="text-sm font-semibold">Fatture per SAL</h3>
+                          <p className="text-xs text-muted-foreground">L’imponibile atteso è il netto del SAL, dopo ritenuta e recuperi.</p>
+                        </div>
+                        {coperturaSal.length ? (
+                          <ul className="divide-y">
+                            {coperturaSal.map(({ sal: s, fatturato, differenza }) => (
+                              <li key={s.id} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[minmax(10rem,1fr)_minmax(15rem,1.5fr)_auto] sm:items-center sm:gap-3 sm:px-4">
+                                <div>
+                                  <p className="text-sm font-medium">SAL {s.numero_sal}</p>
+                                  <p className="text-xs text-muted-foreground">Lordo {euro(s.importo_lordo)} · Ritenuta {euro(s.ritenuta_importo ?? 0)}</p>
+                                </div>
+                                <dl className="grid grid-cols-3 gap-2 text-xs">
+                                  {([
+                                    ["Atteso", euro(s.importo_netto ?? 0)],
+                                    ["Collegato", euro(fatturato)],
+                                    [differenza < 0 ? "Eccedenza" : "Da fatturare", euro(Math.abs(differenza))],
+                                  ] as const).map(([label, value]) => (
+                                    <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="font-medium tabular-nums">{value}</dd></div>
+                                  ))}
+                                </dl>
+                                <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+                                  {differenza === 0 && fatturato > 0 && (
+                                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">Coperto</Badge>
+                                  )}
+                                  {puoConsultareSalSub(permessiLavori) && (
+                                    <Button variant="ghost" size="sm" aria-label={`Verbale SAL ${s.numero_sal}`}
+                                      onClick={() => void apriVerbaleSal(s.id, c.id).catch((e: Error) => toast.error(e.message))}>Verbale</Button>
+                                  )}
+                                  {differenza > 0 && puoCollegareFatture && fattureLibere.length > 0 && (
+                                    <Button variant="outline" size="sm" aria-label={`Collega fattura al SAL ${s.numero_sal}`}
+                                      onClick={() => setCollega({ contrattoId: c.id, salId: s.id })}><Link2 className="size-4" />Collega</Button>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : <p className="px-3 py-3 text-sm text-muted-foreground sm:px-4">I SAL verificati compariranno qui con l’imponibile da fatturare.</p>}
+                      </section>
+                    )}
+                    {datiContabiliDisponibili && r.acconto > 0 && (
+                      <p className="text-xs leading-relaxed text-muted-foreground" data-testid="acconto-contratto">
+                        Acconto {euro(r.acconto)} · Fatturato {euro(r.accontoFatturato)} · Recuperato nei SAL {euro(r.accontoRecuperato)} ·{" "}
+                        <span className={r.accontoDaRecuperare > 0 ? "font-medium text-amber-800" : undefined}>Da recuperare {euro(r.accontoDaRecuperare)}</span>
+                      </p>
+                    )}
+                    {datiContabiliDisponibili && r.avvisi.length > 0 && (
+                      <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        <summary className="cursor-pointer font-medium">
+                          <AlertTriangle aria-hidden="true" className="mr-1.5 inline size-4 align-text-bottom" />
+                          {r.avvisi.length === 1 ? "1 verifica contabile da completare" : `${r.avvisi.length} verifiche contabili da completare`}
+                        </summary>
+                        <ul className="mt-2 list-disc space-y-1 pl-5">{r.avvisi.map(a => <li key={a}>{a}</li>)}</ul>
+                      </details>
+                    )}
+                    {erroreFatture ? <p role="alert" className="text-sm text-destructive">Fatture non disponibili. <Button variant="link" onClick={riprovaRiepilogo}>Riprova</Button></p>
+                      : caricoFatture ? <p role="status" className="text-sm text-muted-foreground">Caricamento fatture…</p>
+                        : <section aria-label="Fatture collegate" className="rounded-xl border">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2 sm:px-4">
+                            <h3 className="text-sm font-medium">Fatture collegate</h3>
+                            {datiContabiliDisponibili && puoCollegareFatture && fattureLibere.length > 0 && (
+                              <Button size="sm" variant="outline" onClick={() => setCollega({ contrattoId: c.id })}>
+                                <Link2 className="size-4" />Collega fattura
+                              </Button>
+                            )}
+                          </div>
+                          {suoFatture.length === 0 ? (
+                            <div className="space-y-1 px-3 py-3 text-sm text-muted-foreground sm:px-4">
+                              <p>Nessuna fattura collegata a questo contratto.</p>
+                              {puoCollegareFatture && !fattureLibere.length && (pivaSub ? (
+                                <div className="flex flex-wrap items-center gap-x-2">
+                                  <span>Nessuna fattura ricevuta disponibile per la partita IVA {sub.piva}.</span>
+                                  {permessiLavori.canViewBilling && <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/azienda/documenti/fatture-ricevute">Apri fatture ricevute</Link>}
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap items-center gap-x-2">
+                                  <span>Aggiungi la partita IVA per trovare le fatture di questa ditta.</span>
+                                  <button type="button" className="font-medium text-primary underline-offset-2 hover:underline"
+                                    onClick={() => { chiudiDettaglio(); onApriAnagrafica(); }}>Completa anagrafica</button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <ul className="divide-y">
+                              {suoFatture.map(f => {
+                                const suoSal = suoiSal.find(s => s.id === f.sal_subappaltatore_id);
+                                return (
+                                  <li key={f.id} className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
+                                    <div className="min-w-0 flex-1 space-y-0.5">
+                                      <p className="break-words text-sm font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</p>
+                                      <p className="text-xs text-muted-foreground">{dataIT(f.data_fattura)} · {suoSal ? `SAL n. ${suoSal.numero_sal}` : f.subappalto_acconto ? "Acconto" : "SAL non assegnato"}</p>
+                                    </div>
+                                    <span className="shrink-0 text-sm font-medium tabular-nums">{euro(imponibileFattura(f))}</span>
+                                    {!suoSal && !f.subappalto_acconto && coperturaSal.length > 0 && puoCollegareFatture && f.stato !== "rifiutata" && (
+                                      <Button variant="ghost" size="sm" onClick={() => setCollega({ contrattoId: c.id, fattura: f })}>Assegna SAL</Button>
+                                    )}
+                                    <Button size="icon" variant="ghost" className="size-8 shrink-0" aria-label={`Scollega la fattura ${f.numero_fattura ?? ""}`.trim()}
+                                      disabled={!puoCollegareFatture || collegaFattura.isPending} onClick={() => {
+                                        if (window.confirm("Scollegare la fattura dal contratto e dal SAL? La fattura e l’eventuale costo restano registrati.")) {
+                                          collegaFattura.mutate({ fatturaId: f.id, contrattoId: null }, { onError: (e: Error) => toast.error(e.message) });
+                                        }
+                                      }}>
+                                      <Unlink className="size-4" />
+                                    </Button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </section>}
+                  </TabsContent>
+                </div>
+              </Tabs>
+            );
+          })}
+          {!contratti.some(c => c.id === dettaglio) && (
+            <DialogHeader className="p-4 pr-12 text-left">
+              <DialogTitle>Contratto di subappalto</DialogTitle>
+              <DialogDescription>{isLoading ? "Caricamento contratto…" : "Contratto non disponibile."}</DialogDescription>
+            </DialogHeader>
+          )}
+        </DialogContent>
       </Dialog>
 
       {condizioni && (
@@ -980,60 +1285,23 @@ export function ContrattiSubappalto({
         </DialogContent>
       </Dialog>
 
-      {/* Collega fattura */}
-      <Dialog open={!!collega} onOpenChange={(v) => { if (!v) { setCollega(null); setFatturaScelta(null); } }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{fatturaScelta ? "Di quale SAL è questa fattura?" : "Collega una fattura ricevuta"}</DialogTitle>
-            <DialogDescription>
-              {fatturaScelta
-                ? "La fattura si emette dopo il benestare: si collega a un SAL verificato. Il costo va sulla commessa del contratto e il pagamento del SAL paga questa fattura."
-                : `Le fatture con la partita IVA ${sub.piva ?? "—"} non ancora collegate a un contratto.`}
-            </DialogDescription>
-          </DialogHeader>
-          {!fatturaScelta ? (
-            <div className="max-h-80 divide-y overflow-y-auto rounded-lg border">
-              {fattureLibere.map((f) => (
-                <button key={f.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
-                  onClick={() => setFatturaScelta(f.id)}>
-                  <span className="font-medium">{f.tipo_documento === "TD04" ? "Nota di credito" : "Fattura"} {f.numero_fattura ?? ""}</span>
-                  <span className="text-xs text-muted-foreground">del {dataIT(f.data_fattura)}</span>
-                  <span className="ml-auto tabular-nums">{euro(Number(f.imponibile_totale ?? f.totale_documento) || 0)}</span>
-                </button>
-              ))}
-            </div>
-          ) : (() => {
-            const f = fatture.find((x) => x.id === fatturaScelta);
-            const imponibile = Number(f?.imponibile_totale ?? f?.totale_documento) || 0;
-            const candidati = sal.filter((s) => s.contratto_id === collega && ["verificato", "pagato"].includes(s.stato))
-              .sort((a, b) => Math.abs(Number(a.importo_netto) - imponibile) - Math.abs(Number(b.importo_netto) - imponibile));
-            const chiudi = () => { setCollega(null); setFatturaScelta(null); };
-            return (
-              <div className="space-y-2">
-                {candidati.length === 0 && <p className="text-sm text-amber-800">Nessun SAL verificato su questo contratto: verifica prima il SAL, poi collega la fattura. Puoi collegarla solo al contratto.</p>}
-                <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
-                  {candidati.map((s) => {
-                    const coincide = Math.abs(Number(s.importo_netto) - imponibile) <= 0.01;
-                    return (
-                      <button key={s.id} type="button" className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50"
-                        onClick={() => { collegaFattura.mutate({ fatturaId: fatturaScelta, contrattoId: collega!, salId: s.id }); chiudi(); }}>
-                        <span className="font-medium">SAL n. {s.numero_sal}</span>
-                        <span className="text-xs text-muted-foreground">{s.stato === "pagato" ? "pagato" : "verificato"}</span>
-                        {coincide && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-800">importo uguale alla fattura</span>}
-                        <span className="ml-auto tabular-nums">netto {euro(Number(s.importo_netto) || 0)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setFatturaScelta(null)}>Indietro</Button>
-                  <Button variant="outline" size="sm" onClick={() => { collegaFattura.mutate({ fatturaId: fatturaScelta, contrattoId: collega! }); chiudi(); }}>Solo al contratto</Button>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+      {collega && contrattoCollegamento && (
+        <CollegaFatturaSalSubDialog
+          contesto={{
+            contratto: { ...contrattoCollegamento, piva: sub.piva },
+            altriContratti: contratti.filter(c => c.id !== contrattoCollegamento.id).map(c => ({ ...c, piva: sub.piva })),
+            sal: sal.filter(s => s.contratto_id === contrattoCollegamento.id),
+            collegate: fatture.filter(f => f.contratto_subappalto_id === contrattoCollegamento.id),
+          }}
+          disponibili={fattureLibere}
+          salIniziale={collega.salId}
+          fatturaIniziale={collega.fattura}
+          onConferma={async scelta => {
+            await collegaFattura.mutateAsync({ ...scelta, contrattoId: contrattoCollegamento.id });
+          }}
+          onChiudi={() => setCollega(null)}
+        />
+      )}
 
       {/* Invio per la firma elettronica */}
       <Dialog open={!!invio} onOpenChange={(v) => { if (!v && !inviaInFirma.isPending) setInvio(null); }}>
@@ -1067,10 +1335,13 @@ export function ContrattiSubappalto({
         </DialogContent>
       </Dialog>
 
+      {computo && <LavorazioniAffidateDialog titolo={[computo.commessa?.order_code, computo.numero_contratto].filter(Boolean).join(" · ") || computo.descrizione_lavori}
+        righe={computo.elenco_lavori ?? []} importoPattuito={Number(computo.importo_contrattuale)}
+        oneri={Number(computo.oneri_sicurezza) || 0} onClose={() => setComputo(null)}
+        onPdf={() => { setComputo(null); stampaContratto(computo); }} pdfInCorso={caricoIva} />}
       {lavoriMisure && <LavoriMisureSubDialog key={lavoriMisure.id} companyId={companyId} contratto={lavoriMisure} onApriStorico={()=>{ const cid=lavoriMisure.id; setLavoriMisure(null); onApriContabilita(cid); }} onClose={()=>{ setLavoriMisure(null); qc.invalidateQueries({ queryKey: ["contratti-con-misure"] }); qc.invalidateQueries({ queryKey: ["contratti-base-registrata"] }); }} onApriVerbale={async (id)=>{
-        const {data,error}=await supabase.from('sal_subappaltatori').select('*').eq('id',id).eq('company_id',companyId).eq('contratto_id',lavoriMisure.id).single();
-        if(error||!data)throw Error('SAL registrato ma non ancora consultabile: riprova la lettura');
-        setVerbaleDaMisure(data as SALSubappaltatore);setLavoriMisure(null);
+        await apriVerbaleSal(id, lavoriMisure.id);
+        setLavoriMisure(null);
       }}/>}
       {verbaleDaMisure && <VerbaleSalSubDialog key={verbaleDaMisure.id} companyId={companyId} sal={verbaleDaMisure} onClose={()=>setVerbaleDaMisure(null)} />}
       {stampa && (
@@ -1093,6 +1364,7 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
 }) {
   const { data: contratti = [], isLoading, isError, refetch } = useContrattiSubappaltatore(subId);
   const ids = contratti.map((c) => c.id);
+  const [lavorazioni, mostraLavorazioni] = useState<ContrattoCompleto | null>(null);
   const { data: sal = [], isLoading: caricoSal, isError: erroreSal, refetch: ricaricaSal } = useQuery({
     queryKey: [...chiaviContratti.salTutti(subId), ids.join(",")],
     queryFn: async () => {
@@ -1130,5 +1402,13 @@ export function LavoriSubappaltatore({ subId, onApriCommessa, onApriContratto }:
   if (isError || erroreSal || erroreRitenute || erroreFatture) return <div role="alert" className="rounded-lg border p-4 text-sm">Commesse e riepiloghi non disponibili. <Button variant="outline" onClick={() => {void refetch();void ricaricaSal();}}>Riprova</Button></div>;
   if (isLoading || caricoSal || caricoRitenute || caricoFatture) return <p role="status" className="p-4 text-sm text-muted-foreground">Caricamento commesse e contratti…</p>;
   if (!righe.length) return <p className="rounded-lg border p-6 text-sm text-muted-foreground">Nessun contratto collegato. Crea un contratto per ogni commessa nella scheda Contratti.</p>;
-  return <ElencoContrattiSub righe={righe} contesto="commesse" onApri={onApriContratto} onCommessa={onApriCommessa}/>;
+  return <>
+    <ElencoContrattiSub righe={righe} contesto="commesse" onApri={onApriContratto}
+      onCommessa={onApriCommessa} onLavorazioni={mostraLavorazioni} />
+    {lavorazioni && <LavorazioniAffidateDialog titolo={[lavorazioni.commessa?.description || lavorazioni.commessa?.order_code,
+      lavorazioni.numero_contratto].filter(Boolean).join(" · ") || lavorazioni.descrizione_lavori}
+      righe={lavorazioni.elenco_lavori ?? []} importoPattuito={Number(lavorazioni.importo_contrattuale)}
+      oneri={Number(lavorazioni.oneri_sicurezza) || 0} onClose={() => mostraLavorazioni(null)}
+      onApriContratto={() => { mostraLavorazioni(null); onApriContratto(lavorazioni.id); }} />}
+  </>;
 }

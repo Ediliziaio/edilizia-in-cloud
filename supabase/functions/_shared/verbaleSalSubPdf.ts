@@ -18,7 +18,7 @@ pdfMake.addVirtualFileSystem(vfs);
 const euro = (n: unknown) =>
   Number(n).toLocaleString("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" } as Intl.NumberFormatOptions);
 const quantita = (n: unknown) =>
-  Number(n).toLocaleString("it-IT", { maximumFractionDigits: 3, useGrouping: "always" } as Intl.NumberFormatOptions);
+  Number(n).toLocaleString("it-IT", { maximumFractionDigits: 4, useGrouping: "always" } as Intl.NumberFormatOptions);
 const data = (s: string) =>
   /^\d{4}-\d{2}-\d{2}/.test(s)
     ? s.slice(0, 10).split("-").reverse().join("/")
@@ -133,7 +133,31 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null
     { text: d.contratto.descrizione_lavori, margin: [0, 0, 0, 6] },
   ];
 
+  if (d.avanzamento?.length) {
+    contenuto.push({
+      table: {
+        headerRows: 1,
+        keepWithHeaderRows: 1,
+        widths: ["*", 52, 58, 52, 53, 58],
+        body: [
+          [th("Voce di contratto"), th("Affidata", "right"), th("Prezzo", "right"), th("Già cont.", "right"),
+            th("Periodo", "right"), th("Cumulata", "right")],
+          ...d.avanzamento.map(voce => {
+            const q = (n: number | null) => ({ text: n == null ? "—" : voce.base === "corpo" ? `${quantita(n * 100)}%`
+              : `${quantita(n)} ${voce.unita}`, alignment: "right", noWrap: true });
+            return [voce.descrizione, q(voce.affidata), { text: euro(voce.prezzo), alignment: "right", noWrap: true },
+              q(voce.precedente), { ...q(voce.periodo), bold: true }, q(voce.cumulata)];
+          }),
+        ],
+      },
+      layout: layoutTabella,
+    });
+    if (d.avanzamento.some(voce => voce.precedente == null))
+      contenuto.push(nota("Quantità precedenti e cumulate disponibili per uno storico completo di misure."));
+    contenuto.push(nota("Già cont. = quantità già contabilizzata nei SAL precedenti.", { margin: [0, 4, 0, 6] }));
+  }
   if (d.lavori?.length) {
+    if (d.avanzamento?.length) contenuto.push(titoloSezione("Rilevazioni di questo SAL"));
     const totale = d.lavori.reduce((s, l) => s + Number(l.importo), 0);
     contenuto.push({
       table: {
@@ -166,6 +190,7 @@ export function layoutVerbaleSalSub(d: VerbaleSalSub, logoImpresa: string | null
       },
       layout: layoutTabella,
     });
+    if (Number(d.sal.oneri_quota) > 0) contenuto.push(nota(`Oneri di sicurezza del periodo: ${euro(d.sal.oneri_quota)}.`));
     contenuto.push(nota("Quantità riconosciute dall'impresa dopo la verifica delle misure, ai prezzi del contratto. Per i lavori a corpo 1 quota vale il 100% del lavoro."));
   }
   if (d.sal.note) contenuto.push({ text: d.sal.note, margin: [0, 4, 0, 0] });

@@ -48,6 +48,14 @@ export function saldoIva(debito: number, credito: number): { importo: number; ve
   return { importo: Math.abs(importo), verso: importo > 0.004 ? "versare" : importo < -0.004 ? "credito" : "pari" };
 }
 
+export function saldiIvaCommessa(d: IvaCommessa) {
+  return {
+    oggi: saldoIva(d.debito_fatturato, d.credito_fatture),
+    fine: saldoIva(Math.max(d.debito_previsto, d.debito_fatturato), d.credito_fatture + d.credito_previsto_costi + d.credito_previsto_ditte),
+    senzaFatture: d.fatture_emesse === 0 && d.fatture_ricevute === 0 && d.debito_fatturato === 0 && d.credito_fatture === 0,
+  };
+}
+
 /** Imponibile, IVA e totale di un venduto, all'aliquota della commessa. */
 export function conAliquota(imponibile: number, aliquota: number): { imponibile: number; iva: number; totale: number } {
   const iva = Math.round(imponibile * aliquota) / 100;

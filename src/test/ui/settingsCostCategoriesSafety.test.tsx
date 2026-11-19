@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 /**
  * Categorie costi: storico protetto, niente colore, strumenti solo quando servono, errori in italiano.
  *
@@ -160,7 +161,7 @@ describe("Categorie costi: storico protetto e layout", () => {
   });
   it("una creazione fallita conserva la bozza", async () => {
     state.writeError = true; open(); await screen.findByText("Materiali");
-    fireEvent.change(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
+    changeFormControl(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledOnce());
     expect(screen.getByLabelText("Nuova categoria")).toHaveValue("Trasferte");
@@ -188,7 +189,7 @@ describe("Categorie costi: niente colore", () => {
   });
   it("una categoria nuova si crea senza colore: l'inserimento manda solo azienda e nome", async () => {
     open(); await screen.findByText("Materiali");
-    fireEvent.change(screen.getByLabelText("Nuova categoria"), { target: { value: "  Trasferte  " } });
+    changeFormControl(screen.getByLabelText("Nuova categoria"), { target: { value: "  Trasferte  " } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledWith("Categoria aggiunta"));
     const inserimenti = state.scritture.filter((s) => s.op === "insert");
@@ -200,7 +201,7 @@ describe("Categorie costi: niente colore", () => {
     state.categorie = [riga("c1", "Materiali", "#ef4444")];
     open(); await screen.findByText("Materiali");
     fireEvent.click(screen.getByRole("button", { name: "Modifica Materiali" }));
-    fireEvent.change(screen.getByLabelText("Nome categoria Materiali"), { target: { value: "Materiali edili" } });
+    changeFormControl(screen.getByLabelText("Nome categoria Materiali"), { target: { value: "Materiali edili" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva" }));
     await waitFor(() => expect(state.success).toHaveBeenCalledWith("Categoria aggiornata"));
     const modifiche = state.scritture.filter((s) => s.op === "update");
@@ -279,7 +280,7 @@ describe("Categorie costi: riepilogo e strumenti", () => {
     const ricerca = screen.getByLabelText("Cerca una categoria");
     expect(screen.getByLabelText("Ordina categorie")).toBeInTheDocument();
     for (const nome of ["Tutte", "In uso", "Inutilizzate"]) expect(screen.getByRole("button", { name: nome })).toBeInTheDocument();
-    fireEvent.change(ricerca, { target: { value: "categoria 07" } });
+    changeFormControl(ricerca, { target: { value: "categoria 07" } });
     expect(screen.queryByText("Categoria 01")).toBeNull();
     expect(screen.getByText("Categoria 07")).toBeInTheDocument();
     // Niente più la riga «Vista filtrata/ordinata…» sotto i filtri.
@@ -291,7 +292,7 @@ describe("Categorie costi: riepilogo e strumenti", () => {
   it("scendendo sotto le 11 categorie i filtri rimasti accesi non nascondono righe", async () => {
     state.categorie = molte(11);
     open(); await screen.findByText("Categoria 01");
-    fireEvent.change(screen.getByLabelText("Cerca una categoria"), { target: { value: "categoria 11" } });
+    changeFormControl(screen.getByLabelText("Cerca una categoria"), { target: { value: "categoria 11" } });
     expect(screen.queryByText("Categoria 01")).toBeNull();
     // Si elimina una categoria visibile (la 11): restano 10 e gli strumenti spariscono.
     fireEvent.click(screen.getByRole("button", { name: "Elimina Categoria 11" }));
@@ -332,7 +333,7 @@ describe("Categorie costi: parole e categorie usate", () => {
     state.categorie = [riga("c1", "Trasferte")];
     const client = open(); await screen.findByText("Trasferte");
     fireEvent.click(screen.getByRole("button", { name: "Modifica Trasferte" }));
-    fireEvent.change(screen.getByLabelText("Nome categoria Trasferte"), { target: { value: "Trasferte e viaggi" } });
+    changeFormControl(screen.getByLabelText("Nome categoria Trasferte"), { target: { value: "Trasferte e viaggi" } });
     state.costi = ["Trasferte"];
     await client.refetchQueries();
     await waitFor(() => expect(screen.getByLabelText("Nome categoria Trasferte")).toBeDisabled());
@@ -375,7 +376,7 @@ describe("Categorie costi: errori in italiano", () => {
     state.writeError = true; state.writeCode = "42501";
     state.writeMessage = 'new row violates row-level security policy for table "cost_categories"';
     open(); await screen.findByText("Materiali");
-    fireEvent.change(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
+    changeFormControl(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Non hai i permessi per questa operazione. Chiedi al titolare dell'azienda di darti l'accesso."));
     expect(state.error.mock.calls[0][0]).not.toMatch(/row-level|violates/i);
@@ -383,7 +384,7 @@ describe("Categorie costi: errori in italiano", () => {
   it("un errore che nessuna regola riconosce ripiega su una frase italiana con «Riprova»", async () => {
     state.writeError = true; state.writeMessage = "boom";
     open(); await screen.findByText("Materiali");
-    fireEvent.change(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
+    changeFormControl(screen.getByLabelText("Nuova categoria"), { target: { value: "Trasferte" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
     await waitFor(() => expect(state.error).toHaveBeenCalledWith("Non sono riuscito ad aggiungere la categoria. Riprova."));
   });

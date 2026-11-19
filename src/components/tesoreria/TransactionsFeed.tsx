@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useState, useRef, lazy, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
@@ -587,7 +588,7 @@ export default function TransactionsFeed({
               className="pl-9"
             />
           </div>
-          <select
+          <UniformSelect
             aria-label="Filtra per conto"
             value={filters.account}
             onChange={(e) => change("account", e.target.value)}
@@ -599,7 +600,7 @@ export default function TransactionsFeed({
                 {a.display_name || a.account_name || a.iban || "Conto"}
               </option>
             ))}
-          </select>
+          </UniformSelect>
           <Button
             variant={expanded ? "secondary" : "outline"}
             onClick={() => setExpanded((v) => !v)}
@@ -718,7 +719,7 @@ export default function TransactionsFeed({
             ).map(([k, label, opts]) => (
               <label key={k} className="text-xs text-muted-foreground">
                 {label}
-                <select
+                <UniformSelect
                   aria-label={label}
                   value={filters[k]}
                   onChange={(e) => change(k, e.target.value)}
@@ -729,7 +730,7 @@ export default function TransactionsFeed({
                       {l}
                     </option>
                   ))}
-                </select>
+                </UniformSelect>
               </label>
             ))}
             {(

@@ -278,7 +278,7 @@ describe("Navigazione e filtri dei rapportini", () => {
 
 describe("Rapportini: elenco compatto e periodi", () => {
   it("cambiare raggruppamento non cambia il periodo scelto", () => {
-    apri("?tab=rapportini", false);
+    apri("?tab=rapportini&rap_periodo=tutti", false);
     fireEvent.click(screen.getByRole("tab", { name: "Per giorno" }));
     expect(stato.chiamate.at(-1)?.[1]).toEqual({});
     expect(screen.queryByRole("button", { name: "Mese precedente" })).not.toBeInTheDocument();
@@ -290,7 +290,7 @@ describe("Rapportini: elenco compatto e periodi", () => {
     expect(indirizzo()).toContain("rap_periodo=mese");
   });
   it("apre tutti i rapportini in tabella, una riga per documento e stato nella seconda colonna", () => {
-    apri("?tab=rapportini", false);
+    apri("?tab=rapportini&rap_periodo=tutti", false);
     expect(stato.chiamate[0]).toEqual(["c1", {}, true]);
     expect(screen.getByRole("tab", { name: "Elenco" })).toHaveAttribute("aria-selected", "true");
     const tabella = screen.getByRole("table", { name: "Elenco rapportini" });
@@ -330,7 +330,7 @@ describe("giornali e rapportini nell'elenco comune", () => {
     ] satisfies GiornaleRiga[];
   });
   it("apre tutti i documenti in una riga ciascuno, con stato e tipo distinti", () => {
-    apri("?tab=rapportini", false);
+    apri("?tab=rapportini&rap_periodo=tutti", false);
     const tabella = screen.getByRole("table", { name: "Elenco rapportini" });
     expect(within(tabella).getAllByRole("row")).toHaveLength(6);
     expect(within(tabella).getAllByRole("columnheader").map((n) => n.textContent).slice(0, 3)).toEqual(["Data", "Stato", "Tipo"]);
@@ -399,4 +399,10 @@ describe("giornali e rapportini nell'elenco comune", () => {
     expect(screen.queryByText("Diario posa guaina")).not.toBeInTheDocument();
     expect(screen.getByRole("table").querySelectorAll("tbody tr")).toHaveLength(3);
   });
+});
+
+it("all’ingresso legge il mese corrente invece di caricare tutto lo storico", () => {
+  apri("?tab=rapportini", false);
+  expect(stato.chiamate[0]).toEqual(["c1", "2026-09", true]);
+  expect(screen.getByRole("button", {name:"Mese precedente"})).toBeInTheDocument();
 });

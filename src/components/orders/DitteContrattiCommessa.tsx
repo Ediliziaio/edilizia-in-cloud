@@ -42,7 +42,9 @@ import { clausoleArchivioDelContratto, testoComprende, totaleElencoLavori, unisc
 import { OfficeSelect } from "./OfficeSelect";
 import { AbbinaListinoDialog } from "./AbbinaListinoDialog";
 import { AffidaVociDialog, useAffidamentiCommessa } from "./AffidaVociDialog";
-import { AffidaContrattoDialog } from "./AffidaContrattoDialog";
+import { LavorazioniAffidateDialog } from "@/components/subappaltatori/LavorazioniAffidateDialog";
+import { MacrofasiSubappalto } from "@/components/subappaltatori/MacrofasiSubappalto";
+import { AffidaContrattoDaCommessa, AffidaContrattoDialog } from "./AffidaContrattoDialog";
 import { VarianteVociDialog } from "./VarianteVociDialog";
 import { LavoriMisureSubDialog } from "@/components/subappaltatori/LavoriMisureSubDialog";
 import type { SALSubappaltatore } from "@/types/subappaltatori";
@@ -54,10 +56,10 @@ import { chiaveAffidamenti, type AffidamentoChiFaCosa } from "@/lib/subappaltato
 const db = supabase as any;
 
 interface Fase { id: string; name: string; position: number | null; start_date: string | null; end_date: string | null }
-interface Assegnazione { id: string; external_team_id: string | null; phase_id: string | null; cost_preventivo: number | null; vat_rate: number | null }
+interface Assegnazione { costo_origine?: string | null; id: string; external_team_id: string | null; phase_id: string | null; cost_preventivo: number | null; vat_rate: number | null }
 interface Ditta { id: string; name: string; vat_rate: number | null; subappaltatore_id: string | null; is_active?: boolean | null }
 interface Tariffa { id: string; nome: string; codice: string | null; unita: string; costo: number; external_team_id?: string | null; subappaltatore_id?: string | null }
-interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; firmato_il: string | null; elenco_lavori: unknown }
+interface Contratto { id: string; subappaltatore_id: string; stato: string; numero_contratto: string | null; importo_contrattuale: number; oneri_sicurezza: number; firmato_il: string | null; elenco_lavori: unknown }
 /** La scheda sicurezza della ditta: è lei che il contratto nomina, e ha i dati per il PDF. */
 interface SchedaSic extends SchedaSicurezza { ragione_sociale: string; piva: string | null; indirizzo: string | null; email: string | null; pec: string | null }
 const COLONNE_SCHEDA = "id, campo_subappaltatore_id, order_id, created_at, ragione_sociale, piva, indirizzo, email, pec";
@@ -107,13 +109,13 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
     queryFn: async () => {
       const [fasi, assegnazioni, ditte, storico, varianti, contratti, schede, sottofasi] = await Promise.all([
         db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
-        db.from("order_external_teams").select("id, external_team_id, phase_id, cost_preventivo, vat_rate").eq("order_id", orderId),
+        db.from("order_external_teams").select("id, external_team_id, phase_id, cost_preventivo, vat_rate, costo_origine").eq("order_id", orderId),
         db.from("external_teams").select("id, name, vat_rate, subappaltatore_id, kind, is_active").eq("company_id", companyId).order("name"),
         // Le fasi date alle ditte nelle altre commesse: chi fa sempre quel lavoro.
         db.from("order_external_teams").select("external_team_id, fase:order_work_phases(name), ordine:orders!inner(company_id)")
           .eq("ordine.company_id", companyId).neq("order_id", orderId).not("phase_id", "is", null).limit(3000),
         db.from("tariffa_costi_varianti").select("tariffa_id, external_team_id, subappaltatore_id, costo, is_default, attivo, sort_order, valid_from, valid_to, created_at").eq("company_id", companyId),
-        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
+        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, numero_contratto, importo_contrattuale, oneri_sicurezza, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select(COLONNE_SCHEDA).eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
         db.from("order_work_phases").select("id, sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId),
       ]);
@@ -219,25 +221,25 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
   if (dati.isLoading || voci.isLoading) return <Loader2 className="mx-auto my-8 h-6 w-6 animate-spin" />;
   if (dati.isError || voci.isError || !d)
     return <p role="alert" className="text-sm text-destructive">Non riesco a caricare fasi e ditte. <button className="underline" onClick={() => { void dati.refetch(); void voci.refetch(); }}>Riprova</button></p>;
-  if (!d.fasi.length) return <p className="text-sm text-muted-foreground">La commessa non ha ancora fasi.</p>;
+
 
   // Le ditte della commessa, per i contratti.
   // Anche le ditte che hanno un contratto su questa commessa senza fasi assegnate (contratto fatto dalla scheda).
   const conContratto = d.ditte.filter((t) => t.subappaltatore_id && contrattoDellaDitta(t.subappaltatore_id, d.contratti, d.schede)).map((t) => t.id);
   const ditteCommessa = [...new Set([...d.assegnazioni.map((a) => a.external_team_id).filter((x): x is string => !!x), ...conContratto])]
-    .map((id) => ({ id, fasi: d.assegnazioni.filter((a) => a.external_team_id === id && a.phase_id).map((a) => a.phase_id!) }));
+    .map((id) => ({ id, fasi: [...new Set(d.assegnazioni.filter((a) => a.external_team_id === id && a.phase_id).map((a) => a.phase_id!))] }));
 
   return (
     <div className="space-y-5">
-      {listaVoci.length > 0 && (
+      {(listaVoci.length > 0 || (canViewSubappaltatoriAmministrazione && !solaLettura)) && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-sm">
-          <span className="min-w-0 flex-1">Scegli le voci e la ditta, scrivi quantità e prezzi, e manda il contratto: tutto in un passaggio.</span>
-          <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title="Quote divise fra più ditte, prezzi delle quote già affidate">Chi fa cosa</Button>
-          {canViewSubappaltatoriAmministrazione && !solaLettura && <Button size="sm" onClick={() => setAffidaContratto(true)}>Affida e manda il contratto</Button>}
+          <span className="min-w-0 flex-1">Prepara una richiesta d’offerta oppure conferma i prezzi e crea il computo del contratto.</span>
+          {listaVoci.length > 0 && <Button size="sm" variant="outline" onClick={() => setAffidaAperto(true)} title="Quote divise fra più ditte, prezzi delle quote già affidate">Chi fa cosa</Button>}
+          {canViewSubappaltatoriAmministrazione && !solaLettura && <Button size="sm" onClick={() => setAffidaContratto(true)}>Prezzi e contratto</Button>}
         </div>
       )}
       {affidaContratto && (
-        <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={d.fasi} voci={listaVoci} contratti={d.contratti} schede={d.schede}
+        <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={d.fasi} sottofasi={d.sottofasi} voci={listaVoci} contratti={d.contratti} schede={d.schede}
           onChiudi={() => setAffidaContratto(false)} onFatto={invalida} />
       )}
       {affidaAperto && (
@@ -281,18 +283,27 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 <div className="flex min-w-[16rem] flex-wrap items-center justify-end gap-2">
                   {r.assegnate.length ? (
                     <div className="text-right text-xs">
-                      {r.assegnate.map((a) => (
-                        <p key={a.id}>
-                          <span className="font-medium">{nomeDitta(a.external_team_id)}</span>
-                          {" · "}{Number(a.cost_preventivo) ? `previsto ${formatCurrency(Number(a.cost_preventivo))}` : <span className="text-amber-800">senza previsto{r.costo > 0 && r.assegnate.length === 1 ? ` → ${formatCurrency(r.costo)}` : ""}</span>}
-                          {/* Previsto scritto diverso dalle voci: resta quello scritto, un pallino lo segnala. */}
-                          {r.assegnate.length === 1 && Number(a.cost_preventivo) > 0 && r.costo > 0
-                            && Math.abs(conIva(r.costo, a.vat_rate ?? 0) - Number(a.cost_preventivo)) > Math.max(1, r.costo * 0.01) && (
-                            <span role="img" aria-label={`Diverso dalle voci: a listino ${formatCurrency(r.costo)}`} title={`Le voci valgono ${formatCurrency(r.costo)} a listino: resta il previsto scritto`}
-                              className="ml-1 inline-block h-2 w-2 rounded-full bg-red-600 align-middle" />
-                          )}
-                        </p>
-                      ))}
+                      {r.assegnate.map((a) => {
+                        const dalContratto = a.costo_origine === "contratto";
+                        const previsto = Number(a.cost_preventivo);
+                        if (!previsto && dalContratto && r.assegnate.some((altra) =>
+                          altra.external_team_id === a.external_team_id && altra.costo_origine === "contratto" && Number(altra.cost_preventivo) > 0)) return null;
+                        const anagrafica = d.ditte.find((ditta) => ditta.id === a.external_team_id)?.subappaltatore_id ?? null;
+                        const accordo = dalContratto && contrattoDellaDitta(anagrafica, d.contratti, d.schede);
+                        return (
+                          <p key={a.id}>
+                            <span className="font-medium">{nomeDitta(a.external_team_id)}</span>
+                            {" · "}{previsto
+                              ? `${accordo ? "previsto da contratto" : "previsto"} ${formatCurrency(previsto)}`
+                              : <span className="text-amber-800">senza previsto{r.costo > 0 && r.assegnate.length === 1 ? ` → ${formatCurrency(r.costo)}` : ""}</span>}
+                            {r.assegnate.length === 1 && !dalContratto && previsto > 0 && r.costo > 0
+                              && Math.abs(conIva(r.costo, a.vat_rate ?? 0) - previsto) > Math.max(1, r.costo * 0.01) && (
+                              <span role="img" aria-label={`Diverso dalle voci: a listino ${formatCurrency(r.costo)}`} title={`Le voci valgono ${formatCurrency(r.costo)} a listino: resta il previsto scritto`}
+                                className="ml-1 inline-block h-2 w-2 rounded-full bg-red-600 align-middle" />
+                            )}
+                          </p>
+                        );
+                      })}
                     </div>
                   ) : (
                     <>
@@ -329,7 +340,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
         </ul>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
-            Il costo previsto è quantità × prezzo del listino (o della variante della ditta), senza IVA: il subappalto è in reverse charge.
+            Il previsto parte dai prezzi di listino. Confermando il computo si aggiorna con i prezzi concordati per la ditta.
           </p>
           <Button size="sm" disabled={!daApplicare.length || applica.isPending} onClick={() => applica.mutate()}>
             {applica.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1.5 h-4 w-4" />}
@@ -362,6 +373,7 @@ function Contenuto({ orderId, companyId }: { orderId: string; companyId: string 
                 ditta={ditta}
                 fasi={d.fasi}
                 assegnazioni={d.assegnazioni.filter((a) => a.external_team_id === x.id && a.phase_id)}
+                fasiIntere={x.fasi.filter((faseId) => !d.assegnazioni.some((a) => a.phase_id === faseId && a.external_team_id && a.external_team_id !== x.id))}
                 daAffidamenti={dalleQuote.length > 0}
                 quote={(affidamenti.data ?? []).filter((a) => a.subappaltatore_id === ditta.subappaltatore_id && (a.stato === "bozza" || (!!contratto && a.contratto_id === contratto.id)))}
                 vociCommessa={listaVoci}
@@ -473,18 +485,17 @@ function VociFase({ orderId, companyId, fase, voci, tariffe, caricoTariffe, onCa
 }
 
 /** Il contratto di una ditta: crearlo in bozza con l'elenco dei lavori, aggiornarlo, scaricare il PDF. */
-function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], daAffidamenti = false, quote = [], vociCommessa = [] }: {
+function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, contratto, schede, tariffe, varianti, onCambio, fasi = [], assegnazioni = [], fasiIntere = [], daAffidamenti = false, quote = [], vociCommessa = [] }: {
   /** Le quote della ditta (nel contratto e in bozza) e le voci della commessa: per la variante sulle voci (lotto 8). */
   quote?: AffidamentoChiFaCosa[]; vociCommessa?: Array<{ id: string; descrizione: string; unita: string | null; quantita: number }>;
   orderId: string; companyId: string; ditta: Ditta; elenco: RigaElencoLavori[];
   /** L'elenco viene dalle voci affidate alla ditta (lotto 5), non da tutte le voci delle sue fasi. */
   daAffidamenti?: boolean;
   /** Tutte le fasi della commessa e le assegnazioni di questa ditta: il contratto firmato diventa il loro previsto. */
-  fasi?: Fase[]; assegnazioni?: Assegnazione[];
+  fasi?: Fase[]; assegnazioni?: Assegnazione[]; fasiIntere?: string[];
   periodo: { dal: string | null; al: string | null }; nomiFasi: string[]; contratto: Contratto | null; schede: SchedaSic[];
   tariffe: Tariffa[]; varianti: VarianteCostoDitta[]; onCambio: () => void;
 }) {
-  const totale = totaleElencoLavori(elenco);
   const modificabile = !contratto || (contratto.stato === "bozza" && !contratto.firmato_il);
   // Dopo la firma conta il prezzo pattuito, non le voci: il previsto delle fasi si porta al contratto.
   const pattuito = contratto && !modificabile && Array.isArray(contratto.elenco_lavori) ? contrattoPerFase(contratto.elenco_lavori as RigaElencoLavori[], fasi) : null;
@@ -521,6 +532,9 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
   const senzaElenco = !!contratto && !modificabile && !contratto.firmato_il;
   const elencoSalvato = contratto && Array.isArray(contratto.elenco_lavori) ? (contratto.elenco_lavori as RigaElencoLavori[]) : [];
   // L'elenco si rivede prima di salvarlo (Dimora, 31/10/2026): null = finestra chiusa.
+  const [mostraLavorazioni, setMostraLavorazioni] = useState(false);
+  const [nuovoDaVoci, setNuovoDaVoci] = useState(false);
+  const schedaDitta = schede[0];
   const [bozzaElenco, setBozzaElenco] = useState<RigaElencoLavori[] | null>(null);
   const [varianteAperta, setVarianteAperta] = useState(false);
   // Misure e SAL dalla commessa (11/11/2026): prima solo dalla scheda della ditta.
@@ -685,19 +699,22 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
     },
     onError: (e: Error) => toast.error(`PDF non generato: ${e.message}`),
   });
-  const diverso = contratto && (modificabile || senzaElenco) && Math.abs(Number(contratto.importo_contrattuale) - totale) > 0.005;
+  const righeInVista = elencoSalvato.length ? elencoSalvato : elenco;
+  const totaleInVista = totaleElencoLavori(righeInVista);
+  const diverso = contratto && elencoSalvato.length > 0
+    && Math.abs(Number(contratto.importo_contrattuale) - totaleInVista) > 0.005;
   return (
-    <li className="flex flex-wrap items-center gap-3 p-3">
-      <div className="min-w-0 flex-1">
+    <li className="flex flex-wrap items-start gap-3 p-3">
+      <div className="min-w-48 flex-1">
         <p className="text-sm font-medium">{ditta.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {daAffidamenti ? "Voci affidate" : nomiFasi.join(", ")} · {elenco.length} {elenco.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totale)}
-        </p>
+        {(righeInVista.length > 0 || nomiFasi.length > 0) && <p className="text-xs text-muted-foreground">
+          {elencoSalvato.length ? "Lavori a contratto" : daAffidamenti ? "Voci affidate" : nomiFasi.join(", ")} · {righeInVista.length} {righeInVista.length === 1 ? "lavoro" : "lavori"} · {formatCurrency(totaleInVista)}
+        </p>}
         {contratto && (
           <div className="mt-0.5 text-xs">
             <Badge variant="outline" className="mr-1 text-[11px]">{contratto.firmato_il ? "Firmato" : contratto.stato === "bozza" ? "Bozza" : contratto.stato}</Badge>
             {formatCurrency(Number(contratto.importo_contrattuale) || 0)}
-            {diverso && <span className="ml-1 text-amber-800">· i lavori ora valgono {formatCurrency(totale)}</span>}
+            {diverso && <span className="ml-1 text-amber-800">· valore dell’elenco {formatCurrency(totaleInVista)}</span>}
           </div>
         )}
         {contratto?.firmato_il && <p className="mt-0.5 text-xs text-muted-foreground">Contratto firmato: lavori e prezzi non si modificano più. {conQuoteNelContratto ? "Per cambiare quantità o voci usa «Variante sulle voci»." : "Per cambiare l'importo usa «Variante» da «Condizioni e firma»."}</p>}
@@ -718,11 +735,14 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         {!!pattuito?.senzaFase && <p className="mt-0.5 text-xs text-muted-foreground">{formatCurrency(pattuito.senzaFase)} del contratto non stanno in nessuna fase della commessa.</p>}
       </div>
       <div className="flex flex-wrap gap-2">
+        {(elencoSalvato.length > 0 || elenco.length > 0) && (
+          <Button size="sm" variant="outline" onClick={() => setMostraLavorazioni(true)}>Lavorazioni affidate</Button>
+        )}
         {(modificabile || senzaElenco) && (
-          <Button size="sm" variant={contratto ? "outline" : "default"} disabled={!ditta.subappaltatore_id || salva.isPending} onClick={apriElenco}
+          <Button size="sm" variant={contratto ? "outline" : "default"} disabled={!ditta.subappaltatore_id || salva.isPending} onClick={() => { if (!contratto && ditta.subappaltatore_id && (daAffidamenti || fasiIntere.length)) setNuovoDaVoci(true); else apriElenco(); }}
             title={senzaElenco ? "Rivedi l'elenco dei lavori allegato. L'importo pattuito non cambia." : "Rivedi lavori, quantità e prezzi prima di salvare il contratto."}>
             {salva.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileSignature className="mr-1 h-4 w-4" />}
-            {!contratto ? "Crea contratto…" : "Lavori e prezzi…"}
+            {!contratto ? "Offerta e contratto…" : "Lavori e prezzi…"}
           </Button>
         )}
         {conQuoteNelContratto && (
@@ -767,6 +787,13 @@ function ContrattoDitta({ orderId, companyId, ditta, elenco, periodo, nomiFasi, 
         <VarianteVociDialog companyId={companyId} contrattoId={contratto.id} nomeDitta={ditta.name} importo={Number(contratto.importo_contrattuale) || 0}
           quote={quote} voci={vociCommessa} elencoContratto={contratto.elenco_lavori} onChiudi={() => setVarianteAperta(false)} onFatto={() => { setVarianteAperta(false); onCambio(); }} />
       )}
+      {nuovoDaVoci && ditta.subappaltatore_id && <AffidaContrattoDaCommessa orderId={orderId} companyId={companyId}
+        dittaFissa={{ id: ditta.subappaltatore_id, nome: ditta.name, schedaId: schedaDitta?.id, fasiIntere }}
+        onChiudi={() => setNuovoDaVoci(false)} onContrattoSalvato={onCambio} />}
+      {mostraLavorazioni && <LavorazioniAffidateDialog titolo={`${ditta.name}${contratto?.numero_contratto ? ` · ${contratto.numero_contratto}` : ""}`}
+        righe={righeInVista} oneri={contratto ? Number(contratto.oneri_sicurezza) || 0 : undefined}
+        importoPattuito={contratto ? Number(contratto.importo_contrattuale) : undefined} onClose={() => setMostraLavorazioni(false)}
+        onPdf={contratto ? () => scarica.mutate() : undefined} pdfInCorso={scarica.isPending} />}
       {bozzaElenco && (
         <ElencoLavoriDialog
           titolo={`${contratto ? "Lavori e prezzi del contratto" : "Nuovo contratto"} · ${ditta.name}`}
@@ -818,6 +845,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
 }) {
   const [cerca, setCerca] = useState("");
   const [faseNuova, setFaseNuova] = useState(fasi[0] ?? "Altri lavori");
+  const [faseAttiva, setFaseAttiva] = useState("");
   const trovate = cerca.trim().length < 2 ? [] : vociListinoPerDitta(tariffe, { squadraId: dittaId, anagraficaId })
     .filter((t) => `${t.codice ?? ""} ${t.nome}`.toLowerCase().includes(cerca.trim().toLowerCase())).slice(0, 8);
   const cambia = (i: number, patch: Partial<RigaElencoLavori>) =>
@@ -857,6 +885,9 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
         </DialogHeader>
         {affidateSenzaPrezzo > 0 && <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-900">{affidateSenzaPrezzo === 1 ? "Una voce affidata è" : `${affidateSenzaPrezzo} voci affidate sono`} senza prezzo: la ditta non ce l'ha a listino. Scrivi il prezzo concordato, o togli la riga, per salvare il contratto.</p>}
         {senzaPrezzo > 0 && <p role="status" className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{senzaPrezzo === 1 ? "Una riga è" : `${senzaPrezzo} righe sono`} senza prezzo: nel contratto varrebbero 0 €. Scrivi il prezzo qui sotto.</p>}
+        <MacrofasiSubappalto attiva={faseAttiva}
+          onSeleziona={fase => { setFaseAttiva(fase); if (fase) setFaseNuova(fase); }}
+          fasi={fasiScelta.map(fase => ({ id: fase, nome: fase, voci: righe.filter(riga => riga.fase === fase).length }))}>
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[820px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -872,7 +903,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
               </tr>
             </thead>
             <tbody>
-              {righe.map((r, i) => (
+              {righe.map((r, i) => (!faseAttiva || r.fase === faseAttiva) && (
                 // Una riga per lavoro (11/11/2026): lavorazione, descrizione, U.M., quantità, prezzo, importo. Da dove
                 // viene la voce sta in una riga sottile sotto la descrizione, solo per le voci affidate.
                 <tr key={chiaveRiga(r)} className="border-t align-middle">
@@ -919,18 +950,18 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
                   </td>
                 </tr>
               ))}
-              {!righe.length && (
+              {!righe.some(riga => !faseAttiva || riga.fase === faseAttiva) && (
                 <tr><td colSpan={daAffidamenti ? 8 : 7} className="px-2 py-4 text-center text-sm text-muted-foreground">Nessun lavoro: aggiungili dal listino o a mano.</td></tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="mt-2 flex flex-wrap items-end gap-2">
           <label className="text-xs text-muted-foreground">Aggiungi a
             <OfficeSelect
               label="Lavorazione delle righe nuove"
               value={faseNuova}
-              onValueChange={setFaseNuova}
+              onValueChange={fase => { setFaseNuova(fase); if (faseAttiva) setFaseAttiva(fase); }}
               className="ml-1 inline-flex h-9 w-auto min-w-[10rem] text-foreground"
               options={fasiScelta.map((f) => ({ value: f, label: f }))}
             />
@@ -967,6 +998,7 @@ export function ElencoLavoriDialog({ titolo, righe, onRighe, dalleVoci, fasi, ta
             {daAffidamenti ? "Riprendi le voci affidate" : "Riprendi le voci delle fasi"}
           </Button>
         </div>
+        </MacrofasiSubappalto>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
           <p className="text-sm">
             Totale lavori <strong className="tabular-nums">{formatCurrency(totale)}</strong> senza IVA

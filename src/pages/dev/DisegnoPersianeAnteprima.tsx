@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Anteprima di sviluppo del disegno generato delle persiane.
  *
@@ -111,20 +112,20 @@ export default function DisegnoPersianeAnteprima() {
 
           <label className="block space-y-1">
             <span className="font-medium">Tipo</span>
-            <select className="w-full rounded border bg-background px-2 py-1.5" value={tipo} onChange={(e) => setTipo(e.target.value as TipoPersiana)}>
+            <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={tipo} onChange={(e) => setTipo(e.target.value as TipoPersiana)}>
               {TIPI.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+            </UniformSelect>
           </label>
 
           <label className="block space-y-1">
             <span className="font-medium">Configurazione di apertura</span>
-            <select className="w-full rounded border bg-background px-2 py-1.5 disabled:opacity-50" disabled={!conConfigurazione} value={config} onChange={(e) => setConfig(e.target.value)}>
+            <UniformSelect className="w-full rounded border bg-background px-2 py-1.5 disabled:opacity-50" disabled={!conConfigurazione} value={config} onChange={(e) => setConfig(e.target.value)}>
               {GRUPPI.map((g) => (
                 <optgroup key={g} label={g}>
                   {CONFIGURAZIONI_PERSIANA.filter((c) => c.gruppo === g).map((c) => <option key={c.codice} value={c.codice}>{c.nome}</option>)}
                 </optgroup>
               ))}
-            </select>
+            </UniformSelect>
             {!conConfigurazione && <span className="text-xs text-muted-foreground">Avvolgibile, griglia e brise-soleil non hanno ante da configurare.</span>}
           </label>
 
@@ -132,9 +133,9 @@ export default function DisegnoPersianeAnteprima() {
             <div className="space-y-2 rounded border p-2">
               <label className="block space-y-1">
                 <span className="font-medium">Forma</span>
-                <select className="w-full rounded border bg-background px-2 py-1.5" value={forma} onChange={(e) => setForma(e.target.value as FormaSerramento)}>
+                <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={forma} onChange={(e) => setForma(e.target.value as FormaSerramento)}>
                   {["rettangolare", ...FORME_SAGOMATE].map((f) => <option key={f} value={f}>{NOMI_FORMA[f]}</option>)}
-                </select>
+                </UniformSelect>
               </label>
               {(forma === "arco" || forma === "ogiva") && (
                 <label className="flex items-center gap-2"><span>Altezza dell'arco (mm)</span>
@@ -144,9 +145,9 @@ export default function DisegnoPersianeAnteprima() {
               {forma === "trapezio" && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span>Lato basso</span>
-                  <select className="rounded border bg-background px-1.5 py-1" value={latoMinore} onChange={(e) => setLatoMinore(e.target.value as "dx" | "sx")}>
+                  <UniformSelect className="rounded border bg-background px-1.5 py-1" value={latoMinore} onChange={(e) => setLatoMinore(e.target.value as "dx" | "sx")}>
                     <option value="dx">destro</option><option value="sx">sinistro</option>
-                  </select>
+                  </UniformSelect>
                   <input type="number" min={150} className="w-24 rounded border bg-background px-2 py-1" value={altezzaMinore} onChange={(e) => setAltezzaMinore(Number(e.target.value) || 150)} />
                   <span>mm</span>
                 </div>
@@ -159,17 +160,17 @@ export default function DisegnoPersianeAnteprima() {
             <div className="space-y-2 rounded border p-2">
               <label className="block space-y-1">
                 <span className="font-medium">Lamelle</span>
-                <select className="w-full rounded border bg-background px-2 py-1.5" value={lamelle} onChange={(e) => setLamelle(e.target.value as "fisse" | "orientabili")}>
+                <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={lamelle} onChange={(e) => setLamelle(e.target.value as "fisse" | "orientabili")}>
                   <option value="fisse">Fisse</option>
                   <option value="orientabili">Orientabili (con l'asta)</option>
-                </select>
+                </UniformSelect>
               </label>
               {lamelle === "fisse" && (
                 <label className="flex items-center gap-2">
                   <span>Fessura</span>
-                  <select className="rounded border bg-background px-1.5 py-1" value={fessura} onChange={(e) => setFessura(Number(e.target.value) as 0 | 10 | 16)}>
+                  <UniformSelect className="rounded border bg-background px-1.5 py-1" value={fessura} onChange={(e) => setFessura(Number(e.target.value) as 0 | 10 | 16)}>
                     <option value={0}>chiuse (0 mm)</option><option value={10}>10 mm</option><option value={16}>16 mm</option>
-                  </select>
+                  </UniformSelect>
                 </label>
               )}
               {lamelle === "orientabili" && (
@@ -192,21 +193,21 @@ export default function DisegnoPersianeAnteprima() {
 
           <label className="block space-y-1">
             <span className="font-medium">Aletta</span>
-            <select className="w-full rounded border bg-background px-2 py-1.5" value={aletta} onChange={(e) => setAletta(Number(e.target.value))}>
+            <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={aletta} onChange={(e) => setAletta(Number(e.target.value))}>
               {ALETTE.map((v) => <option key={v} value={v}>{v === 0 ? "Senza aletta" : `${v} mm`}</option>)}
-            </select>
+            </UniformSelect>
           </label>
           <label className="block space-y-1">
             <span className="font-medium">Colore</span>
-            <select className="w-full rounded border bg-background px-2 py-1.5" value={colore} onChange={(e) => setColore(e.target.value)}>
+            <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={colore} onChange={(e) => setColore(e.target.value)}>
               {COLORI.map((c) => <option key={c}>{c}</option>)}
-            </select>
+            </UniformSelect>
           </label>
           <label className="block space-y-1">
             <span className="font-medium">Ferramenta (cerniere)</span>
-            <select className="w-full rounded border bg-background px-2 py-1.5" value={metallo} onChange={(e) => setMetallo(e.target.value as FinituraManigliaId)}>
+            <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={metallo} onChange={(e) => setMetallo(e.target.value as FinituraManigliaId)}>
               {Object.entries(FINITURE_MANIGLIA).map(([k, f]) => <option key={k} value={k}>{f.nome}</option>)}
-            </select>
+            </UniformSelect>
           </label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={realistico} onChange={(e) => setRealistico(e.target.checked)} /> Stile realistico (volume e ombre)</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={contesto ?? realistico} onChange={(e) => setContesto(e.target.checked)} /> Parete e davanzale</label>

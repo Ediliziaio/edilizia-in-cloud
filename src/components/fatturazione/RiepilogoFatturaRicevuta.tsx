@@ -1,5 +1,7 @@
+import { PagaRataDialog, type RataDaPagare } from "../scadenzario/PagaRataDialog";
 import { percorsoDocumentoGenerale, useAspettoOperativo } from "@/components/orders/generali/design/ContestoOperativo";
-import { pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
+import { nonSiPaga } from "@/lib/fatturazione/noteDiCredito";
+import { etichettaModalitaPagamento, pagamentoDaMostrare } from "@/lib/fatturazione/pagamentoFatturaRicevuta";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,12 +22,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { VerificaFatturaPill } from "@/components/fatturazione/VerificaFatturaPill";
 import { PagamentoRicevutaCella, isNotaCreditoRicevuta } from "@/components/fatturazione/PagamentoRicevuta";
 import { ExpensePaymentDialog } from "@/components/orders/ExpensePaymentDialog";
-import { fatturaVerificata } from "@/lib/fatturazione/ripartizioneFattura";
+import { fatturaVerificata, quoteDelCosto, quotaMagazzinoDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { usePermissions } from "@/hooks/usePermissions";
-import { OrderSelectCombobox } from "@/components/warehouse/OrderSelectCombobox";
 import { CollegamentiFattura } from "@/components/fatturazione/CollegamentiFattura";
 import { AllegatiFattura } from "@/components/fatturazione/AllegatiFattura";
 import { NoteInterneFattura } from "@/components/fatturazione/NoteInterneFattura";
+import { CollegaFatturaCommesseDialog } from "./CollegaFatturaCommesseDialog";
 import { ContoDiCosto } from "@/components/fatturazione/ContoDiCosto";
 import { ContoRigaMenu, ProposteContiRighe, useContiRighe } from "@/components/fatturazione/ContoPerRiga";
 import { CespiteDaRiga, useCespitiDellaFattura } from "@/components/contabilita/CespiteDaRiga";
@@ -51,6 +53,8 @@ type Riga = Record<string, unknown>;
 
 interface Dettaglio {
   fattura: Riga;
+  riparto: { id?: string; codice?: string; nome: string; centesimi: number; percentuale: number | null }[];
+  rateRegistrate: { id: string; numero: number; scadenza: string | null; metodo: string | null; importo: number | null; stato: string; pagata_il: string | null }[];
   ordini: Array<{ id: string; oda_number: string; importo: number | null; commessa: { id: string; order_code: string } | null }>;
   costo: { id: string; amount: number | null; category: string | null; commessa: { id: string; order_code: string } | null; ripartito: boolean } | null;
   fornitore: { id: string; name: string; tipo?: string | null } | null;
@@ -103,13 +107,13 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
   if (error) throw error;
   if (!f) return null;
 
-  const [quote, oda, costo, fornitore, suggerita, subappalto] = await Promise.all([
+  const [quote, oda, costo, fornitore, suggerita, subappalto, pagamento, rateRegistrate] = await Promise.all([
     db.from("fattura_ricevuta_ordini").select("importo, purchase_orders(id, oda_number, orders(id, order_code))").eq("fattura_id", fatturaId).eq("company_id", companyId),
     f.purchase_order_id
       ? db.from("purchase_orders").select("id, oda_number, orders(id, order_code)").eq("id", f.purchase_order_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.company_cost_id
-      ? db.from("company_costs").select("id, amount, category, allocations, orders(id, order_code)").eq("id", f.company_cost_id).eq("company_id", companyId).maybeSingle()
+      ? db.from("company_costs").select("id, amount, category, order_id, allocations, quota_magazzino, orders(id, order_code)").eq("id", f.company_cost_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
     f.fornitore_id
       ? db.from("suppliers").select("id, name, tipo").eq("id", f.fornitore_id).eq("company_id", companyId).maybeSingle()
@@ -120,6 +124,10 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
     f.contratto_subappalto_id
       ? db.from("contratti_subappalto").select("id, numero_contratto").eq("id", f.contratto_subappalto_id).eq("company_id", companyId).maybeSingle()
       : Promise.resolve({ data: null }),
+    f.company_cost_id
+      ? db.from("fatture_ricevute_pagamento").select("pagata_il,rate_pagate,rate_totali").eq("company_id", companyId).eq("id", fatturaId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    db.from("rate_fornitori").select("id,numero,scadenza,metodo,importo,stato,pagata_il").eq("company_id", companyId).eq("fattura_ricevuta_id", fatturaId).order("numero"),
   ]);
 
   // Il fornitore dell'anagrafica, se non è collegato: stessa partita IVA o stesso codice
@@ -165,8 +173,49 @@ async function leggiDettaglio(fatturaId: string, companyId: string): Promise<Det
     ordini.push({ id: oda.data.id, oda_number: oda.data.oda_number ?? "ODA", importo: null, commessa: commessaDi(oda.data.orders) });
   }
   const allocazioni = Array.isArray(costo.data?.allocations) ? costo.data.allocations : [];
+  if (costo.error || quote.error || oda.error) throw costo.error || quote.error || oda.error;
+  const sulCosto = quoteDelCosto(costo.data);
+  const magazzino = quotaMagazzinoDelCosto(costo.data);
+  const perCommessa = new Map<string, number>();
+  const base = Math.round(Math.abs(Number(f.imponibile_totale ?? costo.data?.amount ??
+    riepilogoIvaLeggibile(f.riepilogo_iva, righeLeggibili(f.righe)).reduce((tot, r) => tot + r.imponibile, 0))) * 100);
+  const aggiungi = (id: string, centesimi: number) => perCommessa.set(id, (perCommessa.get(id) ?? 0) + centesimi);
+  if (sulCosto.length) {
+    let cumulata = 0;
+    for (const q of sulCosto) {
+      const prima = Math.round(cumulata);
+      cumulata += q.importo != null ? Math.round(q.importo * 100) : base * q.pct / 100;
+      aggiungi(q.order_id, Math.round(cumulata) - prima);
+    }
+  } else if (!magazzino) {
+    for (const ordine of ordini) {
+      if (!ordine.commessa) continue;
+      if (ordine.importo != null) aggiungi(ordine.commessa.id, Math.round(ordine.importo * 100));
+      else if (ordini.length === 1) aggiungi(ordine.commessa.id, base);
+    }
+  }
+  const riparto: Dettaglio["riparto"] = [];
+  const rigaQuota = (nome: string, centesimi: number, id?: string) => ({
+    nome, centesimi, id, percentuale: base ? centesimi * 100 / base : null,
+  });
+  if (perCommessa.size) {
+    const { data: lavori, error } = await supabase.from("orders").select("id,order_code,description,workflow_kind")
+      .eq("company_id", companyId).in("id", [...perCommessa.keys()]);
+    if (error) throw error;
+    for (const [id, centesimi] of perCommessa) {
+      const lavoro = lavori?.find(l => l.id === id);
+      const codice = lavoro?.order_code ?? ordini.find(o => o.commessa?.id === id)?.commessa?.order_code ?? id;
+      const nome = [lavoro?.workflow_kind === "generale" ? "Macrocommessa" : "Commessa", codice, lavoro?.description].filter(Boolean).join(" · ");
+      riparto.push({ ...rigaQuota(nome, centesimi, id), codice });
+    }
+  }
+  if (magazzino) riparto.push(rigaQuota("Magazzino", Math.round(magazzino * 100)));
+  const residuo = base - riparto.reduce((tot, r) => tot + r.centesimi, 0);
+  if (residuo > 0 && (costo.data || riparto.length)) riparto.push(rigaQuota("Costo generale", residuo));
   return {
-    fattura: f,
+    riparto,
+    rateRegistrate: ((rateRegistrate.data ?? []) as Dettaglio["rateRegistrate"]).filter(r => r.stato !== "stornata"),
+    fattura: { ...f, pagata_il: pagamento.data?.pagata_il ?? f.pagata_il, rate_pagate: pagamento.data?.rate_pagate, rate_totali: pagamento.data?.rate_totali },
     ordini,
     costo: costo.data
       ? { id: costo.data.id, amount: costo.data.amount ?? null, category: costo.data.category ?? null, commessa: commessaDi(costo.data.orders), ripartito: allocazioni.length > 1 }
@@ -225,6 +274,8 @@ function ContenutoRiepilogo({
   }, [d, fatturaId, companyId, statoAperto, daLeggereAperta, lettura.mutate]);
 
   const permessi = usePermissions();
+  const [rataScelta, setRataScelta] = useState<RataDaPagare | null>(null);
+  const [modificaQuote, setModificaQuote] = useState(false);
   const [confronto, setConfronto] = useState(false);
   const [pagamenti, setPagamenti] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -274,7 +325,6 @@ function ContenutoRiepilogo({
   });
   // La commessa senza ordine d'acquisto: commessa_collega_fattura_ricevuta (la stessa
   // della scheda commessa) contabilizza se serve e porta il costo sulla commessa.
-  const [scegliCommessa, setScegliCommessa] = useState(false);
   const collegaCommessa = useMutation({
     mutationFn: async (orderId: string) => {
       const { data, error } = await (supabase as any).rpc("commessa_collega_fattura_ricevuta", { p_fattura_id: fatturaId, p_order_id: orderId });
@@ -282,7 +332,6 @@ function ContenutoRiepilogo({
       return data as { esito: string };
     },
     onSuccess: (esito) => {
-      setScegliCommessa(false);
       aggiorna();
       queryClient.invalidateQueries({ queryKey: ["oda-contabilita"] });
       toast.success(esito?.esito === "contabilizzata_e_collegata" ? "Fattura contabilizzata e messa sulla commessa" : "Fattura messa sulla commessa");
@@ -292,6 +341,15 @@ function ContenutoRiepilogo({
   const occupato = collegaFornitore.isPending || aggiungiFornitore.isPending || collegaCommessa.isPending;
 
   const f = d?.fattura;
+  const riparto = d?.riparto ?? [];
+  const pianoDocumento = pagamentoDaMostrare(f);
+  const rateRegistrate = d?.rateRegistrate ?? [];
+  const scadenze = rateRegistrate.length
+    ? rateRegistrate.map(r => ({ data: r.scadenza, pagata: r.stato === "pagata" || !!r.pagata_il, importo: r.importo, metodo: etichettaModalitaPagamento(r.metodo) }))
+    : (pianoDocumento?.rate ?? []).map(r => ({ data: r.scadenza, pagata: !!r.pagataIl, importo: r.importo, metodo: r.metodo }));
+  const saldata = !!f?.pagata_il || (scadenze.length > 0 && scadenze.every(r => r.pagata));
+  const datate = scadenze.filter(r => r.data && (saldata || !r.pagata)).sort((a,b) => a.data!.localeCompare(b.data!));
+  const scadenza = saldata ? datate[datate.length - 1] : datate[0];
   const righe = useMemo(() => righeLeggibili(f?.righe), [f?.righe]);
   const aliquote = useMemo(() => riepilogoIvaLeggibile(f?.riepilogo_iva, righe), [f?.riepilogo_iva, righe]);
   // Il conto di costo riga per riga: dove una fattura mette insieme costi diversi.
@@ -325,9 +383,14 @@ function ContenutoRiepilogo({
 
   return (
     <>
+    {rataScelta && companyId && <PagaRataDialog companyId={companyId} scelta={rataScelta} onClose={() => setRataScelta(null)} />}
+    {modificaQuote && f && companyId && <CollegaFatturaCommesseDialog suImponibile companyId={companyId}
+      fattura={{ id: String(f.id), numero: String(f.numero_fattura ?? ""), fornitore: String(f.cedente_ragione_sociale ?? ""),
+        imponibile, totale, companyCostId: d.costo?.id ?? null, suOrdini: !!d.ordini.length }}
+      onChiudi={() => setModificaQuote(false)} />}
     {pagamenti && <ExpensePaymentDialog key={pagamenti} costId={pagamenti} onClose={() => { setPagamenti(null); aggiorna(); }} />}
     {confronto && f && companyId && <ConfrontoFatturaDialog key={`${companyId}-${fatturaId}`} fattura={f} companyId={companyId} ordineIds={d.ordini.map((o) => o.id)} puoModificare={!!permessi.canViewCosts && !permessi.solaLettura} onClose={() => setConfronto(false)} onVersioneCompleta={azioni.onVersioneCompleta} />}
-    <Radice open={!!fatturaId && !confronto} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Radice open={!!fatturaId && !confronto && !modificaQuote && !rataScelta} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Contenuto
         {...(isMobile ? { side: "bottom" as const } : { onOpenAutoFocus: (e: Event) => e.preventDefault() })}
         className={`commessa-modal-layout ${isMobile ? "max-h-[90dvh] rounded-t-2xl px-4 pb-6" : "max-h-[92dvh] max-w-3xl"} [&_dl_a]:min-h-0 [&_dl_a]:min-w-0`}
@@ -439,66 +502,41 @@ function ContenutoRiepilogo({
                   ) : null}
                 </dd>
 
+                {permessi.canViewCosts && <>
+                  <dt className="text-muted-foreground">Conto di costo</dt>
+                  <dd>{f.stato !== "rifiutata" && !nota && !permessi.solaLettura ? (<ContoDiCosto
+                        companyId={companyId!}
+                        fatturaId={String(f.id)}
+                        costoId={d.costo?.id ?? null}
+                        attuale={d.costo ? d.costo.category : (f.categoria_ai ? String(f.categoria_ai) : null)}
+                        onCambiato={aggiorna}
+                      />) : <span>{d.costo?.category || String(f.categoria_ai || "Non indicato")}</span>}</dd>
+                </>}
                 <dt className="text-muted-foreground">Commessa</dt>
-                <dd className="space-y-1.5">
-                  {(() => {
-                    const commesse = [d.costo?.commessa, ...d.ordini.map((o) => o.commessa)].filter((c): c is { id: string; order_code: string } => !!c);
-                    const uniche = [...new Map(commesse.map((c) => [c.id, c])).values()];
-                    // Si sceglie qui solo senza ordine d'acquisto (con l'ordine la commessa viene
-                    // da lì) e se il costo non è ripartito su più commesse.
-                    // Spese generali (telefonia, luce, banca…): non vanno su una commessa.
-                    const generale = isTipoFornitore(d.fornitore?.tipo) && INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].commessa === "no";
-                    if (generale && !uniche.length) {
-                      return <span className="text-muted-foreground">Non serve: {INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].etichetta.toLowerCase()}</span>;
-                    }
-                    const sceglibile = d.ordini.length === 0 && !d.costo?.ripartito && f.stato !== "rifiutata";
-                    return (
-                      <>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {d.costo?.ripartito ? (
-                            <>
-                              <span>Ripartita su più commesse</span>
-                              {azioni.onCollegaCommesse && d.ordini.length === 0 ? <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" onClick={azioni.onCollegaCommesse}>Cambia</Button> : null}
-                            </>
-                          )
-                            : uniche.length ? uniche.map((c) => (
-                              <Link key={c.id} to={`/azienda/ordini/${c.id}`} className="underline-offset-2 hover:underline"><Badge variant="outline">{c.order_code}</Badge></Link>
-                            )) : <span className="text-muted-foreground">Nessuna</span>}
-                          {sceglibile && !scegliCommessa ? (
-                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => (azioni.onCollegaCommesse ? azioni.onCollegaCommesse() : setScegliCommessa(true))}>
-                              {uniche.length ? "Cambia" : "Scegli commessa"}
-                            </Button>
-                          ) : null}
-                        </div>
-                        {sceglibile && !uniche.length && d.suggerita && !scegliCommessa ? (
-                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                            <Sparkles className="h-3.5 w-3.5 text-primary" />
-                            <span className="text-muted-foreground">L'AI suggerisce</span>
-                            <Badge variant="outline" className="border-dashed">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
-                            <Button variant="link" size="sm" className="h-auto min-h-0 min-w-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>
-                              Collega
-                            </Button>
-                          </div>
-                        ) : null}
-                        {sceglibile && scegliCommessa ? (
-                          <div className="flex items-center gap-2">
-                            <div className="min-w-0 flex-1">
-                              <OrderSelectCombobox
-                                filtroIniziale="all"
-                                generaliSempre
-                                companyId={companyId ?? undefined}
-                                value={undefined}
-                                disabled={occupato}
-                                placeholder="Cerca la commessa…"
-                                onChange={(id) => collegaCommessa.mutate(id)}
-                              />
-                            </div>
-                            <Button variant="ghost" size="sm" onClick={() => setScegliCommessa(false)}>Annulla</Button>
-                          </div>
-                        ) : null}
-                      </>
-                    );
-                  })()}
+                <dd className="min-w-0 space-y-1">
+                  {permessi.canViewCosts && riparto.length > 0 ? (
+                    <table aria-label="Quote per destinazione" className="text-sm">
+                      <tbody>{riparto.map(r => <tr key={r.id ?? r.nome}>
+                        <td className="pr-3">{r.id ? <Link title={r.nome} className="text-primary hover:underline" to={`/azienda/ordini/${r.id}`}>
+                          {r.nome.split(" · ")[0]} · <span>{r.codice}</span>
+                        </Link> : r.nome}</td>
+                        <td className="pr-3 text-right tabular-nums text-muted-foreground">{r.percentuale == null ? "—" : r.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 2 }) + "%"}</td>
+                        <td className="text-right whitespace-nowrap tabular-nums">{formatCurrency(r.centesimi / 100)}</td>
+                      </tr>)}</tbody>
+                    </table>
+                  ) : <span>{[...new Set([d.costo?.commessa?.order_code, ...d.ordini.map(o => o.commessa?.order_code)].filter(Boolean))].join(", ") || "Nessuna"}</span>}
+                  {permessi.canViewCosts && !permessi.solaLettura && !nota && f.stato !== "rifiutata" && !d.ordini.length && <>
+                    <Button variant="link" size="sm" className="ml-1 h-auto min-h-0 p-0 text-xs" onClick={() => setModificaQuote(true)}>
+                      {riparto.some(r => r.id) ? "Modifica ripartizione" : "Ripartisci imponibile"}
+                    </Button>
+                    {d.suggerita && !riparto.some(r => r.id) && !(isTipoFornitore(d.fornitore?.tipo) && INFO_TIPO_FORNITORE[d.fornitore!.tipo as keyof typeof INFO_TIPO_FORNITORE].commessa === "no") && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <Sparkles className="h-3.5 w-3.5 text-primary" /><span>L'AI suggerisce</span>
+                        <Badge variant="outline">{d.suggerita.order_code}{d.suggerita.nome ? ` · ${d.suggerita.nome}` : ""}</Badge>
+                        <Button variant="link" size="sm" className="h-auto min-h-0 p-0 text-xs" disabled={occupato} onClick={() => collegaCommessa.mutate(d.suggerita!.id)}>Collega</Button>
+                      </div>
+                    )}
+                  </>}
                 </dd>
 
                 {permessi.canViewCosts && (
@@ -517,29 +555,29 @@ function ContenutoRiepilogo({
                   {f.verifica_manuale === "da_rettificare" && f.rettifica_motivo ? <p className="mt-1 text-xs text-muted-foreground">{String(f.rettifica_motivo)}</p> : null}
                 </dd>
 
+                {!nonSiPaga(String(f.tipo_documento ?? "")) && <>
+                  <dt className="text-muted-foreground">{scadenze.length > 1 && !saldata ? "Prossima scadenza" : "Scadenza pagamento"}</dt>
+                  <dd>{scadenza?.data ? <>
+                    <strong>{formatDateShort(scadenza.data)}</strong>
+                    {scadenza.importo != null && ` · ${formatCurrency(scadenza.importo)}`}
+                    {scadenza.metodo && ` · ${/^(riba|ri\.ba\.?)$/i.test(scadenza.metodo) ? "Ri.Ba." : scadenza.metodo}`}
+                  </> : "Non indicata"}</dd>
+                </>}
                 <dt className="text-muted-foreground">Pagamento</dt>
                 <dd>
-                  {d.costo && permessi.canViewCosts ? (
-                    <span>Collegato alla stessa spesa: dettagli nella barra delle azioni.</span>
-                  ) : (
-                    <span>{f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` : 'Non saldata'}</span>
-                  )}
+                  <span>{f.pagata_il ? `Pagata il ${formatDateShort(String(f.pagata_il))}` :
+                    Number(f.rate_pagate) > 0 ? `Pagate ${f.rate_pagate} rate su ${f.rate_totali}` : saldata ? "Pagata" : "Non saldata"}</span>
+                  {!nonSiPaga(String(f.tipo_documento ?? "")) && rateRegistrate.length > 0 && <div className="space-y-1">
+                    <div className="font-medium">Residuo fattura · {rateRegistrate.some(r => r.stato !== "pagata" && r.importo == null) ? "Da verificare" : formatCurrency(rateRegistrate.reduce((somma,r) => somma + (r.stato === "pagata" ? 0 : Math.round((r.importo ?? 0) * 100)), 0) / 100)}</div>
+                    {!saldata && rateRegistrate.filter(r => r.stato !== "pagata" && !r.pagata_il).map(r => <div key={r.id || r.numero} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span>Rata {r.numero} · {r.scadenza ? formatDateShort(r.scadenza) : "senza scadenza"}{r.importo != null && ` · ${formatCurrency(r.importo)}`}</span>
+                      {permessi.canViewCosts && !permessi.solaLettura && r.id && r.importo != null && <Button size="sm" variant="link" className="h-auto min-h-0 p-0 text-xs"
+                        aria-label={`Segna pagata la rata ${r.numero}`} onClick={() => setRataScelta({id:r.id, stato:r.stato, importo:r.importo!, titolo:`Rata ${r.numero} · ${f.numero_fattura ?? ""} · ${formatCurrency(r.importo!)}`})}>Segna pagata</Button>}
+                    </div>)}
+                  </div>}
+                  {rateRegistrate.filter(r => r.stato === "pagata" || r.pagata_il).map(r => <div key={r.numero} className="text-xs text-muted-foreground">Rata {r.numero} · pagata{r.pagata_il ? ` il ${formatDateShort(r.pagata_il)}` : ""}</div>)}
                 </dd>
 
-                {permessi.canViewCosts && f.stato !== "rifiutata" && !isNotaCreditoRicevuta(String(f.tipo_documento ?? "")) ? (
-                  <>
-                    <dt className="text-muted-foreground">Conto di costo</dt>
-                    <dd>
-                      <ContoDiCosto
-                        companyId={companyId!}
-                        fatturaId={String(f.id)}
-                        costoId={d.costo?.id ?? null}
-                        attuale={d.costo ? d.costo.category : (f.categoria_ai ? String(f.categoria_ai) : null)}
-                        onCambiato={aggiorna}
-                      />
-                    </dd>
-                  </>
-                ) : null}
 
                 <dt className="text-muted-foreground">Nei costi</dt>
                 <dd>
@@ -644,7 +682,7 @@ function ContenutoRiepilogo({
 
             {/* Pagamento (01/11/2026): rate, metodo e quello che cambia quanto si paga al fornitore. */}
             {(() => {
-              const p = nota ? null : pagamentoDaMostrare(f as Record<string, unknown>);
+              const p = nota ? null : pianoDocumento;
               if (!p) return null;
               const giorno = (d: string | null) => (d ? d.slice(0, 10).split("-").reverse().join("/") : "senza data");
               return (
@@ -655,7 +693,7 @@ function ContenutoRiepilogo({
                     <ul className="divide-y">
                       {p.rate.map((r, i) => (
                         <li key={i} className="flex flex-wrap justify-between gap-x-3 py-1">
-                          <span>{p.rate.length > 1 ? `Rata ${i + 1} · ` : ""}{giorno(r.scadenza)}{r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700"> · pagata il {giorno(r.pagataIl)}</span> : null}</span>
+                          <span>{p.rate.length > 1 ? `Rata ${i + 1} · ` : ""}{giorno(r.scadenza)}{r.metodo === "RiBa" ? " · Ri.Ba. (ricevuta bancaria)" : r.metodo ? ` · ${r.metodo}` : ""}{r.pagataIl ? <span className="text-emerald-700"> · pagata il {giorno(r.pagataIl)}</span> : null}</span>
                           <span className="tabular-nums">{r.importo != null ? formatCurrency(r.importo) : "—"}</span>
                         </li>
                       ))}

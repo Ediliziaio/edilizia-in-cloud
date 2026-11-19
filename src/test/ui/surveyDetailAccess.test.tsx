@@ -15,6 +15,8 @@ const mock = vi.hoisted(() => ({
   on: vi.fn(),
   subscribe: vi.fn(),
   channel: vi.fn(),
+  assignees: vi.fn(),
+  from: vi.fn(),
 }));
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -31,10 +33,10 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 vi.mock("@/lib/api/surveys", () => ({
   getSurvey: mock.get,
-  listAssignees: vi.fn(),
+  listAssignees: mock.assignees,
 }));
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { channel: mock.channel, removeChannel: mock.remove },
+  supabase: { channel: mock.channel, removeChannel: mock.remove, from:mock.from },
 }));
 beforeEach(() => {
   vi.clearAllMocks();
@@ -46,9 +48,23 @@ beforeEach(() => {
   mock.on.mockReturnValue(channel);
   mock.query.mockReturnValue({ data: null });
   mock.get.mockResolvedValue(makeSurveyDetail());
+  mock.assignees.mockResolvedValue([]);
+  const q = {select:()=>q,eq:()=>q,in:()=>q,then:(resolve:(r:{data:object[];error:null})=>void)=>resolve({data:[{id:"tech1",first_name:"Marco",last_name:"Tecnico"}],error:null})};
+  mock.from.mockReturnValue(q);
 });
 afterEach(cleanup);
 describe("Accessi del sopralluogo condiviso fra pagina e popup", () => {
+  it("mostra il tecnico principale anche senza incarichi aggiuntivi", async () => {
+    const survey:ReturnType<typeof makeSurveyDetail>["survey"]={...makeSurveyDetail().survey,client_id:null,contact_id:null,opportunity_id:null,technician_id:"tech1"};
+    renderHook(()=>useSurveyReferences(survey));
+    expect(mock.query.mock.calls[0][0].queryKey).toContain("tech1");
+    await expect(mock.query.mock.calls[0][0].queryFn()).resolves.toMatchObject({assignees:["Marco Tecnico · Tecnico"]});
+  });
+  it("non raddoppia il tecnico già presente fra gli incaricati", async () => {
+    mock.assignees.mockResolvedValue([{user_id:"tech1",role:"technician"}]);
+    renderHook(()=>useSurveyReferences({...makeSurveyDetail().survey,client_id:null,contact_id:null,opportunity_id:null,technician_id:"tech1"}));
+    await expect(mock.query.mock.calls[0][0].queryFn()).resolves.toMatchObject({assignees:["Marco Tecnico · Tecnico"]});
+  });
   it("isola la cache per utente, azienda e commessa e rimuove il canale alla chiusura", async () => {
     const v = renderHook(() => useSurveyDetail("survey1", "order1"));
     const q = mock.query.mock.calls[0][0];

@@ -13,6 +13,9 @@ import { ArrowUpRight, ReceiptText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import type { RiepilogoGenerale } from "@/lib/orders/commesseGenerali";
+import { leggiCostiOperazione } from "@/lib/orders/generali/costiOperazione";
+import { allPaymentRows } from "@/hooks/useSupplierPayments";
+import { quoteDelCosto } from "@/lib/fatturazione/ripartizioneFattura";
 import { dataBreve, euro } from "../piano/formato";
 
 // I join fra costo e fattura superano la profondità dei tipi generati.
@@ -37,31 +40,37 @@ export interface DatiFattureOperazione {
 }
 
 async function leggi(companyId: string, ids: string[]): Promise<DatiFattureOperazione> {
-  const [costiOperazione, costiOrfani] = await Promise.all([
-    db.from("company_costs").select("id, amount, order_id").in("order_id", ids).limit(1000),
-    db.from("company_costs").select("amount").eq("company_id", companyId).is("order_id", null).limit(1000),
+  const [costi, nonAssegnati] = await Promise.all([
+    leggiCostiOperazione(companyId, ids),
+    allPaymentRows<{ amount: number; allocations: unknown; quota_magazzino: number | null }>((a, b) =>
+      db.from("company_costs").select("amount,allocations,quota_magazzino").eq("company_id", companyId)
+        .is("order_id", null).order("id").range(a, b)),
   ]);
-  const costi = (costiOperazione.data ?? []) as { id: string; amount: number | null; order_id: string | null }[];
-  const orfani = (costiOrfani.data ?? []) as { amount: number | null }[];
-
-  let fatture: FatturaOperazione[] = [];
-  if (costi.length > 0) {
-    const { data } = await db
-      .from("fatture_ricevute")
-      .select("id, cedente_ragione_sociale, numero_fattura, data_fattura, imponibile_totale, company_cost_id")
-      .in("company_cost_id", costi.map((c) => c.id))
-      .order("data_fattura", { ascending: false })
-      .limit(500);
-    const commessaDi = new Map(costi.map((c) => [c.id, c.order_id] as const));
-    fatture = ((data ?? []) as Record<string, unknown>[]).map((f) => ({
-      id: String(f.id),
-      fornitore: String(f.cedente_ragione_sociale ?? "Fornitore"),
-      numero: (f.numero_fattura as string) ?? null,
-      data: (f.data_fattura as string) ?? null,
-      imponibile: Number(f.imponibile_totale ?? 0),
-      orderId: commessaDi.get(String(f.company_cost_id)) ?? null,
-    }));
+  const orfani = nonAssegnati.filter(c => !quoteDelCosto(c).length && !c.quota_magazzino);
+  const fatture: FatturaOperazione[] = [];
+  for (let i = 0; i < costi.length; i += 50) {
+    const lotto = costi.slice(i, i + 50);
+    const documenti = await allPaymentRows<{ id: string; cedente_ragione_sociale: string; numero_fattura: string; data_fattura: string; imponibile_totale: number; company_cost_id: string }>((a,b) =>
+      db.from("fatture_ricevute").select("id,cedente_ragione_sociale,numero_fattura,data_fattura,imponibile_totale,company_cost_id")
+        .eq("company_id", companyId).in("company_cost_id", lotto.map(c => c.id)).order("id").range(a,b));
+    for (const costo of lotto) {
+      const documentiCosto = documenti.filter(f => f.company_cost_id === costo.id);
+      const quote = quoteDelCosto(costo).filter(q => ids.includes(q.order_id));
+      if (!quote.length) continue;
+      const percentuale = quote.reduce((n,q) => n + q.pct, 0);
+      let cumulato = 0;
+      for (const f of documentiCosto) {
+        const netto = Number(f.imponibile_totale ?? 0);
+        const prima = Math.round(cumulato);
+        cumulato += documentiCosto.length === 1
+          ? quote.reduce((n,q) => n + (q.importo != null ? Math.sign(netto) * q.importo * 100 : netto * q.pct), 0)
+          : netto * percentuale;
+        fatture.push({ id: f.id, fornitore: f.cedente_ragione_sociale ?? "Fornitore", numero: f.numero_fattura,
+          data: f.data_fattura, imponibile: (Math.round(cumulato) - prima) / 100, orderId: quote.length === 1 ? quote[0].order_id : null });
+      }
+    }
   }
+  fatture.sort((a,b) => (b.data ?? "").localeCompare(a.data ?? "") || a.id.localeCompare(b.id));
   return {
     fatture,
     totale: fatture.reduce((t, f) => t + f.imponibile, 0),
@@ -74,7 +83,7 @@ export function FattureOperazione({ riepilogo }: { riepilogo: RiepilogoGenerale 
   const companyId = useEffectiveCompanyId();
   const ids = [generaleId, ...riepilogo.figlie.map((f) => f.id)];
   const q = useQuery({
-    queryKey: ["generale-fatture-fornitori", generaleId, ids.length],
+    queryKey: ["generale-fatture-fornitori", companyId, ids],
     enabled: !!companyId && riepilogo.permessi.costi,
     staleTime: 60_000,
     queryFn: () => leggi(companyId!, ids),

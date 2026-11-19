@@ -123,7 +123,7 @@ function Pagina({ companyId }: { companyId?: string }) {
   const periodoRichiesto = params.get("rap_periodo");
   const periodo: PeriodoRapportini = ["tutti", "mese", "ultimi30", "anno", "personalizzato"].includes(periodoRichiesto ?? "")
     ? periodoRichiesto as PeriodoRapportini
-    : params.has("rap_mese") || vistaRichiesta === "mappa" ? "mese" : "tutti";
+    : "mese";
   const intervallo = intervalloRapportini(periodo, oggi, mese, params.get("rap_da") ?? "", params.get("rap_a") ?? "");
   const periodoLabel = intervallo ? etichettaPeriodoRapportini(intervallo) : "Periodo da completare";
   const tipoRichiesto = params.get("rap_tipo");

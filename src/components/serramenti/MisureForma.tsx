@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Le misure in più delle sagome, accanto a larghezza e altezza: l'altezza dell'arco (freccia) e,
  * nel trapezio, l'altezza del lato basso e da che parte sta. Le altre sagome (lunetta, tonda, triangolo,
@@ -116,14 +117,14 @@ export function MisureForma({ tipologia, definizione, larghezzaMm, altezzaMm, va
             </div>
             <div>
               <Label className="flex h-5 items-center text-xs">Lato basso (da dentro)</Label>
-              <select
+              <UniformSelect
                 className="h-9 w-full rounded-md border bg-background px-2 text-xs"
                 value={valori.latoMinore ?? "dx"}
                 onChange={(e) => onChange({ ...valori, latoMinore: e.target.value === "sx" ? "sx" : "dx" })}
               >
                 <option value="dx">A destra</option>
                 <option value="sx">A sinistra</option>
-              </select>
+              </UniformSelect>
             </div>
           </>
         )}

@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
@@ -35,7 +37,7 @@ describe("Viste materiali ed economia", () => {
     mount("?tab=finanza&vista_economia=margini");
     expect(screen.queryByRole("button", { name: "Margini e costi" })).not.toBeInTheDocument();
     const select = screen.getByRole("combobox", { name: "Viste economiche" });
-    fireEvent.change(select, { target: { value: "pagamenti" } });
+    changeFormControl(select, { target: { value: "pagamenti" } });
     expect(select).toHaveValue("pagamenti");
     expect(screen.getByRole("status")).toHaveTextContent("vista_economia=pagamenti");
     fireEvent.click(screen.getByRole("button", { name: "Indietro" }));
@@ -61,8 +63,8 @@ describe("Viste materiali ed economia", () => {
   it("su mobile il numero sta nella voce del selettore", () => {
     device.mobile = true;
     render(<OrderWorkspaceNav label="Viste dei materiali" views={MATERIALI_VIEWS} value="articoli" onChange={() => {}} counts={{ articoli: 7, acquisti: null }} />);
-    expect(screen.getByRole("option", { name: "Articoli e misure (7)" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Ordini d’acquisto" })).toBeInTheDocument();
+    expect(formOptions().getByRole("option", { name: "Articoli e misure (7)" })).toBeInTheDocument();
+    expect(formOptions().getByRole("option", { name: "Ordini d’acquisto" })).toBeInTheDocument();
   });
   it("il collegamento SAL apre la vista documenti e il dettaglio senza click aggiuntivi", async () => {
     mount("?tab=articoli&vista_economia=margini#section-sal");

@@ -1,11 +1,10 @@
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useDashboardBillingKPI } from "@/hooks/billing/useDashboardBillingKPI";
 import { leggiModalitaCommesse } from "@/lib/finanziamenti/leggiModalitaCommesse";
-import {OrdersAnnualScope, OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
+import {OrdersCarryoverSummary} from "@/components/orders/OrdersAnnualScope";
 import { OrdersTrashDialog } from '@/components/orders/OrdersTrashDialog';
-import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, orderWorkflowCounts, type OrderScopeGroup} from "@/lib/orders/annualScope";
+import {currentManagementScope, orderEconomics, orderYear, previousOrderReasons, orderScopeGroupIds, type OrderScopeGroup} from "@/lib/orders/annualScope";
 import {TICKET_STATI_CHIUSI} from "@/types/tickets";
-import {OrdersPeriodSummary} from "@/components/orders/OrdersPeriodSummary";
 import {readOrdersPage, soloQuesteCommesse} from "@/lib/orders/listQuery";
 import { parseOrderAdvancedFilters } from "@/lib/orders/advancedFilters";
 import { useState, useMemo, useCallback, useEffect, Suspense } from "react";
@@ -24,12 +23,11 @@ import { useRiepilogoCommesse } from "@/hooks/useRiepilogoCommesse";
 import { RiepilogoCommesseScelta } from "@/components/orders/RiepilogoCommesseScelta";
 import { CATALOGO_RIQUADRI, commesseInRitardo, margineDelPeriodo, riquadriVisibili, serieVisibili, usaGenerali, type RiquadroRiepilogo } from "@/lib/orders/riepilogoCommesse";
 import { useCruscottoGenerali } from "@/hooks/useCruscottoGenerali";
-import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, HardHat, NotebookPen } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Settings2, Clock, Wrench, CheckCircle2, FolderOpen, Coins, Percent, Wallet, History, Receipt, Landmark, Hammer, Building2, Map as MapIcon, FileQuestion, NotebookPen } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
-const CantieriOggi = lazy(() => import("@/pages/azienda/CantieriOggi"));
 const RapportiniCommesse = lazy(() => import("@/pages/azienda/RapportiniCommesse"));
 const OrderCommissionsOverview = lazy(() =>
   import("@/components/orders/OrderCommissionsOverview").then((module) => ({
@@ -44,6 +42,10 @@ import GlobalErrors from "@/pages/azienda/GlobalErrors";
 import MarginalitaCantieri from "@/pages/azienda/MarginalitaCantieri";
 import { format } from "date-fns";
 import { annualComparisonPeriod, comparableOrderMonths, orderChartMonthFilter } from "@/lib/orders/monthlyChart";
+import { OrdersMarginSummary } from "@/components/orders/OrdersMarginSummary";
+import { OrdersSummaryCard } from "@/components/orders/OrdersSummaryCard";
+import { directMarginSummary, groupedSummaryCards, netOrderTotals } from "@/lib/orders/summaryIndicators";
+import { useOrdersPayables } from "@/hooks/useOrdersPayables";
 import { OrdersMonthlyChart } from "@/components/orders/OrdersMonthlyChart";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -58,8 +60,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { OrdersPipelineView } from "@/components/orders/OrdersPipelineView";
-import { OrdersFilters } from "@/components/orders/OrdersFilters";
+import { usePipelineLocali } from "@/lib/orders/pipelineLocali";
+import { PipelineCommesseBoard } from "@/components/orders/PipelineCommesseBoard";
+import { OrdersFilters, OrderSearch } from "@/components/orders/OrdersFilters";
 import { OrdersTable } from "@/components/orders/OrdersTable";
 import { CSVImportDialog } from "@/components/shared/CSVImportDialog";
 import { commessaDaRiga } from "@/lib/orders/importaCommesse";
@@ -68,7 +71,6 @@ import { useToast } from "@/hooks/use-toast";
 import { type OrderWithDetails, getAmountDue, getAmountCollected, getPendingPayments, deleteOrderCascading, getGrossOrderAmount, contrattoPattuito } from "@/lib/orderUtils";
 import { PlanLimitWarning } from "@/components/billing/PlanLimitWarning";
 import { ScopriProgressBanner } from "@/components/subscription/UpgradeScopriBanner";
-import { EsposizioneFlotta } from "@/components/orders/EsposizioneFlotta";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { OrderTypeChoiceDialog } from "@/components/orders/OrderTypeChoiceDialog";
@@ -153,6 +155,19 @@ function OrdersListInner() {
   const [daRaggruppare, setDaRaggruppare] = useState<string[] | null>(null);
   const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
   const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
+  const archivioTabella = usePipelineLocali(effectiveCompany?.id ?? "");
+  const pipelineSelezionata = archivioTabella.pipeline.find(p => p.id === searchParams.get("pipeline"));
+  const idsPipeline = useMemo(() => {
+    if (!pipelineSelezionata) return null;
+    const fasi = new Set(pipelineSelezionata.fasi.map(fase => fase.id));
+    return Object.entries(archivioTabella.fasiPerCommessa)
+      .filter(([, fase]) => fasi.has(fase)).map(([id]) => id).sort();
+  }, [pipelineSelezionata, archivioTabella.fasiPerCommessa]);
+  const riferimentiPipeline = useMemo(() => {
+    const fasi = new Map(archivioTabella.pipeline.flatMap(p => p.fasi.map(f => [f.id, p.nome + " · " + f.name] as const)));
+    return new Map(Object.entries(archivioTabella.fasiPerCommessa).map(([ordine, fase]) => [ordine, fasi.get(fase) ?? "—"]));
+  }, [archivioTabella.pipeline, archivioTabella.fasiPerCommessa]);
+
   const setViewMode = useCallback((v: "table" | "pipeline") => {
     try { localStorage.setItem("orders-view-mode", v); } catch { /* Safari Private Browsing */ }
     setURLParam("viewMode", v);
@@ -286,9 +301,9 @@ function OrdersListInner() {
   // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
   // ma possono essere letti per anno quando serve.
   const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
-    queryKey: ["orders-global-stats", "annual-management-v3", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
+    queryKey: ["orders-global-stats", "annual-management-v4-vat", effectiveCompany?.id, yearFilter, currentYear, lastStatusId, supportStatusId, orderPerms.canViewTickets, generaliConfigurate],
     queryFn: async () => {
-      const EMPTY = { annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[], unitaInVenditaIds: [] as string[] };
+      const EMPTY = { annualVat: netOrderTotals([]), annualIds: [] as string[], totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0, scopeRows: [] as OrderWithDetails[], annual: orderEconomics([]), previous: orderEconomics([]), reasons: {work:0,support:0,payment:0}, previousReasons: {} as Record<string,string[]>, supportOrderIds: [] as string[], generaliIds: [] as string[], unitaInVenditaIds: [] as string[] };
       if (!effectiveCompany?.id) return EMPTY;
       let query = supabase
         .from("orders")
@@ -321,6 +336,7 @@ function OrdersListInner() {
       const annualRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) === currentYear) : righeCheContano;
       const previousRows = isYearCorrente ? righeCheContano.filter(order => orderYear(order) < currentYear) : [];
       const annual = orderEconomics(annualRows, incassiUnita, permuteUnita);
+      const annualVat = netOrderTotals(annualRows.map(order => ({ ...orderEconomics([order], incassiUnita, permuteUnita), vatRate: order.vat_rate })));
       const previous = orderEconomics(previousRows, incassiUnita, permuteUnita);
       const previousReasons = Object.fromEntries(previousRows.map(order => [order.id,previousOrderReasons(order,currentYear,lastStatusId,supportStatusId,ticketIds)]));
       const reasons = {work:0,support:0,payment:0};
@@ -341,7 +357,7 @@ function OrdersListInner() {
       }
       const countDaCompletare = righeCheContano.length - countAssistenza - countCompletati;
       const unitaInVenditaIds = [...(statoVendita?.entries() ?? [])].filter(([, v]) => unitaInVendita(v)).map(([id]) => id);
-      return { annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds, unitaInVenditaIds };
+      return { annualVat, annualIds: annualRows.map((order) => order.id), totalOrders: righeCheContano.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare, scopeRows: rows, annual, previous, reasons, previousReasons, supportOrderIds, generaliIds, unitaInVenditaIds };
     },
     enabled: !!effectiveCompany?.id && !isLoadingStatuses && !isStatusesError && !orderPerms.isLoading,
     refetchOnMount: "always",
@@ -355,12 +371,6 @@ function OrdersListInner() {
     [scopeOrders, paymentFilter, sidebarFilters.paymentStatus]);
   const scopeOrderIds = useMemo(() => scopeOrders.map(order => order.id), [scopeOrders]);
   const listScopeIds = useMemo(() => orderScopeGroupIds(scopeOrders,scopeGroup,currentYear), [scopeOrders,scopeGroup,currentYear]);
-  const listScopeCounts = useMemo(() => {
-    const ids = new Set(isYearCorrente ? listScopeIds : scopeOrderIds);
-    for (const id of globalStats?.generaliIds ?? []) ids.delete(id); // le generali non sono lavori da contare
-    for (const id of globalStats?.unitaInVenditaIds ?? []) ids.delete(id); // né le unità ancora da vendere
-    return orderWorkflowCounts(scopeOrders.filter(order=>ids.has(order.id)),lastStatusId,supportStatusId,new Set(globalStats?.supportOrderIds ?? []));
-  },[scopeOrders,listScopeIds,scopeOrderIds,isYearCorrente,lastStatusId,supportStatusId,globalStats?.supportOrderIds,globalStats?.generaliIds,globalStats?.unitaInVenditaIds]);
   const {data: scopeMargins, isPending: scopeMarginsPending, isError: scopeMarginsError, refetch: retryScopeMargins} = useQuery({
     queryKey: ["orders-margin-scope", effectiveCompany?.id, scopeOrderIds],
     enabled: !!effectiveCompany?.id && !!globalStats && (orderPerms.canViewMargins || orderPerms.canViewCosts),
@@ -406,8 +416,8 @@ function OrdersListInner() {
     && focusIds === null && countActiveFilters(sidebarFilters) === 0
     && !contractDateRange.from && !contractDateRange.to && !warehouseDateRange.from && !warehouseDateRange.to
     && !expectedDateRange.from && !expectedDateRange.to && monthFilter === "all";
-  const fetchOrderRows = (from: number, to: number) => readOrdersPage({
-    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
+  const fetchOrderRows = (from: number, to: number, filtroFocus = focusIds) => readOrdersPage({
+    soloPrimoLivello, generaliFilter, companyId:effectiveCompany?.id, periodIds:isYearCorrente ? listScopeIds : null, supportOrderIds:globalStats?.supportOrderIds, focusIds:filtroFocus, paymentIds, salespersonFilter, laborFilter, supplierFilter, sidebarFilters, customerFilter, debouncedSearch, statusFilter, supportStatusId, lastStatusId, hideCompleted, amountMin, amountMax, isYearCorrente, monthFilter, currentYear, hasSelectedYear, selectedYear, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir
   },from,to);
 
   const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, isFetching: isOrdersFetching, error: ordersError, refetch: refetchOrders } = useQuery({
@@ -559,9 +569,13 @@ function OrdersListInner() {
   // corrente, vanno derivate da `rawOrders` o da una nuova query dedicata.)
 
   const {data: allOrdersForPipeline = [], isPending: pipelinePending, isError: pipelineError, refetch: retryPipeline} = useQuery({
-    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), sortField, sortDir],
-    enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady,
-    queryFn: async () => (await fetchOrderRows(0, Infinity)).orders,
+    queryKey: ["orders-pipeline", effectiveCompany?.id, filterReaderKey(), soloPrimoLivello, idsPipeline, sortField, sortDir],
+    enabled: !!effectiveCompany?.id && viewMode === "pipeline" && focusReady && !archivioTabella.caricamento && !archivioTabella.errore && !isLoadingStatuses && !isStatusesError,
+    queryFn: async () => {
+      const ids = idsPipeline && focusIds ? idsPipeline.filter(id => focusIds.includes(id)) : idsPipeline ?? focusIds;
+      if (ids?.length === 0) return [];
+      return (await fetchOrderRows(0, Infinity, ids)).orders;
+    },
     staleTime: 3 * 60 * 1000,
   });
 
@@ -680,6 +694,7 @@ function OrdersListInner() {
   // Column visibility state
   const OPTIONAL_COLUMNS = [
     { key: "date", label: "Data Commessa" },
+    { key: "pipeline", label: "Pipeline" },
     { key: "customer", label: "Cliente" },
     { key: "totalIvato", label: "Tot. Ivato" },
     { key: "imponibile", label: "Imponibile" },
@@ -700,11 +715,15 @@ function OrdersListInner() {
     { key: "payment_type", label: "Tipo Pagamento" },
   ] as const;
 
-  const DEFAULT_COLUMNS = new Set(["date", "customer", "totalIvato", "imponibile", "collected", "due", "variableCosts", "payments"]);
+  const DEFAULT_COLUMNS = new Set(["pipeline", "date", "customer", "totalIvato", "imponibile", "collected", "due", "variableCosts", "payments"]);
 
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     try {
-      const saved = localStorage.getItem("orders-visible-columns-v2");
+      const saved = localStorage.getItem("orders-visible-columns-v3");
+      if (!saved) {
+        const precedenti = localStorage.getItem("orders-visible-columns-v2");
+        if (precedenti) return new Set(["pipeline", ...JSON.parse(precedenti)]);
+      }
       if (saved) return new Set(JSON.parse(saved));
     } catch { /* storage non disponibile — silenzioso */ }
     return new Set(DEFAULT_COLUMNS);
@@ -724,7 +743,7 @@ function OrdersListInner() {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      try { localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
+      try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...next])); } catch { /* Safari Private Browsing */ }
       return next;
     });
   };
@@ -1017,7 +1036,7 @@ function OrdersListInner() {
   }), [globalStats]);
 
   // Da telefono la parte blu è il riassunto dei soldi. Fatturato: il registro vendite, come nel cruscotto.
-  const { data: kpiFatturazione } = useDashboardBillingKPI(
+  const { data: kpiFatturazione, isLoading: billingLoading } = useDashboardBillingKPI(
     effectiveCompany?.id ?? null, isNative && orderPerms.canViewBilling && sceltaRiepilogo.riquadri.includes("fatturato"));
   const costiSostenuti = useMemo(() => {
     if (!scopeMargins || !globalStats) return null;
@@ -1364,7 +1383,6 @@ function OrdersListInner() {
     isLoadingGlobalStats ||
     !globalStats
   );
-  const isWorkflowStatsLoading = isEconomicStatsLoading || (!!effectiveCompany?.id && isLoadingStatuses);
 
   // Riepilogo commesse: i riquadri e il grafico li sceglie l'azienda; chi guarda vede solo quelli che i suoi permessi consentono.
   const [sceltaRiepilogoAperta, setSceltaRiepilogoAperta] = useState(false);
@@ -1373,9 +1391,20 @@ function OrdersListInner() {
     fatturazione: orderPerms.canViewBilling && isNative,
     appalti: modelliGenerali.includes("appalto"), operazioni: modelliGenerali.includes("sviluppo") || modelliGenerali.includes("compravendita"),
   };
-  const riquadriRiepilogo = riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo);
+  const margineMedio = useMemo(() => directMarginSummary(scopeMargins ?? [], new Set(globalStats?.annualIds ?? [])), [scopeMargins, globalStats]);
+  const margineConseguito = useMemo(() => {
+    const ids = new Set(globalStats?.annualIds ?? []);
+    const completate = new Set((globalStats?.scopeRows ?? []).filter(order => ids.has(order.id) && !!lastStatusId && order.current_status_id === lastStatusId).map(order => order.id));
+    return directMarginSummary(scopeMargins ?? [], completate);
+  }, [scopeMargins, globalStats, lastStatusId]);
+  const costiDaPagare = useOrdersPayables(effectiveCompany?.id, globalStats?.annualIds ?? [], orderPerms.canViewCosts && !!globalStats && !isGlobalStatsError && !isStatusesError);
+  const riquadriRiepilogo = groupedSummaryCards(riquadriVisibili(sceltaRiepilogo.riquadri, permessiRiepilogo));
   // I numeri delle generali li dà il server, già filtrati per permesso: si chiedono solo se un riquadro li usa.
   const { data: numeriGenerali, isPending: numeriGeneraliPending } = useCruscottoGenerali(usaGenerali(riquadriRiepilogo));
+  const nettoIncassato = globalStats?.annualVat?.collected;
+  const nettoResiduo = globalStats?.annualVat?.pending;
+  const quotaIncassata = nettoIncassato != null && nettoResiduo != null && nettoIncassato + nettoResiduo > 0 ? Math.max(0, nettoIncassato) / (Math.max(0, nettoIncassato) + Math.max(0, nettoResiduo)) * 100 : null;
+  const incidenzaCosti = isYearCorrente && permessiRiepilogo.fatturazione && costiSostenuti != null && kpiFatturazione?.fatturato_ytd && kpiFatturazione.fatturato_ytd > 0 ? costiSostenuti / kpiFatturazione.fatturato_ytd * 100 : null;
   const valoriRiepilogo = useMemo(() => {
     const euro = (n: number) => n.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" });
     const periodo = isYearCorrente ? String(currentYear) : "del periodo";
@@ -1390,12 +1419,12 @@ function OrdersListInner() {
     const valori: Record<RiquadroRiepilogo, { titolo: string; valore: string; nota: string; icona: typeof Euro }> = {
       commesse: { titolo: isYearCorrente ? `Commesse ${currentYear}` : "Commesse del periodo", valore: String(quanteCommesse), icona: ShoppingBag,
         nota: `media mese ${monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}` },
-      venduto: { titolo: `Venduto sulle commesse ${periodo}`, valore: euro(stats.totalGross), icona: Euro, nota: `media commessa ${euro(stats.averageGross)}` },
-      incassato: { titolo: `Incassato sulle commesse ${periodo}`, valore: euro(stats.collected), icona: TrendingUp, nota: `media mese ${euro(monthlySalesAverages.collectedPerMonth)}` },
+      venduto: { titolo: `Venduto · contratti ${periodo}`, valore: soldi(globalStats?.annualVat?.sold), icona: Euro, nota: `Imponibile · ${quanteCommesse} commesse` },
+      incassato: { titolo: `Incassi commesse ${periodo}`, valore: soldi(globalStats?.annualVat?.collected), icona: TrendingUp, nota: "Già incassato · imponibile" },
       da_incassare: { titolo: `Da incassare ${isYearCorrente ? currentYear : "periodo"}`, valore: euro(stats.pending), icona: AlertCircle,
-        nota: `${monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto` },
+        nota: "residuo sulle commesse" },
       ticket_medio: { titolo: "Valore medio commessa", valore: euro(stats.averageGross), icona: Coins, nota: `su ${quanteCommesse} commesse · IVA inclusa` },
-      costi: { titolo: `Costi sostenuti ${periodo}`, valore: costiSostenuti == null ? "—" : euro(costiSostenuti), icona: Wallet, nota: "registrati sulle commesse" },
+      costi: { titolo: `Costi commesse ${periodo}`, valore: costiSostenuti == null ? "—" : euro(costiSostenuti), icona: Wallet, nota: "Registrati sulle commesse · imponibile" },
       margine: { titolo: `Margine ${periodo}`, valore: margine ? euro(margine.margine) : "—", icona: Percent,
         nota: !margine ? "" : `${margine.percentuale == null ? "—" : `${margine.percentuale.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`} su ${margine.conCosti} con costi${margine.senzaCosti ? ` · ${margine.senzaCosti} senza` : ""}` },
       aperte: { titolo: "Commesse aperte", valore: String(stats.countDaCompletare), icona: FolderOpen, nota: "anche degli anni prima" },
@@ -1404,7 +1433,7 @@ function OrdersListInner() {
       completate: { titolo: "Completate", valore: String(stats.countCompletati), icona: CheckCircle2, nota: "arrivate all'ultima fase" },
       pregresso: { titolo: "Pregresso da gestire", valore: String(globalStats?.previous.count ?? 0), icona: History,
         nota: `${globalStats?.reasons.work ?? 0} lavori · ${globalStats?.reasons.support ?? 0} assistenze · ${globalStats?.reasons.payment ?? 0} saldi` },
-      fatturato: { titolo: `Fatturato ${currentYear}`, valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: "imponibile, tutta l'azienda" },
+      fatturato: { titolo: `Fatturato · fatture ${currentYear}`, valore: kpiFatturazione?.fatturato_ytd == null ? "—" : euro(kpiFatturazione.fatturato_ytd), icona: Receipt, nota: "Fatture emesse · IVA esclusa · tutta l’azienda" },
       appalti_valore: { titolo: "Valore appalti in corso", valore: soldi(ta?.valore), icona: Landmark,
         nota: `${ta?.appalti ?? 0} ${ta?.appalti === 1 ? "appalto" : "appalti"} · eseguito ${soldi(ta?.eseguito)}` },
       appalti_da_eseguire: { titolo: "Lavori da eseguire", valore: soldi(ta?.daEseguire), icona: Hammer, nota: `su ${soldi(ta?.valore)} di appalti` },
@@ -1419,8 +1448,122 @@ function OrdersListInner() {
       operazioni_margine: { titolo: "Margine a finire operazioni", valore: soldi(to?.margineAFinire), icona: Percent, nota: `stima su ${to?.conPiano ?? 0} operazioni con il piano` },
     };
     return valori;
-  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione]);
+  }, [globalStats, stats, isYearCorrente, currentYear, lastStatusId, supportStatusId, scopeMargins, costiSostenuti, monthlySalesAverages, numeriGenerali, kpiFatturazione, orderPerms.canViewBilling, isNative]);
 
+  const barraBacheca = viewMode === "pipeline" && focusReady && !isStatusesError && !pipelinePending && !pipelineError && !(needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError));
+  const filtriCommesse = (<OrdersFilters panel={barraBacheca}
+            trailingControls={viewMode === "table" ? (
+              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
+                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
+                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Data creazione</SelectItem>
+                    <SelectItem value="order_code">Codice commessa</SelectItem>
+                    <SelectItem value="description">Descrizione</SelectItem>
+                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
+                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
+                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
+                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
+                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
+                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↓ Recenti"
+                        : "↓ Z → A"
+                    }</SelectItem>
+                    <SelectItem value="asc">{
+                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
+                        ? "↑ Vecchi"
+                        : "↑ A → Z"
+                    }</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
+                      <Columns className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-[280px] p-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Colonne visibili</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisibleColumns(new Set(DEFAULT_COLUMNS));
+                            try { localStorage.setItem("orders-visible-columns-v3", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground underline"
+                        >
+                          Ripristina
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
+                        {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
+                          <label
+                            key={col.key}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
+                          >
+                            <Checkbox
+                              checked={visibleColumns.has(col.key)}
+                              onCheckedChange={() => toggleColumn(col.key)}
+                              className="shrink-0"
+                            />
+                            <span className="text-xs truncate">{col.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {(sortField !== "created_at" || sortDir !== "desc") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="col-span-2 h-8 text-xs sm:col-span-1"
+                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
+                  >
+                    Ripristina
+                  </Button>
+                )}
+              </div>
+            ) : undefined}
+            summary={
+              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
+                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
+              </span>
+            }
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statuses={statuses}
+            yearFilter={yearFilter}
+            onYearFilterChange={handleYearChange}
+            availableYears={availableYears}
+            paymentFilter={paymentFilter}
+            onPaymentFilterChange={setPaymentFilter}
+            generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
+            onGeneraliFilterChange={setGeneraliFilter}
+            monthFilter={monthFilter}
+            onMonthFilterChange={handleMonthChange}
+            hasAnyFilter={hasAnyFilter}
+            onClearAllFilters={clearAllFilters}
+            hideCompleted={hideCompleted && statusFilter === "all"}
+            onHideCompletedChange={(value) => {
+              setHideCompleted(value);
+              if (value) setStatusFilter("all");
+            }}
+          />);
   return (
     // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
     <div className="orders-workspace flex flex-col gap-3">
@@ -1576,18 +1719,15 @@ function OrdersListInner() {
 
       <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className={`grid gap-0 ${analisiAperta && orderPerms.canViewOrderAmounts && !isMobile ? "xl:grid-cols-2" : ""}`}>
-          <div className="bg-eic-navy-deep p-3 text-white">
+          <div className="flex flex-col bg-eic-navy-deep px-3 py-2 text-white">
             <div className="flex flex-wrap items-start justify-between gap-3 max-md:hidden">
-              <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-                <div className="flex h-9 w-9 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+              <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                   <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
-                  <h2 className="mt-0.5 sm:mt-1 text-base sm:text-lg font-semibold text-white">Vista economica e operativa</h2>
-                  <p className="hidden sm:block mt-0.5 max-w-xl text-xs leading-4 text-blue-50/85">
-                    {isYearCorrente ? `Valori delle commesse ${currentYear} · IVA inclusa. Pregresso separato qui sotto.` : "Valori delle commesse nel periodo selezionato, indipendenti dai filtri sotto."}
-                  </p>
+                  <h2 className="text-base font-semibold text-white">Riepilogo commesse · {isYearCorrente ? currentYear : "Periodo selezionato"}</h2>
+
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -1604,73 +1744,35 @@ function OrdersListInner() {
               </button>}
               </div>
             </div>
+            {orderPerms.canViewMargins && <OrdersMarginSummary average={margineMedio} completed={margineConseguito}
+              loading={isEconomicStatsLoading || scopeMarginsPending} error={scopeMarginsError || isGlobalStatsError || isStatusesError} />}
             {(isGlobalStatsError || isStatusesError) && <div role="alert" className="mt-3 rounded-lg border border-amber-300/40 p-3 text-sm text-amber-100">Riepilogo non disponibile. <button type="button" className="underline" onClick={()=>{void retryStatuses();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</button></div>}
-            {/* Da telefono: gli stessi riquadri scelti dall'azienda, in forma compatta. */}
-            {!isGlobalStatsError && !isStatusesError && isMobile && <dl aria-label="Riepilogo commesse" className="grid grid-cols-2 gap-1.5">
+            {!isGlobalStatsError && !isStatusesError && <div className={`mt-1.5 grid grid-cols-1 gap-1.5 min-[380px]:grid-cols-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
               {riquadriRiepilogo.map((id) => {
                 const v = valoriRiepilogo[id];
-                const voce = CATALOGO_RIQUADRI.find((c) => c.id === id);
-                const inAttesa = voce?.gruppo !== "commesse" ? numeriGeneraliPending
+                const voce = CATALOGO_RIQUADRI.find(c => c.id === id);
+                const inAttesa = voce?.gruppo !== "commesse" ? numeriGeneraliPending : id === "fatturato" ? billingLoading
                   : isEconomicStatsLoading || ((voce?.permesso === "costi" || voce?.permesso === "margini") && scopeMarginsPending);
-                return <div key={id} data-riquadro={id} className="min-w-0 rounded-lg border border-white/12 bg-white/9 px-2.5 py-1.5">
-                  <dt className="truncate text-[10px] font-semibold uppercase tracking-wide text-blue-100">{v.titolo}</dt>
-                  <dd className="truncate text-base font-bold tabular-nums text-white">{inAttesa ? "—" : v.valore}</dd>
-                  <dd className="truncate text-[11px] text-blue-50/70">{inAttesa ? "" : v.nota}</dd>
-                </div>;
-              })}
-            </dl>}
-            {!isGlobalStatsError && !isStatusesError && !isMobile && <div className={`mt-2 grid grid-cols-2 gap-2 ${analisiAperta ? "" : "xl:grid-cols-4"}`}>
-              {riquadriRiepilogo.map((id) => {
-                const v = valoriRiepilogo[id];
-                const Icona = v.icona;
-                const daCosti = CATALOGO_RIQUADRI.find((c) => c.id === id)?.permesso;
-                const gruppo = CATALOGO_RIQUADRI.find((c) => c.id === id)?.gruppo;
-                const inAttesa = gruppo !== "commesse" ? numeriGeneraliPending
-                  : isEconomicStatsLoading || ((daCosti === "costi" || daCosti === "margini") && scopeMarginsPending);
-                return <div key={id} data-riquadro={id} className="rounded-xl border border-white/12 bg-white/9 p-2 sm:p-2">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
-                      <Icona className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">{v.titolo}</span>
-                      {inAttesa ? (
-                        <>
-                          <Skeleton className="mt-1 h-7 w-20 bg-white/20" />
-                          <Skeleton className="mt-1 h-3 w-24 bg-white/15" />
-                        </>
-                      ) : (
-                        <>
-                          <span className="block truncate text-lg font-bold text-white">{v.valore}</span>
-                          <span className="mt-0.5 block truncate text-xs text-blue-50/70">{v.nota}</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                </div>;
+                const ring = id === "incassato" && quotaIncassata != null ? { value: quotaIncassata, label: "Quota incassata", color: "green" as const }
+                  : id === "costi" && incidenzaCosti != null ? { value: incidenzaCosti, label: "Costi commesse sul fatturato aziendale", color: "amber" as const } : undefined;
+                return <OrdersSummaryCard key={id} id={id} title={v.titolo} value={v.valore} note={(id === "venduto" || id === "incassato") && globalStats?.annualVat?.missing ? `Imponibile da verificare · ${globalStats.annualVat.missing} aliquote mancanti` : v.nota} alternateValue={id === "venduto" ? stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : id === "incassato" ? stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : id === "fatturato" && kpiFatturazione?.fatturato_ytd_ivato != null ? kpiFatturazione.fatturato_ytd_ivato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) : undefined} icon={v.icona} loading={inAttesa} ring={ring} info={id === "costi" ? `Il totale costi è imponibile. Il totale IVA inclusa non è disponibile nella fonte aggregata: non viene stimato con un’aliquota fissa. I costi registrati sono attribuiti alle commesse: non comprendono i costi fissi aziendali non imputati. I debiti ancora da pagare includono l’IVA se dovuta e non sono costi aggiuntivi da sommare.${incidenzaCosti != null ? " Il cerchio confronta i costi delle commesse con il fatturato aziendale, entrambi senza IVA." : ""}` : id === "incassato" || id === "venduto" ? "Imponibile ricavato scorporando l’IVA registrata su ciascuna commessa, senza usare un’aliquota unica. Il cerchio degli incassi usa imponibile incassato e residuo imponibile. Le aliquote mancanti richiedono verifica." : undefined}>
+                  {id === "incassato" && <div className="text-xs text-blue-100"><div className="flex flex-wrap justify-between gap-x-2 gap-y-1"><span>Da incassare · imponibile</span><strong className="font-semibold tabular-nums text-white">{isEconomicStatsLoading ? "…" : nettoResiduo == null ? "—" : nettoResiduo.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div><div className="mt-1 flex flex-wrap justify-between gap-1 text-[10px] text-blue-100/80"><span>IVA inclusa</span><span className="tabular-nums">{isEconomicStatsLoading ? "…" : valoriRiepilogo.da_incassare.valore}</span></div></div>}
+                  {id === "costi" && <>
+                    <div className="flex flex-wrap justify-between gap-x-2 gap-y-1 text-xs text-blue-100"><span>Da pagare · IVA se dovuta</span><strong className="font-semibold tabular-nums text-white">{costiDaPagare.isError ? "—" : costiDaPagare.isPending ? "…" : (costiDaPagare.data ?? 0).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}</strong></div>
+                    {costiDaPagare.isError && <button type="button" onClick={() => void costiDaPagare.refetch()} className="mt-1 text-xs text-amber-200 underline">Costi da pagare non disponibili · Riprova</button>}
+                  </>}
+                </OrdersSummaryCard>;
               })}
             </div>}
-            {/* Da telefono restano i numeri: pregresso, spiegazioni ed esposizione sono da scrivania. */}
+            {/* Da telefono restano i numeri: il pregresso è da scrivania. */}
             {isYearCorrente && globalStats && !isGlobalStatsError && !isStatusesError && !isMobile && <OrdersCarryoverSummary
               previous={globalStats.previous} reasons={globalStats.reasons} showAmounts={orderPerms.canViewOrderAmounts} />}
-            <details className="mt-2 text-xs text-blue-100 max-md:hidden">
-              <summary className="cursor-pointer rounded py-1 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">Come vengono calcolati?</summary>
-              <p className="mt-2 max-w-3xl leading-relaxed">L’anno della commessa è quello di creazione. Il riepilogo annuale include anche le completate e rimane indipendente dai filtri dell’elenco. Gli importi sono IVA inclusa. “Incassato” indica quanto riscosso su quelle commesse, non i movimenti di cassa avvenuti nell’anno. I motivi del pregresso possono sovrapporsi senza duplicare le commesse.</p>
-            </details>
-            {/* Cantieri finanziati dall'azienda: appare solo quando esiste il
-                problema (saldo cassa negativo su commesse aperte). */}
-            {orderPerms.canViewOrderAmounts && orderPerms.canViewCosts && !isMobile && (
-              <EsposizioneFlotta
-                companyId={effectiveCompany?.id}
-                excludeStatusIds={[lastStatusId]}
-              />
-            )}
           </div>
 
           {analisiAperta && orderPerms.canViewOrderAmounts && !isMobile && (
-          <aside id="orders-annual-chart" className="min-w-0 border-t border-slate-200 bg-white p-3 xl:border-l xl:border-t-0">
+          <aside id="orders-annual-chart" className="flex min-w-0 border-t border-slate-200 bg-white px-3 py-2 xl:border-l xl:border-t-0">
             {isMonthlyOrdersError ? <div role="alert" className="p-4 text-sm text-amber-800">Andamento non disponibile. <Button variant="outline" size="sm" onClick={()=>void queryClient.invalidateQueries({queryKey:["orders-monthly-sales-chart"]})}>Riprova grafico</Button></div> : isLoadingMonthlyOrders ? (
-              <div aria-label="Caricamento andamento" className="flex h-[220px] items-end gap-3 px-4 pb-4">
+              <div aria-label="Caricamento andamento" className="flex h-[160px] items-end gap-3 px-4 pb-4">
                 {[60,92,48,130,78,155,105,184].map((height,index)=><Skeleton key={index} className="flex-1 rounded-t-md" style={{height}}/>)}
               </div>
             ) : <OrdersMonthlyChart months={chartWithComparison}
@@ -1683,6 +1785,7 @@ function OrdersListInner() {
           </aside>
           )}
         </div>
+
       </section>
 
       <OrdersFilterSidebar
@@ -1711,139 +1814,13 @@ function OrdersListInner() {
       />
 
       <div className="order-3 space-y-2 sm:order-none">
-          <div className="flex flex-wrap items-start gap-2">
-          {isYearCorrente && <OrdersAnnualScope year={currentYear} annualCount={globalStats?.annual.count ?? 0} previousCount={globalStats?.previous.count ?? 0}
-            selected={scopeGroup} onChange={setScopeGroup} loading={isLoadingGlobalStats || isLoadingStatuses || !globalStats}
-            failed={isGlobalStatsError || isStatusesError} />}
-          <details className="shrink-0 rounded-xl border border-slate-200 bg-white text-sm open:basis-full">
-            <summary className="cursor-pointer rounded-xl px-3 py-2 font-medium text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
-              Stati e margini {controlFocus !== "all" || statusFilter !== "all" ? "· filtro attivo" : ""}
-            </summary>
-      <OrdersPeriodSummary counts={listScopeCounts}
-        loading={isWorkflowStatsLoading} failed={isGlobalStatsError || isStatusesError} status={statusFilter} onStatus={setStatusFilter}
-        showMargins={orderPerms.canViewMargins} margins={marginGroups} marginLoading={scopeMarginsPending} marginFailed={scopeMarginsError}
-        focus={controlFocus} onFocus={setControlFocus} onRetry={() => {void retryStatuses();void retryScopeMargins();void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}} />
-          </details>
-          </div>
-          <OrdersFilters
-            trailingControls={viewMode === "table" ? (
-              <div role="group" aria-label="Opzioni tabella commesse" className="hidden items-center shrink-0 gap-1.5 sm:flex">
-                <Select value={sortField} onValueChange={(v) => { setSortField(v as typeof sortField); setPage(1); }}>
-                  <SelectTrigger aria-label="Ordina commesse per" title="Ordina per" className="h-8 w-[124px] px-2 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created_at">Data creazione</SelectItem>
-                    <SelectItem value="order_code">Codice commessa</SelectItem>
-                    <SelectItem value="description">Descrizione</SelectItem>
-                    <SelectItem value="total_amount">Importo imponibile</SelectItem>
-                    <SelectItem value="expected_date">Data posa prevista</SelectItem>
-                    <SelectItem value="warehouse_arrival_date">Arrivo merce</SelectItem>
-                    <SelectItem value="work_start_date">Inizio lavori</SelectItem>
-                    <SelectItem value="work_end_date">Fine lavori</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sortDir} onValueChange={(v) => { setSortDir(v as "asc" | "desc"); setPage(1); }}>
-                  <SelectTrigger aria-label="Direzione ordinamento" className="h-8 w-[98px] px-2 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↓ Recenti"
-                        : "↓ Z → A"
-                    }</SelectItem>
-                    <SelectItem value="asc">{
-                      ["created_at","total_amount","expected_date","warehouse_arrival_date","work_start_date","work_end_date"].includes(sortField)
-                        ? "↑ Vecchi"
-                        : "↑ A → Z"
-                    }</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 w-8 px-0 text-xs" title="Colonne visibili" aria-label="Colonne visibili">
-                      <Columns className="h-3.5 w-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-[280px] p-3">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium">Colonne visibili</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setVisibleColumns(new Set(DEFAULT_COLUMNS));
-                            try { localStorage.setItem("orders-visible-columns-v2", JSON.stringify([...DEFAULT_COLUMNS])); } catch { /* Storage non disponibile: ripristino comunque la vista. */ }
-                          }}
-                          className="text-xs text-muted-foreground hover:text-foreground underline"
-                        >
-                          Ripristina
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
-                        {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
-                          <label
-                            key={col.key}
-                            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
-                          >
-                            <Checkbox
-                              checked={visibleColumns.has(col.key)}
-                              onCheckedChange={() => toggleColumn(col.key)}
-                              className="shrink-0"
-                            />
-                            <span className="text-xs truncate">{col.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {(sortField !== "created_at" || sortDir !== "desc") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="col-span-2 h-8 text-xs sm:col-span-1"
-                    onClick={() => { setSortField("created_at"); setSortDir("desc"); setPage(1); }}
-                  >
-                    Ripristina
-                  </Button>
-                )}
-              </div>
-            ) : undefined}
-            summary={
-              <span role="status" aria-live="polite" title="Risultati con i filtri attuali">
-                <strong className="tabular-nums text-slate-900">{isOrdersFetching || isOrdersLoading ? "…" : isOrdersError || isStatusesError ? "—" : visibleTotalCount}</strong> risultati
-              </span>
-            }
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            statuses={statuses}
-            yearFilter={yearFilter}
-            onYearFilterChange={handleYearChange}
-            availableYears={availableYears}
-            paymentFilter={paymentFilter}
-            onPaymentFilterChange={setPaymentFilter}
-            generaliFilter={mappaGenerali.figliePerGenerale.size > 0 ? generaliFilter : undefined}
-            onGeneraliFilterChange={setGeneraliFilter}
-            monthFilter={monthFilter}
-            onMonthFilterChange={handleMonthChange}
-            hasAnyFilter={hasAnyFilter}
-            onClearAllFilters={clearAllFilters}
-            hideCompleted={hideCompleted && statusFilter === "all"}
-            onHideCompletedChange={(value) => {
-              setHideCompleted(value);
-              if (value) setStatusFilter("all");
-            }}
-          />
+          {barraBacheca ? null : filtriCommesse}
 
 
           {/* Content */}
           {isStatusesError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare gli stati delle commesse. <Button onClick={() => void retryStatuses()}>Riprova</Button></div>) : needsScope && ((controlFocus !== "all" && scopeMarginsError) || isGlobalStatsError) ? (
             <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Impossibile verificare i dati necessari per questi filtri. <Button variant="outline" onClick={() => {void retryScopeMargins(); void queryClient.invalidateQueries({queryKey:["orders-global-stats"]});}}>Riprova</Button></div>
-          ) : isOrdersError ? (
+          ) : viewMode === "table" && isOrdersError ? (
             <Card className="border-red-200 bg-red-50/70">
               <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
@@ -1861,7 +1838,7 @@ function OrdersListInner() {
                 </Button>
               </CardContent>
             </Card>
-          ) : isOrdersLoading ? (
+          ) : viewMode === "table" && isOrdersLoading ? (
             <Card>
               <CardContent className="p-6 space-y-4">
                 {[...Array(6)].map((_, i) => (
@@ -1875,7 +1852,7 @@ function OrdersListInner() {
                 ))}
               </CardContent>
             </Card>
-          ) : visibleOrders.length === 0 ? (
+          ) : visibleOrders.length === 0 && viewMode !== "pipeline" ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1916,15 +1893,19 @@ function OrdersListInner() {
                 )}
               </CardContent>
             </Card>
-          ) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
-            <OrdersPipelineView
+          ) : viewMode === "pipeline" && archivioTabella.errore ? (<div role="alert">{archivioTabella.errore} <Button variant="outline" onClick={() => void archivioTabella.riprova()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelineError ? (<div role="alert" className="rounded-xl border border-amber-200 p-4">Impossibile caricare la pipeline. <Button onClick={() => void retryPipeline()}>Riprova</Button></div>) : viewMode === "pipeline" && pipelinePending ? (<p role="status">Caricamento pipeline…</p>) : viewMode === "pipeline" ? (
+            <PipelineCommesseBoard azienda={effectiveCompany?.id ?? ""} key={effectiveCompany?.id}
+              filtri={<><OrderSearch expand value={searchQuery} onChange={setSearchQuery} /><Popover><PopoverTrigger asChild><Button variant="outline" size="sm" className="h-8 gap-1.5"><SlidersHorizontal className="size-3.5" />Filtri{hasAnyFilter ? " attivi" : ""}</Button></PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(380px,90vw)] rounded-xl p-4"><h3 className="mb-3 text-sm font-semibold">Filtri commesse</h3>{filtriCommesse}</PopoverContent></Popover></>}
               orders={allOrdersForPipeline}
               statuses={statuses}
-              onStatusChange={handleStatusChange}
+              onStatusChange={orderPerms.canEditOrders && !orderPerms.solaLettura ? handleStatusChange : undefined}
             />
           ) : (
             <div className="space-y-4 max-sm:space-y-0">
               <OrdersTable
+                riferimentiPipeline={riferimentiPipeline}
+                pipelineFallback={archivioTabella.errore ? "Non disponibile" : archivioTabella.caricamento ? "…" : "Principale"}
                 canDelete={canDeleteOrders}
                 previousReasons={isYearCorrente ? globalStats?.previousReasons : undefined}
                 orders={visibleOrders}
@@ -2036,8 +2017,6 @@ export default function OrdersList() {
 
   const tabs = [
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: !soloAcquisti },
-    // I cantieri aperti oggi: chi c'è, rapportino arrivato, chi tace (prima era una voce di menu).
-    { id: "oggi", label: "Cantieri oggi", icon: HardHat, show: permissions.canViewOrders },
     // Giorno per giorno cosa si è lavorato: l'elenco di tutti i cantieri, con le statistiche del mese.
     { id: "rapportini", label: "Rapportini", icon: NotebookPen, show: permissions.canViewOrders },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
@@ -2045,7 +2024,7 @@ export default function OrdersList() {
     { id: "offerte", label: "Richieste d'offerta", icon: FileQuestion, show: permissions.canViewOrders && !isMobile },
     // Il centro degli acquisti (23/10/2026): materiali da ordinare, offerte,
     // ordini e consegne in una pipeline. Ha preso il posto di «Acquisti da fare».
-    { id: "acquisto", label: "Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
+    { id: "acquisto", label: "Ordini e Acquisti", icon: ShoppingCart, show: permissions.canViewOrders || permissions.canManagePurchasing },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts && !isMobile },
     { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
@@ -2063,6 +2042,11 @@ export default function OrdersList() {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete("tab");
+        if (requestedTab === "oggi") {
+          for (const key of Array.from(next.keys())) {
+            if (key.endsWith("_oggi")) next.delete(key);
+          }
+        }
         return next;
       }, { replace: true });
     }
@@ -2111,14 +2095,6 @@ export default function OrdersList() {
       {activeTab === "ordini" && (
         <ErrorBoundary title="Errore nella lista commesse">
           <OrdersListInner />
-        </ErrorBoundary>
-      )}
-
-      {activeTab === "oggi" && (
-        <ErrorBoundary title="Errore in Cantieri oggi">
-          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento cantieri…</div>}>
-            <CantieriOggi />
-          </Suspense>
         </ErrorBoundary>
       )}
 

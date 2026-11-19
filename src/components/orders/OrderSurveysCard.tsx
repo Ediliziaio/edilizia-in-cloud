@@ -1,306 +1,110 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { lazy, Suspense, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { agganciaSopralluogo, listSurveysByOrder, sopralluoghiDaAgganciare, updateSurvey } from "@/lib/api/surveys";
-import { surveyAddress } from "@/lib/surveys/report";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ClipboardCheck,
-  Plus,
-  MapPin,
-  Calendar,
-  ChevronRight,
-  Ruler,
-  Loader2,
-  ArrowRightLeft,
-  Link2,
-} from "lucide-react";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { supabase } from "@/integrations/supabase/client";
+import { ClipboardCheck, Plus, CalendarDays, Loader2, ArrowRightLeft, Link2, Search } from "lucide-react";
 import { OfficeSelect } from "./OfficeSelect";
+import { RiquadroCommessa, StatoPill, TabellaCommessa, type ColonnaTabella, type TonoStato } from "./TabellaCommessa";
+import { orderVisits, VISIT_GROUPS, type OrderVisit, type VisitGroup, type OrderSurveyContext } from "@/lib/surveys/orderVisits";
+import type { AppointmentData } from "@/components/appointments/AppointmentDialog";
+import type { SurveyRow } from "@/types/surveys";
 
-/**
- * OrderSurveysCard — mostra, dentro la commessa, i sopralluoghi (rilievi misure)
- * ad essa collegati (surveys.order_id). È il punto in cui, entrando nella
- * commessa, si ritrovano i dettagli dei sopralluoghi e si crea un nuovo
- * rilievo già agganciato (NuovoSopralluogo legge ?order=ID).
- *
- * Sola lettura + navigazione: nessuna scrittura, quindi additivo e sicuro.
- */
-
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  draft: {
-    label: "Bozza",
-    color: "bg-slate-100 text-slate-700 border-slate-300",
-  },
-  in_progress: {
-    label: "In corso",
-    color: "bg-amber-100 text-amber-700 border-amber-300",
-  },
-  completed: {
-    label: "Completato",
-    color: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  },
-  reviewed: {
-    label: "Verificato",
-    color: "bg-blue-100 text-blue-700 border-blue-300",
-  },
-  signed: {
-    label: "Firmato",
-    color: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  },
-  converted: {
-    label: "Convertito",
-    color: "bg-blue-100 text-blue-700 border-blue-300",
-  },
-  archived: {
-    label: "Archiviato",
-    color: "bg-slate-100 text-slate-700 border-slate-300",
-  },
-  cancelled: {
-    label: "Annullato",
-    color: "bg-slate-100 text-slate-700 border-slate-300",
-  },
+const PortaRilievoDialog = lazy(() => import("./PortaRilievoDialog").then(m => ({ default: m.PortaRilievoDialog })));
+const SurveyDetailDialog = lazy(() => import("@/components/sopralluoghi/SurveyDetailDialog").then(m => ({ default: m.SurveyDetailDialog })));
+const CreateDialog = lazy(() => import("./OrderSurveyCreateDialog").then(m => ({default:m.OrderSurveyCreateDialog})));
+const AppointmentDialog = lazy(() => import("@/components/appointments/AppointmentDialog").then(m => ({default:m.AppointmentDialog})));
+const PianificaDialog = lazy(() => import("@/components/sopralluoghi/PianificaSopralluogoDialog").then(m => ({default:m.PianificaSopralluogoDialog})));
+const TONES: Record<Exclude<VisitGroup,"tutti">,TonoStato> = {da_fissare:"grigio",fissati:"blu",in_corso:"ambra",effettuati:"verde",annullati:"rosso",archiviati:"grigio"};
+const LABELS: Record<Exclude<VisitGroup,"tutti">,string> = {da_fissare:"Da fissare",fissati:"Fissato",in_corso:"In corso",effettuati:"Effettuato",annullati:"Annullato",archiviati:"Archiviato"};
+const giorno = (value: string | null | undefined, time = false) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "Da definire";
+  return format(new Date(value), time ? "d MMM yyyy · HH:mm" : "d MMM yyyy", {locale:it});
 };
-const PortaRilievoDialog = lazy(() =>
-  import("@/components/orders/PortaRilievoDialog").then((m) => ({
-    default: m.PortaRilievoDialog,
-  })),
-);
-const SurveyDetailDialog = lazy(() =>
-  import("@/components/sopralluoghi/SurveyDetailDialog").then((m) => ({
-    default: m.SurveyDetailDialog,
-  })),
-);
+interface Props { orderId: string; orderCode?: string | null; clientId?: string | null; clientName?: string | null; address?: string | null }
 
-interface OrderSurveysCardProps {
-  orderId: string;
-}
-
-export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
-  const navigate = useNavigate();
-  // La rotta di creazione rimanda indietro chi è in sola lettura: meglio spegnere il bottone.
+/** Agenda e rilievi originali della commessa, senza duplicare le visite già collegate. */
+export function OrderSurveysCard({orderId, orderCode, clientId, clientName, address}: Props) {
   const { solaLettura, canViewSopralluoghi, canViewOrders, canEditOrders } = usePermissions();
-  const [selected, setSelected] = useState<string | null>(null);
-  const [daPortare, setDaPortare] = useState<string | null>(null);
-  const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
-  const {
-    data: surveys,
-    isLoading,
-    isError,
-  } = useQuery({
-    queryKey: ["order-surveys", orderId, effectiveCompany?.id],
-    queryFn: () => listSurveysByOrder(orderId, effectiveCompany!.id),
-    enabled: !!orderId && !!effectiveCompany?.id && canViewSopralluoghi,
-    staleTime: 30_000,
-  });
-
-  // Sopralluoghi fatti prima della commessa, sullo stesso cliente o contatto.
-  const { data: daAgganciare } = useQuery({
-    queryKey: ["order-surveys-da-agganciare", orderId, effectiveCompany?.id],
-    queryFn: () => sopralluoghiDaAgganciare(orderId),
-    enabled: !!orderId && !!effectiveCompany?.id && canViewSopralluoghi && canViewOrders && canEditOrders && !solaLettura,
-    staleTime: 30_000,
-  });
+  const companyId = effectiveCompany?.id;
+  const qc = useQueryClient();
+  const writable = !solaLettura && !!companyId;
+  const [selected, setSelected] = useState<{id:string;edit:boolean}|null>(null);
+  const [daPortare, setDaPortare] = useState<string|null>(null);
+  const [daPianificare, setDaPianificare] = useState<SurveyRow|null>(null);
+  const [creation, setCreation] = useState<OrderSurveyContext|null>(null);
+  const [calendar, setCalendar] = useState<{appointment:AppointmentData|null}|null>(null);
+  const [filter, setFilter] = useState<VisitGroup>("tutti");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("recenti");
+  const context: OrderSurveyContext = {orderId,orderCode,clientId,clientName,address};
+  const surveys = useQuery({queryKey:["order-surveys",orderId,companyId], enabled:!!companyId && canViewSopralluoghi,
+    queryFn:()=>listSurveysByOrder(orderId,companyId!),staleTime:30_000});
+  // Stessa chiave e stessi dati dell'agenda nella Panoramica: le due viste si aggiornano insieme.
+  const agenda = useQuery({queryKey:["order-appointments",orderId,companyId],enabled:!!companyId && canViewSopralluoghi,staleTime:60_000,
+    queryFn:async ():Promise<AppointmentData[]> => {
+      const rows:AppointmentData[]=[];
+      for(let offset=0;;offset+=500) {
+        const {data,error}=await supabase.from("appointments").select("*").eq("company_id",companyId!).eq("order_id",orderId)
+          .order("appointment_date").order("id").range(offset,offset+499);
+        if(error) throw error;
+        rows.push(...(data??[]));
+        if((data?.length??0)<500) return rows;
+      }
+    }});
+  const staff = useCompanyStaffUsers(canViewSopralluoghi ? companyId : null);
+  const people = new Map((staff.data??[]).map(p=>[p.id,[p.first_name,p.last_name].filter(Boolean).join(" ")]));
+  const daAgganciare = useQuery({queryKey:["order-surveys-da-agganciare",orderId,companyId],
+    queryFn:()=>sopralluoghiDaAgganciare(orderId),enabled:!!companyId && canViewSopralluoghi && canViewOrders && canEditOrders && !solaLettura,staleTime:30_000});
   const aggiorna = () => {
-    qc.invalidateQueries({ queryKey: ["order-surveys", orderId] });
-    qc.invalidateQueries({ queryKey: ["order-surveys-da-agganciare", orderId] });
+    for (const key of [["order-surveys",orderId],["order-surveys-da-agganciare",orderId],["order-appointments",orderId],["sopralluoghi-bacheca"]]) void qc.invalidateQueries({queryKey:key});
   };
-  const aggancia = useMutation({
-    mutationFn: (surveyId: string) => agganciaSopralluogo(surveyId, orderId),
-    onSuccess: () => {
-      aggiorna();
-      toast.success("Sopralluogo collegato alla commessa");
-    },
-    onError: (e) => toast.error((e as Error).message || "Sopralluogo non collegato"),
-  });
-  const cambiaRuolo = useMutation({
-    mutationFn: (p: { id: string; ruolo: "preliminare" | "definitivo" | null }) => updateSurvey(p.id, { ruolo_misure: p.ruolo }),
-    onSuccess: aggiorna,
-    onError: () => toast.error("Non sono riuscito a cambiare il tipo di misure"),
-  });
-
-  const goNew = () => navigate(`/azienda/sopralluoghi/nuovo?order=${orderId}`);
-  if (!canViewSopralluoghi)
-    return (
-      <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-        Per consultare i rilievi serve il permesso «Sopralluoghi».
-      </p>
-    );
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0 max-sm:p-3 max-sm:pb-2">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg min-w-0">
-          <ClipboardCheck className="h-4 w-4 shrink-0 text-orange-500" />
-          <span className="truncate">Rilievi e sopralluoghi</span>
-          {surveys && surveys.length > 0 && (
-            <span className="text-xs font-normal text-muted-foreground shrink-0">
-              ({surveys.length})
-            </span>
-          )}
-        </CardTitle>
-        <Button
-          size="sm"
-          variant="outline"
-          className="min-h-11 shrink-0 border-slate-300 font-semibold text-blue-950"
-          onClick={goNew}
-          disabled={solaLettura}
-          title={solaLettura ? "Sei in sola lettura" : undefined}
-        >
-          <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
-          <span>Nuovo sopralluogo</span>
-        </Button>
-      </CardHeader>
-      <CardContent className="max-sm:p-3 max-sm:pt-0">
-        {isLoading && (
-          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Carico i sopralluoghi…
-          </div>
-        )}
-
-        {isError && (
-          <p className="py-6 text-sm text-red-600">
-            Errore nel caricamento dei sopralluoghi.
-          </p>
-        )}
-
-        {!isLoading && !isError && (!surveys || surveys.length === 0) && (
-          <div className="flex items-center gap-3 py-1 text-sm text-muted-foreground max-sm:py-0 max-sm:text-xs">
-            <Ruler className="h-5 w-5 shrink-0 text-muted-foreground/40 max-sm:hidden" />
-            <span className="flex-1">
-              Nessun sopralluogo collegato.
-              <span className="max-sm:hidden">
-                {" "}
-                Le misure definitive del rilievo confermano quelle del
-                preventivo prima di ordinare al fornitore.
-              </span>
-            </span>
-          </div>
-        )}
-
-        {!isLoading && !isError && surveys && surveys.length > 0 && (
-          <ul className="divide-y">
-            {surveys.map((s) => {
-              const cfg = STATUS_LABEL[s.status] ?? STATUS_LABEL.draft;
-              const when = s.completed_at ?? s.scheduled_at ?? s.created_at;
-              const place = surveyAddress(s);
-              return (
-                <li key={s.id} className="py-1">
-                  <button
-                    type="button"
-                    onClick={() => setSelected(s.id)}
-                    aria-haspopup="dialog"
-                    className="-mx-2 flex w-full items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-muted/40"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">
-                          {s.code || "Sopralluogo"}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${cfg.color}`}
-                        >
-                          {cfg.label}
-                        </Badge>
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                        {when && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(when), "d MMM yy", { locale: it })}
-                          </span>
-                        )}
-                        {place && (
-                          <span className="flex min-w-0 items-center gap-1">
-                            <MapPin className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{place}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </button>
-                  <div className="flex flex-wrap items-center gap-2 pb-2">
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      Misure
-                      <OfficeSelect
-                        className="h-9 px-2 text-xs text-foreground"
-                        label={`Tipo di misure del sopralluogo ${s.code || ""}`.trim()}
-                        disabled={solaLettura || cambiaRuolo.isPending}
-                        value={s.ruolo_misure ?? ""}
-                        onValueChange={(v) => cambiaRuolo.mutate({ id: s.id, ruolo: (v || null) as "preliminare" | "definitivo" | null })}
-                        options={[
-                          { value: "", label: "Non indicato" },
-                          { value: "preliminare", label: "Preliminari" },
-                          { value: "definitivo", label: "Definitive" },
-                        ]}
-                      />
-                    </label>
-                    {canEditOrders && !solaLettura && (
-                      <Button size="sm" variant="outline" className="min-h-9 text-xs" onClick={() => setDaPortare(s.id)}>
-                        <ArrowRightLeft className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                        Porta le misure in commessa
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {canEditOrders && !solaLettura && daAgganciare && daAgganciare.length > 0 && (
-          <div className="mt-3 space-y-2 rounded-lg border border-dashed p-3">
-            <p className="text-xs font-medium">Sopralluoghi dello stesso cliente, non ancora collegati</p>
-            {daAgganciare.map((s) => (
-              <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 truncate">
-                  {s.code || "Sopralluogo"}
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {format(new Date(s.completed_at ?? s.created_at), "d MMM yy", { locale: it })}
-                    {s.city ? ` · ${s.city}` : ""}
-                  </span>
-                </span>
-                <Button size="sm" variant="outline" className="min-h-9 text-xs" disabled={aggancia.isPending} onClick={() => aggancia.mutate(s.id)}>
-                  <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Collega
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-      {daPortare && (
-        <Suspense fallback={<p role="status" className="px-4 pb-4 text-sm text-muted-foreground">Apro il rilievo…</p>}>
-          <PortaRilievoDialog surveyId={daPortare} orderId={orderId} onClose={() => setDaPortare(null)} />
-        </Suspense>
-      )}
-      {selected && (
-        <Suspense
-          fallback={
-            <p
-              role="status"
-              className="px-4 pb-4 text-sm text-muted-foreground"
-            >
-              Apro il sopralluogo…
-            </p>
-          }
-        >
-          <SurveyDetailDialog
-            key={`${effectiveCompany?.id}:${orderId}:${selected}`}
-            surveyId={selected}
-            orderId={orderId}
-            onClose={() => setSelected(null)}
-          />
-        </Suspense>
-      )}
-    </Card>
-  );
+  const aggancia = useMutation({mutationFn:(id:string)=>agganciaSopralluogo(id,orderId),onSuccess:()=>{aggiorna();toast.success("Sopralluogo collegato alla commessa");},onError:(e:Error)=>toast.error(e.message || "Sopralluogo non collegato")});
+  const ruolo = useMutation({mutationFn:(p:{id:string;ruolo:"preliminare"|"definitivo"|null})=>updateSurvey(p.id,{ruolo_misure:p.ruolo}),onSuccess:aggiorna,onError:()=>toast.error("Tipo di misure non aggiornato")});
+  const visits = orderVisits(surveys.data??[],agenda.data??[]);
+  const counts = Object.fromEntries(VISIT_GROUPS.map(([key])=>[key,key==="tutti" ? visits.length : visits.filter(v=>v.group===key).length]));
+  const visible = visits.filter(v=>(filter==="tutti" || v.group===filter) && `${v.code} ${v.address} ${people.get(v.technicianId||"")||""}`.toLocaleLowerCase("it").includes(search.trim().toLocaleLowerCase("it")));
+  if(sort==="prossimi") visible.sort((a,b)=>String(a.when||"9999").localeCompare(String(b.when||"9999")));
+  const openVisit = (v:OrderVisit) => v.survey ? setSelected({id:v.survey.id,edit:false}) : setCalendar({appointment:v.appointment!});
+  const columns:ColonnaTabella<OrderVisit>[] = [
+    {titolo:"Sopralluogo",principale:true,cella:v=><div><button type="button" aria-haspopup="dialog" className="text-left font-medium text-primary hover:underline" onClick={()=>openVisit(v)}>{v.code}</button><p className="mt-1 text-xs text-muted-foreground">{v.survey ? "Rilievo tecnico" : "Appuntamento · rilievo da compilare"}</p></div>},
+    {titolo:"Stato",cella:v=><div><StatoPill tono={TONES[v.group]}>{LABELS[v.group]}</StatoPill>{v.survey?.status==="signed" && <p className="mt-1 text-xs text-muted-foreground">Firmato</p>}</div>},
+    {titolo:"Data e tecnico",cella:v=><div className="space-y-1"><p>{giorno(v.when,v.appointment ? !!v.appointment.appointment_time : !!v.survey?.scheduled_at)}</p>{v.survey?.completed_at && <p className="text-xs text-muted-foreground">Effettuato il {giorno(v.survey.completed_at)}</p>}<p className="text-xs text-muted-foreground">{v.technicianId ? people.get(v.technicianId)||"Tecnico assegnato" : "Tecnico da assegnare"}</p></div>},
+    {titolo:"Cantiere",cella:v=><span className="text-xs text-muted-foreground">{v.address || address || "Indirizzo da completare"}</span>},
+    {titolo:"Misure",cella:v=>v.survey ? <OfficeSelect label={`Tipo di misure del sopralluogo ${v.code}`} className="h-9 w-[118px] min-w-[118px] px-2 text-xs" disabled={!writable || ruolo.isPending} value={v.survey.ruolo_misure??""} onValueChange={value=>ruolo.mutate({id:v.survey!.id,ruolo:(value||null) as "preliminare"|"definitivo"|null})} options={[{value:"",label:"Non indicate"},{value:"preliminare",label:"Preliminari"},{value:"definitivo",label:"Definitive"}]} /> : <span className="text-xs text-muted-foreground">Da rilevare</span>},
+    {titolo:"Azioni",destra:true,cella:v=><div className="flex flex-wrap justify-end gap-1.5">
+      <Button size="sm" variant="outline" onClick={()=>openVisit(v)}>{v.survey ? "Apri" : writable && canEditOrders ? "Appuntamento" : "Dettagli"}</Button>
+      {writable && v.group!=="annullati" && v.group!=="archiviati" && <Button size="sm" variant="outline" onClick={()=>v.survey ? setSelected({id:v.survey.id,edit:true}) : setCreation({...context,appointment:v.appointment})}>{v.survey ? "Compila" : "Compila rilievo"}</Button>}
+      {writable && canEditOrders && v.survey && ["da_fissare","fissati"].includes(v.group) && <Button size="sm" variant="ghost" onClick={()=>setDaPianificare(v.survey!)}>{v.when ? "Sposta" : "Pianifica"}</Button>}
+      {writable && canEditOrders && v.survey && <Button size="sm" variant="ghost" title="Porta le misure in commessa" aria-label={`Porta le misure di ${v.code} in commessa`} onClick={()=>setDaPortare(v.survey!.id)}><ArrowRightLeft className="h-4 w-4" /></Button>}
+    </div>},
+  ];
+  if(!canViewSopralluoghi) return <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">Per consultare i rilievi serve il permesso «Sopralluoghi».</p>;
+  return <RiquadroCommessa icona={<ClipboardCheck className="h-4 w-4 text-orange-500" />} titolo="Rilievi e sopralluoghi" conteggio={visits.length}
+    azioni={<><Button size="sm" variant="outline" disabled={!writable || !canEditOrders} onClick={()=>setCalendar({appointment:null})}><CalendarDays className="mr-1.5 h-4 w-4" />Fissa sopralluogo</Button><Button size="sm" disabled={!writable} onClick={()=>setCreation(context)}><Plus className="mr-1.5 h-4 w-4" />Nuovo sopralluogo</Button></>}>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Stato dei sopralluoghi">{VISIT_GROUPS.map(([key,label])=><Button key={key} size="sm" variant={filter===key ? "default" : "ghost"} aria-pressed={filter===key} aria-label={`${label}: ${counts[key]} ${counts[key] === 1 ? "sopralluogo" : "sopralluoghi"}`} onClick={()=>setFilter(key)}>{label}<span className="ml-2 text-xs opacity-70">{counts[key]}</span></Button>)}</div>
+      <div className="flex flex-wrap gap-2"><div className="relative min-w-48 flex-1"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Cerca sopralluoghi della commessa" placeholder="Cerca codice, cantiere o tecnico…" className="pl-9" value={search} onChange={e=>setSearch(e.target.value)} /></div><OfficeSelect label="Ordina sopralluoghi" className="w-full shrink-0 sm:w-48" value={sort} onValueChange={setSort} options={[{value:"recenti",label:"Più recenti"},{value:"prossimi",label:"Prima i meno recenti"}]} /></div>
+      {(surveys.isLoading || agenda.isLoading) && <p role="status" className="flex items-center gap-2 py-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Carico agenda e rilievi…</p>}
+      {(surveys.isError || agenda.isError) && <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900">{surveys.isError ? "Rilievi non disponibili." : "Agenda non disponibile."} L'elenco potrebbe essere incompleto.<Button size="sm" variant="outline" onClick={()=>{void surveys.refetch();void agenda.refetch();}}>Riprova</Button></div>}
+      {visible.length>0 && <TabellaCommessa etichetta="Sopralluoghi della commessa" colonne={columns} righe={visible} chiave={v=>v.id} />}
+      {!surveys.isLoading && !agenda.isLoading && visible.length===0 && <div className="rounded-lg border border-dashed p-6 text-center"><p className="text-sm font-medium">{visits.length || search || filter!=="tutti" ? "Nessun sopralluogo con questi filtri" : surveys.isError || agenda.isError ? "Nessun sopralluogo nei dati disponibili" : "Non ci sono ancora sopralluoghi"}</p><p className="mt-1 text-xs text-muted-foreground">Fissa una visita in agenda o crea il rilievo per compilare misure, foto e note.</p>{(search || filter!=="tutti") && <Button variant="link" size="sm" onClick={()=>{setSearch("");setFilter("tutti");}}>Azzera filtri</Button>}</div>}
+      {canEditOrders && writable && !!daAgganciare.data?.length && <details className="rounded-lg border border-dashed p-3"><summary className="cursor-pointer text-sm font-medium">Sopralluoghi del cliente da collegare ({daAgganciare.data.length})</summary><div className="mt-3 space-y-2">{daAgganciare.data.map(s=><div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>{s.code || "Sopralluogo"} · {giorno(s.completed_at??s.created_at)}</span><Button size="sm" variant="outline" disabled={aggancia.isPending} onClick={()=>aggancia.mutate(s.id)}><Link2 className="mr-1 h-3.5 w-3.5" />Collega</Button></div>)}</div></details>}
+    </div>
+    <Suspense fallback={<p role="status" className="p-4 text-sm text-muted-foreground">Apro la finestra…</p>}>
+      {daPortare && <PortaRilievoDialog surveyId={daPortare} orderId={orderId} onClose={()=>setDaPortare(null)} />}
+      {selected && <SurveyDetailDialog key={`${companyId}:${orderId}:${selected.id}`} surveyId={selected.id} orderId={orderId} initialEditing={selected.edit} onClose={()=>{setSelected(null);aggiorna();}} />}
+      {creation && companyId && <CreateDialog key={`${companyId}:${orderId}:${creation.appointment?.id||"nuovo"}`} companyId={companyId} commessa={creation} onClose={()=>setCreation(null)} onCreated={id=>{setCreation(null);aggiorna();setSelected({id,edit:true});}} />}
+      {calendar && <AppointmentDialog open onOpenChange={open=>{if(!open)setCalendar(null);}} appointment={calendar.appointment} onSaved={aggiorna} onDeleted={aggiorna} defaultOrderId={orderId} showOrderSelect={false} defaultAppointmentType="rilievo_tecnico" riferimentoTitolo={orderCode} defaultAddress={address} requireTime hideMarketingFields readOnly={!writable || !canEditOrders} dialogHeading={calendar.appointment ? "Appuntamento del sopralluogo" : "Fissa un sopralluogo"} />}
+      {daPianificare && <PianificaDialog sopralluogo={daPianificare} onClose={()=>{setDaPianificare(null);aggiorna();}} />}
+    </Suspense>
+  </RiquadroCommessa>;
 }

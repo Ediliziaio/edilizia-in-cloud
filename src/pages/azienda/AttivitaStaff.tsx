@@ -73,6 +73,11 @@ import {
 import { TASK_CATEGORY_OPTIONS as CATEGORY_OPTIONS } from "@/lib/taskCategories";
 import { DashboardAgenda } from "@/components/attivita/DashboardAgenda";
 import { useUfficiAttivi } from "@/hooks/useUffici";
+import { TaskAssignmentFields } from "@/components/tasks/TaskAssignmentFields";
+import { taskAssignment } from "@/lib/attivita/taskAssignment";
+import { TaskOrderLink } from "@/components/tasks/TaskOrderLink";
+import { invalidateOfficeWorkspace } from "@/lib/orders/officeWorkspace";
+import { OfficeSelect } from "@/components/orders/OfficeSelect";
 import { useDashboardTasks } from "@/hooks/useDashboardTasks";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
 import { dashboardTasksForAssignee, dashboardTaskStats, dashboardTaskDateGroup, filterDashboardTasks, type DashboardTaskFilter } from "@/lib/attivita/dashboardTasks";
@@ -332,7 +337,7 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
 export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear, openTaskRequest, filter: controlledFilter, onFilterChange }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void; openTaskRequest?: { id: string; requestId: number } | null; filter?: TaskFilter; onFilterChange?: (filter: TaskFilter) => void }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
-  const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities, canViewOrders } = usePermissions();
+  const { canViewTeamTasks, solaLettura, canViewMarketingContacts, canViewMarketingOpportunities, canViewOrders, canEditOrders } = usePermissions();
   const creaTitle = solaLettura ? "Sei in sola lettura" : undefined;
   // La lista è sempre personale. Il permesso team abilita il passaggio alla
   // Regia, dove la lettura segue i permessi e la visibilità assegnata.
@@ -382,9 +387,13 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   const [formStatus, setFormStatus] = useState("da_fare");
   const [formAssignedTo, setFormAssignedTo] = useState("");
   const [formOffice, setFormOffice] = useState("");
+  const [formOrder, setFormOrder] = useState("");
+  const canLinkOrder = isAdmin || canEditOrders;
+  const taskSaveRef = useRef(false);
   const [areaView, setAreaView] = useState("all");
   const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
   const offices = useUfficiAttivi(companyId);
+  const availableOffices = offices.data.filter(o => isAdmin || o.membri.includes(user?.id ?? ""));
   // A chi è attaccata l'attività: cliente o opportunità (23/09/2026).
   const [formCollegamento, setFormCollegamento] = useState<CollegamentoAttivita | null>(null);
 
@@ -443,18 +452,25 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   const checkWrite = () => { if (!companyId || !user?.id || solaLettura) throw new Error("Non puoi modificare le attività in questo momento."); };
 
   const createTask = useMutation({
-    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; ufficio_id?: string; collegamento?: CollegamentoAttivita | null }) => {
+    mutationFn: async (task: { title: string; notes?: string; priority: string; due_date?: string; category: string; assigned_to?: string; ufficio_id?: string; order_id?: string; collegamento?: CollegamentoAttivita | null }) => {
       checkWrite();
-      const { error } = await supabase.from("tasks").insert({
-        company_id: companyId!, ufficio_id: task.ufficio_id || null, assigned_to: task.ufficio_id ? null : task.assigned_to || user!.id, created_by: user!.id,
+      if (task.order_id && !canLinkOrder) throw new Error("Non puoi collegare attività a questa commessa.");
+      const { data, error } = await supabase.from("tasks").insert({
+        company_id: companyId!, ...taskAssignment({ officeId: task.ufficio_id, assigneeId: task.assigned_to, userId: user!.id, offices: availableOffices, canAssignOthers: isAdmin }), created_by: user!.id,
         title: task.title, notes: task.notes || null,
         priority: task.priority, due_date: task.due_date || null,
         category: task.category, status: "da_fare",
+        order_id: task.order_id || null,
+        activity_scope: task.order_id ? "ufficio" : "generale",
+        ...(task.order_id ? { office_stage: "altro" } : {}),
         ...collegamentiDelModulo(task.collegamento),
       } as any).select("id").single();
       if (error) throw error;
+      if (!data?.id) throw new Error("Creazione dell’attività non confermata.");
+      return data;
     },
-    onSuccess: async () => { toast.success("Attività creata"); await invalidate(); },
+    onSuccess: async (_data, variables) => { toast.success("Attività creata"); if (variables.order_id) invalidateOfficeWorkspace(queryClient, variables.order_id); await invalidate(); },
+    onSettled: () => { taskSaveRef.current = false; },
     onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
@@ -467,7 +483,8 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       const { error } = await q.select("id").single();
       if (error) throw error;
     },
-    onSuccess: async () => { toast.success("Attività aggiornata"); await invalidate(); },
+    onSuccess: async (_data, variables) => { toast.success("Attività aggiornata"); if (variables.order_id) invalidateOfficeWorkspace(queryClient, variables.order_id); await invalidate(); },
+    onSettled: () => { taskSaveRef.current = false; },
     onError: (err: any) => { toast.error("Errore: " + (err.message ?? "Riprovare")); void invalidate(); },
   });
 
@@ -551,8 +568,9 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     setFormAssignedTo(defaultAssignee ?? "");
     setFormCollegamento(null);
     setFormOffice("");
+    setFormOrder("");
     setDialogOpen(true);
-  }, [solaLettura, defaultAssignee, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setDialogOpen]);
+  }, [solaLettura, defaultAssignee, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setFormOffice, setFormOrder, setDialogOpen]);
 
   const openEdit = useCallback((t: any) => {
     setEditingTask(t);
@@ -560,11 +578,12 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
     setFormPriority(t.priority ?? "normale");
     setFormDueDate(t.due_date ?? ""); setFormCategory(t.category ?? "altro");
     setFormStatus(t.status ?? "da_fare");
-    setFormAssignedTo(t.assigned_to ?? user?.id ?? "");
+    setFormAssignedTo(t.assigned_to ?? (t.ufficio_id ? "" : user?.id ?? ""));
     setFormOffice(t.ufficio_id ?? "");
+    setFormOrder(t.order_id ?? "");
     setFormCollegamento(collegamentoDelTask(t));
     setDialogOpen(true);
-  }, [user?.id, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setDialogOpen]);
+  }, [user?.id, setEditingTask, setFormTitle, setFormNotes, setFormPriority, setFormDueDate, setFormCategory, setFormStatus, setFormAssignedTo, setFormCollegamento, setFormOffice, setFormOrder, setDialogOpen]);
 
   const openedRequest = useRef<number | null>(null);
   useEffect(() => {
@@ -583,15 +602,24 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
   }, [initialDueDate, openCreate]);
 
   const handleSave = () => {
-    if (readOnlyDialog || mutationBusy) return;
+    if (readOnlyDialog || mutationBusy || taskSaveRef.current) return;
     if (!formTitle.trim()) { toast.error("Inserisci un titolo"); return; }
+    if (formTitle.trim().length > 250) { toast.error("Il titolo può contenere al massimo 250 caratteri"); return; }
+    const assignmentChanged = !editingTask || (editingTask.assigned_to ?? "") !== formAssignedTo;
+    if (assignmentChanged && (offices.isLoading || offices.isError)) { toast.error("Attendi il caricamento delle aree o riprova."); return; }
+    if (assignmentChanged) {
+      try { taskAssignment({ officeId: formOffice, assigneeId: formAssignedTo, userId: user!.id, offices: availableOffices, canAssignOthers: isAdmin }); }
+      catch (error) { toast.error(error instanceof Error ? error.message : "Assegnazione non disponibile"); return; }
+    }
+    taskSaveRef.current = true;
     if (editingTask) {
       const updates: any = { id: editingTask.id, title: formTitle.trim(), notes: formNotes.trim() || null, priority: formPriority, due_date: formDueDate || null, category: formCategory, status: formStatus, ...collegamentiDelModulo(formCollegamento) };
-      if (isAdmin && formAssignedTo) updates.assigned_to = formAssignedTo;
+      if (canLinkOrder) Object.assign(updates, { order_id: formOrder || null, ...(formOrder ? { activity_scope: "ufficio" } : {}) });
+      if (isAdmin && assignmentChanged) updates.assigned_to = formAssignedTo || null;
       if (formStatus !== editingTask.status) Object.assign(updates, buildTaskStatusUpdate(formStatus, taskStatuses));
       updateTask.mutate(updates, { onSuccess: () => setDialogOpen(false) });
     } else {
-      createTask.mutate({ ufficio_id: formOffice || undefined, title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento }, { onSuccess: () => setDialogOpen(false) });
+      createTask.mutate({ order_id: formOrder || undefined, ufficio_id: formOffice || undefined, title: formTitle.trim(), notes: formNotes.trim(), priority: formPriority, due_date: formDueDate || undefined, category: formCategory, assigned_to: formOffice ? formAssignedTo || undefined : isAdmin ? formAssignedTo : undefined, collegamento: formCollegamento }, { onSuccess: () => setDialogOpen(false) });
     }
   };
 
@@ -1083,25 +1111,54 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
       </Card>
 
       {/* ── Dialog crea/modifica task ── */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
+      <Dialog open={dialogOpen} onOpenChange={next => { if (!taskSaveRef.current && !mutationBusy) setDialogOpen(next); }}>
+        <DialogContent ampiezza="modulo" struttura="scorrevole" className="task-editor-dialog gap-3">
           <DialogHeader>
             <DialogTitle>{readOnlyDialog ? "Dettagli attività" : editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
-            <DialogDescription className="sr-only">{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
+            <DialogDescription>{readOnlyDialog ? "Consulta assegnazione, scadenza e collegamenti dell’attività." : editingTask ? "Aggiorna dettagli, responsabile e scadenza dell’attività." : "Organizza il lavoro, scegli l’area e il responsabile."}</DialogDescription>
           </DialogHeader>
-          <fieldset disabled={readOnlyDialog || mutationBusy} className="space-y-4 py-2">
+          <form id="attivita-modulo" onSubmit={e => { e.preventDefault(); handleSave(); }}>
+          <fieldset disabled={readOnlyDialog || mutationBusy} aria-busy={mutationBusy} className="min-w-0 space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="task-title">Titolo *</Label>
-              <Input id="task-title" placeholder="Cosa devi fare?" value={formTitle} onChange={e => setFormTitle(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && formTitle.trim()) handleSave(); }} autoFocus={!isMobile || !editingTask} />
+              <Input id="task-title" placeholder="Es. Confermare l’ordine al fornitore" required maxLength={250} value={formTitle} onChange={e => setFormTitle(e.target.value)} autoFocus={!isMobile || !editingTask} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="task-notes">Descrizione</Label>
               <Textarea id="task-notes" placeholder="Aggiungi dettagli, link, note..." value={formNotes} onChange={e => setFormNotes(e.target.value)} rows={2} className="resize-none" />
             </div>
+            <TaskAssignmentFields offices={availableOffices}
+              people={[
+                ...(user ? [{ id: user.id, name: "Me stesso" }] : []),
+                ...teamMembers.filter(m => m.id !== user?.id).map(m => ({ id: m.id, name: [m.first_name, m.last_name].filter(Boolean).join(" ") || "Nome non disponibile" })),
+                ...(editingTask?.assigned_to && editingTask.assigned_to !== user?.id && !teamMembers.some(m => m.id === editingTask.assigned_to)
+                  ? [{ id: editingTask.assigned_to as string, name: [editingTask.assignee?.first_name, editingTask.assignee?.last_name].filter(Boolean).join(" ") || "Responsabile assegnato" }] : []),
+              ]}
+              manageOffices={isAdmin} userId={user?.id} officeId={formOffice} assigneeId={formAssignedTo}
+              onOfficeChange={office => { setFormOffice(office); setFormAssignedTo(office ? "" : user?.id ?? ""); }}
+              onAssigneeChange={setFormAssignedTo} officeDisabled={!!editingTask}
+              canAssignOthers={isAdmin} loading={offices.isLoading} error={offices.isError}
+              onRetry={() => { void offices.refetch(); }} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="task-priority">Priorità</Label>
+                <OfficeSelect id="task-priority" label="Priorità" value={formPriority} onValueChange={setFormPriority}
+                  options={Object.entries(PRIORITY_CONFIG).map(([value, config]) => ({ value, label: config.label }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="task-due">Scadenza</Label>
+                <Input id="task-due" type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)} />
+              </div>
+            </div>
+            <section className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2" aria-label="Collegamenti e organizzazione">
+              {canViewOrders && <div className="sm:col-span-2">
+                <TaskOrderLink companyId={companyId} value={formOrder} fixed={!!editingTask?.order_id}
+                  disabled={!canLinkOrder} onChange={order => { setFormOrder(order); if (order && formCategory === "altro") setFormCategory("ordini"); }} />
+              </div>}
             {/* Senza questo campo l'attività nasceva slegata: non si vedeva né
                 nella scheda del cliente né in quella dell'opportunità. */}
-            <div className="space-y-1.5">
-              <Label htmlFor="task-link">Collegata a</Label>
+            <div className={cn("space-y-1.5", editingTask && "sm:col-span-2")}>
+              <Label htmlFor="task-link">Cliente / Opportunità</Label>
               <CollegaAttivitaPicker id="task-link" companyId={companyId} valore={formCollegamento} onChange={setFormCollegamento} />
               {formCollegamento?.tipo === "opportunita" && canViewMarketingOpportunities && (
                 <Link to={linkOpportunita("/azienda/marketing", formCollegamento.id)} onClick={() => setDialogOpen(false)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
@@ -1116,94 +1173,27 @@ export function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear,
                 </Link>
               )}
             </div>
-            {/* Mobile: i campi brevi in una griglia sola a due colonne (a tre
-                colonne «Categoria» e la data si troncavano); la categoria resta
-                al desktop. */}
-            <div className="grid grid-cols-2 gap-3 sm:block sm:space-y-4">
-            {/* Assegna a (admin) + Priorità */}
-            <div className="grid grid-cols-2 gap-3 max-sm:contents">
-              <div className="space-y-1.5">
-                <Label htmlFor="task-office">Area / Ufficio</Label>
-                <Select value={formOffice || "none"} onValueChange={v => setFormOffice(v === "none" ? "" : v)} disabled={!!editingTask}>
-                  <SelectTrigger id="task-office"><SelectValue placeholder="Attività individuale" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">Attività individuale</SelectItem>
-                    {(offices.data ?? []).filter(o => isAdmin || o.membri.includes(user?.id ?? "")).map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                {formOffice && <p className="text-xs text-muted-foreground">Visibile all’area secondo i permessi. Un collega potrà prenderla in carico.</p>}
-              </div>
-              {isAdmin && !formOffice && (
+              <div className="contents">
                 <div className="space-y-1.5">
-                  <Label htmlFor="task-assignee">Assegna a</Label>
-                  <Select value={formAssignedTo} onValueChange={setFormAssignedTo}>
-                    <SelectTrigger id="task-assignee" className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={user?.id ?? ""}>
-                        <span className="flex items-center gap-2">Me stesso</span>
-                      </SelectItem>
-                      {teamMembers.filter(m => m.id !== user?.id).map(m => (
-                        <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <Label htmlFor="task-priority">Priorità</Label>
-                <Select value={formPriority} onValueChange={setFormPriority}>
-                  <SelectTrigger id="task-priority" className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PRIORITY_CONFIG).map(([k, v]) => {
-                      const Icon = v.icon;
-                      return <SelectItem key={k} value={k}><span className="flex items-center gap-2"><Icon className={`h-3.5 w-3.5 ${k === "urgente" ? "text-red-500" : k === "alta" ? "text-orange-500" : k === "normale" ? "text-blue-500" : "text-slate-400"}`} />{v.label}</span></SelectItem>;
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              {!isAdmin && (
-                <div className="space-y-1.5 max-sm:hidden">
                   <Label htmlFor="task-category">Categoria</Label>
-                  <Select value={formCategory} onValueChange={setFormCategory}>
-                    <SelectTrigger id="task-category" className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <OfficeSelect id="task-category" label="Categoria" value={formCategory} onValueChange={setFormCategory}
+                    options={CATEGORY_OPTIONS.map(c => ({ value: c.value, label: c.label }))} />
                 </div>
-              )}
-            </div>
-            {/* Categoria (admin) + Scadenza + Stato */}
-            <div className={`grid gap-3 max-sm:contents ${editingTask ? "grid-cols-3" : "grid-cols-2"}`}>
-              {isAdmin && (
-                <div className="space-y-1.5 max-sm:hidden">
-                  <Label htmlFor="task-category">Categoria</Label>
-                  <Select value={formCategory} onValueChange={setFormCategory}>
-                    <SelectTrigger id="task-category" className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{CATEGORY_OPTIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <Label htmlFor="task-due">Scadenza</Label>
-                <Input id="task-due" type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)} className="h-9" />
-              </div>
-              {editingTask && (
-                <div className="space-y-1.5">
+                {editingTask && <div className="space-y-1.5">
                   <Label htmlFor="task-status">Stato</Label>
-                  <Select disabled={!!editingTask && isTaskBlockedStatus(editingTask.status, taskStatuses)} value={formStatus} onValueChange={setFormStatus}>
-                    <SelectTrigger id="task-status" className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>{taskStatuses.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-            </div>
+                  <OfficeSelect id="task-status" label="Stato" disabled={isTaskBlockedStatus(editingTask.status, taskStatuses)}
+                    value={formStatus} onValueChange={setFormStatus} options={taskStatuses.map(v => ({ value: v.value, label: v.label }))} />
+                </div>}
+              </div>
+            </section>
           </fieldset>
+          </form>
           <DialogFooter className="gap-2">
-            {/* Mobile: chiude la X in alto, resta un bottone solo. */}
-            <Button variant="outline" className="max-sm:hidden" onClick={() => setDialogOpen(false)}>Annulla</Button>
+            <Button type="button" variant="outline" disabled={mutationBusy} onClick={() => setDialogOpen(false)}>{readOnlyDialog ? "Chiudi" : "Annulla"}</Button>
             {editingTask && seesTeamTasks && <Button asChild variant="outline" className="gap-1 text-xs"><Link to={`/azienda/attivita?tab=regia&attivita=${encodeURIComponent(editingTask.id)}`} onClick={() => setDialogOpen(false)}><ExternalLink className="h-3 w-3" />Gestione completa</Link></Button>}
-            {!readOnlyDialog && <Button onClick={handleSave} disabled={!formTitle.trim() || mutationBusy}>
+            {!readOnlyDialog && <Button type="submit" form="attivita-modulo" disabled={!formTitle.trim() || mutationBusy || (!editingTask && (offices.isLoading || offices.isError))}>
               {(createTask.isPending || updateTask.isPending) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {editingTask ? "Salva" : "Crea"}
+              {editingTask ? "Salva modifiche" : "Crea attività"}
             </Button>}
           </DialogFooter>
         </DialogContent>

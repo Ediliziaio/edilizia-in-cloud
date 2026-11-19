@@ -17,16 +17,18 @@ export function OrdersAnnualScope({year,annualCount,previousCount,selected,onCha
 }
 const money = (amount: number) => amount.toLocaleString("it-IT", {style:"currency",currency:"EUR",maximumFractionDigits:0});
 export function OrdersCarryoverSummary({previous,reasons,showAmounts}: {previous:Economics;reasons:{work:number;support:number;payment:number};showAmounts:boolean}) {
-  return <details className="mt-2 rounded-xl border border-white/15 bg-white/5 text-blue-50">
-    <summary className="flex cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-3 py-2 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
-      <span className="font-semibold">Pregresso da gestire · {previous.count} commesse</span>
-      <span className="text-xs text-blue-100">{reasons.work} lavori aperti · {reasons.support} assistenze · {reasons.payment} con saldo</span>
-      {showAmounts && <span className="font-semibold sm:ml-auto">Da incassare {money(previous.pending)}</span>}
-      <span className="text-xs underline underline-offset-2">Dettagli</span>
+  return <div className="mt-2 rounded-lg border-t border-white/15 bg-white/5 px-2 py-1.5 text-blue-50">
+    <details className="min-w-0 flex-1">
+    <summary className="grid cursor-pointer grid-cols-[1fr_auto] items-start gap-x-3 gap-y-1 rounded text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-300">
+      <span><span className="font-semibold">Pregresso da gestire · {previous.count} commesse</span><span className="ml-2 text-[11px] text-blue-100 underline underline-offset-2">Dettagli</span></span>
+      {showAmounts && <span className="text-right text-[11px] text-blue-100">Da incassare <strong className="text-white">{money(previous.pending)}</strong> · IVA inclusa</span>}
     </summary>
-    <div className="space-y-2 px-3 pb-3 text-xs text-blue-100">
+    <div className="mt-2 space-y-2 text-xs text-blue-100">
+      <p>{reasons.work} lavori aperti · {reasons.support} assistenze · {reasons.payment} con saldo</p>
       {showAmounts && <p>Venduto {money(previous.sold)} · Incassato {money(previous.collected)} · IVA inclusa</p>}
       <p>Commesse degli anni precedenti con lavori, assistenza o incassi ancora da gestire. Una commessa può avere più motivi, ma viene contata una volta sola.</p>
     </div>
-  </details>;
+  </details>
+
+  </div>;
 }

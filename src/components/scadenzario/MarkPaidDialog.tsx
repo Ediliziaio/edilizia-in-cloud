@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Scadenza } from "@/hooks/useScadenzario";
+import { gruppoMetodo } from "@/lib/finance/metodoScadenza";
 import { formatCurrency } from "@/lib/formatters";
 
 const fmtEur = (n: number) => formatCurrency(n);
@@ -38,7 +39,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
     if (open && scadenza) {
       setAmount(String(scadenza.amount - scadenza.paid_amount));
       // Un codice solo per la RiBa: le scadenze vecchie possono dire ancora «ri.ba».
-      setMethod(scadenza.payment_method === "ri.ba" ? "riba" : scadenza.payment_method || "bonifico");
+      setMethod(gruppoMetodo(scadenza.payment_method) ?? "bonifico");
       setDate(new Date().toLocaleDateString("en-CA"));
       setNotes("");
     }

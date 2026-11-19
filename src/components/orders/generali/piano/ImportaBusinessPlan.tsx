@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -162,7 +163,7 @@ export function ImportaBusinessPlan({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1 text-sm font-medium">
               Scenario da importare
-              <select
+              <UniformSelect
                 className="block h-10 w-full rounded-md border bg-background px-3 font-normal"
                 value={indice}
                 disabled={occupato}
@@ -180,7 +181,7 @@ export function ImportaBusinessPlan({
                     {s.nome.trim()}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </label>
             <div className="self-end rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               Colonna prevista:{" "}
@@ -261,7 +262,7 @@ export function ImportaBusinessPlan({
                       )}
                     </td>
                     <td className="p-2">
-                      <select
+                      <UniformSelect
                         aria-label={`Categoria riga ${r.riga}`}
                         value={categorie[r.riga] ?? r.categoria}
                         disabled={occupato}
@@ -276,7 +277,7 @@ export function ImportaBusinessPlan({
                             {CATEGORIE_PIANO[c.id].nome}
                           </option>
                         ))}
-                      </select>
+                      </UniformSelect>
                     </td>
                     <td className="p-2">
                       <Input

@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import "@testing-library/jest-dom/vitest";
 import {
   render,
@@ -77,7 +78,7 @@ describe("Pagina modelli PDF", () => {
   });
   it("salva solo il modello scelto, e il ripristino è una bozza prima del salvataggio", async () => {
     open();
-    fireEvent.change(screen.getByLabelText("Titolo nel PDF"), {
+    changeFormControl(screen.getByLabelText("Titolo nel PDF"), {
       target: { value: "ORDINE PERSONALIZZATO" },
     });
     expect(screen.getByTestId("anteprima")).toHaveTextContent(
@@ -107,7 +108,7 @@ describe("Pagina modelli PDF", () => {
       new Error("Modello aggiornato da un altro terminale"),
     );
     open();
-    fireEvent.change(screen.getByLabelText("Titolo nel PDF"), {
+    changeFormControl(screen.getByLabelText("Titolo nel PDF"), {
       target: { value: "Da conservare" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
@@ -122,7 +123,7 @@ describe("Pagina modelli PDF", () => {
   it("cambiare modello con una bozza richiede una scelta e non scarta il testo se si annulla", () => {
     open();
     vi.mocked(window.confirm).mockReturnValue(false);
-    fireEvent.change(screen.getByLabelText("Titolo nel PDF"), {
+    changeFormControl(screen.getByLabelText("Titolo nel PDF"), {
       target: { value: "Bozza" },
     });
     fireEvent.click(
@@ -153,7 +154,7 @@ it("non invia due salvataggi mentre il primo è in corso", async () => {
       }),
   );
   open();
-  fireEvent.change(screen.getByLabelText("Titolo nel PDF"), {
+  changeFormControl(screen.getByLabelText("Titolo nel PDF"), {
     target: { value: "Prova" },
   });
   const button = screen.getByRole("button", { name: "Salva modello" });
@@ -170,7 +171,7 @@ it("non invia due salvataggi mentre il primo è in corso", async () => {
 
 it("applica uno stile senza cancellare i testi e salva le nuove opzioni", async () => {
   open();
-  fireEvent.change(screen.getByLabelText("Testo introduttivo"), {
+  changeFormControl(screen.getByLabelText("Testo introduttivo"), {
     target: { value: "Messaggio aziendale da conservare" },
   });
   fireEvent.click(
@@ -180,7 +181,7 @@ it("applica uno stile senza cancellare i testi e salva le nuove opzioni", async 
     "Messaggio aziendale da conservare",
   );
   expect(screen.getByLabelText("Margini laterali")).toHaveValue("18");
-  fireEvent.change(screen.getByLabelText("Nota su ogni pagina"), {
+  changeFormControl(screen.getByLabelText("Nota su ogni pagina"), {
     target: { value: "Ufficio acquisti" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
@@ -206,7 +207,7 @@ it("depenna una clausola, ne riscrive un'altra e toglie il riquadro da compilare
   expect(
     screen.queryByLabelText("Testo della clausola Conferma di data e prezzi"),
   ).toBeNull();
-  fireEvent.change(
+  changeFormControl(
     screen.getByLabelText("Testo della clausola Riferimento su DDT e fattura"),
     { target: { value: "Riportate «Ordine {riferimento}» su DDT e fattura." } },
   );

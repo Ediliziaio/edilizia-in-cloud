@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { FileDown, Package, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +38,7 @@ export function EmissioniPos({companyId,posId,approvato}:{companyId:string;posId
         {!!daPreparare.length&&!p.solaLettura&&<div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/40 p-3">
           <p className="text-sm font-medium">Conserva una copia del contenuto storico</p>
           <p className="text-xs text-muted-foreground">La copia viene preparata oggi. Non ricostruisce i byte dei vecchi PDF o allegati non conservati all’epoca e non attesta firme precedenti. Gli allegati mancanti bloccano il pacchetto.</p>
-          <div className="flex flex-wrap gap-2"><select aria-label="Contenuto approvato da conservare" className="min-w-0 max-w-full rounded-md border bg-background p-2 text-sm" value={selezionato} onChange={e=>setSnapshot(e.target.value)} disabled={prepara.isPending}><option value="">Scegli la revisione</option>{daPreparare.map(s=><option key={s.id} value={s.id}>Revisione {s.revisione}</option>)}</select><Button size="sm" disabled={!selezionato||prepara.isPending} onClick={()=>prepara.mutate(selezionato)}><ShieldCheck className="mr-1 h-4 w-4"/>{prepara.isPending?"Preparazione…":"Prepara copia"}</Button></div>
+          <div className="flex flex-wrap gap-2"><UniformSelect aria-label="Contenuto approvato da conservare" className="min-w-0 max-w-full rounded-md border bg-background p-2 text-sm" value={selezionato} onChange={e=>setSnapshot(e.target.value)} disabled={prepara.isPending}><option value="">Scegli la revisione</option>{daPreparare.map(s=><option key={s.id} value={s.id}>Revisione {s.revisione}</option>)}</UniformSelect><Button size="sm" disabled={!selezionato||prepara.isPending} onClick={()=>prepara.mutate(selezionato)}><ShieldCheck className="mr-1 h-4 w-4"/>{prepara.isPending?"Preparazione…":"Prepara copia"}</Button></div>
         </div>}
       </>}
     </div>}

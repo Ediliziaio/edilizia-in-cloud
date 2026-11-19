@@ -4,18 +4,19 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-const m = vi.hoisted(() => ({vociListino:[] as Array<Record<string, unknown>>, status:"confermato", canEdit:true, orderId:"commessa-1" as string | null, orderUpdate:vi.fn(), update:vi.fn().mockResolvedValue(undefined), pdf:vi.fn(), download:vi.fn(), error:vi.fn()}));
+const m = vi.hoisted(() => ({conferma:vi.fn(), cambiaStato:vi.fn(), ricevuti:0,vociListino:[] as Array<Record<string, unknown>>, status:"confermato", canEdit:true, orderId:"commessa-1" as string | null, orderUpdate:vi.fn(), update:vi.fn().mockResolvedValue(undefined), pdf:vi.fn(), download:vi.fn(), error:vi.fn()}));
 vi.mock("@/lib/documentiOperativi/pdf", () => ({generaPdfOperativo:m.pdf}));
 vi.mock("@/components/orders/generali/vendita/scarica", () => ({scaricaBlob:m.download}));
+vi.mock("@/components/ui/confirm-dialog", () => ({useConfirm: () => m.conferma}));
 vi.mock("sonner", () => ({toast:{error:m.error,success:vi.fn()}}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth: () => ({effectiveCompany:{id:"vulcano",name:"Impresa Vulcano"}})}));
 vi.mock("@/hooks/usePermissions", () => ({usePermissions: () => ({canEditOrders:m.canEdit})}));
 vi.mock("@/hooks/useListinoFornitore", () => ({useVociListinoFornitore: () => ({voci:m.vociListino})}));
 vi.mock("@tanstack/react-query", () => ({useQuery: () => ({data:[] as unknown[]}),useQueryClient: () => ({invalidateQueries:vi.fn()})}));
 vi.mock("@/hooks/usePurchaseOrders", () => ({
- usePurchaseOrders: () => ({updateStatus:{mutate:vi.fn()},update:{mutate:m.orderUpdate,mutateAsync:vi.fn()}}),
+ usePurchaseOrders: () => ({updateStatus:{mutate:m.cambiaStato},update:{mutate:m.orderUpdate,mutateAsync:vi.fn()}}),
  usePurchaseOrderDetail: () => ({order:{id:"oda-vulcano",company_id:"vulcano",order_id:m.orderId,status:m.status,oda_number:"ODA-2026-0005",issue_date:"2026-11-06",suppliers:{name:"KLASSE SRL"},subtotal:5198.4,total:6342.05},isLoading:false,isItemsLoading:false,
- items:[{id:"riga",description:"TEGOLE SELECTUM NERO 12 BANCALI",quantity:2880,quantity_received:0,unit_price:1.81,unit_of_measure:"pz",discount_percent:0,vat_rate:22,line_total:5198.4}],
+ items:[{id:"riga",description:"TEGOLE SELECTUM NERO 12 BANCALI",quantity:2880,quantity_received:m.ricevuti,unit_price:1.81,unit_of_measure:"pz",discount_percent:0,vat_rate:22,line_total:5198.4}],
  addItem:{mutate:vi.fn()},updateItem:{mutateAsync:m.update},deleteItem:{mutate:vi.fn()}})
 }));
 vi.mock("@/components/orders/ArticleCombobox", () => ({ArticleCombobox: () => <span>Selettore articolo</span>}));
@@ -31,7 +32,7 @@ vi.mock("@/components/orders/OdaDocumentoCard", () => ({OdaDocumentoCard: (): nu
 vi.mock("@/components/documentiOperativi/DocumentoInvioDialog", () => ({DocumentoInvioDialog: (): null => null}));
 import PurchaseOrderDetail from "@/pages/azienda/PurchaseOrderDetail";
 afterEach(cleanup);
-beforeEach(() => {m.vociListino=[];m.status="confermato";m.canEdit=true;m.orderId="commessa-1";m.orderUpdate.mockReset();m.update.mockClear();m.pdf.mockReset().mockResolvedValue(new Blob(["%PDF-test"],{type:"application/pdf"}));m.download.mockReset();m.error.mockReset();});
+beforeEach(() => {m.ricevuti=0;m.vociListino=[];m.status="confermato";m.canEdit=true;m.orderId="commessa-1";m.orderUpdate.mockReset();m.update.mockClear();m.pdf.mockReset().mockResolvedValue(new Blob(["%PDF-test"],{type:"application/pdf"}));m.download.mockReset();m.error.mockReset();});
 const apri = () => render(<MemoryRouter><PurchaseOrderDetail /></MemoryRouter>);
 it.each(["inviato","confermato","parziale"])("l’ordine %s si può modificare dal dettaglio senza tornare in bozza", (status) => {
  m.status = status;
@@ -102,4 +103,30 @@ it("il prezzo di un listino scaduto si propone lo stesso, ma detto chiaramente",
   fireEvent.click(screen.getByRole("button", {name:"Modifica ordine"}));
   expect(screen.getByRole("button", {name: /Usa listino/})).toHaveTextContent("Usa listino: 1,50 € (non aggiornato)");
   expect(screen.getByText("Listino scaduto il 30/11/2026: controlla il prezzo col fornitore.")).toBeInTheDocument();
+});
+
+it("mantiene le righe parziali e nasconde quelle ricevute nel filtro residui", () => {
+  m.ricevuti = 2800;
+  const view = apri();
+  fireEvent.click(screen.getByRole("button", { name: "Solo righe da ricevere" }));
+  expect(screen.getByRole("cell", { name: "80" })).toBeVisible();
+  m.ricevuti = 2880;
+  view.rerender(<MemoryRouter><PurchaseOrderDetail /></MemoryRouter>);
+  expect(screen.getByText("Tutti gli articoli sono stati ricevuti.")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Solo righe da ricevere" }));
+  expect(screen.getByLabelText("Quantità ricevuta")).toHaveValue(2880);
+});
+
+it("registra la conferma dell’ordine inviato solo dopo la scelta esplicita", async () => {
+  m.status = "inviato";
+  m.conferma.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  apri();
+  const registra = screen.getByRole("button", { name: "Registra conferma fornitore" });
+  fireEvent.click(registra);
+  await waitFor(() => expect(m.conferma).toHaveBeenCalledTimes(1));
+  expect(m.cambiaStato).not.toHaveBeenCalled();
+  fireEvent.click(registra);
+  await waitFor(() => expect(m.cambiaStato).toHaveBeenCalledWith(
+    { id: "oda-vulcano", status: "confermato" }, expect.anything(),
+  ));
 });

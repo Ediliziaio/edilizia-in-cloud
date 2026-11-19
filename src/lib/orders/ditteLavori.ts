@@ -229,6 +229,8 @@ export function elencoDaSalvare(righe: RigaElencoLavori[]): RigaElencoLavori[] {
       ...(r.codice != null ? { codice: r.codice } : {}),
       ...(r.fase_id ? { fase_id: r.fase_id } : {}),
       ...(r.sottofase_id ? { sottofase_id: r.sottofase_id } : {}),
+      ...(r.sottofase?.trim() ? { sottofase: r.sottofase.trim() } : {}),
+      ...(r.allinea_costo_previsto === true ? { allinea_costo_previsto: true as const } : {}),
       ...(r.voce_id ? { voce_id: r.voce_id } : {}),
       ...(r.affidamento_id ? { affidamento_id: r.affidamento_id } : {}),
       ...(r.comprende ? { comprende: r.comprende } : {}),

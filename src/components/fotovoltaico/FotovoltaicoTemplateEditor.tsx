@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import {copertinaIndustrialeAttiva,IMMAGINE_COPERTINA_INDUSTRIALE} from "../../../supabase/functions/_shared/fvCopertinaIndustriale";
 import {FvAmbitoOffertaSettings} from "./FvAmbitoOffertaSettings";
 import {leggiAmbitoOffertaFv} from "../../../supabase/functions/_shared/fvAmbitoOfferta";
@@ -1304,7 +1305,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
             <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
               <div className="col-span-12 md:col-span-2">
                 <Label className="text-xs">Icona</Label>
-                <select
+                <UniformSelect
                   value={garanzia.icona ?? "shield"}
                   onChange={(e) =>
                     updateGaranzia(idx, "icona", e.target.value as FvGaranziaConversione["icona"])
@@ -1313,7 +1314,7 @@ export function FotovoltaicoTemplateEditor({ embedded: _embedded = false, localM
                 >
                   {ICONE_EDITORIALI_FV.map(icona=><option key={icona.id} value={icona.id}>{icona.nome}</option>)}
                   <option value="custom">Personalizzata</option>
-                </select>
+                </UniformSelect>
                 <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><span className="inline-flex" dangerouslySetInnerHTML={{__html:svgIconaEditorialeFv(garanzia.icona,{colore:form.colore_accento,dimensione:24})}}/>Anteprima icona</div>
               </div>
               <div className="col-span-12 md:col-span-4">

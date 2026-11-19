@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import type { DocumentoSubappaltatore } from "@/types/subappaltatori";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -103,7 +104,7 @@ export function ImportaArchivioFascicolo(
               />
             </Label>
             <Label className="block">
-              Ambito della copia<select
+              Ambito della copia<UniformSelect
                 aria-label="Ambito della copia"
                 className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm"
                 value={ordine}
@@ -117,7 +118,7 @@ export function ImportaArchivioFascicolo(
                     {c.order_code} · {c.description}
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
             </Label>
             {commesse.isError && (
               <p role="alert" className="text-sm text-destructive">

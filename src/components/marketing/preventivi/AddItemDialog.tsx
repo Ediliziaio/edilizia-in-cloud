@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { QuoteItemPro } from "@/types/quoteItem";
 import { avvisiDoppieVoci } from "@/lib/preventivi/avvisiInserimento";
@@ -355,7 +356,7 @@ function AddItemContent({
               ))}
           </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pb-2 max-sm:w-full">
-              <select
+              <UniformSelect
                 aria-label="Area di lavoro"
                 className="h-9 w-96 max-w-full rounded-md border bg-background px-3 text-sm max-sm:w-full"
                 value={areaEffettiva}
@@ -372,7 +373,7 @@ function AddItemContent({
                     {a.nome} ({conteggiArea(a)})
                   </option>
                 ))}
-              </select>
+              </UniformSelect>
               {areaEffettiva !== TUTTE_LE_AREE &&
                 areaEffettiva !== VOCI_COMUNI &&
                 comuni && (

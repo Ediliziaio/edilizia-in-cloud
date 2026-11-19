@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useId, useState, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -75,10 +76,10 @@ export function TemplateCoverDesignControls({ fields, hasImage, children, photoH
               <input aria-label={`${label}: cursore`} aria-describedby={field.hint ? `${id}-hint` : undefined} type="range" min={field.min} max={field.max} step={field.id === "overlayOpacity" ? 1 : field.step ?? 1} value={field.value} disabled={disabled} className="min-w-0 flex-1 accent-orange-500 disabled:opacity-40" onChange={e => field.onChange(Number(e.target.value))} />
               <DesignNumberInput field={field} id={id} disabled={disabled} />
             </div>}
-            {field.kind === "choice" && <select id={id} value={field.value} disabled={disabled} onChange={e => field.onChange(e.target.value)} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50">
+            {field.kind === "choice" && <UniformSelect id={id} value={field.value} disabled={disabled} onChange={e => field.onChange(e.target.value)} className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm disabled:opacity-50">
               {!field.choices.some(([value]) => value === field.value) && <option value={field.value}>Valore personalizzato: {field.value}</option>}
               {field.choices.map(([value, title]) => <option key={value} value={value}>{title}</option>)}
-            </select>}
+            </UniformSelect>}
             {field.kind === "color" && <><div className="flex min-w-0 gap-2">
               <input type="color" aria-label={`Selettore ${label.toLowerCase()}`} disabled={disabled} value={/^#[\da-f]{6}$/i.test(field.value ?? "") ? field.value! : field.fallback} onChange={e => field.onChange(e.target.value)} className="h-10 w-12 shrink-0 rounded border bg-background p-1" />
               <Input id={id} value={field.value ?? ""} placeholder={field.fallback} disabled={disabled} onChange={e => field.onChange(e.target.value)} className="min-w-0 font-mono" />

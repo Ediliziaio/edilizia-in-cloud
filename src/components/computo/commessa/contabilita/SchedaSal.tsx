@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Stati d'avanzamento lavori e certificati di pagamento (lavori pubblici), più
  * le impostazioni della contabilità: ritenuta di garanzia, anticipazione, IVA,
@@ -54,11 +55,11 @@ function Impostazioni({ impostazioni, orderId, companyId, canEdit, onChiudi }: {
         <div className="space-y-1"><Label htmlFor="lp-iva">Aliquota IVA %</Label>
           <Input id="lp-iva" inputMode="decimal" value={b.iva} disabled={!canEdit} onChange={e => setB(x => ({ ...x, iva: e.target.value }))} className="h-8" /></div>
         <div className="space-y-1"><Label htmlFor="lp-sicurezza">Oneri della sicurezza</Label>
-          <select id="lp-sicurezza" value={b.sicurezza_modo} disabled={!canEdit} onChange={e => setB(x => ({ ...x, sicurezza_modo: e.target.value as ModoSicurezza }))}
+          <UniformSelect id="lp-sicurezza" value={b.sicurezza_modo} disabled={!canEdit} onChange={e => setB(x => ({ ...x, sicurezza_modo: e.target.value as ModoSicurezza }))}
             className="h-8 w-full rounded-md border bg-background px-2">
             <option value="proporzionale">In proporzione ai lavori eseguiti</option>
             <option value="a_misura">A misura (voci di sicurezza nel libretto)</option>
-          </select></div>
+          </UniformSelect></div>
         <label className="flex items-center gap-2 pt-5"><Switch checked={b.split_payment} disabled={!canEdit} onCheckedChange={v => setB(x => ({ ...x, split_payment: v }))} />Scissione dei pagamenti (split payment)</label>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

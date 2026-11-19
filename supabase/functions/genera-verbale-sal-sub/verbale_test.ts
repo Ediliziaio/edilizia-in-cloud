@@ -10,11 +10,36 @@ import {
   verificaVerbaleSalSub,
 } from "../_shared/verbaleSalSub.ts";
 import { pdfVerbaleSalSub } from "../_shared/verbaleSalSubPdf.ts";
+import { avanzamentoVociSalSub } from "../_shared/righeLavoriSalSub.ts";
 import { PDFDocument } from "pdf-lib";
 import { creaGestore } from "./handler.ts";
 import { unzipSync } from "fflate";
 const id = (n: number) =>
   `ca271027-0000-4000-a000-${String(n).padStart(12, "0")}`;
+
+Deno.test("avanzamento: i due SAL ripartiscono gli 80 m² e il corpo una volta sola", () => {
+  const voci = [
+    { id: "posa", descrizione: "Posa", base: "misura", unita: "m²", quantita: 80, prezzo: 18 },
+    { id: "fondo", descrizione: "Fondo", base: "corpo", unita: "quota", quantita: 1, prezzo: 600 },
+  ];
+  const prima = { id: "prima", voce_id: "posa", quantita_riconosciuta: 30 };
+  const dopo = { id: "dopo", voce_id: "posa", quantita_riconosciuta: 50 };
+  const fondo = { id: "fondo", voce_id: "fondo", quantita_riconosciuta: 1 };
+  const quantita = ({ affidata, prezzo, precedente, periodo, cumulata }: ReturnType<typeof avanzamentoVociSalSub>[number]) =>
+    [affidata, prezzo, precedente, periodo, cumulata];
+  assertEquals(avanzamentoVociSalSub(voci, [], [prima]).map(quantita), [
+    [80, 18, 0, 30, 30],
+    [1, 600, 0, 0, 0],
+  ]);
+  assertEquals(avanzamentoVociSalSub(voci, [prima, prima, dopo], [dopo, fondo, fondo]).map(quantita), [
+    [80, 18, 30, 50, 80],
+    [1, 600, 0, 1, 1],
+  ]);
+  assertEquals(avanzamentoVociSalSub(voci, [], [dopo], false).map(quantita), [
+    [80, 18, null, 50, null],
+    [1, 600, null, 0, null],
+  ]);
+});
 export const esempio = (): VerbaleSalSub => ({
   versione: "sal-sub-verbale-1",
   generato_il: "2026-10-27T18:30:00Z",
@@ -590,6 +615,12 @@ function fonteMisurata(h: ReturnType<typeof finto>) {
 Deno.test("handler: il verbale acquisisce misure riconosciute, prezzi e base lavori immutabile", async () => {
   const h = finto();
   fonteMisurata(h);
+  Object.assign(h.tables.subappalto_quadri_lavori[0], {
+    importo_lavori: 20000,
+    contratto_snapshot: { oneri_sicurezza: 500 },
+  });
+  Object.assign(h.d.contratto, { importo_contrattuale: 23000, oneri_sicurezza: 800 });
+  Object.assign(h.d.sal, { importo_lordo: 4100, oneri_quota: 100, ritenuta_importo: 205, importo_netto: 3895 });
   const p = await (await h.run()).json();
   assert(p.pdf_base64, JSON.stringify(p));
   assertEquals(
@@ -601,6 +632,9 @@ Deno.test("handler: il verbale acquisisce misure riconosciute, prezzi e base lav
   assertEquals(h.rows[0].snapshot.lavori[0].quantita_dichiarata, .3);
   assertEquals(h.rows[0].snapshot.lavori[0].quantita_riconosciuta, .2);
   assertEquals(h.rows[0].snapshot.lavori[0].importo, 4000);
+  assertEquals(h.rows[0].snapshot.contratto.importo_contrattuale, 20000);
+  assertEquals(h.rows[0].snapshot.contratto.oneri_sicurezza, 500);
+  assertEquals(h.rows[0].snapshot.sal.oneri_quota, 100);
 });
 Deno.test("handler: misura non riconosciuta e base estranea non diventano righe del verbale", async () => {
   const h = finto();

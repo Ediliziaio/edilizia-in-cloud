@@ -1,3 +1,5 @@
+import { formOptions } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -74,7 +76,7 @@ describe("Merce presa in negozio (ufficio)", () => {
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
     expect(screen.getByText(/rimborso all’operaio nello scadenzario/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/Totale da registrare/), { target: { value: "44,90" } });
+    changeFormControl(screen.getByLabelText(/Totale da registrare/), { target: { value: "44,90" } });
     fireEvent.click(screen.getByRole("button", { name: "Registra" }));
     await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("campo_acquisto_verifica", { p_id: "a1", p_azione: "registra", p_totale: 44.9, p_purchase_order_id: null, p_motivo: null }));
     await waitFor(() => expect(state.success).toHaveBeenCalledWith("Registrata", { description: "Registrato come costo del cantiere." }));
@@ -84,7 +86,7 @@ describe("Merce presa in negozio (ufficio)", () => {
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
     fireEvent.click(screen.getByRole("button", { name: "Rifiuta" }));
-    fireEvent.change(screen.getByLabelText("Motivo del rifiuto"), { target: { value: "Scontrino illeggibile" } });
+    changeFormControl(screen.getByLabelText("Motivo del rifiuto"), { target: { value: "Scontrino illeggibile" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Rifiuta" }).at(-1)!);
     await waitFor(() => expect(state.rpc).toHaveBeenCalledWith("campo_acquisto_verifica", expect.objectContaining({ p_azione: "rifiuta", p_motivo: "Scontrino illeggibile" })));
   });
@@ -144,7 +146,7 @@ describe("Merce presa in negozio (ufficio)", () => {
   it("non offre lo scollegamento fittizio di un ordine già proposto dal server", async () => {
     state.acquisti = [acquisto({ modalita: "ritiro_ordine", purchase_order_id: "po1" })]; mostra();
     fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
-    expect(screen.queryByRole("option", { name: "Nessuno: registra come costo diretto" })).toBeNull();
+    expect(formOptions().queryByRole("option", { name: "Nessuno: registra come costo diretto" })).toBeNull();
   });
 
   it("una risposta senza conferma esplicita non mostra 'Registrata'", async () => {
@@ -157,7 +159,7 @@ describe("Merce presa in negozio (ufficio)", () => {
 
   it.each(["abc", "0", "-5", "1000001"])("blocca un importo non valido (%s) invece di registrare il totale precedente", async value => {
     mostra(); fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
-    fireEvent.change(screen.getByLabelText(/Totale da registrare/), { target: { value } });
+    changeFormControl(screen.getByLabelText(/Totale da registrare/), { target: { value } });
     expect(screen.getByRole("button", { name: "Registra" })).toBeDisabled();
   });
 
@@ -174,7 +176,7 @@ describe("Merce presa in negozio (ufficio)", () => {
     state.oda = [{ id: "po1", oda_number: "ODA-7", status: "confermato", suppliers: { name: "Tecnomat" } }];
     mostra();
     fireEvent.click(await screen.findByRole("button", { name: "Verifica" }));
-    expect(await screen.findByRole("option", { name: "ODA-7 · Tecnomat · Confermato" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /· confermato$/ })).toBeNull();
+    expect(await formOptions().findByRole("option", { name: "ODA-7 · Tecnomat · Confermato" })).toBeInTheDocument();
+    expect(formOptions().queryByRole("option", { name: /· confermato$/ })).toBeNull();
   });
 });

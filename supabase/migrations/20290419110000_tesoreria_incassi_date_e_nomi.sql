@@ -1,37 +1,5 @@
--- ════════════════════════════════════════════════════════════════════════════
--- Tesoreria: un incasso non paga fatture emesse dopo, e il cliente si riconosce
--- anche scritto «COGNOME NOME»
--- ════════════════════════════════════════════════════════════════════════════
--- Collaudo su Impresa Vulcano (18/11/2026), prima azienda che riconcilia la
--- banca sulle fatture emesse importate da XML. Due difetti di private.tes_classifica:
---
--- 1. Proponeva come acconto, saldo o eccedenza fatture EMESSE DOPO il bonifico.
---    Esempi veri: Torno Subito 32.120 € del 28/09 proposto come eccedenza della
---    1/218 del 31/10 (il bonifico era della 1/188, già segnata pagata); VLT 817,40 €
---    del 14/10 come parziale della 1/232 del 31/10; Techbau 170.698 € del 22/09
---    da ripartire su 26 fatture, 11 delle quali di fine ottobre. Confermare una di
---    queste proposte avrebbe segnato incassata una fattura che il cliente non ha
---    ancora pagato. Ora un incasso considera solo i documenti emessi entro 7 giorni
---    dalla data del movimento (margine per chi fattura all'arrivo del bonifico).
---
--- 2. Il nome si confrontava come stringa senza spazi: «DAVIDE COLOMBO» (cliente)
---    diventa «davidecolombo», la causale «*COLOMBO DAVIDE PAGAMENTO FT N 1.216»
---    contiene «colombodavide». Numero giusto e importo giusto, ma il soggetto
---    mancava e la proposta restava «media». Le banche di Vulcano non riempiono il
---    nome del pagante: c'è solo la causale. Ora vale anche: tutte le parole
---    significative del nome (almeno due, forme societarie e parole generiche
---    escluse) compaiono come parole nella causale.
---
---
--- 3. Se la causale cita una fattura dello stesso cliente che risulta GIÀ pagata
---    senza movimento di banca (su Vulcano 442 fatture, importate pagate o dal
---    foglio «Incassi»), non propone altre fatture: Colombo «SALDO FATT. N. 1/170»
---    finiva come eccedenza della 1/117. Ora l'esito è «da gestire», natura
---    gia_incassata, con la fattura citata in `documento_gia_pagato`.
---
--- Idempotente: CREATE OR REPLACE. La funzione è il testo vivo del database con le
--- sole modifiche marcate «18/11/2026».
--- ════════════════════════════════════════════════════════════════════════════
+-- Tesoreria: un incasso non paga fatture emesse dopo, il cliente si riconosce anche «COGNOME NOME»,
+-- e una causale che cita una fattura già pagata senza banca non viene spinta su altre fatture (18/11/2026).
 
 CREATE OR REPLACE FUNCTION private.tes_parole_nome_in_causale(p_nome text, p_ncaus text)
  RETURNS boolean
@@ -447,5 +415,4 @@ BEGIN
   'conflitti',coalesce((SELECT jsonb_agg(jsonb_build_object('tipo',x->>'tipo','id',x->>'id','titolo',x->>'titolo','motivi',x->'conflitti')) FROM jsonb_array_elements(confl) x),'[]'::jsonb),
   'mancanti',coalesce(out->'mancanti','[]'::jsonb));
  RETURN out;
-END $function$
-;
+END $function$;

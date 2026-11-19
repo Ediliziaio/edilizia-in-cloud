@@ -76,8 +76,11 @@ const normalizza = (t: string) =>
  */
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", onKeyDownCapture, onCloseAutoFocus, onEscapeKeyDown, onPointerDownOutside, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    /** Size short menus to their entries instead of stretching to the field. */
+    fitContent?: boolean;
+  }
+>(({ className, children, fitContent = false, position = "popper", onKeyDownCapture, onCloseAutoFocus, onEscapeKeyDown, onPointerDownOutside, ...props }, ref) => {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const cercaRef = React.useRef<HTMLInputElement | null>(null);
   // La lista vera nasce quando la tendina si apre (da chiusa Radix la disegna in un
@@ -128,6 +131,8 @@ const SelectContent = React.forwardRef<
           "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          fitContent && "min-w-32 max-w-[min(28rem,calc(100vw-2rem))]",
+          fitContent && conRicerca && "min-w-56",
           className,
         )}
         position={position}
@@ -194,8 +199,9 @@ const SelectContent = React.forwardRef<
           ref={agganciaViewport}
           className={cn(
             "p-1",
-            position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            position === "popper" && (fitContent
+              ? "w-max min-w-full max-w-[min(28rem,calc(100vw-2rem))]"
+              : "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"),
           )}
         >
           {children}

@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import EditorialVideo from "@/components/marketing/EditorialVideo";
 import MarketingVisual from "@/components/marketing/MarketingVisual";
 import { useState } from "react";
@@ -834,26 +835,26 @@ export default function PianificaMigrazione() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Software attuale *</label>
-                  <select name="software_attuale" value={form.software_attuale} onChange={handleChange} className={inputClass("software_attuale")} aria-invalid={!!errors.software_attuale}>
+                  <UniformSelect name="software_attuale" value={form.software_attuale} onChange={handleChange} className={inputClass("software_attuale")} aria-invalid={!!errors.software_attuale}>
                     <option value="">Seleziona…</option>
                     {SOFTWARE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </UniformSelect>
                   {errors.software_attuale && <p className="text-red-500 text-xs mt-1">{errors.software_attuale}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Numero cantieri/anno *</label>
-                  <select name="num_cantieri" value={form.num_cantieri} onChange={handleChange} className={inputClass("num_cantieri")} aria-invalid={!!errors.num_cantieri}>
+                  <UniformSelect name="num_cantieri" value={form.num_cantieri} onChange={handleChange} className={inputClass("num_cantieri")} aria-invalid={!!errors.num_cantieri}>
                     <option value="">Seleziona…</option>
                     {NUM_CANTIERI_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </UniformSelect>
                   {errors.num_cantieri && <p className="text-red-500 text-xs mt-1">{errors.num_cantieri}</p>}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Anni di archivio storico</label>
-                  <select name="anni_dati" value={form.anni_dati} onChange={handleChange} className={inputClass("anni_dati")}>
+                  <UniformSelect name="anni_dati" value={form.anni_dati} onChange={handleChange} className={inputClass("anni_dati")}>
                     <option value="">Seleziona…</option>
                     {ANNI_DATI_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  </UniformSelect>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-xs font-bold text-[#111111] mb-1.5">Note (opzionale)</label>

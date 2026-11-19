@@ -1,3 +1,5 @@
+import { nativeFormControl } from "@/test/helpers/changeFormControl";
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ImportaBusinessPlan } from "@/components/orders/generali/piano/ImportaBusinessPlan";
@@ -36,7 +38,7 @@ afterEach(cleanup);
 async function carica() {
   const file = new File(["xlsx"], "Piano.xlsx");
   Object.defineProperty(file, "arrayBuffer", { value: async () => new ArrayBuffer(1) });
-  fireEvent.change(screen.getByLabelText("File business plan"), { target: { files: [file] } });
+  changeFormControl(screen.getByLabelText("File business plan"), { target: { files: [file] } });
   await screen.findByLabelText("Importo previsto riga 3");
 }
 
@@ -49,10 +51,10 @@ describe("Anteprima del business plan", () => {
     const file=new File([bytes],"piani-demo.xlsx",{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     Object.defineProperty(file,"arrayBuffer",{value:async()=>bytes});
     const importa=vi.fn();render(<ImportaBusinessPlan onImporta={importa} onAnnulla={vi.fn()} />);
-    fireEvent.change(screen.getByLabelText("File business plan"),{target:{files:[file]}});
+    changeFormControl(screen.getByLabelText("File business plan"),{target:{files:[file]}});
     const scenario=await screen.findByLabelText("Scenario da importare");
-    fireEvent.change(scenario,{target:{value:String(indice)}});
-    expect(scenario).toHaveDisplayValue(nome);
+    changeFormControl(scenario,{target:{value:String(indice)}});
+    expect(nativeFormControl(scenario)).toHaveDisplayValue(nome);
     fireEvent.click(screen.getByLabelText(/Ho verificato scenario/));
     fireEvent.click(screen.getByRole("button",{name:`Aggiungi ${quante} voci alla bozza`}));
     expect(importa).toHaveBeenCalledOnce();
@@ -84,7 +86,7 @@ describe("Anteprima del business plan", () => {
     expect(importa).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Importa riga 3")).toBeDisabled();
     expect(screen.getByLabelText("Importa riga 3")).toBeChecked();
-    fireEvent.change(screen.getByLabelText("Importo previsto riga 3"), { target: { value: "0" } });
+    changeFormControl(screen.getByLabelText("Importo previsto riga 3"), { target: { value: "0" } });
     expect(screen.getByLabelText("Importa riga 3")).toBeChecked();
     expect(screen.getByRole("button", { name: "Aggiungi 3 voci alla bozza" })).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/Ho verificato scenario/));
@@ -101,7 +103,7 @@ describe("Anteprima del business plan", () => {
     render(<ImportaBusinessPlan onImporta={vi.fn()} onAnnulla={vi.fn()} />);
     await carica();
     fireEvent.click(screen.getByLabelText(/Ho verificato scenario/));
-    fireEvent.change(screen.getByLabelText("Scenario da importare"), { target: { value: "1" } });
+    changeFormControl(screen.getByLabelText("Scenario da importare"), { target: { value: "1" } });
     await waitFor(() => expect(screen.queryByLabelText("Importo previsto riga 3")).not.toBeInTheDocument());
     expect(screen.getByLabelText(/Ho verificato scenario/)).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Aggiungi 1 voci alla bozza" })).toBeDisabled();

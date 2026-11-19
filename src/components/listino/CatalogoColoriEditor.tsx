@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useMemo, useState } from "react";
 import { Palette, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -71,16 +72,16 @@ export function CatalogoColoriEditor({ family }: { family: FamilyWithAxes }) {
         </div>
         <div className="rounded-md border bg-background p-3 space-y-2">
           <Label htmlFor={`regola-${family.id}`} className="text-xs">Prezzo interno / esterno</Label>
-          <select id={`regola-${family.id}`} className="h-8 w-full rounded-md border bg-background px-2 text-xs" value={catalogo.modalita} onChange={e => modifica({ modalita: e.target.value as CatalogoColori["modalita"] })}>
+          <UniformSelect id={`regola-${family.id}`} className="h-8 w-full rounded-md border bg-background px-2 text-xs" value={catalogo.modalita} onChange={e => modifica({ modalita: e.target.value as CatalogoColori["modalita"] })}>
             <option value="fascia_piu_cara">Fascia più cara — regola attuale</option><option value="combinazioni">Combinazioni confermate dal fornitore</option>
-          </select>
+          </UniformSelect>
           <p className="text-[11px] text-muted-foreground">Ogni combinazione usa il prezzo e il costo della fascia scelta, senza aggiungere due volte il colore. In modalità combinazioni, quelle non definite restano da quotare.</p>
           {catalogo.modalita === "combinazioni" && <>
             {catalogo.combinazioni.map((regola, i) => <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2">
-              {(["interno", "esterno", "fasciaId"] as const).map(campo => <select key={campo} aria-label={`${campo} combinazione ${i + 1}`} className="h-8 min-w-0 rounded-md border bg-background px-1 text-xs" value={regola[campo]} onChange={e => modifica({ combinazioni: catalogo.combinazioni.map((c, j) => j === i ? { ...c, [campo]: e.target.value } : c) })}>
+              {(["interno", "esterno", "fasciaId"] as const).map(campo => <UniformSelect key={campo} aria-label={`${campo} combinazione ${i + 1}`} className="h-8 min-w-0 rounded-md border bg-background px-1 text-xs" value={regola[campo]} onChange={e => modifica({ combinazioni: catalogo.combinazioni.map((c, j) => j === i ? { ...c, [campo]: e.target.value } : c) })}>
                 <option value="">{campo === "fasciaId" ? "Fascia prezzo" : `Colore ${campo}`}</option>
                 {campo === "fasciaId" ? asse.values.filter(v => v.attivo).map(v => <option key={v.id} value={v.id}>{v.label}</option>) : elenco.filter(v => v.attivo && coloreDisponibile(catalogo, v.chiave, campo)).map(v => <option key={v.chiave} value={v.chiave}>{v.nome} · {v.fascia}</option>)}
-              </select>)}
+              </UniformSelect>)}
               <Button type="button" size="icon" variant="ghost" className="h-8 w-8" aria-label={`Rimuovi combinazione ${i + 1}`} onClick={() => modifica({ combinazioni: catalogo.combinazioni.filter((_, j) => j !== i) })}><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>)}
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => modifica({ combinazioni: [...catalogo.combinazioni, { interno: "", esterno: "", fasciaId: "" }] })}><Plus className="mr-1 h-3.5 w-3.5" />Combinazione</Button>

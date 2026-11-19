@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * «Condizioni contrattuali» nel preventivo (27/10/2026): due cose che prima si potevano decidere solo per tutta
  * l'azienda, nel modello.
@@ -120,11 +121,11 @@ export function CondizioniDelPreventivoCard({ progetto, onChange, testoDelModell
           {apertoEditor ? (
             <>
               {perPreventivi.length > 1 && (
-                <select aria-label="Parti dalle condizioni di un altro modello" className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                <UniformSelect aria-label="Parti dalle condizioni di un altro modello" className="h-8 w-full rounded-md border bg-background px-2 text-xs"
                   value="" onChange={(e) => e.target.value && partiDa(e.target.value)}>
                   <option value="">Parti da un altro modello di «Contratti e condizioni»…</option>
                   {perPreventivi.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                </select>
+                </UniformSelect>
               )}
               <RichTextEditor value={bozza} onChange={setBozza} minHeight={220}
                 placeholder="Le condizioni di questo preventivo, scritte per questo cliente." />

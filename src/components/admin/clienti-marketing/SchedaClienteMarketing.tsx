@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * La scheda di un cliente marketing: il report completo senza entrare
  * nell'azienda. In testa chi è, i suoi servizi e i numeri del periodo con il
@@ -251,7 +252,7 @@ export function SchedaClienteMarketing({
                   <span>{data.cliente.data_inizio ? `cliente dal ${dataBreve(data.cliente.data_inizio, false, oggi)}` : "senza data d'inizio"} ·</span>
                   {/* Chi segue il cliente: da qui in avanti decide anche chi ne vede i numeri. */}
                   {cambiaResponsabile ? (
-                    <select autoFocus disabled={assegna.isPending}
+                    <UniformSelect autoFocus disabled={assegna.isPending}
                       className="rounded border bg-background px-1.5 py-0.5 text-xs"
                       defaultValue={data.cliente.commerciale_id ?? ""}
                       onBlur={() => setCambiaResponsabile(false)}
@@ -263,7 +264,7 @@ export function SchedaClienteMarketing({
                       {(responsabili.data ?? []).map((r) => (
                         <option key={r.id} value={r.id}>{r.nome}{r.clienti > 0 ? ` (${r.clienti})` : ""}</option>
                       ))}
-                    </select>
+                    </UniformSelect>
                   ) : (
                     <button type="button" onClick={() => setCambiaResponsabile(true)}
                       className="underline-offset-2 hover:text-foreground hover:underline"

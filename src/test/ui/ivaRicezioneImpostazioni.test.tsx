@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 // Liquidazione IVA, fasi 0 e 1.1: il pannello della data di ricezione nel
 // registro acquisti e la scheda delle impostazioni IVA.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -92,7 +93,7 @@ describe("data di ricezione degli acquisti", () => {
     // Quella con data SDI non è nell'elenco.
     expect(screen.queryByText(/F-a/)).not.toBeInTheDocument();
     expect(screen.getByText(/Vale per le 1 selezionate/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Arrivata il"), { target: { value: "2027-01-03" } });
+    changeFormControl(screen.getByLabelText("Arrivata il"), { target: { value: "2027-01-03" } });
     fireEvent.click(screen.getByRole("button", { name: "Conferma data" }));
     await waitFor(() => expect(state.rpc).toHaveLength(1));
     expect(state.rpc[0]).toEqual({
@@ -149,9 +150,9 @@ describe("impostazioni IVA", () => {
   it("senza riga dice cosa manca e salva le scelte dell'anno", async () => {
     wrap(<ImpostazioniIVA anno={2026} />);
     expect(await screen.findByText(/Impostazioni IVA dell'anno non compilate/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Liquidazione"), { target: { value: "mensile" } });
+    changeFormControl(screen.getByLabelText("Liquidazione"), { target: { value: "mensile" } });
     expect(screen.getByLabelText("Codice fiscale dell'azienda")).toHaveValue("09876543210");
-    fireEvent.change(screen.getByLabelText("Codice fiscale dell'azienda"), { target: { value: "01234567890" } });
+    changeFormControl(screen.getByLabelText("Codice fiscale dell'azienda"), { target: { value: "01234567890" } });
     fireEvent.click(screen.getByRole("button", { name: "Salva impostazioni" }));
     await waitFor(() => expect(state.upsert).toHaveLength(1));
     expect(state.upsert[0]).toMatchObject({

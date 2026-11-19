@@ -183,7 +183,6 @@
          DNS+TCP+TLS handshake al primo paint critico (auth + edge functions). -->
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co" crossorigin>
     <link rel="dns-prefetch" href="https://rsbrguhkodgnqfomrevo.supabase.co">
-    <link rel="preconnect" href="https://connect.facebook.net" crossorigin>
 
     <!-- Speculation Rules: prefetch HTML only on hover/click.
          v9.5 cdn-fix: removed `prerender` (moderate) — it was eagerly
@@ -388,13 +387,6 @@
           } catch (e) {}
           return null;
         }
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){ window.dataLayer.push(arguments); }
-        gtag('consent', 'default', {
-          ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied',
-          analytics_storage: 'denied', functionality_storage: 'granted', security_storage: 'granted',
-          wait_for_update: 500
-        });
         var avvii = { analitici: [], marketing: [] };
         var api = {
           scelta: leggi(),
@@ -407,12 +399,6 @@
             var c = { v: 1, il: Date.now(), analitici: !!analitici, marketing: !!marketing };
             try { window.localStorage.setItem(CHIAVE, JSON.stringify(c)); } catch (e) {}
             api.scelta = c;
-            gtag('consent', 'update', {
-              analytics_storage: c.analitici ? 'granted' : 'denied',
-              ad_storage: c.marketing ? 'granted' : 'denied',
-              ad_user_data: c.marketing ? 'granted' : 'denied',
-              ad_personalization: c.marketing ? 'granted' : 'denied'
-            });
             ['analitici', 'marketing'].forEach(function (k) {
               if (!c[k]) return;
               var da = avvii[k]; avvii[k] = [];
@@ -422,94 +408,9 @@
           },
           apri: function () { try { window.dispatchEvent(new CustomEvent('eic:apri-preferenze-cookie')); } catch (e) {} }
         };
-        if (api.scelta) {
-          gtag('consent', 'update', {
-            analytics_storage: api.scelta.analitici ? 'granted' : 'denied',
-            ad_storage: api.scelta.marketing ? 'granted' : 'denied',
-            ad_user_data: api.scelta.marketing ? 'granted' : 'denied',
-            ad_personalization: api.scelta.marketing ? 'granted' : 'denied'
-          });
-        }
         window.eicConsensoCookie = api;
       })();
     </script>
-
-    <!-- GA4 — deferred, marketing pages only -->
-    <script>
-      (function () {
-        var GA_ID = 'G-0JZP5N2VW5';
-        var MARKETING_HOSTS = {
-          'ediliziaincloud.com': true,
-          'www.ediliziaincloud.com': true
-        };
-        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|entra|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
-        var isPublicMarketingPage = !!MARKETING_HOSTS[window.location.hostname] && !PRIVATE_PREFIXES.test(window.location.pathname || '/');
-
-        window.__EIC_GA_ENABLED = isPublicMarketingPage;
-        if (!isPublicMarketingPage) return;
-
-        window.dataLayer = window.dataLayer || [];
-        window.gtag = function(){window.dataLayer.push(arguments);};
-        window.gtag('js', new Date());
-        window.gtag('config', GA_ID, {
-          send_page_view: false,
-          anonymize_ip: true,
-          cookie_flags: 'SameSite=None;Secure'
-        });
-
-        // NIENTE caricamento diretto di gtag/js: la libreria per G-0JZP5N2VW5
-        // è già caricata dal contenitore GTM (GTM-PGLNPBW9, script sotto).
-        // Prima veniva scaricata DUE volte (162KB duplicati su mobile, eventi
-        // a rischio doppio conteggio). Lo stub window.gtag + la config qui
-        // sopra restano: spingono sul dataLayer condiviso che gtag.js (via
-        // GTM) processa al load. ATTENZIONE: se il tag Google/GA4 viene
-        // rimosso dal contenitore GTM, Analytics smette di ricevere dati —
-        // in quel caso ripristinare qui il loader diretto di gtag/js.
-      })();
-    </script>
-
-    <!-- Google Tag Manager — deferred, marketing pages only (stesso gating host/private di GA4) -->
-    <script>
-      (function () {
-        var GTM_ID = 'GTM-PGLNPBW9';
-        var MARKETING_HOSTS = {
-          'ediliziaincloud.com': true,
-          'www.ediliziaincloud.com': true
-        };
-        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|entra|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
-        var isPublicMarketingPage = !!MARKETING_HOSTS[window.location.hostname] && !PRIVATE_PREFIXES.test(window.location.pathname || '/');
-        if (!isPublicMarketingPage) return;
-
-        // dataLayer è condiviso con GA4 (già inizializzato sopra): GTM e gtag
-        // convivono spingendo sullo stesso array, nessun conflitto.
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
-
-        var gtmLoaded = false;
-        function loadGTM() {
-          if (gtmLoaded) return;
-          gtmLoaded = true;
-          var s = document.createElement('script');
-          s.async = true;
-          s.src = 'https://www.googletagmanager.com/gtm.js?id=' + GTM_ID;
-          document.head.appendChild(s);
-        }
-        // Solo col consenso alle statistiche. Poi stesso defer di GA4: prima
-        // interazione utente, oppure load + 1.5s (o subito, se il consenso
-        // arriva dal banner a pagina già caricata).
-        window.eicConsensoCookie.quando('analitici', function () {
-          if (document.readyState === 'complete') { setTimeout(loadGTM, 300); return; }
-          var EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
-          function onInteract() {
-            EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
-            loadGTM();
-          }
-          EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
-          window.addEventListener('load', function(){ setTimeout(loadGTM, 1500); }, { once: true });
-        });
-      })();
-    </script>
-    <!-- End Google Tag Manager -->
 
     <!-- Meta Pixel — deferred, marketing pages only (stesso gating host/private di GA4) -->
     <script>

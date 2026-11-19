@@ -7,6 +7,7 @@ import {
   type VerbaleSalSub,
   verificaVerbaleSalSub,
 } from "../_shared/verbaleSalSub.ts";
+import { avanzamentoVociSalSub, type VoceAvanzamentoSalSub } from "../_shared/righeLavoriSalSub.ts";
 import { pdfVerbaleSalSub } from "../_shared/verbaleSalSubPdf.ts";
 import { formatoImmagine, leggiLogo, logoDiRiserva } from "../_shared/logoAzienda.ts";
 import { PDFDocument } from "pdf-lib";
@@ -224,7 +225,7 @@ export function creaGestore(
       }
       const sal = await singolo(
         db.from("sal_subappaltatori").select(
-          "id,company_id,contratto_id,order_id,subappaltatore_id,numero_sal,data_emissione,stato,importo_lordo,ritenuta_pct,ritenuta_importo,acconto_recuperato,importo_netto,note,note_contestazione,data_pagamento,payment_reference,payment_method",
+          "id,company_id,contratto_id,order_id,subappaltatore_id,numero_sal,data_emissione,stato,importo_lordo,oneri_quota,ritenuta_pct,ritenuta_importo,acconto_recuperato,importo_netto,note,note_contestazione,data_pagamento,payment_reference,payment_method",
         ).eq("id", input.sal_id).eq("company_id", input.company_id),
         "SAL",
       );
@@ -325,19 +326,30 @@ export function creaGestore(
       const misure = await elenco(
         db.from("subappalto_misure").select(
           "id,company_id,contratto_id,quadro_id,voce_id,data_rilievo,quantita_dichiarata,quantita_riconosciuta,prezzo_unitario,importo_riconosciuto,stato,riferimento,nota_verifica,verificato_da,verificato_il",
-        ).eq("sal_id", sal.id).order("data_rilievo").order("id"),
+        ).eq("company_id", input.company_id).eq("contratto_id", contratto.id)
+          .eq("sal_id", sal.id).order("data_rilievo").order("id"),
         "Misure SAL",
       );
       d.lavori = [];
       if (misure.length) {
         const ids = [...new Set(misure.map((m: any) => m.quadro_id))];
         const quadri = await elenco(
-          db.from("subappalto_quadri_lavori").select("id,revisione,voci").eq(
+          db.from("subappalto_quadri_lavori").select("id,revisione,voci,importo_lavori,contratto_snapshot").eq(
             "company_id",
             input.company_id,
           ).eq("contratto_id", contratto.id).in("id", ids),
           "Base lavori SAL",
         );
+        // La base del SAL è la revisione citata dalle misure, anche dopo una variante del contratto.
+        const base = [...quadri].sort((a, b) => b.revisione - a.revisione)[0];
+        if (base && Number.isFinite(Number(base.importo_lavori))) {
+          const snapshot = base.contratto_snapshot;
+          d.contratto = {
+            ...contratto,
+            importo_contrattuale: Number(base.importo_lavori),
+            oneri_sicurezza: snapshot?.oneri_sicurezza ?? contratto.oneri_sicurezza,
+          };
+        }
         for (const m of misure) {
           const q = quadri.find((q: any) => q.id === m.quadro_id);
           const v = q?.voci?.find((v: any) => v.id === m.voce_id);
@@ -368,6 +380,22 @@ export function creaGestore(
             verificato_da: m.verificato_da,
             verificato_il: m.verificato_il,
           });
+        }
+        if (base) {
+          const salPrecedenti = d.precedenti.filter(s =>
+            ["verificato", "pagato"].includes(s.stato) && Number(s.importo_lordo) > 0
+          ).map(s => s.id);
+          const precedenti = salPrecedenti.length ? await elenco(
+            db.from("subappalto_misure").select("id,voce_id,sal_id,quantita_riconosciuta")
+              .eq("company_id", input.company_id).eq("contratto_id", contratto.id)
+              .eq("stato", "riconosciuta").in("sal_id", salPrecedenti).order("id"),
+            "Misure dei SAL precedenti",
+          ) as Array<{ id: string; voce_id: string; sal_id: string; quantita_riconosciuta: number }> : [];
+          const salConMisure = new Set(precedenti.map(m => m.sal_id));
+          d.avanzamento = avanzamentoVociSalSub(
+            base.voci as VoceAvanzamentoSalSub[], precedenti, misure,
+            salPrecedenti.every(id => salConMisure.has(id)),
+          );
         }
       }
       verificaVerbaleSalSub(d);

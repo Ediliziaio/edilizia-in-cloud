@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Pencil, Search, Send, Sparkles } from "lucide-react";
+import { Download, Loader2, Pencil, Plus, Search, Send, Sparkles, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,22 +22,24 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/formatters";
 import { parseAssignmentAmount } from "@/lib/orders/assignmentAmounts";
-import { contrattoDellaDitta, periodoFasi, schedeSicurezzaDitta, type AffidamentoPerContratto, type SchedaSicurezza, type VoceLavoro } from "@/lib/orders/ditteLavori";
+import { contrattoDellaDitta, periodoFasi, schedeSicurezzaDitta, type AffidamentoPerContratto, type SchedaSicurezza, type SottofaseLavoro, type VoceLavoro } from "@/lib/orders/ditteLavori";
 import { chiaveAffidamenti, statoVoce } from "@/lib/subappaltatori/affidamentiCommessa";
 import { chiaveDescrizione, unitaPerListino } from "@/lib/subappaltatori/abbinamentoListino";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { contoTabella, destinoContratto, elencoUnito, prezzoDalVenduto, righeContratto, type RigaTabella } from "@/lib/subappaltatori/affidaEContratto";
+import { contoTabella, destinoContratto, elencoUnito, prezzoDalVenduto, rigaContrattoACorpo, righeContratto, type RigaTabella } from "@/lib/subappaltatori/affidaEContratto";
 import { useAffidamentiCommessa } from "./AffidaVociDialog";
 import { chiaveVociPreviste, useVociPrevisteFasi } from "@/hooks/useVociPrevisteFasi";
 import { refreshWorkQueries } from "@/lib/orders/refreshWorkQueries";
+import { MacrofasiSubappalto } from "@/components/subappaltatori/MacrofasiSubappalto";
+import { totaleElencoLavori, type RigaElencoLavori } from "@/lib/subappaltatori/contrattoSubappaltoHtml";
 import { OfficeSelect } from "./OfficeSelect";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
 export type VoceAffidabile = VoceLavoro & { importo: number | null; costo_materiali: number };
-interface ContrattoCommessa { id: string; subappaltatore_id: string; stato: string; firmato_il: string | null; elenco_lavori: unknown }
+interface ContrattoCommessa { importo_contrattuale?: number; oneri_sicurezza?: number; id: string; subappaltatore_id: string; stato: string; firmato_il: string | null; elenco_lavori: unknown }
 
 const ORIGINE: Record<string, string> = { listino_ditta: "listino ditta", costo_aziendale: "costo nostro", manuale: "da scrivere" };
 const qt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
@@ -46,11 +48,18 @@ const oggi = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" })
 
 type ProposteAi = Record<string, { tariffaId: string; certezza: "alta" | "media"; perche: string; confermata?: boolean }>;
 
-export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratti, schede, onChiudi, onFatto }: {
+const ALTRI_LAVORI = "altri-lavori";
+type DittaContratto = { id: string; nome: string; schedaId?: string; fasiIntere?: string[] };
+type LavoroACorpo = { id: string; faseId: string; sottofaseId?: string; descrizione: string; importo: string };
+
+export function AffidaContrattoDialog({ orderId, companyId, fasi, sottofasi = [], voci, contratti, schede, dittaFissa, onChiudi, onFatto, onContrattoSalvato }: {
   orderId: string; companyId: string;
   fasi: Array<{ id: string; name: string; position?: number | null; start_date?: string | null; end_date?: string | null }>;
+  sottofasi?: SottofaseLavoro[];
   voci: VoceAffidabile[]; contratti: ContrattoCommessa[]; schede: SchedaSicurezza[];
+  dittaFissa?: DittaContratto;
   onChiudi: () => void; onFatto: () => void;
+  onContrattoSalvato?: (id: string) => void;
 }) {
   const qc = useQueryClient();
   const vai = useNavigate();
@@ -58,6 +67,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
   const ditte = useQuery({
     queryKey: ["subappaltatori-per-affidare", companyId],
     staleTime: 5 * 60_000,
+    enabled: !dittaFissa,
     queryFn: async (): Promise<Array<{ id: string; ragione_sociale: string; is_active: boolean | null }>> => {
       const { data, error } = await db.from("subappaltatori").select("id, ragione_sociale, is_active").eq("company_id", companyId).order("ragione_sociale").limit(2000);
       if (error) throw error;
@@ -65,10 +75,14 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     },
   });
 
-  const [ditta, setDitta] = useState("");
-  const [comprende, setComprende] = useState<"posa" | "fornitura_e_posa">("posa");
+  const [ditta, setDitta] = useState(dittaFissa?.id ?? "");
+  const [comprendeScelto, setComprende] = useState<"posa" | "fornitura_e_posa" | null>(null);
+  const comprende = comprendeScelto ?? "posa";
   const [cerca, setCerca] = useState("");
-  const [scelte, setScelte] = useState<Set<string>>(new Set());
+  const [scelteManuali, setScelte] = useState<Set<string> | null>(null);
+  const [faseAttiva, setFaseAttiva] = useState("");
+  const [extra, setExtra] = useState<LavoroACorpo[]>([]);
+  const [oneriTesto, setOneri] = useState("");
   const [quantita, setQuantita] = useState<Record<string, string>>({});
   const [prezzi, setPrezzi] = useState<Record<string, string>>({});
   // Il testo della riga nel contratto, se lo si vuole diverso da quello della voce (11/11/2026).
@@ -80,7 +94,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
   // Il listino della ditta impara (11/11/2026): i prezzi scritti a mano restano per la prossima volta.
   const { canEditSettingsPricing } = usePermissions();
   const telefono = useIsMobile();
-  const [ricorda, setRicorda] = useState(true);
+  const [ricorda, setRicorda] = useState(false);
   const [ai, setAi] = useState<ProposteAi>({});
   const chieste = useRef<Set<string>>(new Set());
   const [aiInCorso, setAiInCorso] = useState(0);
@@ -96,6 +110,13 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
   const proprieBozza = useMemo(() => new Map(lista.filter((a) => a.subappaltatore_id === ditta && a.stato === "bozza" && !a.contratto_id).map((a) => [a.voce_id, a])), [lista, ditta]);
   const residuaRiga = (id: string) => (residua.get(id) ?? 0) + (proprieBozza.get(id)?.quantita ?? 0);
   const libere = useMemo(() => voci.filter((v) => (residua.get(v.id) ?? 0) + (proprieBozza.get(v.id)?.quantita ?? 0) > 0.0005), [voci, residua, proprieBozza]);
+  const scelteAutomatiche = useMemo(() => {
+    const vociConQuote = new Set(lista.map((a) => a.voce_id));
+    const fasiConQuote = new Set(voci.filter((v) => vociConQuote.has(v.id)).map((v) => v.phase_id));
+    const fasiIntere = new Set(dittaFissa?.fasiIntere?.filter((fase) => !fasiConQuote.has(fase)));
+    return new Set([...proprieBozza.keys(), ...libere.filter((v) => fasiIntere.has(v.phase_id)).map((v) => v.id)]);
+  }, [dittaFissa?.fasiIntere, libere, lista, proprieBozza, voci]);
+  const scelte = scelteManuali ?? scelteAutomatiche;
   const gruppi = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     return [...fasi].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((f) => ({
@@ -158,13 +179,24 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     return () => clearTimeout(t);
   }, [sceltiOrdinati, orderId]);
 
-  const quantitaDi = (v: VoceAffidabile) => (quantita[v.id] != null ? parseAssignmentAmount(quantita[v.id], 3) : residuaRiga(v.id));
+  const fasiVisibili = faseAttiva ? gruppi.filter(({ fase }) => fase.id === faseAttiva) : gruppi;
+  const extraElenco: RigaElencoLavori[] = extra.map((voce) => {
+    const fase = fasi.find((fase) => fase.id === voce.faseId);
+    const riga = rigaContrattoACorpo(fase, voce.descrizione, parseAssignmentAmount(voce.importo, 2) ?? 0);
+    const sottofase = sottofasi.find((s) => s.id === voce.sottofaseId && s.phase_id === fase?.id);
+    return { ...riga, comprende, ...(fase ? { allinea_costo_previsto: true } : {}),
+      ...(sottofase ? { sottofase_id: sottofase.id, sottofase: sottofase.name } : {}) };
+  });
+  const extraValidi = extraElenco.every(voce => voce.descrizione && voce.prezzo > 0);
+  const sicurezza = oneriTesto.trim() ? parseAssignmentAmount(oneriTesto, 2) : 0;
+  const importoACorpo = totaleElencoLavori(extraElenco);
+  const quantitaDi = (v: VoceAffidabile) => (quantita[v.id] != null ? parseAssignmentAmount(quantita[v.id], 3) : proprieBozza.get(v.id)?.quantita ?? residuaRiga(v.id));
   // Il prezzo si legge al centesimo («1.250» = 1.250 €); con più decimali si legge lo stesso, e la riga lo segnala.
   const leggiPrezzo = (t: string) => (t.trim() ? parseAssignmentAmount(t, 2) ?? parseAssignmentAmount(t, 4) : null);
   // Quello proposto dal listino si arrotonda al centesimo, come fa il database sulle quote.
-  const proposto = (id: string) => { const p = proposti.data?.get(id)?.prezzo; return p == null ? null : Math.round(p * 100) / 100; };
+  const proposto = (id: string) => { const p = proprieBozza.get(id)?.prezzo_unitario ?? proposti.data?.get(id)?.prezzo; return p == null ? null : Math.round(p * 100) / 100; };
   const prezzoDi = (id: string) => (prezzi[id] != null ? leggiPrezzo(prezzi[id]) : proposto(id));
-  const righe: RigaTabella[] = sceltiOrdinati.map((v) => ({ voceId: v.id, quantita: quantitaDi(v), prezzo: prezzoDi(v.id), descrizione: testi[v.id] ?? null }));
+  const righe: RigaTabella[] = sceltiOrdinati.map((v) => ({ voceId: v.id, quantita: quantitaDi(v), prezzo: prezzoDi(v.id), descrizione: testi[v.id] ?? null, comprende: comprendeScelto ?? proprieBozza.get(v.id)?.comprende ?? comprende }));
   /** Scrive il prezzo nelle righe scelte: solo in quelle senza prezzo, o in tutte. */
   const applicaPrezzi = (calcola: (v: VoceAffidabile) => number | null, tutte: boolean) => {
     const nuovi: Record<string, string> = {};
@@ -180,12 +212,15 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     toast.success(fatte ? `Prezzo scritto in ${fatte} ${fatte === 1 ? "riga" : "righe"}.` : "Nessuna riga da cambiare.");
   };
   const conto = contoTabella(righe, voci, residuaRiga, comprende);
+  const righeStima = righe.map((riga) => ({ ...riga, prezzo: proposto(riga.voceId) }));
+  const stimaCompleta = righeStima.length > 0 && righeStima.every((riga) => (riga.prezzo ?? 0) > 0);
+  const stima = stimaCompleta ? contoTabella(righeStima, voci, residuaRiga, comprende).costo : null;
   const erroreDi = (id: string) => conto.errori.find((e) => e.voceId === id)?.motivo;
   // Un prezzo ancora da scrivere non è un errore: lo diventa solo se resta vuoto. In rosso le cose sbagliate.
   const daScrivere = conto.errori.filter((e) => e.motivo === "Prezzo mancante").length;
 
   const cambiaScelta = (ids: string[], si: boolean) => setScelte((s) => {
-    const n = new Set(s);
+    const n = new Set(s ?? scelteAutomatiche);
     for (const id of ids) { if (si) n.add(id); else n.delete(id); }
     return n;
   });
@@ -197,7 +232,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
     const daRicordare = sceltiOrdinati.filter((v) => {
       const p = prezzoDi(v.id);
       const prop = proposti.data?.get(v.id);
-      return p != null && p > 0 && !(prop?.origine === "listino_ditta" && proposto(v.id) === p);
+      return (comprendeScelto ?? proprieBozza.get(v.id)?.comprende ?? comprende) === "posa" && p != null && p > 0 && !(prop?.origine === "listino_ditta" && proposto(v.id) === p);
     });
     if (!daRicordare.length) return 0;
     const righePrezzo: Array<{ tariffa_id: string; costo: number }> = [];
@@ -244,7 +279,9 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
   const crea = useMutation({
     mutationFn: async (inFirma: boolean) => {
       if (!ditta) throw new Error("Scegli la ditta.");
-      if (!righe.length) throw new Error("Scegli almeno una voce.");
+      if (!righe.length && !extraElenco.length) throw new Error("Scegli una voce o aggiungi un lavoro a corpo.");
+      if (!extraValidi || sicurezza == null) throw new Error("Controlla lavori a corpo e oneri di sicurezza.");
+      if (!affidamenti.isSuccess) throw new Error("Gli affidamenti della commessa non sono ancora disponibili.");
       if (conto.errori.length) throw new Error(`${conto.errori.length === 1 ? "Una riga" : `${conto.errori.length} righe`} da sistemare: ${conto.errori[0].motivo.toLowerCase()}.`);
       // Prima si guarda il contratto della ditta: se è firmato o in firma ci si ferma prima di toccare qualcosa.
       let inFirmaOra = false;
@@ -256,6 +293,12 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       const destino = destinoContratto(contrattoAttuale, inFirmaOra);
       if (destino.tipo === "blocca") throw new Error(destino.messaggio);
 
+      // Una bozza storica con importo a corpo e senza elenco ha bisogno prima della sua voce di base.
+      if (destino.tipo === "aggiungi" && contrattoAttuale?.importo_contrattuale != null
+        && Math.abs(contrattoAttuale.importo_contrattuale - elencoUnito(contrattoAttuale.elenco_lavori, []).importo) > 0.005) {
+        throw new Error("Prima completa l’elenco lavori della bozza esistente in «Lavori e prezzi».");
+      }
+
       // 1. Le voci che l'AI ha collegato al listino: si collegano e si ricordano.
       const collegamenti = sceltiOrdinati.filter((v) => !v.tariffa_id && tariffaUsata(v.id))
         .map((v) => ({ voce_id: v.id, tariffa_id: tariffaUsata(v.id), chiave: chiaveDescrizione(v.descrizione) }));
@@ -266,7 +309,7 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       // 2. Le quote, con la quantità della tabella: quelle già in bozza della ditta si portano a quella quantità,
       // le altre si creano (affida_voci sommerebbe, e il contratto riporterebbe più di quanto scritto).
       for (const r of righe.filter((x) => proprieBozza.has(x.voceId))) {
-        const { error } = await db.rpc("affidamento_modifica", { p_id: proprieBozza.get(r.voceId)!.id, p_quantita: r.quantita, p_comprende: comprende });
+        const { error } = await db.rpc("affidamento_modifica", { p_id: proprieBozza.get(r.voceId)!.id, p_quantita: r.quantita, p_comprende: r.comprende ?? comprende });
         if (error) throw error;
       }
       const nuove = righe.filter((x) => !proprieBozza.has(x.voceId));
@@ -277,12 +320,19 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
         });
         if (errAff) throw errAff;
       }
-      const { data: quote, error: errQ } = await db.from("subappalto_affidamenti")
-        .select("id, voce_id, subappaltatore_id, quantita, prezzo_unitario, origine_prezzo, comprende, stato, contratto_id")
-        .eq("order_id", orderId).eq("subappaltatore_id", ditta).eq("stato", "bozza");
-      if (errQ) throw errQ;
-      const elenco = righeContratto(fasi, voci, ((quote ?? []) as AffidamentoPerContratto[]).map((a) => ({ ...a, quantita: Number(a.quantita) })), ditta, righe);
-      if (!elenco.length) throw new Error("Le voci affidate non si ritrovano: ricarica la pagina e riprova.");
+      let elenco = extraElenco;
+      if (righe.length) {
+        const { data: quote, error: errQ } = await db.from("subappalto_affidamenti")
+          .select("id, voce_id, subappaltatore_id, quantita, prezzo_unitario, origine_prezzo, comprende, stato, contratto_id")
+          .eq("order_id", orderId).eq("subappaltatore_id", ditta).eq("stato", "bozza");
+        if (errQ) throw errQ;
+        const collegate = righeContratto(fasi, voci, ((quote ?? []) as AffidamentoPerContratto[]).map((a) => ({ ...a, quantita: Number(a.quantita) })), ditta, righe, sottofasi);
+        const richieste = new Map(righe.map(riga => [riga.voceId, riga.quantita]));
+        if (collegate.length !== righe.length || collegate.some(riga =>
+          Math.abs(riga.quantita - (richieste.get(riga.voce_id ?? "") ?? 0)) > 0.0005))
+          throw new Error("Le voci affidate sono cambiate: ricarica la pagina e riprova.");
+        elenco = [...collegate, ...extraElenco];
+      }
 
       // 2b. I prezzi scritti a mano entrano nel listino della ditta: la prossima volta arrivano da soli.
       // Non blocca il contratto: se non riesce lo si dice e basta.
@@ -293,18 +343,23 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       // 3. Il contratto: nuovo, o le righe in coda a quello in bozza. I prezzi della tabella vanno sulle quote dal database.
       if (destino.tipo === "aggiungi") {
         // L'elenco si rilegge adesso: qualcuno può averlo cambiato da «Lavori e prezzi» dopo l'apertura del popup.
-        const { data: ora, error: errOra } = await db.from("contratti_subappalto").select("elenco_lavori").eq("id", destino.id).single();
+        const { data: ora, error: errOra } = await db.from("contratti_subappalto").select("elenco_lavori, importo_contrattuale").eq("id", destino.id).single();
         if (errOra) throw errOra;
-        const unito = elencoUnito(ora?.elenco_lavori, elenco);
-        const { data: toccati, error } = await db.from("contratti_subappalto")
+        if (Math.abs(Number(ora.importo_contrattuale) - elencoUnito(ora.elenco_lavori, []).importo) > 0.005)
+          throw new Error("Importo della bozza cambiato. Controlla «Lavori e prezzi» e riprova.");
+        const unito = elencoUnito(ora.elenco_lavori, elenco);
+        const aggiornamento = db.from("contratti_subappalto")
           .update({ elenco_lavori: unito.elenco, importo_contrattuale: unito.importo })
-          .eq("id", destino.id).eq("stato", "bozza").is("firmato_il", null).select("id");
+          .eq("id", destino.id).eq("stato", "bozza").is("firmato_il", null).eq("importo_contrattuale", ora.importo_contrattuale);
+        const { data: toccati, error } = await (ora.elenco_lavori == null
+          ? aggiornamento.is("elenco_lavori", null)
+          : aggiornamento.eq("elenco_lavori", JSON.stringify(ora.elenco_lavori))).select("id");
         if (error) throw error;
         if (!toccati?.length) throw new Error("Il contratto è cambiato nel frattempo: ricarica la pagina e riprova. Le voci restano affidate alla ditta in bozza.");
         return { contrattoId: destino.id, schedaId: contrattoAttuale!.subappaltatore_id, inFirma, nuovo: false, imparati };
       }
       const proprie = schedeSicurezzaDitta(ditta, schede, orderId);
-      let schedaId = proprie[0]?.id ?? null;
+      let schedaId = dittaFissa?.schedaId ?? proprie[0]?.id ?? null;
       let schedaCreata: string | null = null;
       if (!schedaId) {
         const { data: campo, error } = await db.from("subappaltatori").select("ragione_sociale, piva, indirizzo, email, telefono, responsabile").eq("id", ditta).maybeSingle();
@@ -322,15 +377,15 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       ]);
       if (errO || errN) throw new Error("Non riesco a leggere i contratti della commessa per il numero: riprova.");
       const usati = ((esistenti ?? []) as Array<{ numero_contratto: string | null }>).map((c) => Number(/\/S(\d+)$/.exec(c.numero_contratto ?? "")?.[1] ?? 0));
-      const faseIds = [...new Set(sceltiOrdinati.map((v) => v.phase_id))];
+      const faseIds = [...new Set(elenco.flatMap((voce) => voce.fase_id ? [voce.fase_id] : []))];
       const periodo = periodoFasi(fasi, faseIds);
       const { data: creato, error: errC } = await db.from("contratti_subappalto").insert({
         company_id: companyId, order_id: orderId, subappaltatore_id: schedaId,
         numero_contratto: ord?.order_code ? `${ord.order_code}/S${String(Math.max(0, ...usati) + 1).padStart(2, "0")}` : null,
-        descrizione_lavori: `Lavorazioni delle fasi: ${fasi.filter((f) => faseIds.includes(f.id)).map((f) => f.name).join(", ")}.`,
+        descrizione_lavori: [...new Set(elenco.map((voce) => voce.fase))].join(", "),
         importo_contrattuale: elencoUnito([], elenco).importo, elenco_lavori: elenco,
         data_inizio: periodo.dal, data_fine_prevista: periodo.al,
-        stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: 0, data_stipula: oggi(),
+        stato: "bozza", ritenuta_garanzia_pct: 5, durata_garanzia_mesi: 12, oneri_sicurezza: sicurezza, data_stipula: oggi(),
       }).select("id").single();
       if (errC) {
         if (schedaCreata) await db.from("subappaltatori_sicurezza").delete().eq("id", schedaCreata).eq("company_id", companyId);
@@ -349,25 +404,73 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
       }
       toast.success(r.nuovo ? "Contratto creato in bozza." : "Voci aggiunte al contratto in bozza.");
       onChiudi();
+      onContrattoSalvato?.(r.contrattoId);
     },
     onError: (e: Error) => { void qc.invalidateQueries({ queryKey: chiaveAffidamenti(orderId) }); toast.error(e.message || "Contratto non creato."); },
   });
 
-  const nomeDitta = ditte.data?.find((d) => d.id === ditta)?.ragione_sociale;
-  const occupato = crea.isPending;
+  const nomeDitta = dittaFissa?.nome ?? ditte.data?.find((d) => d.id === ditta)?.ragione_sociale;
+  const nomiSottofasi = new Map(sottofasi.map((sottofase) => [sottofase.id, sottofase.name]));
+  const richiestaValida = !!nomeDitta && affidamenti.isSuccess && !!(righe.length || extraElenco.length)
+    && conto.errori.every(({ motivo }) => motivo !== "Quantità mancante" && motivo !== "Oltre la quantità libera")
+    && extraElenco.every((riga) => riga.descrizione);
+  const scaricaRichiesta = useMutation({
+    mutationFn: async () => {
+      if (!richiestaValida || !nomeDitta) throw new Error("Scegli ditta, lavorazioni e quantità da quotare.");
+      const [{ data: ordine, error }, { richiestaOffertaPdf }] = await Promise.all([
+        db.from("orders").select("order_code").eq("id", orderId).eq("company_id", companyId).maybeSingle(),
+        import("@/lib/subappaltatori/richiestaOffertaPdf"),
+      ]);
+      if (error) throw error;
+      const daQuotare = sceltiOrdinati.map((voce, indice) => ({
+        fase: fasi.find((fase) => fase.id === voce.phase_id)?.name ?? "Altri lavori",
+        sottofase: nomiSottofasi.get(voce.subphase_id ?? ""),
+        descrizione: testi[voce.id]?.trim() || voce.descrizione,
+        quantita: righe[indice].quantita ?? 0,
+        unita: voce.unita,
+        comprende: righe[indice].comprende,
+      }));
+      const documento = richiestaOffertaPdf({ commessa: ordine?.order_code, ditta: nomeDitta, righe: [...daQuotare, ...extraElenco] });
+      const codice = String(ordine?.order_code ?? "").replace(/[^\w-]+/g, "-");
+      documento.save(`richiesta-offerta${codice ? `-${codice}` : ""}.pdf`);
+    },
+    onError: () => toast.error("Non riesco a preparare la richiesta d’offerta. Riprova."),
+  });
+  const occupato = crea.isPending || scaricaRichiesta.isPending;
+  const conteggio = righe.length + extra.length;
+  const oneri = contrattoAttuale ? Number(contrattoAttuale.oneri_sicurezza) || 0 : sicurezza ?? 0;
+  const nonSalvabile = occupato || !ditta || !conteggio || !affidamenti.isSuccess || !extraValidi
+    || sicurezza == null || conto.errori.length > 0 || !!contrattoAttuale?.firmato_il;
+  const cambiaDitta = (id: string) => {
+    setDitta(id);
+    setScelte(null);
+    setPrezzi({});
+    setQuantita({});
+    setTesti({});
+    setComprende(null);
+    setExtra([]);
+    setOneri("");
+  };
+  const aggiungiACorpo = () => {
+    const fasiScelte = [...new Set(sceltiOrdinati.map((voce) => voce.phase_id))];
+    const macrofase = faseAttiva || (fasiScelte.length === 1 ? fasiScelte[0] : "") || (fasi.length === 1 ? fasi[0].id : ALTRI_LAVORI);
+    setExtra((lavori) => [...lavori, { id: crypto.randomUUID(), faseId: macrofase, descrizione: "", importo: "" }]);
+  };
+  const cambiaExtra = (id: string, patch: Partial<LavoroACorpo>) =>
+    setExtra(lista => lista.map(voce => voce.id === id ? { ...voce, ...patch } : voce));
 
   return (
     <Dialog open onOpenChange={(o) => !o && !occupato && onChiudi()}>
       <DialogContent className="flex max-h-[92dvh] flex-col gap-3 sm:max-w-6xl">
         <DialogHeader>
-          <DialogTitle>Affida e manda il contratto</DialogTitle>
-          <DialogDescription>Scegli le voci e la ditta: quantità e prezzi si scrivono qui. Il prezzo è quello del listino della ditta, altrimenti il costo nostro.</DialogDescription>
+          <DialogTitle>{dittaFissa ? "Nuovo contratto di subappalto" : "Prezzi e contratto di subappalto"}</DialogTitle>
+          <DialogDescription>Scegli le voci da quotare. Confermando i prezzi aggiorni il costo previsto e prepari il computo del contratto.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-wrap items-center gap-2">
-          <OfficeSelect label="Ditta" className="h-9 min-w-[16rem] flex-1" value={ditta} onValueChange={(d) => { setDitta(d); setPrezzi({}); }} placeholder="Scegli la ditta"
-            options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />
-          <OfficeSelect label="Cosa comprende il prezzo" className="h-9 w-44" value={comprende} onValueChange={(c) => setComprende(c as typeof comprende)}
+          {dittaFissa ? <p className="px-1 text-sm font-medium">{dittaFissa.nome}</p> : <OfficeSelect label="Ditta" className="h-9 min-w-[12rem] flex-1" value={ditta} onValueChange={cambiaDitta} placeholder="Scegli la ditta"
+            options={(ditte.data ?? []).filter((d) => d.is_active !== false).map((d) => ({ value: d.id, label: d.ragione_sociale }))} />}
+          <OfficeSelect label="Cosa comprende il prezzo" className="h-9 w-44" value={comprendeScelto ?? ""} placeholder="Cosa comprende" onValueChange={(c) => setComprende(c as typeof comprende)}
             options={[{ value: "posa", label: "Solo posa" }, { value: "fornitura_e_posa", label: "Fornitura e posa" }]} />
           <div className="relative min-w-[12rem] flex-1">
             <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -392,12 +495,18 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
               onClick={() => applicaPrezzi((v) => prezzoDalVenduto(v, parseAssignmentAmount(sconto, 2) ?? -1), true)}>a tutte</Button>
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-auto rounded-md border">
+        {affidamenti.isError && <p role="alert" className="text-sm text-destructive">Affidamenti non disponibili. <Button variant="link" onClick={() => void affidamenti.refetch()}>Riprova</Button></p>}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <MacrofasiSubappalto attiva={faseAttiva} onSeleziona={setFaseAttiva} fasi={[
+            ...fasi.map(fase => ({ id: fase.id, nome: fase.name, voci: (gruppi.find(g => g.fase.id === fase.id)?.voci.length ?? 0) + extra.filter(voce => voce.faseId === fase.id).length })),
+            ...(extra.some(voce => voce.faseId === ALTRI_LAVORI) ? [{ id: ALTRI_LAVORI, nome: "Altri lavori", voci: extra.filter(voce => voce.faseId === ALTRI_LAVORI).length }] : []),
+          ]}>
+          <div className="overflow-x-auto rounded-md border">
           {affidamenti.isLoading ? <p className="p-3 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-4 w-4 animate-spin" />Caricamento…</p> : (
             telefono ? (
               // Sul telefono una voce è una scheda di due righe: cosa e quanto resta, poi quantità, prezzo e importo.
               <ul className="divide-y text-sm">
-                {gruppi.map(({ fase, voci: vf }) => {
+                {fasiVisibili.map(({ fase, voci: vf }) => {
                   const ids = vf.map((v) => v.id);
                   return [
                     <li key={fase.id} className="flex items-center gap-2 bg-muted/40 px-2 py-1.5 text-xs font-medium">
@@ -406,7 +515,6 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                     </li>,
                     ...vf.map((v) => {
                       const si = scelte.has(v.id);
-                      const p = proposti.data?.get(v.id);
                       const a = ai[v.id];
                       const errore = si ? erroreDi(v.id) : undefined;
                       const grave = !!errore && errore !== "Prezzo mancante";
@@ -422,13 +530,15 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                           {si && (
                             <div className="flex items-center gap-2 pl-6">
                               <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-9 w-20 text-right tabular-nums"
-                                value={quantita[v.id] ?? casella(residuaRiga(v.id), 3)} onChange={(e) => setQuantita((x) => ({ ...x, [v.id]: e.target.value }))} />
+                                value={quantita[v.id] ?? casella(quantitaDi(v), 3)} onChange={(e) => setQuantita((x) => ({ ...x, [v.id]: e.target.value }))} />
                               <span className="text-xs text-muted-foreground">×</span>
                               <Input aria-label={`Prezzo di ${v.descrizione}`} inputMode="decimal" className="h-9 w-24 text-right tabular-nums" placeholder={ditta ? "€" : "ditta?"}
-                                disabled={!ditta} value={prezzi[v.id] ?? casella(p?.prezzo)} onChange={(e) => setPrezzi((x) => ({ ...x, [v.id]: e.target.value }))} />
+                                disabled={!ditta} value={prezzi[v.id] ?? casella(proposto(v.id))} onChange={(e) => setPrezzi((x) => ({ ...x, [v.id]: e.target.value }))} />
                               <span className="ml-auto text-right tabular-nums">{formatCurrency(Math.round(q * pr * 100) / 100)}</span>
                             </div>
                           )}
+                          {si && !grave && q > 0 && <p className="pl-6 text-xs text-muted-foreground">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</p>}
+                          {v.subphase_id && nomiSottofasi.has(v.subphase_id) && <p className="text-xs text-muted-foreground">{nomiSottofasi.get(v.subphase_id)}</p>}
                           {si && (errore || (!v.tariffa_id && a && !a.confermata)) && (
                             <div className="pl-6 text-[11px]">
                               {errore && <span className={grave ? "text-red-800" : "text-amber-800"}>{grave ? errore : "prezzo da scrivere"}</span>}
@@ -443,23 +553,23 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                     }),
                   ];
                 })}
-                {gruppi.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">Nessuna voce libera.</li>}
+                {fasiVisibili.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">Nessuna voce libera.</li>}
               </ul>
             ) : (
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[46rem] table-fixed text-sm">
               <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="w-8 px-2 py-1.5" />
                   <th className="px-1 py-1.5 text-left font-medium">Voce</th>
-                  <th className="w-24 px-1 py-1.5 text-right font-medium">Libera</th>
+                  <th className="w-24 px-1 py-1.5 text-right font-medium">Disponibile</th>
                   <th className="w-28 px-1 py-1.5 text-right font-medium">Quantità</th>
-                  <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo €</th>
+                  <th className="w-28 px-1 py-1.5 text-right font-medium">Prezzo concordato</th>
                   <th className="w-36 px-1 py-1.5 text-left font-medium">Da dove</th>
                   <th className="w-28 px-2 py-1.5 text-right font-medium">Importo</th>
                 </tr>
               </thead>
               <tbody>
-                {gruppi.map(({ fase, voci: vf }) => {
+                {fasiVisibili.map(({ fase, voci: vf }) => {
                   const ids = vf.map((v) => v.id);
                   const tutte = ids.every((id) => scelte.has(id));
                   return [
@@ -470,6 +580,8 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                     ...vf.map((v) => {
                       const si = scelte.has(v.id);
                       const p = proposti.data?.get(v.id);
+                      const salvato = proprieBozza.get(v.id);
+                      const origine = salvato?.prezzo_unitario != null ? salvato.origine_prezzo : p?.origine;
                       const a = ai[v.id];
                       const errore = si ? erroreDi(v.id) : undefined;
                       const grave = !!errore && errore !== "Prezzo mancante";
@@ -489,20 +601,21 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                                 {si && <button type="button" className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={`Cambia il testo nel contratto di ${v.descrizione}`} title="Cambia il testo di questa riga nel contratto" onClick={() => setInScrittura(v.id)}><Pencil className="h-3 w-3" /></button>}
                               </div>
                             )}
+                            {v.subphase_id && nomiSottofasi.has(v.subphase_id) && <p className="truncate text-xs text-muted-foreground">{nomiSottofasi.get(v.subphase_id)}</p>}
                           </td>
-                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}</td>
+                          <td className="whitespace-nowrap px-1 py-1 text-right text-xs tabular-nums text-muted-foreground">{qt(residuaRiga(v.id))} {v.unita ?? ""}{si && q > 0 && q <= residuaRiga(v.id) && <span className="block">Restano {qt(residuaRiga(v.id) - q)} {v.unita ?? ""}</span>}</td>
                           <td className="px-1 py-1">
                             {si && <Input aria-label={`Quantità di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums"
-                              value={quantita[v.id] ?? casella(residuaRiga(v.id), 3)} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
+                              value={quantita[v.id] ?? casella(quantitaDi(v), 3)} onChange={(e) => setQuantita((s) => ({ ...s, [v.id]: e.target.value }))} />}
                           </td>
                           <td className="px-1 py-1">
                             {si && <Input aria-label={`Prezzo di ${v.descrizione}`} inputMode="decimal" className="h-8 text-right tabular-nums" placeholder={ditta ? "—" : "ditta?"}
-                              disabled={!ditta} value={prezzi[v.id] ?? casella(p?.prezzo)} onChange={(e) => setPrezzi((s) => ({ ...s, [v.id]: e.target.value }))} />}
+                              disabled={!ditta} value={prezzi[v.id] ?? casella(proposto(v.id))} onChange={(e) => setPrezzi((s) => ({ ...s, [v.id]: e.target.value }))} />}
                           </td>
                           <td className="px-1 py-1 text-[11px] leading-tight">
                             {si && (errore ? <span className={grave ? "text-red-800" : "text-amber-800"}>{grave ? errore : "da scrivere"}</span>
                               : prezzi[v.id] != null ? <span className="text-muted-foreground">a mano</span>
-                              : p ? <span className={p.origine === "manuale" ? "text-amber-800" : "text-muted-foreground"}>{ORIGINE[p.origine] ?? p.origine}</span> : null)}
+                              : origine ? <span className="text-muted-foreground">{origine === "manuale" ? "concordato" : ORIGINE[origine] ?? origine}</span> : null)}
                             {si && !v.tariffa_id && a && (
                               a.confermata
                                 ? <Badge variant="outline" className="ml-1 h-4 border-violet-300 bg-violet-50 px-1 text-[10px] font-normal text-violet-900" title={nomiProposti.data?.get(a.tariffaId) ?? undefined}>listino</Badge>
@@ -516,19 +629,53 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
                     }),
                   ];
                 })}
-                {gruppi.length === 0 && <tr><td colSpan={7} className="px-3 py-4 text-sm text-muted-foreground">{voci.length ? "Nessuna voce libera con questi filtri: tutte hanno già una ditta." : "La commessa non ha voci: si affidano le voci del computo o del preventivo."}</td></tr>}
+                {fasiVisibili.length === 0 && <tr><td colSpan={7} className="px-3 py-4 text-sm text-muted-foreground">{voci.length ? "Nessuna voce disponibile per la selezione corrente." : "La commessa non ha voci: si affidano le voci del computo o del preventivo."}</td></tr>}
               </tbody>
             </table>
             )
           )}
+          </div>
+          <div className="mt-2 space-y-2">
+            {extra.map((voce, indice) => (!faseAttiva || voce.faseId === faseAttiva) && (
+              <div key={voce.id} className="grid gap-2 rounded-lg border p-2 sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,2fr)_7rem_auto]">
+                <div className="min-w-0 space-y-1.5">
+                  <OfficeSelect label={`Macrofase lavoro a corpo ${indice + 1}`} value={voce.faseId} className="w-full"
+                    options={[...fasi.map(fase => ({ value: fase.id, label: fase.name })), { value: ALTRI_LAVORI, label: "Senza macrofase" }]}
+                    onValueChange={faseId => { cambiaExtra(voce.id, { faseId, sottofaseId: undefined }); if (faseAttiva) setFaseAttiva(faseId); }} />
+                  {sottofasi.some(s => s.phase_id === voce.faseId) && (
+                    <OfficeSelect label={`Sottofase lavoro a corpo ${indice + 1}`} value={voce.sottofaseId ?? ""} className="w-full"
+                      placeholder="Sottofase facoltativa" options={sottofasi.filter(s => s.phase_id === voce.faseId).map(s => ({ value: s.id, label: s.name }))}
+                      onValueChange={sottofaseId => cambiaExtra(voce.id, { sottofaseId })} />
+                  )}
+                </div>
+                <Input value={voce.descrizione} aria-label={`Descrizione lavoro a corpo ${indice + 1}`} placeholder="Descrizione del lavoro"
+                  onChange={e => cambiaExtra(voce.id, { descrizione: e.target.value })} />
+                <Input value={voce.importo} aria-label={`Importo a corpo ${indice + 1}`} inputMode="decimal" placeholder="Importo €"
+                  onChange={e => cambiaExtra(voce.id, { importo: e.target.value })} />
+                <Button type="button" size="icon" variant="ghost" aria-label={`Togli lavoro a corpo ${indice + 1}`}
+                  onClick={() => setExtra(lista => lista.filter(riga => riga.id !== voce.id))}><Trash2 className="size-4" /></Button>
+              </div>
+            ))}
+            <Button type="button" size="sm" variant="outline" onClick={aggiungiACorpo}>
+              <Plus className="mr-1 size-4" /> Aggiungi lavoro a corpo
+            </Button>
+          </div>
+          </MacrofasiSubappalto>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
-          <span>{righe.length} {righe.length === 1 ? "voce" : "voci"}{nomeDitta ? ` a ${nomeDitta}` : ""}</span>
-          <span>Alla ditta <strong className="tabular-nums">{formatCurrency(conto.costo)}</strong> + IVA in reverse charge</span>
+          <span>{conteggio} {conteggio === 1 ? "voce" : "voci"}{nomeDitta ? ` a ${nomeDitta}` : ""}</span>
+          {conto.venduto > 0 && <span>Venduto al cliente <strong className="tabular-nums">{formatCurrency(conto.venduto)}</strong></span>}
+          {stima != null && Math.abs(stima - conto.costo - importoACorpo) >= 0.01 && <span>Stima di partenza <strong className="tabular-nums">{formatCurrency(stima)}</strong></span>}
+          <span>Costo ditta <strong className="tabular-nums">{formatCurrency(conto.costo + importoACorpo)}</strong> <span className="text-xs text-muted-foreground">netto IVA</span></span>
+          {!contrattoAttuale && <label className="flex items-center gap-2 text-xs">Oneri di sicurezza
+            <Input className="h-8 w-24 text-right tabular-nums" inputMode="decimal" placeholder="0,00 €"
+              value={oneriTesto} onChange={e => setOneri(e.target.value)} aria-invalid={sicurezza == null} />
+          </label>}
+          {!contrattoAttuale && oneri > 0 && <span>Totale con oneri <strong>{formatCurrency(conto.costo + importoACorpo + oneri)}</strong></span>}
           {daScrivere > 0
             ? <span className="text-amber-800">{daScrivere === 1 ? "1 prezzo da scrivere" : `${daScrivere} prezzi da scrivere`}</span>
-            : conto.venduto > 0 && <span className={conto.margine < 0 ? "text-destructive" : "text-muted-foreground"}>Margine {formatCurrency(conto.margine)}{conto.marginePct != null ? ` (${conto.marginePct.toLocaleString("it-IT")}%)` : ""}</span>}
+            : conto.venduto > 0 && <span className={conto.margine - importoACorpo < 0 ? "text-destructive" : "text-muted-foreground"}>Margine {formatCurrency(conto.margine - importoACorpo)}{conto.marginePct != null && !importoACorpo ? ` (${conto.marginePct.toLocaleString("it-IT")}%)` : ""}</span>}
           {(() => {
             const daDire = sceltiOrdinati.filter((v) => !v.tariffa_id && ai[v.id] && !ai[v.id].confermata).map((v) => v.id);
             return daDire.length > 1 && (
@@ -546,11 +693,13 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
           )}
           {(aiInCorso > 0 || proposti.isFetching) && <span className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" />{aiInCorso > 0 ? <><Sparkles className="mr-0.5 inline h-3 w-3" />cerco nel listino {aiInCorso} voci</> : "calcolo i prezzi"}</span>}
           <span className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-            <Button variant="ghost" className="max-sm:hidden" disabled={occupato} onClick={onChiudi}>Chiudi</Button>
-            <Button variant="outline" className="max-sm:flex-1" disabled={occupato || !ditta || !righe.length || conto.errori.length > 0 || aiInCorso > 0 || !!contrattoAttuale?.firmato_il} onClick={() => crea.mutate(false)}>
-              {crea.isPending && crea.variables === false && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{contrattoAttuale && !contrattoAttuale.firmato_il ? (telefono ? "Aggiungi" : "Aggiungi al contratto") : (telefono ? "Crea" : "Crea il contratto")}
+            <Button variant="outline" disabled={occupato || !richiestaValida} onClick={() => scaricaRichiesta.mutate()}>
+              {scaricaRichiesta.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Download className="mr-1 h-4 w-4" />} Richiesta d’offerta
             </Button>
-            <Button className="max-sm:flex-1" disabled={occupato || !ditta || !righe.length || conto.errori.length > 0 || aiInCorso > 0 || !!contrattoAttuale?.firmato_il} onClick={() => crea.mutate(true)}>
+            <Button variant="outline" className="max-sm:flex-1" disabled={nonSalvabile} onClick={() => crea.mutate(false)}>
+              {crea.isPending && crea.variables === false && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{contrattoAttuale && !contrattoAttuale.firmato_il ? "Conferma e aggiungi" : "Conferma prezzi e crea bozza"}
+            </Button>
+            <Button className="max-sm:flex-1" disabled={nonSalvabile} onClick={() => crea.mutate(true)}>
               {crea.isPending && crea.variables === true ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}{telefono ? "Manda in firma" : contrattoAttuale && !contrattoAttuale.firmato_il ? "Aggiungi e manda in firma" : "Crea e manda in firma"}
             </Button>
           </span>
@@ -564,19 +713,24 @@ export function AffidaContrattoDialog({ orderId, companyId, fasi, voci, contratt
  * Lo stesso popup aperto da «Altre azioni» in cima alla commessa (11/11/2026): legge da sé fasi, voci,
  * contratti e schede delle ditte, che nel pannello «Ditte e contratti» arrivano già caricati.
  */
-export function AffidaContrattoDaCommessa({ orderId, companyId, onChiudi }: { orderId: string; companyId: string; onChiudi: () => void }) {
+export function AffidaContrattoDaCommessa({ orderId, companyId, dittaFissa, onChiudi, onContrattoSalvato }: {
+  orderId: string; companyId: string; dittaFissa?: DittaContratto;
+  onChiudi: () => void; onContrattoSalvato?: (id: string) => void;
+}) {
   const qc = useQueryClient();
   const voci = useVociPrevisteFasi(orderId, true);
   const dati = useQuery({
     queryKey: ["affida-contratto-commessa", companyId, orderId],
     queryFn: async () => {
-      const [fasi, contratti, schede] = await Promise.all([
+      const [fasi, contratti, schede, sottofasi] = await Promise.all([
         db.from("order_work_phases").select("id, name, position, start_date, end_date").eq("order_id", orderId).eq("company_id", companyId).order("position"),
-        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, firmato_il, elenco_lavori").eq("order_id", orderId).eq("company_id", companyId),
+        db.from("contratti_subappalto").select("id, subappaltatore_id, stato, firmato_il, elenco_lavori, importo_contrattuale, oneri_sicurezza").eq("order_id", orderId).eq("company_id", companyId),
         db.from("subappaltatori_sicurezza").select("id, campo_subappaltatore_id, order_id, created_at").eq("company_id", companyId).not("campo_subappaltatore_id", "is", null),
+        db.from("order_work_phases").select("sottofasi:order_work_subphases(id, phase_id, name, position)").eq("order_id", orderId).eq("company_id", companyId),
       ]);
-      for (const r of [fasi, contratti, schede]) if (r.error) throw r.error;
-      return { fasi: fasi.data ?? [], contratti: contratti.data ?? [], schede: schede.data ?? [] };
+      for (const r of [fasi, contratti, schede, sottofasi]) if (r.error) throw r.error;
+      return { fasi: fasi.data ?? [], contratti: contratti.data ?? [], schede: schede.data ?? [],
+        sottofasi: ((sottofasi.data ?? []) as Array<{ sottofasi: SottofaseLavoro[] }>).flatMap((fase) => fase.sottofasi ?? []) };
     },
   });
   const errore = dati.isError || voci.isError;
@@ -597,8 +751,8 @@ export function AffidaContrattoDaCommessa({ orderId, companyId, onChiudi }: { or
     );
   }
   return (
-    <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={dati.data.fasi} voci={voci.data as VoceAffidabile[]}
-      contratti={dati.data.contratti} schede={dati.data.schede} onChiudi={onChiudi}
+    <AffidaContrattoDialog orderId={orderId} companyId={companyId} fasi={dati.data.fasi} sottofasi={dati.data.sottofasi} voci={voci.data as VoceAffidabile[]}
+      contratti={dati.data.contratti} schede={dati.data.schede} dittaFissa={dittaFissa} onChiudi={onChiudi} onContrattoSalvato={onContrattoSalvato}
       onFatto={() => {
         void qc.invalidateQueries({ queryKey: ["affida-contratto-commessa", companyId, orderId] });
         void qc.invalidateQueries({ queryKey: ["ditte-contratti-commessa", companyId, orderId] });

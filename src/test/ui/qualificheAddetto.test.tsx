@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import {
   cleanup,
   fireEvent,
@@ -78,7 +79,7 @@ const chk = () =>
   }) as HTMLInputElement;
 function compila() {
   fireEvent.click(screen.getByRole("button", { name: "Registra qualifica" }));
-  fireEvent.change(screen.getByLabelText("Originale della persona"), {
+  changeFormControl(screen.getByLabelText("Originale della persona"), {
     target: { value: "doc" },
   });
   for (const [label, value] of [
@@ -91,7 +92,7 @@ function compila() {
     ["Decorrenza documentata", "2026-11-01"],
     ["Scadenza documentata", "2027-10-31"],
   ])
-    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    changeFormControl(screen.getByLabelText(label), { target: { value } });
 }
 async function leggi() {
   fireEvent.click(
@@ -146,7 +147,7 @@ it("una modifica del riesame annulla la conferma", async () => {
   render(ui());
   compila();
   await leggi();
-  fireEvent.change(screen.getByLabelText("Limitazioni e condizioni"), {
+  changeFormControl(screen.getByLabelText("Limitazioni e condizioni"), {
     target: { value: "TEST limiti" },
   });
   expect(chk().checked).toBe(false);
@@ -248,7 +249,7 @@ it("revoca motivata senza richiedere un originale ormai rimosso", async () => {
     name: "Registra revoca",
   }) as HTMLButtonElement;
   expect(b.disabled).toBe(true);
-  fireEvent.change(screen.getByLabelText("Motivo della revoca"), {
+  changeFormControl(screen.getByLabelText("Motivo della revoca"), {
     target: { value: "TEST ritiro attestazione" },
   });
   fireEvent.click(b);

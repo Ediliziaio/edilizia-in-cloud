@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { advanceLabConversation, type LabConversation } from "@/lib/preventivi/devQuoteConversation";
@@ -49,7 +50,7 @@ describe("chat e preventivo affiancati nella piattaforma", () => {
   afterEach(() => { cleanup(); vi.useRealTimers(); });
   function open() { render(<Simulazione companyId="d2000000-0000-4000-a000-000000000002" companyName="Demo Azienda 2 S.r.l." />); }
   async function send(text: string) {
-    fireEvent.change(screen.getByRole("textbox", { name: "Messaggio all’assistente preventivi" }), { target: { value: text } });
+    changeFormControl(screen.getByRole("textbox", { name: "Messaggio all’assistente preventivi" }), { target: { value: text } });
     fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
     await act(() => vi.advanceTimersByTimeAsync(250));
   }
@@ -60,7 +61,7 @@ describe("chat e preventivo affiancati nella piattaforma", () => {
     await send("24 mq");
     expect(screen.getByRole("spinbutton", { name: "Quantità riga 1" })).toHaveValue(24);
     expect(screen.getByTestId("live-quote-total").textContent).toBe(formatCurrency(878.4));
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Quantità riga 1" }), { target: { value: "30" } });
+    changeFormControl(screen.getByRole("spinbutton", { name: "Quantità riga 1" }), { target: { value: "30" } });
     await send("24 mq");
     expect(screen.getByRole("spinbutton", { name: "Quantità riga 1" })).toHaveValue(30);
     expect(screen.getByTestId("live-quote-total").textContent).toBe(formatCurrency(1625.04));
@@ -90,7 +91,7 @@ describe("chat e preventivo affiancati nella piattaforma", () => {
   });
   it("ricominciare durante una risposta non porta righe nella nuova conversazione", async () => {
     open(); await send("Un bagno");
-    fireEvent.change(screen.getByRole("textbox", { name: "Messaggio all’assistente preventivi" }), { target: { value: "24 mq" } });
+    changeFormControl(screen.getByRole("textbox", { name: "Messaggio all’assistente preventivi" }), { target: { value: "24 mq" } });
     fireEvent.click(screen.getByRole("button", { name: "Invia messaggio" }));
     fireEvent.click(screen.getByRole("button", { name: "Ricomincia la prova" }));
     await act(() => vi.advanceTimersByTimeAsync(9000));
@@ -100,7 +101,7 @@ describe("chat e preventivo affiancati nella piattaforma", () => {
   it("modificare i numeri non produce nuovi messaggi né chiamate", async () => {
     open(); await send("Un cappotto"); await send("120 mq"); await send("120 mq");
     const count = demo.richieste;
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Prezzo riga 1" }), { target: { value: "60" } });
+    changeFormControl(screen.getByRole("spinbutton", { name: "Prezzo riga 1" }), { target: { value: "60" } });
     expect(demo.richieste).toBe(count); expect(realApi.invoke).not.toHaveBeenCalled();
     expect(screen.getByTestId("live-quote-total").textContent).toBe(formatCurrency(9955.2));
   });

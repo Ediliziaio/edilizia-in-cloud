@@ -16,12 +16,12 @@ import { useCompanyStructure } from "@/hooks/controlloGestione/useCompanyStructu
 import { useMarginalitaCommesse } from "@/hooks/controlloGestione/useMarginalitaCommesse";
 import { calculateOrderStructureImpact } from "@/lib/controlloGestione/strutturaCommessa";
 import { useSedeFilter } from "@/store/sedeFilterStore";
+import { OrdersSummaryCard } from "@/components/orders/OrdersSummaryCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -253,11 +253,7 @@ function MargineColorClass(perc: number): string {
   return "text-red-600";
 }
 
-function MargineProgressClass(perc: number): string {
-  if (perc >= 25) return "bg-green-500";
-  if (perc >= 10) return "bg-amber-500";
-  return "bg-red-500";
-}
+
 
 function MargineBadge({ perc }: { perc: number }) {
   const isPositive = perc >= 0;
@@ -296,6 +292,7 @@ export default function MarginalitaCantieri() {
 
 function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
   const [refreshing, setRefreshing] = useState(false);
+  const [showCostColumns, setShowCostColumns] = useState(false);
   const [search, setSearch] = useState("");
   const [annoFilter, setAnnoFilter] = useState<string>("tutti");
   const [healthFilter, setHealthFilter] = useState<"tutti" | FasciaMargine>("tutti");
@@ -308,13 +305,15 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
   });
 
   const { data: marginalitaData, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["marginalita-cantieri", companyId],
+    queryKey: ["marginalita-cantieri", "without-exact-count", companyId],
     queryFn: async () => {
-      // Limit payload deterministically and expose the cap in UI instead of hiding truncated data.
+      // La vista applica permessi e calcoli economici: count=exact la riesegue per
+      // contare tutte le righe e può mandare in timeout anche una lettura limitata.
+      // Leggiamo solo i dati; quando si raggiunge il limite lo dichiariamo nella UI.
       const archivedIds = await loadArchivedOrderIds(companyId!);
       const rich = await excludeArchivedOrders(supabase
         .from("v_ordine_marginalita")
-        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_materiali_magazzino, movimenti_magazzino_senza_costo, costo_manodopera, costo_provvigioni, costo_diretto, costo_rimborsi_km, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, percentuale_avanzamento, created_at", { count: "exact" })
+        .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_materiali_magazzino, movimenti_magazzino_senza_costo, costo_manodopera, costo_provvigioni, costo_diretto, costo_rimborsi_km, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, percentuale_avanzamento, created_at")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(MARGINALITA_FETCH_LIMIT), archivedIds);
@@ -326,7 +325,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
 
         const fallback = await excludeArchivedOrders(supabase
           .from("v_ordine_marginalita")
-          .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at", { count: "exact" })
+          .select("id, company_id, order_code, description, preventivo_contratto, variazioni_approvate, preventivo_totale, costo_acquisti, costo_errori, consuntivo, margine, margine_perc, cliente_nome, work_start_date, work_end_date, created_at")
           .eq("company_id", companyId!)
           .order("created_at", { ascending: false })
           .limit(MARGINALITA_FETCH_LIMIT), archivedIds);
@@ -358,7 +357,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
 
   const rows = useMemo(() => marginalitaData?.rows ?? [], [marginalitaData]);
   const totalRows = marginalitaData?.totalCount ?? rows.length;
-  const hasMoreRows = totalRows > rows.length;
+  const hasMoreRows = totalRows > rows.length || rows.length >= MARGINALITA_FETCH_LIMIT;
 
   const {
     data: vehicleEstimates = [],
@@ -910,9 +909,9 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
   }, [piuSedi, sedePerCommessa, rows, periodo, sediData, sediSelezionate, tipoSede]);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3">
       {/* ── Header ─────────────────────────────────────────── */}
-      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm">
+      <div className="testata-pagina rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-4 py-3 shadow-sm">
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-2.5 sm:gap-3">
           <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-eic-amber text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
@@ -960,77 +959,45 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         Premi Aggiorna dati per riprovare.
       </div>}
 
-      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <Card className="min-w-0 overflow-hidden border-slate-200 bg-eic-navy-deep text-white shadow-sm">
-          <CardContent className="space-y-4 p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/95 shadow-[0_10px_24px_rgba(249,115,22,0.28)]">
-                  <ShieldAlert className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Marginalità commesse</p>
-                  <h2 className="mt-1 text-lg font-semibold">Cosa è già eroso e cosa puoi ancora correggere</h2>
-                  <p className="mt-1 max-w-2xl text-sm text-blue-100/85 max-md:hidden">
-                    {/* Finché i dati non ci sono non si può dire che le commesse sono sopra il target. */}
-                    {isLoading
-                      ? "Sto caricando le commesse..."
-                      : error
-                        ? "Dati non caricati: premi Aggiorna dati per riprovare."
-                        : marginControl.insight}
-                    {isFetchingAnomalies ? " Sto aggiornando le anomalie collegate..." : ""}
-                    {anomaliesError ? " Anomalie non caricate: premi Aggiorna dati per riprovare." : ""}
-                  </p>
-                </div>
-              </div>
-              <Badge className="w-fit border border-white/20 bg-white/10 text-white hover:bg-white/10 max-md:hidden">
-                Target dopo struttura {targetMarginPct.toFixed(1)}%
-              </Badge>
-            </div>
+      <section aria-label="Riepilogo marginalità" className="rounded-2xl border border-slate-200 bg-eic-navy-deep p-3 text-white shadow-sm">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold">Marginalità della vista</h2>
+            <p className="mt-0.5 text-xs text-blue-100/80">Importi imponibili · percentuali ponderate sui ricavi</p>
+          </div>
+          <Badge className="border border-white/20 bg-white/10 text-white hover:bg-white/10">Target dopo struttura {targetMarginPct.toLocaleString("it-IT", {maximumFractionDigits:1})}%</Badge>
+        </div>
+        {error && <p role="alert" className="mb-3 rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-100">Dati non caricati: premi Aggiorna dati per riprovare.</p>}
+        {anomaliesError && <p role="alert" className="mb-2 text-xs text-amber-100">Anomalie non caricate: premi Aggiorna dati per riprovare.</p>}
+        <div className="grid gap-2 min-[420px]:grid-cols-2 xl:grid-cols-4">
+          <OrdersSummaryCard id="margine-diretto" title="Margine diretto" icon={BarChart3}
+            value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.totMargine)} loading={isLoading}
+            note={`${kpi.reliableCount} commesse calcolabili`}
+            ring={!error && kpi.reliableCount > 0 ? {value:kpi.avgMarginePerc,label:"Margine diretto ponderato",color:kpi.avgMarginePerc < 0 ? "amber" : "green"} : undefined}
+            info="Ricavi contrattuali meno costi diretti registrati, senza IVA. La percentuale è ponderata sui ricavi. Le commesse senza costi completi sono escluse; sulle commesse aperte il dato è provvisorio." />
+          <OrdersSummaryCard id="margine-struttura" title="Dopo struttura" icon={HardHat}
+            value={error || kpi.structuredCount === 0 ? "—" : formatCurrency(kpi.adjustedMarginTotal)} loading={isLoading}
+            note={kpi.structuredCount === 0 ? (kpi.reliableCount === 0 ? "margine non calcolabile" : "struttura non disponibile") : `${kpi.structuredCount} commesse con quota di struttura`}
+            ring={!error && kpi.structuredCount > 0 ? {value:kpi.avgMargineNettoPerc,label:"Margine dopo struttura ponderato",color:kpi.avgMargineNettoPerc < 0 ? "amber" : "green"} : undefined}
+            info="Margine diretto meno quota di struttura stimata. Si usano soltanto le commesse con una quota calcolabile. La struttura e i mezzi stimati restano separati dal consuntivo contabile." />
+          <OrdersSummaryCard id="gap-target" title="Gap dal target" icon={Target}
+            value={error || kpi.reliableCount === 0 ? "—" : formatCurrency(kpi.targetRecovery)} loading={isLoading}
+            note="da recuperare o compensare"
+            info="Somma degli importi da recuperare per raggiungere il target dopo struttura sulle commesse della vista. È una distanza gestionale dal target, non un debito o un costo già sostenuto." />
+          <OrdersSummaryCard id="commesse-controllare" title="Da controllare" icon={ShieldAlert}
+            value={error ? "—" : String(kpi.riskCount)} loading={isLoading}
+            note={`${kpi.incompleteCount} con dati incompleti`}
+            info={error ? "Dati non caricati: premi Aggiorna dati per riprovare." : `${marginControl.insight}${isFetchingAnomalies ? " Aggiornamento anomalie in corso." : ""}${anomaliesError ? " Anomalie non caricate: premi Aggiorna dati per riprovare." : ""}`} />
+        </div>
+      </section>
 
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 2xl:grid-cols-2">
-              <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="text-[11px] font-semibold uppercase text-blue-100">Margine diretto</p>
-                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.reliableCount > 0 ? formatCurrency(kpi.totMargine) : "—"}</p>
-                <p className="text-xs text-blue-100/75">{kpi.reliableCount} commesse calcolabili</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 p-3">
-                <p className="text-[11px] font-semibold uppercase text-blue-100">Dopo struttura</p>
-                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.structuredCount > 0 ? formatCurrency(kpi.adjustedMarginTotal) : "—"}</p>
-                <p className="text-xs text-blue-100/75">
-                  {kpi.structuredCount === 0
-                    ? (kpi.reliableCount === 0 ? "margine non calcolabile" : "struttura non disponibile")
-                    : `${kpi.avgMargineNettoPerc.toFixed(1)}% medio${kpi.structuredCount < kpi.reliableCount ? ` su ${kpi.structuredCount} commesse` : ""}`}
-                </p>
-              </div>
-              <div className="rounded-xl border border-orange-300/30 bg-orange-400/15 p-3">
-                <p className="text-[11px] font-semibold uppercase text-orange-100">Gap dal target</p>
-                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.reliableCount > 0 ? formatCurrency(kpi.targetRecovery) : "—"}</p>
-                <p className="text-xs text-orange-100/75">da recuperare o compensare</p>
-              </div>
-              <div className="rounded-xl border border-red-300/30 bg-red-400/15 p-3">
-                <p className="text-[11px] font-semibold uppercase text-red-100">Da controllare</p>
-                <p className="mt-1 break-words text-base font-bold tabular-nums sm:text-xl">{kpi.riskCount}</p>
-                <p className="text-xs text-red-100/75">{kpi.incompleteCount} con dati incompleti</p>
-              </div>
-            </div>
-            <p className="text-xs text-blue-100/70 max-md:hidden">
-              Le stime di struttura e mezzi restano separate dal consuntivo. Apri una commessa prioritaria per completare i controlli e intervenire sui costi.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 border-orange-100 bg-orange-50/50 shadow-sm max-md:hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base text-orange-950">
-              <Lightbulb className="h-4 w-4 text-orange-600" />
-              Azioni operative
-            </CardTitle>
-            <p className="text-xs text-orange-800/80">
-              Il badge indica il gap rispetto al target: apri la commessa e verifica anomalie, acquisti e varianti.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-2">
+      <details className="group rounded-xl border border-orange-100 bg-orange-50/30">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400">
+          <span className="inline-flex items-center gap-2"><Lightbulb className="h-4 w-4 text-orange-600" />Azioni operative <span className="rounded bg-orange-100 px-1.5 text-xs text-orange-800">{error || isLoading ? "—" : kpi.riskCount}</span></span>
+          <span className="text-xs font-normal text-slate-500 group-open:hidden">Mostra priorità</span><span className="hidden text-xs font-normal text-slate-500 group-open:inline">Nascondi</span>
+        </summary>
+        <div className="grid gap-2 border-t border-orange-100 p-3 lg:grid-cols-3">
+          {!isLoading && !error && <p className="text-xs text-slate-600 lg:col-span-3">{marginControl.insight}</p>}
             {isLoading || error ? (
               <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
                 {isLoading ? "Sto caricando le commesse..." : "Dati non caricati: nessuna indicazione disponibile."}
@@ -1047,7 +1014,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                   key={row.id}
                   type="button"
                   onClick={() => setDrillRow(row)}
-                  className="w-full rounded-xl border border-orange-100 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm"
+                  className="w-full rounded-xl border border-orange-100 bg-white p-2.5 text-left transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1063,9 +1030,8 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                 </button>
               ))
             )}
-          </CardContent>
-        </Card>
-      </section>
+        </div>
+      </details>
 
       {/* ── Performance per Sede ───────────────────────────── */}
       {sediError && <p role="alert" className="text-sm text-amber-800">Analisi delle sedi non caricata. Premi Aggiorna dati per riprovare.</p>}
@@ -1087,8 +1053,8 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
         </section>
       )}
 
-      <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800">
+      <details className="group rounded-xl border border-slate-200 bg-white">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-slate-800">
           <span>Dettagli economici e ipotesi di calcolo</span>
           <span className="text-xs font-normal text-muted-foreground group-open:hidden">Mostra</span>
           <span className="hidden text-xs font-normal text-muted-foreground group-open:inline">Nascondi</span>
@@ -1139,7 +1105,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
 
       {hasMoreRows && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Vista limitata alle prime {rows.length.toLocaleString("it-IT")} commesse su {totalRows.toLocaleString("it-IT")}.
+          Vista limitata alle prime {rows.length.toLocaleString("it-IT")} commesse{totalRows > rows.length ? ` su ${totalRows.toLocaleString("it-IT")}` : ": potrebbero esserci altre commesse"}.
           Ricerca, filtri e CSV riguardano solo queste commesse caricate.
         </div>
       )}
@@ -1153,7 +1119,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
             placeholder="Cerca ordine, cliente..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-10 border-slate-200 pl-9 shadow-none"
+            className="h-9 border-slate-200 pl-9 shadow-none"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -1213,7 +1179,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               aria-pressed={healthFilter === item.key}
               onClick={() => setHealthFilter(item.key as typeof healthFilter)}
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm transition-colors",
+                "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
                 healthFilter === item.key
                   ? "border-orange-200 bg-orange-50 font-semibold text-slate-950 shadow-sm"
                   : "border-slate-200 text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
@@ -1230,13 +1196,13 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               aria-pressed={annoFilter === anno}
               onClick={() => setAnnoFilter(anno)}
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm transition-colors",
+                "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
                 annoFilter === anno
                   ? "border-orange-200 bg-orange-50 font-semibold text-slate-950 shadow-sm"
                   : "border-slate-200 text-muted-foreground hover:bg-slate-50 hover:text-slate-900",
               )}
             >
-              {anno === "tutti" ? "Tutti" : anno}
+              {anno === "tutti" ? "Tutti gli anni" : anno}
             </button>
           ))}
         </div>
@@ -1256,7 +1222,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
 
       {/* ── Tabella Desktop ────────────────────────────────── */}
       <Card className="hidden md:block">
-        <CardHeader className="pb-3">
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 px-3 py-2.5">
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-primary" />
             Dettaglio per cantiere
@@ -1264,6 +1230,11 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               <Badge variant="secondary" className="text-xs">{filtered.length} / {rows.length}</Badge>
             )}
           </CardTitle>
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-sky-200" />Diretto: ricavi − costi</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-amber-200" />Dopo struttura: diretto − quota stimata</span>
+            <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" aria-pressed={showCostColumns} onClick={() => setShowCostColumns(value => !value)}>{showCostColumns ? "Nascondi dettagli costi" : "Dettagli costi"}</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
@@ -1296,20 +1267,22 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
               )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
+            <Table aria-label="Marginalità per commessa, importi IVA esclusa" wrapperClassName="max-h-[65vh]" className="text-xs [&_td]:px-2.5 [&_td]:py-2 [&_th]:h-10 [&_th]:px-2.5">
+              <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
                 <TableRow>
                   <SortableTableHead active={sort.key === "order"} direction={sort.direction} onClick={() => handleSort("order")}>Ordine</SortableTableHead>
                   <SortableTableHead active={sort.key === "cliente"} direction={sort.direction} onClick={() => handleSort("cliente")}>Cliente</SortableTableHead>
                   <SortableTableHead active={sort.key === "stato"} direction={sort.direction} onClick={() => handleSort("stato")}>Stato</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "preventivo"} direction={sort.direction} onClick={() => handleSort("preventivo")}>Preventivo</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "consuntivo"} direction={sort.direction} onClick={() => handleSort("consuntivo")}>Consuntivo</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "margine"} direction={sort.direction} onClick={() => handleSort("margine")}>Margine diretto €</SortableTableHead>
-                  <SortableTableHead className="text-center w-32" align="center" active={sort.key === "marginePerc"} direction={sort.direction} onClick={() => handleSort("marginePerc")}>Margine diretto %</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "overhead"} direction={sort.direction} onClick={() => handleSort("overhead")}>Quota struttura</SortableTableHead>
-                  <SortableTableHead className="text-right" align="right" active={sort.key === "margineNetto"} direction={sort.direction} onClick={() => handleSort("margineNetto")}>Dopo struttura</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "preventivo"} direction={sort.direction} onClick={() => handleSort("preventivo")}>Ricavi</SortableTableHead>
+                  <SortableTableHead className="text-right" align="right" active={sort.key === "consuntivo"} direction={sort.direction} onClick={() => handleSort("consuntivo")}>Costi diretti</SortableTableHead>
+                  <SortableTableHead className="border-l border-sky-100 bg-sky-50 text-right" align="right" active={sort.key === "margine"} direction={sort.direction} onClick={() => handleSort("margine")}>Margine diretto €</SortableTableHead>
+                  <SortableTableHead className="w-20 bg-sky-50 text-center" align="center" active={sort.key === "marginePerc"} direction={sort.direction} onClick={() => handleSort("marginePerc")}>Margine diretto %</SortableTableHead>
+                  <SortableTableHead className="border-l border-amber-100 bg-amber-50 text-right" align="right" active={sort.key === "overhead"} direction={sort.direction} onClick={() => handleSort("overhead")}>Struttura stimata</SortableTableHead>
+                  <SortableTableHead className="bg-amber-50 text-right" align="right" active={sort.key === "margineNetto"} direction={sort.direction} onClick={() => handleSort("margineNetto")}>Dopo struttura</SortableTableHead>
+                  {showCostColumns && <>
                   <SortableTableHead className="text-right" align="right" active={sort.key === "acquisti"} direction={sort.direction} onClick={() => handleSort("acquisti")}>Materiali</SortableTableHead>
                   <SortableTableHead className="text-right" align="right" active={sort.key === "errori"} direction={sort.direction} onClick={() => handleSort("errori")}>Errori</SortableTableHead>
+                  </>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1331,60 +1304,41 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                   return (
                     <TableRow
                       key={row.id}
-                      className="group cursor-pointer hover:bg-primary/5 transition-colors"
+                      className="group cursor-pointer transition-colors hover:bg-slate-50"
                       onClick={() => setDrillRow(row)}
                     >
-                      <TableCell>
+                      <TableCell className="min-w-[155px]">
                         <div className="flex items-center gap-1 font-medium text-primary">
                           <button type="button" className="text-left hover:underline focus-visible:underline" aria-label={`Dettaglio margine ${row.order_code ?? row.description}`} onClick={(event) => { event.stopPropagation(); setDrillRow(row); }}>{row.order_code ? `#${row.order_code}` : "–"}</button>
                           <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
-                        <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.description}</p>
+                        <p title={row.description} className="max-w-[160px] truncate text-[11px] text-muted-foreground">{row.description}</p>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{row.cliente_nome || "–"}</TableCell>
+                      <TableCell><span title={row.cliente_nome || undefined} className="block max-w-[115px] truncate text-slate-600">{row.cliente_nome || "–"}</span></TableCell>
                       <TableCell>
-                        <div className="space-y-1">
+                        <div title={[decision.detail, notaAvanzamento(avanzamentoPerCommessa.get(row.id))].filter(Boolean).join(" · ")} className="space-y-1 [&_.inline-flex]:text-[10px]">
                           {reliable
                             ? <MarginHealthBadge perc={margineNetto} target={targetMarginPct} />
                             : <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Dati incompleti</Badge>}
-                          <p
-                            className={cn(
-                              "max-w-[190px] text-xs",
-                              decision.tone === "red" && "text-red-600",
-                              decision.tone === "orange" && "text-orange-600",
-                              decision.tone === "amber" && "text-amber-600",
-                              decision.tone === "green" && "text-green-600",
-                            )}
-                          >
-                            {decision.label}
-                            {anomaly?.openCount ? ` · ${anomaly.openCount} anomalie aperte` : ""}
-                          </p>
-                          {reliable && notaAvanzamento(avanzamentoPerCommessa.get(row.id)) && (
-                            <p className="max-w-[190px] text-xs text-muted-foreground">
-                              {notaAvanzamento(avanzamentoPerCommessa.get(row.id))}
-                            </p>
-                          )}
+                          {anomaly?.openCount ? <p className="text-[10px] text-amber-700">{anomaly.openCount} anomalie aperte</p> : null}
+                          {reliable && notaAvanzamento(avanzamentoPerCommessa.get(row.id)) && <p className="max-w-[150px] truncate text-[10px] text-muted-foreground" title={notaAvanzamento(avanzamentoPerCommessa.get(row.id)) ?? undefined}>{notaAvanzamento(avanzamentoPerCommessa.get(row.id))}</p>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(preventivoTotale)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(consuntivo)}</TableCell>
-                      <TableCell className={cn("text-right font-semibold", MargineColorClass(marginePerc))}>
+                      <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{formatCurrency(preventivoTotale)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">{formatCurrency(consuntivo)}</TableCell>
+                      <TableCell className={cn("border-l border-sky-100 bg-sky-50/50 text-right font-semibold tabular-nums whitespace-nowrap", MargineColorClass(marginePerc))}>
                         {reliable ? formatCurrency(margine) : "—"}
                         {reliable && quotaMezzi(row.id) > 0 && (
                           <div className="whitespace-nowrap text-xs font-normal text-muted-foreground">con i mezzi {formatCurrency(margine - quotaMezzi(row.id))}</div>
                         )}
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="bg-sky-50/50 text-center">
                         {reliable ? <div className="flex flex-col items-center gap-1">
                           <MargineBadge perc={marginePerc} />
-                          <Progress
-                            value={clampPercentage(marginePerc)}
-                            className="h-1 w-20"
-                            indicatorClassName={MargineProgressClass(marginePerc)}
-                          />
+
                         </div> : <span className="text-muted-foreground">—</span>}
                       </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
+                      <TableCell className="border-l border-amber-100 bg-amber-50/40 text-right text-[11px] tabular-nums text-muted-foreground">
                         {adjusted.source === "none" ? (
                           <span title="Mancano le date della commessa o i costi di struttura">—</span>
                         ) : (
@@ -1394,16 +1348,17 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                               : `Percentuale aziendale del ${adjusted.structurePct.toFixed(1)}% sul ricavo`}>
                               {formatCurrency(overheadAllocato)}
                             </span>
-                            <span className="ml-1 text-[10px] uppercase text-slate-400">
+                            <span className="mt-0.5 block text-[9px] uppercase text-slate-500">
                               {adjusted.source === "automatic" ? "auto" : "% azienda"}
                             </span>
                           </>
                         )}
                       </TableCell>
-                      <TableCell className={cn("text-right font-semibold text-sm", MargineColorClass(margineNetto))}>
+                      <TableCell className={cn("bg-amber-50/40 text-right font-semibold tabular-nums whitespace-nowrap", MargineColorClass(margineNetto))}>
                         {reliable && adjusted.source !== "none" ? <>{formatCurrency(margineNettoAbs)}
-                        <span className="text-xs ml-1">({margineNetto.toFixed(1)}%)</span></> : "—"}
+                        <span className="mt-0.5 block text-[11px] font-medium">{margineNetto.toLocaleString("it-IT", {maximumFractionDigits:1})}%</span></> : "—"}
                       </TableCell>
+                      {showCostColumns && <>
                       <TableCell className="text-right text-sm text-muted-foreground">
                         {costoAcquisti + costoMagazzino > 0 ? (
                           <span title={`${formatCurrency(costoAcquisti)} ODA · ${formatCurrency(costoMagazzino)} scorta`}>
@@ -1418,6 +1373,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                           <span className="text-muted-foreground">–</span>
                         )}
                       </TableCell>
+                      </>}
                     </TableRow>
                   );
                 })}
@@ -1480,7 +1436,7 @@ function MarginalitaAzienda({ companyId }: { companyId: string | null }) {
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Dopo struttura</p>
+                    <p className="text-muted-foreground">Dopo struttura stimata</p>
                     <p className={cn("font-semibold", MargineColorClass(adjusted.adjustedMarginPct))}>
                       {reliable && adjusted.source !== "none" ? formatCurrency(adjusted.adjustedMargin) : "—"}
                     </p>

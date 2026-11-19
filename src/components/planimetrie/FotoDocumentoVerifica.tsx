@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState, type MouseEvent } from "react";
 import { Maximize2, ScanLine, ZoomIn, ZoomOut } from "lucide-react";
 import type { VerificaLettura, ZonaFotoDocumento } from "../../../shared/planimetrie/letturaTipi.ts";
@@ -25,7 +26,7 @@ export function FotoDocumentoVerifica(props: Props) {
     {props.attiva && <div className="border-b bg-orange-50 px-3 py-2 text-xs text-orange-950"><p className="font-medium">Quota evidenziata nel confronto</p><p className="mt-1 line-clamp-3">{props.attiva.descrizione}</p><Button type="button" variant="link" size="sm" className="h-7 px-0 text-xs" onClick={() => setAperta(true)}>{props.attiva.zoneFoto?.length ? "Apri il dettaglio della foto" : "Indica dove si legge sulla foto"}</Button></div>}
     <Dialog open={aperta} onOpenChange={setAperta}><DialogContent className="flex max-h-[95dvh] w-[96vw] max-w-7xl flex-col gap-3 overflow-hidden p-4 sm:p-5">
       <DialogHeader><DialogTitle>Foto e pianta a confronto</DialogTitle><DialogDescription>Ingrandisci il foglio e confronta la quota evidenziata. Segnare una zona della foto non conferma la misura.</DialogDescription></DialogHeader>
-      <div className="min-w-48 space-y-1 text-xs"><label htmlFor="quota-confronto-foto" className="font-medium">Quota da confrontare</label><select id="quota-confronto-foto" className="h-9 w-full rounded-md border bg-background px-2" value={props.attiva?.id ?? ""} onChange={(e) => { const v = props.verifiche.find((v) => v.id === e.target.value); if (v) props.onSeleziona(v); }}><option value="" disabled>Scegli un controllo</option>{props.verifiche.map((v) => <option key={v.id} value={v.id}>{v.descrizione}</option>)}</select></div>
+      <div className="min-w-48 space-y-1 text-xs"><label htmlFor="quota-confronto-foto" className="font-medium">Quota da confrontare</label><UniformSelect id="quota-confronto-foto" className="h-9 w-full rounded-md border bg-background px-2" value={props.attiva?.id ?? ""} onChange={(e) => { const v = props.verifiche.find((v) => v.id === e.target.value); if (v) props.onSeleziona(v); }}><option value="" disabled>Scegli un controllo</option>{props.verifiche.map((v) => <option key={v.id} value={v.id}>{v.descrizione}</option>)}</UniformSelect></div>
       <ConfrontoGrande {...props} />
     </DialogContent></Dialog>
   </>;

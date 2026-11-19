@@ -30,10 +30,8 @@ export default function CalendarioDemo() {
   });
 
   // Una prenotazione confermata nel calendario è la conversione di questa pagina.
-  const prenotato = useCallback((p: PrenotazioneFatta) => {
+  const prenotato = useCallback((_p: PrenotazioneFatta) => {
     trackPixel("Lead", { content_name: "calendario_demo", content_category: "prenotazione_demo" });
-    const gtag = (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag;
-    gtag?.("event", "prenotazione_demo", { pagina: "calendario-demo", giorno: p.date, ora: p.time });
   }, []);
 
   return (

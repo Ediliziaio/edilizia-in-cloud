@@ -1,5 +1,9 @@
+import { incassiConFatture } from "@/lib/orders/incassiConFatture";
+import { applicaQuoteAlleRate, type QuotaFatturaRata } from "@/lib/orders/quoteFatturaRate";
+import "@/components/orders/income-workspace.css";
+import { FattureCommessaCard } from "@/components/orders/FattureCommessaCard";
+import "@/components/orders/cost-workspace.css";
 import { BankOrderMovements } from "@/components/tesoreria/BankOrderMovements";
-import {incassoQuotaCommessa} from "@/lib/fatturazione/incassoQuotaCommessa";
 import { OrderPaymentStatus } from "@/components/orders/OrderPaymentStatus";
 import { nomeCliente as nomeClienteProfilo } from "@/lib/orders/nuovaCommessaProposte";
 import { costoDaSottrarreAlSaldo, type ModalitaCostoFinanziaria } from "@/lib/finanziamenti/costoFinanziaria";
@@ -21,10 +25,10 @@ import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom"
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, ArrowRight } from "lucide-react";
+import { AlertTriangle, BellRing, ChevronRight, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, ArrowRight } from "lucide-react";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMaterialUsageCard } from "@/components/orders/OrderMaterialUsageCard";
-import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
+import { PreventivoOrigineCommessa } from "@/components/orders/PreventivoOrigineCommessa";
 import { OrderScheduleBadge } from "@/components/orders/OrderScheduleBadge";
 import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
@@ -34,6 +38,7 @@ import { EsposizioneCommessa } from "@/components/orders/EsposizioneCommessa";
 import { AltroIncassiCommessa } from "@/components/orders/AltroIncassiCommessa";
 import { PrevisioneCassaMateriali } from "@/components/orders/PrevisioneCassaMateriali";
 import { OrderCommissions } from "@/components/orders/OrderCommissions";
+import { IncassiMarginiCommessa } from "@/components/orders/IncassiMarginiCommessa";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,7 +65,6 @@ import { LinkedAppointments } from "@/components/appointments/LinkedAppointments
 import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { dataAttesaRata } from "@/lib/orders/rateEventi";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrderCommessaSummary } from "@/components/orders/OrderCommessaSummary";
 const MaterialiPerFase = lazy(() => import("@/components/orders/materiali/MaterialiPerFase"));
@@ -118,9 +122,9 @@ import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { MESSAGGIO_PERMESSI } from "@/lib/userErrorMessage";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
+import { InlineEditableDatesCard } from "@/components/orders/InlineEditableDatesCard";
 import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
 import { RiquadroRiferimentiPa } from "@/components/orders/riferimentiPa/RiquadroRiferimentiPa";
-import { CodiciCommittenteRiquadro } from "@/components/orders/CodiciCommittenteRiquadro";
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
 import { OrdineNote } from "@/components/orders/OrdineNote";
 import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrdersCard";
@@ -148,7 +152,7 @@ import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder, flussoDaApplic
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { DaApprovareAvviso, DaApprovareCommessa } from "@/components/orders/DaApprovareCommessa";
 import { CollaudiDalCantiere } from "@/components/orders/CollaudiDalCantiere";
-import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo, totaleFatturato } from "@/lib/orders/incassiCommessa";
+import { conIncassiUnita, incassiDellaCommessa, nettoUnitaInLordo } from "@/lib/orders/incassiCommessa";
 import { useIncassiUnita } from "@/hooks/useCommesseGenerali";
 import { caricaImportiFinanziari } from '@/lib/orders/importiFinanziari';
 import { costoMaterialiIvato } from "@/lib/orders/cassaMateriali";
@@ -158,6 +162,7 @@ import { SubappaltatoriCommessa } from "@/components/orders/SubappaltatoriCommes
 import { OrdineFotoCantiere } from "@/components/campo/OrdineFotoCantiere";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
+import { EditorFatturaCommessa } from "@/components/orders/EditorFatturaCommessa";
 import { CantiereDaOrganizzare } from "@/components/orders/CantiereDaOrganizzare";
 import type { ControlloAvvio } from "@/lib/orders/nuovaCommessa";
 import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
@@ -396,7 +401,7 @@ function OrderDetailInner() {
   const isMobile = useIsMobile();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, effectiveCompany } = useAuth();
+  const { user, effectiveCompany, role } = useAuth();
   const permissions = usePermissions();
   const puoScrivereRate = (!!permissions.canEditOrders || !!permissions.canManagePayments) && !permissions.solaLettura;
   // Dalla scheda committente: un preventivo accettato da trasformare in lavoro extra su questa commessa.
@@ -447,6 +452,7 @@ function OrderDetailInner() {
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [dateDialogOpen, setDateDialogOpen] = useState(false);
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [affidaDitteOpen, setAffidaDitteOpen] = useState(false);
   const [applyingPlaybook, setApplyingPlaybook] = useState(false);
@@ -461,6 +467,8 @@ function OrderDetailInner() {
   const [notesOpen, setNotesOpen] = useState(false);
   const [firmaOpen, setFirmaOpen] = useState(false);
   const [creaFatturaOpen, setCreaFatturaOpen] = useState(false);
+  const [fatturaInEditor, setFatturaInEditor] = useState<string | null>(null);
+  const chiudiEditorFattura = useCallback(() => setFatturaInEditor(null), []);
   const [creaDDTOpen, setCreaDDTOpen] = useState(false);
   const [creaProformaOpen, setCreaProformaOpen] = useState(false);
   const [creaNotaCreditoOpen, setCreaNotaCreditoOpen] = useState(false);
@@ -568,16 +576,20 @@ function OrderDetailInner() {
 
   // Fetch order installments from DB
   const { data: dbInstallments = [], isPending: installmentsPending, isError: installmentsError } = useQuery({
-    queryKey: queryKeys.orders.installments(id),
+    queryKey: [...queryKeys.orders.installments(id), "quote-v1"],
     queryFn: async () => {
       // Con la fattura interna della rata: numero e stato, per mostrarla.
       const { data, error } = await supabase
         .from("order_installments" as never)
-        .select("*, fattura:documenti_fiscali(id, numero, stato, importo_pagato)")
+        .select("*, documento_quota_lorda, documento_quota_offset, fattura:documenti_fiscali(id, numero, stato, importo_pagato)")
         .eq("order_id", id!)
         .order("position");
       if (error) throw error;
-      return (data || []) as unknown as (Installment & { id: string })[];
+      const rate = (data || []) as unknown as (Installment & { id: string })[];
+      if (!rate.some(r => r.documento_quota_lorda != null)) return rate;
+      const quote = await supabase.rpc('rate_fattura_quote' as never, {p_order_id:id!} as never);
+      if (quote.error) throw quote.error;
+      return applicaQuoteAlleRate(rate,(quote.data ?? []) as unknown as QuotaFatturaRata[]);
     },
     enabled: !!id && !!user && !!order?.id && schedaPronta,
     staleTime: 120_000,
@@ -639,6 +651,11 @@ function OrderDetailInner() {
         termine_fine_mese: i.termine_fine_mese ?? null,
         importo_da_misurare: i.importo_da_misurare ?? null,
         documento_fiscale_id: i.documento_fiscale_id ?? null,
+        documento_quota_lorda: i.documento_quota_lorda,
+        documento_quota_offset: i.documento_quota_offset,
+        quota_fattura_esigibile: i.quota_fattura_esigibile,
+        quota_fattura_residua: i.quota_fattura_residua,
+        quota_fattura_non_esigibile: i.quota_fattura_non_esigibile,
         fattura: i.fattura ?? null,
       }));
     }
@@ -735,7 +752,8 @@ function OrderDetailInner() {
   });
 
   // Fetch linked fatture
-  const { data: fattureCollegate = [] } = useFattureByOrdine(schedaPronta ? id : undefined);
+  const fattureCommessaQuery = useFattureByOrdine(schedaPronta ? id : undefined);
+  const fattureCollegate = fattureCommessaQuery.data ?? [];
 
   const { data: documentiCommessa = [] } = useQuery<OrderDocumentSummary[]>({
     queryKey: ["order-documents-summary", id, "tutti"],
@@ -1238,33 +1256,6 @@ function OrderDetailInner() {
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
 
-  const linkedDocumentsCount = fattureCollegate.length;
-
-  const formatFiscalType = (tipo: string) => {
-    const labels: Record<string, string> = {
-      fattura: "Fattura",
-      fattura_pa: "Fattura PA",
-      nota_credito: "Nota credito",
-      nota_debito: "Nota debito",
-      ddt: "DDT",
-      proforma: "Proforma",
-      preventivo: "Preventivo",
-      parcella: "Parcella",
-      fattura_accompagnatoria: "Fattura accompagnatoria",
-    };
-    return labels[tipo] ?? tipo;
-  };
-
-  // Stato documento fiscale in italiano: la copia mobile della card lo mappava,
-  // quella desktop stampava il valore DB ("inviata_sdi") — stesso dato, due lingue.
-  const formatStatoFiscale = (stato: string | null | undefined) => {
-    const labels: Record<string, string> = {
-      bozza: "Bozza", emessa: "Emessa", pagata: "Pagata", consegnata: "Consegnata",
-      inviata_sdi: "Inviata SDI", rifiutata: "Rifiutata", scaduta: "Scaduta",
-    };
-    return (stato && labels[stato]) || stato || "—";
-  };
-
   const formatAttachmentType = (documento: OrderDocumentSummary) => {
     const name = documento.file_name.toLowerCase();
     if (name.includes("collaudo") || name.includes("verbale")) return "Collaudo";
@@ -1478,7 +1469,7 @@ function OrderDetailInner() {
   const contractFinanceNotice = <QuoteCard title={operationalIntervention ? "Intervento operativo" : "Dati economici da confermare"}><p className="text-sm text-slate-600">{operationalIntervention ? "Importi, IVA, SAL e pagamenti si gestiscono sul contratto di origine. Qui si organizzano le lavorazioni." : "Conferma cliente di fatturazione, quota economica, aliquota e regime IVA e pagamenti. La bozza non applica aliquote o rate predefinite."}</p>{!operationalIntervention && permissions.canEditOrders && <Button variant="link" className="mt-2 h-auto p-0" onClick={()=>navigate(`/azienda/ordini/${id}/modifica`)}>Completa i dati del contratto</Button>}</QuoteCard>;
 
   // Incassato e da incassare: una regola sola, la stessa del piano rate (incassiDellaCommessa).
-  const incassiBase = conIncassiUnita(incassiDellaCommessa({
+  const inputIncassi = {
     installments: displayInstallments,
     totalAmount: agreedAmount,
     vatRate: order.vat_rate ?? 22,
@@ -1486,12 +1477,63 @@ function OrderDetailInner() {
     financingCost: order.financing_cost,
     financingCostMode: order.financing_cost_mode,
     varianti: variantiDatate,
-  }), incassiUnita.data?.cassa ?? 0, order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
+  };
+  const incassiBase = conIncassiUnita(fattureCommessaQuery.isSuccess ? incassiConFatture(inputIncassi, fattureCollegate) : incassiDellaCommessa(inputIncassi), incassiUnita.data?.cassa ?? 0, order.vat_rate ?? 22, nettoUnitaInLordo(incassiUnita.data?.permute ?? 0, order.vat_rate ?? 22));
   const aMisura=order.order_type==='appaltatore_lavoro' && order.valorizzazione==='a_misura';
   const creditiMisura=importiFinanziari.data?.crediti_misura;
   const incassi=aMisura?{totaleLordo:creditiMisura?.fatturato??0,incassatoLordo:creditiMisura?.incassato??0,daIncassareLordo:creditiMisura?.residuo??0,incassatoNetto:(creditiMisura?.incassato??0)/(1+(order.vat_rate??22)/100),costoFinanziaria:0}:incassiBase;
   const collectedAmount = incassi.incassatoNetto;
   const collectedGross = incassi.incassatoLordo;
+  const azioniFattureCliente = (<div>
+                {documentiBloccati && <p className="mb-2 text-xs text-muted-foreground">{motivoDocumentiBloccati}</p>}
+                <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
+                  {permissions.canViewBilling && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaFatturaOpen(true)}
+                  >
+                    <Receipt className="h-3.5 w-3.5 mr-1" />
+                    Fattura
+                  </Button>
+                  )}
+                  {permissions.canViewBilling && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaProformaOpen(true)}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1" />
+                    Proforma
+                  </Button>
+                  )}
+                  {(permissions.canViewBilling || permissions.canEditOrders || permissions.canViewWarehouse) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaDDTOpen(true)}
+                  >
+                    <Truck className="h-3.5 w-3.5 mr-1" />
+                    DDT
+                  </Button>
+                  )}
+                  {permissions.canViewBilling && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
+                    onClick={() => setCreaNotaCreditoOpen(true)}
+                  >
+                    <FileWarning className="h-3.5 w-3.5 mr-1" />
+                    N. Credito
+                  </Button>
+                  )}
+                </div>
+                </div>);
+
   const cashTotalGross = Math.max(0,incassi.totaleLordo-nettoUnitaInLordo(incassiUnita.data?.permute??0,order.vat_rate??22));
   // Avanzamento fisico (media % fasi) per esposizione e proiezione margine.
   const avanzamentoPct = avanzamentoDellaCommessa(phaseProgress?.avgPct ?? null);
@@ -1737,7 +1779,6 @@ function OrderDetailInner() {
           <TabsContent value="panoramica" className="order-detail-tab-panel space-y-4 mt-4">
             <OrderPaymentStatus orderId={id!} />
             <OrderViewTransition viewKey="panoramica">
-            <PlanimetrieAssociate companyId={companyId} tipo="commessa" schedaId={id} />
             {isMobile && <div className="rounded-xl border bg-card px-3 py-2">{statoCommessa}</div>}
             {contractLink.data?.workflow_kind !== "intervento" && <ContractInterventions key={id} orderId={id!} />}
             {orderAlerts.length > 0 && <section aria-labelledby="order-attention-title" className="rounded-xl border border-orange-200 bg-white">
@@ -1779,12 +1820,6 @@ function OrderDetailInner() {
 
             <OrderAssistenzaAlert orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-assistenza" })} />
             <DaApprovareAvviso orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", section: "section-rapportini" })} />
-            {/* Origine e anagrafica: l'operatività vive nel Cantiere. */}
-            <OrderOriginBadge
-              quoteId={order.quote_id}
-              quoteNumber={order.quote_number}
-            />
-
             {/* Modulo Appaltatori — pannello dedicato per lavori di sola
                 manodopera. Non viene montato per ordini cliente standard. */}
             {order.order_type === "appaltatore_lavoro" && (
@@ -1805,28 +1840,40 @@ function OrderDetailInner() {
               />
             )}
 
-            {/* Dati appalto e fatturazione PA: CIG, CUP, ufficio, contratto/ordine. Si vede per i clienti PA,
-                se acceso a mano o se contratto generale / computo hanno già dei codici. */}
-            {id && <RiquadroRiferimentiPa orderId={id} puoModificare={permissions.canEditOrders} />}
-            {/* Codici del committente: la banca li cerca nelle causali degli incassi (16/11/2026). */}
-            {id && <CodiciCommittenteRiquadro orderId={id} puoModificare={permissions.canEditOrders} />}
+            <div className="grid items-start gap-3 lg:grid-cols-2" data-order-overview-columns>
 
-            <div className="grid gap-4 lg:grid-cols-2 items-start">
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-3">
               <OrdineCliente
                 customer={order.customer}
                 ruolo={inAppalto ? "committente" : "cliente"}
                 snapshot={{ name: order.client_name, email: order.client_email, phone: order.client_phone }}
                 indirizzoLavori={order.indirizzo_lavori || order.work_address}
               />
+              <section id="section-pianificazione" aria-label="Date e appuntamenti" className="scroll-mt-24">
+                <OrdineTempistiche
+                  orderId={order.id}
+                  expectedDate={order.expected_date}
+                  warehouseArrivalDate={order.warehouse_arrival_date}
+                  workStartDate={order.work_start_date}
+                  workEndDate={order.work_end_date}
+                  workStartTime={order.work_start_time}
+                  workEndTime={order.work_end_time}
+                  updatedAt={order.updated_at}
+                  onRequestEdit={() => setDateDialogOpen(true)}
+                />
+              </section>
+            {/* Dati appalto e fatturazione PA: CIG, CUP, ufficio, contratto/ordine. Si vede per i clienti PA,
+                se acceso a mano o se contratto generale / computo hanno già dei codici. */}
+            {id && <RiquadroRiferimentiPa orderId={id} puoModificare={permissions.canEditOrders} />}
+
               {id && !isMobile && <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold">Campi aggiuntivi della commessa</summary><p className="my-2 text-xs text-muted-foreground">Dati interni, senza modificare importi, contratto o documento cliente.</p><EntityCustomFieldsSection entityType="order" entityId={id} /></details>}
               </div>
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-3">
                 <QuoteCard title="Lavoro previsto" icon={<HardHat className="h-4 w-4" />}>
                   <p className="whitespace-pre-wrap break-words text-sm text-slate-600">{order.work_description || order.description || "Descrizione non inserita"}</p>
                   <Button type="button" variant="link" className="mt-2 h-auto p-0 text-sm" onClick={() => navigateTo({ tab: "cantiere", section: "section-diario" })}>Registro della commessa <ArrowRight className="ml-1 h-3.5 w-3.5" /></Button>
                 </QuoteCard>
-              <div id="section-note" className="scroll-mt-24">
+              <div id="section-note" className="scroll-mt-24 space-y-3">
                 <RiepilogoFasiUfficio orderId={id!} onOpen={() => navigateTo({ tab: "cantiere", cantiereView: "ufficio" })} />
                 {permissions.canEditOrders ? (
                   <OrdineNote
@@ -1843,29 +1890,16 @@ function OrderDetailInner() {
                   <QuoteCard title="Note interne"><p className="whitespace-pre-wrap break-words text-sm text-slate-600">{order.internal_notes || "Nessuna nota interna"}</p></QuoteCard>
                 )}
               </div>
+                  <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
               </div>
             </div>
-            {/* Date e appuntamenti (31/10/2026): sotto cliente e lavoro previsto, non più in fondo a Lavorazioni. */}
-            <section
-                id="section-pianificazione"
-                aria-label="Date e appuntamenti"
-                className="grid items-start gap-3 lg:grid-cols-2 scroll-mt-24"
-              >
-                <OrdineTempistiche
-                  orderId={order.id}
-                  expectedDate={order.expected_date}
-                  warehouseArrivalDate={order.warehouse_arrival_date}
-                  workStartDate={order.work_start_date}
-                  workEndDate={order.work_end_date}
-                  workStartTime={order.work_start_time}
-                  workEndTime={order.work_end_time}
-                  updatedAt={order.updated_at}
-                />
-                  <LinkedAppointments key={id} orderId={id!} editable={permissions.canEditOrders} defaultAddress={order.work_address || order.customer?.address} />
-              </section>
             {/* Da telefono i documenti si aprono dall'icona in testata: qui erano quasi mille pixel. */}
             {!isMobile && <div id="section-documenti" className="scroll-mt-24">
               <OrderAttachments key={id} orderId={id!} editable={permissions.canEditOrders}
+                documentiCollegati={<>
+                  <PreventivoOrigineCommessa quoteId={order.quote_id} quoteNumber={order.quote_number} companyId={companyId} />
+                  <PlanimetrieAssociate companyId={companyId} tipo="commessa" schedaId={id} nascondiSeVuoto />
+                </>}
                 actions={permissions.canEditOrders && effectiveCompany?.id && id ? <>
                   <ContrattoAIDialog orderId={id} companyId={effectiveCompany.id} />
                   {puoImportareNellaCommessa && <LeggiContrattoCommessa orderId={id} companyId={effectiveCompany.id} perCommittente={inAppalto} etichetta="Leggi un contratto firmato" />}
@@ -2009,7 +2043,7 @@ function OrderDetailInner() {
           </TabsContent>
 
           {/* Fatture e costi: tutto quello che esce dalla commessa, diviso per chi lo riceve. */}
-          <TabsContent value="costi" className="order-detail-tab-panel space-y-4 mt-4">
+          <TabsContent value="costi" className="commessa-cost-workspace order-detail-tab-panel space-y-4 mt-4">
             {!permissions.canViewCosts ? <p className="rounded-lg border bg-white p-4 text-sm text-slate-600">Il tuo ruolo non permette di consultare fatture e costi di questa commessa.</p> : <>
             <div id="costi-workspace" className="scroll-mt-24">
               <OrderWorkspaceNav label="Viste di fatture e costi" views={visteCosti} value={vistaCosti} onChange={costiView => navigateTo({ tab: "costi", costiView })} counts={{ fornitori: fattureCommessa?.filter(f => f.legame !== "suggerita").length }} />
@@ -2050,6 +2084,7 @@ function OrderDetailInner() {
               <div className="p-4 pt-0">
                 {companyId && <OrdineSAL orderId={id!} companyId={companyId}
                   showPaymentProgress={false} orderTotalAmount={agreedAmount}
+                  onApriBozzaFattura={setFatturaInEditor}
                   installments={displayInstallments} vatRate={order.vat_rate ?? 22}
                   financingCostMode={order.financing_cost_mode}
                   financingCost={order.payment_type === "financing" ? (order.financing_cost ?? 0) : 0} />}
@@ -2096,7 +2131,7 @@ function OrderDetailInner() {
             )}
 
             {/* Piano rate: destinazione comune di "Registra incasso" e dei link dalla Panoramica. */}
-            {activeEconomiaView === "pagamenti" && <>
+            {activeEconomiaView === "pagamenti" && <div className="commessa-income-workspace space-y-4">
             {/* Lo stato in una lettura (01/11/2026): i quattro numeri, poi le rate del cliente, poi i SAL
                 emessi. IVA, ritenute, blocca prezzo e bonus in fondo; provvigioni e «Chi finanzia il
                 cantiere» in Margini e costi; le uscite in Fatture e costi. */}
@@ -2106,10 +2141,15 @@ function OrderDetailInner() {
               mostraUscite={permissions.canViewCosts}
               onApriUscite={() => navigateTo({ tab: "costi", costiView: "tutte" })}
               conIva={false}
-              incassi={permissions.canViewOrderAmounts ? (
+              vistaUnificata
+              documenti={(permissions.canViewOrderAmounts || permissions.canViewBilling) ? <div id="section-fatturazione" className="scroll-mt-24"><FattureCommessaCard documents={fattureCollegate} installments={displayInstallments} loading={fattureCommessaQuery.isPending} error={fattureCommessaQuery.isError} onRetry={() => { void fattureCommessaQuery.refetch(); }} onDownload={handleDownloadFiscalDocument} actions={azioniFattureCliente} /></div> : undefined}
+              incassi={permissions.canViewOrderAmounts ? () => (
                 <div id="section-pagamenti" className="scroll-mt-24">
+                  <span id="section-fatturazione" className="block scroll-mt-24" />
                   <OrdineEconomico
                     orderId={id!}
+                    totaliIncassi={{incassato: collectedGross, daIncassare: saldoResiduoGross}}
+                    fatture={{documents: fattureCollegate, loading: fattureCommessaQuery.isPending, error: fattureCommessaQuery.isError, onRetry: () => { void fattureCommessaQuery.refetch(); }, onDownload: handleDownloadFiscalDocument, actions: azioniFattureCliente}}
                     totalAmount={agreedAmount}
                     vatRate={order.vat_rate ?? 22}
                     paymentType={(order.payment_type as PaymentType) || "standard"}
@@ -2132,7 +2172,7 @@ function OrderDetailInner() {
                 </div>
               ) : undefined}
             />
-            {permissions.canViewTesoreria && effectiveCompany?.id && <BankOrderMovements company={effectiveCompany.id} order={id!} />}
+            {permissions.canViewTesoreria && effectiveCompany?.id && <BankOrderMovements company={effectiveCompany.id} order={id!} richiudibile />}
             <AltroIncassiCommessa
               orderId={id!}
               vatRate={order.vat_rate ?? 22}
@@ -2143,15 +2183,29 @@ function OrderDetailInner() {
               conIva={permissions.canViewOrderAmounts && permissions.canViewCosts}
               conImporti={permissions.canViewOrderAmounts}
             />
-            </>}
+            </div>}
+
+            {activeEconomiaView === "margini" && permissions.canViewOrderAmounts && permissions.canViewCosts && (
+              <ErrorBoundary fallback={<p role="alert" className="rounded-lg border bg-background p-4 text-sm">IVA, trattenute e cassa non disponibili.</p>}>
+                <IncassiMarginiCommessa orderId={id!} rate={displayInstallments} documenti={fattureCollegate}
+                  statoIncassi={installmentsError || fattureCommessaQuery.isError ? "errore"
+                    : installmentsPending || fattureCommessaQuery.isPending ? "in_caricamento" : "pronto"}
+                  residuoContratto={Math.max(0, Math.round((cashTotalGross - collectedGross) * 100) / 100)}
+                  incassato={collectedGross}
+                  conCommerciali={permissions.canViewMargins}
+                  conRitenuteBancarie={permissions.isAdmin || (role === "accountant" && permissions.canViewPrimaNota)}
+                  apriRegistroBancario={permissions.canViewPrimaNota}
+                  vaiA={vaiAllaFinanza} />
+              </ErrorBoundary>
+            )}
 
             {/* Margini e costi (01/11/2026): dopo il conto economico, le provvigioni dei venditori (sono un
                 costo), chi finanzia il cantiere coi movimenti veri e la previsione sui materiali. Stavano
                 in fondo agli incassi, dove nessuno le trovava. */}
             {activeEconomiaView === "margini" && permissions.canViewMargins && permissions.canViewOrderAmounts && (
               <ErrorBoundary fallback={<p role="alert" className="rounded-lg border border-amber-300 p-4">Provvigioni non disponibili. Ricarica la pagina per riprovare.</p>}>
-                <div className="max-sm:hidden">
-                  <OrderCommissions orderId={id!} totalAmount={agreedAmount} collectedAmount={collectedAmount} vatRate={order.vat_rate ?? 22} />
+                <div id="section-provvigioni" className="scroll-mt-24">
+                  <OrderCommissions orderId={id!} totalAmount={agreedAmount} collectedAmount={collectedAmount} vatRate={order.vat_rate ?? 22} readOnly={permissions.solaLettura} />
                 </div>
               </ErrorBoundary>
             )}
@@ -2202,131 +2256,7 @@ function OrderDetailInner() {
                 Il database li mostra a chi vede gli importi della commessa o
                 ha «Fatturazione», e li crea solo con «Fatturazione» (i DDT
                 anche con commesse o magazzino): qui la stessa regola. */}
-            {activeEconomiaView === "documenti" && (permissions.canViewOrderAmounts || permissions.canViewBilling) && <div id="section-fatturazione" className="scroll-mt-24">
-            <QuoteCard
-              title={
-                <span className="flex items-center gap-2">
-                  Fatturazione e Documenti
-                  {linkedDocumentsCount > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
-                      {linkedDocumentsCount}
-                    </span>
-                  )}
-                </span>
-              }
-              icon={<Receipt className="h-4 w-4" />}
-            >
-              <div className="space-y-3">
-                {fattureCollegate.length > 0 ? (
-                  <div className="space-y-2">
-                    {fattureCollegate.map((f: LinkedFiscalDocument) => (
-                      <div
-                        key={f.id}
-                        className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
-                      >
-                        <Link
-                          to={f.origine==="importata"?`/azienda/documenti/importata/${f.id}`:`/azienda/documenti/${f.id}/dettaglio`}
-                          className="min-w-0 flex-1"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">
-                              {f.numero}
-                            </span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {formatFiscalType(f.tipo)}
-                            </span>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {formatStatoFiscale(f.stato)}
-                          </Badge>
-                        </Link>
-                        <div className="flex items-center gap-2">
-                          <span className="text-right text-muted-foreground whitespace-nowrap">
-                            {formatCurrency(f.importo_associato??f.totale_da_pagare)}
-                            {permissions.canViewOrderAmounts && f.importo_pagato != null && <span className="block text-xs">Incassato {formatCurrency(incassoQuotaCommessa(f).incassato)} · residuo {formatCurrency(incassoQuotaCommessa(f).residuo)}</span>}
-                          </span>
-                          {!isMobile && f.origine!=="importata" && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              aria-label={`Scarica ${f.numero}`}
-                              onClick={() => handleDownloadFiscalDocument(f)}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="pt-1 border-t flex justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        Totale fatturato
-                      </span>
-                      <span className="font-medium">
-                        {formatCurrency(totaleFatturato(fattureCollegate as LinkedFiscalDocument[]))}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    Nessun documento fiscale collegato
-                  </p>
-                )}
-                {/* Bottoni a dimensione naturale (prima grid-cols-4 li stirava
-                      su tutta la card larga desktop). flex-wrap li tiene compatti. */}
-                {/* Come il comando della testata (15/11/2026): disattivati, con il motivo, invece di un avviso a clic. */}
-                {documentiBloccati && <p className="mb-2 text-xs text-muted-foreground">{motivoDocumentiBloccati}</p>}
-                <div className="flex flex-wrap gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
-                  {permissions.canViewBilling && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
-                    onClick={() => setCreaFatturaOpen(true)}
-                  >
-                    <Receipt className="h-3.5 w-3.5 mr-1" />
-                    Fattura
-                  </Button>
-                  )}
-                  {permissions.canViewBilling && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
-                    onClick={() => setCreaProformaOpen(true)}
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                    Proforma
-                  </Button>
-                  )}
-                  {(permissions.canViewBilling || permissions.canEditOrders || permissions.canViewWarehouse) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
-                    onClick={() => setCreaDDTOpen(true)}
-                  >
-                    <Truck className="h-3.5 w-3.5 mr-1" />
-                    DDT
-                  </Button>
-                  )}
-                  {permissions.canViewBilling && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={documentiBloccati} title={documentiBloccati ? motivoDocumentiBloccati : undefined}
-                    onClick={() => setCreaNotaCreditoOpen(true)}
-                  >
-                    <FileWarning className="h-3.5 w-3.5 mr-1" />
-                    N. Credito
-                  </Button>
-                  )}
-                </div>
-              </div>
-            </QuoteCard>
-            </div>}
+
             </Suspense>
             </OrderViewTransition>
             </>}
@@ -2374,13 +2304,14 @@ function OrderDetailInner() {
                   orderId={id!}
                   order={order}
                   onOpenLavorazioni={() => navigateTo({ tab: "cantiere", cantiereView: "lavorazioni" })}
+                  onOpenDate={permissions.canEditOrders ? () => setDateDialogOpen(true) : undefined}
                 />
               </ErrorBoundary>
             </div>}
             {vistaCantiere === "ufficio" && <div id="section-ufficio" className="space-y-4 scroll-mt-24">
               <ErrorBoundary><FasiUfficio key={id} orderId={id!} /></ErrorBoundary>
             </div>}
-            {vistaCantiere === "sopralluoghi" && <div id="section-sopralluoghi" className="scroll-mt-24"><ErrorBoundary><OrderSurveysCard key={id} orderId={id!} /></ErrorBoundary></div>}
+            {vistaCantiere === "sopralluoghi" && <div id="section-sopralluoghi" className="scroll-mt-24"><ErrorBoundary><OrderSurveysCard key={id} orderId={id!} orderCode={order.order_code} clientId={order.customer_id} clientName={order.client_name} address={order.indirizzo_lavori || order.work_address} /></ErrorBoundary></div>}
             {vistaCantiere === "squadra" && <div id="section-statistiche" className="space-y-4 scroll-mt-24">
               <ErrorBoundary><OreEPersone key={id} orderId={id!} inizioLavori={order.work_start_date ?? order.created_at} /></ErrorBoundary>
               {/* Squadre, ditte e costi del personale: il riepilogo di prima, chiuso finché non serve. */}
@@ -2461,7 +2392,26 @@ function OrderDetailInner() {
         occupato={pdfPreparing || isGeneratingPDF}
         onPrepara={preparaRiepilogo}
       />
+      {dateDialogOpen && <InlineEditableDatesCard
+        key={id}
+        orderId={order.id}
+        expectedDate={order.expected_date}
+        warehouseArrivalDate={order.warehouse_arrival_date}
+        workStartDate={order.work_start_date}
+        workEndDate={order.work_end_date}
+        workStartTime={order.work_start_time}
+        workEndTime={order.work_end_time}
+        updatedAt={order.updated_at}
+        hideCard
+        dialogOpen
+        onDialogOpenChange={setDateDialogOpen}
+        onOpenSchedule={() => navigateTo({ tab: "cantiere", cantiereView: "cronoprogramma" })}
+      />}
       <OrderFilesDialog
+        documentiCollegati={<>
+                  <PreventivoOrigineCommessa quoteId={order.quote_id} quoteNumber={order.quote_number} companyId={companyId} />
+                  <PlanimetrieAssociate companyId={companyId} tipo="commessa" schedaId={id} nascondiSeVuoto />
+                </>}
         open={filesOpen}
         onOpenChange={setFilesOpen}
         fatture={fattureCollegate}
@@ -2574,6 +2524,7 @@ function OrderDetailInner() {
       )}
       <CreaFatturaDialog
         open={creaFatturaOpen}
+        onApriBozza={setFatturaInEditor}
         indirizzoLavori={order.work_address || order.indirizzo_lavori}
         onOpenChange={setCreaFatturaOpen}
         orderId={id!}
@@ -2589,6 +2540,7 @@ function OrderDetailInner() {
         }
         installments={displayInstallments}
       />
+      {fatturaInEditor && <EditorFatturaCommessa key={fatturaInEditor} id={fatturaInEditor} onChiudi={chiudiEditorFattura} />}
 
       {/* Crea DDT Dialog — prefill from order items */}
       <CreaDDTDialog

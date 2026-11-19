@@ -26,6 +26,7 @@ import {
 } from "@/lib/orders/etichettePipeline";
 
 interface OrdersPipelineCardProps {
+  onMove?: (order: OrderWithDetails) => void;
   order: OrderWithDetails;
   isDraggable?: boolean;
   /** Copia che segue il mouse durante il trascinamento: non apre mai il riepilogo. */
@@ -33,34 +34,6 @@ interface OrdersPipelineCardProps {
 }
 
 const SUMMARY_OPEN_DELAY_MS = 1000;
-
-function PaymentBar({ order }: { order: OrderWithDetails }) {
-  const collected = getAmountCollected(order);
-  const due = getAmountDue(order);
-  // Base IVA inclusa come incassato e da incassare: contratto più varianti, meno la finanziaria.
-  const total = collected + due || 1;
-  const pct = Math.min(100, Math.round((collected / total) * 100));
-  const isPaid = due === 0 && collected > 0;
-
-  return (
-    <div className={cn(
-      "h-1.5 rounded-full",
-      isPaid ? "bg-emerald-200 dark:bg-emerald-900" :
-      collected > 0 ? "bg-orange-200 dark:bg-orange-900" :
-      "bg-gray-100 dark:bg-gray-800"
-    )}>
-      {(collected > 0 || isPaid) && (
-        <div
-          className={cn(
-            "h-full rounded-full",
-            isPaid ? "bg-emerald-500" : "bg-orange-500"
-          )}
-          style={{ width: `${isPaid ? 100 : pct}%` }}
-        />
-      )}
-    </div>
-  );
-}
 
 function isOverdue(order: OrderWithDetails): boolean {
   const days = getDaysToExpectedDate(order);
@@ -161,7 +134,7 @@ function RigaInfo({
 }: { etichetta: string; valore: string; tono: Tono; icona: React.ReactNode; suggerimento: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2 text-[11px]" title={suggerimento}>
-      <span className="w-[58px] shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">{etichetta}</span>
+      <span className="w-[78px] shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">{etichetta}</span>
       <span className={cn("flex min-w-0 items-center gap-1 font-medium", TONO_TESTO[tono])}>
         <span className="shrink-0">{icona}</span>
         <span className="truncate">{valore}</span>
@@ -189,7 +162,7 @@ function SummaryRow({ label, value, tone }: { label: string; value: string; tone
 export const OrdersPipelineCard = memo(function OrdersPipelineCard({
   order,
   isDraggable = true,
-  soloAnteprima = false,
+  soloAnteprima = false, onMove,
 }: OrdersPipelineCardProps) {
   const navigate = useNavigate();
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -417,7 +390,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
             <div
               {...attributes}
               {...listeners}
-              className="flex items-center px-1.5 cursor-grab active:cursor-grabbing text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/40 rounded-l-lg transition-colors shrink-0"
+              className="flex items-center px-1 cursor-grab active:cursor-grabbing text-muted-foreground/25 hover:text-muted-foreground/60 hover:bg-muted/40 rounded-l-lg transition-colors shrink-0"
             >
               <GripVertical className="h-4 w-4" />
             </div>
@@ -425,7 +398,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
 
           {/* Card body */}
           <div
-            className="flex-1 py-2.5 pr-3 pl-1 cursor-pointer min-w-0"
+            className="flex-1 pt-2 pb-1 pr-2.5 pl-1 cursor-pointer min-w-0"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerEnd}
@@ -453,7 +426,7 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
           >
             {/* Codice */}
             <div className="flex items-start gap-2">
-              <p className="font-semibold text-sm leading-tight truncate">{order.order_code || "—"}</p>
+              <p title={order.description || order.order_code || undefined} className="truncate text-sm font-semibold leading-tight">{order.description || order.order_code || "Commessa"}</p>
               {overdue && (
                 <span
                   className="ml-auto inline-flex items-center rounded-full bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700 ring-1 ring-orange-200"
@@ -464,20 +437,13 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
               )}
             </div>
 
-            {/* Cliente */}
-            <p className="text-xs text-muted-foreground mt-1 truncate">
-              {customerName}
-            </p>
-
-            {/* Descrizione */}
-            {order.description && (
-              <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">
-                {order.description}
-              </p>
-            )}
+            <div className="mt-0.5 flex min-w-0 items-baseline gap-2 text-xs text-muted-foreground">
+              <span className="truncate">{customerName}</span>
+              {order.description && order.order_code && <span className="shrink-0 text-[10px]">{order.order_code}</span>}
+            </div>
 
             {/* Importo + pagamenti */}
-            <div className="mt-2 space-y-1.5">
+            <div className="mt-1 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-bold text-sm" title="Contratto più varianti, IVA inclusa">{formatCurrency(valoreIvato)}</p>
                 <span title={stIncasso.dettaglio} className={cn(
@@ -492,17 +458,17 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
                   {stIncasso.testo}
                 </span>
               </div>
-              <PaymentBar order={order} />
+              {collected > 0 && due > 0 && <div className="h-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-amber-500" style={{width: `${paymentPct}%`}} /></div>}
             </div>
 
             {/* Tre righe con l'etichetta: di cosa parla ogni valore */}
-            <div className="mt-2.5 space-y-1 border-t pt-2">
+            <div className="mt-1 space-y-0.5 border-t pt-1">
               <RigaInfo
-                etichetta="Posa" valore={posa.testo} tono={posa.tono} suggerimento={posa.dettaglio}
+                etichetta="Posa prevista" valore={posa.testo} tono={posa.tono} suggerimento={posa.dettaglio}
                 icona={posa.tono === "critico" ? <AlertTriangle className="h-3 w-3" /> : <CalendarIcon className="h-3 w-3" />}
               />
               <RigaInfo
-                etichetta="Materiali" valore={stMateriali.testo} tono={stMateriali.tono} suggerimento={stMateriali.dettaglio}
+                etichetta="Materiali" valore={materials.total ? `${materials.ready} di ${materials.total} pronti` : stMateriali.testo} tono={stMateriali.tono === "critico" && !overdue ? "attenzione" : stMateriali.tono} suggerimento={stMateriali.dettaglio}
                 icona={stMateriali.tono === "ok" ? <PackageCheck className="h-3 w-3" /> : <PackageX className="h-3 w-3" />}
               />
               <RigaInfo
@@ -511,21 +477,17 @@ export const OrdersPipelineCard = memo(function OrdersPipelineCard({
               />
             </div>
 
-            {/* Il prossimo passo: non è un avviso, è cosa fare adesso */}
-            <div
-              className={cn(
-                "mt-2 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium",
-                passo.tipo === "pronto" ? "bg-emerald-50 text-emerald-800" : "bg-primary/5 text-primary",
-              )}
-              title={passo.motivo}
-            >
-              {passo.tipo === "pronto" ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <ArrowRight className="h-3 w-3 shrink-0" />}
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide opacity-70">Ora</span>
-              <span className="truncate">{passo.testo}</span>
-            </div>
           </div>
         </div>
-
+        <div className="mx-2 mb-1 flex items-center gap-2 border-t pt-0.5">
+          <div className={cn("flex min-w-0 flex-1 items-center gap-1 text-[11px] font-medium", passo.tipo === "pronto" ? "text-emerald-700" : "text-primary")} title={passo.motivo}>
+            <ArrowRight className="size-3 shrink-0" />
+            <span className="truncate">{passo.testo}</span>
+          </div>
+          {onMove && <button type="button" aria-label={`Sposta commessa ${order.order_code || order.description}`}
+            className="shrink-0 rounded px-2 py-1 text-xs font-medium text-primary hover:bg-muted focus-visible:ring-2"
+            onClick={() => { clearHoverTimer(); setSummaryOpen(false); onMove(order); }}>Sposta →</button>}
+        </div>
         {/* Quick actions on hover */}
         <div className="absolute top-1.5 right-1.5 hidden group-hover:flex gap-0.5">
           <button

@@ -1,0 +1,6 @@
+@media (min-width: 640px) {
+  [role="dialog"].dialog-readable.task-editor-dialog { width: min(720px, calc(100vw - 48px)); }
+}
+.task-editor-dialog :is(input, textarea, [role="combobox"]) { border-radius: 0.75rem; }
+
+.task-editor-dialog textarea { resize: vertical; }

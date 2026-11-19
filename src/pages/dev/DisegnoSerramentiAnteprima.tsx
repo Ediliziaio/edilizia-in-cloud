@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 /**
  * Anteprima di sviluppo del disegno generato dei serramenti.
  *
@@ -52,19 +53,19 @@ const TELAI = ["Telaio a L", "Telaio a Z 28", "Telaio a Z 30", "Telaio a Z 35", 
 
 function SelezioneColore({ valore, onChange }: { valore: string; onChange: (v: string) => void }) {
   return (
-    <select className="w-full rounded border bg-background px-2 py-1.5 text-sm" value={valore} onChange={(e) => onChange(e.target.value)}>
+    <UniformSelect className="w-full rounded border bg-background px-2 py-1.5 text-sm" value={valore} onChange={(e) => onChange(e.target.value)}>
       <optgroup label="Legni">{LEGNI.map((c) => <option key={c}>{c}</option>)}</optgroup>
       <optgroup label="Colori">{COLORI_SPECIALI.map((c) => <option key={c}>{c}</option>)}</optgroup>
       <optgroup label="RAL">{COLORI_RAL.map((c) => <option key={c}>{c}</option>)}</optgroup>
-    </select>
+    </UniformSelect>
   );
 }
 
 function Selezione({ valore, opzioni, onChange }: { valore: string; opzioni: string[]; onChange: (v: string) => void }) {
   return (
-    <select className="w-full rounded border bg-background px-2 py-1.5 text-sm" value={valore} onChange={(e) => onChange(e.target.value)}>
+    <UniformSelect className="w-full rounded border bg-background px-2 py-1.5 text-sm" value={valore} onChange={(e) => onChange(e.target.value)}>
       {opzioni.map((o) => <option key={o}>{o}</option>)}
-    </select>
+    </UniformSelect>
   );
 }
 
@@ -187,9 +188,9 @@ export default function DisegnoSerramentiAnteprima() {
         <div className="space-y-4 rounded-lg border p-4 text-sm">
           <label className="block space-y-1">
             <span className="font-medium">Tipologia</span>
-            <select className="w-full rounded border bg-background px-2 py-1.5" value={tipologiaId} onChange={(e) => scegliTipologia(e.target.value)}>
+            <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={tipologiaId} onChange={(e) => scegliTipologia(e.target.value)}>
               {TIPOLOGIE_DISEGNO.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-            </select>
+            </UniformSelect>
           </label>
 
           <div className="grid grid-cols-2 gap-3">
@@ -206,11 +207,11 @@ export default function DisegnoSerramentiAnteprima() {
           <div className="space-y-2">
             <label className="block space-y-1">
               <span className="font-medium">Forma</span>
-              <select className="w-full rounded border bg-background px-2 py-1.5" value={forma} onChange={(e) => setForma(e.target.value as FormaSerramento)}>
+              <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={forma} onChange={(e) => setForma(e.target.value as FormaSerramento)}>
                 <option value="rettangolare">Rettangolare</option>
                 <option value="arco">Ad arco</option>
                 <option value="trapezio">Trapezio</option>
-              </select>
+              </UniformSelect>
             </label>
             {forma === "arco" && (
               <label className="flex items-center gap-2">
@@ -221,10 +222,10 @@ export default function DisegnoSerramentiAnteprima() {
             {forma === "trapezio" && (
               <div className="flex flex-wrap items-center gap-2">
                 <span>Lato basso</span>
-                <select className="rounded border bg-background px-1.5 py-1" value={latoMinore} onChange={(e) => setLatoMinore(e.target.value as Lato)}>
+                <UniformSelect className="rounded border bg-background px-1.5 py-1" value={latoMinore} onChange={(e) => setLatoMinore(e.target.value as Lato)}>
                   <option value="dx">destro</option>
                   <option value="sx">sinistro</option>
-                </select>
+                </UniformSelect>
                 <input type="number" min={150} max={3000} className="w-24 rounded border bg-background px-2 py-1" value={altezzaMinore} onChange={(e) => setAltezzaMinore(Number(e.target.value) || 150)} />
                 <span>mm</span>
               </div>
@@ -235,7 +236,7 @@ export default function DisegnoSerramentiAnteprima() {
           {!sagomato && apertureListino.length > 0 && (
             <label className="block space-y-1">
               <span className="font-medium">Apertura (come nel listino)</span>
-              <select
+              <UniformSelect
                 className="w-full rounded border bg-background px-2 py-1.5"
                 value=""
                 onChange={(e) => {
@@ -245,7 +246,7 @@ export default function DisegnoSerramentiAnteprima() {
               >
                 <option value="">Scegli per applicarla…</option>
                 {apertureListino.map((a) => <option key={a.codice} value={a.codice}>{a.nome}</option>)}
-              </select>
+              </UniformSelect>
             </label>
           )}
 
@@ -261,16 +262,16 @@ export default function DisegnoSerramentiAnteprima() {
               <div key={i} className="grid grid-cols-[28px_1fr_auto_64px] items-center gap-2 rounded border p-2">
                 <span className="text-muted-foreground">{i + 1}</span>
                 <div className="grid grid-cols-2 gap-2">
-                  <select className="rounded border bg-background px-1.5 py-1" value={a.tipo} onChange={(e) => cambiaAnta(i, { tipo: e.target.value as TipoAnta })}>
+                  <UniformSelect className="rounded border bg-background px-1.5 py-1" value={a.tipo} onChange={(e) => cambiaAnta(i, { tipo: e.target.value as TipoAnta })}>
                     {TIPI_ANTA.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                  <select className="rounded border bg-background px-1.5 py-1 disabled:opacity-40" disabled={a.tipo === "fisso" || a.tipo === "vasistas"} value={a.lato ?? "dx"} onChange={(e) => cambiaAnta(i, { lato: e.target.value as Lato })}>
+                  </UniformSelect>
+                  <UniformSelect className="rounded border bg-background px-1.5 py-1 disabled:opacity-40" disabled={a.tipo === "fisso" || a.tipo === "vasistas"} value={a.lato ?? "dx"} onChange={(e) => cambiaAnta(i, { lato: e.target.value as Lato })}>
                     {a.tipo === "scorrevole" || a.tipo === "alzante_scorrevole" ? (
                       <><option value="dx">scorre a DX</option><option value="sx">scorre a SX</option></>
                     ) : (
                       <><option value="dx">cerniere DX</option><option value="sx">cerniere SX</option></>
                     )}
-                  </select>
+                  </UniformSelect>
                 </div>
                 <label className="flex items-center gap-1 text-xs">
                   <input type="checkbox" checked={a.maniglia ?? manigliePerAnta[i] ?? false} onChange={(e) => cambiaAnta(i, { maniglia: e.target.checked })} /> maniglia
@@ -343,9 +344,9 @@ export default function DisegnoSerramentiAnteprima() {
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
                   <span>Altezza cassonetto</span>
-                  <select className="rounded border bg-background px-1.5 py-1" value={cassonetto} onChange={(e) => setCassonetto(Number(e.target.value))}>
+                  <UniformSelect className="rounded border bg-background px-1.5 py-1" value={cassonetto} onChange={(e) => setCassonetto(Number(e.target.value))}>
                     {[150, 200, 250, 300].map((v) => <option key={v} value={v}>{v} mm</option>)}
-                  </select>
+                  </UniformSelect>
                   <span className="text-xs text-muted-foreground">finestra: {Math.max(0, altezza - cassonetto)} mm</span>
                 </label>
                 <label className="flex items-center gap-2"><input type="checkbox" checked={conTapparella} onChange={(e) => setConTapparella(e.target.checked)} /> Tapparella</label>
@@ -363,12 +364,12 @@ export default function DisegnoSerramentiAnteprima() {
                 <label className="flex items-center gap-2"><input type="checkbox" checked={zanzariera} onChange={(e) => setZanzariera(e.target.checked)} /> Zanzariera</label>
                 <label className="block space-y-1">
                   <span>Colore cassonetto</span>
-                  <select className="w-full rounded border bg-background px-2 py-1.5" value={coloreCassonetto} onChange={(e) => setColoreCassonetto(e.target.value)}>
+                  <UniformSelect className="w-full rounded border bg-background px-2 py-1.5" value={coloreCassonetto} onChange={(e) => setColoreCassonetto(e.target.value)}>
                     <option>come il serramento</option>
                     <optgroup label="Legni">{LEGNI.map((c) => <option key={c}>{c}</option>)}</optgroup>
                     <optgroup label="Colori">{COLORI_SPECIALI.map((c) => <option key={c}>{c}</option>)}</optgroup>
                     <optgroup label="RAL">{COLORI_RAL.map((c) => <option key={c}>{c}</option>)}</optgroup>
-                  </select>
+                  </UniformSelect>
                 </label>
               </div>
             )}
@@ -389,9 +390,9 @@ export default function DisegnoSerramentiAnteprima() {
             <label className="block space-y-1"><span className="font-medium">Colore esterno</span><SelezioneColore valore={coloreEsterno} onChange={setColoreEsterno} /></label>
             <label className="block space-y-1">
               <span className="font-medium">Finitura maniglia</span>
-              <select className="w-full rounded border bg-background px-2 py-1.5 text-sm" value={maniglia} onChange={(e) => setManiglia(e.target.value as FinituraManigliaId)}>
+              <UniformSelect className="w-full rounded border bg-background px-2 py-1.5 text-sm" value={maniglia} onChange={(e) => setManiglia(e.target.value as FinituraManigliaId)}>
                 {Object.entries(FINITURE_MANIGLIA).map(([k, f]) => <option key={k} value={k}>{f.nome}</option>)}
-              </select>
+              </UniformSelect>
             </label>
             {(!interno || !esterno) && <p className="text-xs text-amber-600">Un colore non è stato riconosciuto: il disegno usa un grigio neutro.</p>}
           </div>

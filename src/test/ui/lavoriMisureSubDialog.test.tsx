@@ -1,3 +1,4 @@
+import { changeFormControl } from "@/test/helpers/changeFormControl";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, it, expect, vi } from "vitest";
@@ -106,7 +107,7 @@ describe("flusso lavori e quantità sub", () => {
     expect(
       screen.getByRole("button", { name: "Conferma base lavori" }),
     ).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Quando matura il compenso"), {
+    changeFormControl(screen.getByLabelText("Quando matura il compenso"), {
       target: { value: "sal_periodici" },
     });
     fireEvent.click(
@@ -169,10 +170,10 @@ describe("flusso lavori e quantità sub", () => {
       await screen.findByRole("button", { name: "Rilevazioni e verifiche" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Verifica" }));
-    fireEvent.change(screen.getByLabelText(/Quantità riconosciuta/), {
+    changeFormControl(screen.getByLabelText(/Quantità riconosciuta/), {
       target: { value: "50" },
     });
-    fireEvent.change(screen.getByLabelText(/Riscontro e riferimento/), {
+    changeFormControl(screen.getByLabelText(/Riscontro e riferimento/), {
       target: { value: "Misura verificata DEMO" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Riconosci quantità" }));

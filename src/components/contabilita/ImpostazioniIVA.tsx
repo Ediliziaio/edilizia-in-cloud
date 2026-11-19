@@ -1,3 +1,4 @@
+import { UniformSelect } from "@/components/ui/uniform-select";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,21 +101,21 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="iva-periodicita">Liquidazione</Label>
-          <select id="iva-periodicita" className={selectClass} disabled={off} value={v.periodicita}
+          <UniformSelect id="iva-periodicita" className={selectClass} disabled={off} value={v.periodicita}
             onChange={(e) => set("periodicita", e.target.value as Valori["periodicita"])}>
             <option value="mensile">Mensile (versamento il 16 del mese dopo)</option>
             <option value="trimestrale">Trimestrale su opzione (+1% di interessi)</option>
             <option value="trimestrale_speciale">Trimestrale per natura (senza interessi)</option>
-          </select>
+          </UniformSelect>
         </div>
         <div className="space-y-1">
           <Label htmlFor="iva-regime">Regime</Label>
-          <select id="iva-regime" className={selectClass} disabled={off} value={v.regime}
+          <UniformSelect id="iva-regime" className={selectClass} disabled={off} value={v.regime}
             onChange={(e) => set("regime", e.target.value as Valori["regime"])}>
             <option value="ordinario">Ordinario</option>
             <option value="forfettario">Forfettario</option>
             <option value="altro">Altro regime speciale</option>
-          </select>
+          </UniformSelect>
         </div>
         <div className="space-y-1">
           <Label htmlFor="iva-credito">Credito IVA dell'anno precedente (€)</Label>
@@ -132,12 +133,12 @@ function Modulo({ anno, s, cfAzienda, onSalvate }: { anno: number; s: ReturnType
         </div>
         <div className="space-y-1">
           <Label htmlFor="iva-acconto">Metodo dell'acconto di dicembre</Label>
-          <select id="iva-acconto" className={selectClass} disabled={off} value={v.metodo_acconto}
+          <UniformSelect id="iva-acconto" className={selectClass} disabled={off} value={v.metodo_acconto}
             onChange={(e) => set("metodo_acconto", e.target.value as Valori["metodo_acconto"])}>
             <option value="storico">Storico (88% dell'anno prima)</option>
             <option value="previsionale">Previsionale (88% del previsto)</option>
             <option value="analitico">Analitico (operazioni al 20 dicembre)</option>
-          </select>
+          </UniformSelect>
         </div>
         <div className="flex flex-col justify-center gap-3">
           <label className="flex items-center gap-2 text-sm">

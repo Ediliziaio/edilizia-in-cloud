@@ -1,3 +1,4 @@
+import { BarraScorrimentoOrizzontale } from "@/components/common/BarraScorrimentoOrizzontale";
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -141,6 +142,7 @@ function CustomersListInner() {
   const { effectiveCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [tabellaClienti, setTabellaClienti] = useState<HTMLDivElement | null>(null);
   const { visible, toggle, resetColumns } = useColumnVisibility();
 
   // 2026-05-27 (audit UX role-based): gating dei pulsanti Elimina/Assegna
@@ -1487,11 +1489,9 @@ function CustomersListInner() {
             })}
           </div>
 
-          {/* Desktop table. Colonne secondarie per larghezza (email da 1280;
-              venditore, data, avatar e le facoltative da 1536): con le
-              predefinite era larga 1.310px e scorreva di lato anche a 1440. */}
-          <div className="hidden sm:block overflow-x-auto">
-          <Table className="[&_td]:px-3 [&_th]:px-3 xl:[&_td]:px-4 xl:[&_th]:px-4">
+          <div className="hidden min-w-0 sm:block">
+            <BarraScorrimentoOrizzontale contenitore={tabellaClienti} className="mx-3" />
+          <Table wrapperRef={setTabellaClienti} className="whitespace-nowrap [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">
@@ -1501,7 +1501,7 @@ function CustomersListInner() {
                     aria-label="Seleziona pagina"
                   />
                 </TableHead>
-                {visible.avatar && <TableHead className="w-10 hidden 2xl:table-cell"></TableHead>}
+                {visible.avatar && <TableHead className="w-10"></TableHead>}
                 {visible.name && (
                   <TableHead>
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("name")}>
@@ -1509,21 +1509,22 @@ function CustomersListInner() {
                     </button>
                   </TableHead>
                 )}
+                {visible.locality && <TableHead>Località</TableHead>}
                 {visible.health && <TableHead>Salute</TableHead>}
-                {visible.email && <TableHead className="hidden xl:table-cell">Email</TableHead>}
-                {visible.phone && <TableHead className="hidden md:table-cell">Telefono</TableHead>}
-                {visible.fiscal_code && <TableHead className="hidden 2xl:table-cell">CF / P.IVA</TableHead>}
-                {visible.address && <TableHead className="hidden 2xl:table-cell">Indirizzo</TableHead>}
-                {visible.site_address && <TableHead className="hidden 2xl:table-cell">Cantiere</TableHead>}
-                {visible.notes && <TableHead className="hidden 2xl:table-cell">Note</TableHead>}
+                {visible.email && <TableHead>Email</TableHead>}
+                {visible.phone && <TableHead>Telefono</TableHead>}
+                {visible.fiscal_code && <TableHead>CF / P.IVA</TableHead>}
+                {visible.address && <TableHead>Indirizzo</TableHead>}
+                {visible.site_address && <TableHead>Cantiere</TableHead>}
+                {visible.notes && <TableHead>Note</TableHead>}
                 {visible.created_at && (
-                  <TableHead className="hidden 2xl:table-cell whitespace-nowrap">
+                  <TableHead className="whitespace-nowrap">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => toggleSort("created_at")}>
                       <Calendar className="h-3.5 w-3.5" /> Data <ArrowUpDown className="h-3.5 w-3.5" />
                     </button>
                   </TableHead>
                 )}
-                {visible.salesperson && <TableHead className="hidden 2xl:table-cell">Venditore</TableHead>}
+                {visible.salesperson && <TableHead>Venditore</TableHead>}
                 {visible.orders && (
                   <TableHead className="text-center">
                     <button className="flex items-center gap-1 hover:text-foreground transition-colors mx-auto" onClick={() => toggleSort("orders")}>
@@ -1531,7 +1532,7 @@ function CustomersListInner() {
                     </button>
                   </TableHead>
                 )}
-                {visible.portal && <TableHead className="hidden 2xl:table-cell">Portale</TableHead>}
+                {visible.portal && <TableHead>Portale</TableHead>}
                 <TableHead className="text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -1561,7 +1562,7 @@ function CustomersListInner() {
                       />
                     </TableCell>
                     {visible.avatar && (
-                      <TableCell className="hidden 2xl:table-cell">
+                      <TableCell>
                         <Avatar className={`h-8 w-8 shrink-0 ${avatarColor}`}>
                           <AvatarFallback className="text-xs font-bold text-white bg-transparent">
                             {initials}
@@ -1573,7 +1574,7 @@ function CustomersListInner() {
                       <TableCell>
                         <div className="space-y-0.5 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <p className="font-semibold text-sm leading-tight truncate max-w-[180px] xl:max-w-[220px]">{fullName}</p>
+                            <Link to={`${schedaBase}/${customer.id}`} onClick={e => e.stopPropagation()} title={fullName} className="truncate max-w-[220px] font-semibold hover:underline">{fullName}</Link>
                             {customer.is_business && (
                               <Badge variant="outline" className="h-4 px-1 text-[9px] border-blue-500/40 text-blue-700 dark:text-blue-400">
                                 Azienda
@@ -1594,15 +1595,11 @@ function CustomersListInner() {
                               </TooltipProvider>
                             )}
                           </div>
-                          {locality && (
-                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                              <MapPin className="h-2.5 w-2.5" />
-                              {locality}
-                            </p>
-                          )}
+
                         </div>
                       </TableCell>
                     )}
+                    {visible.locality && <TableCell>{locality || "—"}</TableCell>}
                     {visible.health && (
                       <TableCell>
                         {severity === "ok" ? (
@@ -1641,7 +1638,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.email && (
-                      <TableCell className="hidden xl:table-cell">
+                      <TableCell>
                         {cleanEmail ? (
                           <a
                             href={`mailto:${cleanEmail}`}
@@ -1657,7 +1654,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.phone && (
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell>
                         {cleanPhone ? (
                           <a
                             href={`tel:${cleanPhone}`}
@@ -1673,7 +1670,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.fiscal_code && (
-                      <TableCell className="hidden 2xl:table-cell">
+                      <TableCell>
                         {customer.fiscal_code ? (
                           <span className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
                             <CreditCard className="h-3.5 w-3.5" />
@@ -1683,7 +1680,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.address && (
-                      <TableCell className="hidden 2xl:table-cell">
+                      <TableCell>
                         {customer.address ? (
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[220px]">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -1693,7 +1690,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.site_address && (
-                      <TableCell className="hidden 2xl:table-cell">
+                      <TableCell>
                         {customer.site_address ? (
                           <span className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[220px]">
                             <HardHat className="h-3.5 w-3.5 shrink-0" />
@@ -1703,7 +1700,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.notes && (
-                      <TableCell className="hidden 2xl:table-cell">
+                      <TableCell>
                         {customer.notes ? (
                           <TooltipProvider delayDuration={200}>
                             <Tooltip>
@@ -1722,14 +1719,14 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.created_at && (
-                      <TableCell className="hidden 2xl:table-cell whitespace-nowrap">
+                      <TableCell className="whitespace-nowrap">
                         <span className="text-sm text-muted-foreground">
                           {customer.created_at ? format(new Date(customer.created_at), "dd MMM yyyy", { locale: it }) : "—"}
                         </span>
                       </TableCell>
                     )}
                     {visible.salesperson && (
-                      <TableCell className="hidden 2xl:table-cell" onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={customer.salesperson_id || "none"}
                           onValueChange={(val) => handleInlineSalesperson(customer.id, val)}
@@ -1762,7 +1759,7 @@ function CustomersListInner() {
                       </TableCell>
                     )}
                     {visible.portal && (
-                      <TableCell className="hidden 2xl:table-cell">
+                      <TableCell>
                         {customer.portal_disabled ? (
                           <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400">
                             <ShieldOff className="h-3 w-3 mr-1" />

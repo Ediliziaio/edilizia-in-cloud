@@ -10,7 +10,7 @@
  *
  * Auto-save con debounce 600ms su qualsiasi modifica.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { sameSurveyJson, mergeSurveyAreaEdit } from "@/lib/surveys/autosave";
 import { copySurveyValues } from "@/lib/surveys/copyElement";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
@@ -90,7 +90,8 @@ export default function SopralluogoEditor() {
     : <SurveyWorkspace key={key} surveyId={id} onEdit={writable?()=>setEdit(true):undefined}/>;
 }
 
-function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
+export type SurveyEditorHandle = { requestClose: (close: () => void) => void };
+export const SurveyEditorForm = forwardRef<SurveyEditorHandle, {id:string;onBack:()=>void;expectedOrderId?:string;embedded?:boolean}>(function SurveyEditorForm({id,onBack,expectedOrderId,embedded=false},ref) {
   const access = useSurveyAccess();
   const navigate = useNavigate();
   const {effectiveCompany}=useAuth();
@@ -135,7 +136,7 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
   const [generalNotes, setGeneralNotes] = useState("");
 
-  const { data: detail, isLoading, isError, refetch } = useSurveyDetail(id);
+  const { data: detail, isLoading, isError, refetch } = useSurveyDetail(id, expectedOrderId);
   const references = useSurveyReferences(detail?.survey);
 
   // A chi si riferisce il sopralluogo: opportunità, contatto o cliente. Serve
@@ -358,6 +359,12 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
     qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
   };
 
+  const unsaved=!!detail && (!sameSurveyJson(headerData,detail.survey.header_data ?? {}) || generalNotes!==(detail.survey.notes ?? "") || areaDrafts.size>0 || pendingWrites>0 || autoSaveStatus==="saving" || autoSaveStatus==="error" || addAreaMut.isPending || deleteAreaMut.isPending || addElementMut.isPending || deleteElementMut.isPending);
+  useImperativeHandle(ref,()=>({requestClose(close) {
+    if (unsaved) { toast.warning("Attendi il salvataggio del rilievo o correggi l'errore prima di chiudere."); return; }
+    close();
+  }}),[unsaved]);
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-4 space-y-3">
@@ -381,7 +388,7 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
               : "Il sopralluogo potrebbe essere stato eliminato o il link non è più valido."}
           </p>
           <div className="flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/sopralluoghi")}>
+            <Button variant="outline" size="sm" onClick={() => embedded ? onBack() : navigate("/azienda/sopralluoghi")}>
               Torna alla lista
             </Button>
             {isError && (
@@ -396,7 +403,7 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
   }
 
   const { survey, template, areas, elements, media } = detail;
-  if(survey.client_signature_at || survey.status==="signed") return <SurveyWorkspace surveyId={id}/>;
+  if(survey.client_signature_at || survey.status==="signed") return <SurveyWorkspace surveyId={id} expectedOrderId={expectedOrderId} embedded={embedded}/>;
   const statusCfg = STATUS_LABEL[survey.status] ?? STATUS_LABEL.draft;
 
   // La mossa ovvia, in chiaro. Prima l'unico modo di avviare un sopralluogo
@@ -409,7 +416,7 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
   : null;
   // Media a livello sopralluogo (né area né elemento): foto generali + audio generale.
   const generalMedia = media.filter((m) => !m.area_id && !m.element_id);
-  const unsaved=!sameSurveyJson(headerData,survey.header_data ?? {}) || generalNotes!==(survey.notes ?? "") || areaDrafts.size>0 || pendingWrites>0 || autoSaveStatus==="saving" || autoSaveStatus==="error";
+
 
   return (
     <div className="pb-8">
@@ -765,5 +772,5 @@ function SurveyEditorForm({id,onBack}:{id:string;onBack:()=>void}) {
 
     </div>
   );
-}
+});
 
