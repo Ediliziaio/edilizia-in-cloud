@@ -10,14 +10,14 @@ Il registro propone una RPC che raggruppa prima del limite, conserva le occorren
 
 ## Stato del rilascio
 
-Il codice è proposto nella PR. Lo SQL è intenzionalmente in `docs/sql-proposte/20290421153000_chat_salute_retry.sql`, fuori da `supabase/migrations`: un push della PR non deve applicarlo in produzione. Per il rilascio occorre applicarlo con MCP, registrare la versione allineata e trasferire il file in migrations prima del merge. La nuova RPC del registro e la tabella tentativi devono esistere prima del deploy frontend/worker. Nessun messaggio di prova è stato spedito a persone reali e nessun credito o metodo di pagamento è stato modificato.
+Il rilascio della PR 158 è stato autorizzato dall'utente il 19 novembre, subordinato a tutti i controlli verdi. Sul commit `aa4905a` sono passati GitHub Actions, Supabase Preview e Cloudflare Pages. La migrazione è stata quindi applicata con MCP e registrata come `20290421153000_chat_salute_retry`; lo SQL è ora in `supabase/migrations`. La nuova RPC del registro e la tabella tentativi precedono il deploy frontend/worker. Dopo il trasferimento del file si ricontrolla il nuovo commit prima del merge. Nessun messaggio di prova è stato spedito a persone reali e nessun credito o metodo di pagamento è stato modificato.
 
 ## Baseline vs finale
 
 | Metrica | Prima | Dopo |
 |---|---:|---:|
-| Errori TypeScript | 0 | Verifica finale nei log/CI |
-| Warning build | Avviso dimensione chunk | Verifica finale nei log/CI |
+| Errori TypeScript | 0 | 0 (CI superata) |
+| Warning build | Avviso dimensione chunk | Build/prerender CI superati; avviso chunk preesistente |
 | Vulnerabilità Bun audit | 0 | Nessuna dipendenza cambiata |
 | File rimossi | — | 0 |
 | Bundle gzip | Non misurato | Non misurato |
@@ -56,7 +56,7 @@ Query delle nuove membership ogni 15 secondi solo in primo piano; subscription c
 
 ## Checklist test finale
 
-- Test chat, badge, storico, credito, autorizzazioni e registro: 105 test mirati passati; controlli CI in corso.
+- Test chat, badge, storico, credito, autorizzazioni e registro: 105 test mirati passati; controlli CI superati sul codice applicativo. Nuovo passaggio CI dopo il trasferimento della migrazione.
 - Interfaccia chat: arrivo di una conversazione nuova e stato di errore con Riprova verificati.
 - SQL PostgreSQL 17 isolato: PASS per lease, rinvio, ripresa, tetto errori, gruppi prima del limite e autorizzazioni.
 - Deno check della funzione modificata: PASS.
@@ -72,6 +72,6 @@ Query delle nuove membership ogni 15 secondi solo in primo piano; subscription c
 | Integrazioni calendario 404 e dominio email 401 | Registrati, senza prova di risoluzione | Verifica delle connessioni e dell’account coinvolto |
 | Banca 429 / invalid_continuation 400 | Log provider confermati, non oggetto della patch chat | Diagnosi del limite provider e della ripresa paginata |
 | Cinque errori ESLint preesistenti della chat | Presenti anche su main di partenza | Refactoring dedicato; non mascherati con disabilitazioni |
-| Rilascio | Da autorizzare | Applicazione proposta SQL, allineamento migrazione, merge e deploy |
+| Rilascio | Autorizzato; migrazione applicata e allineata | Nuovi controlli, merge e verifica deploy |
 
 Verdetto: correzioni mirate collaudate; non è una certificazione «tutto OK» dell’intera piattaforma.
