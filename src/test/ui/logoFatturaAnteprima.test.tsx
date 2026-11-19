@@ -6,7 +6,7 @@ import type { AnagraficaAzienda } from "@/types/fatturazione";
 import { documentoHtml } from "../../../supabase/functions/generate-native-pdf/documentoHtml";
 afterEach(cleanup);
 it.each(["sinistra", "centro", "destra"] as const)("l'anteprima e il PDF condividono le impostazioni del logo a %s", posizione => {
-  const doc = { tipo: "fattura", numero: "FT1", data_emissione: "2026-11-19", righe: [], riepilogo_iva: [], cliente_snapshot: {} };
+  const doc = { tipo: "fattura", numero: "FT1", data_emissione: "2026-11-19", righe: [] as Record<string, unknown>[], riepilogo_iva: [] as Record<string, unknown>[], cliente_snapshot: {} };
   const az = { ragione_sociale: "Impresa Demo", partita_iva: "01234567897", pdf_logo: { posizione, dimensione: 150, spazioSopra: 8 } };
   const logo = "https://esempio.test/logo.png";
   const { container } = render(<PreviewFattura documento={doc as unknown as EditorState} azienda={az as unknown as AnagraficaAzienda} logoAziendale={logo} />);

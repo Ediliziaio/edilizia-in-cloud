@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { leggiLogoDocumentoFiscale, cssLogoDocumentoFiscale } from "../../../supabase/functions/_shared/logoDocumentoFiscale";
 import { documentoHtml } from "../../../supabase/functions/generate-native-pdf/documentoHtml";
 const azienda = { ragione_sociale: "Impresa Demo", partita_iva: "01234567897", logo_url: "https://esempio.test/logo.png" };
-const documento = { tipo: "fattura", numero: "FT1", data_emissione: "2026-11-19", righe: [], riepilogo_iva: [], cliente_snapshot: {} };
+const documento = { tipo: "fattura", numero: "FT1", data_emissione: "2026-11-19", righe: [] as Record<string, unknown>[], riepilogo_iva: [] as Record<string, unknown>[], cliente_snapshot: {} };
 it("mantiene i valori precedenti in assenza di impostazioni e scarta CSS non valido", () => {
   expect(leggiLogoDocumentoFiscale(null)).toEqual({ posizione: "sinistra", dimensione: 100, spazioSopra: 0 });
   expect(leggiLogoDocumentoFiscale({ posizione: "right;display:none", dimensione: 9000, spazioSopra: -10 })).toEqual({ posizione: "sinistra", dimensione: 200, spazioSopra: 0 });
