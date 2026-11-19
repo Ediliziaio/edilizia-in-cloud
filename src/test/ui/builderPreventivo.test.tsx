@@ -5,13 +5,13 @@ import ComputoModelloPanel from "@/components/computo/ComputoModelloPanel";
 
 const stato = vi.hoisted(() => ({ mutate: vi.fn(), modello: {} as ReturnType<typeof modelloComputoDiSerie> }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "azienda", name: "Impresa demo" } }) }));
-vi.mock("@/hooks/useQuoteTemplates", () => ({ useQuoteTemplates: () => ({ templates: [], isLoading: false }) }));
-vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => ({ modelli: [], inCaricamento: false }) }));
+vi.mock("@/hooks/useQuoteTemplates", () => ({ useQuoteTemplates: () => ({ templates: [] as unknown[], isLoading: false }) }));
+vi.mock("@/hooks/useCondizioniArchivio", () => ({ useCondizioniArchivio: () => ({ modelli: [] as unknown[], inCaricamento: false }) }));
 vi.mock("@/components/shared/PdfBlobLivePreviewPanel", () => ({ PdfBlobLivePreviewPanel: () => <div>PDF reale</div> }));
-vi.mock("@/components/preventivi/CondizioniContratto", () => ({ CondizioniContratto: () => null }));
+vi.mock("@/components/preventivi/CondizioniContratto", () => ({ CondizioniContratto: (): null => null }));
 vi.mock("@/lib/computo/modelloComputo", async original => ({
   ...await original<typeof import("@/lib/computo/modelloComputo")>(),
-  useModelloComputo: () => ({ data: { modello: stato.modello, salvato: true }, isLoading: false, error: null }),
+  useModelloComputo: () => ({ data: { modello: stato.modello, salvato: true }, isLoading: false, error: null as Error | null }),
   useSalvaModelloComputo: () => ({ mutate: stato.mutate, isPending: false }),
 }));
 beforeEach(() => { stato.modello = modelloComputoDiSerie(); stato.mutate.mockReset(); });
@@ -21,7 +21,7 @@ describe("builder modello aziendale", () => {
     render(<ComputoModelloPanel canEdit />);
     for (const nome of ["Helvetica", "Times", "Courier", "Lato", "PT Sans", "PT Serif", "Carlito", "Caladea", "EB Garamond"]) expect(screen.getByRole("radio", { name: nome })).toBeInTheDocument();
     expect(screen.queryByText(/Carica carattere personalizzato|Sostituisci carattere personalizzato/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "Lato", exact: true }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Lato$/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(stato.mutate).toHaveBeenCalledWith(expect.objectContaining({ fontFamiglia: "lato" }), expect.any(Object));
   });
@@ -37,7 +37,7 @@ describe("builder modello aziendale", () => {
     fireEvent.change(screen.getByLabelText("Nome del campo 1"), { target: { value: "Garanzia" } });
     fireEvent.change(screen.getByLabelText("Codice per i testi 1"), { target: { value: "garanzia" } });
     fireEvent.change(screen.getByLabelText("Valore predefinito 1"), { target: { value: "10 anni" } });
-    fireEvent.click(screen.getByRole("button", { name: "Garanzia", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Garanzia$/ }));
     fireEvent.click(screen.getByRole("button", { name: "Salva modello" }));
     expect(stato.mutate).toHaveBeenCalledWith(expect.objectContaining({ dimensioneTitolo: 42, dimensioneSottotitoli: 14, dimensioneTesto: 11, mostraIntestazione: false,
       campiPersonalizzati: [{ chiave: "garanzia", etichetta: "Garanzia", valore: "10 anni", mostraNelDocumento: true }], premessa: "{{custom.garanzia}}" }), expect.any(Object));

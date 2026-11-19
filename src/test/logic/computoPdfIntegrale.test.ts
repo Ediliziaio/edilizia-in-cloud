@@ -57,7 +57,7 @@ describe("impaginazione del computo integrale", () => {
   it("separa il titolo della sottocategoria dalla chiusura della tabella precedente", async () => {
     const b = { ...bozzaVuota(), voci: ["SOTTOCATEGORIA_UNO", "SOTTOCATEGORIA_DUE"].map(categoria => ({ ...voceVuota(), capitolo: "Capitolo", categoria, descrizione: "Lavorazione", quantita: "1", prezzo: "10" })) };
     const doc = await generaComputoPdf(vociDaBozza(b), { titolo: "Computo", impaginazione: "editoriale", sezioni: { indice: false, riepilogo: false } });
-    const pagina = (doc.internal as typeof doc.internal & { pages: string[][] }).pages.find(p => p?.join("\n").includes("(SOTTOCATEGORIA_DUE) Tj"))!.join("\n");
+    const pagina = (doc.internal as unknown as { pages: string[][] }).pages.find(p => p?.join("\n").includes("(SOTTOCATEGORIA_DUE) Tj"))!.join("\n");
     const blocchi = [...pagina.matchAll(/BT([\s\S]*?)ET/g)].map(m => m[1]);
     const titolo = blocchi.find(b => b.includes("(SOTTOCATEGORIA_DUE) Tj"))!;
     const prima = blocchi.slice(0, blocchi.indexOf(titolo)).reverse().find(b => b.includes("(SOMMANO) Tj"))!;
@@ -81,14 +81,14 @@ describe("impaginazione del computo integrale", () => {
   it("non perde il testo delle misure lunghe e chiude la voce sulla loro ultima pagina", async () => {
     const b = { ...bozzaVuota(), voci: [{ ...voceVuota(), descrizione: "Misura su più pagine", prezzo: "10", misure: [{ ...misuraVuota(), descrizione: `${"Riferimento completo della misura. ".repeat(180)} FINE_RILIEVO`, parti: "3", lunghezza: "2" }] }] };
     const pdf = await generaComputoPdf(vociDaBozza(b), { titolo: "Computo", impaginazione: "editoriale", dettaglioMisure: true, veste: vesteDalModello({ ...modelloComputoDiSerie(), dimensioneTesto: 12 }) });
-    const pagine = (pdf.internal as typeof pdf.internal & { pages: string[][] }).pages;
+    const pagine = (pdf.internal as unknown as { pages: string[][] }).pages;
     const finale = pagine.find(p => p?.join("\n").includes("FINE_RILIEVO"));
     expect(finale).toBeDefined(); expect(finale!.join("\n")).toContain("(SOMMANO) Tj"); expect(pdf.output()).toContain("Voce 1 - continua");
   });
   it("tiene capitoli e sottocategorie insieme all'inizio della prima voce", async () => {
     const b = { ...bozzaVuota(), voci: Array.from({ length: 18 }, (_, n) => ({ ...voceVuota(), capitolo: `CAPITOLO_${n}`, sottocategoria: `GRUPPO_${n}`, tariffa: `CODICE_${n}`, descrizione: "Descrizione completa e dettagli tecnici della lavorazione. ".repeat(6 + n % 4), quantita: "1", prezzo: "10" })) };
     const pdf = await generaComputoPdf(vociDaBozza(b), { titolo: "Computo", impaginazione: "editoriale", veste: vesteDalModello({ ...modelloComputoDiSerie(), dimensioneTesto: 12 }), sezioni: { indice: false } });
-    const pagine = (pdf.internal as typeof pdf.internal & { pages: string[][] }).pages;
+    const pagine = (pdf.internal as unknown as { pages: string[][] }).pages;
     for (let n = 0; n < 18; n++) {
       const pagina = pagine.find(p => p?.join("\n").includes(`(CODICE_${n}) Tj`));
       expect(pagina).toBeDefined(); expect(pagina!.join("\n")).toContain(`(CAPITOLO_${n}) Tj`); expect(pagina!.join("\n")).toContain(`(GRUPPO_${n}) Tj`);
@@ -103,7 +103,7 @@ describe("impaginazione del computo integrale", () => {
     const b = { ...bozzaVuota(), voci: Array.from({ length: 16 }, (_, n) => ({ ...voceVuota(), descrizione: `Lavorazione ${n + 1} ${"Descrizione completa con riferimenti. ".repeat(10)}`, quantita: "1", prezzo: "10" })) };
     const numero = "DEMO-CM-GENZANO-001";
     const pdf = await generaComputoPdf(vociDaBozza(b), { titolo: "Computo completo", numero, impaginazione: "editoriale", sezioni: { firme: false }, veste: vesteDalModello({ ...modelloComputoDiSerie(), dimensioneTesto: 12, mostraIntestazione: false, mostraFirma: false }) });
-    const pagine = (pdf.internal as typeof pdf.internal & { pages: string[][] }).pages;
+    const pagine = (pdf.internal as unknown as { pages: string[][] }).pages;
     expect(pdf.getNumberOfPages()).toBeGreaterThan(2);
     for (let n = 2; n <= pdf.getNumberOfPages(); n++) expect(pagine[n].join("\n")).toContain(`(${numero}) Tj`);
   });
@@ -113,7 +113,7 @@ describe("impaginazione del computo integrale", () => {
       { ...misuraVuota(), descrizione: `ULTIMA_MISURA_${n + 1}`, parti: String((n + 1) * 10) },
     ] })) };
     const pdf = await generaComputoPdf(vociDaBozza(b), { titolo: "Computo con misure", impaginazione: "editoriale", dettaglioMisure: true });
-    const pagine = (pdf.internal as typeof pdf.internal & { pages: string[][] }).pages;
+    const pagine = (pdf.internal as unknown as { pages: string[][] }).pages;
     for (let n = 1; n <= 18; n++) {
       const pagina = pagine.find(p => p?.join("\n").includes(`(ULTIMA_MISURA_${n}) Tj`));
       expect(pagina).toBeDefined(); expect(pagina!.join("\n")).toContain("(SOMMANO) Tj"); expect(pagina!.join("\n")).toContain(`(${n * 10 + 1},00) Tj`);

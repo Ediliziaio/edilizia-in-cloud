@@ -13,7 +13,7 @@ export function ComputoAssetUpload({ companyId, tipo, label, valore, onChange, o
   const url = anteprima.percorso === valore ? anteprima.url : "";
   useEffect(() => {
     let attivo = true;
-    if (companyId && valore && tipo !== "font") void urlAssetModello(companyId, valore).then(url => { if (attivo) setAnteprima({ percorso: valore, url }); }).catch(() => undefined);
+    if (companyId && valore && tipo !== "font") void urlAssetModello(companyId, valore).then(url => { if (attivo) setAnteprima({ percorso: valore, url }); }).catch((): void => {});
     return () => { attivo = false; };
   }, [companyId, valore, tipo]);
   return <div className="space-y-2 rounded-xl border bg-slate-50/50 p-3">

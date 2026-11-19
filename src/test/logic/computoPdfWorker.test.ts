@@ -8,7 +8,7 @@ vi.mock("pdfjs-dist", () => ({
 import { leggiFileComputo, PdfDaLeggereConAi } from "@/lib/computo/leggiFileComputo";
 beforeEach(() => {
   vi.clearAllMocks(); stato.worker = {}; stato.src = "";
-  stato.getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 1, getPage: async () => ({ getTextContent: async () => ({ items: [] }), cleanup: stato.cleanup }) }), destroy: stato.destroy });
+  stato.getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 1, getPage: async () => ({ getTextContent: async (): Promise<{ items: { str: string }[] }> => ({ items: [] }), cleanup: stato.cleanup }) }), destroy: stato.destroy });
 });
 afterEach(() => vi.unstubAllEnvs());
 const file = () => new File(["%PDF-di-prova"], "computo.pdf", { type: "application/pdf" });

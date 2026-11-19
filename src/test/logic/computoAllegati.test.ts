@@ -19,7 +19,7 @@ describe("progetto e allegati del computo", () => {
     const m = { ...modelloComputoDiSerie(), copertina: "fascia" as const, mostraFirma: false, fontFamiglia: "times" as const, mostraNumeriPagina: false, piePagina: "PIEDE_PERSONALIZZATO" };
     const plan = await PDFDocument.create(); plan.addPage().drawText("TAVOLA_DIMOSTRATIVA");
     const blob = await generaDocumentoComputo(voci(), { titolo: "Prova modello", impaginazione: "editoriale", stato: "", veste: vesteDalModello(m) }, [
-      { nome: "tavola.pdf", tipo: "planimetria", blob: new NodeBlob([await plan.save()], { type: "application/pdf" }) as unknown as Blob },
+      { nome: "tavola.pdf", tipo: "planimetria", blob: new NodeBlob([Uint8Array.from(await plan.save()).buffer], { type: "application/pdf" }) as unknown as Blob },
     ]);
     const caricamento = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }); const pdf = await caricamento.promise;
     try {

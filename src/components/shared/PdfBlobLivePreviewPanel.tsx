@@ -312,8 +312,8 @@ export function PdfBlobLivePreviewPanel({
       return;
     }
     const identity = activeDestination ?? activeSection!;
-    const target = activeDestination ? resolvePdfDestination(layout.document, activeDestination)
-      : resolveEdileSectionPage(layout.document, activeSection).then(page => page == null ? null : { page, top: null });
+    const target: ReturnType<typeof resolvePdfDestination> = activeDestination ? resolvePdfDestination(layout.document, activeDestination)
+      : resolveEdileSectionPage(layout.document, activeSection).then((page): Awaited<ReturnType<typeof resolvePdfDestination>> => page == null ? null : { page, top: null });
     void target.then(async destination => {
       let offset = 0;
       if (destination?.top != null) {

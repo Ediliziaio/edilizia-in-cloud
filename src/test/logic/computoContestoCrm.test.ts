@@ -8,7 +8,7 @@ const company = "11111111-1111-4111-8111-111111111111", contact = "22222222-2222
 beforeEach(() => {
   vi.clearAllMocks(); db.risposte = {};
   db.from.mockImplementation((table: string) => {
-    const chain = { select: () => chain, eq: db.eq.mockImplementation(() => chain), is: () => chain, maybeSingle: async () => ({ data: db.risposte[table] ?? null, error: null }) };
+    const chain = { select: () => chain, eq: db.eq.mockImplementation(() => chain), is: () => chain, maybeSingle: async () => ({ data: db.risposte[table] ?? null, error: null as Error | null }) };
     return chain;
   });
 });

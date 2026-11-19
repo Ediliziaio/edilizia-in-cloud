@@ -19,7 +19,7 @@ import { bozzaDalModello, conCondizioniDellArchivio, leggiLogoPerPdf, leggiModel
 import { ComputoAssetUpload } from "./ComputoAssetUpload";
 import { ComputoPagineModello } from "./ComputoPagineModello";
 import { FONT_DOCUMENTO, cssFontDocumento, fontDelDocumento } from "@/lib/computo/fontDocumento";
-import { bozzaVuota, voceVuota, vociPerAnteprima, numeroEditor } from "@/lib/computo/editorNativo";
+import { bozzaVuota, voceVuota, vociPerAnteprima, numeroEditor, type BozzaComputo } from "@/lib/computo/editorNativo";
 import { aspettoDaOfferta } from "@/lib/computo/personalizzaDocumento";
 
 const COPERTINE = [
@@ -30,7 +30,7 @@ const COPERTINE = [
 ] as const;
 const COLORI = ["#1E3A5F", "#244C3A", "#8B4C36", "#252525", "#3746A0", "#A65A13"];
 
-function bozzaEsempio(m: ModelloComputo) {
+function bozzaEsempio(m: ModelloComputo): BozzaComputo {
   const voce = (capitolo: string, descrizione: string, unita: string, quantita: string, prezzo: string) => ({ ...voceVuota(), capitolo, descrizione, unita, quantita, prezzo });
   return {
     ...bozzaDalModello(bozzaVuota(), m), titolo: "Una nuova casa,\nun nuovo inizio", committente: "Cliente di esempio", indirizzo: "Via dei Giardini 12 · Milano",

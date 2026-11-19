@@ -22,11 +22,11 @@ const scegliFormato = async (name: string) => {
 
 it("precompila solo i nuovi computi e conserva i dati delle bozze salvate", () => {
   const vista = render(<ComputoNativoEditor storageKey="nuova-da-crm" datiIniziali={{ committente: "Cliente da CRM", clienteId: "crm-1" }} />);
-  expect(screen.getByRole("textbox", { name: "Nome e cognome", exact: true })).toHaveValue("Cliente da CRM");
+  expect(screen.getByRole("textbox", { name: /^Nome e cognome$/ })).toHaveValue("Cliente da CRM");
   vista.unmount();
   localStorage.setItem("gia-salvata", JSON.stringify({ ...bozzaVuota(), committente: "Nome già corretto", clienteId: "crm-originale" }));
   render(<ComputoNativoEditor storageKey="gia-salvata" datiIniziali={{ committente: "Nome da non sovrascrivere", clienteId: "crm-altro" }} />);
-  expect(screen.getByRole("textbox", { name: "Nome e cognome", exact: true })).toHaveValue("Nome già corretto");
+  expect(screen.getByRole("textbox", { name: /^Nome e cognome$/ })).toHaveValue("Nome già corretto");
 });
 
 describe("editor computo integrato", () => {

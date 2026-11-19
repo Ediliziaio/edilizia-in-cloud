@@ -50,7 +50,7 @@ describe("destinazioni native delle voci di computo", () => {
     const before = destinazioni(await PDFDocument.load(pdf.output("arraybuffer")));
     const normalizzato = await normalizzaFontPdf(pdf.output("arraybuffer"));
     const allegato = await PDFDocument.create(); allegato.addPage().drawText("Tavola di prova");
-    const finale = await appendiAllegatiPdf(await normalizzato.arrayBuffer(), [{ nome: "Tavola", tipo: "planimetria", blob: new Blob([await allegato.save()], { type: "application/pdf" }) }]);
+    const finale = await appendiAllegatiPdf(await normalizzato.arrayBuffer(), [{ nome: "Tavola", tipo: "planimetria", blob: new Blob([Uint8Array.from(await allegato.save()).buffer], { type: "application/pdf" }) }]);
     const after = destinazioni(await PDFDocument.load(await finale.arrayBuffer()));
     expect(after).toEqual(before); expect(after.get(destinazioneVoceComputo("primo"))!.page).toBe(2);
   });
