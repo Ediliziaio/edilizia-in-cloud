@@ -8,7 +8,7 @@ Questo laboratorio usa esclusivamente PostgreSQL nativo su `127.0.0.1:55439`, da
 - Cluster dedicato: `/Users/andriciuc/Library/Caches/EdiliziaInCloud/magazzino-audit-postgres/data`.
 - Nessun servizio Homebrew permanente avviato.
 - Frontend gestionale: <http://127.0.0.1:8096/azienda/magazzino>.
-- Laboratorio interattivo: <http://127.0.0.1:8097>.
+- Laboratorio interattivo: <http://127.0.0.1:8117>.
 
 Se il cluster è fermo:
 
@@ -35,7 +35,7 @@ Le proposte SQL sono deliberatamente fuori da `supabase/migrations`: non vengono
 
 ## Dentro il gestionale (aggiunta successiva)
 
-Con server 8097 e Vite 8096 attivi, aprire <http://127.0.0.1:8096/azienda/magazzino?warehouseLocal=1>.
+Con server 8117 e Vite 8096 attivi, aprire <http://127.0.0.1:8096/azienda/magazzino?warehouseLocal=1>.
 
 Il plugin `dev/magazzino-local/plugin.mts` funziona solo con Vite `serve`; i moduli del gestionale effettuano le scritture sulle RPC PostgreSQL del laboratorio. Il collegamento non richiede o inoltra credenziali del servizio online. Cache persistente e identità delle richieste vengono isolate. Le funzioni non supportate vengono rifiutate.
 

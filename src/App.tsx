@@ -1,6 +1,7 @@
 import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { FinancialRefreshBridge } from "@/components/orders/FinancialRefreshBridge";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Fragment, Suspense, useEffect, useRef, useState } from "react";
+import { LocalWarehouseRouteBoundary } from "../dev/magazzino-local/RouteBoundary";
 // Alias: tutti i lazy() delle route ritentano l'import con cache-bust se un
 // deploy invalida i chunk (vedi lazyWithRetry per la diagnosi completa).
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
@@ -559,6 +560,7 @@ function SessionTimeoutGuard(): null {
 // nuovo per evitare di leggere snapshot di una versione UI vecchia con
 // schema diverso (es. nuove colonne dopo migration).
 const PERSIST_BUSTER = `${(import.meta as { env: Record<string, string> }).env.VITE_APP_VERSION ?? "v1"}:identity-v2`;
+const LocalRouteBoundary = import.meta.env.DEV ? LocalWarehouseRouteBoundary : Fragment;
 
 const App = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">
@@ -583,6 +585,7 @@ const App = () => (
       <Sonner mobileOffset={{ bottom: 88 }} offset={{ bottom: 88 }} />
       <RilascioFileGlobale />
       <BrowserRouter>
+        <LocalRouteBoundary>
         <BootGuardDismiss />
         <SubdomainTitleSetter />
         <MarketingMetaRouteTracker />
@@ -909,6 +912,7 @@ const App = () => (
           </Force2FAGuard>
           </AnalyticsProvider>
         </AuthProvider>
+        </LocalRouteBoundary>
       </BrowserRouter>
      </ConfirmProvider>
     </TooltipProvider>

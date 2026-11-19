@@ -9,7 +9,7 @@ beforeEach(()=>{
   mock.from.mockImplementation((table:string)=>{
     let rows:Array<Record<string,string>>=table==="orders"?[...mock.rows]:[...(mock.links[table]??[])],start=0,end=1000;
     const query={
-      select:vi.fn().mockReturnThis(),
+      select:vi.fn((columns:string)=>{mock.calls.push(["select",columns]);return query;}),
       eq:vi.fn((key:string,value:string)=>{mock.calls.push(["eq",key,value]);rows=rows.filter(row=>row[key as keyof typeof row]===value);return query;}),
       is:vi.fn().mockReturnThis(),
       in:vi.fn((key:string,ids:string[])=>{mock.calls.push(["in",key,ids]);rows=rows.filter(row=>ids.includes(row[key as keyof typeof row]));return query;}),
@@ -71,7 +71,18 @@ describe("Filtri prima della paginazione delle commesse",()=>{
     const selected=mock.rows.filter((_,i)=>i%2===1).map(row=>row.id);
     const result=await readOrdersPage({...filters,focusIds:selected},20,39);
     expect(result.totalCount).toBe(375);expect(result.orders).toHaveLength(20);expect(result.orders[0].id).toBe("041");
-    expect(mock.calls.some(call=>call[0]==="in")).toBe(false);
+    expect(mock.calls.filter(call=>call[0]==="in")).toEqual([["in","id",selected.slice(20,40)]]);
+    expect(mock.calls.filter(call=>call[0]==="select").map(call=>call[1]==="id")).toEqual([true,false]);
+    expect(mock.rpc).toHaveBeenCalledWith("commesse_importi_finanziari",{p_company_id:"company-a",p_ids:selected.slice(20,40)});
+  });
+  it("carica le sole righe filtrate per la pipeline anche con più di cento ID",async()=>{
+    mock.rows=Array.from({length:300},(_,i)=>({id:String(i).padStart(3,"0"),current_status_id:"open",company_id:"company-a"}));
+    const selected=mock.rows.filter((_,i)=>i%2===1).map(row=>row.id);
+    const result=await readOrdersPage({...filters,focusIds:selected},0,Infinity);
+    expect(result.totalCount).toBe(150);
+    expect(result.orders.map(row=>row.id)).toEqual(selected);
+    expect(mock.calls.filter(call=>call[0]==="in").map(call=>(call[2] as string[]).length)).toEqual([100,50]);
+    expect(mock.rpc).toHaveBeenCalledWith("commesse_importi_finanziari",{p_company_id:"company-a",p_ids:selected});
   });
   it("risolve separatamente dipendenti e squadre senza confondere le colonne",async()=>{
     mock.links.order_employees=[{id:"link-e",employee_id:"e1",order_id:"043"}];

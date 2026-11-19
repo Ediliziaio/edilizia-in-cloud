@@ -8,6 +8,9 @@ import json, secrets, threading
 from test_operazioni import seed_operations,W2,W3,V
 from test_transazioni import A,C,W,O,O2,DbError,seed,stock,line,issue,serials,rpc,sql,lit,uid
 ROOT=Path(__file__).resolve().parent
+PORT=8117
+LAB_HOSTS={f'127.0.0.1:{PORT}',f'localhost:{PORT}'}
+LAB_ORIGINS={f'http://{host}' for host in LAB_HOSTS | {'127.0.0.1:8096','localhost:8096'}}
 TOKEN=secrets.token_urlsafe(24)
 DATA={}
 LOCK=threading.Lock()
@@ -37,7 +40,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self,*args):pass
     def send(self,status,body,kind='application/json'):
         body=body.encode();self.send_response(status);self.send_header('Content-Type',kind+'; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
-    def valid_host(self):return self.headers.get('Host') in ('127.0.0.1:8097','localhost:8097')
+    def valid_host(self):return self.headers.get('Host') in LAB_HOSTS
     def do_GET(self):
         if not self.valid_host():return self.send(403,'{}')
         if self.path=='/':return self.send(200,(ROOT/'collaudo.html').read_text().replace('__LOCAL_TOKEN__',TOKEN),'text/html')
@@ -45,7 +48,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=='/state':return self.send(200,json.dumps(snapshot()))
         return self.send(404,'{}')
     def do_POST(self):
-        if not self.valid_host() or self.headers.get('Origin') not in ('http://127.0.0.1:8097','http://localhost:8097','http://127.0.0.1:8096','http://localhost:8096') or self.headers.get('X-Local-Fixture')!=TOKEN:return self.send(403,'{}')
+        if not self.valid_host() or self.headers.get('Origin') not in LAB_ORIGINS or self.headers.get('X-Local-Fixture')!=TOKEN:return self.send(403,'{}')
         if int(self.headers.get('Content-Length','0'))>1024*1024:return self.send(413,'{}')
         try:
             p=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
@@ -82,5 +85,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send(409,json.dumps({'error':{'code':code,'message':message}}))
             else:self.send(409,json.dumps({'ok':False,'error':str(e)}))
 if __name__=='__main__':
-    reset();print('Collaudo locale: http://127.0.0.1:8097 — solo PostgreSQL sintetico 127.0.0.1:55439',flush=True)
-    ThreadingHTTPServer(('127.0.0.1',8097),Handler).serve_forever()
+    with ThreadingHTTPServer(('127.0.0.1',PORT),Handler) as server:
+        reset()
+        print(f'Collaudo locale: http://127.0.0.1:{PORT} — solo PostgreSQL sintetico 127.0.0.1:55439',flush=True)
+        server.serve_forever()

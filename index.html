@@ -869,10 +869,10 @@
 
           var root = document.getElementById('root');
           var bootGuard = document.getElementById('eic-boot-guard');
-          var bodyText = ((document.body && document.body.innerText) || '').trim();
           var rootText = ((root && root.innerText) || '').trim();
-          var guardVisible = !!bootGuard;
-          if (bodyText.length > 12 && rootText.length > 12 && !guardVisible) return;
+          // Il guard è già nell'HTML, con display:none. Non riavviare
+          // una pagina che mostra contenuto o ha già presentato il recupero.
+          if (rootText.length > 12 || (bootGuard && bootGuard.style.display === 'flex')) return;
 
           try {
             if (sessionStorage.getItem(BLANK_RECOVERY_KEY)) {
