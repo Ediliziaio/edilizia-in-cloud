@@ -10086,6 +10086,7 @@ export type Database = {
           colore_primario: string | null
           company_id: string
           condizioni_pagamento_default: string | null
+          conti_fatturazione: Json
           conservazione_ade_aderito_il: string | null
           created_at: string | null
           durc_expiry_date: string | null
@@ -10167,6 +10168,7 @@ export type Database = {
           colore_primario?: string | null
           company_id: string
           condizioni_pagamento_default?: string | null
+          conti_fatturazione?: Json
           conservazione_ade_aderito_il?: string | null
           created_at?: string | null
           durc_expiry_date?: string | null
@@ -10248,6 +10250,7 @@ export type Database = {
           colore_primario?: string | null
           company_id?: string
           condizioni_pagamento_default?: string | null
+          conti_fatturazione?: Json
           conservazione_ade_aderito_il?: string | null
           created_at?: string | null
           durc_expiry_date?: string | null

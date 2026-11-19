@@ -379,6 +379,22 @@ jobs:
           src/test/ui/ripartizioneQuantitaFattura.test.tsx
           src/test/ui/verificaFatturaSalvataggio.test.tsx
 
+      - name: Verify supply quantities, invoice costs, payments and tab refresh
+        if: matrix.group == 'economics'
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/fornitureFlusso.test.ts
+          src/test/logic/odaContabilita.test.ts
+          src/test/ui/odaPagamentiFornitura.test.tsx
+          src/test/ui/odaContabilitaErrore.test.tsx
+          src/test/ui/ddtConfrontoFattura.test.tsx
+          src/test/logic/financialPaymentPropagation.test.ts
+          src/test/ui/orderFinancialOverview.test.tsx
+          src/test/ui/fornitureSchedeRefresh.test.tsx
+          src/test/logic/ddtPrezziDaFatturaSql.test.ts
+          src/test/logic/numeriCommessa.test.ts
+          src/test/logic/orderFinancialOverview.test.ts
+
       - name: Verify partial deliveries and multiple purchase orders
         if: matrix.group == 'worksite'
         run: >-

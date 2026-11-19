@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectGroup, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { contiDellAzienda, contoDellIban, nomeConto } from "@/lib/fatturazione/contiAzienda";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,23 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
 
   function setField(field: string, value: unknown) {
     dispatch({ type: "SET_PAGAMENTO", fields: { [field]: value } });
+  }
+
+  // I conti dell'azienda fra cui scegliere: il principale e gli altri scritti in Impostazioni
+  // (19/11/2026). Prima l'unico modo di usare un'altra banca era riscrivere l'IBAN a mano.
+  const conti = contiDellAzienda(azienda as Parameters<typeof contiDellAzienda>[0]);
+  const contoScelto = contoDellIban(conti, state.iban_pagamento);
+  function scegliConto(iban: string) {
+    const c = contoDellIban(conti, iban);
+    if (!c) return;
+    dispatch({
+      type: "SET_PAGAMENTO",
+      fields: {
+        iban_pagamento: c.iban,
+        bic_pagamento: String(c.bic ?? "").trim(),
+        nome_banca: String(c.banca ?? c.nome ?? "").trim(),
+      },
+    });
   }
 
   function autoFillBanca() {
@@ -260,6 +278,25 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
               <Button variant="ghost" size="sm" className="h-5 text-[9px] w-full" onClick={autoFillBanca}>
                 Auto-compila da azienda
               </Button>
+            )}
+            {conti.length > 1 && (
+              <div>
+                <Label className="text-[10px] text-muted-foreground" htmlFor="conto-fattura">Conto su cui incassare</Label>
+                <select
+                  id="conto-fattura"
+                  className="h-6 w-full rounded-md border bg-background px-2 text-[10px]"
+                  value={contoScelto?.iban ?? ""}
+                  onChange={(e) => scegliConto(e.target.value)}
+                  disabled={disabled}
+                >
+                  {!contoScelto && <option value="">IBAN scritto a mano</option>}
+                  {conti.map((c) => (
+                    <option key={c.iban} value={c.iban}>
+                      {nomeConto(c)} · ···{c.ultime}{c.principale ? " · principale" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
             <div>
               <Label className="text-[10px] text-muted-foreground">IBAN</Label>

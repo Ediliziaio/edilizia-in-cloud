@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -148,5 +150,20 @@ describe("Collegare una fattura alle commesse", () => {
     mostra({ purchaseOrderId: "po1" });
     expect(await screen.findByRole("status")).toHaveTextContent("ordine d’acquisto");
     expect(screen.queryByRole("button", { name: "Salva" })).toBeNull();
+  });
+});
+
+/**
+ * La finestra chiede una cosa sola: resta stretta (19/11/2026). Il contenitore operativo di serie è
+ * «spazio», 1.280 px, e la regola del foglio di stile batte le classi Tailwind: su un portatile la
+ * finestra riempiva lo schermo e «Salva» finiva fuori vista, come nel video di Impresa Vulcano.
+ */
+describe("l'ampiezza della finestra", () => {
+  it("è quella di una conferma, non quella larga di serie", () => {
+    const sorgente = readFileSync(
+      resolve(process.cwd(), "src/components/fatturazione/CollegaFatturaCommesseDialog.tsx"),
+      "utf8",
+    );
+    expect(sorgente).toMatch(/<DialogContent[^>]*ampiezza="conferma"/);
   });
 });

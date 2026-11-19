@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { refreshFinancialQueries } from '@/lib/orders/financialRefresh';
+import { refreshFinancialQueries, refreshPurchasingQueries } from '@/lib/orders/financialRefresh';
 import { useFinancialLive } from '@/hooks/useFinancialLive';
 
 /**
@@ -15,7 +15,11 @@ export function FinancialRefreshBridge(): null {
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return;
     const channel = new BroadcastChannel('eic-financial-commit');
-    channel.onmessage = () => refreshFinancialQueries(client, false);
+    channel.onmessage = (message: MessageEvent<unknown>) => {
+      const event = (message.data as { event?: string } | null)?.event;
+      if (event === 'purchasing') refreshPurchasingQueries(client, false);
+      else if (event === 'commit') refreshFinancialQueries(client, false);
+    };
     return () => channel.close();
   }, [client]);
   return null;

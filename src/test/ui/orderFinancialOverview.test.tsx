@@ -6,7 +6,9 @@ const state = vi.hoisted(() => ({
   pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, revenue: 1000, variazioni: 0, hook: vi.fn(),
   previsto: { costo: 300, lavorazioni: 3, lavorazioniSenzaPrevisto: 0, isLoading: false, isError: false },
   daPagare: 150, cassa: vi.fn(),
+  impegno: 0,
 }));
+vi.mock('@/hooks/useImpegniAcquisti', () => ({ useImpegniAcquisti: () => ({ data: { impegno: state.impegno }, isSuccess: true, isError: false }) }));
 vi.mock("@/hooks/useOrderEconomicsBase", () => ({ useOrderEconomicsBase: (...args: unknown[]) => {
   state.hook(...args);
   const canShowMargin = state.costs > 0 && state.revenue > 0;
@@ -31,7 +33,7 @@ vi.mock("@/hooks/useEsposizioneCommessa", () => ({ useEsposizioneCommessa: (a: u
 } }));
 afterEach(cleanup);
 beforeEach(() => {
-  Object.assign(state, { pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, daPagare: 150, revenue: 1000, variazioni: 0,
+  Object.assign(state, { pending: false, error: false, costs: 400, margin: 600, pct: 60, commissions: 0, daPagare: 150, revenue: 1000, variazioni: 0, impegno: 0,
     previsto: { costo: 300, lavorazioni: 3, lavorazioniSenzaPrevisto: 0, isLoading: false, isError: false } });
   state.hook.mockClear(); state.cassa.mockClear();
 });
@@ -40,7 +42,7 @@ function mount(extra: Partial<ComponentProps<typeof OrderFinancialOverview>> = {
   render(<OrderFinancialOverview {...props} />);
   return props;
 }
-const cella = (nome: string) => screen.getByRole("cell", { name: `Apri dettagli: ${nome}` });
+const cella = (nome: string) => screen.getByRole("cell", { name: `Apri dettagli: ${{ 'Costi sostenuti': 'Costi registrati', 'Margine reale': 'Margine su costi registrati' }[nome] ?? nome}` });
 
 describe("La commessa in numeri: previsto e reale", () => {
   it("previsto: contratto IVA inclusa, costo e margine previsti dalle lavorazioni", () => {
@@ -126,7 +128,7 @@ describe("La commessa in numeri: previsto e reale", () => {
   it("niente da pagare: lo dice", () => {
     state.daPagare = 0;
     mount();
-    expect(cella("Costi sostenuti")).toHaveTextContent("Tutto pagato");
+    expect(cella("Costi sostenuti")).toHaveTextContent("Nessun costo registrato da pagare");
   });
 
   it.each(["loading", "error", "missing"] as const)("non mostra margini reali falsi: %s", condition => {
@@ -142,6 +144,15 @@ describe("La commessa in numeri: previsto e reale", () => {
     expect(screen.queryByRole("cell", { name: "Apri dettagli: Costo previsto" })).toBeNull();
     expect(state.hook).toHaveBeenCalledWith("order", 1000, [], false);
     expect(state.cassa).toHaveBeenCalledWith(expect.objectContaining({ enabled: false }));
+  });
+  it('distingue i costi registrati dagli impegni già inclusi nel margine', () => {
+    state.impegno = 100;
+    mount();
+    const costi = screen.getByRole('cell', { name: 'Apri dettagli: Costi e impegni' });
+    expect(costi).toHaveTextContent('300,00 € costi registrati');
+    expect(costi).toHaveTextContent('100,00 € impegni ODA');
+    expect(screen.getByRole('cell', { name: 'Apri dettagli: Margine con impegni' })).toHaveTextContent('600,00');
+    expect(screen.getByRole('cell', { name: 'Apri dettagli: Margine con impegni' })).toHaveTextContent('Include gli impegni degli ODA');
   });
 
   it("col permesso sui margini ma non sui costi: niente «da pagare»", () => {

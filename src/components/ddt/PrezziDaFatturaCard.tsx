@@ -1,5 +1,5 @@
 import { UniformSelect } from "@/components/ui/uniform-select";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Receipt, Loader2 } from "lucide-react";
@@ -12,6 +12,8 @@ import { useDDTRighe, type DDTRicezione } from "@/hooks/useDDTRicezione";
 import { documentiDb as db } from "@/lib/ddt/documentiPersistenti";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDebounce } from "@/hooks/useDebounce";
+import { refreshMaterialQueries } from "@/lib/orders/refreshMaterialQueries";
+import { proponiPrezziFattura, righeDocumentoFattura } from "@/lib/ddt/proponiPrezziFattura";
 
 interface Fattura {
   id: string;
@@ -43,7 +45,30 @@ function descriviDifferenza(d: PrezzoDiverso) {
     : `${cosa}: resta ${euro(d.prezzo_bolla)} della bolla, la fattura parziale dice ${euro(d.prezzo_fattura)}`;
 }
 
-export function PrezziDaFatturaCard({
+type Props = { ddt: DDTRicezione; incorporato?: boolean; altreAzioni?: ReactNode };
+type Bozze = Record<string, { q: string; prezzo: string }>;
+const nuovoConfronto = (fattura: string) => ({ fattura, bozze: {} as Bozze, selezionate: null as Set<string> | null, confermo: false });
+
+function useConfrontoFattura(fattura: string, proposte: Bozze) {
+  const [stato, setStato] = useState(() => nuovoConfronto(fattura));
+  // Il confronto appartiene a un documento: non può conservare la conferma
+  // quando cambia la fattura, anche tornando a un documento già aperto.
+  if (stato.fattura !== fattura) setStato(nuovoConfronto(fattura));
+  const corrente = stato.fattura === fattura ? stato : nuovoConfronto(fattura);
+  const bozze = { ...proposte, ...corrente.bozze };
+  const selezionate = corrente.selezionate ?? new Set(Object.keys(proposte));
+  return {
+    bozze, selezionate, confermo: corrente.confermo,
+    setBozze: (azione: SetStateAction<Bozze>) => setStato(p => ({ ...p, bozze: typeof azione === 'function' ? azione({ ...proposte, ...p.bozze }) : azione, selezionate: p.selezionate ?? new Set(Object.keys(proposte)) })),
+    setSelezionate: (azione: SetStateAction<Set<string>>) => setStato(p => ({ ...p, bozze: { ...proposte, ...p.bozze }, selezionate: typeof azione === 'function' ? azione(p.selezionate ?? new Set(Object.keys(proposte))) : azione })),
+    setConfermo: (confermo: boolean) => setStato(p => ({ ...p, bozze: { ...proposte, ...p.bozze }, selezionate: p.selezionate ?? new Set(Object.keys(proposte)), confermo })),
+  };
+}
+
+export function PrezziDaFatturaCard(props: Props) {
+  return <PrezziDaFatturaForm key={props.ddt.id} {...props} />;
+}
+function PrezziDaFatturaForm({
   ddt,
   incorporato = false,
   altreAzioni,
@@ -64,14 +89,9 @@ export function PrezziDaFatturaCard({
   const modificabile = p.canManagePurchasing && !p.solaLettura;
   const righe = useDDTRighe(ddt.id);
   const [aperto, setAperto] = useState(false);
-  const [fattura, setFattura] = useState("");
+  const [sceltaFattura, setFattura] = useState<string | null>(null);
   const [ricerca, setRicerca] = useState("");
   const ricercaFattura = useDebounce(ricerca.trim(), 300);
-  const [bozze, setBozze] = useState<
-    Record<string, { q: string; prezzo: string }>
-  >({});
-  const [selezionate, setSelezionate] = useState<Set<string>>(new Set());
-  const [confermo, setConfermo] = useState(false);
   const valori = useQuery<Valore[]>({
     queryKey: ["ddt-valorizzazioni", ddt.company_id, ddt.id],
     enabled: visibile,
@@ -104,6 +124,37 @@ export function PrezziDaFatturaCard({
       return data ?? [];
     },
   });
+  const collegate = useQuery<Array<{ id: string; numero_ddt: string; fatture_ricevute: { id: string; numero_fattura: string | null; data_fattura: string | null } | null }>>({
+    // Identico contratto della scheda Collegamenti: la lettura viene condivisa.
+    queryKey: ['ddt-fatture-collegate', ddt.company_id, ddt.id],
+    enabled: modificabile && aperto,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await db.from('fattura_ddt')
+        .select('id,numero_ddt,fatture_ricevute(id,numero_fattura,data_fattura)')
+        .eq('company_id', ddt.company_id).eq('ddt_ricezione_id', ddt.id);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const documentiCollegati = [...new Set((collegate.data ?? []).map(f => f.fatture_ricevute?.id).filter((id): id is string => !!id))];
+  const fattura = sceltaFattura ?? (!ricerca.trim() && documentiCollegati.length === 1 ? documentiCollegati[0] : '');
+  const documento = useQuery({
+    queryKey: ['ddt-fattura-righe', ddt.company_id, fattura],
+    enabled: modificabile && aperto && !!fattura,
+    queryFn: async () => {
+      const { data, error } = await db.from('fatture_ricevute')
+        .select('id,numero_fattura,data_fattura,cedente_ragione_sociale,righe,xml_raw,indice_corpo').eq('company_id', ddt.company_id).eq('id', fattura).maybeSingle();
+      if (error) throw error;
+      if (!data || data.id !== fattura) throw new Error('Fattura non disponibile');
+      return { id: String(data.id), numero_fattura: String(data.numero_fattura ?? ''), data_fattura: String(data.data_fattura ?? ''), cedente_ragione_sociale: String(data.cedente_ragione_sociale ?? ''), righe: righeDocumentoFattura(data) };
+    },
+  });
+  const proposte = useMemo(() => documento.data?.id === fattura
+    ? proponiPrezziFattura(righe.data ?? [], documento.data.righe) : {}, [documento.data, fattura, righe.data]);
+  const { bozze, selezionate, confermo, setBozze, setSelezionate, setConfermo } = useConfrontoFattura(fattura, proposte);
+  const elencoFatture = documento.data?.id === fattura && !fatture.data?.some(f => f.id === fattura)
+    ? [...(fatture.data ?? []), documento.data] : fatture.data ?? [];
   const salva = useMutation({
     mutationFn: async () => {
       if (!confermo || !fattura || !selezionate.size)
@@ -148,6 +199,7 @@ export function PrezziDaFatturaCard({
       toast.success(
         "Prezzi confrontati con la fattura, nessun nuovo arrivo registrato",
       );
+      refreshMaterialQueries(qc);
       // 12/11/2026: un prezzo della bolla diverso da quello fatturato non
       // cambia in silenzio. Se la fattura copre tutta la riga vince lei,
       // altrimenti resta quello della bolla: in entrambi i casi lo si dice.
@@ -157,15 +209,8 @@ export function PrezziDaFatturaCard({
           { description: diversi.map(descriviDifferenza).join(" · "), duration: 12_000 },
         );
       for (const key of [
-        ["ddt-valorizzazioni"],
-        queryKeys.ddtRicezione.all,
-        ["order-items"],
-        ["order_items"],
-        ["materiali-per-fase"],
-        ["materiali"],
         queryKeys.warehouse.stockAll,
         queryKeys.warehouse.itemsAll,
-        ["fattura-collegamenti"],
       ])
         void qc.invalidateQueries({ queryKey: key });
     },
@@ -223,7 +268,6 @@ export function PrezziDaFatturaCard({
               onChange={(e) => {
                 setRicerca(e.target.value);
                 setFattura("");
-                setConfermo(false);
               }}
               placeholder="Numero della fattura"
             />
@@ -235,13 +279,12 @@ export function PrezziDaFatturaCard({
               value={fattura}
               onChange={(e) => {
                 setFattura(e.target.value);
-                setConfermo(false);
               }}
             >
               <option value="">
                 {fatture.isLoading ? "Caricamento…" : "Seleziona la fattura"}
               </option>
-              {fatture.data?.map((f) => (
+              {elencoFatture.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.numero_fattura} · {f.data_fattura} ·{" "}
                   {f.cedente_ragione_sociale}
@@ -278,7 +321,15 @@ export function PrezziDaFatturaCard({
               l’originale nella sezione Fatture ricevute.
             </p>
           )}
-          <ul className="space-y-2">
+          {!!fattura && documento.isPending && <p role="status">Leggo quantità e prezzi della fattura…</p>}
+          {!!fattura && documento.isError && <p role="alert">Non riesco a leggere le righe della fattura. Puoi compilare il confronto a mano oppure <button type="button" className="underline" onClick={() => void documento.refetch()}>riprovare</button>.</p>}
+          {!!fattura && documento.isSuccess && <div className="rounded-lg border bg-muted/20 p-3 text-xs">
+            <p>{Object.keys(proposte).length > 0
+              ? `${Object.keys(proposte).length === 1 ? '1 riga proposta' : `${Object.keys(proposte).length} righe proposte`} dalla fattura, con quantità e prezzi netti dopo gli sconti. Controlla i dati prima di confermare.`
+              : 'Nessun abbinamento univoco con unità compatibili: scegli le righe e verifica quantità e prezzo sulla fattura.'}</p>
+            {Object.keys(proposte).length > 0 && <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => { setBozze(proposte); setSelezionate(new Set(Object.keys(proposte))); setConfermo(false); }}>Riprendi righe dalla fattura</Button>}
+          </div>}
+          <ul className="space-y-2" aria-busy={!!fattura && documento.isPending}>
             {righe.data?.map((r) => {
               const v = bozze[r.id];
               return (
@@ -287,6 +338,7 @@ export function PrezziDaFatturaCard({
                     <input
                       type="checkbox"
                       className="mt-1"
+                      disabled={!!fattura && documento.isPending}
                       checked={selezionate.has(r.id)}
                       onChange={(e) => {
                         const c = e.target.checked;
@@ -302,7 +354,7 @@ export function PrezziDaFatturaCard({
                     {r.descrizione}
                   </label>
                   {selezionate.has(r.id) && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 items-end gap-2">
                       <label className="text-xs">
                         Quantità fatturata ({r.unita_misura})
                         <Input
@@ -357,7 +409,7 @@ export function PrezziDaFatturaCard({
           </label>
           <Button
             disabled={
-              !confermo || !fattura || !selezionate.size || salva.isPending
+              !confermo || !fattura || !selezionate.size || salva.isPending || documento.isPending
             }
             onClick={() => salva.mutate()}
           >

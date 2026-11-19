@@ -172,7 +172,7 @@ describe("popup e registro dei movimenti", () => {
     expect(screen.getByLabelText("Importo per Fattura Alfa")).toHaveValue("300,00");
     expect(screen.getByLabelText("Importo per Fattura Beta")).toHaveValue("200,00");
     expect(screen.getByRole("button", { name: "Conferma" })).toBeEnabled();
-    expect(mock.rpc.mock.calls.every(c => ["bank_movimento_dettaglio", "bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_controparti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0]))).toBe(true);
+    expect(mock.rpc.mock.calls.every(c => ["bank_movimento_dettaglio", "bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_controparti", "tesoreria_conti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0]))).toBe(true);
   });
 
   it("apre dalla destra e mostra tutti i documenti, le commesse, il mezzo e le note", async () => {
@@ -195,7 +195,7 @@ describe("popup e registro dei movimenti", () => {
     );
     // Aprire il popup legge soltanto: il dettaglio e i documenti aperti per i suggerimenti.
     expect(
-      mock.rpc.mock.calls.filter((c) => !["bank_movimento_dettaglio", "bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_controparti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0])),
+      mock.rpc.mock.calls.filter((c) => !["bank_movimento_dettaglio", "bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_controparti", "tesoreria_conti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0])),
     ).toHaveLength(0);
   });
   it("un salvataggio fallito mantiene la nota e non mostra successo", async () => {
@@ -234,7 +234,7 @@ describe("popup e registro dei movimenti", () => {
     expect(
       await screen.findByText(/Il pagamento già registrato verrà conservato/),
     ).toBeInTheDocument();
-    expect(mock.rpc.mock.calls.filter((c) => !["bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0]))).toHaveLength(1);
+    expect(mock.rpc.mock.calls.filter((c) => !["bank_candidati_movimento", "cassa_voci_movimenti", "tesoreria_conti", "tesoreria_classifica_movimento", "tesoreria_esito_movimento"].includes(c[0]))).toHaveLength(1);
     fireEvent.click(
       screen.getByRole("button", { name: "Conferma scollegamento" }),
     );
@@ -268,7 +268,7 @@ describe("popup e registro dei movimenti", () => {
       0,
     );
     // Leggere le categorie e le controparti della pagina è lecito; scrivere o riconciliare no.
-    expect(mock.rpc.mock.calls.filter((c) => !["cassa_voci_movimenti", "tesoreria_controparti"].includes(c[0]))).toHaveLength(0);
+    expect(mock.rpc.mock.calls.filter((c) => !["cassa_voci_movimenti", "tesoreria_controparti", "tesoreria_conti"].includes(c[0]))).toHaveLength(0);
     fireEvent.click(
       screen.getByRole("button", { name: "Trova corrispondenze" }),
     );

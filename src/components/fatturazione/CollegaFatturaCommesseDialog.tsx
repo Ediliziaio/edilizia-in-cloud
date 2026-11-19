@@ -207,7 +207,11 @@ export function CollegaFatturaCommesseDialog({ fattura, companyId, onChiudi, onS
   const linkDiscreto = "text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50";
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onChiudi(); }}>
-      <DialogContent struttura="scorrevole" className="max-h-[90dvh] max-w-lg overflow-y-auto">
+      {/* «conferma» (640 px): questa finestra chiede una cosa sola, la commessa. Di serie il contenitore
+          operativo è «spazio», cioè 1.280 px, e la regola del foglio di stile batte `max-w-lg`: su un
+          portatile la finestra riempiva lo schermo e «Salva» finiva a destra, fuori vista (19/11/2026).
+          «Voce per voce» mostra una riga per voce e resta comodo anche così. */}
+      <DialogContent ampiezza="conferma" struttura="scorrevole" className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>A quale commessa va?</DialogTitle>
           <DialogDescription>{fattura.fornitore ?? "Fornitore"} · n. {fattura.numero ?? "—"} · <span className="font-medium text-foreground">{formatCurrency(totale)}</span> {suImponibile ? "imponibile" : "IVA inclusa"}</DialogDescription>

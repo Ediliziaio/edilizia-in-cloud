@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExpensePaymentDialog } from "./ExpensePaymentDialog";
+import { OdaPaymentsDialog, type SpesaFornitura } from "./OdaPaymentsDialog";
 /**
  * Cosa e' successo a questo ordine dopo la merce: il costo e la fattura.
  *
@@ -13,10 +13,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Wallet, FileText, AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuoteCard } from "@/components/marketing/preventivi/ui/builderUI";
-import { supabase } from "@/integrations/supabase/client";
+import { documentiDb } from "@/lib/ddt/documentiPersistenti";
 import { formatCurrency } from "@/lib/formatters";
 import { etichettaMetodoCosto } from "@/lib/costi/metodiPagamento";
-import { consegnatoFatturatoOda, contabilitaOda, type RataOda, type RigaOdaConsegna } from "@/lib/orders/odaContabilita";
+import { consegnatoFatturatoOda, contabilitaOda, quantitaFornitura, type RataOda, type RigaOdaConsegna } from "@/lib/orders/odaContabilita";
 import { quotaIvata } from "@/lib/fatturazione/quoteOrdini";
 
 interface Costo {
@@ -25,6 +25,7 @@ interface Costo {
   is_paid: boolean | null;
   due_date: string | null;
   paid_date: string | null;
+  quota?: number;
 }
 
 interface Fattura {
@@ -34,6 +35,8 @@ interface Fattura {
   totale_documento: number | string | null;
   stato: string | null;
   tipo_documento: string | null;
+  company_cost_id: string | null;
+  imponibile_totale: number | string | null;
 }
 
 const dataIt = (iso?: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "—");
@@ -50,23 +53,24 @@ export function OdaAccountingCard({
   /** Le righe dell'ordine, per il confronto fra arrivato e fatturato. */
   righe?: RigaOdaConsegna[];
 }) {
-  const [paymentCostId, setPaymentCostId] = useState<string | null>(null);
+  const [pagamentiAperti, setPagamentiAperti] = useState(false);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["oda-contabilita", odaId],
     queryFn: async () => {
       const [costiRes, fattureRes, quoteRes] = await Promise.all([
-        (supabase as any)
+        documentiDb
           .from("company_costs")
           .select("id, amount, is_paid, due_date, paid_date")
-          .eq("purchase_order_id", odaId),
-        (supabase as any)
+          .eq("purchase_order_id", odaId)
+          .is("annullato_il", null),
+        documentiDb
           .from("fatture_ricevute")
-          .select("id, numero_fattura, data_fattura, totale_documento, stato, tipo_documento")
+          .select("id, numero_fattura, data_fattura, totale_documento, stato, tipo_documento, company_cost_id, imponibile_totale")
           .eq("purchase_order_id", odaId),
         // Le fatture divise tra più ordini: qui conta solo la quota di questo.
-        (supabase as any)
+        documentiDb
           .from("fattura_ricevuta_ordini")
-          .select("importo, fattura:fatture_ricevute(id, numero_fattura, data_fattura, totale_documento, imponibile_totale, stato, tipo_documento)")
+          .select("importo, fattura:fatture_ricevute(id, numero_fattura, data_fattura, totale_documento, imponibile_totale, stato, tipo_documento, company_cost_id)")
           .eq("purchase_order_id", odaId),
       ]);
       // Un errore di lettura NON deve diventare "nessun costo registrato":
@@ -78,9 +82,11 @@ export function OdaAccountingCard({
         importo: number | string;
         fattura: (Fattura & { imponibile_totale: number | string | null }) | null;
       }>)
-        .filter((q) => q.fattura)
+        .filter((q) => q.fattura && !['annullata', 'scartata', 'rifiutata'].includes(q.fattura.stato ?? ''))
         .map((q) => ({
           ...q.fattura!,
+          quota: Number(q.fattura!.imponibile_totale) > 0 ? Number(q.importo) / Number(q.fattura!.imponibile_totale) : 0,
+          imponibile_totale: Number(q.importo),
           totale_documento: quotaIvata(
             Number(q.importo),
             q.fattura!.imponibile_totale != null ? Number(q.fattura!.imponibile_totale) : null,
@@ -88,19 +94,34 @@ export function OdaAccountingCard({
           ),
         }));
       const costi = (costiRes.data ?? []) as Costo[];
+      const quoteMancanti = quote.filter(q => q.company_cost_id && !costi.some(c => c.id === q.company_cost_id));
+      if (quoteMancanti.length) {
+        const res = await documentiDb.from('company_costs')
+          .select('id, amount, is_paid, due_date, paid_date').is('annullato_il', null)
+          .in('id', [...new Set(quoteMancanti.map(q => q.company_cost_id))]);
+        if (res.error) throw res.error;
+        for (const c of (res.data ?? []) as Costo[]) {
+          const quota = Math.min(1, quoteMancanti.filter(q => q.company_cost_id === c.id).reduce((s, q) => s + q.quota, 0));
+          costi.push({ ...c, quota, amount: Number(c.amount) * quota });
+        }
+      }
       // Le scadenze vere (RiBa, acconto e saldo) stanno nelle rate dei costi.
       let rate: RataOda[] = [];
       if (costi.length > 0) {
-        const rateRes = await (supabase as any)
+        const rateRes = await documentiDb
           .from("rate_fornitori")
-          .select("numero, scadenza, importo, metodo, stato")
+          .select("company_cost_id, numero, scadenza, importo, metodo, stato")
           .in("company_cost_id", costi.map((c) => c.id));
         if (rateRes.error) throw rateRes.error;
-        rate = (rateRes.data ?? []) as RataOda[];
+        rate = ((rateRes.data ?? []) as (RataOda & { company_cost_id: string })[]).map(r => ({
+          ...r, importo: Number(r.importo) * (costi.find(c => c.id === r.company_cost_id)?.quota ?? 1),
+        }));
       }
       return {
         costi,
-        fatture: [...((fattureRes.data ?? []) as Fattura[]), ...quote],
+        fatture: [...new Map([...quote, ...((fattureRes.data ?? []) as Fattura[])]
+          .filter(f => !['annullata', 'scartata', 'rifiutata'].includes(f.stato ?? ''))
+          .map(f => [f.id, f])).values()],
         rate,
       };
     },
@@ -120,16 +141,24 @@ export function OdaAccountingCard({
   const nonPagati = costi.filter((c) => !c.is_paid).length;
   const conto = contabilitaOda(totaleOrdine, fatture, data?.rate ?? []);
   const arrivo = righe?.length ? consegnatoFatturatoOda(righe, conto.fatturato) : null;
+  const quantita = quantitaFornitura(righe ?? []);
+  const spese: SpesaFornitura[] = costi.map(c => ({ id: c.id, quota: c.quota }));
 
   return (
     <>
-    {paymentCostId && <ExpensePaymentDialog key={paymentCostId} costId={paymentCostId} onClose={()=>setPaymentCostId(null)} />}
+    {pagamentiAperti && <OdaPaymentsDialog odaId={odaId} spese={spese} onClose={() => setPagamentiAperti(false)} />}
     <QuoteCard title="Contabilità" icon={<Wallet className="h-4 w-4" />}>
       <div className="space-y-2.5 text-sm">
+        {quantita.righe > 0 && <div className="rounded-lg border bg-muted/20 p-3" aria-label="Quantità della fornitura">
+          <p className="font-medium">{quantita.completa ? 'Quantità complete' : `${quantita.complete} di ${quantita.righe} righe complete`}</p>
+          {quantita.unita.map(q => <p key={q.um} className="mt-1 text-xs text-muted-foreground">
+            {q.ordinate.toLocaleString('it-IT')} {q.um} ordinati · {q.ricevute.toLocaleString('it-IT')} ricevuti · {q.residue.toLocaleString('it-IT')} da ricevere
+          </p>)}
+        </div>}
         <div className="flex items-start justify-between gap-3">
           <span className="text-slate-500">Costo registrato</span>
           {costi.length > 0 ? (
-            <button type="button" onClick={()=>setPaymentCostId(costi[0]?.id??null)} className="text-right group">
+            <button type="button" onClick={()=>setPagamentiAperti(true)} className="text-right group">
               <span className="font-semibold text-slate-900 group-hover:text-orange-600 inline-flex items-center gap-1">
                 {formatCurrency(totaleCosti)}
                 <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
@@ -140,15 +169,15 @@ export function OdaAccountingCard({
             </button>
           ) : (
             <span className="text-right text-slate-400 text-xs max-w-[60%]">
-              Nessuno: si crea quando l'ordine passa a "ricevuto"
+              Nessuno: l'ordine è ancora un impegno finché non si registra un costo o una fattura
             </span>
           )}
         </div>
 
         <div className="flex items-start justify-between gap-3">
-          <span className="text-slate-500">Fattura fornitore</span>
+          <span className="text-slate-500">Fatturato IVA compresa</span>
           {fatture.length > 0 ? (
-            <button type="button" disabled={!costi.length} onClick={()=>setPaymentCostId(costi[0]?.id??null)} className="text-right group">
+            <button type="button" disabled={!costi.length} onClick={()=>setPagamentiAperti(true)} className="text-right group">
               <span className="font-semibold text-slate-900 group-hover:text-orange-600 inline-flex items-center gap-1">
                 {formatCurrency(conto.fatturato)}
                 <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100" />
@@ -169,14 +198,14 @@ export function OdaAccountingCard({
             variant="outline"
             size="sm"
             className="w-full h-8"
-            onClick={() => setPaymentCostId(costi.find(c => !c.is_paid)?.id ?? costi[0]?.id ?? null)}
+            onClick={() => setPagamentiAperti(true)}
           >
             <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
             Pagamenti e residuo
           </Button>
         )}
 
-        {costi.length>1 && <div className="flex flex-wrap gap-2">{costi.map((c,i)=><Button key={c.id} size="sm" variant="outline" onClick={()=>setPaymentCostId(c.id)}>Costo {i+1} · {formatCurrency(Number(c.amount))}</Button>)}</div>}
+        {costi.length>1 && <p className="text-xs text-muted-foreground">{costi.length} spese collegate: apri il riepilogo per scegliere la fattura e vedere tutti i residui.</p>}
 
         {conto.prossima && (
           <div className="flex items-start justify-between gap-3">
@@ -196,15 +225,11 @@ export function OdaAccountingCard({
 
         {arrivo && arrivo.consegnato > 0 && (
           <div className="flex items-start justify-between gap-3">
-            <span className="text-slate-500">Merce arrivata</span>
+            <span className="text-slate-500">Ricevuto ai prezzi dell’ODA</span>
             <span className="text-right">
               <span className="font-semibold text-slate-900">{formatCurrency(arrivo.consegnato)}</span>
               <span className="block text-[11px] text-slate-500">
-                {arrivo.fatturatoNonConsegnato > 0
-                  ? `fatturati ${formatCurrency(arrivo.fatturatoNonConsegnato)} in più dell'arrivato`
-                  : arrivo.daFatturare > 0
-                    ? `${formatCurrency(arrivo.daFatturare)} arrivati e non ancora fatturati`
-                    : "arrivato e fatturato combaciano"}
+                IVA compresa · le differenze di prezzo non indicano merce mancante
                 {arrivo.righeSenzaPrezzo > 0 ? ` · ${arrivo.righeSenzaPrezzo} righe senza prezzo` : ""}
               </span>
             </span>
@@ -216,7 +241,7 @@ export function OdaAccountingCard({
             <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 mt-0.5" />
             <span>
               Fatturati <strong>{formatCurrency(conto.eccedenza)}</strong> in più dell'ordine
-              ({formatCurrency(totaleOrdine)}). Verifica prima di pagare.
+              ({formatCurrency(totaleOrdine)}), IVA compresa.{quantita.completa ? ' Le quantità sono complete: controlla prezzi ed eventuali spese aggiuntive.' : ' Controlla prezzi e quantità separatamente.'}
             </span>
           </div>
         )}

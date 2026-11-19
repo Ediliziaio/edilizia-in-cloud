@@ -1,6 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { refreshFinancialQueries } from '@/lib/orders/financialRefresh';
+import { refreshMaterialQueries } from '@/lib/orders/refreshMaterialQueries';
 import { riepilogoContratto } from '@/lib/subappaltatori/riconciliazioneContratto';
 import { subcontractStatistics } from '@/lib/orders/subcontractStatistics';
 describe('Propagazione dei pagamenti',()=>{
@@ -18,5 +19,15 @@ describe('Propagazione dei pagamenti',()=>{
     expect(c.pagato).toBe(400);expect(c.daPagare).toBe(550);expect(c.ritenuteTrattenute).toBe(50);
     const statistiche=subcontractStatistics([{id:'c',importo_contrattuale:1000,stato:'attivo'}],[s]);
     expect(statistiche.paid).toBe(400);
+  });
+  it('una consegna o un prezzo fattura aggiorna tutte le letture degli acquisti, senza invalidare le query estranee', () => {
+    const q = new QueryClient();
+    const keys = [['ddt-fatture-collegate','d'], ['ddt-valorizzazioni','d'], ['materiali-per-fase','o'], ['order_items','o'], ['oda-contabilita','p'], ['oda-pagamenti-riepilogo','p'], ['commessa-impegni-acquisti','o'], ['ddt-controllo-ordini','d']];
+    for (const key of keys) q.setQueryData(key, { ok: true });
+    q.setQueryData(['calendar'], { ok: true });
+    refreshMaterialQueries(q);
+    for (const key of keys) expect(q.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(q.getQueryState(['calendar'])?.isInvalidated).toBe(false);
+    q.clear();
   });
 });
