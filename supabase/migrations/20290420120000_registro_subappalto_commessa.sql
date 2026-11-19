@@ -104,7 +104,7 @@ BEGIN
     ELSIF tipo = 'offerta' THEN
       IF richiesta->>'contrattoId' IS NOT NULL OR richiesta#>>'{offerta,contrattoId}' IS NOT NULL
         OR coalesce(richiesta->'offerta', 'null'::jsonb) IS DISTINCT FROM coalesce(p_operazione->'precedente', 'null'::jsonb)
-      THEN RAISE EXCEPTION 'L’offerta è cambiata. Riaprila per vedere la versione aggiornata.' USING ERRCODE = '40001'; END IF;
+      THEN RAISE EXCEPTION 'L’offerta è cambiata. Riaprila per vedere la versione aggiornata.' USING ERRCODE = 'PT409'; END IF;
       offerta := p_operazione->'offerta';
       IF coalesce(jsonb_typeof(offerta->'prezzi'), '') <> 'object' OR offerta->'prezzi' = '{}'::jsonb
         OR coalesce(offerta->>'data', '') !~ '^\d{4}-\d{2}-\d{2}$' OR (offerta->>'data')::date > CURRENT_DATE
@@ -125,10 +125,10 @@ BEGIN
           AND coalesce(s.campo_subappaltatore_id, c.subappaltatore_id)::text = richiesta->>'dittaId'
       ) THEN RAISE EXCEPTION 'Il contratto non appartiene alla ditta di questa richiesta.' USING ERRCODE = '22023'; END IF;
       IF coalesce(richiesta->>'contrattoId', richiesta#>>'{offerta,contrattoId}', id_contratto::text) <> id_contratto::text
-      THEN RAISE EXCEPTION 'Il computo è già collegato a un altro contratto.' USING ERRCODE = '40001'; END IF;
+      THEN RAISE EXCEPTION 'Il computo è già collegato a un altro contratto.' USING ERRCODE = 'PT409'; END IF;
       IF coalesce((p_operazione->>'daOfferta')::boolean, false) THEN
         IF jsonb_typeof(richiesta->'offerta') IS DISTINCT FROM 'object'
-        THEN RAISE EXCEPTION 'Offerta non disponibile.' USING ERRCODE = '40001'; END IF;
+        THEN RAISE EXCEPTION 'Offerta non disponibile.' USING ERRCODE = 'PT409'; END IF;
         richiesta := jsonb_set(richiesta, '{offerta,contrattoId}', to_jsonb(id_contratto));
       ELSE richiesta := richiesta || jsonb_build_object('contrattoId', id_contratto);
       END IF;

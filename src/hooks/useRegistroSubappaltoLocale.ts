@@ -37,7 +37,7 @@ export function useRegistroSubappaltoLocale(companyId: string, orderId: string, 
       const { data, error } = await withClientTimeout(Promise.resolve(rpcRegistro("registro_subappalto", {
         p_azienda: companyId, p_commessa: orderId, p_operazione: op ?? null,
       })), "Archivio subappalto", 15_000);
-      if (error || !data) throw new ErroreArchivio(error?.code === "40001" ? 409 : 503, error?.message ?? "Archivio di subappalto non disponibile.");
+      if (error || !data) throw new ErroreArchivio((error?.code === "PT409" || error?.code === "40001") ? 409 : 503, error?.message ?? "Archivio di subappalto non disponibile.");
       return data;
     }
     let token = getCachedTokens().accessToken;

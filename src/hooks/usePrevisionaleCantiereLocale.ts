@@ -29,7 +29,7 @@ export function usePrevisionaleCantiereLocale(orderId: string, permesso: boolean
         const { data, error } = await withClientTimeout(Promise.resolve(query("previsionale_cantiere", {
           p_azienda: azienda, p_commessa: orderId, p_operazione: op,
         })), "Previsionale", 15_000);
-        if (error) throw new ErroreArchivio(error.code === "40001" ? 409 : 503, error.message);
+        if (error) throw new ErroreArchivio((error.code === "PT409" || error.code === "40001") ? 409 : 503, error.message);
         return data;
       };
       if (disponibilita) {

@@ -74,7 +74,7 @@ BEGIN
     RETURN jsonb_build_object('versione', archivio.versione, 'piani', archivio.piani);
   END IF;
   IF archivio.versione IS DISTINCT FROM (p_operazione->>'versione')::integer
-  THEN RAISE EXCEPTION 'Il previsionale è cambiato. Rileggi i dati e riprova.' USING ERRCODE = '40001'; END IF;
+  THEN RAISE EXCEPTION 'Il previsionale è cambiato. Rileggi i dati e riprova.' USING ERRCODE = 'PT409'; END IF;
 
   chiave := p_operazione->>'togli';
   IF chiave IS NOT NULL THEN

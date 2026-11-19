@@ -66,7 +66,7 @@ BEGIN
     SELECT p INTO attuale FROM jsonb_array_elements(elenco) AS p WHERE (p->>'id')::uuid=id_pipeline;
     versione:=coalesce((attuale->>'versione')::integer,0);
     IF versione IS DISTINCT FROM coalesce((modifica->>'versione')::integer,0)
-    THEN RAISE EXCEPTION 'La pipeline è cambiata. Riapri la modifica.' USING ERRCODE='40001'; END IF;
+    THEN RAISE EXCEPTION 'La pipeline è cambiata. Riapri la modifica.' USING ERRCODE='PT409'; END IF;
     IF EXISTS (SELECT 1 FROM jsonb_array_elements(elenco) AS p WHERE (p->>'id')::uuid<>id_pipeline AND (
       lower(p->>'nome')=lower(nome) OR EXISTS (
         SELECT 1 FROM jsonb_array_elements(p->'fasi') AS f JOIN jsonb_array_elements(fasi) AS n ON (f->>'id')::uuid=(n->>'id')::uuid
@@ -77,7 +77,7 @@ BEGIN
       JOIN jsonb_array_elements(coalesce(attuale->'fasi','[]'::jsonb)) AS f ON a.fase=(f->>'id')::uuid
       WHERE o.company_id=p_azienda AND o.deleted_at IS NULL
       AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(fasi) AS n WHERE (n->>'id')::uuid=a.fase)
-    ) THEN RAISE EXCEPTION 'Sposta le commesse dalla fase prima di rimuoverla.' USING ERRCODE='40001'; END IF;
+    ) THEN RAISE EXCEPTION 'Sposta le commesse dalla fase prima di rimuoverla.' USING ERRCODE='PT409'; END IF;
     SELECT coalesce(jsonb_agg(p),'[]'::jsonb) INTO elenco FROM jsonb_array_elements(elenco) AS p WHERE (p->>'id')::uuid<>id_pipeline;
     SELECT jsonb_agg(jsonb_build_object('id',(f->>'id')::uuid,'name',trim(f->>'name'),'color',f->>'color') ORDER BY i) INTO fasi
       FROM jsonb_array_elements(fasi) WITH ORDINALITY AS d(f,i);
@@ -94,7 +94,7 @@ BEGIN
     fase_precedente:=(p_operazione->>'precedente')::uuid;
     SELECT fase INTO fase_attuale FROM private.pipeline_commesse_assegnazioni WHERE order_id=ordine.id;
     IF fase_attuale IS DISTINCT FROM fase_precedente AND fase_attuale IS DISTINCT FROM id_fase
-    THEN RAISE EXCEPTION 'La fase della commessa è cambiata.' USING ERRCODE='40001'; END IF;
+    THEN RAISE EXCEPTION 'La fase della commessa è cambiata.' USING ERRCODE='PT409'; END IF;
     IF id_fase IS NULL THEN DELETE FROM private.pipeline_commesse_assegnazioni WHERE order_id=ordine.id;
     ELSIF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(elenco) AS p CROSS JOIN LATERAL jsonb_array_elements(p->'fasi') AS f WHERE (f->>'id')::uuid=id_fase)
     THEN RAISE EXCEPTION 'Fase non disponibile per questa azienda.' USING ERRCODE='22023';
