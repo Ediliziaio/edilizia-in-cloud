@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, expect, it, vi } from 'vitest';
 import { FinancialRefreshBridge } from '@/components/orders/FinancialRefreshBridge';
 import { refreshMaterialQueries } from '@/lib/orders/refreshMaterialQueries';
-vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ effectiveCompany: null }) }));
+vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ effectiveCompany: null as { id: string } | null }) }));
 
 const channels: Array<{ onmessage: ((event: { data: unknown }) => void) | null }> = [];
 const post = vi.fn();
