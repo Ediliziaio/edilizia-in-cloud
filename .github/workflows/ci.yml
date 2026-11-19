@@ -59,10 +59,15 @@ jobs:
           src/test/logic/bankExternalPayments.test.ts
           src/test/ui/bankReconciliationBatch.test.tsx
 
-      - name: Scadenzario sources, undated amounts and prima nota cost reversals
+      - name: Scadenzario sources, live updates and prima nota deletion
         run: >-
           bunx vitest run --maxWorkers=2
           src/test/logic/scadenzarioFontiDatabase.test.ts
+          src/test/logic/primaNotaEliminaCostoDatabase.test.ts
+          src/test/logic/finanzaRevisioniDatabase.test.ts
+          src/test/logic/financialLiveRefresh.test.ts
+          src/test/ui/financialLive.test.tsx
+          src/test/ui/primaNotaEliminaVersione.test.tsx
           src/test/logic/operazioniPerRiga.test.ts
           src/test/ui/scadenzarioFiltriAperti.test.tsx
           src/test/ui/scadenzarioSenzaData.test.tsx

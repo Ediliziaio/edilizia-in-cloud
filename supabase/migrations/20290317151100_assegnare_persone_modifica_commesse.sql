@@ -1,3 +1,5 @@
+-- Explicit transaction required by LOCK TABLE when replayed by the preview CLI.
+BEGIN;
 -- Assegnare le persone alle fasi: lo fa chi ha «Modifica commesse» (14/11/2026).
 --
 -- Fino a oggi order_employees accettava scritture solo da amministratori e super admin: un
@@ -110,3 +112,5 @@ begin
   execute replace(v_def, v_vecchio, v_nuovo);
 end
 $patch$;
+
+COMMIT;
