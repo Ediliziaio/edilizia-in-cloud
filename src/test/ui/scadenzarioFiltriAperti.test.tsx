@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import Scadenzario from "@/pages/azienda/billing/Scadenzario";
 
-const state = vi.hoisted(() => ({ fail: false, summaryFail: false, extraRows: false, exportCsv: vi.fn(), writes: vi.fn() }));
+const state = vi.hoisted(() => ({ fail: false, summaryFail: false, extraRows: false, senzaData: false, exportCsv: vi.fn(), writes: vi.fn() }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "demo" } }) }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => false }));
 vi.mock("@/lib/csvExport", () => ({ exportToCSV: state.exportCsv }));
@@ -18,7 +19,7 @@ vi.mock("@/components/scadenzario/MarkPaidDialog", () => ({ default: (): null =>
 vi.mock("@/components/scadenzario/AnnullaIncassoDialog", () => ({ AnnullaIncassoDialog: (): null => null }));
 vi.mock("@/components/scadenzario/ScadenzarioTable", () => ({ default: ({ scadenze }: { scadenze: { id: string; description: string }[] }) => <ul aria-label="Risultati scadenze">{scadenze.map(s => <li key={s.id}>{s.description}</li>)}</ul> }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {
-  rpc: () => Promise.resolve({ data: {}, error: state.summaryFail ? { message: "Riepilogo assente" } : null }),
+  rpc: (name: string) => name === "scadenzario_fonti" ? supabase.from("scadenze") : Promise.resolve({ data: { senza_data_count: state.senzaData ? 1 : 0 }, error: state.summaryFail ? { message: "Riepilogo assente" } : null }),
   from: () => {
     const year = new Date().getFullYear();
     let rows = [
@@ -28,14 +29,17 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {
       { id: "4", description: "Pagamento aperto", direction: "uscita", status: "da_pagare" },
       { id: "5", description: "Pagamento già saldato", direction: "uscita", status: "pagata" },
       { id: "6", description: "Incasso annullato", direction: "entrata", status: "annullata" },
-    ].map(r => ({ ...r, company_id: "demo", due_date: `${year}-01-01`, amount: 100, paid_amount: 0 }));
+    ].map(r => ({ ...r, company_id: "demo", due_date: `${year}-01-01` as string | null, amount: 100, paid_amount: 0 }));
     if (state.extraRows) rows = [...rows, ...Array.from({ length: 1001 }, (_, i) => ({ ...rows[0], id: `extra-${i}`, description: `Scadenza demo ${i}` }))];
+    if (state.senzaData) rows.push({ ...rows[0], id: "senza-data", description: "Commessa senza data", due_date: null });
     let from = 0, to = Infinity;
     const q: Record<string, unknown> = {};
     const methods: Record<string, (a: unknown, b: unknown) => void> = {
       eq: (k, v) => { rows = rows.filter(r => r[k as keyof typeof r] === v); },
       neq: (k, v) => { rows = rows.filter(r => r[k as keyof typeof r] !== v); },
       in: (k, v) => { rows = rows.filter(r => (v as unknown[]).includes(r[k as keyof typeof r])); },
+      is: (k, v) => { rows = rows.filter(r => r[k as keyof typeof r] === v); },
+      or: () => {},
       gte: () => {}, lte: () => {}, lt: () => {}, ilike: () => {},
       order: () => {}, select: () => {}, range: (a, b) => { from = Number(a); to = Number(b); }, limit: () => {},
     };
@@ -50,7 +54,7 @@ function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<MemoryRouter><QueryClientProvider client={client}><Scadenzario /></QueryClientProvider></MemoryRouter>);
 }
-beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.exportCsv.mockClear(); state.writes.mockClear(); });
+beforeEach(() => { state.fail = false; state.summaryFail = false; state.extraRows = false; state.senzaData = false; state.exportCsv.mockClear(); state.writes.mockClear(); });
 afterEach(cleanup);
 
 describe("Scadenzario: viste aperte e recupero errori", () => {
@@ -104,4 +108,15 @@ describe("Scadenzario: viste aperte e recupero errori", () => {
     expect(await screen.findByText("Riepilogo disponibile")).toBeTruthy();
     expect(state.writes).not.toHaveBeenCalled();
   });
+});
+
+it("rende visibili gli importi senza data anche con l'anno corrente e li esporta", async () => {
+  state.senzaData = true; setup();
+  await screen.findByText("Commessa senza data");
+  fireEvent.click(screen.getByRole("button", { name: "Mostra senza data" }));
+  await waitFor(() => expect(screen.queryByText("Incasso aperto")).toBeNull());
+  expect(await screen.findByText("Commessa senza data")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Esporta CSV" }));
+  await waitFor(() => expect(state.exportCsv).toHaveBeenCalledOnce());
+  expect(state.exportCsv.mock.calls[0][0]).toEqual([expect.objectContaining({ descrizione: "Commessa senza data", scadenza: "" })]);
 });

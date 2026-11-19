@@ -4,7 +4,7 @@ export interface EsitoPerRiga<T> { completate: T[]; errori: Array<{ riga: T; mot
 
 export function messaggioErroreOperazione(errore: unknown, fallback = "Operazione non riuscita. Riprova."): string {
   const msg = (errore as { message?: unknown } | null)?.message;
-  if (typeof msg === "string" && /^(La |Questa |Il |Non |È |Serve |Solo |Scrittura |Scadenza |Registrazione |Controlla |Accedi |Scegli |Un |Una )/.test(msg)
+  if (typeof msg === "string" && /^(La |Questa |Il |Non |È |Serve |Solo |Scrittura |Scadenza |Registrazione |Pagamento |Controlla |Accedi |Scegli |Un |Una )/.test(msg)
       && !sembraErrorePostgresGrezzo(msg) && !isNetworkError(errore) && !isTransientTimeoutError(errore)) return msg;
   return userErrorMessage(errore, fallback);
 }

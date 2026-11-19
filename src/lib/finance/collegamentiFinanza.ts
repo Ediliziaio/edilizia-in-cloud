@@ -17,7 +17,7 @@ export const linkTesoreriaMovimento = (id: string) => `/azienda/tesoreria?tab=tr
 export interface ScadenzaPerStato {
   direction: "entrata" | "uscita";
   status: string;
-  due_date: string;
+  due_date: string | null;
   amount: number;
   paid_amount: number;
 }
@@ -27,7 +27,8 @@ export type TonoStato = "ok" | "attesa" | "scaduta" | "spenta";
 /** Oggi in data locale (YYYY-MM-DD): le scadenze sono date, non istanti. */
 export const oggiIso = (d = new Date()) => d.toLocaleDateString("en-CA");
 
-export function giorniDaOggi(dataIso: string, oggi = oggiIso()) {
+export function giorniDaOggi(dataIso: string | null, oggi = oggiIso()) {
+  if (!dataIso) return NaN;
   const a = Date.UTC(+dataIso.slice(0, 4), +dataIso.slice(5, 7) - 1, +dataIso.slice(8, 10));
   const b = Date.UTC(+oggi.slice(0, 4), +oggi.slice(5, 7) - 1, +oggi.slice(8, 10));
   return Math.round((a - b) / 86_400_000);

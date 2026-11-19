@@ -6,7 +6,7 @@ import { giorniDaOggi, oggiIso } from "@/lib/finance/collegamentiFinanza";
 
 interface PerTempo {
   direction: "entrata" | "uscita";
-  due_date: string;
+  due_date: string | null;
   status: string;
   amount: number;
   paid_amount: number;
@@ -22,12 +22,13 @@ export function tempoScadenza(s: PerTempo, oggi = oggiIso()): { testo: string; t
   const residuo = Math.round((Number(s.amount) - Number(s.paid_amount || 0)) * 100) / 100;
   if (s.status === "pagata" || residuo <= 0) {
     const verbo = entrata ? "Incassata" : "Pagata";
-    if (!s.paid_date) return { testo: verbo, tono: "buono" };
+    if (!s.paid_date || !s.due_date) return { testo: verbo, tono: "buono" };
     const scarto = -giorniDaOggi(s.due_date, s.paid_date.slice(0, 10));
     if (scarto > 0) return { testo: `${verbo} ${giorni(scarto)} dopo la scadenza`, tono: "neutro" };
     if (scarto < 0) return { testo: `${verbo} ${giorni(-scarto)} prima della scadenza`, tono: "buono" };
     return { testo: `${verbo} il giorno della scadenza`, tono: "buono" };
   }
+  if (!s.due_date) return { testo: "Data da definire nella fonte", tono: "neutro" };
   const tra = giorniDaOggi(s.due_date, oggi);
   if (tra < 0) return { testo: `Scaduta da ${giorni(-tra)}`, tono: "cattivo" };
   if (tra === 0) return { testo: "Scade oggi", tono: "attenzione" };

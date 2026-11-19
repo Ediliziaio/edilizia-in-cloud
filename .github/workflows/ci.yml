@@ -59,6 +59,18 @@ jobs:
           src/test/logic/bankExternalPayments.test.ts
           src/test/ui/bankReconciliationBatch.test.tsx
 
+      - name: Scadenzario sources, undated amounts and prima nota cost reversals
+        run: >-
+          bunx vitest run --maxWorkers=2
+          src/test/logic/scadenzarioFontiDatabase.test.ts
+          src/test/logic/operazioniPerRiga.test.ts
+          src/test/ui/scadenzarioFiltriAperti.test.tsx
+          src/test/ui/scadenzarioSenzaData.test.tsx
+          src/test/ui/stornaPagamentiPrimaNota.test.tsx
+          src/test/ui/primaNotaSelezione.test.tsx
+          src/test/ui/primaNotaStorniFuoriPagina.test.tsx
+          src/test/ui/annullaIncassoScadenza.test.tsx
+
       # xmllint valida ogni XML dei test contro lo schema XSD ufficiale FatturaPA 1.2.2
       # (src/test/fixtures/fatturapa-1.2.2): senza, i test falliscono, non si saltano.
       - name: xmllint for the FatturaPA XSD schema

@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+import { filtraScadenzario, queryFontiScadenzario, linkFonteScadenza } from "@/lib/finance/fontiScadenzario";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -7,7 +9,6 @@ import { Plus, Loader2, Search, Filter, X, Download, ChevronLeft, ChevronRight }
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { readAllPages } from "@/lib/personale/readAllPages";
 import { exportToCSV } from "@/lib/csvExport";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
@@ -27,7 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrareCard";
 import { GraficoEntrateUscite } from "@/components/charts/grafici/GraficoEntrateUscite";
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, addDays, addMonths, format } from "date-fns";
-import { GRUPPI_METODO, etichettaMetodo, filtroMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
+import { GRUPPI_METODO, etichettaMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
 
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CercaConFiltri, KpiMobili, PannelloFiltri, PilloleFiltro } from "@/components/mobile/FiltriMobile";
@@ -83,6 +84,7 @@ function getDateRange(preset: string, today = new Date()): { from: string; to: s
 }
 
 export default function Scadenzario() {
+  const navigate = useNavigate();
   const confirm = useConfirm();
   const permessi = usePermissions();
   const isMobile = useIsMobile();
@@ -138,6 +140,7 @@ export default function Scadenzario() {
 
   // Compute date range for server-side filtering
   const serverDateRange = useMemo(() => {
+    if (tab === "senza_data") return null;
     if (datePreset === "custom") {
       return customFrom || customTo ? { from: customFrom || null, to: customTo || null } : null;
     }
@@ -150,7 +153,7 @@ export default function Scadenzario() {
       return { from: `${yearFilter}-01-01`, to: `${yearFilter}-12-31` };
     }
     return null;
-  }, [datePreset, customFrom, customTo, yearFilter]);
+  }, [datePreset, customFrom, customTo, yearFilter, tab]);
 
   // La ricerca va al server con un attimo di attesa: prima filtrava solo le
   // righe gia' scaricate, quindi cercare una fattura finita in seconda pagina
@@ -170,6 +173,8 @@ export default function Scadenzario() {
   }, [search]);
 
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
+    includiSenzaData: !datePreset || tab === "senza_data",
+    soloSenzaData: tab === "senza_data",
     direction: tabDirection,
     status: filterStatus && filterStatus !== "all" ? filterStatus : tabStatus,
     dateFrom: serverDateRange?.from ?? null,
@@ -179,7 +184,7 @@ export default function Scadenzario() {
     soloAperte: tab === "aperte" || tab === "da_incassare" || tab === "da_pagare",
     tipo: filterTipo && filterTipo !== "all" ? filterTipo : null,
     metodo: filterMetodo && filterMetodo !== "all" ? (filterMetodo as GruppoMetodo) : null,
-  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo]);
+  }), [tabDirection, tabStatus, filterStatus, serverDateRange, searchServer, tab, filterTipo, filterMetodo, datePreset]);
 
   const { scadenze, isLoading, isError, refetch, totalCount, totalPages, summary, isSummaryLoading, isSummaryError, refetchSummary, markPaid, create, cancel, cancelMany, update, annullaIncasso, updateNotes } = useScadenzario(page, pageSize, serverFilters);
   const [daAnnullare, setDaAnnullare] = useState<Scadenza | null>(null);
@@ -194,14 +199,13 @@ export default function Scadenzario() {
 
   // Da incassare e da pagare per mese di scadenza dell'anno scelto (16/11/2026): il grafico
   // sopra l'elenco. Solo da tablet in su e con un anno scelto; le annullate non contano.
-  const conGraficoMesi = !isMobile && yearFilter !== "all" && tab !== "rate" && tab !== "settimane" && tab !== "adempimenti";
+  const conGraficoMesi = !isMobile && yearFilter !== "all" && tab !== "rate" && tab !== "settimane" && tab !== "adempimenti" && tab !== "senza_data";
   const { data: mesiScadenze } = useQuery({
     queryKey: ["scadenzario", "mesi", companyId, yearFilter],
     enabled: !!companyId && conGraficoMesi,
     staleTime: 60_000,
     queryFn: async () => {
-      const righe = await readAllPages<{ direction: string; amount: number | null; due_date: string }>((from, to) => supabase
-        .from("scadenze").select("direction, amount, due_date")
+      const righe = await readAllPages<{ direction: string; amount: number | null; due_date: string }>((from, to) => queryFontiScadenzario(companyId!).select("direction, amount, due_date")
         .eq("company_id", companyId!).neq("status", "annullata")
         .gte("due_date", `${yearFilter}-01-01`).lte("due_date", `${yearFilter}-12-31`)
         .order("id").range(from, to) as never);
@@ -240,22 +244,9 @@ export default function Scadenzario() {
     setExporting(true);
     try {
       const data = await readAllPages(async (from, to) => {
-      let q = supabase
-        .from("scadenze")
-        .select("due_date, direction, description, amount, paid_amount, status, invoices(invoice_number), orders(order_code)")
-        .eq("company_id", companyId)
-        .order("due_date", { ascending: true })
-        .order("id", { ascending: true });
-      if (serverFilters.dateFrom) q = q.gte("due_date", serverFilters.dateFrom);
-      if (serverFilters.dateTo) q = q.lte("due_date", serverFilters.dateTo);
-      if (serverFilters.direction) q = q.eq("direction", serverFilters.direction);
-      if (serverFilters.status) q = q.eq("status", serverFilters.status);
-      else q = q.neq("status", "annullata");
-      if (serverFilters.soloAperte || serverFilters.soloScadute) q = q.in("status", ["da_pagare", "parziale"]);
-      if (serverFilters.soloScadute) q = q.lt("due_date", format(new Date(), "yyyy-MM-dd"));
-      if (serverFilters.tipo) q = q.eq("tipo", serverFilters.tipo);
-      if (serverFilters.metodo) q = q.or(filtroMetodo(serverFilters.metodo));
-      if (serverFilters.search) q = q.ilike("description", `%${serverFilters.search}%`);
+      const q = filtraScadenzario(queryFontiScadenzario(companyId)
+        .select("due_date, direction, description, amount, paid_amount, payment_method, status, invoices(invoice_number), orders(order_code)"), serverFilters)
+        .order("due_date", { ascending: true, nullsFirst: false }).order("id");
       return await q.range(from, to);
       });
       const s = (search || "").toLowerCase();
@@ -346,7 +337,7 @@ export default function Scadenzario() {
         </div>
         <div className="flex items-center gap-2">
           {/* «Per settimana» guarda avanti e tutto lo scaduto: l'anno lì non conta. */}
-          {tab !== "settimane" && (
+          {tab !== "settimane" && tab !== "senza_data" && (
             <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
               <SelectTrigger className="h-9 w-[140px] font-semibold max-sm:h-8 max-sm:w-[84px] max-sm:text-xs" aria-label="Anno"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -362,6 +353,12 @@ export default function Scadenzario() {
           </Button>
         </div>
       </div>
+
+      {(summary?.senza_data_count ?? 0) > 0 && <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+        <span>{summary!.senza_data_count} importi aperti senza data. Completa la data nella commessa o nel costo.</span>
+        <Button size="sm" variant="outline" onClick={() => { clearFilters(); setTab("senza_data"); }}>Mostra senza data</Button>
+        {tab === "senza_data" && <Button size="sm" variant="ghost" onClick={() => setTab("aperte")}>Torna alle aperte</Button>}
+      </div>}
 
       {/* KPIs — mobile: due numeri (lo scaduto da incassare filtra le scadute). */}
       {/* «Per settimana» ha i suoi numeri, dalla stessa fonte dell'elenco: questi leggono solo la tabella delle
@@ -599,7 +596,7 @@ export default function Scadenzario() {
             <ScadenzarioTable
               scadenze={filtered}
               onNota={(s, nota) => updateNotes(s.id, nota)}
-              onMarkPaid={(s) => setPayDialog(s)}
+              onMarkPaid={(s) => { const href = linkFonteScadenza(s); if (href) navigate(href); else setPayDialog(s); }}
               onCancel={(id) => { const s = scadenze.find((x) => x.id === id); if (s) void annullaSingola(s); }}
               onModifica={!permessi.solaLettura ? setDaModificare : undefined}
               selezionate={selezione.ids}
@@ -694,7 +691,7 @@ export default function Scadenzario() {
         <ScadenzaDettaglio
           scadenza={scadenzaAperta}
           onClose={() => setDettaglio(null)}
-          onMarkPaid={(x) => { setDettaglio(null); setPayDialog(x); }}
+          onMarkPaid={(x) => { setDettaglio(null); const href = linkFonteScadenza(x); if (href) navigate(href); else setPayDialog(x); }}
           onAnnullaIncasso={(x) => { setDettaglio(null); setDaAnnullare(x); }}
           onNota={(x, nota) => updateNotes(x.id, nota)}
           onModifica={!permessi.solaLettura ? (s) => { setDettaglio(null); setDaModificare(s); } : undefined}

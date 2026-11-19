@@ -48,6 +48,9 @@ export interface PrimaNotaEntry {
   scadenza_id: string | null;
   documento_fiscale_id?: string | null;
   bank_transaction_id?: string | null;
+  sal_sub_id?: string | null;
+  reversal_of?: string | null;
+  stornata?: boolean;
   order_item_id: string | null;
   account_label: string | null;
   is_auto: boolean;
@@ -69,10 +72,10 @@ export interface PrimaNotaEntry {
  * `prima_nota_modificabile` nel database): ha un suo percorso. `null` = si modifica.
  */
 export function perchePrimaNotaNonModificabile(e: Pick<PrimaNotaEntry, "is_auto" | "cost_id" | "documento_fiscale_id" | "bank_transaction_id">): string | null {
-  if (e.is_auto) return "È una registrazione automatica: si cambia dal documento che l'ha creata.";
-  if (e.documento_fiscale_id) return "È l'incasso di una fattura emessa dal programma: si annulla dalla fattura.";
   if (e.bank_transaction_id) return "Viene dalla riconciliazione bancaria: si cambia da Tesoreria.";
-  if (e.cost_id) return "È il pagamento di un costo: si cambia dal costo.";
+  if (e.documento_fiscale_id) return "È l'incasso di una fattura emessa dal programma: si annulla dalla fattura.";
+  if (e.cost_id) return "È collegata a un costo: usa lo storno dei pagamenti. La registrazione resta nello storico.";
+  if (e.is_auto) return "È una registrazione automatica: si cambia dal documento che l'ha creata.";
   return null;
 }
 
@@ -152,7 +155,16 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
 
       const { data, error, count } = await query;
       if (error) throw error;
-      return { data: data as unknown as PrimaNotaEntry[], totalCount: count ?? 0 };
+      const righe = data as unknown as PrimaNotaEntry[];
+      const ids = righe.filter(r => r.cost_id && r.direction === "uscita").map(r => r.id);
+      const stornate = new Set<string>();
+      if (ids.length) {
+        const { data: storni, error: erroreStorni } = await supabase.from("prima_nota_entries")
+          .select("reversal_of").eq("company_id", companyId!).in("reversal_of", ids);
+        if (erroreStorni) throw erroreStorni;
+        for (const r of storni ?? []) if (r.reversal_of) stornate.add(r.reversal_of);
+      }
+      return { data: righe.map(r => ({ ...r, stornata: stornate.has(r.id) })), totalCount: count ?? 0 };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,

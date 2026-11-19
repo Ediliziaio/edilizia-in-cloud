@@ -7,7 +7,7 @@ const prefixes = new Set([
   'incassi-fattura', 'incassi-importate', 'movimenti-cassa', 'ritenute-bonifici',
   'fatture-emesse-importate', 'emessa-importata-dettaglio', 'fatture-ricevute-pagamento', 'fatture-costi-commesse',
   'billing-doc-counts', 'billing-monthly-timeline', 'riba-fornitori', 'sal-matura', 'uscite-senza-fattura',
-  'costs', 'company-costs', 'cashflow', 'prima-nota', 'primaNota', 'scadenzario',
+  'costs', 'company-costs', 'costo-annullo-anteprima', 'cashflow', 'prima-nota', 'primaNota', 'scadenzario',
   'orders', 'ordini-variazione', 'order-supplier-payments', 'order-economics-canonical', 'order-subcontract-statistics',
   'oda-contabilita', 'purchase-orders', 'fatture-ricevute', 'fattura-ricevuta-riepilogo', 'sal-sub', 'sal-sub-tutti',
   'contratti-sub', 'ritenute-sub', 'ritenute-sub-tutte', 'subappaltatori-page', 'subappalto-contratti',

@@ -1,7 +1,8 @@
 import { useRef } from "react";
+import { filtraScadenzario, queryFontiScadenzario, scadenzaDaFonte } from "@/lib/finance/fontiScadenzario";
 import { refreshFinancialQueries } from "@/lib/orders/financialRefresh";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { filtroMetodo, type GruppoMetodo } from "@/lib/finance/metodoScadenza";
+import { type GruppoMetodo } from "@/lib/finance/metodoScadenza";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ export interface Scadenza {
   direction: "entrata" | "uscita";
   description: string;
   amount: number;
-  due_date: string;
+  due_date: string | null;
   status: "da_pagare" | "pagata" | "parziale" | "annullata";
   paid_amount: number;
   paid_date: string | null;
@@ -75,9 +76,12 @@ export interface ScadenzarioSummary {
   da_incassare_count?: number;
   da_pagare_count?: number;
   pagate_count?: number;
+  senza_data_count?: number;
 }
 
 export interface ScadenzarioFilters {
+  includiSenzaData?: boolean;
+  soloSenzaData?: boolean;
   direction?: 'entrata' | 'uscita' | null;
   status?: string | null;
   dateFrom?: string | null;
@@ -102,40 +106,16 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
-  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo } = filters;
+  const { direction, status, dateFrom, dateTo, search, soloScadute, soloAperte, tipo, metodo, includiSenzaData, soloSenzaData } = filters;
 
   const scadenzeQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null],
+    queryKey: [...queryKeys.scadenzario.list(companyId), page, pageSize, direction, status, dateFrom, dateTo, search, soloScadute ?? false, tipo ?? null, soloAperte ?? false, metodo ?? null, includiSenzaData ?? false, soloSenzaData ?? false],
     queryFn: async () => {
-      let query = supabase
-        .from("scadenze")
-        .select(`
-          *,
-          suppliers(name),
-          invoices(invoice_number, client_company_name, issue_date),
-          orders(order_code, client_name, client_company),
-          company_costs(name),
-          marketing_contacts(first_name, last_name, company_name)
-        `, { count: "exact" })
-        .eq("company_id", companyId!)
-        .order("due_date", { ascending: true });
-
-      // La descrizione delle scadenze automatiche porta numero fattura e
-      // nominativo ("FT-2026-0026 — Mario Rossi"), quindi copre quasi tutto.
-      if (search && search.trim()) query = query.ilike("description", `%${search.trim()}%`);
-      if (direction) query = query.eq("direction", direction);
-      if (status) query = query.eq("status", status);
-      else query = query.neq("status", "annullata");
-      if (soloAperte) query = query.in("status", ["da_pagare", "parziale"]);
-      if (dateFrom) query = query.gte("due_date", dateFrom);
-      if (dateTo) query = query.lte("due_date", dateTo);
-      if (soloScadute) {
-        query = query
-          .in("status", ["da_pagare", "parziale"])
-          .lt("due_date", new Date().toLocaleDateString("en-CA"));
-      }
-      if (tipo) query = query.eq("tipo", tipo);
-      if (metodo) query = query.or(filtroMetodo(metodo));
+      const query = filtraScadenzario(queryFontiScadenzario(companyId!)
+        .select(`*, suppliers(name), invoices(invoice_number, client_company_name, issue_date),
+          orders(order_code, client_name, client_company), company_costs(name),
+          marketing_contacts(first_name, last_name, company_name)`), filters)
+        .order("due_date", { ascending: true, nullsFirst: false }).order("id");
 
       const { data, error, count } = await query
         .range((page - 1) * pageSize, page * pageSize - 1);
@@ -149,12 +129,14 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   });
 
   const summaryQuery = useQuery({
-    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo],
+    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo, includiSenzaData ?? false, soloSenzaData ?? false],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_scadenzario_summary", {
+      const { data, error } = await supabase.rpc("scadenzario_riepilogo_fonti", {
         p_company_id: companyId!,
         p_date_from: dateFrom ?? null,
         p_date_to: dateTo ?? null,
+        p_includi_senza_data: includiSenzaData ?? false,
+        p_solo_senza_data: soloSenzaData ?? false,
       });
       if (error) throw error;
       return data as unknown as ScadenzarioSummary;
@@ -174,6 +156,8 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
       notes?: string;
       accountLabel?: string;
     }) => {
+      const riga = scadenzeQuery.data?.data.find(s => s.id === params.scadenzaId);
+      if (riga && scadenzaDaFonte(riga)) throw new Error("Registra il pagamento dalla fonte di questa scadenza.");
       const signature = JSON.stringify(params);
       if (paymentRequest.current.signature !== signature) paymentRequest.current = {signature, id:crypto.randomUUID()};
       const { data, error } = await (supabase as any).rpc("mark_scadenza_paid_con_richiesta", {
@@ -305,6 +289,8 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   // fattura. Non tocca importi né stato, quindi non sposta nessun incasso.
   const updateNotesMutation = useMutation({
     mutationFn: async ({ id, notes }: { id: string; notes: string | null }) => {
+      const riga = scadenzeQuery.data?.data.find(s => s.id === id);
+      if (riga && scadenzaDaFonte(riga)) throw new Error("Modifica la nota dalla fonte di questa scadenza.");
       const { error } = await supabase.from("scadenze").update({ notes }).eq("id", id);
       if (error) throw error;
     },

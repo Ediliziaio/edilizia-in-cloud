@@ -153134,6 +153134,20 @@ export type Database = {
           urgency: string
         }[]
       }
+      scadenzario_fonti: {
+        Args: { p_company_id: string }
+        Returns: Database["public"]["Tables"]["scadenze"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "scadenze"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      scadenzario_riepilogo_fonti: {
+        Args: { p_company_id: string; p_date_from?: string | null; p_date_to?: string | null; p_includi_senza_data?: boolean; p_solo_senza_data?: boolean }
+        Returns: Json
+      }
       get_scadenzario_summary: {
         Args: { p_company_id: string; p_date_from?: string; p_date_to?: string }
         Returns: Json
