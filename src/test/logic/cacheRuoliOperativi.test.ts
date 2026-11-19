@@ -10,9 +10,12 @@ describe("le persone compaiono subito dopo il cambio di ruolo", () => {
     const altri = queryKeys.salespeople.active("altra");
     const dipendenti = queryKeys.employees.list("azienda");
     const assegnatari = ["company-staff-by-area", "azienda", ["cantiere"]];
-    for (const key of [attivi, altri, dipendenti, assegnatari]) qc.setQueryData(key, []);
+    const campo = ["employees_active", "azienda"];
+    const ufficio = ["office-employees", "azienda"];
+    const organigramma = ["hr-organigramma", "azienda"];
+    for (const key of [attivi, altri, dipendenti, assegnatari, campo, ufficio, organigramma]) qc.setQueryData(key, []);
     await invalidaRuoliOperativi(qc, "azienda");
-    for (const key of [attivi, dipendenti, assegnatari]) expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
+    for (const key of [attivi, dipendenti, assegnatari, campo, ufficio, organigramma]) expect(qc.getQueryState(key)?.isInvalidated).toBe(true);
     expect(qc.getQueryState(altri)?.isInvalidated).toBe(false);
     qc.clear();
   });

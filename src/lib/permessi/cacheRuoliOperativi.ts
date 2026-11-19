@@ -10,7 +10,10 @@ export async function invalidaRuoliOperativi(qc: QueryClient, companyId: string)
     queryKeys.staff.all,
     ["company-staff-users"],
     ["company-staff-by-area"],
-    ["office-people"],
-    ["organigramma"],
+    ["office-employees", companyId],
+    ["employees_active", companyId],
+    ["hr-organigramma", companyId],
+    ["hr-profili-all", companyId],
+    ["stati-app-operai", companyId],
   ].map((queryKey) => qc.invalidateQueries({ queryKey })));
 }

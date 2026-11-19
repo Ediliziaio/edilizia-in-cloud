@@ -46,9 +46,9 @@ L'advisor prima e dopo mantiene le segnalazioni preesistenti: RLS senza policy (
 
 | Controllo | Esito/metodo |
 |---|---|
-| Regressioni dopo integrazione con main | **480 test, 47 file**; incluso filtro di stampa/esportazione del giornale |
+| Regressioni dopo integrazione con main | **486 test, 48 file**; inclusi filtri del giornale e venditori con ruoli aggiuntivi |
 | TypeScript applicazione | `npm run typecheck`, baseline senza errori |
-| ESLint dei file modificati | **0 errori**, 5 warning preesistenti |
+| ESLint dei file modificati | **0 errori**, warning preesistenti (5 nei file iniziali e 56 nell'hook CRM) |
 | Build produzione | `npm run build:fast` |
 | Prerender mirato | **2/2 passate**: funzionalità prima nota e scadenzario |
 | Browser | Chromium e WebKit, 375/768/1280/1920 px |

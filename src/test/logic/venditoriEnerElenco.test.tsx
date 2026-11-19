@@ -1,6 +1,6 @@
 /**
  * Il menu «Venditore» di Ener Italia (26/10/2026): con le nove persone che la funzione del database restituisce
- * (tre amministratori, sei con il ruolo venditore) il menu le deve elencare tutte; un elenco vuoto non resta in memoria.
+ * il menu elenca chi ha il ruolo venditore, anche aggiuntivo; un elenco vuoto non resta in memoria.
  */
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc, from: vi.fn(
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ effectiveCompany: { id: "00000000-0000-4000-a000-000000000001" } }) }));
 
 import { useCompanySalespeople, useCompanyStaff } from "@/hooks/useOpportunitiesData";
+import { invalidaRuoliOperativi } from "@/lib/permessi/cacheRuoliOperativi";
 
 const persona = (first_name: string, last_name: string, roles: string[]) => ({ id: `${first_name}-${last_name}`, first_name, last_name, email: null as string | null, avatar_url: null as string | null, roles });
 const ENER = [
@@ -30,12 +31,12 @@ const cliente = () => new QueryClient({ defaultOptions: { queries: { retry: fals
 const involucro = (qc: QueryClient) => ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 
 describe("elenco dei venditori di Ener", () => {
-  it("il menu «Venditore» ha le nove persone: i sei venditori e i tre amministratori", async () => {
+  it("il menu «Venditore» elenca i sei con quel ruolo, compreso l'amministratore che vende", async () => {
     rpc.mockResolvedValue({ data: ENER, error: null });
     const { result } = renderHook(() => useCompanySalespeople("629d91e0-9d56-4736-a030-1e3833cba2ea"), { wrapper: involucro(cliente()) });
     await waitFor(() => expect(result.current.data.length).toBeGreaterThan(0));
     expect(result.current.data.map((p) => p.name).sort()).toEqual(
-      ["Alice Ener", "Brando Conte", "Elena Ener", "Gabriele Parpagiola", "Giancarlo Turchetto", "Mauro Targhetta", "Riccardo Lai", "Stefano Da Dalt", "Stefano Mezzalira"],
+      ["Brando Conte", "Gabriele Parpagiola", "Mauro Targhetta", "Riccardo Lai", "Stefano Da Dalt", "Stefano Mezzalira"],
     );
   });
 
@@ -49,7 +50,7 @@ describe("elenco dei venditori di Ener", () => {
     rpc.mockReset();
     rpc.mockResolvedValue({ data: ENER, error: null });
     const { result } = renderHook(() => useCompanySalespeople("629d91e0-9d56-4736-a030-1e3833cba2ea"), { wrapper: involucro(cliente()) });
-    await waitFor(() => expect(result.current.data.length).toBe(9));
+    await waitFor(() => expect(result.current.data.length).toBe(6));
     expect(rpc).toHaveBeenCalledWith("get_internal_chat_profiles", { p_company_id: "629d91e0-9d56-4736-a030-1e3833cba2ea" });
   });
 
@@ -70,6 +71,23 @@ describe("elenco dei venditori di Ener", () => {
     prima.unmount();
     rpc.mockResolvedValue({ data: ENER, error: null });
     const dopo = renderHook(() => useCompanySalespeople("629d91e0-9d56-4736-a030-1e3833cba2ea"), { wrapper: involucro(qc) });
-    await waitFor(() => expect(dopo.result.current.data.length).toBe(9));
+    await waitFor(() => expect(dopo.result.current.data.length).toBe(6));
+  });
+
+  it("aggiungere e rimuovere Anche Venditore aggiorna subito il menu, mantenendo lo stesso account", async () => {
+    const azienda = "629d91e0-9d56-4736-a030-1e3833cba2ea";
+    const qc = cliente();
+    const admin = persona("Amministratore", "Demo", ["company_admin"]);
+    rpc.mockResolvedValue({ data: [admin], error: null });
+    const { result } = renderHook(() => useCompanySalespeople(azienda), { wrapper: involucro(qc) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+    rpc.mockResolvedValue({ data: [{ ...admin, roles: ["company_admin", "salesperson"] }], error: null });
+    await invalidaRuoliOperativi(qc, azienda);
+    await waitFor(() => expect(result.current.data.map(p => p.id)).toEqual([admin.id]));
+    rpc.mockResolvedValue({ data: [admin], error: null });
+    await invalidaRuoliOperativi(qc, azienda);
+    await waitFor(() => expect(result.current.data).toEqual([]));
+    qc.clear();
   });
 });
