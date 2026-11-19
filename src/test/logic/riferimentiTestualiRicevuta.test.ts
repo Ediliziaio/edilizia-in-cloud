@@ -41,6 +41,14 @@ describe("riferimenti testuali di fatture ricevute",()=>{
     const c=catena(xml("",["Cantiere CANT-2026-001", "Cantiere CANT-2026-002"]));
     expect(c.esito).toBe("automatico");expect(c.allocazioni.map(a=>[a.destinazione.id,a.righe])).toEqual([["a",[1]],["b",[2]]]);
   });
+  it.each(['Commessa ELISII-SCARFOGLIO','Rif. cantiere: ELISII-SCARFOGLIO'])("riconosce un codice composto solo da lettere quando è dichiarato: %s",testo=>{
+    const c=costruisciCatena(fattura(xml(testo)),{...noti,commesse:[{...noti.commesse[0],codice:'ELISII-SCARFOGLIO'}]});
+    expect(c.esito).toBe('automatico');expect(c.allocazioni[0].destinazione.id).toBe('a');
+  });
+  it("un codice alfabetico senza etichetta resta una proposta da confermare",()=>{
+    const c=costruisciCatena(fattura(xml('Fornitura ELISII-SCARFOGLIO')),{...noti,commesse:[{...noti.commesse[0],codice:'ELISII-SCARFOGLIO'}]});
+    expect(c.esito).toBe('proposta');expect(c.allocazioni[0].destinazione.id).toBe('a');
+  });
   it("un codice negli altri dati gestionali si applica soltanto alla sua riga",()=>{
     const c=catena(xml("",["Materiali generici","Manutenzione"],"<AltriDatiGestionali><TipoDato>Commessa</TipoDato><RiferimentoTesto>CANT-2026-002</RiferimentoTesto></AltriDatiGestionali>"));
     expect(c.allocazioni.map(a=>[a.destinazione.tipo,a.destinazione.id,a.righe])).toEqual([["da_attribuire",null,[1]],["commessa","b",[2]]]);

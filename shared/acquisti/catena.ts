@@ -295,6 +295,7 @@ export function costruisciCatena(
   // Le indicazioni FORTI, con le righe a cui valgono (vuoto = tutto il documento).
   type IndRighe = Indicazione & { righe: number[]; percorso: Percorso };
   const forti: IndRighe[] = [];
+  const indiziCodici: IndRighe[] = [];
   const scelto = <T>(d: Decisione<T>) =>
     d.esito === "automatico" ? (d.candidati.find((c) => c.id === d.sceltoId)?.dato as T | undefined) : undefined;
 
@@ -374,14 +375,20 @@ export function costruisciCatena(
       }
     const cod = soloAlfanumerico(c.codice);
     const codiceRe = regexParolaIntera(c.codice ?? "");
-    // Codice con lettere e cifre, o di almeno 6 cifre: un numero corto nudo è anche una quantità o un DDT.
-    if (cod.length >= 4 && (/[A-Z]/.test(cod) ? /\d/.test(cod) : cod.length >= 6))
-      for (const t of testi.filter(t => codiceRe?.test(t.testo)))
-        forti.push({ valore: comm, fonte: "codice_commessa", forte: true, testo: `codice commessa ${c.codice}`, righe: t.righe, percorso: { fonte: "codice_commessa", passi: [`codice ${c.codice}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+    // Codici alfabetici (es. ELISII-SCARFOGLIO): certi soltanto con «commessa/cantiere»;
+    // senza etichetta restano indizi. Un numero corto nudo può essere una quantità o un DDT.
+    if (cod.length >= 4) for (const t of testi) {
+      const trovato = codiceRe?.exec(t.testo);
+      if (!trovato) continue;
+      const etichettato = /\b(?:commessa|cantiere|comm|cant)\.?\s*(?:(?:codice|cod|n|nr|numero)\.?\s*)?[:#-]?\s*$/i.test(t.testo.slice(0,trovato.index));
+      const forte = (/[A-Z]/.test(cod) ? /\d/.test(cod) : cod.length >= 6) || etichettato;
+      if (!forte && (/\d/.test(cod) || cod.length < 8)) continue;
+      (forte ? forti : indiziCodici).push({ valore: comm, fonte: "codice_commessa", forte, testo: `codice commessa ${c.codice}`, righe: t.righe, percorso: { fonte: "codice_commessa", passi: [`codice ${c.codice}`], documenti: [{ tipo: "commessa", id: c.id }] } });
+    }
   }
 
   // Indirizzo e nome del cliente sono indizi, sempre da confermare.
-  const deboli: IndRighe[] = [];
+  const deboli: IndRighe[] = [...indiziCodici];
   const testiNormalizzati = testi.map(t => ({ ...t, indirizzo: ` ${indirizzoConfrontabile(t.testo)} `, nome: ` ${nomeConfrontabile(t.testo)} ` }));
   for (const c of commesse) {
     const ind = indirizzoConfrontabile(c.indirizzoCantiere);
