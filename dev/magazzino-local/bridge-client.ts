@@ -4,7 +4,7 @@ const RPCS = new Set(['warehouse_receive_oda_v3','warehouse_goods_receipt_v3','w
 let session: Promise<{token:string}> | undefined;
 export function warehouseLabSession() {
   session ??= fetch('/__magazzino_local/session', { credentials: 'omit', cache: 'no-store', signal: AbortSignal.timeout(5_000) }).then(async (r) => {
-    const data: unknown = r.ok ? await r.json().catch(() => null) : null;
+    const data: unknown = r.ok ? await r.json().catch((): null => null) : null;
     if (!data || typeof data !== 'object' || !('token' in data) || typeof data.token !== 'string' || !data.token) {
       throw new Error('Il servizio locale del Magazzino non è disponibile.');
     }
