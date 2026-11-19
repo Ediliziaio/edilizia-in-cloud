@@ -21,11 +21,17 @@ beforeAll(async()=>{
     create table fatture_ricevute(id uuid primary key,company_id uuid,company_cost_id uuid);
     create table bank_transactions(id uuid primary key,company_id uuid,amount numeric,amount_eur numeric,currency text default 'EUR',booking_date date,value_date date,description text,reconciliation_status text default 'pending',chiuso_senza_documento text);
     create table bank_reconciliations(id uuid primary key,company_id uuid,transaction_id uuid,matched_amount numeric,unmatched_at timestamptz,unmatch_reason text,prima_nota_id uuid,invoice_id uuid,documento_id uuid,movimento_id uuid,scadenza_id uuid,fattura_ricevuta_id uuid);
-    create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,direction text,category text,description text,amount numeric check(amount>0),entry_date date not null,payment_method text,bank_transaction_id uuid,account_label text,is_auto boolean default false,auto_source text,created_by uuid,payment_payload jsonb,invoice_id uuid,documento_fiscale_id uuid,movimento_id uuid,scadenza_id uuid,cost_id uuid,reversal_of uuid,reference_number text);
+    create table prima_nota_entries(id uuid primary key default gen_random_uuid(),company_id uuid,direction text,category text,description text,amount numeric check(amount>0),entry_date date not null,payment_method text,bank_transaction_id uuid,account_label text,is_auto boolean default false,auto_source text,created_by uuid,payment_payload jsonb,invoice_id uuid,documento_fiscale_id uuid,movimento_id uuid,scadenza_id uuid,cost_id uuid,reversal_of uuid,reference_number text,reconciliation_method text);
     grant usage on schema public,auth to authenticated;`);
   await pg.exec(await readFile("supabase/migrations/20290421183000_prima_nota_fonti_allineate.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421190000_prima_nota_incassi_storici_prudenti.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421192000_prima_nota_pagamenti_manual_gia_presenti.sql","utf8"));
+  const modifica=await readFile("supabase/migrations/20290421182000_prima_nota_conti_specifici.sql","utf8");
+  await pg.exec(modifica.slice(modifica.indexOf("CREATE OR REPLACE FUNCTION public.prima_nota_modifica")));
+  await pg.exec(await readFile("supabase/migrations/20290421193000_prima_nota_incassi_cumulativi.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421193000_prima_nota_incassi_cumulativi.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421194000_prima_nota_incassi_importati_da_confrontare.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421194000_prima_nota_incassi_importati_da_confrontare.sql","utf8"));
   await pg.exec(`create trigger bank_proof_payment_removed before delete or update of amount,direction,bank_transaction_id on prima_nota_entries for each row execute function private.bank_proof_payment_lifecycle();`);
 },30000);
 beforeEach(async()=>{
@@ -153,5 +159,47 @@ describe("Prima nota e fonti finanziarie",()=>{
     expect((await pg.query<{id:string;invoice_payment_id:string}>("select id,invoice_payment_id from prima_nota_entries")).rows[0]).toEqual({id:pn,invoice_payment_id:payment});
     await pg.exec("update invoice_payments set amount=450");
     expect((await pg.query<{id:string;amount:string}>("select id,amount from prima_nota_entries")).rows[0]).toEqual({id:pn,amount:"450"});
+  });
+  it("due quote di fattura con riferimento allo stesso incasso non duplicano la cassa e il totale non si modifica come singola fattura",async()=>{
+    await pg.query("insert into invoices(id,company_id,total) values($1,$2,400)",[id(11),company]);
+    await pg.query("insert into prima_nota_entries(id,company_id,direction,amount,entry_date) values($1,$2,'entrata',1000,'2026-11-17')",[pn,company]);
+    await pay(`prima_nota:${pn}`,600);
+    await pg.query("insert into invoice_payments(id,company_id,invoice_id,amount,payment_date,reference) values($1,$2,$3,400,'2026-11-17',$4)",[id(41),company,id(11),`prima_nota:${pn}`]);
+    expect(await count()).toBe(1);
+    const esito=await rpc<{total:number;da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);
+    expect(esito.total).toBe(0);expect(esito.da_verificare).toHaveLength(0);
+    await expect(rpc("public.prima_nota_modifica",[pn,JSON.stringify({direction:"entrata",description:"Incasso",amount:1000,entry_date:"2026-11-17"})])).rejects.toMatchObject({code:"PT409"});
+  });
+  it("la stessa controparte e lo stesso importo con una data differente richiedono verifica",async()=>{
+    await pg.exec("update invoices set client_company_name='VISMARA CLAUDIO'");
+    await pg.query("insert into prima_nota_entries(company_id,direction,amount,entry_date,description) values($1,'entrata',500,'2026-11-27','CLAUDIO VISMARA')",[company]);
+    await pay(null,500);expect(await count()).toBe(1);
+    const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);
+    expect(esito.da_verificare).toHaveLength(1);
+  });
+  it("un pagamento automatico di costo senza collegamento al documento bancario non viene ricopiato",async()=>{
+    await pg.query("insert into prima_nota_entries(company_id,direction,amount,entry_date,is_auto,auto_source,cost_id,account_label) values($1,'entrata',11000,'2026-11-17',true,'company_cost_payment',$2,'banca')",[company,id(61)]);
+    await reconcile();expect(await count()).toBe(1);
+    const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,true,"both"]);
+    expect(esito.da_verificare).toHaveLength(1);
+  });
+  it("un pagamento senza riferimento bancario non aggiunge una seconda entrata a una fattura già riconciliata",async()=>{
+    await reconcile();await pay(null,11000);expect(await count()).toBe(1);
+    const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,true,"both"]);
+    expect(esito.da_verificare).toHaveLength(1);
+  });
+  it("una quota automatica già in cassa impedisce di ricopiare l'intero bonifico cumulativo",async()=>{
+    await pg.query("insert into prima_nota_entries(company_id,direction,amount,entry_date,is_auto,auto_source,account_label) values($1,'entrata',7000,'2026-11-17',true,'company_cost_payment','banca')",[company]);
+    await pg.query("insert into bank_reconciliations(id,company_id,transaction_id,invoice_id,matched_amount) values($1,$2,$3,$4,7000),($5,$2,$3,$6,4000)",[rec,company,tx,invoice,id(31),id(11)]);
+    await pg.exec("update bank_transactions set reconciliation_status='reconciled'");
+    expect(await count()).toBe(1);
+    const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,true,"from_banking"]);
+    expect(esito.da_verificare).toHaveLength(1);
+  });
+  it("un incasso storico importato richiede confronto anche se collegato a un'altra fattura della stessa controparte",async()=>{
+    await pg.query("insert into prima_nota_entries(company_id,invoice_id,direction,amount,entry_date,description,reconciliation_method) values($1,$2,'entrata',500,'2026-11-27','Cliente prova','imported')",[company,id(11)]);
+    await pay(null,500);expect(await count()).toBe(1);
+    const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"from_invoices"]);
+    expect(esito.da_verificare).toHaveLength(1);
   });
 });
