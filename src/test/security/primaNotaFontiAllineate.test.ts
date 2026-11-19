@@ -25,6 +25,7 @@ beforeAll(async()=>{
     grant usage on schema public,auth to authenticated;`);
   await pg.exec(await readFile("supabase/migrations/20290421183000_prima_nota_fonti_allineate.sql","utf8"));
   await pg.exec(await readFile("supabase/migrations/20290421190000_prima_nota_incassi_storici_prudenti.sql","utf8"));
+  await pg.exec(await readFile("supabase/migrations/20290421192000_prima_nota_pagamenti_manual_gia_presenti.sql","utf8"));
   await pg.exec(`create trigger bank_proof_payment_removed before delete or update of amount,direction,bank_transaction_id on prima_nota_entries for each row execute function private.bank_proof_payment_lifecycle();`);
 },30000);
 beforeEach(async()=>{
@@ -138,5 +139,19 @@ describe("Prima nota e fonti finanziarie",()=>{
     await pg.query("insert into prima_nota_entries(company_id,direction,amount,entry_date) values($1,'entrata',500,'2026-11-16')",[company]);
     const esito=await rpc<{total:number;da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);
     expect(esito.total).toBe(0);expect(esito.da_verificare).toHaveLength(1);expect(await count()).toBe(1);
+  });
+  it("un pagamento del registro non ricopia un movimento manuale senza il collegamento alla fattura",async()=>{
+    await pg.query("insert into prima_nota_entries(company_id,direction,amount,entry_date) values($1,'entrata',500,'2026-11-17')",[company]);
+    await pay(null,500);
+    expect(await count()).toBe(1);
+    const esito=await rpc<{da_verificare:unknown[]}>("public.prima_nota_allinea_fonti",[company,false,"both"]);
+    expect(esito.da_verificare).toHaveLength(1);
+  });
+  it("un movimento manuale già riferito alla fattura diventa il movimento del pagamento, mantenendo id e importo",async()=>{
+    await pg.query("insert into prima_nota_entries(id,company_id,invoice_id,direction,amount,entry_date) values($1,$2,$3,'entrata',500,'2026-11-17')",[pn,company,invoice]);
+    await pay(null,500);expect(await count()).toBe(1);
+    expect((await pg.query<{id:string;invoice_payment_id:string}>("select id,invoice_payment_id from prima_nota_entries")).rows[0]).toEqual({id:pn,invoice_payment_id:payment});
+    await pg.exec("update invoice_payments set amount=450");
+    expect((await pg.query<{id:string;amount:string}>("select id,amount from prima_nota_entries")).rows[0]).toEqual({id:pn,amount:"450"});
   });
 });

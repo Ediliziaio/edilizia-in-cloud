@@ -8,7 +8,7 @@ const banche = [
 ];
 vi.mock("@/hooks/useContiPrimaNota", () => ({useContiPrimaNota:()=>({data:banche,isError:false,isPending:false})}));
 vi.mock("@/contexts/AuthContext", () => ({useAuth:()=>({effectiveCompany:{id:"demo",contabilita_generale_attiva:true}})}));
-vi.mock("@/integrations/supabase/client", () => ({supabase:{rpc:async()=>({data:[],error:null}),from:()=>{
+vi.mock("@/integrations/supabase/client", () => ({supabase:{rpc:async():Promise<{data:{metodo:string}[];error:null}>=>({data:[],error:null}),from:()=>{
   const q={select:()=>q,eq:()=>q,order:()=>q,not:()=>q,is:()=>q,limit:()=>q,then:(r:unknown)=>Promise.resolve({data:[],error:null}).then(r as never)};return q;
 }}}));
 afterEach(()=>{cleanup();vi.clearAllMocks();});
