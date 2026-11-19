@@ -1,7 +1,10 @@
 import { useState, useRef } from "react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { ibanValido, pulisciIbanConto } from "@/lib/fatturazione/contiAzienda";
-import type { ContoFatturazione } from "@/types/fatturazione";
+import type { AnagraficaAzienda, ContoFatturazione } from "@/types/fatturazione";
+import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
+import { FatturaTemplatePreview } from "@/components/fatturazione/FatturaTemplatePreview";
+import { logoDiRiserva } from "../../../../supabase/functions/_shared/logoAzienda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -162,6 +165,7 @@ export default function ImpostazioniFatturazione() {
   const profilo = (effectiveCompany ?? null) as ProfiloAzienda | null;
   const provvisori = campiProvvisori(azienda as unknown as Record<string, unknown> | null | undefined);
   const current: Record<string, any> = { ...(azienda?.id ? schedaDaMostrare(azienda as unknown as Record<string, unknown>) : schedaDalProfilo(profilo)), ...form };
+  const logoFattura = logoDiRiserva(current.logo_url, effectiveCompany?.logo_url);
   const updateField = (key: string, value: any) => setForm((p) => ({ ...p, [key]: value }));
   // Gli altri conti dell'azienda: si scrivono qui, si scelgono in fattura.
   const altriConti: ContoFatturazione[] = Array.isArray(current.conti_fatturazione) ? current.conti_fatturazione : [];
@@ -604,9 +608,9 @@ export default function ImpostazioniFatturazione() {
             <CardContent className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="colore-fattura">Colore</Label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <input id="colore-fattura" type="color" value={current.colore_primario ?? "#0ea5e9"} onChange={(e) => updateField("colore_primario", e.target.value)} className="w-10 h-10 rounded border cursor-pointer" />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {["#0ea5e9", "#10b981", "#8b5cf6", "#ef4444", "#f59e0b", "#64748b", "#0f172a", "#dc2626"].map((c) => (
                       <button key={c} type="button" aria-label={`Colore ${c}`} aria-pressed={current.colore_primario === c} className={`w-8 h-8 rounded-full border-2 transition-all ${current.colore_primario === c ? "border-foreground scale-110" : "border-transparent hover:border-muted-foreground/30"}`}
                         style={{ backgroundColor: c }}
@@ -615,6 +619,7 @@ export default function ImpostazioniFatturazione() {
                   </div>
                 </div>
               </div>
+              <LogoSizeControl value={current.scala_logo} onChange={valore => updateField("scala_logo", valore)} disabled={!logoFattura} />
             </CardContent>
           </Card>
 
@@ -624,34 +629,7 @@ export default function ImpostazioniFatturazione() {
               <CardDescription>Un esempio con i tuoi dati: il numero è il prossimo che uscirà.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg p-6 bg-white dark:bg-gray-950 min-h-[200px]">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {current.logo_url && <img loading="lazy" src={current.logo_url} alt="Logo" className="h-10 object-contain" />}
-                    <div>
-                      <div className="font-bold text-sm" style={{ color: current.colore_primario ?? "#0ea5e9" }}>{current.ragione_sociale || "Nome azienda"}</div>
-                      <div className="text-[10px] text-muted-foreground">P.IVA {current.partita_iva || "—"}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold" style={{ color: current.colore_primario ?? "#0ea5e9" }}>FATTURA</div>
-                    <div className="text-xs text-muted-foreground">N° {numeroDiProva}</div>
-                    <div className="text-xs text-muted-foreground">del {new Date().toLocaleDateString("it-IT")}</div>
-                  </div>
-                </div>
-                <div className="mt-4 h-1 rounded" style={{ backgroundColor: current.colore_primario ?? "#0ea5e9" }} />
-                <div className="mt-4 grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Destinatario</div>
-                    <div className="text-xs font-medium">Cliente Esempio S.r.l.</div>
-                    <div className="text-[10px] text-muted-foreground">Via Roma 1, 00100 Roma</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1">Importo</div>
-                    <div className="text-lg font-bold">€ 1.220,00</div>
-                  </div>
-                </div>
-              </div>
+              <FatturaTemplatePreview azienda={current as AnagraficaAzienda} logoAziendale={effectiveCompany?.logo_url} numero={numeroDiProva} />
             </CardContent>
           </Card>
         </TabsContent>

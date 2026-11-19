@@ -37,6 +37,7 @@ import type { ModelloPdfSalvato } from "@/lib/modelliPdf/repository";
 import { anteprimaModello } from "@/lib/modelliPdf/anteprima";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -447,21 +448,8 @@ function EditorModello({
                     <option value={10}>Grande · 10 pt</option>
                   </UniformSelect>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pdf-scala-logo">Dimensione del logo</Label>
-                  <UniformSelect
-                    id="pdf-scala-logo"
-                    className="h-10 w-full rounded-md border bg-white px-3 text-sm"
-                    value={draft.scalaLogo}
-                    onChange={(e) =>
-                      patch({ scalaLogo: Number(e.target.value) })
-                    }
-                  >
-                    <option value={70}>Piccolo · 70%</option>
-                    <option value={85}>Medio · 85%</option>
-                    <option value={100}>Standard · 100%</option>
-                  </UniformSelect>
-                </div>
+                <LogoSizeControl value={draft.scalaLogo} disabled={!draft.mostraLogo}
+                  onChange={scalaLogo => patch({ scalaLogo })} />
                 <div className="space-y-2">
                   <Label htmlFor="pdf-riquadri">
                     Sfondo riquadri e tabelle

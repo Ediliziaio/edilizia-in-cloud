@@ -248,7 +248,7 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   return `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <title>${esc(titolo)}</title>
-<style>${CSS_PAGINA_STAMPA}${cssFoglio(tema)}</style>
+<style>${CSS_PAGINA_STAMPA}${cssFoglio(tema, azienda.scala_logo)}</style>
 </head><body>
 <div class="fd-foglio">
   <div class="fd-testata">

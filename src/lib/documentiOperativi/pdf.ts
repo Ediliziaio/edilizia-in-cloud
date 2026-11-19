@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { dimensioniLogo } from "../../../supabase/functions/_shared/dimensioniLogo";
 import {
   normalizzaModelloPdf,
   type ModelloPdf,
@@ -126,20 +127,24 @@ export function creaPdfOperativo(
     let hSx = 0,
       wSx = 0;
     let immagine: { tipo: string; w: number; h: number } | null = null;
+    let titoloSotto = false;
     let ragione: string[] = [];
     const passoRagione = passo(stileTestata.ragioneSocialeCorpo, 1.2);
     if (logo) {
       const info = pdf.getImageProperties(logo);
-      const scala = logoDellaVeste ? 1 : modello.scalaLogo / 100;
-      const maxH = mm(logoDellaVeste ? veste.logoAltezza! : stileTestata.logoAltezza) * scala;
-      // Il titolo deve stare su una riga accanto al logo: un logo largo (Vulcano, con le certificazioni) si ferma
-      // prima, invece di mandare il titolo a capo sopra il numero (14/11/2026).
+      // La veste decide la misura di serie; la scelta dell'utente la scala anche per Vulcano.
       font(stileTestata.titoloCorpo, true);
       const spazioTitolo = Math.min(pdf.getTextWidth(titolo), width * 0.5) + 8;
-      const maxW = Math.min(mm(logoDellaVeste ? veste.logoLarghezzaMax! : stileTestata.logoLarghezzaMax) * scala, width - spazioTitolo);
-      const rapporto = info.width / info.height;
-      wSx = Math.min(maxW, maxH * rapporto);
-      hSx = wSx / rapporto;
+      const misure = dimensioniLogo(
+        { larghezza: info.width, altezza: info.height },
+        { larghezza: Math.min(mm(veste.logoLarghezzaMax ?? stileTestata.logoLarghezzaMax), width - spazioTitolo), altezza: mm(veste.logoAltezza ?? stileTestata.logoAltezza) },
+        modello.scalaLogo,
+        { larghezza: width, altezza: mm(140) },
+      );
+      wSx = misure.larghezza;
+      hSx = misure.altezza;
+      // Un logo ingrandito può usare tutta la riga: titolo e numero scendono sotto.
+      titoloSotto = wSx > width - spazioTitolo + 0.01;
       immagine = { tipo: info.fileType, w: wSx, h: hSx };
     } else if (modello.mostraLogo) {
       // Senza logo: la ragione sociale, in grassetto.
@@ -148,7 +153,7 @@ export function creaPdfOperativo(
       wSx = Math.max(...ragione.map((r) => pdf.getTextWidth(r)));
       hSx = ragione.length * passoRagione;
     }
-    const wDx = Math.max(50, width - wSx - 8);
+    const wDx = titoloSotto ? width : Math.max(50, width - wSx - 8);
     let corpoTitolo: number = stileTestata.titoloCorpo;
     font(corpoTitolo, true);
     let righeTitolo = lines(titolo, wDx);
@@ -159,8 +164,8 @@ export function creaPdfOperativo(
     }
     const passoTitolo = passo(corpoTitolo, 1.2);
     const hDx = righeTitolo.length * passoTitolo + passo(stileTestata.sottotitoloCorpo, 1.3);
-    const fondo = top + Math.max(hSx, hDx);
-    if (immagine) pdf.addImage(logo!, immagine.tipo, left, fondo - immagine.h, immagine.w, immagine.h);
+    const fondo = top + (titoloSotto ? hSx + mm(12) + hDx : Math.max(hSx, hDx));
+    if (immagine) pdf.addImage(logo!, immagine.tipo, left, titoloSotto ? top : fondo - immagine.h, immagine.w, immagine.h);
     else if (ragione.length) {
       font(stileTestata.ragioneSocialeCorpo, true);
       ragione.forEach((r, i) => pdf.text(r, left, fondo - hSx + passoRagione * (i + 0.78)));

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PdfBlobLivePreviewPanel } from "@/components/shared/PdfBlobLivePreviewPanel";
+import { LogoSizeControl } from "@/components/shared/LogoSizeControl";
 import { CondizioniContratto } from "@/components/preventivi/CondizioniContratto";
 import { createPdfPreviewUrl } from "@/lib/pdfPreviewSource";
 import { ComputoFormatoSchede, ComputoOpzione } from "./ComputoPdfControls";
@@ -131,6 +132,8 @@ export default function ComputoModelloPanel({ canEdit }: { canEdit: boolean }) {
           </div>
           <div className="rounded-lg border px-3">
             <ComputoOpzione label={effectiveCompany?.logo_url ? "Logo dell'azienda in copertina" : "Logo in copertina (caricalo in Impostazioni → Marchio)"} checked={m.mostraLogo && !!effectiveCompany?.logo_url} disabled={!effectiveCompany?.logo_url || !canEdit} onChange={mostraLogo => cambia({ mostraLogo })} />
+            <div className="border-t py-3"><LogoSizeControl value={m.scalaLogo} onChange={scalaLogo => cambia({ scalaLogo })}
+              disabled={!m.mostraLogo || !effectiveCompany?.logo_url || !canEdit} /></div>
             <ComputoOpzione label="Firme dell'impresa e del committente in fondo" checked={m.mostraFirma} disabled={!canEdit} onChange={mostraFirma => cambia({ mostraFirma })} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
