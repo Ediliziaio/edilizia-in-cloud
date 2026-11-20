@@ -58,11 +58,13 @@ const confrontoGoogle = {
   eic: { dal: "2026-09-08", al: "2026-09-09", giorni: 2, sessioni: 11, clic: 18, impressioni: 160 },
 };
 
-const rpc = vi.fn(async (nome: string, _parametri: unknown) => ({
+const rispostaBase = async (nome: string, _parametri: unknown): Promise<{ data: unknown; error: null }> => ({
   data: nome === "admin_siti_metriche" ? metricheGoogle
-    : nome === "admin_siti_confronto_google" ? confrontoGoogle : traffico,
+    : nome === "admin_siti_confronto_google" ? confrontoGoogle
+    : nome === "admin_sito_google_organico_giornaliero" ? [] : traffico,
   error: null,
-}));
+});
+const rpc = vi.fn(rispostaBase);
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: (...args: unknown[]) => rpc(args[0] as string, args[1]) },
@@ -87,6 +89,7 @@ describe("SiteTrafficPage", () => {
 
   afterEach(() => {
     contenitore?.remove();
+    rpc.mockReset().mockImplementation(rispostaBase);
   });
 
   async function rendi(): Promise<string> {
@@ -172,5 +175,44 @@ describe("SiteTrafficPage", () => {
     expect(rpc).toHaveBeenCalledWith("admin_siti_confronto_google", { p_giorni: 30 });
     expect([...confronto()!.querySelectorAll("dd")].map(x => x.textContent)).toEqual(["18", "11"]);
     expect(contenitore.textContent).toContain("GA4 · Tutti i canali");
+  });
+
+  it("aggiorna la serie giornaliera con il periodo e distingue zero da un giorno mancante", async () => {
+    rpc.mockImplementation(async (nome, parametri) => {
+      const giorni = (parametri as { p_giorni: number }).p_giorni;
+      if (nome === "admin_sito_google_organico_giornaliero") {
+        return {
+          data: [
+            ...(giorni === 30 ? [{ giorno: "2026-08-20", clic: 51, sessioni: 42 }] : []),
+            { giorno: "2026-09-10", clic: 0, sessioni: 0 },
+            { giorno: "2026-09-11", clic: null, sessioni: null },
+          ],
+          error: null,
+        };
+      }
+      if (nome === "admin_siti_metriche") return {
+        data: {
+          chiave_google: true,
+          siti: [{ id: "eic", dominio: "www.ediliziaincloud.com", ga4_property_id: "42", gsc_site_url: "sc-domain:ediliziaincloud.com" }],
+        },
+        error: null,
+      };
+      if (nome === "admin_siti_confronto_google") return { data: {}, error: null };
+      return rispostaBase(nome, parametri);
+    });
+    await rendi();
+    await apriScheda("Dati Google");
+    await vi.waitFor(() => expect(contenitore.textContent).toContain("Andamento giornaliero"));
+    const bottone = (nome: string) => [...contenitore.querySelectorAll("button")].find(b => b.textContent === nome);
+    await act(async () => bottone("Mostra dati giornalieri")?.click());
+    const righe = () => [...contenitore.querySelectorAll("tbody tr")];
+    expect(righe()).toHaveLength(3);
+    expect(righe()[0].querySelectorAll('[aria-label="Dato non disponibile"]')).toHaveLength(2);
+    expect([...righe()[1].querySelectorAll("td")].map(td => td.textContent)).toEqual(["0", "0"]);
+    await act(async () => bottone("7 giorni")?.click());
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledWith("admin_sito_google_organico_giornaliero", { p_sito: "eic", p_giorni: 7 }));
+    await vi.waitFor(() => expect(contenitore.textContent).toContain("Andamento giornaliero"));
+    expect(righe()).toHaveLength(2);
+    expect(contenitore.querySelector('time[datetime="2026-08-20"]')).toBeNull();
   });
 });

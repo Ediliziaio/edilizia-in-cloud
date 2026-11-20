@@ -1,483 +1,524 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertCircle, Ban, Building2, Calculator, ChevronRight, Clock, KeyRound,
+  MoreHorizontal, Pencil, Play, RefreshCw, Search, Users, X,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+import { CommercialistiAnalytics } from "@/components/admin/commercialisti/CommercialistiAnalytics";
+import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
+import { IntestazioneArea } from "@/components/admin/fatturato/AreaUI";
+import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { IntestazioneArea } from "@/components/admin/fatturato/AreaUI";
-import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
-import { AccessDenied } from "@/components/admin/AccessDenied";
-import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
-import { CommercialistiAnalytics } from "@/components/admin/commercialisti/CommercialistiAnalytics";
-import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
-import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
-import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
-import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
-import { InfoStrip } from "@/components/admin/InfoStrip";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
-  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil, X,
-} from "lucide-react";
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { latestActivity, useAdminActivity, type ActivityEntry } from "@/hooks/useAdminActivity";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { ACCESS_MODE_OPTIONS } from "@/lib/commercialista/livelliAccesso";
+import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
+import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRow = any;
-
-interface Member { user_id: string; role: string | null; status: string | null; email: string | null; name: string | null }
-interface ManagedCompany { company_id: string; status: string | null; access_mode: string | null; company_name: string | null; company_status: string | null }
-interface Studio {
-  id: string;
-  name: string;
-  status: string | null;
-  created_at: string | null;
-  owner_email: string | null;
-  owner_user_id: string | null;
-  owner_name: string | null;
-  firm_email: string | null;
-  vat_number: string | null;
-  fiscal_code: string | null;
-  contract_status: string | null;
-  dpa_status: string | null;
-  members: Member[];
-  members_count: number;
-  companies: ManagedCompany[];
-}
-
-const FIRM_STATUS_LABEL: Record<string, string> = {
-  active: "Attivo", suspended: "Sospeso", pending_contract: "Contratto in attesa", archived: "Archiviato",
+const STUDIO_LABEL: Record<string, string> = {
+  active: "Attivo", pending_contract: "Contratto in attesa", suspended: "Sospeso", archived: "Archiviato",
 };
-const MODE_LABEL: Record<string, string> = {
-  operational: "Operativo", read_only: "Sola lettura", approval_required: "Con approvazione",
-};
-const STATUS_IT: Record<string, string> = {
+const DOCUMENTO_LABEL: Record<string, string> = {
   pending: "In attesa", sent: "Inviato", signed: "Firmato", approved: "Approvato",
-  active: "Attivo", rejected: "Rifiutato", none: "—", not_required: "Non richiesto",
+  rejected: "Rifiutato", not_required: "Non richiesto",
+};
+const DELEGA_LABEL: Record<string, string> = {
+  active: "Attiva", invited: "Invito in attesa", suspended: "Sospesa",
+};
+const MEMBRO_LABEL: Record<string, string> = { active: "Attivo", invited: "Invitato", suspended: "Sospeso" };
+const RUOLO_LABEL: Record<string, string> = {
+  owner: "Titolare", admin: "Amministratore", collaborator: "Collaboratore", viewer: "Solo lettura",
+};
+const MODALITA_LABEL = new Map<string, string>(ACCESS_MODE_OPTIONS.map(m => [m.value, m.label]));
+const FILTRI_STUDIO = [["active", "Attivi"], ["pending_contract", "Contratto in attesa"], ["suspended", "Sospesi"], ["archived", "Archiviati"]];
+const FILTRI_DELEGA = [["active", "Attive"], ["invited", "Inviti in attesa"], ["suspended", "Sospese"], ["none", "Senza deleghe"]];
+const ORDINI = [["recenti", "Più recenti"], ["nome", "Nome A–Z"], ["deleghe", "Più deleghe attive"]];
+const DATA_IT = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short", year: "numeric" });
+const GIORNO_MS = 86_400_000;
+const CHIAVE_STUDI = ["admin-commercialisti"] as const;
+
+type Membro = {
+  user_id: string; name: string | null; email: string | null; role: string; status: string;
+};
+type Delega = {
+  id: string; company_id: string; status: string; access_mode: string;
+  company_name: string | null; company_status: string | null;
 };
 
-async function fetchStudi(): Promise<Studio[]> {
-  // accountant_* non sempre nei tipi generati → client non tipizzato.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any;
-  const { data: firms, error: e1 } = await sb
-    .from("accountant_firms").select("id, name, status, owner_user_id, email, vat_number, fiscal_code, contract_status, dpa_status, created_at")
+async function fetchStudi() {
+  const { data: firms, error } = await supabase
+    .from("accountant_firms")
+    .select("id, name, status, owner_user_id, email, vat_number, fiscal_code, contract_status, dpa_status, created_at")
     .order("created_at", { ascending: false });
-  if (e1) throw new Error(e1.message);
-  const firmIds: string[] = (firms ?? []).map((f: AnyRow) => f.id);
-  if (firmIds.length === 0) return [];
+  if (error) throw error;
+  if (!firms?.length) return [];
 
-  // PERF: membri e deleghe dipendono solo dai firmIds → in parallelo (4→3 RTT).
-  const [membersRes, accessRes] = await Promise.all([
-    sb.from("accountant_firm_members").select("firm_id, user_id, role, status").in("firm_id", firmIds),
-    sb.from("accountant_company_access")
-      .select("firm_id, company_id, status, access_mode, company:companies!inner(id, name, status)")
+  const firmIds = firms.map(firm => firm.id);
+  const [membri, deleghe] = await Promise.all([
+    supabase.from("accountant_firm_members").select("firm_id, user_id, role, status").in("firm_id", firmIds),
+    supabase.from("accountant_company_access")
+      .select("id, firm_id, company_id, status, access_mode, company:companies!inner(name, status)")
       .in("firm_id", firmIds).in("status", ["active", "invited", "suspended"]),
   ]);
-  const members = membersRes.data;
-  const access = accessRes.data;
+  if (membri.error) throw membri.error;
+  if (deleghe.error) throw deleghe.error;
 
-  const userIds: string[] = [...new Set([
-    ...(members ?? []).map((m: AnyRow) => m.user_id),
-    ...(firms ?? []).map((f: AnyRow) => f.owner_user_id),
-  ].filter(Boolean))];
-  const { data: profs } = userIds.length
-    ? await sb.from("profiles").select("id, email, first_name, last_name").in("id", userIds)
-    : { data: [] as AnyRow[] };
+  const userIds = [...new Set([
+    ...membri.data.map(membro => membro.user_id),
+    ...firms.map(firm => firm.owner_user_id).filter((id): id is string => !!id),
+  ])];
+  const profili = userIds.length
+    ? await supabase.from("profiles").select("id, email, first_name, last_name").in("id", userIds)
+    : null;
+  if (profili?.error) throw profili.error;
 
-  const emailById = new Map<string, string>((profs ?? []).map((p: AnyRow) => [p.id, p.email]));
-  const nameById = new Map<string, string>((profs ?? []).map((p: AnyRow) => [
-    p.id, [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.email,
-  ]));
+  const profiloPerId = new Map((profili?.data ?? []).map(profilo => [profilo.id, profilo]));
+  const nomeUtente = (id: string | null) => {
+    const profilo = id ? profiloPerId.get(id) : undefined;
+    return profilo ? [profilo.first_name, profilo.last_name].filter(Boolean).join(" ") || null : null;
+  };
+  const membriPerStudio = new Map<string, Membro[]>();
+  for (const membro of membri.data) {
+    const lista = membriPerStudio.get(membro.firm_id) ?? [];
+    lista.push({
+      user_id: membro.user_id, role: membro.role, status: membro.status,
+      name: nomeUtente(membro.user_id), email: profiloPerId.get(membro.user_id)?.email ?? null,
+    });
+    membriPerStudio.set(membro.firm_id, lista);
+  }
 
-  const membersByFirm = new Map<string, Member[]>();
-  (members ?? []).forEach((m: AnyRow) => {
-    const arr = membersByFirm.get(m.firm_id) ?? [];
-    arr.push({ user_id: m.user_id, role: m.role, status: m.status, email: emailById.get(m.user_id) ?? null, name: nameById.get(m.user_id) ?? null });
-    membersByFirm.set(m.firm_id, arr);
-  });
-  const accessByFirm = new Map<string, ManagedCompany[]>();
-  (access ?? []).forEach((a: AnyRow) => {
-    const arr = accessByFirm.get(a.firm_id) ?? [];
-    arr.push({ company_id: a.company_id, status: a.status, access_mode: a.access_mode, company_name: a.company?.name ?? null, company_status: a.company?.status ?? null });
-    accessByFirm.set(a.firm_id, arr);
-  });
+  const deleghePerStudio = new Map<string, Delega[]>();
+  for (const delega of deleghe.data) {
+    const lista = deleghePerStudio.get(delega.firm_id) ?? [];
+    lista.push({
+      id: delega.id, company_id: delega.company_id, status: delega.status, access_mode: delega.access_mode,
+      company_name: delega.company?.name ?? null, company_status: delega.company?.status ?? null,
+    });
+    deleghePerStudio.set(delega.firm_id, lista);
+  }
 
-  return (firms ?? []).map((f: AnyRow): Studio => {
-    const mem = membersByFirm.get(f.id) ?? [];
+  return firms.map(firm => {
+    const members = membriPerStudio.get(firm.id) ?? [];
+    const companies = deleghePerStudio.get(firm.id) ?? [];
     return {
-      id: f.id, name: f.name, status: f.status ?? null, created_at: f.created_at ?? null,
-      owner_email: emailById.get(f.owner_user_id) ?? f.email ?? null,
-      owner_user_id: f.owner_user_id ?? null,
-      owner_name: nameById.get(f.owner_user_id) ?? null,
-      firm_email: f.email ?? null,
-      vat_number: f.vat_number ?? null,
-      fiscal_code: f.fiscal_code ?? null,
-      contract_status: f.contract_status ?? null,
-      dpa_status: f.dpa_status ?? null,
-      members: mem,
-      members_count: mem.filter((m) => m.status === "active").length,
-      companies: accessByFirm.get(f.id) ?? [],
+      ...firm,
+      owner_email: firm.owner_user_id ? profiloPerId.get(firm.owner_user_id)?.email ?? null : null,
+      owner_name: nomeUtente(firm.owner_user_id),
+      members,
+      members_count: members.filter(m => m.status === "active").length,
+      companies,
+      deleghe_attive: companies.filter(c => c.status === "active").length,
+      inviti: companies.filter(c => c.status === "invited").length,
+      deleghe_sospese: companies.filter(c => c.status === "suspended").length,
     };
   });
 }
 
-export default function CommercialistiDashboard() {
-  const { permissions: saPermissions } = useSuperAdminPermissions();
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [suspendTarget, setSuspendTarget] = useState<Studio | null>(null);
-  const [accessTarget, setAccessTarget] = useState<Studio | null>(null);
-  const [editTarget, setEditTarget] = useState<Studio | null>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortKey, setSortKey] = useState("recent");
-  const [inactiveOnly, setInactiveOnly] = useState(false);
+type Studio = Awaited<ReturnType<typeof fetchStudi>>[number];
 
-  const { data: studi = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-commercialisti"],
-    queryFn: fetchStudi,
-    staleTime: 60_000,
-    enabled: saPermissions.can_manage_companies,
-  });
+function attivitaTitolare(studio: Studio, activity: Record<string, ActivityEntry>) {
+  return studio.owner_user_id ? activity[studio.owner_user_id] : undefined;
+}
 
-  const setFirmStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "active" | "suspended" }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).from("accountant_firms").update({ status }).eq("id", id);
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: (_d, vars) => {
-      toast.success(vars.status === "suspended" ? "Studio sospeso" : "Studio riattivato");
-      setSuspendTarget(null);
-      qc.invalidateQueries({ queryKey: ["admin-commercialisti"] });
-    },
-    onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
-  });
+function senzaAccessiRecenti(attivita: ActivityEntry | undefined, now: number) {
+  if (!attivita) return false;
+  const ultima = latestActivity(attivita);
+  return ultima ? Date.parse(ultima) <= now - 30 * GIORNO_MS : !!attivita.created_at;
+}
 
-  const { activity, isLoading: activityLoading } = useAdminActivity(studi.map((s) => s.owner_user_id));
-  const [nowMs] = useState(() => Date.now());
+function Filtro({ label, value, options, onChange }: {
+  label: string; value: string; options: string[][]; onChange: (value: string) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-9 min-w-0" aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectContent>
+        {options.map(([id, text]) => <SelectItem key={id} value={id}>{text}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const cutoff = nowMs - 30 * 86_400_000;
-    const arr = studi.filter((s) => {
-      if (statusFilter !== "all" && (s.status ?? "") !== statusFilter) return false;
-      if (inactiveOnly) {
-        const ts = latestActivity(activity[s.owner_user_id ?? ""]);
-        if (ts && Date.parse(ts) >= cutoff) return false;
-      }
-      if (q) {
-        const hay = `${s.name} ${s.owner_email ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-    return [...arr].sort((a, b) => {
-      if (sortKey === "name") return a.name.localeCompare(b.name);
-      if (sortKey === "aziende") return b.companies.length - a.companies.length;
-      return (b.created_at ?? "").localeCompare(a.created_at ?? "");
-    });
-  }, [studi, search, statusFilter, sortKey, inactiveOnly, activity, nowMs]);
+const COLONNE_STUDIO = "grid min-w-0 grid-cols-1 items-center gap-x-3 gap-y-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(6.5rem,.65fr)] xl:grid-cols-[minmax(0,1.65fr)_minmax(6.5rem,.65fr)_minmax(8rem,.8fr)_minmax(8.25rem,.75fr)]";
 
-  const gruppiStato = useMemo(() => {
-    const ordine = ["active", "pending_contract", "suspended", "archived"];
-    const m = new Map<string, Studio[]>();
-    for (const s of filtered) m.set(s.status ?? "", [...(m.get(s.status ?? "") ?? []), s]);
-    return [...m.entries()]
-      .sort(([a], [b]) => (ordine.indexOf(a) < 0 ? 99 : ordine.indexOf(a)) - (ordine.indexOf(b) < 0 ? 99 : ordine.indexOf(b)))
-      .map(([stato, lista]) => ({ stato, etichetta: FIRM_STATUS_LABEL[stato] ?? (stato || "Senza stato"), studi: lista }));
-  }, [filtered]);
-
-  const inactiveCount = useMemo(() => {
-    if (activityLoading) return undefined;
-    const cutoff = nowMs - 30 * 86_400_000;
-    return studi.reduce((n, s) => {
-      const ts = latestActivity(activity[s.owner_user_id ?? ""]);
-      return n + (!ts || Date.parse(ts) < cutoff ? 1 : 0);
-    }, 0);
-  }, [studi, activity, nowMs, activityLoading]);
-
-  if (!saPermissions.can_manage_companies) return <AccessDenied />;
+function DatiStudio({ studio }: { studio: Studio }) {
+  const dati = [
+    ["Titolare", studio.owner_name ?? studio.owner_email],
+    ["Email dello studio", studio.email],
+    ["Partita IVA", studio.vat_number],
+    ["Codice fiscale", studio.fiscal_code],
+    ["Registrazione", DATA_IT.format(new Date(studio.created_at))],
+    ["Contratto", DOCUMENTO_LABEL[studio.contract_status] ?? studio.contract_status],
+    ["DPA", DOCUMENTO_LABEL[studio.dpa_status] ?? studio.dpa_status],
+  ];
+  const ordineDeleghe = ["active", "invited", "suspended"];
+  const deleghe = [...studio.companies].sort((a, b) =>
+    ordineDeleghe.indexOf(a.status) - ordineDeleghe.indexOf(b.status)
+    || (a.company_name ?? "").localeCompare(b.company_name ?? "", "it"),
+  );
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      <IntestazioneArea
-        icona={Calculator}
-        titolo="Commercialisti"
-        spiegazione="Studi commercialisti e le aziende clienti che gestiscono in delega."
-        badge={!isLoading && studi.length > 0 ? <Badge variant="outline">{studi.length} studi</Badge> : undefined}
-      />
+    <div className="space-y-3 border-t bg-muted/25 p-3 sm:p-4">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border bg-card px-3 py-3 sm:grid-cols-3 lg:grid-cols-4">
+        {dati.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="mt-0.5 break-words text-sm font-medium">{value || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <section className="min-w-0 rounded-lg border bg-card" aria-label="Deleghe aziendali">
+          <h3 className="flex items-center gap-2 border-b px-3 py-2.5 text-sm font-semibold">
+            <Building2 className="size-4 text-muted-foreground" aria-hidden="true" /> Deleghe aziendali
+            <span className="text-xs font-normal text-muted-foreground">{deleghe.length}</span>
+          </h3>
+          {!deleghe.length ? <p className="px-3 py-4 text-sm text-muted-foreground">Nessuna delega associata.</p> : (
+            <ul className="divide-y">
+              {deleghe.map(delega => (
+                <li key={delega.id}>
+                  <Link to={`/admin/aziende/${delega.company_id}`}
+                    className="flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-muted/50">
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-medium">{delega.company_name ?? "Azienda"}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {MODALITA_LABEL.get(delega.access_mode) ?? delega.access_mode} · Stato azienda {companyStatusLabelIt(delega.company_status)}
+                      </p>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <Badge variant={delega.status === "active" ? "secondary" : "outline"}
+                        className={delega.status === "invited" ? "text-amber-700 dark:text-amber-400" : undefined}>
+                        {DELEGA_LABEL[delega.status] ?? delega.status}
+                      </Badge>
+                      <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      {!isLoading && !isError && studi.length > 0 && <CommercialistiAnalytics studi={studi} inactiveCount={inactiveCount} onInactiveClick={() => setInactiveOnly(true)} />}
+        <section className="min-w-0 rounded-lg border bg-card" aria-label="Membri dello studio">
+          <h3 className="flex items-center gap-2 border-b px-3 py-2.5 text-sm font-semibold">
+            <Users className="size-4 text-muted-foreground" aria-hidden="true" /> Membri dello studio
+            <span className="text-xs font-normal text-muted-foreground">{studio.members.length}</span>
+          </h3>
+          {!studio.members.length ? <p className="px-3 py-4 text-sm text-muted-foreground">Nessun membro associato.</p> : (
+            <ul className="divide-y">
+              {studio.members.map(membro => (
+                <li key={membro.user_id} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                  <div className="min-w-0 break-words">
+                    <p className="text-sm font-medium">{membro.name ?? membro.email ?? "Membro"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {RUOLO_LABEL[membro.role] ?? membro.role}{membro.name && membro.email ? ` · ${membro.email}` : ""}
+                    </p>
+                  </div>
+                  <Badge variant={membro.status === "active" ? "secondary" : "outline"} className="shrink-0">
+                    {MEMBRO_LABEL[membro.status] ?? membro.status}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
 
-      {isError && (
+export default function CommercialistiDashboard() {
+  const { permissions } = useSuperAdminPermissions();
+  const qc = useQueryClient();
+  const [params, setParams] = useSearchParams();
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [statusTarget, setStatusTarget] = useState<Studio | null>(null);
+  const [accessTarget, setAccessTarget] = useState<Studio | null>(null);
+  const [editTarget, setEditTarget] = useState<Studio | null>(null);
+  const [now] = useState(() => Date.now());
+  const query = useQuery({
+    queryKey: CHIAVE_STUDI,
+    queryFn: fetchStudi,
+    enabled: permissions.can_manage_companies,
+    retry: retryAuthorizedRead,
+    staleTime: 60_000,
+  });
+  const studi = query.data ?? [];
+  const attivita = useAdminActivity(permissions.super_admin ? studi.map(studio => studio.owner_user_id) : []);
+  const cerca = params.get("q") ?? "";
+  const stato = params.get("stato") ?? "tutti";
+  const delega = params.get("delega") ?? "tutte";
+  const ordine = params.get("ordine") ?? "recenti";
+  const inattivi = params.get("accessi") === "inattivi";
+  const filtriAttivi = !!cerca || stato !== "tutti" || delega !== "tutte" || ordine !== "recenti" || inattivi;
+
+  function impostaFiltro(chiave: string, valore: string, predefinito = "") {
+    setParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (valore === predefinito) next.delete(chiave);
+      else next.set(chiave, valore);
+      return next;
+    }, { replace: true });
+  }
+
+  function azzeraFiltri() {
+    setParams(prev => {
+      const next = new URLSearchParams(prev);
+      ["q", "stato", "delega", "ordine", "accessi"].forEach(chiave => next.delete(chiave));
+      return next;
+    }, { replace: true });
+  }
+
+  function aggiorna() {
+    void query.refetch();
+    if (permissions.super_admin && studi.some(s => s.owner_user_id)) void attivita.refetch();
+  }
+
+  const setFirmStatus = useMutation({
+    mutationFn: async (studio: Studio) => {
+      const status = studio.status === "suspended" ? "active" : "suspended";
+      const { data, error } = await supabase.from("accountant_firms").update({ status })
+        .eq("id", studio.id).eq("status", studio.status).select("id").maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Lo stato dello studio è cambiato o non è modificabile.");
+      return status;
+    },
+    onSuccess: status => {
+      toast.success(status === "suspended" ? "Studio sospeso" : "Studio riattivato");
+      setStatusTarget(null);
+      void qc.invalidateQueries({ queryKey: CHIAVE_STUDI });
+    },
+    onError: error => toast.error("Operazione fallita", { description: error.message }),
+  });
+
+  const termine = cerca.trim().toLocaleLowerCase("it");
+  const filtrati = studi.filter(studio => {
+    if (stato !== "tutti" && studio.status !== stato) return false;
+    if (delega === "none" ? studio.companies.length > 0 : delega !== "tutte" && !studio.companies.some(c => c.status === delega)) return false;
+    if (inattivi && !senzaAccessiRecenti(attivitaTitolare(studio, attivita.activity), now)) return false;
+    return !termine || [
+      studio.name, studio.owner_name, studio.owner_email, studio.email, studio.vat_number, studio.fiscal_code,
+      ...studio.companies.map(c => c.company_name),
+    ].some(value => value?.toLocaleLowerCase("it").includes(termine));
+  }).sort((a, b) => {
+    if (ordine === "nome") return a.name.localeCompare(b.name, "it");
+    if (ordine === "deleghe") return b.deleghe_attive - a.deleghe_attive || a.name.localeCompare(b.name, "it");
+    return b.created_at.localeCompare(a.created_at);
+  });
+  const quantiInattivi = studi.filter(studio => senzaAccessiRecenti(attivitaTitolare(studio, attivita.activity), now)).length;
+
+  if (!permissions.can_manage_companies) return <AccessDenied />;
+
+  return (
+    <div className="max-w-[1600px] min-w-0 space-y-4">
+      <IntestazioneArea icona={Calculator} titolo="Commercialisti" spiegazione="Studi, deleghe aziendali e accessi al portale."
+        azioni={<Button variant="outline" size="sm" onClick={aggiorna} disabled={query.isFetching} aria-label="Aggiorna studi">
+          <RefreshCw className={`size-4 ${query.isFetching ? "motion-safe:animate-spin" : ""}`} aria-hidden="true" />
+          <span className="hidden sm:inline">Aggiorna</span>
+        </Button>} />
+
+      {query.isError && (
         <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>Errore nel caricamento dei commercialisti.</span>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="mr-1 h-3 w-3" /> Riprova
-            </Button>
+          <AlertCircle className="size-4" />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>Impossibile aggiornare studi, deleghe e membri.</span>
+            <Button variant="outline" size="sm" onClick={aggiorna}>Riprova</Button>
           </AlertDescription>
         </Alert>
       )}
-
-      {!isLoading && !isError && studi.length > 0 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca studio o email owner…" className="pl-8" />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[170px]"><SelectValue placeholder="Stato" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti gli stati</SelectItem>
-              <SelectItem value="active">Attivi</SelectItem>
-              <SelectItem value="suspended">Sospesi</SelectItem>
-              <SelectItem value="pending_contract">Contratto in attesa</SelectItem>
-              <SelectItem value="archived">Archiviati</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={sortKey} onValueChange={setSortKey}>
-            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Ordina" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">Più recenti</SelectItem>
-              <SelectItem value="name">Nome A-Z</SelectItem>
-              <SelectItem value="aziende">Più aziende</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {query.isLoading && <Skeleton className="h-40 w-full" />}
+      {query.isSuccess && !studi.length && (
+        <Card className="p-8 text-center">
+          <Calculator className="mx-auto mb-2 size-6 text-muted-foreground" aria-hidden="true" />
+          <p className="font-medium">Nessuno studio registrato</p>
+          <p className="mt-1 text-sm text-muted-foreground">Gli studi possono registrarsi o ricevere un invito da un’azienda.</p>
+        </Card>
       )}
 
-      {inactiveOnly && !isLoading && !isError && (
-        <button type="button" onClick={() => setInactiveOnly(false)} title="Rimuovi filtro">
-          <Badge variant="outline" className="gap-1 border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100">
-            Solo inattivi / mai entrati <X className="h-3 w-3" />
-          </Badge>
-        </button>
-      )}
+      {studi.length > 0 && <>
+        <CommercialistiAnalytics studi={studi} filtri={{ attivi: stato === "active", inviti: delega === "invited" }}
+          onAttivi={() => impostaFiltro("stato", stato === "active" ? "tutti" : "active", "tutti")}
+          onInviti={() => impostaFiltro("delega", delega === "invited" ? "tutte" : "invited", "tutte")} />
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
-        </div>
-      ) : studi.length === 0 && !isError ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Calculator className="h-10 w-10 text-muted-foreground opacity-40" />
-            <div>
-              <p className="font-medium">Nessuno studio ancora</p>
-              <p className="mt-1 text-sm text-muted-foreground">Gli studi si registrano da soli o vengono invitati dalle aziende.</p>
+        <Card className="min-w-0">
+          <div className="space-y-3 p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <h2 className="font-semibold">Elenco studi</h2>
+                <p className="text-xs text-muted-foreground" aria-live="polite">{filtrati.length} di {studi.length}</p>
+              </div>
+              {permissions.super_admin && (
+                <Button variant={inattivi ? "secondary" : "outline"} size="sm" aria-pressed={inattivi}
+                  disabled={attivita.isLoading || attivita.isError}
+                  onClick={() => impostaFiltro("accessi", inattivi ? "" : "inattivi")}
+                  title="Titolari senza accessi negli ultimi 30 giorni o mai entrati">
+                  <Clock className="size-4" aria-hidden="true" /> Inattivi o mai entrati
+                  {!attivita.isLoading && !attivita.isError && <span className="tabular-nums text-muted-foreground">{quantiInattivi}</span>}
+                </Button>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Nessuno studio corrisponde ai filtri.
-          </CardContent>
-        </Card>
-      ) : (
-        // Raggruppati per stato (attivi prima); su schermo largo due colonne.
-        <div className="space-y-4">
-        {gruppiStato.map((g) => (
-        <section key={g.stato} className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.etichetta} · {g.studi.length}</h2>
-        <ul className="grid items-start gap-2 xl:grid-cols-2">
-          {g.studi.map((s) => {
-            const isOpen = expanded === s.id;
-            const azOper = s.companies.filter((c) => c.access_mode === "operational").length;
-            const azRead = s.companies.filter((c) => c.access_mode === "read_only").length;
-            const azAppr = s.companies.filter((c) => c.access_mode === "approval_required").length;
-            return (
-              <li key={s.id} className="overflow-hidden rounded-xl border bg-card">
-                <button
-                  type="button"
-                  onClick={() => setExpanded(isOpen ? null : s.id)}
-                  className="flex w-full items-center gap-3 p-4 text-left hover:bg-muted/40"
-                >
-                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <Calculator className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-semibold">{s.name}</span>
-                      <Badge variant={s.status === "active" ? "default" : s.status === "suspended" ? "destructive" : "secondary"} className="shrink-0">
-                        {FIRM_STATUS_LABEL[s.status ?? ""] ?? s.status ?? "—"}
-                      </Badge>
-                    </div>
-                    {s.owner_email && (
-                      <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <Mail className="h-3 w-3" /> {s.owner_email}
+            <div className="grid grid-cols-2 items-center gap-2 lg:grid-cols-[minmax(12rem,1fr)_repeat(3,minmax(8rem,.42fr))_auto]">
+              <div className="relative col-span-2 lg:col-span-1">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input type="search" aria-label="Cerca studi e aziende" value={cerca}
+                  onChange={event => impostaFiltro("q", event.target.value)}
+                  placeholder="Studio, email, P.IVA o azienda" className="h-9 pl-8" />
+              </div>
+              <Filtro label="Stato dello studio" value={stato} options={[["tutti", "Tutti gli studi"], ...FILTRI_STUDIO]}
+                onChange={value => impostaFiltro("stato", value, "tutti")} />
+              <Filtro label="Stato delle deleghe" value={delega} options={[["tutte", "Tutte le deleghe"], ...FILTRI_DELEGA]}
+                onChange={value => impostaFiltro("delega", value, "tutte")} />
+              <Filtro label="Ordina studi" value={ordine} options={ORDINI}
+                onChange={value => impostaFiltro("ordine", value, "recenti")} />
+              <Button variant="ghost" size="sm" className="justify-self-end" disabled={!filtriAttivi} onClick={azzeraFiltri}>
+                <X className="size-4" aria-hidden="true" /> Azzera filtri
+              </Button>
+            </div>
+            {attivita.isError && <p role="status" className="text-xs text-muted-foreground">Dati sull’ultimo accesso al momento indisponibili.</p>}
+          </div>
+
+          {!filtrati.length ? (
+            <p className="border-t p-6 text-center text-sm text-muted-foreground">Nessuno studio corrisponde ai filtri.</p>
+          ) : (
+            <>
+              <div aria-hidden="true" className={`${COLONNE_STUDIO} hidden border-y bg-muted/45 py-2 pl-8 pr-[3.25rem] text-xs font-medium text-muted-foreground xl:grid`}>
+                <span>Studio e contatto</span><span>Stato</span><span>Deleghe</span><span>Ultimo accesso titolare</span>
+              </div>
+              <ul className="divide-y max-xl:border-t">
+                {filtrati.map(studio => {
+                  const aperto = expanded === studio.id;
+                  const datoAttivita = attivitaTitolare(studio, attivita.activity);
+                  const ultimoAccesso = latestActivity(datoAttivita);
+                  const dettagliId = `studio-${studio.id}`;
+                  const statoModificabile = studio.status === "active" || studio.status === "suspended";
+                  return (
+                    <li key={studio.id}>
+                      <div className="flex items-center gap-1 px-2 hover:bg-muted/30 sm:px-3">
+                        <button type="button" aria-expanded={aperto} aria-controls={dettagliId}
+                          aria-label={`${aperto ? "Chiudi" : "Apri"} dettaglio ${studio.name}`}
+                          onClick={() => setExpanded(aperto ? null : studio.id)}
+                          className="flex min-w-0 flex-1 items-start gap-1.5 rounded-md py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:items-center">
+                          <ChevronRight aria-hidden="true" className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform sm:mt-0 ${aperto ? "rotate-90" : ""}`} />
+                          <span className={`${COLONNE_STUDIO} flex-1`}>
+                            <span className="min-w-0">
+                              <span className="block break-words text-sm font-semibold">{studio.name}</span>
+                              {(studio.email || studio.owner_email) && <span className="block truncate text-xs text-muted-foreground">{studio.email ?? studio.owner_email}</span>}
+                            </span>
+                            <Badge variant={studio.status === "suspended" ? "destructive" : studio.status === "active" ? "secondary" : "outline"}
+                              className="w-fit whitespace-normal">{STUDIO_LABEL[studio.status] ?? studio.status}</Badge>
+                            <span className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">{studio.deleghe_attive} {studio.deleghe_attive === 1 ? "attiva" : "attive"}</span>
+                              {studio.inviti > 0 && <span className="text-amber-700 dark:text-amber-400">{studio.inviti} {studio.inviti === 1 ? "invito" : "inviti"}</span>}
+                              {studio.deleghe_sospese > 0 && <span>{studio.deleghe_sospese} {studio.deleghe_sospese === 1 ? "sospesa" : "sospese"}</span>}
+                            </span>
+                            <span className="min-w-0">
+                              {ultimoAccesso || datoAttivita?.created_at || (studio.owner_user_id && attivita.isLoading)
+                                ? <LastAccessBadge lastSeen={ultimoAccesso} nowMs={now} loading={attivita.isLoading} />
+                                : <span className="text-xs text-muted-foreground">{studio.owner_user_id ? "Accesso non disponibile" : "Titolare non associato"}</span>}
+                            </span>
+                          </span>
+                        </button>
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-9 shrink-0" aria-label={`Azioni per ${studio.name}`}>
+                              <MoreHorizontal className="size-4" aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => setEditTarget(studio)}>
+                              <Pencil className="mr-2 size-4" /> Modifica anagrafica
+                            </DropdownMenuItem>
+                            {permissions.super_admin && (
+                              <DropdownMenuItem disabled={!studio.owner_email} onSelect={() => setAccessTarget(studio)}>
+                                <KeyRound className="mr-2 size-4" /> Gestisci accesso titolare
+                              </DropdownMenuItem>
+                            )}
+                            {statoModificabile && <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onSelect={() => setStatusTarget(studio)} className={studio.status === "active" ? "text-destructive" : undefined}>
+                                {studio.status === "active" ? <><Ban className="mr-2 size-4" /> Sospendi studio</> : <><Play className="mr-2 size-4" /> Riattiva studio</>}
+                              </DropdownMenuItem>
+                            </>}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <LastAccessBadge lastSeen={latestActivity(activity[s.owner_user_id ?? ""])} nowMs={nowMs} loading={activityLoading} />
-                    <Badge variant="outline" className="gap-1"><Building2 className="h-3.5 w-3.5" /> {s.companies.length} aziende</Badge>
-                    <Badge variant="outline" className="hidden gap-1 sm:inline-flex"><Users className="h-3.5 w-3.5" /> {s.members_count} membri</Badge>
-                  </div>
-                </button>
-
-                {isOpen && (
-                  <div className="border-t bg-muted/20 px-4 py-3">
-                    <InfoStrip items={[
-                      { label: "Studio dal", value: s.created_at ? new Date(s.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "—" },
-                      { label: "Titolare", value: s.owner_name ?? s.owner_email ?? "—" },
-                      { label: "P.IVA", value: s.vat_number ?? "—" },
-                      { label: "Codice fiscale", value: s.fiscal_code ?? "—" },
-                      { label: "Aziende per modalità", value: `${azOper} oper. · ${azRead} lettura · ${azAppr} appr.` },
-                      { label: "Contratto · DPA", value: `${STATUS_IT[s.contract_status ?? ""] ?? s.contract_status ?? "—"} · ${STATUS_IT[s.dpa_status ?? ""] ?? s.dpa_status ?? "—"}` },
-                    ]} />
-                    {/* Azioni studio */}
-                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3">
-                      <span className="text-sm font-medium">Gestione studio</span>
-                      <div className="ml-auto flex items-center gap-1.5">
-                        <Button size="sm" variant="outline" className="gap-1.5" disabled={!s.owner_email} onClick={() => setAccessTarget(s)}>
-                          <KeyRound className="h-3.5 w-3.5" /> Accesso
-                        </Button>
-                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditTarget(s)}>
-                          <Pencil className="h-3.5 w-3.5" /> Modifica
-                        </Button>
-                        {s.status === "suspended" ? (
-                          <Button size="sm" variant="outline" className="gap-1.5" disabled={setFirmStatus.isPending} onClick={() => setFirmStatus.mutate({ id: s.id, status: "active" })}>
-                            <Play className="h-3.5 w-3.5" /> Riattiva
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="outline" className="gap-1.5 text-destructive" disabled={setFirmStatus.isPending} onClick={() => setSuspendTarget(s)}>
-                            <Ban className="h-3.5 w-3.5" /> Sospendi
-                          </Button>
-                        )}
+                      <div id={dettagliId} hidden={!aperto}>
+                        {aperto && <DatiStudio studio={studio} />}
                       </div>
-                    </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </Card>
+      </>}
 
-                    {/* Aziende gestite */}
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Aziende gestite ({s.companies.length})
-                    </div>
-                    {s.companies.length === 0 ? (
-                      <p className="mb-3 text-sm text-muted-foreground">Nessuna azienda in delega.</p>
-                    ) : (
-                      <ul className="mb-3 divide-y">
-                        {s.companies.map((c) => (
-                          <li key={c.company_id}>
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/admin/aziende/${c.company_id}`)}
-                              title="Apri la scheda azienda"
-                              className="-mx-1 flex w-full items-center justify-between gap-2 rounded px-1 py-2 text-left transition-colors first:pt-0 last:pb-0 hover:bg-muted/50"
-                            >
-                              <span className="truncate text-sm font-medium">{c.company_name ?? "—"}</span>
-                              <div className="flex shrink-0 items-center gap-1.5">
-                                <Badge variant="secondary" className="text-[11px]">{companyStatusLabelIt(c.company_status)}</Badge>
-                                <Badge variant="outline" className="hidden text-[11px] sm:inline-flex">{MODE_LABEL[c.access_mode ?? ""] ?? c.access_mode}</Badge>
-                                {c.status !== "active" && <Badge variant="outline" className="border-amber-200 text-[11px] text-amber-700">{c.status}</Badge>}
-                                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                              </div>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {/* Membri */}
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Membri ({s.members.length})
-                    </div>
-                    {s.members.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nessun membro.</p>
-                    ) : (
-                      <ul className="divide-y">
-                        {s.members.map((m) => (
-                          <li key={m.user_id} className="flex items-center justify-between gap-2 py-2 text-sm first:pt-0 last:pb-0">
-                            <span className="truncate">{m.name ?? m.email ?? "—"}</span>
-                            <div className="flex shrink-0 items-center gap-1.5">
-                              <Badge variant="outline" className="text-[11px] capitalize">{m.role}</Badge>
-                              {m.status !== "active" && <Badge variant="secondary" className="text-[11px]">{m.status}</Badge>}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        </section>
-        ))}
-        </div>
-      )}
-
-      <AlertDialog open={!!suspendTarget} onOpenChange={(o) => { if (!o) setSuspendTarget(null); }}>
+      <AlertDialog open={!!statusTarget} onOpenChange={open => { if (!open && !setFirmStatus.isPending) setStatusTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sospendere {suspendTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{statusTarget?.status === "suspended" ? "Riattivare" : "Sospendere"} {statusTarget?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              I membri dello studio perderanno l&apos;accesso operativo alle aziende in delega finché non lo riattivi. Nessun dato viene eliminato.
+              Aggiorni lo stato dello studio. Per modificare una delega, apri la scheda della relativa azienda.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={setFirmStatus.isPending}
-              onClick={() => { if (suspendTarget) setFirmStatus.mutate({ id: suspendTarget.id, status: "suspended" }); }}
-            >
-              Sospendi
-            </AlertDialogAction>
+            <AlertDialogCancel disabled={setFirmStatus.isPending}>Annulla</AlertDialogCancel>
+            <Button variant={statusTarget?.status === "active" ? "destructive" : "default"} disabled={!statusTarget || setFirmStatus.isPending}
+              onClick={() => { if (statusTarget) setFirmStatus.mutate(statusTarget); }}>
+              {statusTarget?.status === "suspended" ? "Riattiva studio" : "Sospendi studio"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AccessControlDialog
-        open={!!accessTarget}
-        onOpenChange={(o) => { if (!o) setAccessTarget(null); }}
-        email={accessTarget?.owner_email ?? null}
-        label={accessTarget?.name}
-        onChanged={() => qc.invalidateQueries({ queryKey: ["admin-commercialisti"] })}
-      />
+      <AccessControlDialog open={!!accessTarget} onOpenChange={open => { if (!open) setAccessTarget(null); }}
+        email={accessTarget?.owner_email ?? null} label={accessTarget?.name}
+        onChanged={() => qc.invalidateQueries({ queryKey: CHIAVE_STUDI })} />
 
       <EditEntityDialog
-        open={!!editTarget}
-        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
-        title="Modifica studio"
-        description="Aggiorna i dati anagrafici dello studio commercialista."
+        open={!!editTarget} onOpenChange={open => { if (!open) setEditTarget(null); }}
+        title={editTarget ? `Anagrafica · ${editTarget.name}` : "Anagrafica studio"}
         fields={[
           { key: "name", label: "Ragione sociale", required: true, maxLength: 120 },
-          { key: "email", label: "Email", type: "email", placeholder: "studio@esempio.it" },
-          { key: "vat_number", label: "P.IVA", maxLength: 20, placeholder: "IT01234567890" },
+          { key: "email", label: "Email dello studio", type: "email", maxLength: 254 },
+          { key: "vat_number", label: "Partita IVA", maxLength: 20 },
           { key: "fiscal_code", label: "Codice fiscale", maxLength: 16 },
         ]}
         initial={{
-          name: editTarget?.name ?? "",
-          email: editTarget?.firm_email ?? "",
-          vat_number: editTarget?.vat_number ?? "",
-          fiscal_code: editTarget?.fiscal_code ?? "",
+          name: editTarget?.name ?? "", email: editTarget?.email ?? "",
+          vat_number: editTarget?.vat_number ?? "", fiscal_code: editTarget?.fiscal_code ?? "",
         }}
-        onSave={async (v) => {
+        onSave={async v => {
           if (!editTarget) return;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error } = await (supabase as any).from("accountant_firms").update({
+          const { data, error } = await supabase.from("accountant_firms").update({
             name: v.name.trim(),
             email: v.email.trim().toLowerCase() || null,
             vat_number: v.vat_number.trim() || null,
             fiscal_code: v.fiscal_code.trim().toUpperCase() || null,
-          }).eq("id", editTarget.id);
-          if (error) throw new Error(error.message);
-          toast.success("Studio aggiornato");
-          setEditTarget(null);
-          qc.invalidateQueries({ queryKey: ["admin-commercialisti"] });
+          }).eq("id", editTarget.id).select("id").maybeSingle();
+          if (error) throw error;
+          if (!data) throw new Error("Lo studio non è più disponibile o non è modificabile.");
+          toast.success("Anagrafica aggiornata");
+          await qc.invalidateQueries({ queryKey: CHIAVE_STUDI });
         }}
       />
     </div>

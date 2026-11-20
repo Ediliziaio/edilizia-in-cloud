@@ -26,7 +26,7 @@ export function useAdminActivity(userIds: (string | null | undefined)[]) {
   const ids = [...new Set(userIds.filter((x): x is string => !!x))].sort();
   const key = ids.join(",");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-activity", key],
     enabled: ids.length > 0,
     staleTime: 60_000,
@@ -39,5 +39,5 @@ export function useAdminActivity(userIds: (string | null | undefined)[]) {
     },
   });
 
-  return { activity: data ?? {}, isLoading: isLoading && ids.length > 0 };
+  return { activity: data ?? {}, isLoading: isLoading && ids.length > 0, isError, refetch };
 }

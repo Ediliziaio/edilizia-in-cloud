@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
+import { GoogleOrganicoChart } from "@/components/admin/site-traffic/GoogleOrganicoChart";
 import {
   DOMINIO_EIC, dominioSito, PERIODI_TRAFFICO, periodoTraffico, periodoConfrontoGoogle,
-  useSitiGoogleMetriche, useConfrontoGoogle,
+  useSitiGoogleMetriche, useConfrontoGoogle, useGoogleOrganicoGiornaliero,
 } from "@/hooks/useSitiGoogleMetriche";
 import { retryAuthorizedRead } from "@/lib/retryAuthorizedRead";
 import { ArrowUpRight, BarChart3, RefreshCw, LogIn, Compass, FileText, Inbox, CalendarDays } from "lucide-react";
@@ -106,10 +107,13 @@ const METRICHE = {
 type Metrica = keyof typeof METRICHE;
 
 function DatiGoogleTraffico({ giorni }: { giorni: number }) {
+  const [mostraTabella, setMostraTabella] = useState(false);
   const { data, isLoading, isError, refetch } = useSitiGoogleMetriche(giorni);
   const sito = data?.siti.find(s => dominioSito(s.dominio) === DOMINIO_EIC);
-  const organico = useConfrontoGoogle(giorni, !!(sito?.ga4_property_id && sito?.gsc_site_url));
+  const conEntrambeLeFonti = !!(sito?.ga4_property_id && sito?.gsc_site_url);
+  const organico = useConfrontoGoogle(giorni, conEntrambeLeFonti);
   const confronto = sito && organico.data?.[sito.id];
+  const andamento = useGoogleOrganicoGiornaliero(conEntrambeLeFonti ? sito?.id : undefined, giorni);
   const ga4ConDati = sito && (sito.sessioni > 0 || sito.visualizzazioni > 0 || sito.utenti > 0);
   const gscConDati = sito && (sito.impressioni > 0 || sito.clic > 0);
   const statoFonte = (proprieta: string | null | undefined, conDati: boolean | undefined) =>
@@ -161,6 +165,19 @@ function DatiGoogleTraffico({ giorni }: { giorni: number }) {
                 </div>
               </dl>
             )}
+            {andamento.isLoading && <Skeleton className="mt-4 h-64 w-full" />}
+            {andamento.error?.code === "PGRST202" ? (
+              <p className="mt-3 text-sm text-muted-foreground">La serie giornaliera richiede un aggiornamento del servizio dati.</p>
+            ) : andamento.isError && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" role="alert">
+                Impossibile caricare i dati giornalieri.
+                <Button size="sm" variant="outline" onClick={() => void andamento.refetch()}>Riprova grafico</Button>
+              </div>
+            )}
+            {andamento.data && (
+              <GoogleOrganicoChart serie={andamento.data} giorni={giorni} mostraTabella={mostraTabella}
+                onMostraTabella={() => setMostraTabella(valore => !valore)} />
+            )}
           </section>
         )}
         {sito && (
@@ -191,6 +208,7 @@ function DatiGoogleTraffico({ giorni }: { giorni: number }) {
 
 export default function SiteTrafficPage() {
   const [parametri, setParametri] = useSearchParams();
+  const queryClient = useQueryClient();
   const giorni = periodoTraffico(parametri.get("giorni"), 30);
   const [metrica, setMetrica] = useState<Metrica>("visitatori");
   const [mostraNumeriGiorni, setMostraNumeriGiorni] = useState(false);
@@ -238,7 +256,12 @@ export default function SiteTrafficPage() {
               }, { replace: true })}>{g} giorni</Button>
           ))}
         </div>
-        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={isFetching}>
+        <Button variant="outline" size="sm" onClick={() => {
+          void refetch();
+          void queryClient.invalidateQueries({ queryKey: ["admin-siti-metriche", giorni] });
+          void queryClient.invalidateQueries({ queryKey: ["admin-siti-confronto-google", giorni] });
+          void queryClient.invalidateQueries({ queryKey: ["admin-sito-google-organico-giornaliero"] });
+        }} disabled={isFetching}>
           <RefreshCw className={`size-4 ${isFetching ? "motion-safe:animate-spin" : ""}`} /> Aggiorna traffico
         </Button>
       </div>

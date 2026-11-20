@@ -70,6 +70,12 @@ export interface ConfrontoGoogle {
   impressioni: number;
 }
 
+export interface GiornoGoogleOrganico {
+  giorno: string;
+  clic: number | null;
+  sessioni: number | null;
+}
+
 const dataGoogle = new Intl.DateTimeFormat("it-IT", { timeZone: "UTC" });
 
 export function periodoConfrontoGoogle({ dal, al, giorni }: ConfrontoGoogle) {
@@ -88,6 +94,22 @@ export function useConfrontoGoogle(giorni: number, enabled: boolean) {
       if (error) throw error;
       if (!data) throw new Error("Confronto Google non disponibile.");
       return data as unknown as Record<string, ConfrontoGoogle | undefined>;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useGoogleOrganicoGiornaliero(sitoId: string | undefined, giorni: number) {
+  return useQuery({
+    queryKey: ["admin-sito-google-organico-giornaliero", sitoId, giorni],
+    enabled: !!sitoId,
+    retry: (count, error: { code?: string }) => error?.code !== "PGRST202" && retryAuthorizedRead(count, error),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("admin_sito_google_organico_giornaliero" as never, {
+        p_sito: sitoId, p_giorni: giorni,
+      } as never);
+      if (error) throw error;
+      return (data ?? []) as GiornoGoogleOrganico[];
     },
     staleTime: 60_000,
   });
