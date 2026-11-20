@@ -84,6 +84,7 @@ function controlliRiconosciuti(testo: string): string[] {
  * nostra. La difesa è un'altra, ed è scritta qui. Censite il 20/09/2026.
  */
 const PUBBLICHE_DI_PROPOSITO: Record<string, string> = {
+  "documenti-cantiere": "Cartello di cantiere: il token revocabile apre solo la selezione di allegati operativi approvati. La funzione rilegge i permessi prima di firmare un URL di 60 secondi.",
   "giornale-dl-documento": "Link al giornale firmato per la direzione lavori: token in impronta, scadenza 30 giorni, solo giornate firmate.",
   "campo-link-entra": "link d'accesso dell'operaio: serve un token casuale di 256 bit, salvato solo come impronta, valido una volta e con scadenza; apre solo l'account di quel dipendente",
   "accountant-self-signup": "registrazione dal portale commercialisti: limite di 3 per IP al giorno, email da confermare",

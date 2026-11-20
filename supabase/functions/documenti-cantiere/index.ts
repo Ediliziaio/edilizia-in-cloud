@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.106.2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+// Il cartello si apre senza account. La RPC risolve il token e la selezione corrente prima di ogni accesso.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ANTEPRIME: Record<string, string> = {
   pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg",
