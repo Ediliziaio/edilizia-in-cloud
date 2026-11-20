@@ -5,7 +5,7 @@ import {createElement,type PropsWithChildren} from "react";
 const auth=vi.hoisted(()=>({getSession:vi.fn(),cache:{accessToken:"cached-token" as string|null,refreshToken:null as string|null}}));
 vi.mock("@/contexts/AuthContext",()=>({useAuth:()=>({user:{id:"u"}}),getCachedTokens:()=>auth.cache}));
 vi.mock("@/integrations/supabase/client",()=>({supabase:{auth:{getSession:auth.getSession}}}));
-import {richiestaPipelineLocale,usePipelineLocali} from "@/lib/orders/pipelineLocali";
+import {richiestaPipelineLocale,usePipelineLocali,type PipelineLocale} from "@/lib/orders/pipelineLocali";
 beforeEach(()=>{auth.cache.accessToken="cached-token";auth.getSession.mockReset();vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async()=>({pipeline:[] as never[]})}));});
 afterEach(()=>{cleanup();vi.useRealTimers();vi.unstubAllGlobals();});
 describe("pipeline senza attese indefinite sulla sessione",()=>{
@@ -24,7 +24,7 @@ describe("pipeline senza attese indefinite sulla sessione",()=>{
 });
 
 it("mantiene l'ultima pipeline se l'aggiornamento fallisce e permette di riprovare", async () => {
-  const iniziale = [{ id: "ristrutturazioni", nome: "Ristrutturazioni", fasi: [] }];
+  const iniziale: PipelineLocale[] = [{ id: "ristrutturazioni", nome: "Ristrutturazioni", fasi: [] }];
   vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ pipeline: iniziale, fasiPerCommessa: {} })));
   const client = new QueryClient();
   const wrapper = ({ children }: PropsWithChildren) => createElement(QueryClientProvider, { client }, children);
