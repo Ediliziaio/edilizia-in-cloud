@@ -171,15 +171,23 @@ export async function leggiLogoPerPdf(url: string | null | undefined): Promise<V
   try {
     const risposta = await fetch(url);
     if (!risposta.ok) return null;
-    const blob = await risposta.blob();
-    if (blob.size > 3 * 1024 * 1024) return null;
+    return await leggiLogoDaBlobPerPdf(await risposta.blob());
+  } catch { return null; }
+}
+
+/** Un file già letto si decodifica direttamente: fetch(blob:) è bloccato dalla CSP di produzione. */
+export async function leggiLogoDaBlobPerPdf(blob: Blob | null | undefined): Promise<VesteComputo["logo"]> {
+  if (!blob || blob.size > 3 * 1024 * 1024) return null;
+  try {
     const bitmap = await createImageBitmap(blob);
-    // Si ridisegna in PNG: copre SVG, WebP e GIF, che jsPDF non legge, e toglie i profili colore strani.
-    const scala = Math.min(1, 600 / Math.max(bitmap.width, bitmap.height));
-    const tela = document.createElement("canvas");
-    tela.width = Math.max(1, Math.round(bitmap.width * scala)); tela.height = Math.max(1, Math.round(bitmap.height * scala));
-    tela.getContext("2d")?.drawImage(bitmap, 0, 0, tela.width, tela.height);
-    return { dati: tela.toDataURL("image/png"), formato: "PNG", larghezza: tela.width, altezza: tela.height };
+    try {
+      // Si ridisegna in PNG: copre SVG, WebP e GIF, che jsPDF non legge, e toglie i profili colore strani.
+      const scala = Math.min(1, 600 / Math.max(bitmap.width, bitmap.height));
+      const tela = document.createElement("canvas");
+      tela.width = Math.max(1, Math.round(bitmap.width * scala)); tela.height = Math.max(1, Math.round(bitmap.height * scala));
+      tela.getContext("2d")?.drawImage(bitmap, 0, 0, tela.width, tela.height);
+      return { dati: tela.toDataURL("image/png"), formato: "PNG", larghezza: tela.width, altezza: tela.height };
+    } finally { bitmap.close(); }
   } catch { return null; }
 }
 

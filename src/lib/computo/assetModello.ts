@@ -1,6 +1,6 @@
 import type { jsPDF } from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
-import { fotoPerCopertina, leggiLogoPerPdf, type VesteComputo } from "./modelloComputo";
+import { fotoPerCopertina, leggiLogoDaBlobPerPdf, type VesteComputo } from "./modelloComputo";
 import type { IntestazioneComputo } from "./esportaComputo";
 import { registraMemoria } from "@/lib/memorieDaSvuotare";
 import { fontDelDocumento, fontStandard } from "./fontDocumento";
@@ -117,9 +117,9 @@ export async function preparaAssetModello(i: IntestazioneComputo): Promise<Intes
   const company = i.companyId ?? "";
   const [logo, copertina, font] = await Promise.all([
     v.logoPersonalizzato && v.mostraLogo !== false ? (async () => {
-      const url = URL.createObjectURL(await leggiAsset(company, v.logoPersonalizzato!));
-      try { const l = await leggiLogoPerPdf(url); if (!l) throw new Error("Logo del modello illeggibile."); return l; }
-      finally { URL.revokeObjectURL(url); }
+      const logo = await leggiLogoDaBlobPerPdf(await leggiAsset(company, v.logoPersonalizzato!));
+      if (!logo) throw new Error("Logo del modello illeggibile.");
+      return logo;
     })() : v.logo,
     !i.immagineCopertina && v.immagineCopertina && i.sezioni?.copertina !== false ? (async () => {
       const f = await fotoPerCopertina(await leggiAsset(company, v.immagineCopertina!), 595.28 / (841.89 * .44));
