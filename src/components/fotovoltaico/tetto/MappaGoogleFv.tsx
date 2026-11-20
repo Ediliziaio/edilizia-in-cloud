@@ -15,13 +15,14 @@ export type DimensioniMappaGoogleFv = { w: number; h: number };
 type Props = {
   centro: PosizioneMappaFv;
   zoom: number;
+  /** Cambia soltanto per comandi esterni, mai per il ritorno della camera nativa. */
+  comandoVista: number;
   navigabile: boolean;
   onVista?: (centro: PosizioneMappaFv, zoom: number) => void;
   onDimensioni: (dimensioni: DimensioniMappaGoogleFv) => void;
   onStato: (stato: StatoMappaGoogleFv) => void;
 };
 export function MappaGoogleFv(props: Props) {
-  const { lat, lng } = props.centro;
   const host = useRef<HTMLDivElement>(null),
     mappa = useRef<MappaGoogleFvApi | null>(null),
     correnti = useRef(props);
@@ -127,18 +128,24 @@ export function MappaGoogleFv(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    const map = mappa.current, c = map?.getCenter()?.toJSON();
+    const map = mappa.current,
+      p = correnti.current,
+      c = map?.getCenter()?.toJSON();
     if (
       map &&
-      (!c || Math.abs(c.lat - lat) > 1e-9 || Math.abs(c.lng - lng) > 1e-9)
-    ) map.setCenter({ lat, lng });
-    if (map && map.getZoom() !== props.zoom) map.setZoom(props.zoom);
+      (!c || Math.abs(c.lat - p.centro.lat) > 1e-9 ||
+        Math.abs(c.lng - p.centro.lng) > 1e-9)
+    ) map.setCenter(p.centro);
+    if (map && map.getZoom() !== p.zoom) map.setZoom(p.zoom);
+  }, [props.comandoVista]);
+  useEffect(() => {
+    const map = mappa.current;
     map?.setOptions({
       gestureHandling: props.navigabile ? "greedy" : "none",
       draggable: props.navigabile,
       scrollwheel: props.navigabile,
     });
-  }, [lat, lng, props.zoom, props.navigabile]);
+  }, [props.navigabile]);
   return (
     <div
       ref={host}

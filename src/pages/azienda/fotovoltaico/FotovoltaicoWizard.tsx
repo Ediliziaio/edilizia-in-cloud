@@ -155,6 +155,7 @@ import { leggiPiano } from "../../../../supabase/functions/_shared/fvPianoTetto"
 import { aggiornaConsumiAggiuntiviFv } from "../../../../supabase/functions/_shared/fvBollette";
 import { FvBolletteConsumi } from "@/components/fotovoltaico/FvBolletteConsumi";
 import { FvMappaTetto } from "@/components/fotovoltaico/FvMappaTetto";
+import { spostaPinTettoFv } from "@/lib/fotovoltaico/spostaPinTetto";
 import { FvProfiloEnergetico, FvScenariEnergia } from "@/components/fotovoltaico/FvScenariEnergia";
 import { leggiAnalisiConsumi, problemiConsumiFv } from "../../../../supabase/functions/_shared/fvBollette";
 import { resaMappaFv } from "../../../../supabase/functions/_shared/fvMappa";
@@ -810,7 +811,7 @@ function FotovoltaicoWizard() {
       setScenarioFin(null);
     }
     setData((d) => {
-      if (k === "riferimento_tetto") return {...d,[k]:v,ore_sole_annue:null,qualita_dati_tetto:null,layout_overlay:null,layout_tetto:null,numero_pannelli_scelti:0,potenza_kwp:0,superficie_tetto_disponibile_mq:null,numero_pannelli_max:null,potenza_max_kwp:null,imagery_date:null};
+      if (k === "riferimento_tetto") return spostaPinTettoFv(d,v as WizardData["riferimento_tetto"]);
       if(d.analisi_consumi&&k==="consumo_annuo_kwh"&&typeof v==="number"&&v>0){const a=d.analisi_consumi,evitabili=a.correzioni.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:aggiornaConsumiAggiuntiviFv({...a,correzioni:{...a.correzioni,consumoAnnuo:v}},v),...(evitabili!=null?{costo_kwh_attuale:evitabili/v}:{})};}
       if(d.analisi_consumi&&k==="costo_kwh_attuale"){const c={...d.analisi_consumi.correzioni};if(typeof v==="number"&&v>=0&&d.consumo_annuo_kwh)c.costiEvitabiliAnnui=v*d.consumo_annuo_kwh;else delete c.costiEvitabiliAnnui;return{...d,[k]:v,analisi_consumi:{...d.analisi_consumi,correzioni:c}};}
       const localitaCambiata = (k === "latitudine" || k === "longitudine") && d[k] !== v;

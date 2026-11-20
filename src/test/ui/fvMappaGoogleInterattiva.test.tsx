@@ -76,10 +76,39 @@ describe("mappa nativa del tetto", () => {
   const props = () => ({
     centro: { lat: 45, lng: 9 },
     zoom: 20,
+    comandoVista: 0,
     navigabile: false,
     onVista: vi.fn(),
     onStato: vi.fn(),
     onDimensioni: vi.fn(),
+  });
+  it("conserva l’ultima camera nativa quando React riceve in ritardo la vista precedente", async () => {
+    const p = props(), r = render(<MappaGoogleFv {...p} />);
+    await waitFor(() => expect(mocks.istanze).toHaveLength(1));
+    const map = mocks.istanze[0] as unknown as {
+      centro: { lat: number; lng: number };
+      zoom: number;
+      callbacks: Record<string, () => void>;
+      setCenter: ReturnType<typeof vi.fn>;
+      setZoom: ReturnType<typeof vi.fn>;
+    };
+    const intermedia = { lat: 45.001, lng: 9.001 },
+      finale = { lat: 45.002, lng: 9.002 };
+    act(() => {
+      map.centro = intermedia;
+      map.callbacks.bounds_changed();
+    });
+    // Google avanza ancora prima che il parent riesca a riflettere la prima vista.
+    act(() => {
+      map.centro = finale;
+      map.zoom = 21;
+      map.callbacks.bounds_changed();
+    });
+    r.rerender(<MappaGoogleFv {...p} centro={intermedia} zoom={20} />);
+    expect(map.centro).toEqual(finale);
+    expect(map.zoom).toBe(21);
+    expect(map.setCenter).not.toHaveBeenCalled();
+    expect(map.setZoom).not.toHaveBeenCalled();
   });
   it("usa il viewport reale, aggiorna la camera senza ricreare Maps e rimuove i listener", async () => {
     const p = props(), r = render(<MappaGoogleFv {...p} />);
@@ -110,6 +139,7 @@ describe("mappa nativa del tetto", () => {
         {...p}
         centro={{ lat: 46, lng: 10 }}
         zoom={19}
+        comandoVista={1}
         navigabile
       />,
     );

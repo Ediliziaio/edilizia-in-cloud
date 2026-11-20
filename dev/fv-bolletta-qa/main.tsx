@@ -12,6 +12,7 @@ import type { WizardData } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard
 import { validatePersistedDraft } from "@/pages/azienda/fotovoltaico/FotovoltaicoWizard/helpers";
 import { leggiDisegnoCommerciale } from "../../supabase/functions/_shared/fvDisegnoCommerciale";
 import { datiDalDisegno } from "@/lib/fotovoltaico/disegnoPreventivo";
+import { spostaPinTettoFv } from "@/lib/fotovoltaico/spostaPinTetto";
 import { analisiConsumiIniziale } from "../../supabase/functions/_shared/fvBollette";
 import { anteprimaFotovoltaico } from "@/lib/fotovoltaico/anteprima";
 import { AnteprimaVeloce } from "@/components/preventivatore/AnteprimaVeloce";
@@ -77,11 +78,7 @@ function Qa() {
         if (p) return { ...d, ...datiDalDisegno(p, 450, d.prodotti_extra) };
       }
       if (k === "riferimento_tetto") {
-        return {
-          ...d,
-          riferimento_tetto: v as WizardData["riferimento_tetto"],
-          layout_overlay: null,
-        };
+        return spostaPinTettoFv(d,v as WizardData["riferimento_tetto"]);
       }
       return { ...d, [k]: v };
     });
