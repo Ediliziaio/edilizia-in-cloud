@@ -24,6 +24,11 @@ const COLONNE = new Set("id company_id ragione_sociale partita_iva codice_fiscal
  */
 const CON_LETTORE = new Set("ragione_sociale partita_iva codice_fiscale forma_giuridica pec email telefono sito_web indirizzo_via indirizzo_numero_civico indirizzo_cap indirizzo_comune indirizzo_provincia indirizzo_nazione regime_fiscale rea_ufficio codice_rea capitale_sociale stato_liquidazione durc_expiry_date logo_url colore_primario metodo_pagamento_default iban_principale bic_swift nome_banca intestatario_conto prefisso_fattura ultimo_numero_fattura prefisso_nc ultimo_numero_nc prefisso_ddt ultimo_numero_ddt formato_numero nc_serie_condivisa iva_per_cassa split_payment_pa socio_unico bollo_virtuale_auto conservazione_ade_aderito_il conti_fatturazione".split(" "));
 
+for (const campo of ["scala_logo", "allineamento_logo"]) {
+  COLONNE.add(campo);
+  CON_LETTORE.add(campo);
+}
+
 const stato = vi.hoisted(() => ({
   riga: null as Record<string, unknown> | null,
   profilo: {} as Record<string, unknown>,
@@ -159,6 +164,25 @@ const salva = () => fireEvent.click(screen.getAllByRole("button", { name: /Salva
 const apriScheda = (nome: string) => fireEvent.mouseDown(screen.getByRole("tab", { name: nome }), { button: 0 });
 
 describe("il «Salva» manda solo colonne che esistono", () => {
+  it("salva l'allineamento del logo della fattura senza modificare altri dati aziendali", async () => {
+    vai("/x?sezione=pdf");
+    fireEvent.click(screen.getByRole("radio", { name: "Centro" }));
+    salva();
+    await waitFor(() => expect(stato.messaggi.map(m => m.titolo)).toContain("Impostazioni salvate"));
+    expect(stato.aggiornamenti).toHaveLength(1);
+    expect(stato.aggiornamenti[0]).toMatchObject({ allineamento_logo: "center" });
+    expect(Object.keys(stato.aggiornamenti[0]).sort()).toEqual(["allineamento_logo", "updated_at"]);
+  });
+  it("annullare l'aspetto ripristina anche l'allineamento salvato del logo", () => {
+    stato.riga = { ...RIGA_COMPLETA, allineamento_logo: "right", scala_logo: 175 };
+    vai("/x?sezione=pdf");
+    fireEvent.click(screen.getByRole("radio", { name: "Centro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Annulla modifiche all’aspetto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Scarta modifiche" }));
+    expect(screen.getByRole("radio", { name: "Destra" })).toBeChecked();
+    expect(screen.getByLabelText("Dimensione del logo in percentuale")).toHaveValue(175);
+    expect(stato.aggiornamenti).toHaveLength(0);
+  });
   it("cambiare l'IBAN e un interruttore: una modifica sola, tutte colonne vere, «Impostazioni salvate»", async () => {
     vai("/x?sezione=avanzate");
     fireEvent.click(screen.getByRole("switch", { name: "IVA per cassa" }));

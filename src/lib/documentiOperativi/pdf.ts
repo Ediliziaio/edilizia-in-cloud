@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { dimensioniLogo } from "../../../supabase/functions/_shared/dimensioniLogo";
+import { dimensioniLogo, disponiLogoTestata } from "../../../supabase/functions/_shared/dimensioniLogo";
 import {
   normalizzaModelloPdf,
   type ModelloPdf,
@@ -135,7 +135,6 @@ export function creaPdfOperativo(
     let hSx = 0,
       wSx = 0;
     let immagine: { tipo: string; w: number; h: number } | null = null;
-    let titoloSotto = false;
     let ragione: string[] = [];
     const passoRagione = passo(stileTestata.ragioneSocialeCorpo, 1.2);
     if (logo) {
@@ -151,8 +150,6 @@ export function creaPdfOperativo(
       );
       wSx = misure.larghezza;
       hSx = misure.altezza;
-      // Un logo ingrandito può usare tutta la riga: titolo e numero scendono sotto.
-      titoloSotto = wSx > width - spazioTitolo + 0.01;
       immagine = { tipo: info.fileType, w: wSx, h: hSx };
     } else if (modello.mostraLogo) {
       // Senza logo: la ragione sociale, in grassetto.
@@ -161,19 +158,25 @@ export function creaPdfOperativo(
       wSx = Math.max(...ragione.map((r) => pdf.getTextWidth(r)));
       hSx = ragione.length * passoRagione;
     }
-    const wDx = titoloSotto ? width : Math.max(50, width - wSx - 8);
+    font(stileTestata.titoloCorpo, true);
+    const disposizione = disponiLogoTestata(width, wSx, Math.max(50, Math.min(pdf.getTextWidth(titolo), width * 0.5)), logo ? modello.allineamentoLogo : "left", 8);
+    const { titoloSotto, larghezzaTesto: wDx, allineamentoTesto: align } = disposizione;
+    const xTesto = left + disposizione.ancoraTestoX;
     let corpoTitolo: number = stileTestata.titoloCorpo;
     font(corpoTitolo, true);
     let righeTitolo = lines(titolo, wDx);
     if (righeTitolo.length > 2) {
       corpoTitolo = 11;
       font(corpoTitolo, true);
-      righeTitolo = lines(titolo, wDx).slice(0, 3);
+      righeTitolo = lines(titolo, wDx);
     }
     const passoTitolo = passo(corpoTitolo, 1.2);
-    const hDx = righeTitolo.length * passoTitolo + passo(stileTestata.sottotitoloCorpo, 1.3);
+    font(stileTestata.sottotitoloCorpo, false, TENUE);
+    const righeSottotitolo = lines(sottotitolo, wDx);
+    const passoSottotitolo = passo(stileTestata.sottotitoloCorpo, 1.3);
+    const hDx = righeTitolo.length * passoTitolo + righeSottotitolo.length * passoSottotitolo;
     const fondo = top + (titoloSotto ? hSx + mm(12) + hDx : Math.max(hSx, hDx));
-    if (immagine) pdf.addImage(logo!, immagine.tipo, left, titoloSotto ? top : fondo - immagine.h, immagine.w, immagine.h);
+    if (immagine) pdf.addImage(logo!, immagine.tipo, left + disposizione.logoX, titoloSotto ? top : fondo - immagine.h, immagine.w, immagine.h);
     else if (ragione.length) {
       font(stileTestata.ragioneSocialeCorpo, true);
       ragione.forEach((r, i) => pdf.text(r, left, fondo - hSx + passoRagione * (i + 0.78)));
@@ -181,10 +184,10 @@ export function creaPdfOperativo(
     font(corpoTitolo, true);
     const inizioDx = fondo - hDx;
     righeTitolo.forEach((r, i) =>
-      pdf.text(r, left + width, inizioDx + passoTitolo * (i + 0.78), { align: "right" }),
+      pdf.text(r, xTesto, inizioDx + passoTitolo * (i + 0.78), { align }),
     );
     font(stileTestata.sottotitoloCorpo, false, TENUE);
-    pdf.text(sottotitolo, left + width, fondo - 0.8, { align: "right" });
+    righeSottotitolo.forEach((r, i) => pdf.text(r, xTesto, fondo - 0.8 - (righeSottotitolo.length - i - 1) * passoSottotitolo, { align }));
     const yFiletto = fondo + mm(stileTestata.filettoDistanza);
     filetto(ACCENTO, stileTestata.filettoSpessore, left, yFiletto, left + width, yFiletto);
     y = yFiletto + mm(stileTestata.spazioDopo);

@@ -1,4 +1,4 @@
-import { normalizzaScalaLogo } from "./dimensioniLogo.ts";
+import { normalizzaScalaLogo, normalizzaAllineamentoLogo, type AllineamentoLogo } from "./dimensioniLogo.ts";
 
 /** Contratto condiviso da editor, generatori nel browser e rapportini server. */
 export const TIPI_MODELLI_PDF = [
@@ -29,6 +29,7 @@ export interface ModelloPdf {
   margine: number;
   dimensioneTesto: number;
   scalaLogo: number;
+  allineamentoLogo: AllineamentoLogo;
   coloreRiquadri: string;
   righeAlternate: boolean;
   numerazione: boolean;
@@ -62,6 +63,7 @@ export function modelloPdfStandard(tipo: TipoModelloPdf): ModelloPdf {
     margine: 0,
     dimensioneTesto: 0,
     scalaLogo: 100,
+    allineamentoLogo: "left",
     coloreRiquadri: "",
     righeAlternate: false,
     numerazione: true,
@@ -126,6 +128,7 @@ export function normalizzaModelloPdf(
       ? (v.dimensioneTesto as number)
       : 0,
     scalaLogo: normalizzaScalaLogo(v.scalaLogo),
+    allineamentoLogo: normalizzaAllineamentoLogo(v.allineamentoLogo),
     coloreRiquadri:
       typeof v.coloreRiquadri === "string" &&
       /^#[0-9a-f]{6}$/i.test(v.coloreRiquadri)

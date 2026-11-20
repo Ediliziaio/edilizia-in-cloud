@@ -248,12 +248,12 @@ export function documentoHtml(documento: Record<string, any>, azienda: Record<st
   return `<!DOCTYPE html>
 <html lang="it"><head><meta charset="utf-8">
 <title>${esc(titolo)}</title>
-<style>${CSS_PAGINA_STAMPA}${cssFoglio(tema, azienda.scala_logo)}</style>
+<style>${CSS_PAGINA_STAMPA}${cssFoglio(tema, azienda.scala_logo, azienda.allineamento_logo)}</style>
 </head><body>
 <div class="fd-foglio">
-  <div class="fd-testata">
+  <div class="fd-testata${azienda.logo_url ? " fd-con-logo" : ""}">
+    ${azienda.logo_url ? `<div class="fd-logo-blocco"><img class="fd-logo" src="${esc(azienda.logo_url)}" alt=""></div>` : ""}
     <div class="fd-emittente">
-      ${azienda.logo_url ? `<img class="fd-logo" src="${esc(azienda.logo_url)}" alt="">` : ""}
       <div class="fd-ragione">${esc(azienda.ragione_sociale)}</div>
       ${forma ? `<div class="fd-forma">${esc(forma)}</div>` : ""}
       ${datiEmittente ? `<div class="fd-dati">${datiEmittente}</div>` : ""}
