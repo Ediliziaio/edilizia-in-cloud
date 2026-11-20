@@ -165,7 +165,8 @@ function Contratto({ companyId, orderId, dati, voci, affidamenti, inRicarica, co
       {verbale && <VerbaleSalSubDialog companyId={companyId} sal={verbale} onClose={() => { setVerbale(undefined); refresh(); }} />}
     </Suspense>
     {variante && <VarianteVociDialog companyId={companyId} contrattoId={c.id} nomeDitta={nome} importo={Number(c.importo_contrattuale)} oneri={Number(c.oneri_sicurezza)} elencoContratto={c.elenco_lavori}
-      quote={quote} voci={voci} onChiudi={() => { setVariante(false); refresh(); }} onFatto={() => { setVariante(false); refresh(); }} />}
+      quote={quote} voci={voci.map((v) => ({ ...v, fase: dati.fasi.find((f) => f.id === v.phase_id)?.name, sottofase: dati.sottofasi.find((s) => s.id === v.subphase_id)?.name }))}
+      onChiudi={() => { setVariante(false); refresh(); }} onFatto={() => { setVariante(false); refresh(); }} />}
     {assegna && ditta?.campo_subappaltatore_id && <AffidaVociDialog companyId={companyId} orderId={orderId} voci={voci} fasi={dati.fasi}
       dittaFissa={{ id: ditta.campo_subappaltatore_id, nome }} onChiudi={() => setAssegna(false)} onCambio={refresh}
       onAffidate={() => { setAssegna(false); if (conVociCollegate) setVariante(true); }} />}

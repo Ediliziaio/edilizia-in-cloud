@@ -34,6 +34,14 @@ const voci = [
 ];
 
 describe("variante sulle voci", () => {
+  it("distingue la stessa lavorazione in due sottofasi per evitare di variare la quantità sbagliata", () => {
+    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi" importo={1080} quote={quote}
+        voci={voci.map((v, i) => ({ ...v, descrizione: "Intonaco", fase: "Finiture", sottofase: i ? "Primo piano" : "Piano terra" }))} onChiudi={vi.fn()} onFatto={vi.fn()} />
+    </QueryClientProvider>);
+    expect(screen.getByLabelText("Quantità di Intonaco · Finiture · Piano terra")).toHaveValue("120");
+    expect(screen.getByLabelText("Quantità di Intonaco · Finiture · Primo piano")).toHaveValue("");
+  });
   it("distingue l'aumento dei lavori dal totale comprensivo degli oneri invariati", async () => {
     render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <VarianteVociDialog companyId="az" contrattoId="c1" nomeDitta="Rossi" importo={1080} oneri={100} quote={quote} voci={voci} onChiudi={vi.fn()} onFatto={vi.fn()} />

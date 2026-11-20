@@ -24,7 +24,7 @@ import { vociDaAllegato } from "@/lib/subappaltatori/lavoriMisure";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-export interface VoceVariante { id: string; descrizione: string; unita: string | null; quantita: number }
+export interface VoceVariante { id: string; descrizione: string; unita: string | null; quantita: number; fase?: string; sottofase?: string }
 
 const cent = (n: number) => Math.round(n * 100) / 100;
 const qt = (n: number) => n.toLocaleString("it-IT", { maximumFractionDigits: 3 });
@@ -134,6 +134,7 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
             <tbody>
               {ordinate.map((a) => {
                 const v = voce.get(a.voce_id);
+                const nomeVoce = [v?.descrizione ?? "voce", v?.fase, v?.sottofase].filter(Boolean).join(" · ");
                 const s = valore(a);
                 const q = parseAssignmentAmount(s.quantita, 3) ?? 0;
                 const p = parseAssignmentAmount(s.prezzo, 2) ?? 0;
@@ -141,15 +142,16 @@ export function VarianteVociDialog({ companyId, contrattoId, nomeDitta, importo,
                 return (
                   <tr key={a.id} className={`border-t align-top ${errori.includes(a.id) ? "bg-red-50" : ""}`}>
                     <td className="px-2 py-1.5">
+                      {(v?.fase || v?.sottofase) && <p className="text-xs text-muted-foreground">{[v.fase, v.sottofase].filter(Boolean).join(" · ")}</p>}
                       <p>{v?.descrizione ?? "Voce"}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {nel ? `nel contratto: ${qt(a.quantita)} ${v?.unita ?? ""} × ${formatCurrency(a.prezzo_unitario ?? 0)}` : "affidata, non ancora nel contratto"}
                         {v ? ` · voce della commessa ${qt(v.quantita)} ${v.unita ?? ""}` : ""}
                       </p>
                     </td>
-                    <td className="px-1 py-1.5"><Input aria-label={`Quantità di ${v?.descrizione ?? "voce"}`} inputMode="decimal" value={s.quantita} placeholder={nel ? "" : "0"}
+                    <td className="px-1 py-1.5"><Input aria-label={`Quantità di ${nomeVoce}`} inputMode="decimal" value={s.quantita} placeholder={nel ? "" : "0"}
                       onChange={(e) => scrivi(a, "quantita", e.target.value)} className="h-8 text-right tabular-nums" /></td>
-                    <td className="px-1 py-1.5"><Input aria-label={`Prezzo di ${v?.descrizione ?? "voce"}`} inputMode="decimal" value={s.prezzo}
+                    <td className="px-1 py-1.5"><Input aria-label={`Prezzo di ${nomeVoce}`} inputMode="decimal" value={s.prezzo}
                       onChange={(e) => scrivi(a, "prezzo", e.target.value)} className="h-8 text-right tabular-nums" /></td>
                     <td className="whitespace-nowrap px-2 pt-3 text-right tabular-nums">{formatCurrency(cent(q * p))}</td>
                   </tr>
